@@ -15,7 +15,7 @@
 .landing__title-line { font-family: var(--cic-display); font-weight: 400; font-size: clamp(2.5rem, 6vw, 5.5rem); text-transform: uppercase; letter-spacing: 0.015em; }
 .landing__title-sub { font: 0.7rem/1.6 var(--cic-mono); letter-spacing: 0.25em; }
 .arrival-manifest { border: 1px solid var(--cic-rule); background: #080e1259; }
-.arrival-manifest__footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem 1.25rem; }
+.arrival-manifest__footer { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem 1.25rem; }
 .arrival-manifest__footer { border-top: 1px solid var(--cic-rule); }
 .arrival-manifest__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .arrival-readout { display: grid; place-items: center; min-height: clamp(12rem, 28vw, 20rem); padding: clamp(1rem, 3vw, 2rem); min-width: 0; }
@@ -56,5 +56,3 @@
 @media (prefers-reduced-motion: reduce) {
   .arrival-digit, .arrival-transmission { animation: none; }
 }
-/* The stop control must remain visible during a transmission, too. */
-.arrival-manifest__footer .cic-text-button { position: relative; z-index: 6; background: var(--cic-void); }

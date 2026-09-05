@@ -42,8 +42,8 @@ A COLD GRAVE AWAITS YOU.
 Manifest values cycle in listed order every 10 seconds, with first changes at
 10/13/16 seconds: 6,7,5,0,1,3,4; 20,18,8,6,0,21; and 1,?,2.
 Resolve digits once over 1.1 seconds; never rapidly flicker.
-Provide a reachable Pause effects control. Reduced motion starts paused and a
-new reduced-motion preference pauses ongoing effects. Clean up timers on exit.
+Reduced motion starts paused and a new reduced-motion preference pauses ongoing
+effects. Do not add a manual motion control. Clean up timers on exit.
 These are conservative motion choices, not a medical guarantee.
 
 ## Every viewport
