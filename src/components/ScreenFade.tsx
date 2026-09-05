@@ -28,6 +28,11 @@ const sharedShipForCrossing = (fromPath: string, toPath: string): string | null 
   return fromShipId && fromShipId === toShipId ? fromShipId : null;
 };
 
+// Routed content forms a stacking context at 19. Console artwork belongs below
+// that entire context; a higher z-index on a pane inside it cannot cover a clone.
+const flagLayer = (flag: HTMLImageElement): string =>
+  flag.dataset.sharedFlagLayer === 'background' ? '18' : '20';
+
 /**
  * Holds the outgoing screen on stage while it fades, then swaps and brings the
  * new one in. `Routes` reads the location from context, so an already-rendered
@@ -78,6 +83,7 @@ export default function ScreenFade({
     const destinationObjectPosition = destinationStyle.objectPosition;
     const clone = move.clone;
     Object.assign(clone.style, {
+      zIndex: flagLayer(destination),
       transition: `left ${SHARED_FLAG_MOVE_MS}ms ease-in-out, top ${SHARED_FLAG_MOVE_MS}ms ease-in-out, width ${SHARED_FLAG_MOVE_MS}ms ease-in-out, height ${SHARED_FLAG_MOVE_MS}ms ease-in-out, opacity ${SHARED_FLAG_MOVE_MS}ms ease-in-out, object-position ${SHARED_FLAG_MOVE_MS}ms ease-in-out`,
     });
     destination.style.visibility = 'hidden';
@@ -130,7 +136,7 @@ export default function ScreenFade({
       const clone = source.cloneNode(true) as HTMLImageElement;
       Object.assign(clone.style, {
         position: 'fixed',
-        zIndex: '20',
+        zIndex: flagLayer(source),
         left: `${sourceRect.left}px`,
         top: `${sourceRect.top}px`,
         width: `${sourceRect.width}px`,

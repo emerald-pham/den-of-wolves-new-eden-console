@@ -136,6 +136,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         src={ship.flag}
         alt={`${ship.nation} flag`}
         data-shared-flag={ship.id}
+        data-shared-flag-layer="background"
         style={{ viewTransitionName: 'shared-ship-flag' }}
       />
       <section className="ship-console__identity" aria-labelledby="ship-name">

@@ -50,6 +50,7 @@ function RapidFlagHarness() {
         <img
           data-shared-flag="aegis"
           alt={`Flag ${location.pathname}`}
+          data-shared-flag-layer={location.pathname.endsWith('/roles') ? undefined : 'background'}
           style={{ objectFit: 'contain', objectPosition: 'center center' }}
         />
       )}</ScreenFade>
@@ -71,6 +72,7 @@ function RouteAwareFlagHarness({ to }: { to: string }) {
         <img
           data-shared-flag="aegis"
           alt={`Flag ${location.pathname}`}
+          data-shared-flag-layer={location.pathname.endsWith('/roles') ? undefined : 'background'}
           style={{ objectFit: 'contain', objectPosition: 'center center' }}
         />
       )}</ScreenFade>
@@ -233,7 +235,37 @@ describe('ScreenFade', () => {
     window.matchMedia = userMotion;
   });
 
-  it('keeps the shared move when returning from a ship console to command-role selection', () => {
+  it.each(['/ships/aegis/roles/commander', '/ships/aegis/observer', '/ships/aegis'])(
+    'moves the flag behind the console foreground when entering %s', (to) => {
+      vi.useFakeTimers();
+      vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
+      render(
+        <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+          <RouteAwareFlagHarness to={to} />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+      const clone = document.querySelector<HTMLImageElement>('.shared-flag-transition');
+      // The picker panel must not cover its own moving flag.
+      expect(clone).toHaveStyle({ zIndex: '20' });
+
+      act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
+      // The routed foreground occupies layer 19. Its children cannot escape
+      // that stacking context, even when the identity pane has z-index 21.
+      expect(clone).toHaveStyle({ zIndex: '18' });
+      act(() => vi.advanceTimersByTime(20));
+      expect(clone).toHaveStyle({ zIndex: '18' });
+
+      act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS));
+      expect(clone).not.toBeInTheDocument();
+      expect(screen.getByRole('img', { name: `Flag ${to}` })).toBeVisible();
+    },
+  );
+
+  it('keeps the flag behind the outgoing console before moving above the role picker', () => {
     vi.useFakeTimers();
     const userMotion = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
@@ -247,7 +279,13 @@ describe('ScreenFade', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
 
-    expect(document.querySelector('.shared-flag-transition')).toBeInTheDocument();
+    const clone = document.querySelector('.shared-flag-transition');
+    expect(clone).toHaveStyle({ zIndex: '18' });
+    act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
+    expect(clone).toHaveStyle({ zIndex: '20' });
+    act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));
+    expect(clone).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Flag /ships/aegis/roles' })).toBeVisible();
     window.matchMedia = userMotion;
   });
 });

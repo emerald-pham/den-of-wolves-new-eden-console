@@ -439,10 +439,16 @@ crossing it rises to `z-index: 5`, one explicit layer above the compact contact
 plot and below the persistent header, so the resizing plot cannot abruptly
 cover the outgoing screen. Opacity belongs to the nested
 `.screen-fade__content`, leaving the moving shared-flag clone continuously
-visible as its surrounding screens fade. The clone stays in `.screen-fade`,
-one explicit layer above the routed-content layer, so panel backgrounds cannot
-cover it during the move. When the move finishes, the clone is removed and the
-real destination flag returns to its normal place beneath the ship identity.
+visible as its surrounding screens fade. The clone stays in `.screen-fade`.
+Role-picker flags move at layer 20, above the routed-content layer at 19, so the
+picker panel cannot cover its flag. Console flags declare
+`data-shared-flag-layer="background"` and move at layer 18, beneath the entire
+routed foreground, so they cannot cover the ship identity or instruments.
+The clone takes the outgoing flag's layer immediately, then the destination's
+layer when the screen swaps, before the destination starts fading in. Raising
+the identity pane alone cannot fix this: its z-index is trapped inside the
+routed-content stacking context. When the move finishes, the clone is removed
+and the real destination flag returns to its normal place.
 The floating clone is limited to crossings between two routes for the same
 ship. Fleet-card and command-role-picker flags crossfade with their screens;
 floating a card flag over the opaque role-picker panel creates a visible flash.

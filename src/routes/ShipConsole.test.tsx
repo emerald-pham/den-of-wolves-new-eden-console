@@ -62,6 +62,8 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByText(/south american nations/i)).toBeInTheDocument();
   expect(screen.getByText(/supplies the fleet with essential food, water, and materials/i)).toBeInTheDocument();
   expect(screen.getByRole('img', { name: /south american nations flag/i })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: /south american nations flag/i }))
+    .toHaveAttribute('data-shared-flag-layer', 'background');
   expect(screen.getByRole('link', { name: /leave ship/i })).toHaveAttribute('href', '/console');
   expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i })).toBeDisabled();
