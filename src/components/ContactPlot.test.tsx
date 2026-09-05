@@ -229,10 +229,10 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     return 1;
   }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
-  const painted: Element[] = [];
+  const painted: { element: Element; keyframes: Keyframe[] }[] = [];
   const cancel = vi.fn();
-  Object.defineProperty(Element.prototype, 'animate', { configurable: true, writable: true, value: vi.fn(function (this: Element) {
-    painted.push(this);
+  Object.defineProperty(Element.prototype, 'animate', { configurable: true, writable: true, value: vi.fn(function (this: Element, keyframes: Keyframe[]) {
+    painted.push({ element: this, keyframes });
     return { cancel } as unknown as Animation;
   }) });
   let normal = { x: 0, y: 0, z: 1 };
@@ -265,7 +265,8 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
-  expect(painted.map((e) => e.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
+  expect(painted.map(({ element }) => element.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
+  expect(painted[0]?.keyframes[0]?.transform).toBe('scale(2)');
   const fix = apparent()?.style.cssText;
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(48));
@@ -277,6 +278,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   act(() => frame(80));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
   expect(apparent()?.style.cssText).not.toBe(fix);
+  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(1)');
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
   expect(cancel).toHaveBeenCalled();
