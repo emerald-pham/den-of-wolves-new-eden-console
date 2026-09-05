@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
+import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { SHIPS } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
@@ -33,6 +34,9 @@ export default function GmConsole() {
   const [loading, setLoading] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
+  const dradisRef = useRef<HTMLElement>(null);
+  const dradisPreviousBounds = useRef<DOMRect | null>(null);
+  const dradisAnimation = useRef<Animation | null>(null);
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
@@ -71,6 +75,35 @@ export default function GmConsole() {
     color: ship.color,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
+
+  useLayoutEffect(() => {
+    const dradis = dradisRef.current;
+    const previous = dradisPreviousBounds.current;
+    dradisPreviousBounds.current = null;
+    if (!dradis || !previous || typeof dradis.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+    const next = dradis.getBoundingClientRect();
+    if (next.width === 0 || next.height === 0) return;
+    dradisAnimation.current = dradis.animate([
+      {
+        transform: `translate(${previous.left - next.left}px, ${previous.top - next.top}px) ` +
+          `scale(${previous.width / next.width}, ${previous.height / next.height})`,
+      },
+      { transform: 'none' },
+    ], {
+      duration: DRADIS_RESIZE_MS,
+      easing: 'ease-in-out',
+    });
+  }, [dradisExpanded]);
+
+  const toggleDradis = () => {
+    const dradis = dradisRef.current;
+    if (dradis) dradisPreviousBounds.current = dradis.getBoundingClientRect();
+    dradisAnimation.current?.cancel();
+    dradisAnimation.current = null;
+    setDradisExpanded((expanded) => !expanded);
+  };
 
   useEffect(() => {
     if (!isGm || !sessionId) return;
@@ -215,6 +248,7 @@ export default function GmConsole() {
 
         <div className="gm-console__grid">
           <section
+            ref={dradisRef}
             className="gm-console__module gm-dradis cic-frame"
             aria-label="Fleet DRADIS"
             data-expanded={String(dradisExpanded)}
@@ -232,7 +266,7 @@ export default function GmConsole() {
                 type="button"
                 aria-label={`${dradisExpanded ? 'Collapse' : 'Expand'} DRADIS display`}
                 aria-pressed={dradisExpanded}
-                onClick={() => setDradisExpanded((expanded) => !expanded)}
+                onClick={toggleDradis}
               />
             </div>
             <div className="gm-dradis__controls">

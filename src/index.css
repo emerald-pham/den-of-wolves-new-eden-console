@@ -589,6 +589,7 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+  transform-origin: top left;
 }
 
 .gm-dradis__viewport {
@@ -863,6 +864,15 @@ body {
 
 .ship-role-select__intro {
   min-width: 0;
+}
+
+.ship-role-select__flag {
+  width: min(100%, 18rem);
+  height: clamp(9rem, 24vw, 16rem);
+  display: block;
+  margin: 0 0 clamp(1rem, 3vw, 2rem);
+  object-fit: contain;
+  object-position: left center;
 }
 
 .ship-role-select .role-select__grid {

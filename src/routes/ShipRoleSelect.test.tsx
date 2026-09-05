@@ -20,13 +20,13 @@ beforeEach(() => {
   useSessionStore.getState().setMode('console');
 });
 
-it('offers the three AEGIS command roles and opens their shared console', async () => {
+it('offers the three AEGIS command roles with the ship flag and no repeated console copy', async () => {
   const user = userEvent.setup();
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles']}>
       <Routes>
         <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
-        <Route path="/ships/:shipId/roles/:roleId" element={<p>Shared AEGIS console</p>} />
+        <Route path="/ships/:shipId/roles/:roleId" element={<p>AEGIS console</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -35,9 +35,11 @@ it('offers the three AEGIS command roles and opens their shared console', async 
   expect(screen.getByRole('link', { name: /^executive officer$/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /^wing commander$/i })).toBeInTheDocument();
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('img', { name: /interstellar council service navy flag/i })).toBeInTheDocument();
+  expect(screen.queryByText(/shared aegis command/i)).not.toBeInTheDocument();
 
   await user.click(screen.getByRole('link', { name: /^executive officer$/i }));
-  expect(screen.getByText('Shared AEGIS console')).toBeInTheDocument();
+  expect(screen.getByText('AEGIS console')).toBeInTheDocument();
 });
 
 it('returns to the fleet roster through a visible control', async () => {
