@@ -190,6 +190,9 @@ describe('friendly DRADIS returns', () => {
     expect(apparent).toContain('opacity: 0');
     expect(apparent).toContain('plot-acquire');
     expect(apparent).toContain('plot-drift');
+    // The one-millisecond acquisition must interpolate: Safari/WebKit can
+    // retain the `from` opacity with a stepped endpoint at 0.999… progress.
+    expect(apparent).toContain('linear, steps(1, end)');
     expect(apparent).toContain('steps(1, end)');
     expect(apparent).toContain('calc(var(--phase) * var(--plot-turn) / 2)');
     expect(apparent).toContain(
