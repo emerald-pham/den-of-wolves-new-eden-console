@@ -5,16 +5,11 @@ import { useEffect, useState, type CSSProperties } from 'react';
  *
  * A spherical scan is not a flat sweep on a floor: it is a two-dimensional
  * circle turning through a three-dimensional volume. So the board is a
- * wireframe sphere -- meridians and parallels -- with a single ring turning
- * through it, and contacts hung anywhere inside that volume rather than pinned
- * to one plane. Perspective does the depth work: a contact behind the centre
- * is genuinely further from the camera and paints smaller.
- *
- * The ring sweeps as widely as it can because its two rotations run at
- * different rates -- it turns about one axis inside a gimbal turning about
- * another at half the speed -- so its plane never repeats the same pass twice
- * in a row. One element cannot animate two rotations at two rates, which is
- * why the gimbal exists.
+ * wireframe sphere -- meridians and parallels -- with two discs turning
+ * through it on different axes at different rates, and contacts hung anywhere
+ * inside that volume rather than pinned to one plane. Perspective does the
+ * depth work: a contact behind the centre is genuinely further from the camera
+ * and paints smaller.
  *
  * Assume the board is on screen at all times. A route chooses how prominent it
  * is -- full-bleed behind everything, or inset at whatever size suits the
@@ -151,9 +146,8 @@ export default function ContactPlot({
         ))}
         <span className="contact-plot__limb" />
         <div className="contact-plot__boost">
-          <div className="contact-plot__gimbal">
-            <div className="contact-plot__sweep" />
-          </div>
+          <div className="contact-plot__sweep" />
+          <div className="contact-plot__sweep contact-plot__sweep--polar" />
         </div>
         {tracks.map((track, index) => (
           <div

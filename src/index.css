@@ -72,6 +72,22 @@ body {
   text-transform: uppercase;
 }
 
+/* Screen crossings ---------------------------------------------------- */
+
+/* Positioned deliberately: an opacity below 1 makes this a stacking context,
+   and an unpositioned one would paint in the in-flow layer -- underneath the
+   contact plot at z-index 0, so the board would jump in front of the interface
+   for the length of every crossing. */
+.screen-fade {
+  position: relative;
+  z-index: 1;
+  transition: opacity 100ms ease;
+}
+
+.screen-fade[data-phase='out'] {
+  opacity: 0;
+}
+
 /* Shared app chrome -------------------------------------------------- */
 
 .app-header {
@@ -509,6 +525,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .landing__button,
   .role-card {
+    transition: none;
+  }
+
+  /* Hold the outgoing screen at full strength rather than blinking it out:
+     without the transition, fading to zero would be a flash, not a fade. */
+  .screen-fade,
+  .screen-fade[data-phase='out'] {
+    opacity: 1;
     transition: none;
   }
 }

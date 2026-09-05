@@ -119,6 +119,20 @@ describe('App', () => {
     expect(container.querySelector('.contact-plot')).toHaveAttribute('aria-hidden', 'true');
   });
 
+  it('keeps the header, the settings menu and the board out of the screen fade', () => {
+    useSessionStore.getState().setSession(session);
+    render(<App />);
+
+    // The fade wrapper is chrome with no role, name or text of its own.
+    const fade = document.querySelector('.screen-fade');
+    expect(fade).toHaveAttribute('data-phase', 'in');
+    // The board is the room the interface sits in; it never crosses with it.
+    expect(fade?.querySelector('.contact-plot')).toBeNull();
+    // Header chrome persists across screens, and the settings menu lives in it.
+    expect(fade?.querySelector('.app-header')).toBeNull();
+    expect(fade?.contains(screen.getByRole('button', { name: /settings/i }))).toBe(false);
+  });
+
   it('disconnects robustly from settings and returns home', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/console';
@@ -133,7 +147,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /disconnect/i }));
 
     expect(
-      screen.getByRole('heading', { name: /Den of Wolves: New Eden/i }),
+      await screen.findByRole('heading', { name: /Den of Wolves: New Eden/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/');
     expect(useSessionStore.getState().session).toBeNull();
