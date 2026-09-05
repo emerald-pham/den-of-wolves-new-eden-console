@@ -1405,6 +1405,34 @@ body {
   cursor: zoom-in;
 }
 
+.ship-plot__compact-controls {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.45rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.ship-plot__compact-controls .ship-plot__toggle {
+  position: static;
+}
+
+.ship-plot__galactic-coordinate {
+  color: var(--cic-cyan);
+  font: 0.64rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ship-plot[data-expanded='true'] > .ship-plot__galactic-coordinate {
+  position: absolute;
+  top: max(4.7rem, env(safe-area-inset-top));
+  left: max(1rem, env(safe-area-inset-left));
+  z-index: 4;
+}
+
 .ship-plot__toggle:focus-visible {
   outline: 2px solid var(--cic-amber);
   outline-offset: 2px;

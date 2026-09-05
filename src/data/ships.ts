@@ -102,6 +102,11 @@ export const SHIPS: readonly Ship[] = [
   },
 ];
 
+export const ORIGIN_GALACTIC_COORDINATE = '0000';
+
+export const INITIAL_SHIP_GALACTIC_COORDINATES: Readonly<Record<string, string>> =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, ORIGIN_GALACTIC_COORDINATE]));
+
 export function findShip(id: string | undefined): Ship | undefined {
   return SHIPS.find((ship) => ship.id === id);
 }
