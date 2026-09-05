@@ -32,7 +32,7 @@ const manifests: readonly {
   offset: number;
   draw: Draw;
 }[] = [
-  { label: 'SHIPS IN CONVOY', start: '6', offset: 0, draw: inRange(1, 7) },
+  { label: 'SHIPS IN CONVOY', start: '6', offset: 0, draw: inOrder(['6', '7']) },
   { label: 'CREW', start: '20', offset: CYCLE_MS * 0.3, draw: inRange(8, 21) },
   { label: 'WOLVES AMONG US', start: '1', offset: CYCLE_MS * 0.6, draw: inOrder(['1', '?', '2']) },
 ];

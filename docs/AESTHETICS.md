@@ -22,11 +22,12 @@ is 90°, every division is a hairline rule or a tick strip, nothing is a
 container with a personality. `--cic-radius` is `0` and it is never overridden.
 If a new pattern would look at home in a Star Trek okudagram, it is wrong here.
 
-**2. Borrow the grammar, never the vocabulary.** The look is a reference; the
-words are ours. No franchise proper nouns anywhere a player can read them —
-not in a heading, not in a status line, not in decorative text inside the
-contact plot. DRADIS and COLONIAL are out. CIC is an actual naval term and
-stays.
+**2. Borrow the grammar, and name the instrument honestly.** The look is a
+reference; the words are ours, with two deliberate exceptions: CIC is an
+actual naval term, and the fleet's spherical detection instrument is called
+DRADIS because that is the clearest and most enjoyable name for it. Other
+franchise proper nouns remain out of player-facing headings, status lines and
+decorative readouts.
 
 **3. The screen is an instrument, not a page.** Everything on it is a
 measurement, the label of a measurement, or the frame around one. There are no
@@ -106,6 +107,12 @@ charts that imply real data, and flashing.
 Amber is never a highlight for its own sake and cyan is never structure. If a
 value changes, it is cyan; if it frames or labels, it is amber.
 
+Faction identity is a narrow exception on fleet-selection and joined-ship
+screens. The `--cic-faction-*` tokens are sampled from the supplied flag PNGs
+and may color a ship's nameplate, national rule and friendly DRADIS return.
+They do not replace amber structure, cyan instrumentation or red threat state
+elsewhere. This makes faction color informational rather than ornamental.
+
 Type: `--cic-mono` for every label, control and readout caption, always
 uppercase with wide tracking; `--cic-display` for manifest numbers and
 cinematic headlines. System fonts only, no external font dependency.
@@ -129,9 +136,9 @@ Arrival readouts show a changing value with its descriptive label underneath:
 SHIPS IN CONVOY, CREW, and WOLVES AMONG US, in that order. Keep these labels
 visible at every viewport size. Hide the sequences of possible numbers; do not
 confuse those sequences with the descriptive labels. Do not show a SCENARIO
-SIGNAL footer. Avoid franchise-specific terminology such as DRADIS and
-COLONIAL anywhere a player can read it — including decorative text inside the
-contact plot; CIC is permitted. Use a three-column display on wide screens and
+SIGNAL footer. Avoid other franchise-specific terminology anywhere a player
+can read it, including decorative text inside the contact plot. CIC and DRADIS
+are the deliberate exceptions. Use a three-column display on wide screens and
 compact stacked readouts on phones. Preserve native buttons, labels, visible
 keyboard focus, error announcements, and at least 44px touch targets.
 
@@ -341,8 +348,8 @@ a ref so a parent handing over a fresh closure cannot restart the timers.
 
 Readouts turn over every 7.5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 7.5/9.75/12 seconds.
-SHIPS IN CONVOY draws at random from 1–7 and CREW from 8–21; WOLVES AMONG US
-walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
+SHIPS IN CONVOY alternates between 6 and 7, while CREW draws from 8–21;
+WOLVES AMONG US walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
 is already showing: a readout that "changes" to what it already reads looks like
 a panel that has stopped working.
 Resolve digits once over 1.1 seconds; never rapidly flicker.

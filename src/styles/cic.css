@@ -24,6 +24,17 @@
   --cic-blood: #6d120e;
   --cic-scream: #ffd9d0;
 
+  /* Faction markings. Sampled from the supplied flag artwork and confined to
+     ship identity and friendly contact returns. */
+  --cic-faction-icn: #0009ff;
+  --cic-faction-fas: #5b92e5;
+  --cic-faction-cpa: #ef2900;
+  --cic-faction-san: #fed018;
+  --cic-faction-rosal: #f91d1d;
+  --cic-faction-proxima: #00a654;
+  --cic-faction-gliese: #70300a;
+  --cic-faction-gliese-secondary: #00a654;
+
   --cic-rule: #5c3312;
   --cic-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --cic-display: "Arial Narrow", Impact, sans-serif;

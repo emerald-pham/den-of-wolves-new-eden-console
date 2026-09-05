@@ -132,7 +132,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /roles connected/i }),
+      await screen.findByRole('heading', { name: /join a ship/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
   });
@@ -162,7 +162,7 @@ describe('App', () => {
 
   it.each([
     ['/roles', /connect this device/i],
-    ['/console', /roles connected/i],
+    ['/console', /join a ship/i],
   ])('keeps the contact plot behind %s, not just the launcher', async (route, heading) => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
@@ -188,6 +188,61 @@ describe('App', () => {
     // Header chrome persists across screens, and the settings menu lives in it.
     expect(fade?.querySelector('.app-header')).toBeNull();
     expect(fade?.contains(screen.getByRole('button', { name: /settings/i }))).toBe(false);
+  });
+
+  it('shrinks the tactical display after joining a ship and toggles full-screen on activation', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/ships/capybara';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/ships/capybara');
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Capybara' })).toBeInTheDocument();
+    const display = screen.getByRole('button', { name: /expand dradis display/i });
+    expect(screen.getByText('DRADIS // FULL SCREEN')).toBeInTheDocument();
+    expect(container.querySelector('.contact-plot')).toHaveAttribute('data-placement', 'widget');
+
+    await user.click(display);
+    expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
+    expect(screen.getByText('DRADIS // RETURN')).toBeInTheDocument();
+    expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'true');
+
+    await user.click(screen.getByRole('button', { name: /collapse dradis display/i }));
+    expect(screen.getByRole('button', { name: /expand dradis display/i })).toBeInTheDocument();
+    expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
+  });
+
+  it('rebases the named fleet contacts around the joined ship and returns to the AEGIS view', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/console';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/console');
+
+    const { container } = render(<App />);
+    expect(await screen.findByRole('heading', { name: /join a ship/i })).toBeInTheDocument();
+
+    const center = () => container.querySelector('.contact-plot__origin')?.textContent;
+    const contacts = () => Array.from(container.querySelectorAll('.contact-plot__contact .contact-plot__tag'))
+      .map((tag) => tag.textContent);
+
+    expect(center()).toBe('AEGIS');
+    expect(contacts()).toEqual(expect.arrayContaining([
+      'DIONE', 'ICEBREAKER', 'CAPYBARA', 'SHEPHERD', 'QUELLON', 'REFINERY 124',
+    ]));
+    expect(contacts()).not.toContain('AEGIS');
+
+    await user.click(screen.getByRole('link', { name: /join quellon/i }));
+    expect(await screen.findByRole('heading', { name: 'Quellon' })).toBeInTheDocument();
+    expect(center()).toBe('QUELLON');
+    expect(contacts()).toContain('AEGIS');
+    expect(contacts()).not.toContain('QUELLON');
+
+    await user.click(screen.getByRole('link', { name: /leave ship/i }));
+    expect(await screen.findByRole('heading', { name: /join a ship/i })).toBeInTheDocument();
+    expect(center()).toBe('AEGIS');
   });
 
   it('disconnects robustly from settings and returns home', async () => {

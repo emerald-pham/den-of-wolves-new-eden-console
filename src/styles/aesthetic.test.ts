@@ -126,3 +126,25 @@ describe('the CIC frame', () => {
     expect(cast.filter((shadow) => !GRANDFATHERED.has(shadow))).toEqual([]);
   });
 });
+
+describe('the in-session header', () => {
+  it('centres the session label and code on a shared two-column grid', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const badge = index.match(/\.session-badge\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(badge).toContain('display: grid');
+    expect(badge).toContain('grid-template-columns: auto auto');
+    expect(badge).toContain('align-items: center');
+  });
+});
+
+describe('friendly DRADIS returns', () => {
+  it('inherits each faction color from the positioned contact', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const contact = plot.match(/\.contact-plot__contact\s*\{([^}]*)\}/)?.[1] ?? '';
+    const jitter = plot.match(/\.contact-plot__jitter\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(contact).toContain('--contact-ink: var(--plot-hot)');
+    expect(jitter).not.toContain('--contact-ink:');
+  });
+});

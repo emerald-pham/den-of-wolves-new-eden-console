@@ -41,7 +41,7 @@ it('walks the wolves readout through its listed order', () => {
   expect(readout(3)).toHaveTextContent('1');
 });
 
-it('draws ships from one to seven and crew from eight to twenty-one', () => {
+it('alternates the convoy between six and seven ships while crew stays in range', () => {
   render(<ArrivalDisplay />);
   const ships = [shown(1)];
   const crew = [shown(2)];
@@ -57,12 +57,9 @@ it('draws ships from one to seven and crew from eight to twenty-one', () => {
     crew.push(shown(2));
   }
 
-  expect(new Set(ships).size).toBeGreaterThan(1);
+  expect(ships.slice(0, 6)).toEqual(['6', '7', '6', '7', '6', '7']);
+  expect(new Set(ships)).toEqual(new Set(['6', '7']));
   expect(new Set(crew).size).toBeGreaterThan(1);
-  for (const value of ships) {
-    expect(Number(value)).toBeGreaterThanOrEqual(1);
-    expect(Number(value)).toBeLessThanOrEqual(7);
-  }
   for (const value of crew) {
     expect(Number(value)).toBeGreaterThanOrEqual(8);
     expect(Number(value)).toBeLessThanOrEqual(21);

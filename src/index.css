@@ -197,8 +197,9 @@ body {
 }
 
 .session-badge {
-  display: inline-flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
   gap: 0.55rem;
   min-height: 2.5rem;
   padding: 0.35rem 0.7rem;
@@ -214,6 +215,7 @@ body {
   font-size: 0.62rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  line-height: 1;
 }
 
 .session-badge__code {
@@ -221,6 +223,7 @@ body {
   font-size: 1rem;
   letter-spacing: 0.16em;
   color: var(--cic-cyan);
+  line-height: 1;
 }
 
 .indicator {
@@ -604,6 +607,270 @@ body {
   color: var(--cic-amber);
 }
 
+/* Fleet roster ------------------------------------------------------ */
+
+.fleet-roster {
+  position: relative;
+  z-index: 1;
+  width: min(82rem, 100%);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: clamp(6rem, 12vh, 8rem) clamp(1rem, 4vw, 3rem) 3rem;
+}
+
+.fleet-roster__header {
+  max-width: 42rem;
+  margin-bottom: clamp(2rem, 5vw, 4rem);
+}
+
+.fleet-group + .fleet-group { margin-top: clamp(2.5rem, 6vw, 5rem); }
+
+.fleet-group__title {
+  margin: 0 0 1rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--cic-rule);
+  color: var(--cic-amber);
+  font: 0.72rem/1.4 var(--cic-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.fleet-group__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.fleet-card {
+  --ship-accent: var(--cic-cyan);
+  min-height: clamp(15rem, 30vw, 20rem);
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--ship-accent) 58%, var(--cic-rule));
+  background: var(--cic-panel);
+}
+
+.fleet-card--aegis { --ship-accent: var(--cic-faction-icn); }
+.fleet-card--dione { --ship-accent: var(--cic-faction-fas); }
+.fleet-card--icebreaker { --ship-accent: var(--cic-faction-cpa); }
+.fleet-card--capybara { --ship-accent: var(--cic-faction-san); }
+.fleet-card--shepherd { --ship-accent: var(--cic-faction-rosal); }
+.fleet-card--quellon { --ship-accent: var(--cic-faction-proxima); }
+.fleet-card--refinery-124 { --ship-accent: var(--cic-faction-gliese); }
+
+.fleet-card__link {
+  position: relative;
+  z-index: 1;
+  min-height: inherit;
+  display: grid;
+  align-items: end;
+  color: var(--cic-ink);
+  text-decoration: none;
+}
+
+.fleet-card__link:focus-visible {
+  outline: 2px solid var(--ship-accent);
+  outline-offset: -4px;
+}
+
+.fleet-card__flag {
+  position: absolute;
+  top: 50%;
+  right: clamp(-2rem, -2vw, -0.5rem);
+  width: min(72%, 20rem);
+  height: min(92%, 20rem);
+  object-fit: contain;
+  transform: translateY(-50%);
+  opacity: 0.72;
+}
+
+.fleet-card__content {
+  position: relative;
+  z-index: 1;
+  width: min(72%, 28rem);
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem;
+  padding: 1rem;
+  border-left: 3px solid var(--ship-accent);
+  background: color-mix(in srgb, var(--cic-void) 90%, transparent);
+}
+
+.fleet-card__nation,
+.fleet-card__action,
+.ship-console__nation,
+.ship-console__type {
+  font: 0.65rem/1.5 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.fleet-card__nation { color: var(--ship-accent); }
+
+.fleet-card__name {
+  color: var(--cic-ink);
+  font: 400 clamp(1.8rem, 4vw, 3.1rem)/0.95 var(--cic-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.fleet-card__description {
+  color: var(--cic-muted);
+  font: 0.73rem/1.55 var(--cic-mono);
+}
+
+.fleet-card__action {
+  justify-self: start;
+  margin-top: 0.3rem;
+  color: var(--cic-cyan);
+}
+
+.fleet-card__action::after {
+  content: " →";
+  color: var(--ship-accent);
+}
+
+/* Joined ship identity --------------------------------------------- */
+
+.ship-console {
+  --ship-accent: var(--cic-cyan);
+  --ship-secondary: var(--cic-ink);
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding: clamp(6rem, 13vh, 9rem) clamp(1rem, 5vw, 4rem) 2rem;
+}
+
+.ship-console--aegis { --ship-accent: var(--cic-faction-icn); }
+.ship-console--dione { --ship-accent: var(--cic-faction-fas); }
+.ship-console--icebreaker { --ship-accent: var(--cic-faction-cpa); }
+.ship-console--capybara { --ship-accent: var(--cic-faction-san); }
+.ship-console--shepherd { --ship-accent: var(--cic-faction-rosal); }
+.ship-console--quellon { --ship-accent: var(--cic-faction-proxima); }
+.ship-console--refinery-124 {
+  --ship-accent: var(--cic-faction-gliese);
+  --ship-secondary: var(--cic-faction-gliese-secondary);
+}
+
+.ship-console__flag {
+  position: absolute;
+  left: clamp(1rem, 8vw, 8rem);
+  top: 50%;
+  width: min(62vmin, 42rem);
+  height: min(62vmin, 42rem);
+  object-fit: contain;
+  transform: translateY(-46%);
+  opacity: 0.78;
+}
+
+.ship-console__identity {
+  position: absolute;
+  left: clamp(1rem, 5vw, 4rem);
+  right: clamp(1rem, 5vw, 4rem);
+  bottom: max(2rem, env(safe-area-inset-bottom));
+  width: min(42rem, calc(100% - 2rem));
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border-top: 2px solid var(--ship-accent);
+  border-left: 1px solid var(--ship-secondary);
+  background: color-mix(in srgb, var(--cic-void) 91%, transparent);
+}
+
+.ship-console__back {
+  display: inline-flex;
+  margin: -0.5rem 0 1rem -0.65rem;
+  text-decoration: none;
+}
+
+.ship-console__back::before {
+  content: "←";
+  margin-right: 0.55rem;
+  color: var(--ship-accent);
+}
+
+.ship-console__nation {
+  margin: 0 0 0.45rem;
+  color: var(--ship-accent);
+}
+
+.ship-console__name {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 400 clamp(3.3rem, 12vw, 8.5rem)/0.82 var(--cic-display);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-shadow: 0 0 24px color-mix(in srgb, var(--ship-accent) 36%, transparent);
+}
+
+.ship-console__type {
+  margin: 0.9rem 0 0;
+  color: var(--ship-secondary);
+}
+
+.ship-console__description {
+  max-width: 38rem;
+  margin: 0.8rem 0 0;
+  color: var(--cic-muted);
+  font: 0.78rem/1.7 var(--cic-mono);
+}
+
+/* Shipboard DRADIS ------------------------------------------------- */
+
+.ship-plot[data-aboard='false'] { display: contents; }
+
+.ship-plot[data-aboard='true'] {
+  position: fixed;
+  top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 4;
+  width: clamp(10rem, 22vw, 17rem);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--cic-amber-dim);
+  background: var(--cic-void);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cic-cyan) 18%, transparent);
+  transition: width 180ms ease, inset 180ms ease;
+}
+
+.ship-plot[data-aboard='true'][data-expanded='true'] {
+  inset: 0;
+  z-index: 20;
+  width: auto;
+  height: auto;
+  aspect-ratio: auto;
+  border: 0;
+  background: color-mix(in srgb, var(--cic-void) 97%, transparent);
+}
+
+.ship-plot__label {
+  position: absolute;
+  top: 0.55rem;
+  left: 0.65rem;
+  z-index: 3;
+  color: var(--cic-amber);
+  font: 600 0.58rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  pointer-events: none;
+}
+
+.ship-plot__toggle {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--cic-radius);
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.ship-plot[data-expanded='true'] .ship-plot__toggle { cursor: zoom-out; }
+
+.ship-plot__toggle:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: -4px;
+}
+
 @media (max-width: 42rem) {
   .app-header {
     align-items: stretch;
@@ -621,6 +888,22 @@ body {
   .role-card {
     min-height: 7.5rem;
   }
+
+  .fleet-group__grid { grid-template-columns: 1fr; }
+  .fleet-card { min-height: 14rem; }
+  .fleet-card__content { width: min(82%, 24rem); }
+
+  .ship-console__flag {
+    left: 50%;
+    top: 46%;
+    width: min(82vw, 30rem);
+    height: min(82vw, 30rem);
+    transform: translate(-50%, -50%);
+    opacity: 0.58;
+  }
+
+  .ship-console__identity { bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .ship-plot[data-aboard='true'] { width: clamp(8.5rem, 36vw, 11rem); }
 }
 
 @media (max-width: 24rem) {
@@ -651,6 +934,8 @@ body {
   .role-card {
     transition: none;
   }
+
+  .ship-plot[data-aboard='true'] { transition: none; }
 
   /* Hold the outgoing screen at full strength rather than blinking it out:
      without the transition, fading to zero would be a flash, not a fade. */

@@ -183,8 +183,18 @@ it('runs full-bleed by default but lets a route inset it instead', () => {
   expect(plotIn(container)?.style.getPropertyValue('--plot-size')).toBe('18rem');
 });
 
-it('carries no franchise-specific terminology', () => {
+it('can become a compact shipboard widget without restarting its scan', () => {
+  const { container, rerender } = render(<ContactPlot />);
+  const originalRig = container.querySelector('.contact-plot__rig');
+
+  rerender(<ContactPlot placement="widget" />);
+
+  expect(plotIn(container)).toHaveAttribute('data-placement', 'widget');
+  expect(container.querySelector('.contact-plot__rig')).toBe(originalRig);
+});
+
+it('carries no unrelated franchise-specific terminology', () => {
   const { container } = render(<ContactPlot hostile />);
 
-  expect(container.textContent ?? '').not.toMatch(/dradis|colonial/i);
+  expect(container.textContent ?? '').not.toMatch(/colonial/i);
 });

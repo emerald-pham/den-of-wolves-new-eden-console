@@ -4,10 +4,11 @@ import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
 import SessionMode from '@/routes/SessionMode';
+import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
 import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
-import ContactPlot from '@/components/ContactPlot';
+import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -16,6 +17,8 @@ const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const SESSION_ROUTES = new Set(['/roles', '/gm', '/setup', '/console']);
+const isSessionRoute = (path: string): boolean =>
+  SESSION_ROUTES.has(path) || path.startsWith('/ships/');
 
 function AppRoutes() {
   const location = useLocation();
@@ -29,9 +32,12 @@ function AppRoutes() {
   // one continuous scan from the launcher through to a connected console,
   // rather than a fresh one that restarts its sweep on each route.
   const [intrusion, setIntrusion] = useState(false);
+  const shipId = location.pathname.startsWith('/ships/')
+    ? location.pathname.slice('/ships/'.length)
+    : 'aegis';
 
   useEffect(() => {
-    if (session && SESSION_ROUTES.has(location.pathname)) {
+    if (session && isSessionRoute(location.pathname)) {
       setLastRoute(location.pathname);
     }
   }, [location.pathname, session, setLastRoute]);
@@ -56,7 +62,7 @@ function AppRoutes() {
   }, [playerUid, sessionId]);
 
   const restoreRoute =
-    lastRoute && SESSION_ROUTES.has(lastRoute) ? lastRoute : '/roles';
+    lastRoute && isSessionRoute(lastRoute) ? lastRoute : '/roles';
   const home =
     session && me ? (
       <Navigate to={restoreRoute} replace />
@@ -66,7 +72,11 @@ function AppRoutes() {
 
   return (
     <>
-      <ContactPlot hostile={intrusion} />
+      <ShipPlot
+        hostile={intrusion}
+        aboard={location.pathname.startsWith('/ships/')}
+        viewerId={shipId}
+      />
       <AppHeader />
       <CommunicationError />
       <ScreenFade>
@@ -77,6 +87,7 @@ function AppRoutes() {
             <Route path="/gm" element={<GmConsole />} />
             <Route path="/setup" element={<SessionMode mode="setup" />} />
             <Route path="/console" element={<SessionMode mode="console" />} />
+            <Route path="/ships/:shipId" element={<ShipConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         )}

@@ -67,7 +67,8 @@
    that sits inside a panel at whatever size that panel wants. Both keep the
    same geometry -- only the diameter and the framing change. */
 
-.contact-plot[data-placement='inset'] {
+.contact-plot[data-placement='inset'],
+.contact-plot[data-placement='widget'] {
   position: absolute;
   --plot-size: 20rem;
   --plot-glow: 0.75;
@@ -83,6 +84,33 @@
   /* Looking very slightly down on the sphere reads as three-dimensional at a
      glance; straight on, a wireframe globe collapses into concentric circles. */
   transform: rotateX(14deg);
+}
+
+.contact-plot__origin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  color: var(--plot-hot);
+  font: 0.56rem/1 var(--cic-mono);
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+  text-indent: 0.8rem;
+  text-shadow: 0 0 9px var(--plot-hot);
+}
+
+.contact-plot__origin::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--plot-hot);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--plot-hot);
 }
 
 /* The cage ------------------------------------------------------------------
@@ -165,6 +193,7 @@
    on the far side is genuinely further from the camera and paints smaller. */
 
 .contact-plot__contact {
+  --contact-ink: var(--plot-hot);
   position: absolute;
   left: 50%;
   top: 50%;
@@ -192,8 +221,8 @@
   top: -4px;
   width: 8px;
   height: 8px;
-  background: var(--plot-hot);
-  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--plot-hot) 55%, transparent);
+  background: var(--contact-ink);
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--contact-ink) 55%, transparent);
   /* The sweep is a plane, so it crosses any given bearing twice a turn, and a
      contact flares as it is painted. --phase lines each blip up with the disc. */
   animation: plot-paint calc(var(--plot-turn) / 2) linear infinite;
@@ -225,7 +254,7 @@
   transform-origin: 0 0;
   transform: scaleY(var(--flip));
   background: linear-gradient(
-    color-mix(in srgb, var(--plot-hot) 40%, transparent),
+    color-mix(in srgb, var(--contact-ink) 40%, transparent),
     transparent
   );
 }
@@ -237,7 +266,7 @@
   font: 0.55rem/1 var(--cic-mono);
   letter-spacing: 0.18em;
   white-space: nowrap;
-  color: color-mix(in srgb, var(--plot-hot) 60%, var(--cic-ink));
+  color: color-mix(in srgb, var(--contact-ink) 72%, var(--cic-ink));
   opacity: calc(0.22 + var(--depth) * 0.55);
 }
 

@@ -28,7 +28,16 @@ type Track = {
   readonly elevation: number;
   /** Distance out from us: 0 at the centre of the sphere, 1 at its skin. */
   readonly range: number;
+  readonly color?: string;
 };
+
+export interface PlotContact {
+  readonly tag: string;
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly color: string;
+}
 
 /** Hand-placed rather than random, so the board is composed and never flickers
  *  into a new arrangement on re-render. */
@@ -100,6 +109,23 @@ function place({ bearing, elevation, range }: Track): PlotStyle {
   };
 }
 
+function placeCartesian({ x, y, z, color }: PlotContact): PlotStyle {
+  const range = Math.hypot(x, y, z);
+  const bearing = Math.atan2(x, z) * 180 / Math.PI;
+  return {
+    '--bearing': `${round(bearing)}deg`,
+    '--x': round(x),
+    '--y': round(y),
+    '--z': round(z),
+    '--depth': round((z + 1) / 2),
+    '--drop': round(Math.abs(y)),
+    '--flip': y < 0 ? 1 : -1,
+    '--phase': round(((((bearing % 180) + 180) % 180) / 180)),
+    '--contact-ink': color,
+    '--contact-range': round(range),
+  };
+}
+
 /** A parallel is a smaller circle lifted off the equator. */
 function ring(latitude: number): PlotStyle {
   const e = radians(latitude);
@@ -110,13 +136,17 @@ export default function ContactPlot({
   hostile = false,
   placement = 'field',
   size,
+  contacts,
+  centerLabel,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
    *  parent instead, for a board that sits inside a panel. */
-  placement?: 'field' | 'inset';
+  placement?: 'field' | 'inset' | 'widget';
   /** Any CSS length. Overrides the placement's default diameter. */
   size?: string | undefined;
+  contacts?: readonly PlotContact[] | undefined;
+  centerLabel?: string | undefined;
 }) {
   const [still, setStill] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
@@ -150,8 +180,12 @@ export default function ContactPlot({
   // to break up. Dropping them the instant the hack ends would cut the reveal
   // off at its first frame.
   const exposed = departing && !hostile;
-  const tracks: readonly { track: Track; spoof: boolean }[] = [
-    ...CONTACTS.map((track) => ({ track, spoof: false })),
+  const baseTracks: readonly { track: Track | PlotContact; spoof: boolean; cartesian: boolean }[] =
+    contacts
+      ? contacts.map((track) => ({ track, spoof: false, cartesian: true }))
+      : CONTACTS.map((track) => ({ track, spoof: false, cartesian: false }));
+  const tracks = [
+    ...baseTracks,
     ...(hostile || departing ? SPOOFED.map((track) => ({ track, spoof: true })) : []),
   ];
 
@@ -180,6 +214,7 @@ export default function ContactPlot({
           />
         ))}
         <span className="contact-plot__limb" />
+        {centerLabel ? <span className="contact-plot__origin">{centerLabel}</span> : null}
         <div className="contact-plot__boost">
           <div className="contact-plot__sweep" />
           <div className="contact-plot__sweep contact-plot__sweep--polar" />
@@ -190,7 +225,7 @@ export default function ContactPlot({
             key={`${track.tag}-${index}`}
             data-spoof={String(spoof)}
             data-departing={String(spoof && exposed)}
-            style={place(track)}
+            style={'x' in track ? placeCartesian(track) : place(track)}
           >
             <div className="contact-plot__jitter">
               <span className="contact-plot__drop" />
