@@ -1048,60 +1048,62 @@ body {
 }
 
 .confetti-dispenser__label,
-.confetti-dispenser__status {
+.confetti-dispenser__status,
+.confetti-dispenser__notice {
   margin: 0;
   color: var(--cic-muted);
   font-size: 0.58rem;
   letter-spacing: 0.1em;
 }
 
-.confetti-dispenser__housing {
-  position: relative;
-  width: 6.5rem;
-  height: 6.5rem;
-  margin: 0.7rem auto;
-  perspective: 16rem;
-}
-
-.confetti-dispenser__trigger,
-.confetti-dispenser__glass {
+.confetti-dispenser__trigger {
   position: absolute;
   inset: 0;
   min-width: 44px;
-  min-height: 44px;
-}
-
-.confetti-dispenser__trigger {
-  margin: 0.8rem;
-  border: 0.35rem solid var(--cic-blood);
-  border-radius: 50%;
-  background: radial-gradient(
-    circle at 38% 30%,
-    var(--cic-scream),
-    var(--cic-hostile) 44%,
-    var(--cic-blood) 78%
-  );
-  box-shadow: 0 0 18px rgba(255, 48, 38, 0.44), inset 0 -10px 18px rgba(0, 0, 0, 0.5);
-  color: var(--cic-ink);
-  font: 700 0.7rem/1 var(--cic-mono);
-}
-
-.confetti-dispenser__trigger:disabled { color: rgba(255, 255, 255, 0.45); }
-
-.confetti-dispenser__glass {
-  transform-origin: 100% 50%;
-  border: 2px solid rgba(190, 238, 244, 0.72);
+  border: 1px solid var(--cic-blood);
   border-radius: var(--cic-radius);
-  background: linear-gradient(135deg, rgba(220, 250, 255, 0.3), rgba(82, 137, 146, 0.1));
-  box-shadow: inset 0 0 18px rgba(170, 236, 246, 0.18);
-  color: rgba(220, 250, 255, 0.8);
-  font: 0.48rem/1.3 var(--cic-mono);
-  transition: transform 260ms ease, opacity 260ms ease;
+  background: color-mix(in srgb, var(--cic-hostile) 24%, var(--cic-void));
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--cic-hostile) 30%, transparent);
+  color: var(--cic-ink);
+  font: 700 0.72rem/1 var(--cic-mono);
+  letter-spacing: 0.16em;
 }
 
-.confetti-dispenser__housing[data-open='true'] .confetti-dispenser__glass {
-  transform: rotateY(112deg);
-  opacity: 0.48;
+.confetti-dispenser__housing {
+  position: relative;
+  height: 3.25rem;
+  margin: 0.7rem 0;
+}
+
+.confetti-dispenser__cover {
+  position: absolute;
+  inset: 0;
+  min-width: 44px;
+  border: 1px solid color-mix(in srgb, var(--cic-cyan) 62%, var(--cic-rule));
+  border-radius: var(--cic-radius);
+  background: color-mix(in srgb, var(--cic-panel) 82%, var(--cic-cyan));
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--cic-cyan) 20%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 0.6rem/1 var(--cic-mono);
+  letter-spacing: 0.14em;
+  transition: opacity 160ms ease;
+}
+
+.confetti-dispenser__housing[data-open='true'] .confetti-dispenser__cover {
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.confetti-dispenser__trigger:disabled {
+  border-color: color-mix(in srgb, var(--cic-muted) 50%, transparent);
+  color: color-mix(in srgb, var(--cic-ink) 45%, transparent);
+}
+
+.confetti-dispenser__notice {
+  margin-top: 0.65rem;
+  color: var(--cic-cyan-dim);
+  font-size: 0.48rem;
+  line-height: 1.5;
 }
 
 .confetti-dispenser button:focus-visible {
@@ -1280,7 +1282,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .confetti-dispenser__glass { transition: none; }
+  .confetti-dispenser__cover { transition: none; }
   .confetti-burst__piece {
     animation-duration: 1ms;
     opacity: 0;

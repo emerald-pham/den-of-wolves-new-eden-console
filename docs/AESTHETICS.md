@@ -169,9 +169,9 @@ foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
 
 Apparent contact drift is a slow display estimate, not ship movement. Each
-sweep advances a contact through a fixed subpixel walk whose consecutive fixes
-remain within 0.35px; the contact is stationary between sweeps. Never modify
-the canonical XYZ formation to produce this effect.
+sweep advances a contact through a fixed bearing walk spanning no more than
+three degrees; the contact is stationary between sweeps. Never modify the
+canonical XYZ formation to produce this effect.
 
 The GM console contains an inset fleet DRADIS and a visible button for every
 available ship. Selecting a ship rebases only that GM device's view. Capybara
@@ -189,10 +189,9 @@ unlock it. If every GM instance has gone away, the registration lock yields to
 the recovery failsafe and permits a new GM claim.
 
 Every joined ship carries one Emergency Bridge Confetti Dispenser. It is a
-physical-looking red threat control beneath a square protective-glass cover,
-not an ordinary interface button. Opening the cover is harmless; firing is a
-server-authoritative, once-per-ship action shared by every client currently
-viewing that ship. A successful firing permanently marks that ship's dispenser
+digital, square red touchscreen control within the ship console, not a physical
+mechanism. Firing is a server-authoritative, once-per-ship action shared by every
+client currently viewing that ship. A successful firing permanently marks that ship's dispenser
 DISCHARGED for the session and adds the ship, activating person and time to the
 GM event log. Clients may read the ship signal and event log but may never
 write, reset or forge either one.
@@ -204,7 +203,10 @@ log keeps only its 30 newest visible entries. These bounds are part of the
 feature, not tunable spectacle.
 
 The launcher and role picker run `field`: full-bleed behind the interface. The
-GM console uses `inset`, where the board is one instrument among several.
+GM console uses `inset`, where the board is one instrument among several. Every
+connected role console, including independent roles, uses the compact shipboard
+DRADIS widget and must be registered with the console-route DRADIS policy when
+its route is introduced.
 
 **It is rendered once in `App`, above the router.** One continuous scan runs
 from the launcher through the role picker to a connected console, rather than a

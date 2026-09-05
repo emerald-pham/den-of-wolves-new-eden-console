@@ -76,7 +76,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^claim gm/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /gm console/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /select a role/i })).toBeInTheDocument();
@@ -120,13 +120,13 @@ describe('RoleSelect', () => {
     });
     renderRoute();
 
-    const claim = screen.getByRole('button', { name: /^claim gm/i });
+    const claim = screen.getByRole('button', { name: /^join as gm/i });
     expect(claim).toBeDisabled();
-    await user.type(screen.getByRole('textbox', { name: /gm instance name/i }), 'Bridge laptop');
+    await user.type(screen.getByRole('textbox', { name: /input name/i }), 'Bridge laptop');
     await user.click(claim);
 
     expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop');
-    expect(screen.getByRole('button', { name: /gm claimed/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /gm joined/i })).toBeDisabled();
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
   });
 
@@ -172,9 +172,9 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(await screen.findByRole('button', {
-      name: /unlock gm registration and setup/i,
+      name: /unlock lock out more gms being added/i,
     })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^claim gm/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeDisabled();
   });
 
   it('keeps the locked-session GM registration failsafe available when no GM remains', async () => {
@@ -185,8 +185,8 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(await screen.findByText(/failsafe.*no active gm/i)).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: /gm instance name/i }), 'Recovery');
-    const claim = await screen.findByRole('button', { name: /^claim gm/i });
+    await user.type(screen.getByRole('textbox', { name: /input name/i }), 'Recovery');
+    const claim = await screen.findByRole('button', { name: /^join as gm/i });
     await waitFor(() => expect(claim).toBeEnabled());
     await user.click(claim);
 
@@ -208,7 +208,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     await user.click(screen.getByRole('button', {
-      name: /lock gm registration and setup/i,
+      name: /lock lock out more gms being added/i,
     }));
 
     expect(setGmControlsLocked).toHaveBeenCalledWith(true);

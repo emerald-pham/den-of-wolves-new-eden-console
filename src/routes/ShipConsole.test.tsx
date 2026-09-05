@@ -52,9 +52,10 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByText(/supplies the fleet with essential food, water, and materials/i)).toBeInTheDocument();
   expect(screen.getByRole('img', { name: /south american nations flag/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /leave ship/i })).toHaveAttribute('href', '/console');
-  expect(screen.getByRole('button', { name: /open protective glass cover/i })).toBeInTheDocument();
-  expect(screen.queryByText('PROTECTIVE GLASS')).not.toBeInTheDocument();
-  expect(screen.queryByText(/captain|engineer|recycler/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent(/captain authority required.*two officers may override/i);
+  expect(screen.queryByText(/engineer|recycler/i)).not.toBeInTheDocument();
 });
 
 it.each([
@@ -123,7 +124,7 @@ it('leaves the ship through the visible return control', async () => {
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
-it('opens the glass cover and activates the one-shot Emergency Bridge Confetti Dispenser', async () => {
+it('opens a digital cover before activating the one-shot Emergency Bridge Confetti Dispenser', async () => {
   const user = userEvent.setup();
   let signal: (() => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
@@ -144,9 +145,7 @@ it('opens the glass cover and activates the one-shot Emergency Bridge Confetti D
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }))
-    .toBeDisabled();
-  await user.click(screen.getByRole('button', { name: /open protective glass cover/i }));
+  await user.click(screen.getByRole('button', { name: /open confetti activation cover/i }));
   await user.click(screen.getByRole('button', {
     name: /activate emergency bridge confetti dispenser/i,
   }));
@@ -170,7 +169,7 @@ it('locks the trigger while the one-shot activation is in flight', async () => {
     </MemoryRouter>,
   );
 
-  await user.click(screen.getByRole('button', { name: /open protective glass cover/i }));
+  await user.click(screen.getByRole('button', { name: /open confetti activation cover/i }));
   const trigger = screen.getByRole('button', {
     name: /activate emergency bridge confetti dispenser/i,
   });

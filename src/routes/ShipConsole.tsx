@@ -115,18 +115,24 @@ export default function ShipConsole() {
             {spent ? 'SPENT' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
           </button>
           <button
-            className="confetti-dispenser__glass"
+            className="confetti-dispenser__cover"
             type="button"
-            aria-label={`${coverOpen ? 'Close' : 'Open'} protective glass cover`}
+            aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
             aria-pressed={coverOpen}
             disabled={spent || queued}
             onClick={() => setCoverOpen((current) => !current)}
           >
+            {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
           </button>
         </div>
         <p className="confetti-dispenser__status">
           ONE USE // {spent ? 'DISCHARGED' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
         </p>
+        {!spent && !queued && (
+          <p className="confetti-dispenser__notice" role="status">
+            COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE
+          </p>
+        )}
       </section>
       {burst > 0 && (
         <div className="confetti-burst" key={burst} aria-hidden="true">
