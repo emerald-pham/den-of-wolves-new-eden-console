@@ -1,0 +1,64 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, expect, it, vi } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { useSessionStore } from '@/store/useSessionStore';
+import ShuttleConsole from './ShuttleConsole';
+
+vi.mock('@/lib/sessionService', () => ({ popShipConfetti: vi.fn() }));
+
+beforeEach(() => {
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity({
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
+    activeRoleIds: ['press-officer'],
+    shuttleDockings: [
+      { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+    ],
+    shuttleVisitLog: [{
+      id: 'visit-1', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+      action: 'docked', occurredAt: 'SESSION START',
+    }],
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  }, {
+    uid: 'u1', sessionId: 's1', displayName: 'Reporter', role: 'player', seatId: null,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setMode('console');
+});
+
+it('uses the shared full-screen shuttlecraft console template for SNN', () => {
+  const { container } = render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(container.querySelector('.ship-console.shuttle-console')).toHaveAttribute(
+    'data-console-kind', 'shuttlecraft',
+  );
+  expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
+  expect(screen.getByText(/press officer.*captain/i)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
+    /docked.*aegis/i,
+  );
+  expect(screen.getByRole('list', { name: /shuttle travel log/i })).toHaveTextContent(
+    /aegis.*docked/i,
+  );
+  expect(screen.getByRole('region', { name: /newspaper confetti dispenser/i })).toBeInTheDocument();
+});
+
+it('returns from the shuttle console to role selection', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/console" element={<p>Role selection</p>} />
+        <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('link', { name: /leave shuttle/i }));
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
+});

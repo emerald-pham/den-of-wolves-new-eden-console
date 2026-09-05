@@ -52,8 +52,9 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(screen.getByRole('heading', { name: /snn.*system news network/i }))
     .toBeInTheDocument();
   expect(screen.getByText(/unaffiliated independent press shuttle/i)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: /back to role selection/i }))
+  expect(screen.getByRole('link', { name: /leave shuttle/i }))
     .toHaveAttribute('href', '/console');
+  expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
 });
 
 it('offers Press Officer from Select a role and opens the SNN console', async () => {

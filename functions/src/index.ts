@@ -16,6 +16,8 @@ import {
   FLEET_SHIP_NAMES,
   canPopShipConfetti,
   isFleetShipId,
+  isReusableConfettiSource,
+  shouldLogShipConfettiEvent,
 } from './shipConfetti';
 import {
   requireDiceRequest,
@@ -774,7 +776,8 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
     }
     const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
-    if (signal.exists || !canPopShipConfetti(used, shipId)) {
+    const reusable = isReusableConfettiSource(shipId);
+    if ((!reusable && signal.exists) || !canPopShipConfetti(used, shipId)) {
       throw new HttpsError('already-exists', 'That dispenser has already been used.');
     }
     const event = {
@@ -785,12 +788,15 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
       actorName: cleanName(player.get('displayName'), 'Player', 40),
       createdAt: FieldValue.serverTimestamp(),
     };
-    tx.update(sessionRef, {
+    tx.update(sessionRef, reusable ? {
+      updatedAt: FieldValue.serverTimestamp(),
+    } : {
       confettiUsedShipIds: FieldValue.arrayUnion(shipId),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.create(signalRef, event);
-    tx.create(eventRef, event);
+    if (reusable) tx.set(signalRef, event);
+    else tx.create(signalRef, event);
+    if (shouldLogShipConfettiEvent(shipId)) tx.create(eventRef, event);
   });
 
   return { shipId };

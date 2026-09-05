@@ -126,6 +126,7 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     if (roleIds) store.setSession({ ...store.session, activeRoleIds: roleIds });
   }
   if (command.kind === 'popShipConfetti' && store.session?.id === command.payload.sessionId) {
+    if (command.payload.shipId === 'snn-press-shuttle') return;
     const used = store.session.confettiUsedShipIds ?? [];
     if (!used.includes(command.payload.shipId)) {
       store.setSession({

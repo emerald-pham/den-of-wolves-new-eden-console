@@ -362,6 +362,15 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.confettiUsedShipIds).toEqual(['aegis']);
   });
 
+  it('does not mark the reusable SNN evidence shredder spent', async () => {
+    const callable = callableReturning({ data: { shipId: 'snn-press-shuttle' } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await popShipConfetti('snn-press-shuttle');
+
+    expect(useSessionStore.getState().session?.confettiUsedShipIds ?? []).toEqual([]);
+  });
+
 });
 
 describe('session lifecycle commands', () => {

@@ -202,6 +202,36 @@ seconds, unsubscribe when leaving the ship, and honor reduced motion. The GM
 log keeps only its 30 newest visible entries. These bounds are part of the
 feature, not tunable spectacle.
 
+### Shuttlecraft console parameters
+
+`ShuttleConsole` is the required visual and structural template for SNN and
+all later shuttlecraft. It shares the full-viewport `ship-console` shell so a
+player crossing from a capital ship to a shuttle remains inside the same
+issued console system, not a centered web page. Shuttle-specific classes may
+specialize the accent and modules but must not replace the shell.
+
+- The identity block uses the same order as a ship: visible exit control,
+  operator and short code, craft or service name, vessel type, current role,
+  and a factual description. The role line identifies the shuttle captain.
+- The compact DRADIS remains in the shared upper-right instrument position.
+  When docked, its origin is the host ship; the shuttle is not rendered as a
+  separate contact. In flight, the shuttle becomes a sampled DRADIS contact
+  under the detection rules in `docs/SHUTTLECRAFT.md`.
+- Every shuttle console has one real navigation/status module. It reports the
+  authoritative docked host or transit state and the shuttle's own travel log.
+  Do not add fake speed, fuel, heading or ETA readouts before those values exist.
+- Craft capabilities are opt-in slots, not assumed equipment. SNN supplies the
+  reusable newspaper-confetti evidence shredder; it is not subject to the
+  fleet ships' one-shot rule and does not create GM activity-log entries.
+  Ordinary shuttlecraft do not receive confetti.
+- Wide screens place identity low-left, navigation high-right, optional craft
+  modules low-right, and DRADIS above them. At phone widths these panels leave
+  absolute positioning and stack in DOM order beneath the compact DRADIS so
+  every control remains reachable in portrait, landscape and after rotation.
+- Decorative craft identity is typographic line-work behind the instruments.
+  It remains low contrast, non-interactive and absent from the accessibility
+  tree. It never substitutes for a real status value.
+
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several. Every
 connected role console, including independent roles, uses the compact shipboard

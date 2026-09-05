@@ -4,10 +4,26 @@ export interface Shuttlecraft {
   readonly id: string;
   readonly name: string;
   readonly shortName: string;
+  readonly consoleName: string;
+  readonly operator: string;
+  readonly operatorShort: string;
+  readonly vesselType: string;
+  readonly description: string;
+  readonly captainRoleId: string;
 }
 
 export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
-  { id: 'snn-press-shuttle', name: 'SNN Independent Press Shuttle', shortName: 'SNN Press Shuttle' },
+  {
+    id: 'snn-press-shuttle',
+    name: 'SNN Independent Press Shuttle',
+    shortName: 'SNN Press Shuttle',
+    consoleName: 'SNN — System News Network',
+    operator: 'Unaffiliated Independent Press',
+    operatorShort: 'SNN',
+    vesselType: 'Unaffiliated Independent Press Shuttlecraft',
+    description: 'Carries the System News Network press officer between ships of the survivor fleet.',
+    captainRoleId: 'press-officer',
+  },
 ];
 
 export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = [

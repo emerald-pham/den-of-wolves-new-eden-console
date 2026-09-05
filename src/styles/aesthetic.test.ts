@@ -166,6 +166,17 @@ describe('the GM console', () => {
   });
 });
 
+describe('the shuttlecraft console template', () => {
+  it('uses the ship console viewport and stacks real instruments on phones', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const phone = index.match(/@media \(max-width: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    expect(index).toContain('.shuttle-console--snn');
+    expect(phone).toContain('.shuttle-console .ship-console__identity');
+    expect(phone).toContain('position: relative');
+  });
+});
+
 describe('friendly DRADIS returns', () => {
   it('inherits each faction color from the positioned contact', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';

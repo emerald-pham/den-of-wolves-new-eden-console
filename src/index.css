@@ -983,6 +983,34 @@ body {
   --ship-secondary: var(--cic-faction-gliese-secondary);
 }
 
+.shuttle-console--snn {
+  --ship-accent: var(--cic-cyan);
+  --ship-secondary: var(--cic-ink);
+}
+
+.shuttle-console__mark {
+  position: absolute;
+  left: clamp(1rem, 8vw, 8rem);
+  top: 48%;
+  color: color-mix(in srgb, var(--cic-cyan) 22%, transparent);
+  font: 400 min(31vw, 24rem)/0.8 var(--cic-display);
+  letter-spacing: 0.08em;
+  transform: translateY(-50%);
+}
+
+.shuttle-console__position {
+  margin-top: 0.65rem !important;
+  color: var(--cic-cyan) !important;
+  font: 700 0.8rem/1.4 var(--cic-mono) !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shuttle-console .ship-console__name {
+  font-size: clamp(2.4rem, 7vw, 5.5rem);
+  line-height: 0.88;
+}
+
 .ship-console__flag {
   position: absolute;
   left: clamp(1rem, 8vw, 8rem);
@@ -1338,6 +1366,22 @@ body {
   }
 
   .ship-console__identity { bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .shuttle-console {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    overflow-y: auto;
+    padding-top: clamp(15rem, 42vh, 20rem);
+  }
+  .shuttle-console .ship-console__identity,
+  .shuttle-console .ship-shuttlebay,
+  .shuttle-console .confetti-dispenser {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    transform: none;
+  }
+  .shuttle-console__mark { top: 32%; }
   .ship-plot[data-aboard='true'] { width: clamp(8.5rem, 36vw, 11rem); }
 }
 

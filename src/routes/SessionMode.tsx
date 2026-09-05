@@ -3,7 +3,7 @@ import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessio
 import { SHIPS, type ShipOrigin } from '@/data/ships';
 import { rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
-import PressConfetti from '@/components/PressConfetti';
+import ShuttleConsole from '@/routes/ShuttleConsole';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -33,26 +33,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   }
 
   if (mode === 'press') {
-    const dockedShipId = session.shuttleDockings?.find(
-      (docking) => docking.shuttleId === 'snn-press-shuttle',
-    )?.shipId ?? 'aegis';
-    const dockedShip = SHIPS.find((ship) => ship.id === dockedShipId);
-    return (
-      <main className="session-mode">
-        <div className="session-mode__panel cic-frame">
-          <Link className="session-mode__back cic-text-button" to="/console">
-            Back to role selection
-          </Link>
-          <p className="eyebrow">{session.name} // Independent Press</p>
-          <h1 className="role-select__title">SNN — System News Network</h1>
-          <p className="role-select__lede">Unaffiliated Independent Press Shuttle</p>
-          <p className="press-shuttle__location">
-            Shuttle location // docked // {dockedShip?.name ?? dockedShipId}
-          </p>
-          <PressConfetti />
-        </div>
-      </main>
-    );
+    return <ShuttleConsole shuttleId="snn-press-shuttle" />;
   }
 
   return (

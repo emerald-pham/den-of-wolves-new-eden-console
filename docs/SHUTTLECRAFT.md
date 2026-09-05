@@ -7,7 +7,8 @@
 - The Press console remains relative to the shuttle, while its DRADIS center is
   the host ship whenever it is docked. A docked shuttle is not a separate
   DRADIS contact.
-- The SNN shuttle alone has a newspaper-confetti dispenser. Ordinary
+- The SNN shuttle alone has a reusable newspaper-confetti evidence shredder.
+  It may fire repeatedly without generating GM activity-log entries; ordinary
   shuttlecraft do not inherit a dispenser by default.
 
 ## Movement contract

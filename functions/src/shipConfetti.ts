@@ -14,5 +14,11 @@ export function isFleetShipId(shipId: string): shipId is keyof typeof FLEET_SHIP
 }
 
 export function canPopShipConfetti(usedShipIds: readonly string[], shipId: string): boolean {
-  return !usedShipIds.includes(shipId);
+  return shipId === 'snn-press-shuttle' || !usedShipIds.includes(shipId);
 }
+
+export const isReusableConfettiSource = (shipId: string): boolean =>
+  shipId === 'snn-press-shuttle';
+
+export const shouldLogShipConfettiEvent = (shipId: string): boolean =>
+  shipId !== 'snn-press-shuttle';
