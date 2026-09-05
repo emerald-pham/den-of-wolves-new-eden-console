@@ -79,6 +79,7 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     displayName: data.displayName as string,
     role: data.role as Player['role'],
     seatId: (data.seatId as string | null) ?? null,
+    activeConsoleRoleId: (data.activeConsoleRoleId as string | null) ?? null,
     joinedAt: iso(data.joinedAt),
   };
 }

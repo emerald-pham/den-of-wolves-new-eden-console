@@ -7,10 +7,11 @@ import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
   getSessionPresence: vi.fn(),
+  releaseConsoleRole: vi.fn(),
   releaseGmInstance: vi.fn(),
   disconnectFromSession: vi.fn(),
 }));
-const { getSessionPresence, releaseGmInstance } =
+const { getSessionPresence, releaseConsoleRole, releaseGmInstance } =
   await import('@/lib/sessionService');
 
 beforeEach(() => {
@@ -32,7 +33,7 @@ it('shows the last-player warning inside settings', async () => {
 
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
-  expect(screen.getByText(/build 0\.1\.42/i)).toBeInTheDocument();
+  expect(screen.getByText(/build 0\.1\.43/i)).toBeInTheDocument();
 });
 
 it('shows the system motion setting and lets a player override it', async () => {
@@ -81,4 +82,23 @@ it('releases this browser GM role from settings', async () => {
 
   expect(releaseGmInstance).toHaveBeenCalledOnce();
   expect(useSessionStore.getState().gmInstance).toBeNull();
+});
+
+it('releases a command role through settings and returns to role selection', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setMe({
+    uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player', seatId: null,
+    activeConsoleRoleId: 'admiral', joinedAt: '2026-01-01T00:00:00.000Z',
+  });
+  vi.mocked(releaseConsoleRole).mockResolvedValue(undefined);
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <AppHeader />
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /release role/i }));
+
+  expect(releaseConsoleRole).toHaveBeenCalledOnce();
 });

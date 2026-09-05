@@ -1141,6 +1141,20 @@ body {
   font: 0.78rem/1.7 var(--cic-mono);
 }
 
+.observer-access {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+  text-transform: uppercase;
+}
+
+.observer-access p { margin: 0; }
+.observer-access .cic-text-button { justify-self: start; }
+
 .ship-shuttlebay {
   min-height: 0;
   overflow: auto;

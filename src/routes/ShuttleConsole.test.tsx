@@ -5,7 +5,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShuttleConsole from './ShuttleConsole';
 
-vi.mock('@/lib/sessionService', () => ({ popShipConfetti: vi.fn() }));
+vi.mock('@/lib/sessionService', () => ({
+  popShipConfetti: vi.fn(),
+  selectConsoleRole: vi.fn().mockResolvedValue(undefined),
+}));
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -47,8 +50,15 @@ it('uses the shared full-screen shuttlecraft console template for SNN', () => {
   expect(screen.getByRole('region', { name: /newspaper confetti dispenser/i })).toBeInTheDocument();
 });
 
-it('returns from the shuttle console to role selection', async () => {
+it('lets a GM return from the shuttle console to role selection', async () => {
   const user = userEvent.setup();
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
   render(
     <MemoryRouter initialEntries={['/press']}>
       <Routes>
@@ -60,4 +70,37 @@ it('returns from the shuttle console to role selection', async () => {
 
   await user.click(screen.getByRole('link', { name: /leave shuttle/i }));
   expect(screen.getByText('Role selection')).toBeInTheDocument();
+});
+
+it('keeps a non-GM press officer aboard until settings releases the role', () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'press-officer' });
+
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /leave shuttle/i })).not.toBeInTheDocument();
+});
+
+it('keeps a press officer aboard if the GM disables the held role', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected test session state.');
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: [] });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'press-officer' });
+
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/console" element={<p>Role selection</p>} />
+        <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
 });

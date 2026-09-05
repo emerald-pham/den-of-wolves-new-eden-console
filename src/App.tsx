@@ -100,6 +100,7 @@ function AppRoutes() {
             <Route path="/press" element={<SessionMode mode="press" />} />
             <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
             <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+            <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
             <Route path="/ships/:shipId" element={<ShipConsole />} />
             <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
             <Route path="*" element={<NotFound />} />

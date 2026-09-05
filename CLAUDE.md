@@ -230,8 +230,10 @@ route guard, or disconnecting as the only way out of a screen.
   reconnect replaces cached state with server authority.
 - GM and Console are **device modes**, not freely selectable Firestore roles.
   Only a player whose server record already has role `gm` may enter GM mode.
-  Console is available to any session member. Do not re-add Observer until its
-  server semantics and UI are implemented.
+  Console is available to any session member. Every fleet ship also offers a
+  GM-only Observer view. Observer starts read-only on each ship and may be put
+  into write mode with its DRADIS-adjacent control; leaving that ship resets it
+  to read-only.
 - Disconnect is locally idempotent and server-aware: queue or send the presence
   update, clear the persisted session, player, seats, GM instance, mode, and
   route, then replace navigation with `/`. Preserve a queued disconnect long

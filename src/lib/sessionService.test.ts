@@ -22,6 +22,7 @@ const {
   joinSession,
   kickGmInstance,
   popShipConfetti,
+  releaseConsoleRole,
   reconcileGmAuthority,
   assignWolves,
   assignWolfRoles,
@@ -29,6 +30,7 @@ const {
   setGmControlsLocked,
   setWolfRoleEnabled,
   setActiveRoleEnabled,
+  selectConsoleRole,
   applyRolePreset,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
@@ -396,6 +398,28 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.confettiUsedShipIds ?? []).toEqual([]);
   });
 
+});
+
+describe('command role presence', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(session, player);
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { sessionId: 's1' } }));
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('selects and explicitly releases the authoritative command role', async () => {
+    await selectConsoleRole('admiral');
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
+
+    await releaseConsoleRole();
+
+    expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'refreshPresence');
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeNull();
+    expect(useSessionStore.getState().mode).toBe('console');
+    expect(useSessionStore.getState().lastRoute).toBe('/console');
+  });
 });
 
 describe('session lifecycle commands', () => {

@@ -5,6 +5,7 @@ import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore
 import {
   disconnectFromSession,
   getSessionPresence,
+  releaseConsoleRole,
   releaseGmInstance,
 } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
@@ -20,6 +21,7 @@ export default function AppHeader() {
   const status = useSessionStore(selectConnectionStatus);
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const gmInstance = useSessionStore((state) => state.gmInstance);
+  const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
   const releaseQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'releaseGmInstance'));
   const disconnectQueued = useSessionStore((state) =>
@@ -89,6 +91,16 @@ export default function AppHeader() {
     }
     setSettingsOpen(false);
     navigate('/roles', { replace: true });
+  }
+
+  async function releaseRole(): Promise<void> {
+    try {
+      await releaseConsoleRole();
+    } catch {
+      return;
+    }
+    setSettingsOpen(false);
+    navigate('/console', { replace: true });
   }
 
   return (
@@ -171,6 +183,15 @@ export default function AppHeader() {
                 onClick={() => void releaseGm()}
               >
                 {releaseQueued ? 'Release queued' : 'Release GM role'}
+              </button>
+            )}
+            {activeConsoleRoleId && (
+              <button
+                className="settings-dialog__disconnect"
+                type="button"
+                onClick={() => void releaseRole()}
+              >
+                Release role
               </button>
             )}
             <button

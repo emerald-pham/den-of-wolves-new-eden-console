@@ -145,7 +145,10 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
 
 it('hides disabled roles and offers enabled Joint Engineering Union stations', () => {
   const session = useSessionStore.getState().session;
-  if (!session) throw new Error('Expected the test session.');
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test session.');
+  useSessionStore.getState().setGmInstance(null);
+  useSessionStore.getState().setMe({ ...me, role: 'player' });
   useSessionStore.getState().setSession({
     ...session,
     activeRoleIds: ['admiral', 'joint-engineering-quellon-refinery'],
@@ -161,4 +164,41 @@ it('hides disabled roles and offers enabled Joint Engineering Union stations', (
   expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: /quellon.*refinery engineer/i }))
     .toHaveAttribute('href', '/union/roles/joint-engineering-quellon-refinery');
+});
+
+it('returns a non-GM directly to their active command role', () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setGmInstance(null);
+  useSessionStore.getState().setMe({
+    ...me,
+    role: 'player',
+    activeConsoleRoleId: 'dione-engineer',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/ships/dione/roles/dione-engineer" element={<p>Locked role</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Locked role')).toBeInTheDocument();
+});
+
+it('lets a GM reach every ship observer when command roles are disabled', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: [] });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /join aegis/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /join refinery 124/i })).toBeInTheDocument();
 });

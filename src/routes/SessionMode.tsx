@@ -4,6 +4,7 @@ import { SHIPS, type ShipOrigin } from '@/data/ships';
 import { rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
+import { consoleRoleRoute } from '@/lib/consoleRole';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -19,6 +20,9 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
+  if (mode === 'console' && !isGm && me.activeConsoleRoleId) {
+    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
+  }
   const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
   if (!modeIsValid) return <Navigate to="/roles" replace />;
 
@@ -28,6 +32,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
+        isGm={isGm}
       />
     );
   }
@@ -61,10 +66,12 @@ function FleetRoster({
   sessionName,
   capybaraEnabled,
   activeRoleIds,
+  isGm,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
   activeRoleIds: readonly string[];
+  isGm: boolean;
 }) {
   const active = new Set(activeRoleIds);
   const unionRoles = CONSOLE_ROLES.filter(
@@ -115,7 +122,7 @@ function FleetRoster({
             {SHIPS.filter((ship) =>
               ship.origin === origin &&
               (capybaraEnabled || ship.id !== 'capybara') &&
-              rolesForShip(ship.id).some((role) => active.has(role.id))).map((ship) => (
+              (isGm || rolesForShip(ship.id).some((role) => active.has(role.id)))).map((ship) => (
               <article
                 className={`fleet-card fleet-card--${ship.id} cic-frame`}
                 aria-label={ship.name}

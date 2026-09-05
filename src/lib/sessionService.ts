@@ -326,6 +326,20 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
     : { sessionId: session.id, activeConsoleRoleId });
 }
 
+export async function selectConsoleRole(roleId: string): Promise<void> {
+  await refreshPresence(roleId);
+  const store = useSessionStore.getState();
+  if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: roleId });
+}
+
+export async function releaseConsoleRole(): Promise<void> {
+  await refreshPresence(null);
+  const store = useSessionStore.getState();
+  if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: null });
+  store.setMode('console');
+  store.setLastRoute('/console');
+}
+
 export async function reconcileGmAuthority(): Promise<void> {
   const remembered = useSessionStore.getState().gmInstance;
   if (!remembered) return;

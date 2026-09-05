@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { claimGmInstance, setGmControlsLocked } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
+import { consoleRoleRoute } from '@/lib/consoleRole';
 
 const MODES: readonly {
   mode: ConsoleMode;
@@ -54,6 +55,9 @@ export default function RoleSelect() {
   }, [controlsLocked, isGm, session?.id]);
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (!isGm && me.activeConsoleRoleId) {
+    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
+  }
 
   function connectAs(mode: ConsoleMode): void {
     setMode(mode);

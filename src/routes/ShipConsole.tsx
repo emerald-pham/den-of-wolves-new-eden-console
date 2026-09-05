@@ -4,8 +4,9 @@ import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
-import { popShipConfetti, refreshPresence } from '@/lib/sessionService';
-import { useSessionStore } from '@/store/useSessionStore';
+import { popShipConfetti, selectConsoleRole } from '@/lib/sessionService';
+import { consoleRoleRoute } from '@/lib/consoleRole';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -19,11 +20,12 @@ const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
   } as ConfettiStyle,
 }));
 
-export default function ShipConsole() {
+export default function ShipConsole({ observer = false }: { observer?: boolean }) {
   const { shipId, roleId } = useParams();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
+  const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const ship = findShip(shipId);
   const consoleRole = findConsoleRole(roleId);
@@ -34,6 +36,7 @@ export default function ShipConsole() {
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
+  const [observerWrite, setObserverWrite] = useState(false);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
     (command) => command.kind === 'popShipConfetti' &&
@@ -42,12 +45,11 @@ export default function ShipConsole() {
   const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
 
   useEffect(() => {
-    if (!consoleRole) return;
-    void refreshPresence(consoleRole.id).catch(() => undefined);
-    return () => {
-      void refreshPresence(null).catch(() => undefined);
-    };
-  }, [consoleRole]);
+    if (!consoleRole || observer) return;
+    void selectConsoleRole(consoleRole.id).catch(() => undefined);
+  }, [consoleRole, observer]);
+
+  useEffect(() => setObserverWrite(false), [ship?.id, observer]);
 
   useEffect(() => {
     if (!session?.id || !ship) return;
@@ -81,8 +83,13 @@ export default function ShipConsole() {
   }, [burst]);
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if (observer && !isGm) return <Navigate to="/console" replace />;
+  if (!observer && !isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId) {
+    return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
+  }
   if (
-    mode !== 'console' || !ship || !validRole || !roleEnabled ||
+    mode !== 'console' || !ship || !validRole ||
+    (!roleEnabled && me.activeConsoleRoleId !== roleId) ||
     (ship.id === 'capybara' && session.capybaraEnabled === false)
   ) return <Navigate to="/console" replace />;
 
@@ -101,7 +108,10 @@ export default function ShipConsole() {
   }
 
   return (
-    <main className={`ship-console ship-console--${ship.id}`}>
+    <main
+      className={`ship-console ship-console--${ship.id}`}
+      data-observer-mode={observer ? (observerWrite ? 'write' : 'read') : undefined}
+    >
       <img
         className="ship-console__flag"
         src={ship.flag}
@@ -110,19 +120,39 @@ export default function ShipConsole() {
         style={{ viewTransitionName: 'shared-ship-flag' }}
       />
       <section className="ship-console__identity" aria-labelledby="ship-name">
-        <Link
-          className="ship-console__back cic-text-button"
-          to={roleId ? `/ships/${ship.id}/roles` : '/console'}
-        >
-          {roleId ? 'Change role' : 'Leave ship'}
-        </Link>
+        {(isGm || !consoleRole) && (
+          <Link
+            className="ship-console__back cic-text-button"
+            to={(roleId || observer) ? `/ships/${ship.id}/roles` : '/console'}
+          >
+            {(roleId || observer) ? 'Change role' : 'Leave ship'}
+          </Link>
+        )}
         <p className="ship-console__nation">{ship.nation} // {ship.nationShort}</p>
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
-        {consoleRole && <p className="ship-console__role">{consoleRole.name}</p>}
+        {(consoleRole || observer) && (
+          <p className="ship-console__role">{observer ? 'Observer' : consoleRole?.name}</p>
+        )}
         <p className="ship-console__description">{ship.description}</p>
       </section>
       <aside className="ship-console__instruments" aria-label={`${ship.name} instruments`}>
+        {observer && (
+          <section className="observer-access cic-frame" aria-label="Observer access">
+            <p className="ship-shuttlebay__eyebrow">
+              Observer access // {observerWrite ? 'Write mode' : 'Read only'}
+            </p>
+            <button
+              className="cic-text-button"
+              type="button"
+              aria-label="Observer write mode"
+              aria-pressed={observerWrite}
+              onClick={() => setObserverWrite((current) => !current)}
+            >
+              Write mode // {observerWrite ? 'On' : 'Off'}
+            </button>
+          </section>
+        )}
         <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
           <h2>Docked shuttlecraft</h2>
@@ -159,7 +189,7 @@ export default function ShipConsole() {
               : queued
                 ? 'Emergency Bridge Confetti Dispenser activation queued'
                 : 'Activate Emergency Bridge Confetti Dispenser'}
-            disabled={!coverOpen || !consoleRole || spent || queued || activating}
+            disabled={!coverOpen || !consoleRole || observer || spent || queued || activating}
             onClick={() => void activate()}
           >
             {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -169,7 +199,7 @@ export default function ShipConsole() {
             type="button"
             aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
             aria-pressed={coverOpen}
-            disabled={spent || queued}
+            disabled={observer || spent || queued}
             onClick={() => setCoverOpen((current) => !current)}
           >
             {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}

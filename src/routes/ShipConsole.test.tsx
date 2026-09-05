@@ -1,13 +1,13 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
-  refreshPresence: vi.fn(),
+  selectConsoleRole: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -15,13 +15,13 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { popShipConfetti } = await import('@/lib/sessionService');
-const { refreshPresence } = await import('@/lib/sessionService');
+const { selectConsoleRole } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 
 beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset();
-  vi.mocked(refreshPresence).mockReset();
-  vi.mocked(refreshPresence).mockResolvedValue(undefined);
+  vi.mocked(selectConsoleRole).mockReset();
+  vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   useSessionStore.getState().reset();
@@ -99,15 +99,22 @@ it.each([
 
   expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
   expect(screen.getByText(roleName)).toBeInTheDocument();
-  expect(refreshPresence).toHaveBeenCalledWith(roleId);
+  expect(selectConsoleRole).toHaveBeenCalledWith(roleId);
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
       's1', 'aegis', expect.any(Function), expect.any(Function),
     ));
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
 });
 
-it('returns every staffed ship console to its own role picker', async () => {
+it('lets a GM return every staffed ship console to its own role picker', async () => {
   const user = userEvent.setup();
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
   render(
     <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
       <Routes>
@@ -119,6 +126,118 @@ it('returns every staffed ship console to its own role picker', async () => {
 
   await user.click(screen.getByRole('link', { name: /change role/i }));
   expect(screen.getByText('Dione roles')).toBeInTheDocument();
+});
+
+it('does not let a player leave or change an active command role from the console', () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'dione-president' });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
+      <Routes>
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /change role|leave ship/i })).not.toBeInTheDocument();
+});
+
+it('keeps a player at a held command role if the GM disables it', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected test session state.');
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: [] });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'dione-president' });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Dione' })).toBeInTheDocument();
+  expect(screen.queryByText('Fleet roster')).not.toBeInTheDocument();
+});
+
+it('keeps ship and role navigation available to the GM', () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({
+    ...me,
+    role: 'gm',
+    activeConsoleRoleId: 'dione-president',
+  });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
+      <Routes>
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /change role/i })).toBeInTheDocument();
+});
+
+it('gives a GM observer read-only access by default and resets it after leaving', async () => {
+  const user = userEvent.setup();
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  const { container } = render(
+    <MemoryRouter initialEntries={['/ships/aegis/observer']}>
+      <Routes>
+        <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
+        <Route path="/ships/:shipId/roles" element={(
+          <Link to="/ships/aegis/observer">Return to observer</Link>
+        )} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Observer')).toBeInTheDocument();
+  const writeMode = screen.getByRole('button', { name: /observer write mode/i });
+  expect(writeMode).toHaveAttribute('aria-pressed', 'false');
+  expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
+  expect(screen.getByText(/observer access.*read only/i)).toBeInTheDocument();
+
+  await user.click(writeMode);
+  expect(writeMode).toHaveAttribute('aria-pressed', 'true');
+  expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'write');
+  expect(screen.getByText(/observer access.*write mode/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('link', { name: /change role/i }));
+  await user.click(screen.getByRole('link', { name: /return to observer/i }));
+  expect(screen.getByRole('button', { name: /observer write mode/i }))
+    .toHaveAttribute('aria-pressed', 'false');
+  expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
+});
+
+it('rejects the observer route for a non-GM', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/observer']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/observer" element={<ShipConsole observer />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
 it('returns to the fleet roster when the ship id is unknown', () => {

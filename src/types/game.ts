@@ -78,6 +78,8 @@ export interface Player {
   readonly displayName: string;
   readonly role: PlayerRole;
   readonly seatId: Id | null;
+  /** Server-authoritative command post held by this device until explicitly released. */
+  readonly activeConsoleRoleId?: string | null;
   readonly joinedAt: Timestamp;
 }
 

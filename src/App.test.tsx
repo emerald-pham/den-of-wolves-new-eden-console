@@ -17,7 +17,9 @@ vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
+  releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
+  selectConsoleRole: vi.fn().mockResolvedValue(undefined),
   setGmControlsLocked: vi.fn(),
 }));
 
@@ -37,7 +39,14 @@ vi.mock('@/lib/firestore', () => ({
   }),
 }));
 
-const { connect, disconnectFromSession, reconcileGmAuthority, refreshPresence } =
+const {
+  connect,
+  disconnectFromSession,
+  reconcileGmAuthority,
+  refreshPresence,
+  releaseConsoleRole,
+  selectConsoleRole,
+} =
   await import('@/lib/sessionService');
 const { subscribeSessionState } = await import('@/lib/firestore');
 
@@ -274,6 +283,15 @@ describe('App', () => {
 
   it('rebases the named fleet contacts around the joined ship and returns to the AEGIS view', async () => {
     const user = userEvent.setup();
+    vi.mocked(selectConsoleRole).mockImplementation(async (roleId: string) => {
+      const me = useSessionStore.getState().me;
+      if (me) useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: roleId });
+    });
+    vi.mocked(releaseConsoleRole).mockImplementation(async () => {
+      const me = useSessionStore.getState().me;
+      if (me) useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: null });
+      useSessionStore.getState().setLastRoute('/console');
+    });
     window.location.hash = '#/console';
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().setMode('console');
@@ -300,9 +318,8 @@ describe('App', () => {
     expect(contacts()).toContain('AEGIS');
     expect(contacts()).not.toContain('QUELLON');
 
-    await user.click(screen.getByRole('link', { name: /change role/i }));
-    expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
-    await user.click(await screen.findByRole('link', { name: /back to fleet/i }));
+    await user.click(screen.getByRole('button', { name: /settings/i }));
+    await user.click(await screen.findByRole('button', { name: /release role/i }));
     expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
     expect(center()).toBe('AEGIS');
   });

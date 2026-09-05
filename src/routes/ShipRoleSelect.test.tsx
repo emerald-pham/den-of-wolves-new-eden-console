@@ -74,3 +74,54 @@ it('offers only roles the GM has enabled', () => {
   expect(screen.queryByRole('link', { name: /executive officer/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /wing commander/i })).not.toBeInTheDocument();
 });
+
+it('hides Observer from players and offers it on every ship to the GM', () => {
+  const { unmount } = render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+      <Routes><Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /^observer$/i })).not.toBeInTheDocument();
+  unmount();
+
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+      <Routes><Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /^observer$/i }))
+    .toHaveAttribute('href', '/ships/aegis/observer');
+});
+
+it('keeps Observer available to the GM when every command role is disabled', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected test session state.');
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: [] });
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /^observer$/i })).toBeInTheDocument();
+});

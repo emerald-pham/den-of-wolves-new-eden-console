@@ -11,6 +11,7 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
+import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
 import {
   FLEET_SHIP_NAMES,
@@ -197,6 +198,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           displayName,
           role: 'player',
           seatId: null,
+          activeConsoleRoleId: null,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
@@ -231,6 +233,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             displayName,
             role: 'player',
             seatId: null,
+            activeConsoleRoleId: null,
             joinedAt: now,
           },
         };
@@ -297,6 +300,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           displayName,
           role: 'player',
           seatId: null,
+          activeConsoleRoleId: null,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
@@ -335,6 +339,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
         role: playerSnap.get('role') as string,
         seatId: (playerSnap.get('seatId') as string | null) ?? null,
+        activeConsoleRoleId:
+          (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
         joinedAt: isoOf(playerSnap.get('joinedAt')),
       },
     };
@@ -417,6 +423,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
       role: playerSnap.get('role') as string,
       seatId: (playerSnap.get('seatId') as string | null) ?? null,
+      activeConsoleRoleId:
+        (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       joinedAt: isoOf(playerSnap.get('joinedAt')),
     },
   };
@@ -942,6 +950,16 @@ export const refreshPresence = onCall<{
       if (!(activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(request.data.activeConsoleRoleId)) {
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
+      if (!canSelectConsoleRole(
+        player.get('activeConsoleRoleId') as string | null | undefined,
+        request.data.activeConsoleRoleId,
+        player.get('role') === 'gm',
+      )) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Release your current role in settings before selecting another.',
+        );
+      }
       presenceUpdate.activeConsoleRoleId = request.data.activeConsoleRoleId;
     }
     tx.update(playerRef, presenceUpdate);
@@ -974,7 +992,7 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
     const wasConnected = player.get('connected') === true;
     tx.update(playerRef, {
       connected: false,
-      role: 'player',
+      ...disconnectedRoleState(),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
     for (const instance of ownedInstances.docs) tx.delete(instance.ref);
@@ -1047,7 +1065,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       ) return;
       tx.update(playerRef, {
         connected: false,
-        role: 'player',
+        ...disconnectedRoleState(),
         lastSeenAt: FieldValue.serverTimestamp(),
       });
       for (const instance of ownedInstances.docs) tx.delete(instance.ref);
