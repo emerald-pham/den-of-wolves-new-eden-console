@@ -178,13 +178,13 @@ describe('the shuttlecraft console template', () => {
 });
 
 describe('ship console instrument layout', () => {
-  it('morphs DRADIS between field and widget size in one fifth of a second', () => {
+  it('eases DRADIS in and out between field, widget and expanded sizes', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const plot = index.match(/\.ship-plot\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(plot).toContain('container-type: size');
     expect(plot).toContain('transition:');
-    expect(plot).toContain('var(--ship-plot-resize)');
+    expect(plot).toContain('var(--ship-plot-resize) ease-in-out');
   });
 
   it('places the shuttlebay in a dedicated rail below compact DRADIS', () => {
@@ -243,11 +243,21 @@ describe('friendly DRADIS returns', () => {
 
   it('lets blips nearly decay between sweeps while acquired ship names remain solid', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
-    const paint = plot.match(/@keyframes plot-paint\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const paint = plot.match(/@keyframes plot-return-fade\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const tag = plot.match(/\.contact-plot__tag\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(paint).toContain('opacity: 0.03');
     expect(tag).toContain('opacity: 1');
+  });
+
+  it('fades each altitude indicator with its contact return', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const blip = plot.match(/\.contact-plot__blip\s*\{([^}]*)\}/)?.[1] ?? '';
+    const drop = plot.match(/\.contact-plot__drop\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(blip).toContain('plot-return-fade');
+    expect(drop).toContain('plot-return-fade');
+    expect(drop).toContain('calc(var(--phase) * var(--plot-turn) / 2)');
   });
 
   it('gives apparent returns a two-degree bearing drift without changing formation coordinates', () => {

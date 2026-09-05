@@ -222,7 +222,7 @@ specialize the accent and modules but must not replace the shell.
   separate contact. In flight, the shuttle becomes a sampled DRADIS contact
   under the detection rules in `docs/SHUTTLECRAFT.md`.
 - Every shuttle console has one real navigation/status module. It reports the
-  authoritative docked host or transit state and the shuttle's own travel log.
+  authoritative docked host or transit state without exposing a travel log.
   Do not add fake speed, fuel, heading or ETA readouts before those values exist.
 - Craft capabilities are opt-in slots, not assumed equipment. SNN supplies the
   reusable newspaper-confetti evidence shredder; it is not subject to the
@@ -325,7 +325,8 @@ that is a different, flatter instrument.
    `|y|` and `--flip` = ±1 for the altitude line down to the equatorial plane,
    and `--phase` = `(bearing mod 180) / 180`.
 8. **Paint flare.** The sweep is a plane, so it crosses a bearing twice per
-   turn: blips animate over `calc(var(--plot-turn) / 2)` with
+   turn: blips and their altitude lines fade together over
+   `calc(var(--plot-turn) / 2)` with
    `animation-delay: calc(var(--phase) * var(--plot-turn) / -2)`, so each one
    flares as the disc reaches it and fades to a 0.03 trace before the next pass.
    Once acquired, the ship name remains at full opacity between sweeps.
@@ -386,7 +387,9 @@ fades out and back in: `SCREEN_FADE_MS` each way, two tenths of a second in
 total. The constant and the CSS duration are the same figure in two places; move
 both. This crossing applies to routed foreground content only. Persistent
 background instrumentation does not fade; when DRADIS changes between field and
-corner modes, its own 200ms geometry transition communicates that change.
+corner modes, its own 200ms ease-in-out geometry transition communicates that
+change. Activating a compact ship or shuttle DRADIS uses that same transition to
+zoom in and out.
 
 It takes a function rather than plain children because `Routes` reads the
 location from context — an already-rendered element is no help, since it would

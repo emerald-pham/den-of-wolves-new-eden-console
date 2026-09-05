@@ -1279,7 +1279,8 @@ body {
 
 /* The same plot remains mounted and its containing viewport morphs between the
    full field and the corner instrument. Keeping the duration in an inline
-   custom property makes this experiment easy to tune or remove in one place. */
+   custom property makes this experiment easy to tune or remove in one place.
+   Ease-in-out applies to both route crossings and direct expand/collapse. */
 .ship-plot {
   container-type: size;
   position: fixed;
@@ -1291,13 +1292,13 @@ body {
   overflow: hidden;
   border: 1px solid transparent;
   transition:
-    top var(--ship-plot-resize) ease,
-    right var(--ship-plot-resize) ease,
-    width var(--ship-plot-resize) ease,
-    height var(--ship-plot-resize) ease,
-    border-color var(--ship-plot-resize) ease,
-    background-color var(--ship-plot-resize) ease,
-    box-shadow var(--ship-plot-resize) ease;
+    top var(--ship-plot-resize) ease-in-out,
+    right var(--ship-plot-resize) ease-in-out,
+    width var(--ship-plot-resize) ease-in-out,
+    height var(--ship-plot-resize) ease-in-out,
+    border-color var(--ship-plot-resize) ease-in-out,
+    background-color var(--ship-plot-resize) ease-in-out,
+    box-shadow var(--ship-plot-resize) ease-in-out;
 }
 
 .ship-plot[data-aboard='false'] .contact-plot {

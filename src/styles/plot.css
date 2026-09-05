@@ -271,22 +271,35 @@
   background: var(--contact-ink);
   box-shadow: 0 0 14px 3px color-mix(in srgb, var(--contact-ink) 55%, transparent);
   /* The sweep is a plane, so it crosses any given bearing twice a turn, and a
-     contact flares as it is painted. --phase lines each blip up with the disc. */
-  animation: plot-paint calc(var(--plot-turn) / 2) linear infinite;
-  animation-delay: calc(var(--phase) * var(--plot-turn) / 2);
+     contact flares as it is painted. The return and altitude line share the
+     fade; this second animation supplies only the blip's scale pulse. */
+  animation-name: plot-return-fade, plot-blip-pulse;
+  animation-duration: calc(var(--plot-turn) / 2), calc(var(--plot-turn) / 2);
+  animation-timing-function: linear, linear;
+  animation-iteration-count: infinite, infinite;
+  animation-delay:
+    calc(var(--phase) * var(--plot-turn) / 2),
+    calc(var(--phase) * var(--plot-turn) / 2);
 }
 
-@keyframes plot-paint {
+@keyframes plot-return-fade {
   0% {
     opacity: 1;
-    transform: scale(2);
   }
   16% {
     opacity: calc(0.34 + var(--depth) * 0.5);
-    transform: scale(1);
   }
   100% {
     opacity: 0.03;
+  }
+}
+
+@keyframes plot-blip-pulse {
+  0% {
+    transform: scale(2);
+  }
+  16%,
+  100% {
     transform: scale(1);
   }
 }
@@ -304,6 +317,8 @@
     color-mix(in srgb, var(--contact-ink) 40%, transparent),
     transparent
   );
+  animation: plot-return-fade calc(var(--plot-turn) / 2) linear infinite;
+  animation-delay: calc(var(--phase) * var(--plot-turn) / 2);
 }
 
 .contact-plot__tag {
@@ -446,6 +461,7 @@
 }
 .contact-plot[data-still='true'] .contact-plot__sweep,
 .contact-plot[data-still='true'] .contact-plot__blip,
+.contact-plot[data-still='true'] .contact-plot__drop,
 .contact-plot[data-still='true'] .contact-plot__boost,
 .contact-plot[data-still='true'] .contact-plot__apparent,
 .contact-plot[data-still='true'] .contact-plot__jitter {
@@ -458,6 +474,7 @@
   .contact-plot__sweep,
   .contact-plot__boost,
   .contact-plot__blip,
+  .contact-plot__drop,
   .contact-plot__contact,
   .contact-plot__apparent,
   .contact-plot__jitter,
