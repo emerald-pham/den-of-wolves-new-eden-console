@@ -151,7 +151,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
         {(consoleRole || observer) && (
-          <p className="ship-console__role">Your Role: {observer ? 'Observer' : consoleRole?.name}</p>
+          <p className="ship-console__role">Your Title: {observer ? 'Observer' : consoleRole?.name}</p>
         )}
         <div className="ship-console__counters">
           {resources && (
