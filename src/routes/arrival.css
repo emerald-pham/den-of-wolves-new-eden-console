@@ -15,10 +15,9 @@
 .landing__title-line { font-family: var(--cic-display); font-weight: 400; font-size: clamp(2.5rem, 6vw, 5.5rem); text-transform: uppercase; letter-spacing: 0.015em; }
 .landing__title-sub { font: 0.7rem/1.6 var(--cic-mono); letter-spacing: 0.25em; }
 .arrival-manifest { border: 1px solid var(--cic-rule); background: #080e1259; }
-.arrival-manifest__footer { display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 0.5rem; padding: 0.6rem 1.25rem; }
-.arrival-manifest__footer { border-top: 1px solid var(--cic-rule); }
 .arrival-manifest__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.arrival-readout { display: grid; place-items: center; min-height: clamp(12rem, 28vw, 20rem); padding: clamp(1rem, 3vw, 2rem); min-width: 0; }
+.arrival-readout { display: grid; place-items: center; align-content: center; gap: 0.75rem; min-height: clamp(12rem, 28vw, 20rem); padding: clamp(1rem, 3vw, 2rem); min-width: 0; }
+.arrival-readout__label { font: 0.75rem/1.5 var(--cic-mono); letter-spacing: 0.16em; text-align: center; }
 .arrival-readout + .arrival-readout { border-left: 1px solid var(--cic-rule); }
 .arrival-readout__value { font: clamp(5rem, 12vw, 10rem)/1.2 var(--cic-display); font-variant-numeric: tabular-nums; color: var(--cic-ink); text-shadow: 0 0 25px #83bbc518; }
 .arrival-readout:last-child .arrival-readout__value { color: var(--cic-amber); }

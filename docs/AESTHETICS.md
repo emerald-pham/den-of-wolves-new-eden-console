@@ -20,11 +20,13 @@ and cinematic headlines. Use system fonts; no external font dependency.
 Use --cic-radius for squared controls and --cic-space for fluid spacing.
 .cic-overline and .cic-text-button are shared utilities.
 
-Arrival readouts show only their changing value; do not add labels, sequence
-traces, counters, or franchise-specific terminology. Keep CIC as the one
-permitted reference. Use a three-column display on wide screens and compact
-stacked values on phones. Clearly distinguish atmospheric numbers from live
-session state. Preserve native buttons, labels, visible keyboard focus, error
+Arrival readouts show a changing value with its descriptive label underneath:
+SHIPS IN CONVOY, CREW, and WOLF AMONG US, in that order. Keep these labels visible
+at every viewport size. Hide the sequences of possible numbers; do not confuse
+those sequences with the descriptive labels. Do not show a SCENARIO SIGNAL
+footer. Avoid franchise-specific terminology such as DRADIS and COLONIAL;
+CIC is permitted. Use a three-column display on wide screens and compact
+stacked readouts on phones. Preserve native buttons, labels, visible keyboard focus, error
 announcements, and at least 44px touch targets.
 
 ## Interrupted transmission / atmospheric overlay

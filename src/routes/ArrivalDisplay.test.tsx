@@ -62,18 +62,22 @@ it('defaults to still mode when reduced motion is requested', () => {
   expect(screen.queryByRole('button', { name: /pause effects|resume effects/i })).not.toBeInTheDocument();
 });
 
-it('shows only live values inside readouts and no franchise-specific copy', () => {
+it('keeps descriptive labels visible while hiding sequences and franchise-specific copy', () => {
   render(<ArrivalDisplay />);
 
   expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   expect(screen.queryByText('DRADIS', { exact: false })).not.toBeInTheDocument();
-  expect(screen.queryByText('SHIPS IN CONVOY')).not.toBeInTheDocument();
+  for (const label of ['SHIPS IN CONVOY', 'CREW', 'WOLF AMONG US']) {
+    expect(screen.getByText(label)).toBeVisible();
+  }
   expect(screen.queryByText('6 — 7 — 5 — 0 — 1 — 3 — 4')).not.toBeInTheDocument();
+  expect(screen.queryByText('20 — 18 — 8 — 6 — 0 — 21')).not.toBeInTheDocument();
+  expect(screen.queryByText('1 — ? — 2')).not.toBeInTheDocument();
 });
 
-it('labels the effects control with the shortened scenario signal copy', () => {
+it('omits the scenario signal footer', () => {
   render(<ArrivalDisplay />);
 
-  expect(screen.getByText('SCENARIO SIGNAL')).toBeInTheDocument();
+  expect(screen.queryByText(/SCENARIO SIGNAL/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/NOT LIVE SESSION DATA/i)).not.toBeInTheDocument();
 });

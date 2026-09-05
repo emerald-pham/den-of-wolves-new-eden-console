@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
 const manifests = [
-  { values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
-  { values: ['20', '18', '8', '6', '0', '21'], offset: 3000 },
-  { values: ['1', '?', '2'], offset: 6000 },
+  { label: 'SHIPS IN CONVOY', values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
+  { label: 'CREW', values: ['20', '18', '8', '6', '0', '21'], offset: 3000 },
+  { label: 'WOLF AMONG US', values: ['1', '?', '2'], offset: 6000 },
 ];
 const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'];
 
@@ -52,11 +52,9 @@ export default function ArrivalDisplay() {
               <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
                 <span key={indices[index]} className={paused ? '' : 'arrival-digit'}>{manifest.values[indices[index] ?? 0]}</span>
               </div>
+              <div className="arrival-readout__label">{manifest.label}</div>
             </div>
           ))}
-        </div>
-        <div className="arrival-manifest__footer cic-overline">
-          <span>SCENARIO SIGNAL</span>
         </div>
       </section>
       {message && !paused && (
