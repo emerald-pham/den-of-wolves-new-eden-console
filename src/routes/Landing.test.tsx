@@ -100,7 +100,9 @@ describe('Landing', () => {
     renderLanding();
 
     const control = screen.getByRole('button', { name: /reduce motion.*reduce awesomeness/i });
-    expect(control.parentElement).toBe(screen.getByRole('button', { name: /create a session/i }).parentElement);
+    expect(
+      screen.getByRole('button', { name: /join a session/i }).compareDocumentPosition(control),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(control).toHaveTextContent('Reduce motion (reduce awesomeness) 😞');
 
     await user.click(control);
