@@ -226,6 +226,31 @@ describe('ship console instrument layout', () => {
     expect(plot).toContain('var(--ship-plot-resize) ease-in-out');
   });
 
+  it('anchors compact ship DRADIS to the safe-area top on phones', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toContain(`@media (max-width: 42rem) {
+  .ship-plot[data-aboard='true'][data-expanded='false'] {
+    top: max(0.75rem, env(safe-area-inset-top));
+    transition-property: width, height, border-color, background-color, box-shadow;
+  }`);
+  });
+
+  it('formats compact phone galactic coordinates as a short stacked readout', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    const label = index.match(
+      /\.ship-plot\[data-expanded='false'\] \.ship-plot__galactic-coordinate-label\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+    const value = index.match(
+      /\.ship-plot\[data-expanded='false'\] \.ship-plot__galactic-coordinate-value\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(label).toContain('display: block');
+    expect(value).toContain('display: block');
+    expect(value).toContain('font-variant-numeric: tabular-nums');
+  });
+
   it('places the shuttlebay in a dedicated rail below compact DRADIS', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const rail = index.match(/\.ship-console__instruments\s*\{([^}]*)\}/)?.[1] ?? '';

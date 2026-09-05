@@ -46,7 +46,8 @@ it('shows the current galactic coordinate beside Zoom and in the expanded displa
   expect(zoom.previousElementSibling).toHaveTextContent('GALACTIC COORDINATES // 0042');
 
   await user.click(zoom);
-  expect(screen.getByText('GALACTIC COORDINATES // 0042')).toBeInTheDocument();
+  expect(screen.getByText('GALACTIC COORDINATES').parentElement)
+    .toHaveTextContent('GALACTIC COORDINATES // 0042');
 });
 
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {

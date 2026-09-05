@@ -1681,6 +1681,43 @@ body {
 }
 
 @media (max-width: 42rem) {
+  .ship-plot[data-aboard='true'][data-expanded='false'] {
+    top: max(0.75rem, env(safe-area-inset-top));
+    transition-property: width, height, border-color, background-color, box-shadow;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__compact-controls {
+    align-items: flex-end;
+    gap: 0.45rem;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate {
+    min-width: 3.8rem;
+    padding-bottom: 0.2rem;
+    line-height: 1.15;
+    text-align: right;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate-label {
+    display: block;
+    color: var(--cic-muted);
+    font-size: 0.45rem;
+    letter-spacing: 0.08em;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate-separator {
+    display: none;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate-value {
+    display: block;
+    margin-top: 0.18rem;
+    color: var(--cic-cyan-hot);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.16em;
+  }
+
   .app-header {
     align-items: stretch;
   }
