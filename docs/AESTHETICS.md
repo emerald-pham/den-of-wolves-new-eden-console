@@ -148,9 +148,21 @@ that is a different, flatter instrument.
 ### Threat state
 
 `data-hostile="true"` swaps `--plot-ink`/`--plot-hot` to the threat tokens,
-raises `--plot-glow` to 1, and adds the INBOUND tracks, which close from the
-skin of the sphere to its centre over 5s — matching the intrusion. The centre
-of the sphere is where we are.
+raises `--plot-glow` to 1, and puts the spoofed returns on the board.
+
+**The hack plants fake contacts.** They are not inbound and they close on
+nothing: while the intrusion runs, the board has no way to tell them from real
+returns, so they hold station and carry ordinary track tags. It is only when the
+intrusion ends that the system works out they were never there — they are
+relabelled `FALSE`, break up, and drop off the board. That departure is why
+`ContactPlot` owns a timer at all: the spoofed tracks outlive the threat state
+by `SPASM_MS`, because unmounting them the instant the hack clears would cut the
+reveal off at its first frame.
+
+The break-up is a `steps(1, end)` animation on `.contact-plot__jitter`, a layer
+that exists purely so the fault never has to restate where the contact actually
+is — the station transform lives on the contact, the jitter on its child.
+`--phase` desynchronises the five so they never go at once.
 
 **Never speed the discs up by changing `--plot-turn`.** Changing
 `animation-duration` mid-turn recomputes progress as `elapsed / duration`, so a
@@ -240,14 +252,19 @@ panel stay above it. Decorative overlines are amber-ember; the message is
   (`cic-transmission`, 18%/82% hold).
 
 The launcher's schedule: first intrusion at 20 seconds, subsequent starts 60
-seconds apart, chosen randomly without an immediate repeat. Text:
-EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU. `ArrivalDisplay`
+seconds apart, chosen randomly without an immediate repeat. Text, always in
+caps: EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU / YOUR CHILDREN
+WILL SUFFER IN THE VOID / YOU WILL DIE A HORRIBLE DEATH / EVERYONE YOU KNOW IS A
+SPY / WE CANNOT BE STOPPED. `ArrivalDisplay`
 reports the intrusion up through an optional `onTransmission` callback, held in
 a ref so a parent handing over a fresh closure cannot restart the timers.
 
-Manifest values cycle in listed order every 7.5 seconds (`CYCLE_MS`), staggered
-by 0.3 and 0.6 of a cycle so the three readouts never turn over together —
-first changes at 7.5/9.75/12 seconds: 6,7,5,0,1,3,4; 20,18,8,6,0,21; and 1,?,2.
+Readouts turn over every 7.5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
+cycle so the three never move together — first changes at 7.5/9.75/12 seconds.
+SHIPS IN CONVOY draws at random from 1–7 and CREW from 8–21; WOLVES AMONG US
+walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
+is already showing: a readout that "changes" to what it already reads looks like
+a panel that has stopped working.
 Resolve digits once over 1.1 seconds; never rapidly flicker.
 Reduced motion starts paused and a new reduced-motion preference pauses ongoing
 effects. Do not add a manual motion control. Clean up timers on exit.

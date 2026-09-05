@@ -11,27 +11,78 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 
-it('cycles the exact manifests every seven and a half seconds with staggered starts and wraparound', () => {
+const readout = (n: number) => screen.getByLabelText(`Arrival readout ${n}`);
+const shown = (n: number) => readout(n).textContent ?? '';
+
+it('turns each readout over on its own beat, a third faster than a ten-second cycle', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
   render(<ArrivalDisplay />);
-  expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
-  expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('20');
-  expect(screen.getByLabelText('Arrival readout 3')).toHaveTextContent('1');
+  expect(readout(1)).toHaveTextContent('6');
+  expect(readout(2)).toHaveTextContent('20');
+  expect(readout(3)).toHaveTextContent('1');
+
   advance(7500);
-  expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('7');
-  expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('20');
+  expect(shown(1)).not.toBe('6');
+  expect(shown(2)).toBe('20');
   advance(2250);
-  expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('18');
+  expect(shown(2)).not.toBe('20');
   advance(2250);
-  expect(screen.getByLabelText('Arrival readout 3')).toHaveTextContent('?');
-  const ships = ['5', '0', '1', '3', '4', '6'];
-  const crew = ['8', '6', '0', '21', '20', '18'];
-  const wolves = ['2', '1', '?', '2', '1', '?'];
-  ships.forEach((value, i) => {
+  expect(readout(3)).toHaveTextContent('?');
+});
+
+it('walks the wolves readout through its listed order', () => {
+  render(<ArrivalDisplay />);
+  expect(readout(3)).toHaveTextContent('1');
+  advance(12000);
+  expect(readout(3)).toHaveTextContent('?');
+  advance(7500);
+  expect(readout(3)).toHaveTextContent('2');
+  advance(7500);
+  expect(readout(3)).toHaveTextContent('1');
+});
+
+it('draws ships from one to seven and crew from eight to twenty-one', () => {
+  render(<ArrivalDisplay />);
+  const ships = [shown(1)];
+  const crew = [shown(2)];
+
+  // 9750ms lands on the first beat of both readouts; every 7500ms after that
+  // moves both again, so consecutive samples are genuine consecutive values.
+  advance(9750);
+  ships.push(shown(1));
+  crew.push(shown(2));
+  for (let i = 0; i < 50; i += 1) {
     advance(7500);
-    expect(screen.getByLabelText('Arrival readout 1').textContent).toBe(value);
-    expect(screen.getByLabelText('Arrival readout 2').textContent).toBe(crew[i]);
-    expect(screen.getByLabelText('Arrival readout 3').textContent).toBe(wolves[i]);
-  });
+    ships.push(shown(1));
+    crew.push(shown(2));
+  }
+
+  expect(new Set(ships).size).toBeGreaterThan(1);
+  expect(new Set(crew).size).toBeGreaterThan(1);
+  for (const value of ships) {
+    expect(Number(value)).toBeGreaterThanOrEqual(1);
+    expect(Number(value)).toBeLessThanOrEqual(7);
+  }
+  for (const value of crew) {
+    expect(Number(value)).toBeGreaterThanOrEqual(8);
+    expect(Number(value)).toBeLessThanOrEqual(21);
+  }
+});
+
+it('never redraws the value a readout is already showing', () => {
+  // A readout that "changes" to what it already reads looks like a stuck panel.
+  render(<ArrivalDisplay />);
+  let ship = shown(1);
+  let crew = shown(2);
+
+  advance(9750);
+  for (let i = 0; i < 60; i += 1) {
+    expect(shown(1)).not.toBe(ship);
+    expect(shown(2)).not.toBe(crew);
+    ship = shown(1);
+    crew = shown(2);
+    advance(7500);
+  }
 });
 it('transmits at twenty seconds for five seconds, then a different message each minute', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
@@ -47,6 +98,15 @@ it('transmits at twenty seconds for five seconds, then a different message each 
   advance(55000);
   expect(screen.getByText('BE AFRAID')).toBeInTheDocument();
 });
+it('draws from every hostile message, the newer threats included', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.99);
+  render(<ArrivalDisplay />);
+
+  advance(20000);
+
+  expect(screen.getByText('WE CANNOT BE STOPPED')).toBeInTheDocument();
+});
+
 it('has no motion control and clears timers on unmount', () => {
   const { unmount } = render(<ArrivalDisplay />);
   expect(screen.queryByRole('button', { name: /pause effects|resume effects/i })).not.toBeInTheDocument();
