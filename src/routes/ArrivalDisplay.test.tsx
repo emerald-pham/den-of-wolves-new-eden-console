@@ -15,7 +15,7 @@ const readout = (n: number) => screen.getByLabelText(`Arrival readout ${n}`);
 const shown = (n: number) => readout(n).textContent ?? '';
 
 it('turns each readout over every five seconds on proportionally staggered beats', () => {
-  vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.spyOn(Math, 'random').mockReturnValue(0.5);
   render(<ArrivalDisplay />);
   expect(readout(1)).toHaveTextContent('6');
   expect(readout(2)).toHaveTextContent('20');
@@ -33,11 +33,34 @@ it('turns each readout over every five seconds on proportionally staggered beats
 it('walks the wolves readout through its listed order', () => {
   render(<ArrivalDisplay />);
   expect(readout(3)).toHaveTextContent('1');
+  expect(screen.getByText('WOLF AMONG US')).toBeVisible();
   advance(8000);
   expect(readout(3)).toHaveTextContent('?');
+  expect(screen.getByText('WOLVES AMONG US')).toBeVisible();
   advance(5000);
   expect(readout(3)).toHaveTextContent('2');
   advance(5000);
+  expect(readout(3)).toHaveTextContent('1');
+  expect(screen.getByText('WOLF AMONG US')).toBeVisible();
+});
+
+it('briefly replaces the wolves number with sus on a successful one-second roll', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  render(<ArrivalDisplay />);
+
+  advance(999);
+  expect(readout(3)).toHaveTextContent('1');
+  advance(1);
+  expect(readout(3)).toHaveTextContent('sus');
+  advance(34);
+  expect(readout(3)).toHaveTextContent('1');
+});
+
+it('leaves the wolves number alone when the one-second sus roll misses', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.01);
+  render(<ArrivalDisplay />);
+
+  advance(1000);
   expect(readout(3)).toHaveTextContent('1');
 });
 
@@ -134,7 +157,7 @@ it('keeps descriptive labels visible while hiding sequences and franchise-specif
   for (const label of [
     'SHIPS IN CONVOY',
     'PERSONNEL GRANTED CIC DATA ACCESS',
-    'WOLVES AMONG US',
+    'WOLF AMONG US',
   ]) {
     expect(screen.getByText(label)).toBeVisible();
   }
