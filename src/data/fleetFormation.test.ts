@@ -27,4 +27,10 @@ describe('the initial fleet formation', () => {
       x: -0.04, y: 0.26, z: 0.48,
     });
   });
+
+  it('renders Shepherd as a white DRADIS contact', () => {
+    expect(fleetViewFrom('aegis').find(({ id }) => id === 'shepherd')).toMatchObject({
+      color: 'var(--cic-dradis-white)',
+    });
+  });
 });

@@ -112,6 +112,8 @@ screens. The `--cic-faction-*` tokens are sampled from the supplied flag PNGs
 and may color a ship's nameplate, national rule and friendly DRADIS return.
 They do not replace amber structure, cyan instrumentation or red threat state
 elsewhere. This makes faction color informational rather than ornamental.
+Shepherd is the deliberate contact-color exception: its DRADIS return is white
+while its joined-ship identity remains Rosal red.
 
 Type: `--cic-mono` for every label, control and readout caption, always
 uppercase with wide tracking; `--cic-display` for manifest numbers and

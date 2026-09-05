@@ -39,7 +39,7 @@ export function fleetViewFrom(viewerId: string): readonly FleetContact[] {
     return [{
       id: ship.id,
       name: ship.name,
-      color: ship.color,
+      color: ship.dradisColor ?? ship.color,
       x: round(point.x - viewer.x),
       y: round(point.y - viewer.y),
       z: round(point.z - viewer.z),

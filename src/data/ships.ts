@@ -18,6 +18,7 @@ export interface Ship {
   readonly description: string;
   readonly flag: string;
   readonly color: string;
+  readonly dradisColor?: string;
 }
 
 export const SHIPS: readonly Ship[] = [
@@ -75,6 +76,7 @@ export const SHIPS: readonly Ship[] = [
     description: 'Produces food for the fleet aboard a deep-space agricultural vessel.',
     flag: rosal,
     color: 'var(--cic-faction-rosal)',
+    dradisColor: 'var(--cic-dradis-white)',
   },
   {
     id: 'quellon',
