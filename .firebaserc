@@ -1,5 +1,5 @@
 {
   "projects": {
-    "default": "__FIREBASE_PROJECT_ID__"
+    "default": "dow-new-eden-console"
   }
 }

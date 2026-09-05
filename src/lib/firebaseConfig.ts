@@ -13,12 +13,12 @@ import type { FirebaseOptions } from 'firebase/app';
  * the Firebase project exists. Env vars override them for local experiments.
  */
 const committed = {
-  apiKey: '__FIREBASE_API_KEY__',
-  authDomain: '__FIREBASE_AUTH_DOMAIN__',
-  projectId: '__FIREBASE_PROJECT_ID__',
-  storageBucket: '__FIREBASE_STORAGE_BUCKET__',
-  messagingSenderId: '__FIREBASE_MESSAGING_SENDER_ID__',
-  appId: '__FIREBASE_APP_ID__',
+  apiKey: 'AIzaSyCRBHvl_LHZ3V-kN8wqOKmUZPE7FQTb--Q',
+  authDomain: 'dow-new-eden-console.firebaseapp.com',
+  projectId: 'dow-new-eden-console',
+  storageBucket: 'dow-new-eden-console.firebasestorage.app',
+  messagingSenderId: '299811605673',
+  appId: '1:299811605673:web:9edc254e6cd1cc0a10edb8',
 } satisfies FirebaseOptions;
 
 const env = import.meta.env;
