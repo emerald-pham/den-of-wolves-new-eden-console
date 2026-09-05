@@ -16,6 +16,23 @@ export type SessionPhase = 'lobby' | 'briefing' | 'active' | 'debrief' | 'closed
 
 export type GalacticCoordinate = string;
 export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
+export interface ShipResourceValues {
+  readonly ore: number;
+  readonly fuel: number;
+  readonly food: number;
+  readonly water: number;
+  readonly materials: number;
+  readonly securityTeams: number;
+  readonly scrap?: number;
+}
+export type ShipResources = Readonly<Record<string, ShipResourceValues>>;
+
+export interface UnrestAlert {
+  readonly shipId: string;
+  readonly shipName: string;
+  readonly targetGmInstanceIds: readonly string[];
+  readonly createdAt: Timestamp;
+}
 
 export interface GameSession {
   readonly id: Id;
@@ -27,6 +44,12 @@ export interface GameSession {
   readonly capybaraEnabled?: boolean;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
+  /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
+  readonly shipResources?: ShipResources;
+  /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
+  readonly shipUnrest?: Readonly<Record<string, number>>;
+  /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */
+  readonly unrestAlerts?: Readonly<Record<string, UnrestAlert>>;
   /** Locks subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
   /** Playable role ids currently eligible for a random wolf assignment. */

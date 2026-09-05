@@ -425,7 +425,7 @@ body {
 
 .role-select__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -1155,6 +1155,8 @@ body {
     42rem,
     calc(100% - var(--ship-plot-widget-size) - clamp(3rem, 10vw, 8rem))
   );
+  max-height: calc(100dvh - max(5.5rem, env(safe-area-inset-top)) - 2rem);
+  overflow-y: auto;
   padding: clamp(1rem, 3vw, 1.75rem);
   border-top: 2px solid var(--ship-accent);
   border-left: 1px solid var(--ship-secondary);
@@ -1212,6 +1214,169 @@ body {
 
 .observer-access p { margin: 0; }
 .observer-access .cic-text-button { justify-self: start; }
+
+.ship-console__counters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(11rem, 1fr);
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.ship-resources {
+  flex: 0 0 auto;
+  padding: 0.75rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.ship-resources__eyebrow {
+  margin: 0;
+  color: var(--ship-accent);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ship-resources ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  border-top: 1px solid var(--cic-rule);
+  border-left: 1px solid var(--cic-rule);
+  list-style: none;
+}
+
+.ship-resources li {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.4rem;
+  border-right: 1px solid var(--cic-rule);
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.ship-resources li span {
+  overflow: hidden;
+  color: var(--cic-muted);
+  font-size: 0.46rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ship-resources li strong {
+  color: var(--cic-cyan-hot);
+  font: 400 1.15rem/1 var(--cic-display);
+}
+
+.ship-counter__controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ship-counter__controls button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: transparent;
+  color: var(--cic-cyan);
+  font: 1rem/1 var(--cic-mono);
+}
+
+.ship-counter__controls button:disabled { opacity: 0.28; }
+.ship-counter__controls button:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.ship-unrest {
+  flex: 0 0 auto;
+  padding: 0.75rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.ship-unrest > .ship-counter__controls { margin-top: 0.55rem; }
+.ship-unrest > .ship-counter__controls strong {
+  color: var(--cic-cyan-hot);
+  font: 400 1.1rem/1 var(--cic-display);
+}
+
+.ship-unrest__failure {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0;
+  padding: 0.7rem;
+  border: 1px solid var(--cic-scream);
+  background: color-mix(in srgb, var(--cic-hostile) 42%, var(--cic-void));
+  box-shadow: inset 0 0 28px color-mix(in srgb, var(--cic-hostile) 48%, transparent);
+  color: var(--cic-ink);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.ship-unrest__failure strong { color: var(--cic-scream); letter-spacing: 0.14em; }
+.ship-unrest__failure span { font-size: 0.52rem; }
+
+.ship-console[data-unrest-critical='true']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--cic-hostile) 9%, transparent) 0 1px,
+    transparent 1px 5px
+  );
+  box-shadow: inset 0 0 12vw color-mix(in srgb, var(--cic-hostile) 42%, transparent);
+}
+
+.unrest-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--cic-hostile) 72%, var(--cic-void));
+}
+
+.unrest-alert__panel {
+  width: min(46rem, 100%);
+  padding: clamp(1.5rem, 5vw, 4rem);
+  border: 2px solid var(--cic-scream);
+  background: var(--cic-void);
+  box-shadow: inset 0 0 60px color-mix(in srgb, var(--cic-hostile) 45%, transparent);
+  text-align: center;
+}
+
+.unrest-alert h2 {
+  margin: 0;
+  color: var(--cic-scream);
+  font: 400 clamp(2.2rem, 8vw, 6rem)/0.9 var(--cic-display);
+  text-transform: uppercase;
+}
+
+.unrest-alert p { color: var(--cic-ink); font: 0.8rem/1.7 var(--cic-mono); text-transform: uppercase; }
+.unrest-alert button {
+  min-height: 44px;
+  border: 1px solid var(--cic-scream);
+  background: color-mix(in srgb, var(--cic-hostile) 38%, var(--cic-void));
+  color: var(--cic-ink);
+  font: 0.7rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 
 .ship-shuttlebay {
   min-height: 0;
@@ -1324,6 +1489,8 @@ body {
 @media (max-width: 720px) {
   .gm-role-groups { grid-template-columns: 1fr; }
   .gm-role-group--independent { grid-column: auto; }
+  .ship-console__counters { grid-template-columns: 1fr; }
+  .ship-resources ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* One-shot bridge morale system ---------------------------------- */
@@ -1856,6 +2023,7 @@ body {
 }
 
 @media (max-width: 24rem) {
+  .ship-resources ul { grid-template-columns: 1fr; }
   .app-header {
     gap: 0.4rem;
   }

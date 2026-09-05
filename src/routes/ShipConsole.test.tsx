@@ -6,6 +6,8 @@ import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
+  adjustShipResource: vi.fn(),
+  adjustShipUnrest: vi.fn(),
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn(),
 }));
@@ -16,10 +18,15 @@ vi.mock('@/lib/firestore', () => ({
 
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
+const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 
 beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset();
+  vi.mocked(adjustShipResource).mockReset();
+  vi.mocked(adjustShipResource).mockResolvedValue(undefined);
+  vi.mocked(adjustShipUnrest).mockReset();
+  vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(subscribeShipConfetti).mockReset();
@@ -68,6 +75,97 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   })).toBeInTheDocument();
   expect(screen.getByText(/no shuttle docked/i)).toBeInTheDocument();
   expect(screen.getByText(/no recorded shuttle visits/i)).toBeInTheDocument();
+});
+
+it.each([
+  ['aegis', 'AEGIS', [0, 4, 8, 6, 1, 9]],
+  ['dione', 'Dione', [0, 3, 13, 14, 0, 2]],
+  ['icebreaker', 'Icebreaker', [0, 4, 11, 9, 3, 2]],
+  ['shepherd', 'Shepherd', [0, 4, 10, 8, 0, 2]],
+  ['quellon', 'Quellon', [0, 3, 10, 8, 0, 2]],
+  ['refinery-124', 'Refinery 124', [12, 5, 9, 4, 0, 6]],
+] as const)('shows %s starting resource trackers', (shipId, shipName, amounts) => {
+  render(
+    <MemoryRouter initialEntries={[`/ships/${shipId}`]}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const tracker = screen.getByRole('region', { name: `${shipName} resource stores` });
+  const labels = ['Strytium Ore', 'Strytium Fuel', 'Food', 'Water', 'Materials', 'Security Teams'];
+  labels.forEach((label, index) => {
+    expect(within(tracker).getByRole('listitem', { name: `${label}: ${amounts[index]}` }))
+      .toBeInTheDocument();
+  });
+  expect(within(tracker).queryByText('Scrap')).not.toBeInTheDocument();
+});
+
+it('adds Capybara expansion scrap to its resource trackers', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Capybara resource stores' });
+  expect(within(tracker).getByRole('listitem', { name: 'Strytium Fuel: 3' })).toBeInTheDocument();
+  expect(within(tracker).getByRole('listitem', { name: 'Security Teams: 2' })).toBeInTheDocument();
+  expect(within(tracker).getByRole('listitem', { name: 'Scrap: 3' })).toBeInTheDocument();
+});
+
+it('renders changing shared stock and lets a staffed console adjust it', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    shipResources: {
+      capybara: { ore: 0, fuel: 1, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+    },
+  });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara/roles/capybara-captain']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Capybara resource stores' });
+  expect(within(tracker).getByRole('listitem', { name: 'Strytium Fuel: 1' })).toBeInTheDocument();
+  await user.click(within(tracker).getByRole('button', { name: 'Increase Strytium Fuel' }));
+  expect(adjustShipResource).toHaveBeenCalledWith('capybara', 'fuel', 1);
+});
+
+it('shows unrest from zero to seven and lets a staffed console move it', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, shipUnrest: { capybara: 4 } });
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara/roles/capybara-captain']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Capybara unrest' });
+  expect(within(tracker).getByText('4 / 7')).toBeInTheDocument();
+  await user.click(within(tracker).getByRole('button', { name: 'Increase unrest' }));
+  expect(adjustShipUnrest).toHaveBeenCalledWith('capybara', 1);
+});
+
+it('breaks the unrest dial when the authoritative value is above seven', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, shipUnrest: { capybara: 8 } });
+  const { container } = render(
+    <MemoryRouter initialEntries={['/ships/capybara']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('region', { name: 'Capybara unrest' })).toHaveTextContent(
+    /unrest telemetry failure.*exceeds rated maximum.*console functions nominal/i,
+  );
+  expect(container.querySelector('.ship-console')).toHaveAttribute('data-unrest-critical', 'true');
 });
 
 it('shows the SNN shuttle docked at AEGIS and records its initial visit', () => {

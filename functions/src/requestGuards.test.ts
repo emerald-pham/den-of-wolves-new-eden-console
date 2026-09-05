@@ -13,6 +13,8 @@ import {
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
   requireSessionRequest,
+  requireShipCounterRequest,
+  requireUnrestDismissalRequest,
   requireSessionSeatRequest,
   requireUid,
 } from './requestGuards';
@@ -140,6 +142,24 @@ describe('callable request guards', () => {
     );
     expect(requireShipConfettiRequest({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' }))
       .toEqual({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' });
+  });
+
+  it('requires a known resource and a one-step counter change', () => {
+    expectHttpsError(() => requireShipCounterRequest({
+      sessionId: 's1', shipId: 'aegis', resourceId: 'morale', delta: 1,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireShipCounterRequest({
+      sessionId: 's1', shipId: 'aegis', resourceId: 'fuel', delta: 2,
+    }), 'invalid-argument');
+    expect(requireShipCounterRequest({
+      sessionId: 's1', shipId: 'aegis', resourceId: 'fuel', delta: -1,
+    })).toEqual({ sessionId: 's1', shipId: 'aegis', resourceId: 'fuel', delta: -1 });
+  });
+
+  it('requires a named GM instance to dismiss a ship unrest alert', () => {
+    expect(requireUnrestDismissalRequest({
+      sessionId: 's1', shipId: 'aegis', instanceId: 'gm-1',
+    })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'gm-1' });
   });
 
   it('requires an allow-listed role and boolean wolf setting', () => {

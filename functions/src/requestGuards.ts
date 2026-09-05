@@ -1,6 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { WOLF_ROLE_IDS } from './wolfAssignment';
 import { ROLE_IDS } from './roleConfiguration';
+import { RESOURCE_IDS, type ResourceId } from './resources';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -116,6 +117,65 @@ export function requireShipConfettiRequest(data: {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
     roleId: requiredId(data.roleId, 'roleId'),
+  };
+}
+
+export function requireShipCounterRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  resourceId?: unknown;
+  delta?: unknown;
+  instanceId?: unknown;
+}): {
+  sessionId: string; shipId: string; resourceId: ResourceId; delta: -1 | 1; instanceId?: string;
+} {
+  const resourceId = requiredId(data.resourceId, 'resourceId');
+  if (!(RESOURCE_IDS as readonly string[]).includes(resourceId)) {
+    throw new HttpsError('invalid-argument', 'Unknown resource.');
+  }
+  if (data.delta !== -1 && data.delta !== 1) {
+    throw new HttpsError('invalid-argument', 'delta must be -1 or 1.');
+  }
+  const result: {
+    sessionId: string; shipId: string; resourceId: ResourceId; delta: -1 | 1;
+    instanceId?: string;
+  } = {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    resourceId: resourceId as ResourceId,
+    delta: data.delta,
+  };
+  if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
+  return result;
+}
+
+export function requireShipUnrestRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  delta?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; shipId: string; delta: -1 | 1; instanceId?: string } {
+  if (data.delta !== -1 && data.delta !== 1) {
+    throw new HttpsError('invalid-argument', 'delta must be -1 or 1.');
+  }
+  const result: { sessionId: string; shipId: string; delta: -1 | 1; instanceId?: string } = {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    delta: data.delta,
+  };
+  if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
+  return result;
+}
+
+export function requireUnrestDismissalRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; shipId: string; instanceId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
   };
 }
 

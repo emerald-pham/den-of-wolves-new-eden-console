@@ -4,6 +4,7 @@ import { auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
+import type { ResourceId } from '@/data/resources';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -266,6 +267,56 @@ export async function getSurvivorPopulation(): Promise<number> {
     throw new Error('The server returned an invalid survivor population.');
   }
   return reply.data.survivorPopulation;
+}
+
+async function sendCounterChange(
+  name: 'adjustShipResource' | 'adjustShipUnrest' | 'dismissUnrestAlert',
+  payload: Record<string, string | number | undefined>,
+): Promise<void> {
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), name);
+    await call(payload);
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+  }
+}
+
+export async function adjustShipResource(
+  shipId: string,
+  resourceId: ResourceId,
+  delta: -1 | 1,
+): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before changing resources.');
+  await sendCounterChange('adjustShipResource', {
+    sessionId: store.session.id,
+    shipId,
+    resourceId,
+    delta,
+    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  });
+}
+
+export async function adjustShipUnrest(shipId: string, delta: -1 | 1): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before changing unrest.');
+  await sendCounterChange('adjustShipUnrest', {
+    sessionId: store.session.id,
+    shipId,
+    delta,
+    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  });
+}
+
+export async function dismissUnrestAlert(shipId: string): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) return;
+  await sendCounterChange('dismissUnrestAlert', {
+    sessionId: store.session.id,
+    shipId,
+    instanceId: store.gmInstance.id,
+  });
 }
 
 export async function joinSession(joinCode: string): Promise<void> {

@@ -145,6 +145,19 @@ describe('session header', () => {
     }));
   });
 
+  it('cannot change authoritative ship stores, unrest, or unrest alerts from the client', async () => {
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
+    await assertFails(updateDoc(session, { 'shipUnrest.aegis': 10 }));
+    await assertFails(updateDoc(session, {
+      'unrestAlerts.aegis': {
+        shipId: 'aegis',
+        shipName: 'AEGIS',
+        targetGmInstanceIds: ['bridge'],
+      },
+    }));
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.

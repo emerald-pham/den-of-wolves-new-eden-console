@@ -32,6 +32,9 @@ import {
   requireGmInstanceActionRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
+  requireShipCounterRequest,
+  requireShipUnrestRequest,
+  requireUnrestDismissalRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -43,6 +46,15 @@ import {
 } from './requestGuards';
 import { chooseWolfRoles, WOLF_ROLE_IDS } from './wolfAssignment';
 import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
+import {
+  INITIAL_SHIP_RESOURCES,
+  INITIAL_SHIP_UNREST,
+  isResourceShipId,
+  nextResourceAmount,
+  shipResources,
+  shipUnrest,
+  unrestChange,
+} from './resources';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -211,6 +223,9 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           phase: 'lobby',
           capybaraEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
+          shipResources: INITIAL_SHIP_RESOURCES,
+          shipUnrest: INITIAL_SHIP_UNREST,
+          unrestAlerts: {},
           gmControlsLocked: false,
           wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -250,6 +265,9 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             phase: 'lobby',
             capybaraEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
+            shipResources: INITIAL_SHIP_RESOURCES,
+            shipUnrest: INITIAL_SHIP_UNREST,
+            unrestAlerts: {},
             gmControlsLocked: false,
             wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -353,6 +371,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         phase: sessionSnap.get('phase') as string,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
+        shipResources: shipResources(sessionSnap.get('shipResources')),
+        shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
+        unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         wolfEligibleRoleIds:
           (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
@@ -439,6 +460,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       phase: sessionSnap.get('phase') as string,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
+      shipResources: shipResources(sessionSnap.get('shipResources')),
+      shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
+      unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       wolfEligibleRoleIds:
         (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
@@ -1240,6 +1264,137 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
     return { targetUid, role: 'gm' };
   },
 );
+
+function roleShipId(roleId: unknown): string | undefined {
+  if (roleId === 'admiral' || roleId === 'executive-officer' || roleId === 'wing-commander') {
+    return 'aegis';
+  }
+  return typeof roleId === 'string'
+    ? Object.keys(INITIAL_SHIP_RESOURCES).find((shipId) => roleId.startsWith(`${shipId}-`))
+    : undefined;
+}
+
+async function requireShipCounterAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  shipId: string,
+  instanceId?: string,
+): Promise<void> {
+  if (!isResourceShipId(shipId)) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
+  const player = await tx.get(db.doc(`sessions/${sessionId}/players/${uid}`));
+  if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+  if (player.get('role') === 'gm') {
+    if (!instanceId) throw new HttpsError('permission-denied', 'Active GM instance required.');
+    const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`));
+    if (!instance.exists || instance.get('uid') !== uid) {
+      throw new HttpsError('permission-denied', 'Active GM instance required.');
+    }
+    return;
+  }
+  if (roleShipId(player.get('activeConsoleRoleId')) !== shipId) {
+    throw new HttpsError('permission-denied', 'An active role aboard this ship is required.');
+  }
+}
+
+type StoredUnrestAlert = {
+  shipId: string;
+  shipName: string;
+  targetGmInstanceIds: string[];
+  createdAt: string;
+};
+
+export const adjustShipResource = onCall<{
+  sessionId: string; shipId: string; resourceId: string; delta: number; instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipCounterRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const inventories = shipResources(session.get('shipResources'));
+    const inventory = inventories[change.shipId];
+    const current = inventory?.[change.resourceId];
+    if (current === undefined) {
+      throw new HttpsError('failed-precondition', 'That ship does not hold this resource.');
+    }
+    const amount = nextResourceAmount(current, change.delta);
+    tx.update(sessionRef, {
+      [`shipResources.${change.shipId}.${change.resourceId}`]: amount,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { amount };
+  });
+});
+
+export const adjustShipUnrest = onCall<{
+  sessionId: string; shipId: string; delta: number; instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipUnrestRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+    const amounts = shipUnrest(session.get('shipUnrest'));
+    const result = unrestChange(amounts[change.shipId] ?? 0, change.delta, Boolean(alerts[change.shipId]));
+    if (result.kind === 'blocked') {
+      throw new HttpsError('failed-precondition', 'The GM unrest alert must be dismissed first.');
+    }
+    const nextAlerts = { ...alerts };
+    if (result.kind === 'overflow') {
+      const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
+      const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
+      if (targetGmInstanceIds.length > 0) {
+        nextAlerts[change.shipId] = {
+          shipId: change.shipId,
+          shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId]
+            ?? change.shipId,
+          targetGmInstanceIds,
+          createdAt: new Date().toISOString(),
+        };
+      }
+    }
+    tx.update(sessionRef, {
+      [`shipUnrest.${change.shipId}`]: result.amount,
+      unrestAlerts: nextAlerts,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { amount: result.amount, alertRaised: result.kind === 'overflow' };
+  });
+});
+
+export const dismissUnrestAlert = onCall<{
+  sessionId: string; shipId: string; instanceId: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const dismissal = requireUnrestDismissalRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${dismissal.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+    const alert = alerts[dismissal.shipId];
+    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) return { dismissed: true };
+    const remaining = alert.targetGmInstanceIds.filter((id) => id !== dismissal.instanceId);
+    const nextAlerts = { ...alerts };
+    if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
+    else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
+    tx.update(sessionRef, { unrestAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
+    return { dismissed: true };
+  });
+});
 
 /**
  * Authoritative randomness. The result is written to the session event log so

@@ -19,6 +19,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
 import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
+import { shipResources, shipUnrest } from '@/data/resources';
 
 let firestore: Firestore | undefined;
 
@@ -51,6 +52,12 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
+    shipResources: shipResources(data.shipResources),
+    shipUnrest: shipUnrest(data.shipUnrest),
+    unrestAlerts:
+      typeof data.unrestAlerts === 'object' && data.unrestAlerts !== null
+        ? data.unrestAlerts as NonNullable<GameSession['unrestAlerts']>
+        : {},
     gmControlsLocked: data.gmControlsLocked === true,
     wolfEligibleRoleIds: Array.isArray(data.wolfEligibleRoleIds)
       ? data.wolfEligibleRoleIds as string[]
