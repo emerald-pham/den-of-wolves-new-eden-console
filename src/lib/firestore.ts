@@ -171,7 +171,7 @@ export function subscribeConnectedPlayers(
 export function subscribeShipConfetti(
   sessionId: string,
   shipId: string,
-  onPop: (sourceShipId: string) => void,
+  onPop: (sourceShipId: string, actorRoleName?: string, actorName?: string) => void,
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let initial = true;
@@ -181,13 +181,17 @@ export function subscribeShipConfetti(
     (snapshot) => {
       const signal = snapshot.exists() ? iso(snapshot.get('createdAt')) : null;
       const sourceShipId = snapshot.exists() ? String(snapshot.get('shipId')) : shipId;
+      const actorRoleName = snapshot.exists() ? String(snapshot.get('actorRoleName')) : '';
+      const actorName = snapshot.exists() ? String(snapshot.get('actorName')) : '';
       if (initial) {
         initial = false;
         lastSignal = signal;
-        if (signal && Date.now() - Date.parse(signal) < 5_000) onPop(sourceShipId);
+        if (signal && Date.now() - Date.parse(signal) < 5_000) {
+          onPop(sourceShipId, actorRoleName, actorName);
+        }
         return;
       }
-      if (signal && signal !== lastSignal) onPop(sourceShipId);
+      if (signal && signal !== lastSignal) onPop(sourceShipId, actorRoleName, actorName);
       lastSignal = signal;
     },
     onError,

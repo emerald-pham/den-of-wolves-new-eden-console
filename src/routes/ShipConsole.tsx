@@ -35,6 +35,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
+  const [confettiActor, setConfettiActor] = useState<{
+    roleName: string;
+    name: string;
+  } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
   const [observerWrite, setObserverWrite] = useState(false);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
@@ -60,8 +64,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       unsubscribe = subscribeShipConfetti(
         session.id,
         ship.id,
-        (sourceShipId) => {
+        (sourceShipId, actorRoleName, actorName) => {
           setBurstSource(sourceShipId);
+          setConfettiActor(sourceShipId === 'snn-press-shuttle' ? null : {
+            roleName: actorRoleName ?? 'Unknown role',
+            name: actorName ?? 'Unknown operator',
+          });
           setBurst((current) => current + 1);
         },
         () => useSessionStore.getState().setCommunicationError({
@@ -208,7 +216,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <p className="confetti-dispenser__status">
           ONE USE // {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
         </p>
-        {!spent && !queued && (
+        {confettiActor && (
+          <p className="confetti-dispenser__notice" role="status">
+            DISCHARGED BY // {confettiActor.roleName} // {confettiActor.name}
+          </p>
+        )}
+        {!spent && !queued && !confettiActor && (
           <p className="confetti-dispenser__notice" role="status">
             {awaitingSecondOfficer
               ? 'AUTHORIZATION HELD // SECOND PERSON MUST PRESS TO FIRE THE CANNON'

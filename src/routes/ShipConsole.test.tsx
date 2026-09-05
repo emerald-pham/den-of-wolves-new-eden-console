@@ -338,7 +338,7 @@ it('tells a lone non-captain that a second person must fire the cannon', async (
 });
 
 it('fires newspapers on the bridge when the docked SNN shuttle holds the presses', async () => {
-  let signal: ((sourceShipId: string) => void) | undefined;
+  let signal: ((sourceShipId: string, actorRoleName: string, actorName: string) => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
     signal = onPop;
     return vi.fn();
@@ -350,9 +350,28 @@ it('fires newspapers on the bridge when the docked SNN shuttle holds the presses
   );
 
   await waitFor(() => expect(signal).toBeDefined());
-  act(() => signal?.('snn-press-shuttle'));
+  act(() => signal?.('snn-press-shuttle', 'Press Officer', 'Scoop McGee'));
 
   expect(container.querySelectorAll('.confetti-burst__piece--newspaper')).toHaveLength(48);
+  expect(screen.queryByText(/scoop mcgee/i)).not.toBeInTheDocument();
+});
+
+it('marks who fired ship confetti on every receiving console', async () => {
+  let signal: ((sourceShipId: string, actorRoleName: string, actorName: string) => void) | undefined;
+  vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
+    signal = onPop;
+    return vi.fn();
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(signal).toBeDefined());
+  act(() => signal?.('aegis', 'Admiral', 'Alice'));
+
+  expect(screen.getByRole('status')).toHaveTextContent(/discharged by.*admiral.*alice/i);
 });
 
 it('locks the trigger while the one-shot activation is in flight', async () => {
