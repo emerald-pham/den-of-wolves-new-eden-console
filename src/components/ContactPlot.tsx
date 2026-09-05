@@ -43,15 +43,28 @@ const CONTACTS: readonly Track[] = [
   { tag: 'TRK 08', bearing: 331, elevation: -6, range: 0.38 },
 ];
 
-/** Only on the board while something is inside the console with us. They start
- *  at the skin of the sphere and close on the centre, which is where we are. */
-const INBOUND: readonly Track[] = [
-  { tag: 'INBOUND', bearing: 41, elevation: 12, range: 0.99 },
-  { tag: 'INBOUND', bearing: 128, elevation: -25, range: 0.95 },
-  { tag: 'INBOUND', bearing: 214, elevation: 37, range: 0.97 },
-  { tag: 'INBOUND', bearing: 269, elevation: -9, range: 0.92 },
-  { tag: 'INBOUND', bearing: 349, elevation: 19, range: 0.98 },
+/**
+ * What the hack puts on the board. These are not contacts -- they are returns
+ * injected by whatever is inside the console with us, and while the hack is
+ * running the board has no way to tell them from the real ones, so they are
+ * tagged like ordinary tracks. It is only once the intrusion ends that the
+ * system works out they were never there.
+ */
+const SPOOFED: readonly Track[] = [
+  { tag: 'TRK 09', bearing: 41, elevation: 12, range: 0.99 },
+  { tag: 'UNKN', bearing: 128, elevation: -25, range: 0.95 },
+  { tag: 'TRK 11', bearing: 214, elevation: 37, range: 0.97 },
+  { tag: 'TRK 12', bearing: 269, elevation: -9, range: 0.92 },
+  { tag: 'UNKN', bearing: 349, elevation: 19, range: 0.98 },
 ];
+
+/** What a spoofed track is called once the board knows better. */
+const EXPOSED = 'FALSE';
+
+/** How long the hostile tracks stay on the board after the intrusion clears,
+ *  going to pieces. Long enough for the slowest of them to finish; the CSS
+ *  carries the same budget across its duration and its delay. */
+export const SPASM_MS = 2200;
 
 const MERIDIANS = [0, 30, 60, 90, 120, 150];
 const PARALLELS = [-60, -30, 0, 30, 60];
@@ -118,7 +131,29 @@ export default function ContactPlot({
     return () => preference?.removeEventListener('change', onChange);
   }, []);
 
-  const tracks = hostile ? [...CONTACTS, ...INBOUND] : CONTACTS;
+  // The hostile tracks outlive the intrusion by exactly as long as it takes
+  // them to break up. Unmounting them the instant the threat clears would cut
+  // the departure off at the first frame.
+  const [departing, setDeparting] = useState(false);
+
+  useEffect(() => {
+    if (hostile) {
+      setDeparting(true);
+      return;
+    }
+    if (!departing) return;
+    const gone = window.setTimeout(() => setDeparting(false), SPASM_MS);
+    return () => window.clearTimeout(gone);
+  }, [hostile, departing]);
+
+  // Spoofed returns outlive the intrusion by exactly as long as it takes them
+  // to break up. Dropping them the instant the hack ends would cut the reveal
+  // off at its first frame.
+  const exposed = departing && !hostile;
+  const tracks: readonly { track: Track; spoof: boolean }[] = [
+    ...CONTACTS.map((track) => ({ track, spoof: false })),
+    ...(hostile || departing ? SPOOFED.map((track) => ({ track, spoof: true })) : []),
+  ];
 
   return (
     <div
@@ -149,16 +184,21 @@ export default function ContactPlot({
           <div className="contact-plot__sweep" />
           <div className="contact-plot__sweep contact-plot__sweep--polar" />
         </div>
-        {tracks.map((track, index) => (
+        {tracks.map(({ track, spoof }, index) => (
           <div
             className="contact-plot__contact"
             key={`${track.tag}-${index}`}
-            data-inbound={String(track.tag === 'INBOUND')}
+            data-spoof={String(spoof)}
+            data-departing={String(spoof && exposed)}
             style={place(track)}
           >
-            <span className="contact-plot__drop" />
-            <span className="contact-plot__blip" />
-            <span className="contact-plot__tag">{track.tag}</span>
+            <div className="contact-plot__jitter">
+              <span className="contact-plot__drop" />
+              <span className="contact-plot__blip" />
+              <span className="contact-plot__tag">
+                {spoof && exposed ? EXPOSED : track.tag}
+              </span>
+            </div>
           </div>
         ))}
       </div>

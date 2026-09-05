@@ -1,6 +1,6 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import ContactPlot from './ContactPlot';
+import ContactPlot, { SPASM_MS } from './ContactPlot';
 
 // The plot is a decorative background layer. It deliberately exposes no role,
 // no accessible name and no meaningful text, so there is nothing to query it
@@ -26,6 +26,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -69,7 +70,7 @@ it('places contacts through the volume of the sphere rather than on a single pla
   }
 });
 
-it('holds station until an intrusion, then floods with inbound contacts', () => {
+it('holds station until an intrusion, then floods with spoofed contacts', () => {
   const { container, rerender } = render(<ContactPlot />);
   const quiet = contactsIn(container).length;
 
@@ -115,6 +116,57 @@ it('sweeps the volume with two discs on different axes, both riding the boost st
   for (const disc of discs) {
     expect(disc.parentElement).toHaveClass('contact-plot__boost');
   }
+});
+
+it('separates a contact from the fault that shakes it', () => {
+  const { container } = render(<ContactPlot />);
+
+  // The station transform and the break-up jitter are different layers, so the
+  // fault keyframes never have to restate where the contact actually is.
+  expect(contactsIn(container)[0]?.firstElementChild).toHaveClass('contact-plot__jitter');
+});
+
+it('passes the spoofed tracks off as ordinary contacts until the hack ends, then calls them false', () => {
+  vi.useFakeTimers();
+  const { container, rerender } = render(<ContactPlot hostile />);
+
+  // While the hack is running the board cannot tell them from real returns.
+  expect(container.textContent ?? '').not.toMatch(/FALSE/);
+
+  rerender(<ContactPlot />);
+
+  expect(container.textContent ?? '').toMatch(/FALSE/);
+});
+
+it('holds the hostile tracks on the board after an intrusion so they can break up, then drops them', () => {
+  vi.useFakeTimers();
+  const { container, rerender } = render(<ContactPlot hostile />);
+  const during = contactsIn(container).length;
+
+  // Nothing is breaking up while the intrusion is still on screen.
+  expect(container.querySelectorAll("[data-departing='true']")).toHaveLength(0);
+
+  rerender(<ContactPlot />);
+
+  // Still on the board, and now going to pieces.
+  expect(contactsIn(container)).toHaveLength(during);
+  expect(container.querySelectorAll("[data-departing='true']").length).toBeGreaterThan(0);
+
+  act(() => {
+    vi.advanceTimersByTime(SPASM_MS);
+  });
+
+  expect(contactsIn(container).length).toBeLessThan(during);
+});
+
+it('clears the departure timer when it leaves the screen', () => {
+  vi.useFakeTimers();
+  const { rerender, unmount } = render(<ContactPlot hostile />);
+  rerender(<ContactPlot />);
+
+  unmount();
+
+  expect(vi.getTimerCount()).toBe(0);
 });
 
 it('runs full-bleed by default but lets a route inset it instead', () => {

@@ -4,12 +4,47 @@ import Intrusion from '@/components/Intrusion';
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
  *  once. The stagger is a third of the cycle, and both scale together. */
 const CYCLE_MS = 7500;
-const manifests = [
-  { label: 'SHIPS IN CONVOY', values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
-  { label: 'CREW', values: ['20', '18', '8', '6', '0', '21'], offset: CYCLE_MS * 0.3 },
-  { label: 'WOLVES AMONG US', values: ['1', '?', '2'], offset: CYCLE_MS * 0.6 },
+
+/**
+ * A readout either walks a fixed sequence or draws from a range. Both refuse to
+ * land on the value already showing: a readout that "changes" to what it
+ * already reads looks like a panel that has stopped working.
+ */
+type Draw = (showing: string) => string;
+
+const inOrder =
+  (values: readonly string[]): Draw =>
+  (showing) =>
+    values[(values.indexOf(showing) + 1) % values.length] ?? values[0] ?? '';
+
+const inRange =
+  (low: number, high: number): Draw =>
+  (showing) => {
+    // Draw across the range minus one, then step over whatever is showing. The
+    // result is uniform across every value the readout could move to.
+    const drawn = low + Math.floor(Math.random() * (high - low));
+    return String(drawn >= Number(showing) ? drawn + 1 : drawn);
+  };
+
+const manifests: readonly {
+  label: string;
+  start: string;
+  offset: number;
+  draw: Draw;
+}[] = [
+  { label: 'SHIPS IN CONVOY', start: '6', offset: 0, draw: inRange(1, 7) },
+  { label: 'CREW', start: '20', offset: CYCLE_MS * 0.3, draw: inRange(8, 21) },
+  { label: 'WOLVES AMONG US', start: '1', offset: CYCLE_MS * 0.6, draw: inOrder(['1', '?', '2']) },
 ];
-const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'];
+const messages = [
+  'EARTH IS NOT FOR YOU',
+  'BE AFRAID',
+  'A COLD GRAVE AWAITS YOU',
+  'YOUR CHILDREN WILL SUFFER IN THE VOID',
+  'YOU WILL DIE A HORRIBLE DEATH',
+  'EVERYONE YOU KNOW IS A SPY',
+  'WE CANNOT BE STOPPED',
+];
 
 /**
  * `onTransmission` lets the rest of the launcher react to an intrusion without
@@ -23,7 +58,7 @@ export default function ArrivalDisplay({
   onTransmission?: ((active: boolean) => void) | undefined;
 }) {
   const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
-  const [indices, setIndices] = useState([0, 0, 0]);
+  const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
   const [message, setMessage] = useState<string | null>(null);
   const notify = useRef(onTransmission);
 
@@ -51,7 +86,9 @@ export default function ArrivalDisplay({
     const timers: number[] = [];
     manifests.forEach((manifest, index) => {
       const tick = () => {
-        setIndices((previous) => previous.map((value, i) => i === index ? (value + 1) % manifest.values.length : value));
+        setValues((previous) =>
+          previous.map((value, i) => (i === index ? manifest.draw(value) : value)),
+        );
         timers.push(window.setTimeout(tick, CYCLE_MS));
       };
       timers.push(window.setTimeout(tick, CYCLE_MS + manifest.offset));
@@ -77,7 +114,7 @@ export default function ArrivalDisplay({
           {manifests.map((manifest, index) => (
             <div className="arrival-readout" key={index}>
               <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
-                <span key={indices[index]} className={paused ? '' : 'arrival-digit'}>{manifest.values[indices[index] ?? 0]}</span>
+                <span key={values[index]} className={paused ? '' : 'arrival-digit'}>{values[index]}</span>
               </div>
               <div className="arrival-readout__label">{manifest.label}</div>
             </div>
