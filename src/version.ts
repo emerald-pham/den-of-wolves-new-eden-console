@@ -1,2 +1,4 @@
-/** Human-visible release reference. Keep synchronized with package.json. */
-export const APP_VERSION = '0.1.54';
+import packageJson from '../package.json';
+
+/** Human-visible release reference sourced from the package metadata. */
+export const APP_VERSION = packageJson.version;

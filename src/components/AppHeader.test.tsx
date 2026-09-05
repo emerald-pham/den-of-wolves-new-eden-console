@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { APP_VERSION } from '@/version';
 import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -33,7 +34,7 @@ it('shows the last-player warning inside settings', async () => {
 
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
-  expect(screen.getByText(/build 0\.1\.54/i)).toBeInTheDocument();
+  expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
 });
 
 it('shows the system motion setting and lets a player override it', async () => {

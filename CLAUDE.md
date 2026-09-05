@@ -152,7 +152,12 @@ Commit messages: imperative subject under 72 characters, and a body that says
 - Agents may advance through `0.8.x` only with extremely conservative judgment tied to genuine whole-game maturity.
 - Only the product owner may authorize `0.9.x`; it is reserved for builds genuinely close to release readiness.
 - Only the product owner may authorize `1.0.0`. It requires the complete 20-player set with full, complex gameplay: players must move through multiple interacting systems, the game works end to end, they complete a coherent gameplay loop, and reach a clear, implemented game end. Twenty selectable roles, placeholder screens, isolated mechanics, or shallow role stubs do not qualify.
-- Keep `package.json`, the root entry in `package-lock.json`, and `src/version.ts` synchronized.
+- Keep `package.json` and the root entry in `package-lock.json` synchronized.
+  `package.json` is the single source of truth for the application version;
+  runtime code, including `src/version.ts`, must derive the build reference from
+  that metadata. Never hardcode the current application version in source,
+  tests, workflows, or documentation. Tests should compare derived values with
+  package metadata, not pin a specific release number.
 - Show the version in the in-app settings dialog.
 - After every successful merge and every successful push, state the exact version in the user-facing chat.
 
