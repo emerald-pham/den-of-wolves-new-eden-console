@@ -56,6 +56,7 @@ export default function ArrivalDisplay() {
           ))}
         </div>
         <div className="arrival-manifest__footer cic-overline">
+          <span>SCENARIO SIGNAL</span>
           <button className="cic-text-button" type="button" onClick={() => setPaused(!paused)}>{paused ? 'Resume effects' : 'Pause effects'}</button>
         </div>
       </section>
