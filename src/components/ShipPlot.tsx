@@ -145,7 +145,9 @@ export default function ShipPlot({
               <span className="ship-plot__galactic-coordinate">
                 <span className="ship-plot__galactic-coordinate-label">GALACTIC COORDINATES</span>
                 <span className="ship-plot__galactic-coordinate-separator" aria-hidden="true"> // </span>
-                <span className="ship-plot__galactic-coordinate-value">{galacticCoordinate}</span>
+                <span className="ship-plot__galactic-coordinate-value">
+                  <span>{galacticCoordinate}</span>
+                </span>
               </span>
               <div
                 className="ship-plot__viewport"
@@ -192,7 +194,9 @@ export default function ShipPlot({
               <span className="ship-plot__galactic-coordinate">
                 <span className="ship-plot__galactic-coordinate-label">GALACTIC COORDINATES</span>
                 <span className="ship-plot__galactic-coordinate-separator" aria-hidden="true"> // </span>
-                <span className="ship-plot__galactic-coordinate-value">{galacticCoordinate}</span>
+                <span className="ship-plot__galactic-coordinate-value">
+                  <span>{galacticCoordinate}</span>
+                </span>
               </span>
               <button
                 className="ship-plot__toggle"

@@ -1412,6 +1412,11 @@ body {
   }
 }
 
+@keyframes ship-plot-coordinate-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100% + var(--coordinate-window))); }
+}
+
 /* Shipboard DRADIS ------------------------------------------------- */
 
 /* The same plot remains mounted and its containing viewport morphs between the
@@ -1692,7 +1697,8 @@ body {
   }
 
   .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate {
-    width: 4.5rem;
+    --coordinate-window: 4.5rem;
+    width: var(--coordinate-window);
     min-width: 3.8rem;
     padding-bottom: 0.2rem;
     line-height: 1.15;
@@ -1714,13 +1720,20 @@ body {
     display: block;
     max-width: 100%;
     margin-top: 0.18rem;
-    overflow-x: auto;
+    overflow: hidden;
     color: var(--cic-cyan-hot);
     font-size: 0.76rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.16em;
-    scrollbar-width: thin;
     white-space: nowrap;
+  }
+
+  .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate-value > span {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    animation: ship-plot-coordinate-ticker 7s ease-in-out infinite alternate;
+    text-align: right;
   }
 
   .app-header {
