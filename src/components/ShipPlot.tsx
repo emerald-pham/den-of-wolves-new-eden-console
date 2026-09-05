@@ -1,5 +1,5 @@
 import {
-  useEffect, useLayoutEffect,
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -7,13 +7,13 @@ import {
   type PointerEvent,
 } from 'react';
 import ContactPlot from './ContactPlot';
-import { useMotionPreference } from '@/lib/motionPreference';
+import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
-export const SHIP_PLOT_RESIZE_MS = 1_000;
+export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
 /** Keep the complete rotation path ready, but do not expose orientation changes yet. */
 export const SHIP_PLOT_ROTATION_ENABLED = false;
 
@@ -45,34 +45,7 @@ export default function ShipPlot({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
-  const [displayedViewerId, setDisplayedViewerId] = useState(viewerId);
-  const [transitionViewerId, setTransitionViewerId] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(true);
-  const { reducedMotion } = useMotionPreference();
-  const previousDestination = useRef({ aboard, viewerId });
   const drag = useRef<Drag | null>(null);
-
-  useLayoutEffect(() => {
-    const previous = previousDestination.current;
-    previousDestination.current = { aboard, viewerId };
-    if (previous.aboard === aboard && previous.viewerId === viewerId) return;
-
-    if (reducedMotion) {
-      setDisplayedViewerId(viewerId);
-      setTransitionViewerId(null);
-      setScanning(true);
-      return;
-    }
-
-    setScanning(false);
-    setTransitionViewerId(viewerId);
-    const arrived = window.setTimeout(() => {
-      setDisplayedViewerId(viewerId);
-      setTransitionViewerId(null);
-      setScanning(true);
-    }, SHIP_PLOT_RESIZE_MS);
-    return () => window.clearTimeout(arrived);
-  }, [aboard, viewerId, reducedMotion]);
 
   useEffect(() => {
     if (!aboard) setExpanded(false);
@@ -128,7 +101,7 @@ export default function ShipPlot({
     }));
   }
 
-  const viewer = findShip(displayedViewerId) ?? findShip('aegis');
+  const viewer = findShip(viewerId) ?? findShip('aegis');
   const effectiveViewerId = viewer?.id ?? 'aegis';
   const galacticCoordinate = shipGalacticCoordinates[effectiveViewerId] ??
     ORIGIN_GALACTIC_COORDINATE;
@@ -137,14 +110,11 @@ export default function ShipPlot({
     capybaraEnabled,
     shipGalacticCoordinates,
   );
-  const destination = transitionViewerId
-    ? fleetContacts.find((ship) => ship.id === transitionViewerId)
-    : undefined;
   const contacts = fleetContacts.map((ship) => ({
     tag: ship.name.toUpperCase(),
-    x: ship.x - (destination?.x ?? 0),
-    y: ship.y - (destination?.y ?? 0),
-    z: ship.z - (destination?.z ?? 0),
+    x: ship.x,
+    y: ship.y,
+    z: ship.z,
     color: ship.color,
   }));
 
@@ -164,8 +134,6 @@ export default function ShipPlot({
         contacts={contacts}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
-        scanning={scanning}
-        contactTransitionMs={transitionViewerId ? SHIP_PLOT_RESIZE_MS : undefined}
       />
       {aboard ? (
         <>

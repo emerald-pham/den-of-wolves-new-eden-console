@@ -166,8 +166,6 @@ export default function ContactPlot({
   contacts,
   centerLabel,
   orientation,
-  scanning = true,
-  contactTransitionMs,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
@@ -178,18 +176,14 @@ export default function ContactPlot({
   contacts?: readonly PlotContact[] | undefined;
   centerLabel?: string | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
-  /** Suspends both sweep motion and return acquisition while the instrument moves. */
-  scanning?: boolean;
-  /** Duration for a coherent perspective translation of canonical contacts. */
-  contactTransitionMs?: number | undefined;
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const { reducedMotion: still } = useMotionPreference();
 
   useEffect(() => {
-    if (!scanning || still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
+    if (still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
     return followSweeps(plot.current);
-  }, [scanning, still]);
+  }, [still]);
 
   // The hostile tracks outlive the intrusion by exactly as long as it takes
   // them to break up. Unmounting them the instant the threat clears would cut
@@ -226,7 +220,6 @@ export default function ContactPlot({
       aria-hidden="true"
       data-hostile={String(hostile)}
       data-placement={placement}
-      data-scanning={String(scanning)}
       data-still={String(still)}
       style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >
@@ -263,12 +256,7 @@ export default function ContactPlot({
               data-spoof={String(spoof)}
               data-departing={String(spoof && exposed)}
               data-label-anchor={labelAnchor(track, index)}
-              style={{
-                ...('x' in track ? placeCartesian(track) : place(track)),
-                ...(contactTransitionMs === undefined
-                  ? {}
-                  : { '--contact-transition': `${contactTransitionMs}ms` }),
-              } as PlotStyle}
+              style={'x' in track ? placeCartesian(track) : place(track)}
             >
               <div className="contact-plot__apparent">
                 <div className="contact-plot__jitter">
