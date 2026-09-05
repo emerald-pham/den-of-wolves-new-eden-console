@@ -1,0 +1,245 @@
+/* ---------------------------------------------------------------------------
+   Contact plot -- a wireframe sphere with a flat disc sweeping through it.
+   Paired with src/components/ContactPlot.tsx. Recipe in docs/AESTHETICS.md.
+
+   Geometry comes in from the component as unitless custom properties and is
+   turned into lengths here, so the maths lives in one place and the stylesheet
+   only ever multiplies by the radius.
+   --------------------------------------------------------------------------- */
+
+.contact-plot {
+  /* The sphere has to fit the short edge or its silhouette never closes and it
+     reads as loose arcs instead of a globe. */
+  --plot-size: min(94vmin, 128vw);
+  --plot-radius: calc(var(--plot-size) / 2);
+  --plot-ink: var(--cic-cyan);
+  --plot-hot: var(--cic-cyan-hot);
+  --plot-turn: 14s;
+  --plot-glow: 0.62;
+
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+
+  /* Perspective belongs here rather than on the rig: the rig carries
+     `transform-style: preserve-3d`, and opacity or a mask on that same element
+     would collapse the whole sphere back to flat. */
+  perspective: 130vmin;
+  perspective-origin: 50% 44%;
+  opacity: var(--plot-glow);
+  transition: opacity 900ms ease;
+
+  /* The board dissolves toward the edges instead of ending at a hard rim. */
+  -webkit-mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
+  mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
+}
+
+.contact-plot__rig {
+  position: relative;
+  width: var(--plot-size);
+  height: var(--plot-size);
+  transform-style: preserve-3d;
+  /* Looking very slightly down on the sphere reads as three-dimensional at a
+     glance; straight on, a wireframe globe collapses into concentric circles. */
+  transform: rotateX(14deg);
+}
+
+/* The cage ------------------------------------------------------------------
+   Meridians are great circles turned about the vertical axis, so they all meet
+   at the poles. Parallels are smaller circles laid flat and lifted: a ring at
+   latitude p has radius cos(p) and sits at height sin(p). */
+
+.contact-plot__meridian,
+.contact-plot__parallel,
+.contact-plot__limb {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--plot-ink) 40%, transparent);
+  border-radius: 50%;
+}
+
+.contact-plot__meridian {
+  transform: rotateY(var(--turn));
+}
+
+.contact-plot__parallel {
+  border-color: color-mix(in srgb, var(--plot-ink) 28%, transparent);
+  transform: rotateX(90deg) translateZ(calc(var(--lift) * var(--plot-radius)))
+    scale(var(--girth));
+}
+
+/* The silhouette of the sphere, and the only ring bright enough to read as an
+   edge rather than as structure. */
+.contact-plot__limb {
+  border-color: color-mix(in srgb, var(--plot-ink) 78%, transparent);
+  box-shadow: inset 0 0 90px color-mix(in srgb, var(--plot-ink) 10%, transparent);
+}
+
+/* The sweep -----------------------------------------------------------------
+   A two-dimensional circle turning through the volume. Rotating about the
+   vertical axis covers every bearing; the second disc turns about the
+   horizontal one so the scan is spherical rather than a spinning floor. */
+
+.contact-plot__sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--plot-hot) 70%, transparent);
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--plot-hot) 3%, transparent) 0 34%,
+    color-mix(in srgb, var(--plot-hot) 22%, transparent) 100%
+  );
+  box-shadow: 0 0 50px color-mix(in srgb, var(--plot-hot) 14%, transparent);
+  animation: plot-sweep var(--plot-turn) linear infinite;
+}
+
+.contact-plot__sweep--polar {
+  opacity: 0.45;
+  animation-name: plot-sweep-polar;
+  animation-duration: calc(var(--plot-turn) * 1.7);
+}
+
+@keyframes plot-sweep {
+  to {
+    transform: rotateY(360deg);
+  }
+}
+@keyframes plot-sweep-polar {
+  to {
+    transform: rotateX(360deg);
+  }
+}
+
+/* Contacts ------------------------------------------------------------------
+   A zero-size anchor at the centre of the sphere, translated out to where the
+   contact actually is. Perspective then does the depth work for free: a track
+   on the far side is genuinely further from the camera and paints smaller. */
+
+.contact-plot__contact {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  transform: translate3d(
+    calc(var(--x) * var(--plot-radius)),
+    calc(var(--y) * var(--plot-radius)),
+    calc(var(--z) * var(--plot-radius))
+  );
+}
+
+.contact-plot__blip {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  background: var(--plot-hot);
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--plot-hot) 55%, transparent);
+  /* The sweep is a plane, so it crosses any given bearing twice a turn, and a
+     contact flares as it is painted. --phase lines each blip up with the disc. */
+  animation: plot-paint calc(var(--plot-turn) / 2) linear infinite;
+  animation-delay: calc(var(--phase) * var(--plot-turn) / -2);
+}
+
+@keyframes plot-paint {
+  0% {
+    opacity: 1;
+    transform: scale(2);
+  }
+  16% {
+    opacity: calc(0.34 + var(--depth) * 0.5);
+    transform: scale(1);
+  }
+  100% {
+    opacity: calc(0.2 + var(--depth) * 0.34);
+    transform: scale(1);
+  }
+}
+
+/* Hangs from the contact to the equatorial plane so altitude is legible. */
+.contact-plot__drop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: calc(var(--drop) * var(--plot-radius));
+  transform-origin: 0 0;
+  transform: scaleY(var(--flip));
+  background: linear-gradient(
+    color-mix(in srgb, var(--plot-hot) 40%, transparent),
+    transparent
+  );
+}
+
+.contact-plot__tag {
+  position: absolute;
+  left: 11px;
+  top: -0.5rem;
+  font: 0.55rem/1 var(--cic-mono);
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--plot-hot) 60%, var(--cic-ink));
+  opacity: calc(0.22 + var(--depth) * 0.55);
+}
+
+/* Threat state --------------------------------------------------------------
+   The board turns over to the hostile palette, the scan doubles its rate, and
+   the inbound tracks close on the centre of the sphere, which is where we are. */
+
+.contact-plot[data-hostile='true'] {
+  --plot-ink: var(--cic-hostile);
+  --plot-hot: var(--cic-ember);
+  --plot-turn: 3.4s;
+  --plot-glow: 1;
+}
+
+.contact-plot[data-hostile='true'] .contact-plot__contact[data-inbound='true'] {
+  animation: plot-inbound 5s cubic-bezier(0.45, 0, 0.9, 0.55) both;
+}
+
+@keyframes plot-inbound {
+  from {
+    transform: translate3d(
+      calc(var(--x) * var(--plot-radius)),
+      calc(var(--y) * var(--plot-radius)),
+      calc(var(--z) * var(--plot-radius))
+    );
+  }
+  to {
+    transform: translate3d(
+      calc(var(--x) * var(--plot-radius) * 0.07),
+      calc(var(--y) * var(--plot-radius) * 0.07),
+      calc(var(--z) * var(--plot-radius) * 0.07)
+    );
+  }
+}
+
+/* Still ---------------------------------------------------------------------
+   A reduced-motion preference stops the board dead rather than slowing it. The
+   selectors are written to outrank the threat-state rules above. */
+
+.contact-plot[data-still='true'] {
+  transition: none;
+}
+.contact-plot[data-still='true'] .contact-plot__sweep,
+.contact-plot[data-still='true'] .contact-plot__blip,
+.contact-plot[data-still='true'] .contact-plot__contact[data-inbound='true'] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-plot,
+  .contact-plot__sweep,
+  .contact-plot__blip,
+  .contact-plot__contact {
+    animation: none;
+    transition: none;
+  }
+}

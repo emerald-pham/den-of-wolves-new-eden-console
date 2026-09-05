@@ -42,7 +42,7 @@ export default function RoleSelect() {
       <div className="role-select__grid role-select__grid--two">
         {MODES.map(({ mode, label, description }) => (
           <button
-            className="role-card"
+            className="role-card cic-frame"
             type="button"
             key={mode}
             disabled={mode === 'gm' && me.role !== 'gm'}

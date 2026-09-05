@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
+import ContactPlot from '@/components/ContactPlot';
 
 export default function NotFound() {
   return (
     <main className="landing">
+      <ContactPlot />
       <h1 className="landing__title">
         <span className="landing__title-sub">Nothing here yet.</span>
       </h1>

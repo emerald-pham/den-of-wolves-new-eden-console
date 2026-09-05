@@ -1,23 +1,99 @@
 /* Shared aesthetic profiles. See docs/AESTHETICS.md before extending. */
 :root {
-  --cic-void: #080e12;
-  --cic-panel: #101c23;
-  --cic-ink: #d4e3e5;
-  --cic-muted: #91a9b2;
-  --cic-cyan: #83bbc5;
-  --cic-amber: #caa56b;
-  --cic-danger: #d18c7c;
-  --cic-rule: #344950;
+  /* Ground and surfaces: near-black with a cold cast, never neutral grey. */
+  --cic-void: #04070a;
+  --cic-panel: #080f14;
+  --cic-ink: #e4ecee;
+  --cic-muted: #8397a0;
+
+  /* Amber is structure: frames, rules, captions, the edges of things. */
+  --cic-amber: #e8892b;
+  --cic-amber-glow: #ffb15c;
+  --cic-amber-dim: #6b3c14;
+  --cic-amber-deep: #22120522;
+
+  /* Cyan is instrumentation: anything that reads a measurement back to you. */
+  --cic-cyan: #46c8de;
+  --cic-cyan-hot: #8ceaf8;
+  --cic-cyan-dim: #1d5f6d;
+
+  /* Threat. Used when something hostile is happening, and not before. */
+  --cic-danger: #e0392a;
+  --cic-hostile: #e0392a;
+  --cic-ember: #ff6a4f;
+  --cic-blood: #6d120e;
+  --cic-scream: #ffd9d0;
+
+  --cic-rule: #5c3312;
   --cic-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --cic-display: "Arial Narrow", Impact, sans-serif;
-  --cic-radius: 2px;
+  --cic-radius: 0;
+  --cic-bracket: 14px;
   --cic-space: clamp(1rem, 3vw, 2.5rem);
   --bg: var(--cic-void);
-  --bg-glow: var(--cic-panel);
+  --bg-glow: #071016;
   --fg: var(--cic-ink);
   --muted: var(--cic-muted);
   --accent: var(--cic-amber);
 }
-.cic-overline { font: 0.65rem/1.6 var(--cic-mono); letter-spacing: 0.14em; color: var(--cic-muted); }
-.cic-text-button { color: var(--cic-cyan); background: none; border: 0; padding: 0.65rem; min-height: 44px; font: inherit; text-transform: uppercase; cursor: pointer; }
-.cic-text-button:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }
+
+.cic-overline {
+  font: 0.65rem/1.6 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cic-amber);
+}
+
+.cic-text-button {
+  color: var(--cic-cyan);
+  background: none;
+  border: 0;
+  padding: 0.65rem;
+  min-height: 44px;
+  font: inherit;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cic-text-button:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+/* Bracketed frame -- the CIC's one container.
+   Corner brackets are painted with gradients rather than extra elements, so a
+   frame never adds DOM, never joins the accessibility tree and never leaks
+   into a control's accessible name. */
+.cic-frame {
+  position: relative;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background:
+    linear-gradient(var(--cic-amber-deep), transparent 120px),
+    var(--cic-panel);
+}
+.cic-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--cic-amber) 0 0) 0 0 / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 0 0 / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 100% 0 / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 100% 0 / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 0 100% / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 0 100% / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 100% 100% / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-amber) 0 0) 100% 100% / 2px var(--cic-bracket) no-repeat;
+}
+
+/* Segmented tick strip -- the CIC's divider and its only ornament. */
+.cic-ticks {
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--cic-amber) 0 3px,
+    transparent 3px 8px
+  );
+  opacity: 0.5;
+}

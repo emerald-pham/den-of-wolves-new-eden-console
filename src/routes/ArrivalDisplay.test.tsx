@@ -81,3 +81,29 @@ it('omits the scenario signal footer', () => {
   expect(screen.queryByText(/SCENARIO SIGNAL/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/NOT LIVE SESSION DATA/i)).not.toBeInTheDocument();
 });
+
+it('reports an intrusion for as long as it is on screen so the plot can go hostile', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  const onTransmission = vi.fn();
+  const { unmount } = render(<ArrivalDisplay onTransmission={onTransmission} />);
+
+  expect(onTransmission).toHaveBeenLastCalledWith(false);
+  advance(20000);
+  expect(onTransmission).toHaveBeenLastCalledWith(true);
+  advance(5000);
+  expect(onTransmission).toHaveBeenLastCalledWith(false);
+
+  unmount();
+  expect(onTransmission).toHaveBeenLastCalledWith(false);
+});
+
+it('never reports an intrusion when reduced motion has stood the display down', () => {
+  vi.mocked(matchMedia).mockReturnValue({
+    matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  } as unknown as MediaQueryList);
+  const onTransmission = vi.fn();
+  render(<ArrivalDisplay onTransmission={onTransmission} />);
+
+  advance(80000);
+  expect(onTransmission).not.toHaveBeenCalledWith(true);
+});

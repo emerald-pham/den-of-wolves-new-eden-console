@@ -38,7 +38,7 @@ export default function AppHeader() {
       {settingsOpen && (
         <div className="settings-backdrop" onMouseDown={() => setSettingsOpen(false)}>
           <section
-            className="settings-dialog"
+            className="settings-dialog cic-frame"
             role="dialog"
             aria-modal="true"
             aria-labelledby="settings-title"

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Intrusion from '@/components/Intrusion';
 
 const manifests = [
   { label: 'SHIPS IN CONVOY', values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
@@ -7,10 +8,33 @@ const manifests = [
 ];
 const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'];
 
-export default function ArrivalDisplay() {
+/**
+ * `onTransmission` lets the rest of the launcher react to an intrusion without
+ * this component knowing what reacts. It is held in a ref so a parent that
+ * hands over a fresh closure on every render cannot restart the timers and
+ * reset the manifest cycle underneath it.
+ */
+export default function ArrivalDisplay({
+  onTransmission,
+}: {
+  onTransmission?: (active: boolean) => void;
+}) {
   const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const [indices, setIndices] = useState([0, 0, 0]);
   const [message, setMessage] = useState<string | null>(null);
+  const notify = useRef(onTransmission);
+
+  useEffect(() => {
+    notify.current = onTransmission;
+  }, [onTransmission]);
+
+  useEffect(() => {
+    notify.current?.(message !== null && !paused);
+  }, [message, paused]);
+
+  // Leaving the launcher stands the board down; nothing is hunting an unmounted
+  // screen.
+  useEffect(() => () => notify.current?.(false), []);
 
   useEffect(() => {
     const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -45,7 +69,7 @@ export default function ArrivalDisplay() {
 
   return (
     <>
-      <section className="arrival-manifest" aria-label="Arrival display">
+      <section className="arrival-manifest cic-frame" aria-label="Arrival display">
         <div className="arrival-manifest__grid">
           {manifests.map((manifest, index) => (
             <div className="arrival-readout" key={index}>
@@ -57,15 +81,7 @@ export default function ArrivalDisplay() {
           ))}
         </div>
       </section>
-      {message && !paused && (
-        <div className="arrival-transmission" aria-hidden="true">
-          <div className="arrival-transmission__signal">
-            <span className="cic-overline">UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN</span>
-            <p>{message}</p>
-            <span className="cic-overline">SIGNAL INTEGRITY COMPROMISED</span>
-          </div>
-        </div>
-      )}
+      {message && !paused && <Intrusion message={message} />}
     </>
   );
 }

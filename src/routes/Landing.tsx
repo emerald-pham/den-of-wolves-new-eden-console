@@ -1,4 +1,5 @@
 import ArrivalDisplay from './ArrivalDisplay';
+import ContactPlot from '@/components/ContactPlot';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
@@ -11,6 +12,8 @@ export default function Landing() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The board behind the console reacts to whatever is transmitting at us.
+  const [intrusion, setIntrusion] = useState(false);
 
   /**
    * One place for the two things every call has to get right: the buttons go
@@ -36,16 +39,17 @@ export default function Landing() {
   }
 
   return (
-    <main className="landing">
+    <main className="landing" data-intrusion={String(intrusion)}>
+      <ContactPlot hostile={intrusion} />
       <div className="arrival-topline cic-overline"><span>NEW EDEN / CIC</span><span>SYSTEM STATUS</span></div>
       <h1 className="landing__title">
         <span className="landing__title-line">Den of Wolves: New Eden</span>
         <span className="landing__title-sub">Unofficial Companion Console</span>
       </h1>
 
-      <ArrivalDisplay />
+      <ArrivalDisplay onTransmission={setIntrusion} />
 
-      <div className="landing__actions">
+      <div className="landing__actions cic-frame">
         <button
           type="button"
           className="landing__button"

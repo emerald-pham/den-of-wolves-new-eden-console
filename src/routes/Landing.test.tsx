@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -50,6 +50,30 @@ describe('Landing', () => {
   it('includes the arrival display', () => {
     renderLanding();
     expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
+  });
+
+  it('runs the contact plot behind the console and sends it hostile during an intrusion', () => {
+    vi.useFakeTimers();
+    try {
+      // A decorative background layer has no role, name or text to query by.
+      const { container } = renderLanding();
+      const plot = container.querySelector('.contact-plot');
+
+      expect(plot).toHaveAttribute('aria-hidden', 'true');
+      expect(plot).toHaveAttribute('data-hostile', 'false');
+
+      act(() => {
+        vi.advanceTimersByTime(20_000);
+      });
+      expect(plot).toHaveAttribute('data-hostile', 'true');
+
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(plot).toHaveAttribute('data-hostile', 'false');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('offers the two ways in', () => {
