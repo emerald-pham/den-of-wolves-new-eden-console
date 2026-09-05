@@ -89,6 +89,10 @@ it('groups every ship role by its world of origin without exposing ship actions'
   const earth = screen.getByRole('region', { name: /old nations of earth/i });
   const colonies = screen.getByRole('region', { name: /new nations of the colonies/i });
 
+  expect(screen.getByRole('heading', { name: 'Old Nations of Earth' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: /old nations of earth.*council/i }))
+    .not.toBeInTheDocument();
+
   for (const ship of ['AEGIS', 'Dione', 'Icebreaker', 'Capybara']) {
     expect(within(earth).getByRole('article', { name: new RegExp(ship, 'i') })).toBeInTheDocument();
   }

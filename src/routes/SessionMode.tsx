@@ -58,7 +58,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 }
 
 const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
-  { origin: 'earth', label: 'Old Nations of Earth and Interstellar Council' },
+  { origin: 'earth', label: 'Old Nations of Earth' },
   { origin: 'colonies', label: 'New Nations of the Colonies' },
 ];
 
