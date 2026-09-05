@@ -2,7 +2,7 @@ import { Link, Navigate } from 'react-router-dom';
 import PressConfetti from '@/components/PressConfetti';
 import { SHIPS } from '@/data/ships';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { INITIAL_SHUTTLE_VISITS, SHUTTLECRAFT } from '@/data/shuttles';
+import { SHUTTLECRAFT } from '@/data/shuttles';
 import { useSessionStore } from '@/store/useSessionStore';
 
 export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
@@ -17,8 +17,6 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
       ? { shuttleId, shipId: 'aegis', dockedAt: 'SESSION START' }
       : undefined);
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
-  const visits = (session?.shuttleVisitLog ?? INITIAL_SHUTTLE_VISITS)
-    .filter((visit) => visit.shuttleId === shuttleId);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!shuttle || (mode !== 'console' && mode !== 'press') || !activeRoles.includes(shuttle.captainRoleId)) {
@@ -47,21 +45,6 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
           <p className="shuttle-console__position">
             Shuttle location // {docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit'}
           </p>
-          <h3>Travel log</h3>
-          {visits.length ? (
-            <ol className="ship-shuttlebay__log" aria-label="Shuttle travel log">
-              {visits.map((visit) => {
-                const ship = SHIPS.find((item) => item.id === visit.shipId);
-                return (
-                  <li key={visit.id}>
-                    <span>{ship?.name ?? visit.shipId}</span>
-                    <strong>{visit.action.toUpperCase()}</strong>
-                    <time>{visit.occurredAt}</time>
-                  </li>
-                );
-              })}
-            </ol>
-          ) : <p>No recorded travel</p>}
         </section>
 
         {shuttle.id === 'snn-press-shuttle' && <PressConfetti />}

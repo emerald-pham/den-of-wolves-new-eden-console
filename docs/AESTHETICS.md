@@ -222,7 +222,7 @@ specialize the accent and modules but must not replace the shell.
   separate contact. In flight, the shuttle becomes a sampled DRADIS contact
   under the detection rules in `docs/SHUTTLECRAFT.md`.
 - Every shuttle console has one real navigation/status module. It reports the
-  authoritative docked host or transit state and the shuttle's own travel log.
+  authoritative docked host or transit state without exposing a travel log.
   Do not add fake speed, fuel, heading or ETA readouts before those values exist.
 - Craft capabilities are opt-in slots, not assumed equipment. SNN supplies the
   reusable newspaper-confetti evidence shredder; it is not subject to the
@@ -326,7 +326,7 @@ that is a different, flatter instrument.
    and `--phase` = `(bearing mod 180) / 180`.
 8. **Paint flare.** A frame observer reads each disc's rendered CSS transform.
    A contact acquires and refreshes when its signed distance to either plane
-   crosses zero. Acquisition, a one-shot blip flare, and the display bearing
+   crosses zero. Acquisition, a one-shot blip/altitude-line fade, and the display bearing
    step share that event; there are no independent repeating contact timers.
    The bearing walk spans -1 to +1 degrees around the vertical axis, retaining
    canonical formation coordinates. Names remain solid after acquisition.
@@ -377,7 +377,9 @@ fades out and back in: `SCREEN_FADE_MS` each way, two tenths of a second in
 total. The constant and the CSS duration are the same figure in two places; move
 both. This crossing applies to routed foreground content only. Persistent
 background instrumentation does not fade; when DRADIS changes between field and
-corner modes, its own 200ms geometry transition communicates that change.
+corner modes, its own 200ms ease-in-out geometry transition communicates that
+change. Activating a compact ship or shuttle DRADIS uses that same transition to
+zoom in and out.
 
 It takes a function rather than plain children because `Routes` reads the
 location from context — an already-rendered element is no help, since it would

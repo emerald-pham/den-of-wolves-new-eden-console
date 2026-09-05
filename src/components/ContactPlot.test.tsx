@@ -29,6 +29,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  Reflect.deleteProperty(Element.prototype, 'animate');
 });
 
 it('is decorative: hidden from assistive technology and unreachable by keyboard', () => {
@@ -228,6 +229,12 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     return 1;
   }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const painted: Element[] = [];
+  const cancel = vi.fn();
+  Object.defineProperty(Element.prototype, 'animate', { configurable: true, writable: true, value: vi.fn(function (this: Element) {
+    painted.push(this);
+    return { cancel } as unknown as Animation;
+  }) });
   let normal = { x: 0, y: 0, z: 1 };
   vi.stubGlobal('DOMMatrixReadOnly', class {
     constructor(private value: string) {}
@@ -249,6 +256,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 1, y: 0, z: -0.01 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  expect(painted.map((e) => e.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
   const fix = apparent()?.style.cssText;
   normal = { x: 0.8, y: 0, z: -0.6 };
   act(() => frame(48));
@@ -262,4 +270,5 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(apparent()?.style.cssText).not.toBe(fix);
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
+  expect(cancel).toHaveBeenCalled();
 });

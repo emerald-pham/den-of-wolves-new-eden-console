@@ -249,6 +249,7 @@
 
 /* Hangs from the contact to the equatorial plane so altitude is legible. */
 .contact-plot__drop {
+  opacity: 0.03;
   position: absolute;
   left: 0;
   top: 0;
@@ -386,7 +387,8 @@
   animation: none;
 }
 .contact-plot[data-still='true'] .contact-plot__apparent { opacity: 1; }
-.contact-plot[data-still='true'] .contact-plot__blip { opacity: 1; }
+.contact-plot[data-still='true'] .contact-plot__blip,
+.contact-plot[data-still='true'] .contact-plot__drop { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .contact-plot,
@@ -403,5 +405,6 @@
   }
 
   .contact-plot__apparent { opacity: 1; }
-  .contact-plot__blip { opacity: 1; }
+  .contact-plot__blip,
+  .contact-plot__drop { opacity: 1; }
 }

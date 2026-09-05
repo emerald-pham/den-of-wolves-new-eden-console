@@ -42,9 +42,8 @@ it('uses the shared full-screen shuttlecraft console template for SNN', () => {
   expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
     /docked.*aegis/i,
   );
-  expect(screen.getByRole('list', { name: /shuttle travel log/i })).toHaveTextContent(
-    /aegis.*docked/i,
-  );
+  expect(screen.queryByText(/travel log/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: /shuttle travel log/i })).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: /newspaper confetti dispenser/i })).toBeInTheDocument();
 });
 

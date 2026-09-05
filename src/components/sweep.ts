@@ -32,7 +32,7 @@ export function apparentFix(point: Vector, scan: number): Vector {
  * drift on mounts, navigation, throttled tabs or a change in animation rate. */
 export function followSweeps(plot: HTMLElement): () => void {
   const discs = Array.from(plot.querySelectorAll<HTMLElement>('.contact-plot__sweep'));
-  const returns = new Map<HTMLElement, { fix: Vector; scans: number; paint?: Animation }>();
+  const returns = new Map<HTMLElement, { fix: Vector; scans: number; paint: Animation[] }>();
   let previous: Vector[] = [];
   let lastFrame = -Infinity;
   let frame = 0;
@@ -47,7 +47,7 @@ export function followSweeps(plot: HTMLElement): () => void {
     lastFrame = now;
     for (const [element, state] of returns) {
       if (!plot.contains(element)) {
-        state.paint?.cancel();
+        state.paint.forEach((animation) => animation.cancel());
         returns.delete(element);
       }
     }
@@ -61,19 +61,26 @@ export function followSweeps(plot: HTMLElement): () => void {
         z: Number(element.style.getPropertyValue('--z')),
       };
       const existing = returns.get(element);
-      const state = existing ?? { fix: canonical, scans: index };
+      const state = existing ?? { fix: canonical, scans: index, paint: [] };
       returns.set(element, state);
       if (!normals.some((normal, i) => crossedPlane(state.fix, existing ? previous[i] ?? null : null, normal))) return;
       state.fix = apparentFix(canonical, state.scans++);
       apparent.dataset.acquired = 'true';
       apparent.style.setProperty('--fix-x', String(state.fix.x - canonical.x));
       apparent.style.setProperty('--fix-z', String(state.fix.z - canonical.z));
-      state.paint?.cancel();
-      state.paint = blip.animate?.([
-        { opacity: 1, transform: 'scale(2)', offset: 0 },
-        { opacity: 0.34 + (state.fix.z + 1) * 0.25, transform: 'scale(1)', offset: 0.16 },
-        { opacity: 0.03, transform: 'scale(1)', offset: 1 },
-      ], { duration: 7000, fill: 'forwards' });
+      state.paint.forEach((animation) => animation.cancel());
+      const fade = [
+        { opacity: 1, offset: 0 },
+        { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
+        { opacity: 0.03, offset: 1 },
+      ];
+      const drop = element.querySelector<HTMLElement>('.contact-plot__drop');
+      state.paint = [
+        blip.animate?.(fade.map((keyframe, i) => ({
+          ...keyframe, transform: i === 0 ? 'scale(2)' : 'scale(1)',
+        })), { duration: 7000, fill: 'forwards' }),
+        drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
+      ].filter((animation): animation is Animation => animation !== undefined);
     });
     previous = normals;
     frame = requestAnimationFrame(tick);
@@ -81,6 +88,6 @@ export function followSweeps(plot: HTMLElement): () => void {
   frame = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(frame);
-    returns.forEach((state) => state.paint?.cancel());
+    returns.forEach((state) => state.paint.forEach((animation) => animation.cancel()));
   };
 }
