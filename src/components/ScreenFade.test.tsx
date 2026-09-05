@@ -95,12 +95,13 @@ describe('ScreenFade', () => {
     expect(SCREEN_FADE_MS * 2).toBe(200);
   });
 
-  it('moves a ship flag between screens over two tenths of a second', () => {
+  it('moves a ship flag without stretching its image aspect ratio', () => {
     vi.useFakeTimers();
     const userMotion = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
+      .mockReturnValueOnce({ left: 10, top: 20, width: 100, height: 80 } as DOMRect)
+      .mockReturnValue({ left: 70, top: 90, width: 420, height: 420 } as DOMRect);
     render(
       <MemoryRouter initialEntries={['/ships/aegis/roles']}>
         <FlagHarness />
@@ -116,6 +117,12 @@ describe('ScreenFade', () => {
 
     act(() => vi.advanceTimersByTime(20));
     expect(movingFlag?.style.objectPosition).toBe('center center');
+    expect(movingFlag?.style.left).toBe('70px');
+    expect(movingFlag?.style.top).toBe('90px');
+    expect(movingFlag?.style.width).toBe('420px');
+    expect(movingFlag?.style.height).toBe('420px');
+    expect(movingFlag?.style.transform).toBe('none');
+    expect(movingFlag?.style.transition).not.toContain('transform');
     expect(movingFlag?.style.transition).toContain('object-position');
     expect(SHARED_FLAG_MOVE_MS).toBe(200);
     act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));

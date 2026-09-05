@@ -419,6 +419,9 @@ throughout the crossing.
 The clone also interpolates `object-position` to the destination image's
 alignment. Role-picker flags are left-aligned while console flags are centred;
 holding the source alignment until the clone disappears causes a visible snap.
+Its fixed box interpolates `left`, `top`, `width` and `height` directly. Do not
+scale the box with a transform: the source and destination boxes have different
+aspect ratios, so non-uniform transform scaling visibly distorts the flag.
 
 Navigation that lands on the screen already showing is not a crossing: a
 `replace`, or a route guard redirecting back to where we already are, compares
