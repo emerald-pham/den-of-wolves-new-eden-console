@@ -121,6 +121,12 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
   });
 
+  it('cannot change wolf eligibility from the client', async () => {
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
+      wolfEligibleRoleIds: ['press-officer'],
+    }));
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.

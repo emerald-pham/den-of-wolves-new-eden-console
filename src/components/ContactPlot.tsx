@@ -244,29 +244,31 @@ export default function ContactPlot({
           <div className="contact-plot__sweep" />
           <div className="contact-plot__sweep contact-plot__sweep--polar" />
         </div>
-        {tracks.map(({ track, spoof }, index) => (
-          <div
-            className="contact-plot__contact"
-            key={`${track.tag}-${index}`}
-            data-spoof={String(spoof)}
-            data-departing={String(spoof && exposed)}
-            data-label-anchor={labelAnchor(track, index)}
-            style={{
-              ...('x' in track ? placeCartesian(track) : place(track)),
-              '--drift-slot': index % 5,
-            } as PlotStyle}
-          >
-            <div className="contact-plot__apparent">
-              <div className="contact-plot__jitter">
-                <span className="contact-plot__drop" />
-                <span className="contact-plot__blip" />
-                <span className="contact-plot__tag">
-                  {spoof && exposed ? EXPOSED : track.tag}
-                </span>
+        <div className="contact-plot__returns">
+          {tracks.map(({ track, spoof }, index) => (
+            <div
+              className="contact-plot__contact"
+              key={`${track.tag}-${index}`}
+              data-spoof={String(spoof)}
+              data-departing={String(spoof && exposed)}
+              data-label-anchor={labelAnchor(track, index)}
+              style={{
+                ...('x' in track ? placeCartesian(track) : place(track)),
+                '--drift-slot': index % 5,
+              } as PlotStyle}
+            >
+              <div className="contact-plot__apparent">
+                <div className="contact-plot__jitter">
+                  <span className="contact-plot__drop" />
+                  <span className="contact-plot__blip" />
+                  <span className="contact-plot__tag">
+                    {spoof && exposed ? EXPOSED : track.tag}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

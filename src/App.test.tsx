@@ -175,12 +175,17 @@ describe('App', () => {
   });
 
   it.each([
-    ['/roles', /connect this device/i],
-    ['/console', /join a ship/i],
-  ])('keeps the contact plot behind %s, not just the launcher', async (route, heading) => {
+    ['/roles', /connect this device/i, 'console'],
+    ['/console', /join a ship/i, 'console'],
+    ['/press', /snn.*system news network/i, 'press'],
+  ] as const)('keeps the contact plot behind %s, not just the launcher', async (
+    route,
+    heading,
+    mode,
+  ) => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
-    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setMode(mode);
     useSessionStore.getState().setLastRoute(route);
 
     const { container } = render(<App />);

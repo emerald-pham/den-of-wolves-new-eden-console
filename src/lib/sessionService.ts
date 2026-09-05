@@ -106,6 +106,14 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : command.payload.locked;
     store.setSession({ ...store.session, gmControlsLocked: locked });
   }
+  if (command.kind === 'setWolfRoleEnabled' && store.session?.id === command.payload.sessionId) {
+    const roleIds =
+      typeof result === 'object' && result !== null && 'wolfEligibleRoleIds' in result &&
+      Array.isArray(result.wolfEligibleRoleIds)
+        ? result.wolfEligibleRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
+        : undefined;
+    if (roleIds) store.setSession({ ...store.session, wolfEligibleRoleIds: roleIds });
+  }
   if (command.kind === 'popShipConfetti' && store.session?.id === command.payload.sessionId) {
     const used = store.session.confettiUsedShipIds ?? [];
     if (!used.includes(command.payload.shipId)) {
@@ -370,6 +378,50 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
   });
 }
 
+export async function setWolfRoleEnabled(
+  roleId: string,
+  enabled: boolean,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing wolf eligibility.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setWolfRoleEnabled',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      roleId,
+      enabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function assignWolves(count: 1 | 2): Promise<readonly string[]> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before assigning wolves.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string; count: 1 | 2 },
+    { roleIds: string[] }
+  >(functions(), 'assignWolves');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      count,
+    });
+    return reply.data.roleIds;
+  } catch (cause) {
+    store.setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function popShipConfetti(shipId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before using the dispenser.');
@@ -388,16 +440,15 @@ export async function disconnectFromSession(): Promise<CommandDisposition> {
     store.disconnect();
     return 'applied';
   }
-  try {
-    return await sendOrQueue({
-      id: commandId(),
-      kind: 'disconnectFromSession',
-      payload: { sessionId: store.session.id },
-      createdAt: new Date().toISOString(),
-    });
-  } finally {
-    // Leaving is immediate from this browser's perspective. If the network is
-    // down, store.disconnect preserves this one command for replay.
-    store.disconnect();
-  }
+  const command: PendingCommand = {
+    id: commandId(),
+    kind: 'disconnectFromSession',
+    payload: { sessionId: store.session.id },
+    createdAt: new Date().toISOString(),
+  };
+
+  // Leaving is immediate from this browser's perspective. The captured
+  // command can still reach the server, or be queued if the network is down.
+  store.disconnect();
+  return sendOrQueue(command);
 }

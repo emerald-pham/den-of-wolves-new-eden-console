@@ -3,10 +3,13 @@ import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { SHIPS } from '@/data/ships';
+import { CONSOLE_ROLES, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
 import {
+  assignWolves,
   kickGmInstance,
   setCapybaraEnabled,
   setGmControlsLocked,
+  setWolfRoleEnabled,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance, SessionEvent } from '@/types/game';
@@ -25,9 +28,16 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [dradisExpanded, setDradisExpanded] = useState(false);
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
+  const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
   const [changingLock, setChangingLock] = useState(false);
+  const [changingWolfRole, setChangingWolfRole] = useState<string | null>(null);
+  const [wolfCount, setWolfCount] = useState<1 | 2>(1);
+  const [assigningWolves, setAssigningWolves] = useState(false);
+  const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
   const capybaraEnabled = session?.capybaraEnabled !== false;
   const capybaraQueued = pendingCommands.some(
     (command) => command.kind === 'setCapybaraEnabled',
@@ -36,6 +46,9 @@ export default function GmConsole() {
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
+  const wolfEligibleRoleIds = session?.wolfEligibleRoleIds ?? DEFAULT_WOLF_ELIGIBLE_ROLE_IDS;
+  const wolfRoleQueued = new Set(pendingCommands.flatMap((command) =>
+    command.kind === 'setWolfRoleEnabled' ? [command.payload.roleId] : []));
   const availableShips = SHIPS.filter(
     (ship) => capybaraEnabled || ship.id !== 'capybara',
   );
@@ -108,14 +121,15 @@ export default function GmConsole() {
     }
   }
 
-  async function toggleCapybara(): Promise<void> {
+  async function changeCapybara(enabled: boolean): Promise<void> {
     setChangingCapybara(true);
     try {
-      await setCapybaraEnabled(!capybaraEnabled);
+      await setCapybaraEnabled(enabled);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
       setChangingCapybara(false);
+      setPendingCapybaraEnabled(null);
     }
   }
 
@@ -130,6 +144,31 @@ export default function GmConsole() {
     }
   }
 
+  async function toggleWolfRole(roleId: string, enabled: boolean): Promise<void> {
+    setChangingWolfRole(roleId);
+    setAssignedWolfRoleIds([]);
+    try {
+      await setWolfRoleEnabled(roleId, enabled);
+      if (!enabled && wolfCount === 2 && wolfEligibleRoleIds.length <= 2) setWolfCount(1);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingWolfRole(null);
+    }
+  }
+
+  async function randomizeWolves(): Promise<void> {
+    setAssigningWolves(true);
+    setAssignedWolfRoleIds([]);
+    try {
+      setAssignedWolfRoleIds(await assignWolves(wolfCount));
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setAssigningWolves(false);
+    }
+  }
+
   return (
     <main className="session-mode gm-console">
       <section className="session-mode__panel cic-frame">
@@ -140,93 +179,210 @@ export default function GmConsole() {
         <h1 className="role-select__title">GM Console</h1>
         <p className="role-select__lede">Active GM instances for session {session.joinCode}.</p>
 
-        <section className="gm-dradis" aria-label="Fleet DRADIS">
-          <div className="gm-dradis__viewport cic-frame">
-            <ContactPlot
-              key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
-              placement="inset"
-              size="min(92cqi, 26rem)"
-              contacts={contacts}
-              centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
-            />
-          </div>
-          <div className="gm-dradis__controls">
-            <p className="gm-dradis__perspective">
-              DRADIS perspective // {viewer?.name ?? 'AEGIS'}
-            </p>
-            <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
-              {availableShips.map((ship) => (
-                <button
-                  type="button"
-                  key={ship.id}
-                  aria-label={`View DRADIS from ${ship.name}`}
-                  aria-pressed={ship.id === viewer?.id}
-                  onClick={() => setViewerId(ship.id)}
-                >
-                  {ship.name}
-                </button>
-              ))}
+        <div className="gm-console__grid">
+          <section
+            className="gm-console__module gm-dradis cic-frame"
+            aria-label="Fleet DRADIS"
+            data-expanded={String(dradisExpanded)}
+          >
+            <div className="gm-dradis__viewport">
+              <ContactPlot
+                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
+                placement="inset"
+                size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
+                contacts={contacts}
+                centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
+              />
+              <button
+                className="gm-dradis__toggle"
+                type="button"
+                aria-label={`${dradisExpanded ? 'Collapse' : 'Expand'} DRADIS display`}
+                aria-pressed={dradisExpanded}
+                onClick={() => setDradisExpanded((expanded) => !expanded)}
+              />
             </div>
-            <button
-              className="gm-dradis__capybara"
-              type="button"
-              aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
-              aria-pressed={capybaraEnabled}
-              disabled={changingCapybara || capybaraQueued}
-              onClick={() => void toggleCapybara()}
-            >
-              Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
-            </button>
-          </div>
-        </section>
+            <div className="gm-dradis__controls">
+              <p className="gm-dradis__perspective">
+                DRADIS perspective // {viewer?.name ?? 'AEGIS'}
+              </p>
+              <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
+                {availableShips.map((ship) => (
+                  <button
+                    type="button"
+                    key={ship.id}
+                    aria-label={`View DRADIS from ${ship.name}`}
+                    aria-pressed={ship.id === viewer?.id}
+                    onClick={() => setViewerId(ship.id)}
+                  >
+                    {ship.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
 
-        <h2 className="gm-console__section-title">GM instances</h2>
-        <button
-          className="gm-controls-lock"
-          type="button"
-          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration and Setup`}
-          aria-pressed={controlsLocked}
-          disabled={changingLock || lockQueued}
-          onClick={() => void toggleLock()}
-        >
-          <span aria-hidden="true">{controlsLocked ? '🔒' : '🔓'}</span>
-          GM registration + Setup // {lockQueued ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
-        </button>
-        {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
-          <ul className="gm-instance-list">
-            {instances.map((instance) => {
-              const own = instance.id === local.id;
-              return (
-                <li className="gm-instance cic-frame" key={instance.id}>
-                  <div>
-                    <strong>{instance.name}</strong>
-                    <span>{instance.deviceLabel}</span>
-                    {own && <span>THIS DEVICE</span>}
-                  </div>
-                  {!own && (
-                    <button
-                      type="button"
-                      disabled={queuedKicks.has(instance.id)}
-                      onClick={() => void kick(instance)}
+          <section className="gm-console__module cic-frame" aria-label="Setup">
+            <button
+              className="gm-controls-lock"
+              type="button"
+              aria-expanded={setupOpen}
+              disabled={controlsLocked}
+              onClick={() => setSetupOpen((open) => !open)}
+            >
+              Setup
+            </button>
+            {setupOpen && (
+              <div className="gm-setup" aria-label="Setup controls">
+                <button
+                  className="gm-dradis__capybara"
+                  type="button"
+                  aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
+                  aria-pressed={capybaraEnabled}
+                  disabled={changingCapybara || capybaraQueued}
+                  onClick={() => setPendingCapybaraEnabled(!capybaraEnabled)}
+                >
+                  Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
+                </button>
+                <fieldset className="gm-wolf-setup">
+                  <legend>Wolf eligibility</legend>
+                  {CONSOLE_ROLES.map((role) => {
+                    const enabled = wolfEligibleRoleIds.includes(role.id);
+                    return (
+                      <label className="gm-wolf-role" key={role.id}>
+                        <span>{role.name}</span>
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          aria-label={`${role.name} wolf eligibility`}
+                          checked={enabled}
+                          disabled={changingWolfRole === role.id || wolfRoleQueued.has(role.id)}
+                          onChange={() => void toggleWolfRole(role.id, !enabled)}
+                        />
+                      </label>
+                    );
+                  })}
+                  <label className="gm-wolf-count">
+                    Wolves
+                    <select
+                      aria-label="Wolf count"
+                      value={wolfCount}
+                      onChange={(event) => setWolfCount(Number(event.target.value) as 1 | 2)}
                     >
-                      {queuedKicks.has(instance.id) ? `Kick queued: ${instance.name}` : `Kick ${instance.name}`}
-                    </button>
+                      <option value={1} disabled={wolfEligibleRoleIds.length < 1}>1 wolf</option>
+                      <option value={2} disabled={wolfEligibleRoleIds.length < 2}>2 wolves</option>
+                    </select>
+                  </label>
+                  <button
+                    className="gm-controls-lock"
+                    type="button"
+                    disabled={assigningWolves || wolfEligibleRoleIds.length < wolfCount}
+                    onClick={() => void randomizeWolves()}
+                  >
+                    {assigningWolves ? 'Assigning wolves…' : 'Randomly assign wolves'}
+                  </button>
+                  {assignedWolfRoleIds.length > 0 && (
+                    <p className="gm-wolf-result" role="status">
+                      Assigned // {assignedWolfRoleIds.map((roleId) =>
+                        CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId).join(', ')}
+                    </p>
                   )}
+                </fieldset>
+              </div>
+            )}
+          </section>
+
+          <section className="gm-console__module cic-frame" aria-label="GM instances">
+            <h2 className="gm-console__section-title">GM instances</h2>
+            <button
+              className="gm-controls-lock"
+              type="button"
+              aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration and Setup`}
+              aria-pressed={controlsLocked}
+              disabled={changingLock || lockQueued}
+              onClick={() => void toggleLock()}
+            >
+              <span aria-hidden="true">{controlsLocked ? '🔒' : '🔓'}</span>
+              GM registration + Setup // {lockQueued ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
+            </button>
+            {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
+              <ul className="gm-instance-list">
+                {instances.map((instance) => {
+                  const own = instance.id === local.id;
+                  return (
+                    <li className="gm-instance cic-frame" key={instance.id}>
+                      <div>
+                        <strong>{instance.name}</strong>
+                        <span>{instance.deviceLabel}</span>
+                        {own && <span>THIS DEVICE</span>}
+                      </div>
+                      {!own && (
+                        <button
+                          type="button"
+                          disabled={queuedKicks.has(instance.id)}
+                          onClick={() => void kick(instance)}
+                        >
+                          {queuedKicks.has(instance.id) ? `Kick queued: ${instance.name}` : `Kick ${instance.name}`}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="gm-console__module gm-console__module--event-log cic-frame">
+            <h2 className="gm-console__section-title">Event log</h2>
+            <ul className="gm-event-log" aria-label="GM event log">
+              {events.length === 0 ? <li>No logged events.</li> : events.map((event) => (
+                <li key={event.id}>
+                  <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
+                  <span>{event.shipName} // Emergency Bridge Confetti Dispenser // {event.actorName}</span>
                 </li>
-              );
-            })}
-          </ul>
-        )}
-        <h2 className="gm-console__section-title">Event log</h2>
-        <ul className="gm-event-log" aria-label="GM event log">
-          {events.length === 0 ? <li>No logged events.</li> : events.map((event) => (
-            <li key={event.id}>
-              <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
-              <span>{event.shipName} // Emergency Bridge Confetti Dispenser // {event.actorName}</span>
-            </li>
-          ))}
-        </ul>
+              ))}
+            </ul>
+          </section>
+        </div>
       </section>
+      {pendingCapybaraEnabled !== null && (
+        <div
+          className="settings-backdrop"
+          onMouseDown={() => setPendingCapybaraEnabled(null)}
+        >
+          <section
+            className="settings-dialog cic-frame"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="convoy-confirm-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="settings-dialog__header">
+              <h2 id="convoy-confirm-title">Change convoy manifest</h2>
+            </div>
+            <p>
+              {pendingCapybaraEnabled
+                ? 'Add Capybara back to the convoy and every DRADIS view?'
+                : 'Remove Capybara from the convoy and every DRADIS view?'}
+            </p>
+            <button
+              className="cic-text-button"
+              type="button"
+              autoFocus
+              onClick={() => setPendingCapybaraEnabled(null)}
+            >
+              Cancel convoy change
+            </button>
+            <button
+              className="settings-dialog__disconnect"
+              type="button"
+              disabled={changingCapybara}
+              onClick={() => void changeCapybara(pendingCapybaraEnabled)}
+            >
+              Confirm {pendingCapybaraEnabled ? 'add' : 'remove'} Capybara
+            </button>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

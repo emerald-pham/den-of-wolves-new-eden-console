@@ -14,6 +14,7 @@ import {
 import { app } from './firebase';
 import { useEmulators } from './firebaseConfig';
 import type { GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
+import { DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
 
 let firestore: Firestore | undefined;
 
@@ -43,6 +44,9 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     phase: data.phase as GameSession['phase'],
     capybaraEnabled: data.capybaraEnabled !== false,
     gmControlsLocked: data.gmControlsLocked === true,
+    wolfEligibleRoleIds: Array.isArray(data.wolfEligibleRoleIds)
+      ? data.wolfEligibleRoleIds as string[]
+      : DEFAULT_WOLF_ELIGIBLE_ROLE_IDS,
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
       ? data.confettiUsedShipIds as string[]
       : [],

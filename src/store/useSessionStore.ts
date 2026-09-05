@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { GameSession, GmInstance, Player, Seat } from '@/types/game';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
-export type ConsoleMode = 'gm' | 'setup' | 'console';
+export type ConsoleMode = 'gm' | 'console' | 'press';
 
 export type PendingCommand =
   | {
@@ -50,6 +50,17 @@ export type PendingCommand =
         readonly sessionId: string;
         readonly instanceId: string;
         readonly locked: boolean;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'setWolfRoleEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly roleId: string;
+        readonly enabled: boolean;
       };
       readonly createdAt: string;
     }

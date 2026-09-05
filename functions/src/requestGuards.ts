@@ -1,4 +1,5 @@
 import { HttpsError } from 'firebase-functions/v2/https';
+import { WOLF_ROLE_IDS } from './wolfAssignment';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -123,6 +124,42 @@ export function requireShipConfettiRequest(data: {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
+  };
+}
+
+export function requireWolfRoleSettingRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  roleId?: unknown;
+  enabled?: unknown;
+}): { sessionId: string; instanceId: string; roleId: string; enabled: boolean } {
+  const roleId = requiredId(data.roleId, 'roleId');
+  if (!(WOLF_ROLE_IDS as readonly string[]).includes(roleId)) {
+    throw new HttpsError('invalid-argument', 'Unknown role.');
+  }
+  if (typeof data.enabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'enabled must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    roleId,
+    enabled: data.enabled,
+  };
+}
+
+export function requireWolfAssignmentRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  count?: unknown;
+}): { sessionId: string; instanceId: string; count: 1 | 2 } {
+  if (data.count !== 1 && data.count !== 2) {
+    throw new HttpsError('invalid-argument', 'count must be one or two.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    count: data.count,
   };
 }
 

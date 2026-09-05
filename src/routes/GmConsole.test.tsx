@@ -6,9 +6,11 @@ import { useSessionStore } from '@/store/useSessionStore';
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
+  assignWolves: vi.fn(),
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
+  setWolfRoleEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -16,7 +18,8 @@ vi.mock('@/lib/firestore', () => ({
   subscribeSessionEvents: vi.fn(),
 }));
 
-const { kickGmInstance, setCapybaraEnabled, setGmControlsLocked } =
+const { assignWolves, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
+  setWolfRoleEnabled } =
   await import('@/lib/sessionService');
 const { subscribeGmInstances, subscribeSessionEvents } = await import('@/lib/firestore');
 
@@ -142,6 +145,65 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
 });
 
+it('starts with a compact DRADIS and expands it on demand', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  expect(dradis).toHaveAttribute('data-expanded', 'false');
+  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+
+  expect(dradis).toHaveAttribute('data-expanded', 'true');
+  expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
+});
+
+it('keeps Capybara convoy setup under a GM Console Setup subsection', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const setup = await screen.findByRole('button', { name: /^setup$/i });
+  expect(setup).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('button', { name: /turn capybara off/i })).not.toBeInTheDocument();
+
+  await user.click(setup);
+
+  expect(setup).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
+});
+
+it('configures wolf eligibility and randomly assigns from enabled roles', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setWolfRoleEnabled).mockImplementation(async (_roleId, enabled) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) useSessionStore.getState().setSession({
+      ...activeSession,
+      wolfEligibleRoleIds: enabled ? ['press-officer'] : [],
+    });
+    return 'applied';
+  });
+  vi.mocked(assignWolves).mockResolvedValue(['press-officer']);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const eligibility = screen.getByRole('switch', { name: /press officer.*wolf/i });
+  expect(eligibility).toBeChecked();
+  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(4);
+  expect(screen.getByRole('option', { name: /2 wolves/i })).toBeEnabled();
+
+  await user.click(screen.getByRole('button', { name: /randomly assign wolves/i }));
+  expect(assignWolves).toHaveBeenCalledWith(1);
+  expect(await screen.findByText(/assigned.*press officer/i)).toBeInTheDocument();
+
+  await user.click(eligibility);
+  expect(setWolfRoleEnabled).toHaveBeenCalledWith('press-officer', false);
+});
+
 it('toggles Capybara off for the session and removes its perspective', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -153,15 +215,41 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   });
   renderConsole();
 
-  expect(await screen.findByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /view dradis from capybara/i })).toBeInTheDocument();
 
   await user.click(screen.getByRole('button', { name: /turn capybara off/i }));
+
+  expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
+    .toHaveTextContent(/remove capybara/i);
+  await user.click(screen.getByRole('button', { name: /confirm remove capybara/i }));
 
   expect(setCapybaraEnabled).toHaveBeenCalledWith(false);
   expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
     .not.toBeInTheDocument();
+});
+
+it('can cancel adding Capybara back to the convoy', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, capybaraEnabled: false });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /turn capybara on/i }));
+  expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
+    .toHaveTextContent(/add capybara/i);
+  await user.click(screen.getByRole('button', { name: /cancel convoy change/i }));
+
+  expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
 });
 
 it('locks and unlocks subsequent GM registration and Setup', async () => {

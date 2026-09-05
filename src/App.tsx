@@ -6,6 +6,7 @@ import NotFound from '@/routes/NotFound';
 import SessionMode from '@/routes/SessionMode';
 import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
+import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ShipPlot from '@/components/ShipPlot';
@@ -16,7 +17,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
-const SESSION_ROUTES = new Set(['/roles', '/gm', '/setup', '/console']);
+const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press']);
 const isSessionRoute = (path: string): boolean =>
   SESSION_ROUTES.has(path) || path.startsWith('/ships/');
 
@@ -33,7 +34,7 @@ function AppRoutes() {
   // rather than a fresh one that restarts its sweep on each route.
   const [intrusion, setIntrusion] = useState(false);
   const shipId = location.pathname.startsWith('/ships/')
-    ? location.pathname.slice('/ships/'.length)
+    ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
     : 'aegis';
 
   useEffect(() => {
@@ -86,8 +87,10 @@ function AppRoutes() {
             <Route path="/" element={home} />
             <Route path="/roles" element={<RoleSelect />} />
             <Route path="/gm" element={<GmConsole />} />
-            <Route path="/setup" element={<SessionMode mode="setup" />} />
             <Route path="/console" element={<SessionMode mode="console" />} />
+            <Route path="/press" element={<SessionMode mode="press" />} />
+            <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+            <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
             <Route path="/ships/:shipId" element={<ShipConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

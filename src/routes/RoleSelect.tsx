@@ -10,8 +10,13 @@ const MODES: readonly {
   gmOnly: boolean;
 }[] = [
   { mode: 'gm', label: 'GM Console', description: 'Manage active GM instances.', gmOnly: true },
-  { mode: 'setup', label: 'Setup', description: 'Configure this operation.', gmOnly: true },
   { mode: 'console', label: 'Roles', description: 'Display and manage table roles.', gmOnly: false },
+  {
+    mode: 'press',
+    label: 'Press Officer',
+    description: 'SNN // Unaffiliated Independent Press Shuttle.',
+    gmOnly: false,
+  },
 ];
 
 export default function RoleSelect() {
@@ -138,7 +143,7 @@ export default function RoleSelect() {
             className="role-card cic-frame"
             type="button"
             key={mode}
-            disabled={(gmOnly && !isGm) || (mode === 'setup' && controlsLocked)}
+            disabled={gmOnly && !isGm}
             onClick={() => connectAs(mode)}
           >
             <span className="role-card__name">{label}</span>

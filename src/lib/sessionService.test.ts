@@ -23,8 +23,10 @@ const {
   kickGmInstance,
   popShipConfetti,
   reconcileGmAuthority,
+  assignWolves,
   setCapybaraEnabled,
   setGmControlsLocked,
+  setWolfRoleEnabled,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -296,6 +298,38 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
   });
 
+  it('updates wolf eligibility through the active GM instance', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { wolfEligibleRoleIds: [] } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setWolfRoleEnabled('press-officer', false);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setWolfRoleEnabled');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', roleId: 'press-officer', enabled: false,
+    });
+    expect(useSessionStore.getState().session?.wolfEligibleRoleIds).toEqual([]);
+  });
+
+  it('asks the server to randomly assign wolves and returns the secret result', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { roleIds: ['press-officer'] } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(assignWolves(1)).resolves.toEqual(['press-officer']);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolves');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', count: 1,
+    });
+  });
+
   it('activates a ship confetti dispenser and records its spent state', async () => {
     const callable = callableReturning({ data: { shipId: 'aegis' } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
@@ -321,6 +355,23 @@ describe('session lifecycle commands', () => {
 
     await expect(createSession()).rejects.toThrow('Disconnect from the current session first.');
     expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it('clears the local session immediately while an online disconnect is pending', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    let finishDisconnect: ((value: { data: { sessionId: string } }) => void) | undefined;
+    const pendingReply = new Promise<{ data: { sessionId: string } }>((resolve) => {
+      finishDisconnect = resolve;
+    });
+    vi.mocked(httpsCallable).mockReturnValue(
+      Object.assign(vi.fn(() => pendingReply), { stream: vi.fn() }),
+    );
+
+    const disconnecting = disconnectFromSession();
+
+    expect(useSessionStore.getState().session).toBeNull();
+    finishDisconnect?.({ data: { sessionId: 's1' } });
+    await expect(disconnecting).resolves.toBe('applied');
   });
 
   it('queues an offline disconnect and immediately clears the local session', async () => {

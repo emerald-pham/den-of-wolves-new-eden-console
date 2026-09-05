@@ -44,8 +44,8 @@ function renderRoute() {
         <Route path="/" element={<p>Landing route</p>} />
         <Route path="/roles" element={<RoleSelect />} />
         <Route path="/gm" element={<p>GM route</p>} />
-        <Route path="/setup" element={<p>Setup route</p>} />
         <Route path="/console" element={<p>Console route</p>} />
+        <Route path="/press" element={<p>Press route</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -70,7 +70,7 @@ describe('RoleSelect', () => {
     expect(screen.getByText('Landing route')).toBeInTheDocument();
   });
 
-  it('offers Claim GM, GM Console, Setup, and Roles', () => {
+  it('offers Claim GM, GM Console, Roles, and Press without a standalone Setup mode', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     renderRoute();
@@ -78,9 +78,22 @@ describe('RoleSelect', () => {
     expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^claim gm/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /gm console/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^setup configure/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /roles/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /press.*snn/i })).toBeInTheDocument();
     expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
+  });
+
+  it('connects a device as the independent SNN press shuttle', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    renderRoute();
+
+    await user.click(screen.getByRole('button', { name: /press.*snn/i }));
+
+    expect(screen.getByText('Press route')).toBeInTheDocument();
+    expect(useSessionStore.getState().mode).toBe('press');
   });
 
   it('does not open a GM manifest stream while registration is unlocked', async () => {
@@ -118,21 +131,20 @@ describe('RoleSelect', () => {
   });
 
 
-  it('blocks GM Console and Setup until this browser has claimed GM', async () => {
+  it('blocks GM Console until this browser has claimed GM', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     renderRoute();
 
     expect(screen.getByRole('button', { name: /gm console/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^setup configure/i })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: /roles/i }));
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');
   });
 
-  it('opens GM Console and Setup after this browser claims GM', async () => {
+  it('opens GM Console after this browser claims GM', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
@@ -140,16 +152,11 @@ describe('RoleSelect', () => {
       id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
       deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
     });
-    const { unmount } = renderRoute();
+    renderRoute();
 
     await user.click(screen.getByRole('button', { name: /gm console/i }));
     expect(screen.getByText('GM route')).toBeInTheDocument();
 
-    unmount();
-    useSessionStore.getState().setMode(null);
-    renderRoute();
-    await user.click(screen.getByRole('button', { name: /^setup configure/i }));
-    expect(screen.getByText('Setup route')).toBeInTheDocument();
   });
 
   it('shows a greyed lock control to non-GMs and blocks claims when a GM is present', async () => {
@@ -168,7 +175,6 @@ describe('RoleSelect', () => {
       name: /unlock gm registration and setup/i,
     })).toBeDisabled();
     expect(screen.getByRole('button', { name: /^claim gm/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^setup configure/i })).toBeDisabled();
   });
 
   it('keeps the locked-session GM registration failsafe available when no GM remains', async () => {

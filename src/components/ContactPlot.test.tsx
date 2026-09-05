@@ -128,6 +128,16 @@ it('separates a contact from the fault that shakes it', () => {
   expect(apparent?.firstElementChild).toHaveClass('contact-plot__jitter');
 });
 
+it('groups every return above the three-dimensional scan planes', () => {
+  const { container } = render(<ContactPlot />);
+  const layer = container.querySelector('.contact-plot__returns');
+
+  expect(layer).toBeInTheDocument();
+  expect(layer?.querySelectorAll('.contact-plot__contact')).toHaveLength(
+    contactsIn(container).length,
+  );
+});
+
 it('passes the spoofed tracks off as ordinary contacts until the hack ends, then calls them false', () => {
   vi.useFakeTimers();
   const { container, rerender } = render(<ContactPlot hostile />);

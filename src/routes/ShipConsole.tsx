@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
+import { findConsoleRole } from '@/data/roles';
 import { popShipConfetti } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -17,12 +18,14 @@ const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
 }));
 
 export default function ShipConsole() {
-  const { shipId } = useParams();
+  const { shipId, roleId } = useParams();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const ship = findShip(shipId);
+  const consoleRole = findConsoleRole(roleId);
+  const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
@@ -62,7 +65,7 @@ export default function ShipConsole() {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (
-    mode !== 'console' || !ship ||
+    mode !== 'console' || !ship || !validRole ||
     (ship.id === 'capybara' && session.capybaraEnabled === false)
   ) return <Navigate to="/console" replace />;
 
@@ -83,10 +86,16 @@ export default function ShipConsole() {
     <main className={`ship-console ship-console--${ship.id}`}>
       <img className="ship-console__flag" src={ship.flag} alt={`${ship.nation} flag`} />
       <section className="ship-console__identity" aria-labelledby="ship-name">
-        <Link className="ship-console__back cic-text-button" to="/console">Leave ship</Link>
+        <Link
+          className="ship-console__back cic-text-button"
+          to={ship.id === 'aegis' && roleId ? '/ships/aegis/roles' : '/console'}
+        >
+          {ship.id === 'aegis' && roleId ? 'Change role' : 'Leave ship'}
+        </Link>
         <p className="ship-console__nation">{ship.nation} // {ship.nationShort}</p>
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
+        {consoleRole && <p className="ship-console__role">{consoleRole.name}</p>}
         <p className="ship-console__description">{ship.description}</p>
       </section>
       <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
@@ -113,7 +122,6 @@ export default function ShipConsole() {
             disabled={spent || queued}
             onClick={() => setCoverOpen((current) => !current)}
           >
-            <span aria-hidden="true">PROTECTIVE GLASS</span>
           </button>
         </div>
         <p className="confetti-dispenser__status">

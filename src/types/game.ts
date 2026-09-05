@@ -24,6 +24,8 @@ export interface GameSession {
   readonly capybaraEnabled?: boolean;
   /** Locks Setup and subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
+  /** Playable role ids currently eligible for a random wolf assignment. */
+  readonly wolfEligibleRoleIds?: readonly string[];
   /** Fleet ships whose one-shot bridge dispenser has already been fired. */
   readonly confettiUsedShipIds?: readonly string[];
   /** uid of the facilitator who may elevate others. */

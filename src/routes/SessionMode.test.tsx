@@ -21,12 +21,12 @@ beforeEach(() => {
     id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
     deviceLabel: 'macOS / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
   });
-  useSessionStore.getState().setMode('setup');
+  useSessionStore.getState().setMode('console');
 });
 
 it.each([
-  ['setup', 'setup'],
   ['console', 'console'],
+  ['press', 'press'],
 ] as const)('returns from %s to the roles screen', async (_label, mode) => {
   const user = userEvent.setup();
   useSessionStore.getState().setMode(mode);
@@ -42,6 +42,21 @@ it.each([
   await user.click(screen.getByRole('link', { name: /back to roles/i }));
 
   expect(screen.getByText('Roles route')).toBeInTheDocument();
+});
+
+it('identifies the unaffiliated SNN press shuttle', () => {
+  useSessionStore.getState().setMode('press');
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/press" element={<SessionMode mode="press" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /snn.*system news network/i }))
+    .toBeInTheDocument();
+  expect(screen.getByText(/unaffiliated independent press shuttle/i)).toBeInTheDocument();
 });
 
 it('groups every ship role by its world of origin without exposing ship actions', () => {
@@ -70,6 +85,8 @@ it('groups every ship role by its world of origin without exposing ship actions'
   expect(screen.getByText(/main protector of the survivor fleet/i)).toBeInTheDocument();
   expect(screen.getByText(/produces food for the fleet/i)).toBeInTheDocument();
   expect(screen.getByText(/provides strytium fuel/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /join aegis/i }))
+    .toHaveAttribute('href', '/ships/aegis/roles');
 });
 
 it('joins a ship without assigning a shipboard subrole', async () => {
@@ -107,21 +124,4 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
 
   expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(6);
-});
-
-it('redirects Setup to roles when the shared GM controls lock is active', () => {
-  const session = useSessionStore.getState().session;
-  if (!session) throw new Error('Expected the test session.');
-  useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
-
-  render(
-    <MemoryRouter initialEntries={['/setup']}>
-      <Routes>
-        <Route path="/roles" element={<p>Roles route</p>} />
-        <Route path="/setup" element={<SessionMode mode="setup" />} />
-      </Routes>
-    </MemoryRouter>,
-  );
-
-  expect(screen.getByText('Roles route')).toBeInTheDocument();
 });

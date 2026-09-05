@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -53,7 +53,29 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByRole('img', { name: /south american nations flag/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /leave ship/i })).toHaveAttribute('href', '/console');
   expect(screen.getByRole('button', { name: /open protective glass cover/i })).toBeInTheDocument();
+  expect(screen.queryByText('PROTECTIVE GLASS')).not.toBeInTheDocument();
   expect(screen.queryByText(/captain|engineer|recycler/i)).not.toBeInTheDocument();
+});
+
+it.each([
+  ['admiral', 'Admiral'],
+  ['executive-officer', 'Executive Officer'],
+  ['wing-commander', 'Wing Commander'],
+])('uses the same synced AEGIS console for the %s', async (roleId, roleName) => {
+  render(
+    <MemoryRouter initialEntries={[`/ships/aegis/roles/${roleId}`]}>
+      <Routes>
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
+  expect(screen.getByText(roleName)).toBeInTheDocument();
+  await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
+      's1', 'aegis', expect.any(Function), expect.any(Function),
+    ));
+  expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
 });
 
 it('returns to the fleet roster when the ship id is unknown', () => {

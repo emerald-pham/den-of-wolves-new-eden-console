@@ -4,8 +4,8 @@ import { SHIPS, type ShipOrigin } from '@/data/ships';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
-  setup: 'Setup',
   console: 'Roles',
+  press: 'Press',
 };
 
 export default function SessionMode({ mode }: { mode: ConsoleMode }) {
@@ -15,10 +15,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   const isGm = useSessionStore(selectIsGm);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if ((mode === 'gm' || mode === 'setup') && !isGm) return <Navigate to="/roles" replace />;
-  if (mode === 'setup' && session.gmControlsLocked === true) {
-    return <Navigate to="/roles" replace />;
-  }
+  if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
   if (selectedMode !== mode) return <Navigate to="/roles" replace />;
 
   if (mode === 'console') {
@@ -27,6 +24,21 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
       />
+    );
+  }
+
+  if (mode === 'press') {
+    return (
+      <main className="session-mode">
+        <div className="session-mode__panel cic-frame">
+          <Link className="session-mode__back cic-text-button" to="/roles">
+            Back to roles
+          </Link>
+          <p className="eyebrow">{session.name} // Independent Press</p>
+          <h1 className="role-select__title">SNN — System News Network</h1>
+          <p className="role-select__lede">Unaffiliated Independent Press Shuttle</p>
+        </div>
+      </main>
     );
   }
 
@@ -82,7 +94,7 @@ function FleetRoster({
               >
                 <Link
                   className="fleet-card__link"
-                  to={`/ships/${ship.id}`}
+                  to={ship.id === 'aegis' ? '/ships/aegis/roles' : `/ships/${ship.id}`}
                   aria-label={`Join ${ship.name} ship`}
                 >
                   <img className="fleet-card__flag" src={ship.flag} alt={`${ship.nation} flag`} />

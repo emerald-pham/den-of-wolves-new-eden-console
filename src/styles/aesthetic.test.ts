@@ -138,6 +138,34 @@ describe('the in-session header', () => {
   });
 });
 
+describe('the GM console', () => {
+  it('uses the full viewport instead of the centered session-mode width cap', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const console = index.match(/\.gm-console\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(console).toContain('width: 100%');
+    expect(console).toContain('max-width: none');
+    expect(console).toContain('margin: 0');
+  });
+
+  it('organizes growing GM instruments into three wide-screen columns', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const grid = index.match(/\.gm-console__grid\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(grid).toContain('display: grid');
+    expect(grid).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+  });
+
+  it('collapses the GM instrument grid for tablet and phone widths', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const tablet = index.match(/@media \(max-width: 60rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const phone = index.match(/@media \(max-width: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    expect(tablet).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
+    expect(phone).toContain('grid-template-columns: 1fr');
+  });
+});
+
 describe('friendly DRADIS returns', () => {
   it('inherits each faction color from the positioned contact', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
@@ -167,6 +195,14 @@ describe('friendly DRADIS returns', () => {
     expect(apparent).toContain(
       'calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2)',
     );
+  });
+
+  it('keeps far-side returns in a foreground layer above the scan planes', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const returns = plot.match(/\.contact-plot__returns\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(returns).toContain('z-index: 3');
+    expect(returns).toContain('isolation: isolate');
   });
 
   it('keeps consecutive apparent fixes within a tiny subpixel step', () => {

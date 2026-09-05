@@ -164,7 +164,9 @@ never percentages. Percentage translations on its zero-size contact anchors
 resolve to zero and collapse every return onto the origin. Contact labels use
 four stable corner anchors around their returns; bias them away from the plot
 origin and alternate them near a centreline so neighboring names remain
-readable without moving between sweeps.
+readable without moving between sweeps. Group the returns in an isolated
+foreground layer: their signed Z values still drive perspective, but far-side
+ships must not sort underneath the rotating scan planes and disappear.
 
 Apparent contact drift is a slow display estimate, not ship movement. Each
 sweep advances a contact through a fixed subpixel walk whose consecutive fixes
