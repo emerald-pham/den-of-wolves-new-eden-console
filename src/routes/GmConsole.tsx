@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
+import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
+import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
@@ -16,6 +18,7 @@ import {
   setWolfRoleEnabled,
   setActiveRoleEnabled,
   applyRolePreset,
+  adjustShipResource,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -411,6 +414,62 @@ export default function GmConsole() {
                   </button>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section
+            className="gm-console__module gm-fleet-resources cic-frame"
+            aria-label="Fleet resource controls"
+          >
+            <h2 className="gm-console__section-title">Fleet resource stores</h2>
+            <p className="gm-fleet-resources__status">
+              Authoritative stock // changes transmit to every staffed console
+            </p>
+            <div className="gm-fleet-resources__ships">
+              {SHIPS.map((ship) => {
+                const resources = resourcesForShip(ship.id, session.shipResources);
+                if (!resources) return null;
+                return (
+                  <section
+                    className="gm-fleet-resource-ship"
+                    role="group"
+                    aria-label={`${ship.name} resource controls`}
+                    key={ship.id}
+                  >
+                    <header className="gm-fleet-resource-ship__header">
+                      <img src={ship.flag} alt={`${ship.name} flag`} />
+                      <h3>{ship.name}</h3>
+                    </header>
+                    <ul>
+                      {RESOURCE_DEFINITIONS.map((resource) => {
+                        const amount = resources[resource.id];
+                        return amount === undefined ? null : (
+                          <li key={resource.id} aria-label={`${resource.label}: ${amount}`}>
+                            <span className="resource-label">
+                              <ResourceIcon id={resource.id} label={resource.label} />
+                              <span>{resource.label}</span>
+                            </span>
+                            <div className="ship-counter__controls">
+                              <button
+                                type="button"
+                                aria-label={`Decrease ${resource.label}`}
+                                disabled={amount === 0}
+                                onClick={() => void adjustShipResource(ship.id, resource.id, -1)}
+                              >−</button>
+                              <strong>{amount}</strong>
+                              <button
+                                type="button"
+                                aria-label={`Increase ${resource.label}`}
+                                onClick={() => void adjustShipResource(ship.id, resource.id, 1)}
+                              >+</button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                );
+              })}
             </div>
           </section>
 

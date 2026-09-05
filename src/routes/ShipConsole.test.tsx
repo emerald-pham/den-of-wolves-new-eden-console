@@ -113,7 +113,7 @@ it('adds Capybara expansion scrap to its resource trackers', () => {
   expect(within(tracker).getByRole('listitem', { name: 'Scrap: 3' })).toBeInTheDocument();
 });
 
-it('renders changing shared stock and lets a staffed console adjust it', async () => {
+it('renders changing shared stock as a read-only player instrument', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({
@@ -122,7 +122,6 @@ it('renders changing shared stock and lets a staffed console adjust it', async (
       capybara: { ore: 0, fuel: 1, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
     },
   });
-  const user = userEvent.setup();
   render(
     <MemoryRouter initialEntries={['/ships/capybara/roles/capybara-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -131,8 +130,9 @@ it('renders changing shared stock and lets a staffed console adjust it', async (
 
   const tracker = screen.getByRole('region', { name: 'Capybara resource stores' });
   expect(within(tracker).getByRole('listitem', { name: 'Strytium Fuel: 1' })).toBeInTheDocument();
-  await user.click(within(tracker).getByRole('button', { name: 'Increase Strytium Fuel' }));
-  expect(adjustShipResource).toHaveBeenCalledWith('capybara', 'fuel', 1);
+  expect(within(tracker).getByRole('img', { name: 'Strytium Fuel icon' })).toBeInTheDocument();
+  expect(within(tracker).queryByRole('button')).not.toBeInTheDocument();
+  expect(adjustShipResource).not.toHaveBeenCalled();
 });
 
 it('shows unrest from zero to seven and lets a staffed console move it', async () => {

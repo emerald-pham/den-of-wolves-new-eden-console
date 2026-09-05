@@ -49,6 +49,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleCon
 import {
   INITIAL_SHIP_RESOURCES,
   INITIAL_SHIP_UNREST,
+  canAdjustShipResource,
   isResourceShipId,
   nextResourceAmount,
   shipResources,
@@ -1280,11 +1281,16 @@ async function requireShipCounterAuthority(
   uid: string,
   shipId: string,
   instanceId?: string,
+  gmOnly = false,
 ): Promise<void> {
   if (!isResourceShipId(shipId)) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
   const player = await tx.get(db.doc(`sessions/${sessionId}/players/${uid}`));
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
-  if (player.get('role') === 'gm') {
+  const role = player.get('role');
+  if (gmOnly && !canAdjustShipResource(role, Boolean(instanceId))) {
+    throw new HttpsError('permission-denied', 'Active GM instance required.');
+  }
+  if (role === 'gm') {
     if (!instanceId) throw new HttpsError('permission-denied', 'Active GM instance required.');
     const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`));
     if (!instance.exists || instance.get('uid') !== uid) {
@@ -1312,7 +1318,7 @@ export const adjustShipResource = onCall<{
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, change.sessionId, uid, change.shipId, change.instanceId,
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
@@ -1380,7 +1386,7 @@ export const dismissUnrestAlert = onCall<{
   const sessionRef = db.doc(`sessions/${dismissal.sessionId}`);
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId,
+      tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');

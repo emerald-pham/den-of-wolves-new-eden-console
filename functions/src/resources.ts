@@ -39,6 +39,10 @@ export function isResourceShipId(shipId: string): boolean {
   return Object.prototype.hasOwnProperty.call(INITIAL_SHIP_RESOURCES, shipId);
 }
 
+export function canAdjustShipResource(role: unknown, hasActiveGmInstance: boolean): boolean {
+  return role === 'gm' && hasActiveGmInstance;
+}
+
 export function shipUnrest(value: unknown): Readonly<Record<string, number>> {
   const stored = isRecord(value) ? value : {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_RESOURCES).map((shipId) => {

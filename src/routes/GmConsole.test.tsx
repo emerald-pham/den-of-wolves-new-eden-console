@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -14,6 +15,7 @@ vi.mock('@/lib/sessionService', () => ({
   setWolfRoleEnabled: vi.fn(),
   setActiveRoleEnabled: vi.fn(),
   applyRolePreset: vi.fn(),
+  adjustShipResource: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -23,7 +25,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
-  setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset } =
+  setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset, adjustShipResource } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
   await import('@/lib/firestore');
@@ -195,6 +197,34 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(screen.getByRole('button', { name: /view dradis from shepherd/i }))
     .toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
+});
+
+it('gives GMs live resource controls for every flagged ship', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    shipResources: {
+      ...INITIAL_SHIP_RESOURCES,
+      dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 6 },
+    },
+  });
+  renderConsole();
+
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  for (const shipName of [
+    'AEGIS', 'Dione', 'Icebreaker', 'Capybara', 'Shepherd', 'Quellon', 'Refinery 124',
+  ]) {
+    const ship = within(fleet).getByRole('group', { name: `${shipName} resource controls` });
+    expect(within(ship).getByRole('img', { name: `${shipName} flag` })).toBeInTheDocument();
+  }
+  const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+  expect(within(dione).getByLabelText('Strytium Fuel: 6')).toBeInTheDocument();
+  expect(within(dione).getByRole('img', { name: 'Strytium Fuel icon' })).toBeInTheDocument();
+  await user.click(within(dione).getByRole('button', { name: /increase strytium fuel/i }));
+  expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
 });
 
 it('starts with a compact DRADIS and expands it on demand', async () => {

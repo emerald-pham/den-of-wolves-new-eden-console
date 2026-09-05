@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   INITIAL_SHIP_RESOURCES,
+  canAdjustShipResource,
   isResourceShipId,
   nextResourceAmount,
   unrestChange,
@@ -8,6 +9,12 @@ import {
 } from './resources';
 
 describe('authoritative fleet resources', () => {
+  it('reserves direct resource changes for an active GM instance', () => {
+    expect(canAdjustShipResource('player', false)).toBe(false);
+    expect(canAdjustShipResource('gm', false)).toBe(false);
+    expect(canAdjustShipResource('gm', true)).toBe(true);
+  });
+
   it('excludes the press shuttle from ships with tracked stores', () => {
     expect(isResourceShipId('aegis')).toBe(true);
     expect(isResourceShipId('snn-press-shuttle')).toBe(false);

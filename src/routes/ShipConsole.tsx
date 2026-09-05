@@ -1,12 +1,12 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import ResourceIcon from '@/components/ResourceIcon';
 import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
-  adjustShipResource,
   adjustShipUnrest,
   popShipConfetti,
   selectConsoleRole,
@@ -56,7 +56,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
   const unrestAlertPending = Boolean(ship && session?.unrestAlerts?.[ship.id]);
-  const canAdjustCounters = Boolean((consoleRole && !observer) || (observer && observerWrite));
+  const canAdjustUnrest = Boolean((consoleRole && !observer) || (observer && observerWrite));
 
   useEffect(() => {
     if (!consoleRole || observer) return;
@@ -160,28 +160,17 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               className="ship-resources cic-frame"
               aria-label={`${ship.name} resource stores`}
             >
-              <p className="ship-resources__eyebrow">Resource stores // live stock</p>
+              <p className="ship-resources__eyebrow">Resource stores // GM-controlled live stock</p>
               <ul>
                 {RESOURCE_DEFINITIONS.map((resource) => {
                   const amount = resources[resource.id];
                   return amount === undefined ? null : (
                     <li key={resource.id} aria-label={`${resource.label}: ${amount}`}>
-                      <span>{resource.label}</span>
-                      <div className="ship-counter__controls">
-                        <button
-                          type="button"
-                          aria-label={`Decrease ${resource.label}`}
-                          disabled={!canAdjustCounters || amount === 0}
-                          onClick={() => void adjustShipResource(ship.id, resource.id, -1)}
-                        >−</button>
-                        <strong>{amount}</strong>
-                        <button
-                          type="button"
-                          aria-label={`Increase ${resource.label}`}
-                          disabled={!canAdjustCounters}
-                          onClick={() => void adjustShipResource(ship.id, resource.id, 1)}
-                        >+</button>
-                      </div>
+                      <span className="resource-label">
+                        <ResourceIcon id={resource.id} label={resource.label} />
+                        <span>{resource.label}</span>
+                      </span>
+                      <strong>{amount}</strong>
                     </li>
                   );
                 })}
@@ -198,7 +187,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               <button
                 type="button"
                 aria-label="Decrease unrest"
-                disabled={!canAdjustCounters || unrest === 0 || unrestAlertPending}
+                disabled={!canAdjustUnrest || unrest === 0 || unrestAlertPending}
                 onClick={() => void adjustShipUnrest(ship.id, -1)}
               >−</button>
               {unrest > 7 ? (
@@ -210,7 +199,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               <button
                 type="button"
                 aria-label="Increase unrest"
-                disabled={!canAdjustCounters || unrest === 10 || unrestAlertPending}
+                disabled={!canAdjustUnrest || unrest === 10 || unrestAlertPending}
                 onClick={() => void adjustShipUnrest(ship.id, 1)}
               >+</button>
             </div>
