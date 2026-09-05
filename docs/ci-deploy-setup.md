@@ -220,10 +220,12 @@ gh workflow run Deploy --repo "$REPO"
 gh run watch --repo "$REPO"
 ```
 
-Green means the federation works. The deploy step itself is already known-good —
-hosting, Firestore rules and all four callables were deployed by hand from a
-local login on 2026-09-04, so any failure after the auth step is a permissions
-gap in section 3, not a federation problem.
+Green means the federation works. The deploy step itself was known-good when
+this handoff was written: hosting, Firestore rules and the then-current
+functions were deployed by hand from a local login on 2026-09-04. A later
+failure after authentication should be investigated against the current
+deployment and permissions rather than assuming the historical inventory is
+still complete.
 
 ## Notes
 
@@ -231,5 +233,6 @@ gap in section 3, not a federation problem.
   The repo moved to federation deliberately (commit `f328191`), and `CLAUDE.md`
   forbids committing or storing a key. Federation issues short-lived
   credentials and stores nothing.
-- `CLAUDE.md` still mentions a `FIREBASE_SERVICE_ACCOUNT` secret. That line is
-  stale, predating the move to federation, and should be corrected.
+- Documentation-only pushes are intentionally excluded from CI and deployment;
+  use `workflow_dispatch` if the workflow itself needs to be verified without a
+  product change.

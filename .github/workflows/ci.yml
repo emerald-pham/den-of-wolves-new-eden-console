@@ -2,8 +2,16 @@ name: CI
 
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - '**/README'
+      - '**/README.*'
   push:
     branches-ignore: [main]
+    paths-ignore:
+      - '**/*.md'
+      - '**/README'
+      - '**/README.*'
 
 jobs:
   verify:

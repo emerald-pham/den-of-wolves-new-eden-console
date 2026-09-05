@@ -1,8 +1,9 @@
 # Den of Wolves: New Eden — Unofficial Companion Console
 
-A companion console for running *Den of Wolves: New Eden* at the table. This
-repository is the scaffold: the whole stack is wired, tested and deploying, and
-the landing page deliberately shows nothing but the project name.
+A companion console for running *Den of Wolves: New Eden* at the table. It
+provides shared sessions, role and ship selection, GM controls, ship and
+shuttle consoles, a live fleet display, and server-authoritative multiplayer
+state backed by Firebase.
 
 > Unofficial and unaffiliated. Fan project.
 
@@ -10,7 +11,7 @@ the landing page deliberately shows nothing but the project name.
 
 | Layer | Choice |
 |---|---|
-| Build | Vite 5 |
+| Build | Vite 6 |
 | Language | TypeScript, `strict` (plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
 | UI | React 18 |
 | Local state | Zustand |
@@ -27,12 +28,15 @@ rules — that covers GitHub Pages as well as the Firebase Hosting setup here.
 
 ```
 src/
-  lib/firebase.ts         lazy Firebase singletons (nothing runs at import time)
+  components/             shared controls and DRADIS instruments
+  data/                   fleet, role and shuttle definitions
+  lib/firebase.ts         lazy Firebase app/auth/functions initialization
+  lib/firestore.ts        lazy Firestore subscriptions
   lib/firebaseConfig.ts   public web config + emulator switch
-  store/                  Zustand — local view state only
-  routes/                 route components
-  types/game.ts           session / seat / player / secret shapes
-functions/src/index.ts    callable functions: seat claims, GM elevation, dice
+  store/                  Zustand — local view state and server snapshots
+  routes/                 route components and colocated tests
+  types/game.ts           shared game and session data shapes
+functions/src/            callable functions and server policy helpers
 firestore.rules           read model + "clients cannot write what they'd lie about"
 tests/rules/              security-rule assertions against the emulator
 ```
@@ -74,10 +78,17 @@ npm run test:all
 `npm run test:rules` needs a JDK on PATH (the Firestore emulator is a Java
 process).
 
+Documentation-only changes—where every changed file is Markdown or a README—do
+not require local tests, lint, builds, dependency installation, or an
+application version bump. Review the rendered documentation, links, examples,
+and diff instead. GitHub Actions also skips CI and deployment for such changes.
+See [`CLAUDE.md`](CLAUDE.md) for the exact boundary and contributor rules.
+
 ## Deploying
 
-Pushes to `main` run lint, unit tests, rule tests and the build, then deploy
-hosting, Firestore rules and functions.
+Non-documentation pushes to `main` run lint, unit tests, rule tests and the
+build, then deploy hosting, Firestore rules and functions. Documentation-only
+pushes do not start the workflow.
 
 Auth is **Workload Identity Federation** — GitHub mints a short-lived Google
 credential per run, so no service-account key exists to leak, rotate or commit.

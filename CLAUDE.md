@@ -5,7 +5,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 
 ## The two rules
 
-### 1. Test first, always
+### 1. Test first for code
 
 Order of operations for *any* code change — a new function, a component, a
 callable function, a bug fix, a refactor, a one-line change:
@@ -18,6 +18,21 @@ callable function, a bug fix, a refactor, a one-line change:
 
 There is no size threshold below which this is skipped. "Too small to test" is
 how the ~40 interlocking game tables acquire silent transcription errors.
+
+Documentation-only changes are the exception. A change is documentation-only
+when every changed tracked file is Markdown (`*.md`) or a README file
+(`README` or `README.*`). For those changes:
+
+- do not write or run application tests locally;
+- do not run lint, builds, emulator checks, or dependency installation solely
+  for validation;
+- review the rendered text, links, examples, and diff instead;
+- do not increment the application version; and
+- GitHub Actions CI and deployment workflows must skip the push or pull request.
+
+If any changed file falls outside that definition—including workflow YAML,
+configuration, scripts, application code, rules, or lockfiles—the exemption
+does not apply and the normal test-first and validation requirements remain.
 
 Where tests go:
 
@@ -92,7 +107,8 @@ same +10 offset; never take a port that is already listening.
 - Branch from `main`. Short-lived, one concern per branch.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the
   end of the week, not once three other things are also finished.
-- Local tests always run before deployment: `npm run lint`, `npm run test:all`,
+- For changes that are not documentation-only, local tests always run before
+  deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant
   local checks is the normal merge gate. A known failure does not automatically
   block deployment only when it is demonstrably unrelated or flaky and the
@@ -112,7 +128,9 @@ Commit messages: imperative subject under 72 characters, and a body that says
 
 ## Version references
 
-- Increment the application version with every completed edit so deployed progress has a stable reference.
+- Increment the application version with every completed product edit so
+  deployed progress has a stable reference. Documentation-only changes, as
+  defined above, do not increment it.
 - The application version must never decrease. A later build must always compare newer than every earlier build.
 - Major system additions may increment the middle number, but only when they represent a meaningful milestone in overall release readiness. Do not mechanically advance toward release for every subsystem.
 - Smaller additions, fixes, and refinements increment the final number (for example, `0.1.12` to `0.1.13`). The final number may exceed 9.
@@ -228,10 +246,14 @@ tests/rules/      assertions against the emulator
 
 ## Definition of done
 
-- [ ] A test was written first and observed failing.
-- [ ] Local lint and tests were run before deployment; any known failure was
-  reviewed against the deployment-safety rule above.
-- [ ] `npm run build` and `npm run build --prefix functions` succeed.
+- [ ] For code changes, a test was written first and observed failing.
+- [ ] For changes that are not documentation-only, local lint and tests were
+  run before deployment; any known failure was reviewed against the
+  deployment-safety rule above.
+- [ ] For changes that are not documentation-only, `npm run build` and
+  `npm run build --prefix functions` succeed.
+- [ ] For documentation-only changes, rendered text, links, examples, and the
+  final diff were reviewed without running the application test suite.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Every affected screen has a visible, tested route back to its logical parent.

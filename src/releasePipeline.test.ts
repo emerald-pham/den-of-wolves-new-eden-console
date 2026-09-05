@@ -25,3 +25,12 @@ it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {
   expect(deploy).not.toContain('firebase-tools@latest');
   expect(packageJson.scripts['test:rules']).not.toContain('firebase-tools@latest');
 });
+
+it('skips CI and deployment for documentation-only changes', () => {
+  for (const workflow of [ci, deploy]) {
+    expect(workflow).toContain('paths-ignore:');
+    expect(workflow).toContain("'**/*.md'");
+    expect(workflow).toContain("'**/README'");
+    expect(workflow).toContain("'**/README.*'");
+  }
+});
