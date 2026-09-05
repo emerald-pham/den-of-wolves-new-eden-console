@@ -14,7 +14,8 @@ vi.mock('./firebase', () => ({
   functions: vi.fn(),
 }));
 
-const { connect } = await import('./sessionService');
+const { connect, joinSession } = await import('./sessionService');
+const { httpsCallable } = await import('firebase/functions');
 
 describe('connect', () => {
   beforeEach(() => {
@@ -31,5 +32,43 @@ describe('connect', () => {
     await connect();
 
     expect(useSessionStore.getState().connection).toBe('offline');
+  });
+});
+
+describe('joinSession', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('stores the player role returned by the authoritative callable', async () => {
+    const session = {
+      id: 's1',
+      name: 'Table one',
+      joinCode: '4821',
+      phase: 'lobby' as const,
+      ownerUid: 'gm1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const player = {
+      uid: 'u1',
+      sessionId: 's1',
+      displayName: 'Player',
+      role: 'player' as const,
+      seatId: null,
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    };
+    vi.mocked(httpsCallable).mockReturnValue(
+      vi.fn().mockResolvedValue({ data: { session, player } }),
+    );
+
+    await joinSession('4821');
+
+    expect(useSessionStore.getState().session).toEqual(session);
+    expect(useSessionStore.getState().me).toEqual(player);
   });
 });

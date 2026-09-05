@@ -109,6 +109,14 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             createdAt: now,
             updatedAt: now,
           },
+          player: {
+            uid,
+            sessionId: sessionRef.id,
+            displayName,
+            role: 'gm',
+            seatId: null,
+            joinedAt: now,
+          },
         };
       }
     }
@@ -147,7 +155,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     // Rejoining is normal -- a phone locks, a browser reloads -- so an existing
     // player document is left exactly as it is, role and seat included.
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-    if (!(await playerRef.get()).exists) {
+    let playerSnap = await playerRef.get();
+    if (!playerSnap.exists) {
       await playerRef.set({
         uid,
         sessionId,
@@ -156,6 +165,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         seatId: null,
         joinedAt: FieldValue.serverTimestamp(),
       });
+      playerSnap = await playerRef.get();
     }
 
     return {
@@ -167,6 +177,14 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
         updatedAt: isoOf(sessionSnap.get('updatedAt')),
+      },
+      player: {
+        uid,
+        sessionId,
+        displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
+        role: playerSnap.get('role') as string,
+        seatId: (playerSnap.get('seatId') as string | null) ?? null,
+        joinedAt: isoOf(playerSnap.get('joinedAt')),
       },
     };
   },

@@ -2,7 +2,7 @@ import { signInAnonymously } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { GameSession } from '@/types/game';
+import type { GameSession, Player } from '@/types/game';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -16,6 +16,7 @@ import type { GameSession } from '@/types/game';
 
 interface SessionReply {
   readonly session: GameSession;
+  readonly player: Player;
 }
 
 /**
@@ -56,6 +57,7 @@ export async function createSession(name?: string): Promise<void> {
   );
   const reply = await call(name === undefined ? {} : { name });
   useSessionStore.getState().setSession(reply.data.session);
+  useSessionStore.getState().setMe(reply.data.player);
 }
 
 export async function joinSession(joinCode: string): Promise<void> {
@@ -66,4 +68,5 @@ export async function joinSession(joinCode: string): Promise<void> {
   );
   const reply = await call({ joinCode });
   useSessionStore.getState().setSession(reply.data.session);
+  useSessionStore.getState().setMe(reply.data.player);
 }

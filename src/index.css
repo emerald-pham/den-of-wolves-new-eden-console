@@ -299,6 +299,17 @@ body {
   line-height: 1.45;
 }
 
+.role-card--static {
+  width: min(22rem, 100%);
+  cursor: default;
+}
+
+.role-card--static:hover {
+  border-color: #ffffff1f;
+  background: #ffffff08;
+  transform: none;
+}
+
 @media (max-width: 42rem) {
   .app-header {
     align-items: stretch;
