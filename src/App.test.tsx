@@ -146,7 +146,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /join a ship/i }),
+      await screen.findByRole('heading', { name: /select a role/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
   });
@@ -176,7 +176,7 @@ describe('App', () => {
 
   it.each([
     ['/roles', /connect this device/i, 'console'],
-    ['/console', /join a ship/i, 'console'],
+    ['/console', /select a role/i, 'console'],
     ['/press', /snn.*system news network/i, 'press'],
   ] as const)('keeps the contact plot behind %s, not just the launcher', async (
     route,
@@ -243,7 +243,7 @@ describe('App', () => {
     useSessionStore.getState().setLastRoute('/console');
 
     const { container } = render(<App />);
-    expect(await screen.findByRole('heading', { name: /join a ship/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
 
     const center = () => container.querySelector('.contact-plot__origin')?.textContent;
     const contacts = () => Array.from(container.querySelectorAll('.contact-plot__contact .contact-plot__tag'))
@@ -262,7 +262,7 @@ describe('App', () => {
     expect(contacts()).not.toContain('QUELLON');
 
     await user.click(screen.getByRole('link', { name: /leave ship/i }));
-    expect(await screen.findByRole('heading', { name: /join a ship/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
     expect(center()).toBe('AEGIS');
   });
 

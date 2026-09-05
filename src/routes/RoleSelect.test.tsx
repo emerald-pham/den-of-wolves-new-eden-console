@@ -70,7 +70,7 @@ describe('RoleSelect', () => {
     expect(screen.getByText('Landing route')).toBeInTheDocument();
   });
 
-  it('offers Claim GM, GM Console, Roles, and Press without a standalone Setup mode', () => {
+  it('offers the intermediate controls and a Select a role destination', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     renderRoute();
@@ -79,21 +79,21 @@ describe('RoleSelect', () => {
     expect(screen.getByRole('button', { name: /^claim gm/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /gm console/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /roles/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /press.*snn/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /select a role/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /press.*snn/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
   });
 
-  it('connects a device as the independent SNN press shuttle', async () => {
+  it('opens the role selection screen from the intermediate screen', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: /press.*snn/i }));
+    await user.click(screen.getByRole('button', { name: /select a role/i }));
 
-    expect(screen.getByText('Press route')).toBeInTheDocument();
-    expect(useSessionStore.getState().mode).toBe('press');
+    expect(screen.getByText('Console route')).toBeInTheDocument();
+    expect(useSessionStore.getState().mode).toBe('console');
   });
 
   it('does not open a GM manifest stream while registration is unlocked', async () => {
@@ -138,7 +138,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(screen.getByRole('button', { name: /gm console/i })).toBeDisabled();
-    await user.click(screen.getByRole('button', { name: /roles/i }));
+    await user.click(screen.getByRole('button', { name: /select a role/i }));
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');

@@ -10,11 +10,10 @@ const MODES: readonly {
   gmOnly: boolean;
 }[] = [
   { mode: 'gm', label: 'GM Console', description: 'Manage active GM instances.', gmOnly: true },
-  { mode: 'console', label: 'Roles', description: 'Display and manage table roles.', gmOnly: false },
   {
-    mode: 'press',
-    label: 'Press Officer',
-    description: 'SNN // Unaffiliated Independent Press Shuttle.',
+    mode: 'console',
+    label: 'Select a role',
+    description: 'Choose an independent or shipboard station.',
     gmOnly: false,
   },
 ];

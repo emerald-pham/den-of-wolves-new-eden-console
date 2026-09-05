@@ -16,7 +16,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
-  if (selectedMode !== mode) return <Navigate to="/roles" replace />;
+  const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
+  if (!modeIsValid) return <Navigate to="/roles" replace />;
 
   if (mode === 'console') {
     return (
@@ -31,8 +32,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
     return (
       <main className="session-mode">
         <div className="session-mode__panel cic-frame">
-          <Link className="session-mode__back cic-text-button" to="/roles">
-            Back to roles
+          <Link className="session-mode__back cic-text-button" to="/console">
+            Back to role selection
           </Link>
           <p className="eyebrow">{session.name} // Independent Press</p>
           <h1 className="role-select__title">SNN — System News Network</h1>
@@ -77,9 +78,25 @@ function FleetRoster({
           Back to roles
         </Link>
         <p className="eyebrow">{sessionName}</p>
-        <h1 className="role-select__title">Join a ship</h1>
-        <p className="role-select__lede">Select the vessel this screen belongs to.</p>
+        <h1 className="role-select__title">Select a role</h1>
+        <p className="role-select__lede">Choose an independent or shipboard station.</p>
       </header>
+
+      <section className="fleet-group" aria-labelledby="independent-roles">
+        <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>
+        <div className="role-select__grid">
+          <Link
+            className="role-card cic-frame"
+            to="/press"
+            aria-label="Press Officer"
+          >
+            <span className="role-card__name">Press Officer</span>
+            <span className="role-card__description">
+              SNN // Unaffiliated Independent Press Shuttle
+            </span>
+          </Link>
+        </div>
+      </section>
 
       {FLEET_GROUPS.map(({ origin, label }) => (
         <section className="fleet-group" aria-labelledby={`fleet-${origin}`} key={origin}>

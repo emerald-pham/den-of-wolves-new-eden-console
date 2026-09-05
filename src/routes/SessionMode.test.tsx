@@ -24,24 +24,19 @@ beforeEach(() => {
   useSessionStore.getState().setMode('console');
 });
 
-it.each([
-  ['console', 'console'],
-  ['press', 'press'],
-] as const)('returns from %s to the roles screen', async (_label, mode) => {
+it('returns from role selection to the intermediate screen', async () => {
   const user = userEvent.setup();
-  useSessionStore.getState().setMode(mode);
   render(
-    <MemoryRouter initialEntries={[`/${mode}`]}>
+    <MemoryRouter initialEntries={['/console']}>
       <Routes>
-        <Route path="/roles" element={<p>Roles route</p>} />
-        <Route path={`/${mode}`} element={<SessionMode mode={mode} />} />
+        <Route path="/roles" element={<p>Intermediate route</p>} />
+        <Route path="/console" element={<SessionMode mode="console" />} />
       </Routes>
     </MemoryRouter>,
   );
 
   await user.click(screen.getByRole('link', { name: /back to roles/i }));
-
-  expect(screen.getByText('Roles route')).toBeInTheDocument();
+  expect(screen.getByText('Intermediate route')).toBeInTheDocument();
 });
 
 it('identifies the unaffiliated SNN press shuttle', () => {
@@ -57,6 +52,25 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(screen.getByRole('heading', { name: /snn.*system news network/i }))
     .toBeInTheDocument();
   expect(screen.getByText(/unaffiliated independent press shuttle/i)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /back to role selection/i }))
+    .toHaveAttribute('href', '/console');
+});
+
+it('offers Press Officer from Select a role and opens the SNN console', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/press" element={<p>SNN console</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  await user.click(screen.getByRole('link', { name: /press officer/i }));
+  expect(screen.getByText('SNN console')).toBeInTheDocument();
+  expect(useSessionStore.getState().mode).toBe('console');
 });
 
 it('groups every ship role by its world of origin without exposing ship actions', () => {
