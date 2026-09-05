@@ -9,7 +9,6 @@ import {
   requireShipConfettiRequest,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
-  requireWolfRoleSettingRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
   requireSessionRequest,
@@ -160,20 +159,6 @@ describe('callable request guards', () => {
     expect(requireUnrestDismissalRequest({
       sessionId: 's1', shipId: 'aegis', instanceId: 'gm-1',
     })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'gm-1' });
-  });
-
-  it('requires an allow-listed role and boolean wolf setting', () => {
-    expectHttpsError(() => requireWolfRoleSettingRequest({
-      sessionId: 's1', instanceId: 'i1', roleId: 'captain', enabled: true,
-    }), 'invalid-argument');
-    expectHttpsError(() => requireWolfRoleSettingRequest({
-      sessionId: 's1', instanceId: 'i1', roleId: 'press-officer', enabled: 'yes',
-    }), 'invalid-argument');
-    expect(requireWolfRoleSettingRequest({
-      sessionId: 's1', instanceId: 'i1', roleId: 'press-officer', enabled: false,
-    })).toEqual({
-      sessionId: 's1', instanceId: 'i1', roleId: 'press-officer', enabled: false,
-    });
   });
 
   it('only permits one or two wolves from a named GM instance', () => {

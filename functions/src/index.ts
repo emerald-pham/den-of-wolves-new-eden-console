@@ -40,11 +40,10 @@ import {
   requireUid,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
-  requireWolfRoleSettingRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
 } from './requestGuards';
-import { chooseWolfRoles, WOLF_ROLE_IDS } from './wolfAssignment';
+import { chooseWolfRoles } from './wolfAssignment';
 import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import {
   INITIAL_SHIP_RESOURCES,
@@ -228,7 +227,6 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           shipUnrest: INITIAL_SHIP_UNREST,
           unrestAlerts: {},
           gmControlsLocked: false,
-          wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
           shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
@@ -270,7 +268,6 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             shipUnrest: INITIAL_SHIP_UNREST,
             unrestAlerts: {},
             gmControlsLocked: false,
-            wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
             shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
             shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
@@ -376,8 +373,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
-        wolfEligibleRoleIds:
-          (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
         activeRoleIds:
           (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
         shuttleDockings:
@@ -465,8 +460,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
-      wolfEligibleRoleIds:
-        (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
       activeRoleIds:
         (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
       shuttleDockings:
@@ -687,48 +680,6 @@ export const setGmControlsLocked = onCall<{
   return { gmControlsLocked: setting.locked };
 });
 
-/** Change which playable roles may be selected as wolves. */
-export const setWolfRoleEnabled = onCall<{
-  sessionId?: string;
-  instanceId?: string;
-  roleId?: string;
-  enabled?: boolean;
-}>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireWolfRoleSettingRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
-  );
-
-  const wolfEligibleRoleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    const current = new Set(
-      (session.get('wolfEligibleRoleIds') as string[] | undefined) ?? WOLF_ROLE_IDS,
-    );
-    if (setting.enabled) current.add(setting.roleId);
-    else current.delete(setting.roleId);
-    const next = WOLF_ROLE_IDS.filter((roleId) => current.has(roleId));
-    tx.update(sessionRef, {
-      wolfEligibleRoleIds: next,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return next;
-  });
-
-  return { wolfEligibleRoleIds };
-});
-
 /** Enable or disable a playable role for this session. */
 export const setActiveRoleEnabled = onCall<{
   sessionId?: string;
@@ -822,12 +773,8 @@ export const assignWolves = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    const enabledRoleIds = (
-      (session.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS]
-    ).filter((roleId) => {
-      const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
-      return (WOLF_ROLE_IDS as readonly string[]).includes(roleId) && active.includes(roleId);
-    });
+    const enabledRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
+      DEFAULT_ACTIVE_ROLE_IDS;
     if (enabledRoleIds.length < assignment.count) {
       throw new HttpsError('failed-precondition', 'Not enough enabled roles for that many wolves.');
     }
@@ -843,7 +790,7 @@ export const assignWolves = onCall<{
   return { roleIds };
 });
 
-/** Save a GM-selected wolf assignment after validating active eligibility. */
+/** Save a GM-selected wolf assignment after validating active roles. */
 export const assignWolfRoles = onCall<{
   sessionId?: string;
   instanceId?: string;
@@ -867,9 +814,8 @@ export const assignWolfRoles = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
-    const eligible = (session.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS];
-    if (assignment.roleIds.some((roleId) => !active.includes(roleId) || !eligible.includes(roleId))) {
-      throw new HttpsError('failed-precondition', 'Every selected wolf must be active and eligible.');
+    if (assignment.roleIds.some((roleId) => !active.includes(roleId))) {
+      throw new HttpsError('failed-precondition', 'Every selected wolf must be active.');
     }
     tx.set(secretRef, {
       visibleToUids: [],

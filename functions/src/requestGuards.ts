@@ -179,27 +179,6 @@ export function requireUnrestDismissalRequest(data: {
   };
 }
 
-export function requireWolfRoleSettingRequest(data: {
-  sessionId?: unknown;
-  instanceId?: unknown;
-  roleId?: unknown;
-  enabled?: unknown;
-}): { sessionId: string; instanceId: string; roleId: string; enabled: boolean } {
-  const roleId = requiredId(data.roleId, 'roleId');
-  if (!(WOLF_ROLE_IDS as readonly string[]).includes(roleId)) {
-    throw new HttpsError('invalid-argument', 'Unknown role.');
-  }
-  if (typeof data.enabled !== 'boolean') {
-    throw new HttpsError('invalid-argument', 'enabled must be boolean.');
-  }
-  return {
-    sessionId: requiredId(data.sessionId, 'sessionId'),
-    instanceId: requiredId(data.instanceId, 'instanceId'),
-    roleId,
-    enabled: data.enabled,
-  };
-}
-
 export function requireWolfAssignmentRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

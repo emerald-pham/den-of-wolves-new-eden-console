@@ -52,8 +52,6 @@ export interface GameSession {
   readonly unrestAlerts?: Readonly<Record<string, UnrestAlert>>;
   /** Locks subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
-  /** Playable role ids currently eligible for a random wolf assignment. */
-  readonly wolfEligibleRoleIds?: readonly string[];
   /** Playable role ids currently offered by role selection. */
   readonly activeRoleIds?: readonly string[];
   readonly shuttleDockings?: readonly ShuttleDocking[];

@@ -107,14 +107,6 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : command.payload.locked;
     store.setSession({ ...store.session, gmControlsLocked: locked });
   }
-  if (command.kind === 'setWolfRoleEnabled' && store.session?.id === command.payload.sessionId) {
-    const roleIds =
-      typeof result === 'object' && result !== null && 'wolfEligibleRoleIds' in result &&
-      Array.isArray(result.wolfEligibleRoleIds)
-        ? result.wolfEligibleRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
-        : undefined;
-    if (roleIds) store.setSession({ ...store.session, wolfEligibleRoleIds: roleIds });
-  }
   if (
     (command.kind === 'setActiveRoleEnabled' || command.kind === 'applyRolePreset') &&
     store.session?.id === command.payload.sessionId
@@ -482,27 +474,6 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       locked,
-    },
-    createdAt: new Date().toISOString(),
-  });
-}
-
-export async function setWolfRoleEnabled(
-  roleId: string,
-  enabled: boolean,
-): Promise<CommandDisposition> {
-  const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
-    throw new Error('Claim GM before changing wolf eligibility.');
-  }
-  return sendOrQueue({
-    id: commandId(),
-    kind: 'setWolfRoleEnabled',
-    payload: {
-      sessionId: store.session.id,
-      instanceId: store.gmInstance.id,
-      roleId,
-      enabled,
     },
     createdAt: new Date().toISOString(),
   });

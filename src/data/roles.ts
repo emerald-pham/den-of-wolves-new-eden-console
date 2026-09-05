@@ -64,7 +64,6 @@ export const DEFAULT_ACTIVE_ROLE_IDS = CONSOLE_ROLES
   ))
   .map((role) => role.id);
 
-export const DEFAULT_WOLF_ELIGIBLE_ROLE_IDS = CONSOLE_ROLES.map((role) => role.id);
 
 export const rolesForShip = (shipId: string): readonly ConsoleRole[] =>
   CONSOLE_ROLES.filter((role) => role.shipId === shipId);

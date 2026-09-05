@@ -12,7 +12,6 @@ vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
-  setWolfRoleEnabled: vi.fn(),
   setActiveRoleEnabled: vi.fn(),
   applyRolePreset: vi.fn(),
   adjustShipResource: vi.fn(),
@@ -25,7 +24,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
-  setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset, adjustShipResource } =
+  setActiveRoleEnabled, applyRolePreset, adjustShipResource } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
   await import('@/lib/firestore');
@@ -353,9 +352,7 @@ it('groups setup roles by ship and labels every ship with its flag', async () =>
     within(activeRoles).getByRole('group', { name: 'Dione roles' }),
   ).getByRole('switch', { name: /captain role availability/i })).toBeInTheDocument();
 
-  const wolfEligibility = screen.getByRole('group', { name: /^wolf eligibility$/i });
-  expect(within(wolfEligibility).getAllByRole('group', { name: 'AEGIS roles' }))
-    .toHaveLength(2);
+  expect(screen.queryByRole('group', { name: /^wolf eligibility$/i })).not.toBeInTheDocument();
 });
 
 it('applies only the final player count after a short slider pause', async () => {
@@ -373,26 +370,17 @@ it('applies only the final player count after a short slider pause', async () =>
   expect(applyRolePreset).toHaveBeenCalledWith(20);
 });
 
-it('configures wolf eligibility and offers random or manual wolf assignments', async () => {
+it('offers random or manual wolf assignments from the active roles', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(setWolfRoleEnabled).mockImplementation(async (_roleId, enabled) => {
-    const activeSession = useSessionStore.getState().session;
-    if (activeSession) useSessionStore.getState().setSession({
-      ...activeSession,
-      wolfEligibleRoleIds: enabled ? ['press-officer'] : [],
-    });
-    return 'applied';
-  });
   vi.mocked(assignWolves).mockResolvedValue(['press-officer']);
   vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const eligibility = screen.getByRole('switch', { name: /press officer.*wolf/i });
-  expect(eligibility).toBeChecked();
-  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(23);
+  expect(screen.queryByRole('group', { name: /^wolf eligibility$/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('switch', { name: /wolf/i })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /randomly assign 1 wolf/i })).toBeEnabled();
   expect(screen.getByRole('button', { name: /randomly assign 2 wolves/i })).toBeEnabled();
 
@@ -404,8 +392,6 @@ it('configures wolf eligibility and offers random or manual wolf assignments', a
   await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
   expect(assignWolfRoles).toHaveBeenCalledWith(['press-officer']);
 
-  await user.click(eligibility);
-  expect(setWolfRoleEnabled).toHaveBeenCalledWith('press-officer', false);
 });
 
 it('toggles Capybara off for the session and removes its perspective', async () => {

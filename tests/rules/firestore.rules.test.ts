@@ -133,12 +133,6 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
   });
 
-  it('cannot change wolf eligibility from the client', async () => {
-    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
-      wolfEligibleRoleIds: ['press-officer'],
-    }));
-  });
-
   it('cannot change active role availability from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), {
       activeRoleIds: ['admiral'],

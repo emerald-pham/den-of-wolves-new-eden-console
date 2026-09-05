@@ -7,7 +7,7 @@ import { fleetViewFrom } from '@/data/fleetFormation';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
-import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
+import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { MAX_PLAYER_PRESET, MIN_PLAYER_PRESET, recommendedRoleIds } from '@/data/rolePresets';
 import {
   assignWolves,
@@ -15,7 +15,6 @@ import {
   kickGmInstance,
   setCapybaraEnabled,
   setGmControlsLocked,
-  setWolfRoleEnabled,
   setActiveRoleEnabled,
   applyRolePreset,
   adjustShipResource,
@@ -127,7 +126,6 @@ export default function GmConsole() {
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
   const [changingLock, setChangingLock] = useState(false);
-  const [changingWolfRole, setChangingWolfRole] = useState<string | null>(null);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
@@ -143,13 +141,10 @@ export default function GmConsole() {
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
-  const wolfEligibleRoleIds = session?.wolfEligibleRoleIds ?? DEFAULT_WOLF_ELIGIBLE_ROLE_IDS;
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const recommendedIds = recommendedRoleIds(playerCount);
   const isCustom = activeRoleIds.length !== recommendedIds.length ||
     activeRoleIds.some((roleId) => !recommendedIds.includes(roleId));
-  const wolfRoleQueued = new Set(pendingCommands.flatMap((command) =>
-    command.kind === 'setWolfRoleEnabled' ? [command.payload.roleId] : []));
   const availableShips = SHIPS.filter(
     (ship) => capybaraEnabled || ship.id !== 'capybara',
   );
@@ -293,19 +288,6 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setChangingLock(false);
-    }
-  }
-
-  async function toggleWolfRole(roleId: string, enabled: boolean): Promise<void> {
-    setChangingWolfRole(roleId);
-    setAssignedWolfRoleIds([]);
-    try {
-      await setWolfRoleEnabled(roleId, enabled);
-      if (!enabled) setManualWolfRoleIds((selected) => selected.filter((id) => id !== roleId));
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setChangingWolfRole(null);
     }
   }
 
@@ -537,31 +519,12 @@ export default function GmConsole() {
                   />
                 </fieldset>
                 <fieldset className="gm-wolf-setup">
-                  <legend>Wolf eligibility</legend>
-                  <ShipRoleGroups
-                    roles={CONSOLE_ROLES}
-                    renderRole={(role) => {
-                    const enabled = wolfEligibleRoleIds.includes(role.id);
-                    return (
-                      <label className="gm-wolf-role" key={role.id}>
-                        <span>{role.name}</span>
-                        <input
-                          type="checkbox"
-                          role="switch"
-                          aria-label={`${role.name} wolf eligibility`}
-                          checked={enabled}
-                          disabled={!activeRoleIds.includes(role.id) || changingWolfRole === role.id || wolfRoleQueued.has(role.id)}
-                          onChange={() => void toggleWolfRole(role.id, !enabled)}
-                        />
-                      </label>
-                    );
-                    }}
-                  />
+                  <legend>Wolf assignment</legend>
                   <div className="gm-wolf-actions" aria-label="Random wolf assignment">
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assigningWolves || wolfEligibleRoleIds.length < 1}
+                      disabled={assigningWolves || activeRoleIds.length < 1}
                       onClick={() => void randomizeWolves(1)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 1 wolf'}
@@ -569,7 +532,7 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assigningWolves || wolfEligibleRoleIds.length < 2}
+                      disabled={assigningWolves || activeRoleIds.length < 2}
                       onClick={() => void randomizeWolves(2)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 2 wolves'}
@@ -578,7 +541,7 @@ export default function GmConsole() {
                   <fieldset className="gm-wolf-manual">
                     <legend>Manual wolf assignment</legend>
                     <ShipRoleGroups
-                      roles={CONSOLE_ROLES.filter((role) => wolfEligibleRoleIds.includes(role.id))}
+                      roles={CONSOLE_ROLES.filter((role) => activeRoleIds.includes(role.id))}
                       renderRole={(role) => (
                       <label className="gm-wolf-role" key={role.id}>
                         <span>{role.name}</span>

@@ -28,7 +28,6 @@ const {
   assignWolfRoles,
   setCapybaraEnabled,
   setGmControlsLocked,
-  setWolfRoleEnabled,
   setActiveRoleEnabled,
   selectConsoleRole,
   applyRolePreset,
@@ -301,23 +300,6 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', locked: true,
     });
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
-  });
-
-  it('updates wolf eligibility through the active GM instance', async () => {
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
-      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    const callable = callableReturning({ data: { wolfEligibleRoleIds: [] } });
-    vi.mocked(httpsCallable).mockReturnValue(callable);
-
-    await setWolfRoleEnabled('press-officer', false);
-
-    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setWolfRoleEnabled');
-    expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', roleId: 'press-officer', enabled: false,
-    });
-    expect(useSessionStore.getState().session?.wolfEligibleRoleIds).toEqual([]);
   });
 
   it('asks the server to randomly assign wolves and returns the secret result', async () => {
