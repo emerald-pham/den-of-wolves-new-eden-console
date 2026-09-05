@@ -159,8 +159,12 @@ parent instead, for a board sitting inside a panel, and `size` overrides the
 diameter with any CSS length. Both keep identical geometry — only the diameter
 and the framing change. Do not add a route that switches it off.
 
-The compact shipboard plot sizes itself in container-query units (`92cqi`),
-never percentages. Percentage translations on its zero-size contact anchors
+The compact shipboard plot sizes itself in container-query units, never
+percentages. Its parent morphs between a full-viewport size container and the
+corner instrument over 200ms, so entering or leaving a console changes the
+scale continuously instead of crossfading the DRADIS. Keep this duration
+isolated in `SHIP_PLOT_RESIZE_MS` so the experiment is easy to tune or revert.
+Percentage translations on its zero-size contact anchors
 resolve to zero and collapse every return onto the origin. Contact labels use
 four stable corner anchors around their returns; bias them away from the plot
 origin and alternate them near a centreline so neighboring names remain
@@ -231,6 +235,23 @@ specialize the accent and modules but must not replace the shell.
 - Decorative craft identity is typographic line-work behind the instruments.
   It remains low contrast, non-interactive and absent from the accessibility
   tree. It never substitutes for a real status value.
+- Shuttlecraft remain one-page consoles. Their real modules share one scrolling
+  workspace and must not introduce secondary console pages.
+
+### Ship console layout and growth
+
+Capital-ship consoles are built for multiple internal mechanics pages. The
+current identity view is the first page, not a mandate to place every later
+system on the same canvas. New mechanics belong in a pageable main workspace;
+do not add placeholder tabs until their destination mechanics exist.
+
+The right status rail is persistent across those pages. Compact DRADIS owns the
+top-right square. Directly beneath it, the rail uses the remaining viewport for
+the shuttlebay manifest and compact command controls. The manifest is the only
+flexible-height item and scrolls internally, so an unbounded number of docked
+shuttlecraft or historical visits can never grow underneath or overlap DRADIS.
+On narrow screens the identity/workspace and rail enter document flow and the
+whole console scrolls; controls must never be compressed out of reach.
 
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several. Every
@@ -363,7 +384,9 @@ outrank the threat-state rules. Tuning knobs are `--plot-size`, `--plot-turn`,
 src/components/ScreenFade.tsx, styled in src/index.css. Every change of screen
 fades out and back in: `SCREEN_FADE_MS` each way, two tenths of a second in
 total. The constant and the CSS duration are the same figure in two places; move
-both.
+both. This crossing applies to routed foreground content only. Persistent
+background instrumentation does not fade; when DRADIS changes between field and
+corner modes, its own 200ms geometry transition communicates that change.
 
 It takes a function rather than plain children because `Routes` reads the
 location from context — an already-rendered element is no help, since it would

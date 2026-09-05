@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import ContactPlot from './ContactPlot';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
+
+/** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
+export const SHIP_PLOT_RESIZE_MS = 200;
+
+type ShipPlotStyle = CSSProperties & { '--ship-plot-resize': string };
 
 export default function ShipPlot({
   hostile,
@@ -30,12 +35,17 @@ export default function ShipPlot({
   }));
 
   return (
-    <div className="ship-plot" data-aboard={String(aboard)} data-expanded={String(expanded)}>
+    <div
+      className="ship-plot"
+      data-aboard={String(aboard)}
+      data-expanded={String(expanded)}
+      style={{ '--ship-plot-resize': `${SHIP_PLOT_RESIZE_MS}ms` } as ShipPlotStyle}
+    >
       <ContactPlot
         key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
         hostile={hostile}
-        placement={aboard ? 'widget' : 'field'}
-        size={aboard ? (expanded ? 'min(94vmin, 128vw)' : '92cqi') : undefined}
+        placement={aboard ? 'widget' : 'inset'}
+        size="min(92cqi, 92cqb)"
         contacts={contacts}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
       />

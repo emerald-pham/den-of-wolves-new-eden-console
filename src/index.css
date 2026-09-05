@@ -4,6 +4,7 @@
 
 :root {
   color-scheme: dark;
+  --ship-plot-widget-size: clamp(10rem, 22vw, 17rem);
 }
 
 * {
@@ -1027,7 +1028,10 @@ body {
   left: clamp(1rem, 5vw, 4rem);
   right: clamp(1rem, 5vw, 4rem);
   bottom: max(2rem, env(safe-area-inset-bottom));
-  width: min(42rem, calc(100% - 2rem));
+  width: min(
+    42rem,
+    calc(100% - var(--ship-plot-widget-size) - clamp(3rem, 10vw, 8rem))
+  );
   padding: clamp(1rem, 3vw, 1.75rem);
   border-top: 2px solid var(--ship-accent);
   border-left: 1px solid var(--ship-secondary);
@@ -1073,17 +1077,39 @@ body {
 }
 
 .ship-shuttlebay {
-  position: absolute;
-  top: clamp(7rem, 18vh, 11rem);
-  right: clamp(1rem, 5vw, 4rem);
-  z-index: 5;
-  width: min(25rem, 38vw);
-  max-height: min(46vh, 25rem);
+  min-height: 0;
   overflow: auto;
   padding: 1rem;
   border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
   background: color-mix(in srgb, var(--cic-void) 94%, transparent);
   font-family: var(--cic-mono);
+}
+
+/* Persistent status rail. Future ship mechanics belong in the pageable main
+   workspace, not in this rail; the manifest consumes only the space left below
+   DRADIS and scrolls no matter how many shuttlecraft visit. */
+.ship-console__instruments {
+  position: absolute;
+  top: calc(
+    max(0.75rem, env(safe-area-inset-top)) + 4.25rem +
+    var(--ship-plot-widget-size) + 1rem
+  );
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  width: var(--ship-plot-widget-size);
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ship-console__instruments .ship-shuttlebay {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-height: none;
+  flex: 1 1 auto;
 }
 
 .ship-shuttlebay h2,
@@ -1205,6 +1231,13 @@ body {
   outline-offset: 3px;
 }
 
+.ship-console .ship-console__instruments > .confetti-dispenser {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  flex: 0 0 auto;
+}
+
 .confetti-burst {
   position: fixed;
   inset: 0;
@@ -1244,30 +1277,52 @@ body {
 
 /* Shipboard DRADIS ------------------------------------------------- */
 
-.ship-plot[data-aboard='false'] { display: contents; }
+/* The same plot remains mounted and its containing viewport morphs between the
+   full field and the corner instrument. Keeping the duration in an inline
+   custom property makes this experiment easy to tune or remove in one place. */
+.ship-plot {
+  container-type: size;
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 0;
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition:
+    top var(--ship-plot-resize) ease,
+    right var(--ship-plot-resize) ease,
+    width var(--ship-plot-resize) ease,
+    height var(--ship-plot-resize) ease,
+    border-color var(--ship-plot-resize) ease,
+    background-color var(--ship-plot-resize) ease,
+    box-shadow var(--ship-plot-resize) ease;
+}
+
+.ship-plot[data-aboard='false'] .contact-plot {
+  -webkit-mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
+  mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
+}
 
 .ship-plot[data-aboard='true'] {
-  container-type: inline-size;
-  position: fixed;
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
   right: max(0.75rem, env(safe-area-inset-right));
   z-index: 4;
-  width: clamp(10rem, 22vw, 17rem);
-  aspect-ratio: 1;
-  overflow: hidden;
-  border: 1px solid var(--cic-amber-dim);
+  width: var(--ship-plot-widget-size);
+  height: var(--ship-plot-widget-size);
+  border-color: var(--cic-amber-dim);
   background: var(--cic-void);
   box-shadow: 0 0 24px color-mix(in srgb, var(--cic-cyan) 18%, transparent);
-  transition: width 180ms ease, inset 180ms ease;
 }
 
 .ship-plot[data-aboard='true'][data-expanded='true'] {
-  inset: 0;
+  top: 0;
+  right: 0;
   z-index: 20;
-  width: auto;
-  height: auto;
-  aspect-ratio: auto;
-  border: 0;
+  width: 100vw;
+  height: 100dvh;
+  border-color: transparent;
   background: color-mix(in srgb, var(--cic-void) 97%, transparent);
 }
 
@@ -1310,13 +1365,6 @@ body {
     width: 9.5rem;
     transform: scale(0.78);
     transform-origin: top left;
-  }
-
-  .ship-shuttlebay {
-    top: auto;
-    right: max(0.75rem, env(safe-area-inset-right));
-    bottom: max(1rem, env(safe-area-inset-bottom));
-    width: min(19rem, 44vw);
   }
 
   .gm-console__grid {
@@ -1365,7 +1413,25 @@ body {
     opacity: 0.58;
   }
 
-  .ship-console__identity { bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .ship-console:not(.shuttle-console) {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    overflow-y: auto;
+    padding-top: calc(
+      max(0.75rem, env(safe-area-inset-top)) + 5.25rem +
+      var(--ship-plot-widget-size)
+    );
+  }
+  .ship-console:not(.shuttle-console) .ship-console__identity,
+  .ship-console:not(.shuttle-console) .ship-console__instruments {
+    position: relative;
+    inset: auto;
+    width: 100%;
+  }
+  .ship-console:not(.shuttle-console) .ship-console__instruments {
+    min-height: min(32rem, 75dvh);
+  }
   .shuttle-console {
     display: grid;
     align-content: start;
@@ -1374,15 +1440,14 @@ body {
     padding-top: clamp(15rem, 42vh, 20rem);
   }
   .shuttle-console .ship-console__identity,
-  .shuttle-console .ship-shuttlebay,
-  .shuttle-console .confetti-dispenser {
+  .shuttle-console .ship-console__instruments {
     position: relative;
     inset: auto;
     width: 100%;
     transform: none;
   }
   .shuttle-console__mark { top: 32%; }
-  .ship-plot[data-aboard='true'] { width: clamp(8.5rem, 36vw, 11rem); }
+  :root { --ship-plot-widget-size: clamp(8.5rem, 36vw, 11rem); }
 }
 
 @media (max-width: 24rem) {
@@ -1419,7 +1484,7 @@ body {
     transition: none;
   }
 
-  .ship-plot[data-aboard='true'] { transition: none; }
+  .ship-plot { transition: none; }
 
   /* Hold the outgoing screen at full strength rather than blinking it out:
      without the transition, fading to zero would be a flash, not a fade. */

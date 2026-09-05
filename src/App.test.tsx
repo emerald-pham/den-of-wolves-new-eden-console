@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
+import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -223,7 +224,7 @@ describe('App', () => {
     expect(screen.getByText('DRADIS // FULL SCREEN')).toBeInTheDocument();
     const plot = container.querySelector('.contact-plot');
     expect(plot).toHaveAttribute('data-placement', 'widget');
-    expect(plot).toHaveStyle({ '--plot-size': '92cqi' });
+    expect(plot).toHaveStyle({ '--plot-size': 'min(92cqi, 92cqb)' });
 
     await user.click(display);
     expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
@@ -233,6 +234,10 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /collapse dradis display/i }));
     expect(screen.getByRole('button', { name: /expand dradis display/i })).toBeInTheDocument();
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
+    expect(SHIP_PLOT_RESIZE_MS).toBe(200);
+    expect(container.querySelector('.ship-plot')).toHaveStyle({
+      '--ship-plot-resize': '200ms',
+    });
   });
 
   it('gives the SNN Press Shuttle the same minimized DRADIS instrument as ship consoles', async () => {

@@ -177,6 +177,28 @@ describe('the shuttlecraft console template', () => {
   });
 });
 
+describe('ship console instrument layout', () => {
+  it('morphs DRADIS between field and widget size in one fifth of a second', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const plot = index.match(/\.ship-plot\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(plot).toContain('container-type: size');
+    expect(plot).toContain('transition:');
+    expect(plot).toContain('var(--ship-plot-resize)');
+  });
+
+  it('places the shuttlebay in a dedicated rail below compact DRADIS', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const rail = index.match(/\.ship-console__instruments\s*\{([^}]*)\}/)?.[1] ?? '';
+    const bay = index.match(/\.ship-shuttlebay\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(rail).toContain('display: flex');
+    expect(rail).toContain('--ship-plot-widget-size');
+    expect(bay).toContain('overflow: auto');
+    expect(bay).toContain('min-height: 0');
+  });
+});
+
 describe('friendly DRADIS returns', () => {
   it('inherits each faction color from the positioned contact', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
@@ -189,9 +211,9 @@ describe('friendly DRADIS returns', () => {
 
   it('scales the compact plot against its container instead of a zero-size contact', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
-    const shipPlot = index.match(/\.ship-plot\[data-aboard='true'\]\s*\{([^}]*)\}/)?.[1] ?? '';
+    const shipPlot = index.match(/\.ship-plot\s*\{([^}]*)\}/)?.[1] ?? '';
 
-    expect(shipPlot).toContain('container-type: inline-size');
+    expect(shipPlot).toContain('container-type: size');
   });
 
   it('acquires contacts on their first sweep and only then applies stepped display drift', () => {

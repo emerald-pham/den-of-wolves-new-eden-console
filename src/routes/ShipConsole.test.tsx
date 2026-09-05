@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -57,6 +57,11 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByRole('status')).toHaveTextContent(/captain authority required.*two officers may override/i);
   expect(screen.queryByText(/engineer|recycler/i)).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: /shuttlebay/i })).toBeInTheDocument();
+  const instruments = screen.getByRole('complementary', { name: /capybara instruments/i });
+  expect(within(instruments).getByRole('region', { name: /shuttlebay/i })).toBeInTheDocument();
+  expect(within(instruments).getByRole('region', {
+    name: /emergency bridge confetti dispenser/i,
+  })).toBeInTheDocument();
   expect(screen.getByText(/no shuttle docked/i)).toBeInTheDocument();
   expect(screen.getByText(/no recorded shuttle visits/i)).toBeInTheDocument();
 });

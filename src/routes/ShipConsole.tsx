@@ -102,30 +102,33 @@ export default function ShipConsole() {
         {consoleRole && <p className="ship-console__role">{consoleRole.name}</p>}
         <p className="ship-console__description">{ship.description}</p>
       </section>
-      <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
-        <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
-        <h2>Docked shuttlecraft</h2>
-        {shuttlebay?.dockedShuttles.length ? (
-          <ul className="ship-shuttlebay__docked">
-            {shuttlebay.dockedShuttles.map((shuttle) => (
-              <li key={shuttle.id}><strong>{shuttle.name}</strong><span>Currently docked</span></li>
-            ))}
-          </ul>
-        ) : <p>No shuttle docked</p>}
-        <h3>Visit log</h3>
-        {shuttlebay?.visits.length ? (
-          <ol className="ship-shuttlebay__log" aria-label="Shuttle visit log">
-            {shuttlebay.visits.map((visit) => (
-              <li key={visit.id}>
-                <span>{visit.shuttle.shortName}</span>
-                <strong>{visit.action.toUpperCase()}</strong>
-                <time>{visit.occurredAt}</time>
-              </li>
-            ))}
-          </ol>
-        ) : <p>No recorded shuttle visits</p>}
-      </section>
-      <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
+      <aside className="ship-console__instruments" aria-label={`${ship.name} instruments`}>
+        <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
+          <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
+          <h2>Docked shuttlecraft</h2>
+          {shuttlebay?.dockedShuttles.length ? (
+            <ul className="ship-shuttlebay__docked">
+              {shuttlebay.dockedShuttles.map((shuttle) => (
+                <li key={`${shuttle.id}-${shuttle.dockedAt}`}>
+                  <strong>{shuttle.name}</strong><span>Currently docked</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p>No shuttle docked</p>}
+          <h3>Visit log</h3>
+          {shuttlebay?.visits.length ? (
+            <ol className="ship-shuttlebay__log" aria-label="Shuttle visit log">
+              {shuttlebay.visits.map((visit) => (
+                <li key={visit.id}>
+                  <span>{visit.shuttle.shortName}</span>
+                  <strong>{visit.action.toUpperCase()}</strong>
+                  <time>{visit.occurredAt}</time>
+                </li>
+              ))}
+            </ol>
+          ) : <p>No recorded shuttle visits</p>}
+        </section>
+        <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
         <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>
         <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
           <button
@@ -160,7 +163,8 @@ export default function ShipConsole() {
             COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE
           </p>
         )}
-      </section>
+        </section>
+      </aside>
       {burst > 0 && (
         <div className="confetti-burst" key={burst} aria-hidden="true">
           {CONFETTI_PIECES.map((piece) => (

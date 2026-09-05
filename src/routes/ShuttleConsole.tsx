@@ -40,30 +40,32 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
         <p className="ship-console__description">{shuttle.description}</p>
       </section>
 
-      <section className="ship-shuttlebay shuttle-console__systems cic-frame" aria-label="Shuttle systems">
-        <p className="ship-shuttlebay__eyebrow">Navigation // live position</p>
-        <h2>Shuttle status</h2>
-        <p className="shuttle-console__position">
-          Shuttle location // {docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit'}
-        </p>
-        <h3>Travel log</h3>
-        {visits.length ? (
-          <ol className="ship-shuttlebay__log" aria-label="Shuttle travel log">
-            {visits.map((visit) => {
-              const ship = SHIPS.find((item) => item.id === visit.shipId);
-              return (
-                <li key={visit.id}>
-                  <span>{ship?.name ?? visit.shipId}</span>
-                  <strong>{visit.action.toUpperCase()}</strong>
-                  <time>{visit.occurredAt}</time>
-                </li>
-              );
-            })}
-          </ol>
-        ) : <p>No recorded travel</p>}
-      </section>
+      <aside className="ship-console__instruments" aria-label={`${shuttle.consoleName} instruments`}>
+        <section className="ship-shuttlebay shuttle-console__systems cic-frame" aria-label="Shuttle systems">
+          <p className="ship-shuttlebay__eyebrow">Navigation // live position</p>
+          <h2>Shuttle status</h2>
+          <p className="shuttle-console__position">
+            Shuttle location // {docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit'}
+          </p>
+          <h3>Travel log</h3>
+          {visits.length ? (
+            <ol className="ship-shuttlebay__log" aria-label="Shuttle travel log">
+              {visits.map((visit) => {
+                const ship = SHIPS.find((item) => item.id === visit.shipId);
+                return (
+                  <li key={visit.id}>
+                    <span>{ship?.name ?? visit.shipId}</span>
+                    <strong>{visit.action.toUpperCase()}</strong>
+                    <time>{visit.occurredAt}</time>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : <p>No recorded travel</p>}
+        </section>
 
-      {shuttle.id === 'snn-press-shuttle' && <PressConfetti />}
+        {shuttle.id === 'snn-press-shuttle' && <PressConfetti />}
+      </aside>
     </main>
   );
 }
