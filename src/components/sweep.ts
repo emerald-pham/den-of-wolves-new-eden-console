@@ -95,6 +95,9 @@ export function followSweeps(plot: HTMLElement): () => void {
         const before = rimDistance(displayed, beforeNormal, camera);
         return Math.abs(before) >= 1e-8 && (Math.abs(next) < 1e-8 || (before < 0) !== (next < 0));
       })) return;
+      // The first return gets a larger acquisition flash. Refreshes confirm a
+      // known track and should preserve its normal apparent size.
+      const firstAcquisition = apparent.dataset.acquired !== 'true';
       state.fix = apparentFix(canonical, state.scans++);
       apparent.dataset.acquired = 'true';
       apparent.style.setProperty('--fix-x', String(state.fix.x - canonical.x));
@@ -108,7 +111,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       const drop = element.querySelector<HTMLElement>('.contact-plot__drop');
       state.paint = [
         blip.animate?.(fade.map((keyframe, i) => ({
-          ...keyframe, transform: i === 0 ? 'scale(2)' : 'scale(1)',
+          ...keyframe, transform: firstAcquisition && i === 0 ? 'scale(2)' : 'scale(1)',
         })), { duration: 7000, fill: 'forwards' }),
         drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
       ].filter((animation): animation is Animation => animation !== undefined);
