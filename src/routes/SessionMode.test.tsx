@@ -102,6 +102,8 @@ it('groups every ship role by its world of origin without exposing ship actions'
   expect(screen.getByText(/provides strytium fuel/i)).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /join aegis/i }))
     .toHaveAttribute('href', '/ships/aegis/roles');
+  expect(screen.getByRole('img', { name: /interstellar council service navy flag/i }))
+    .toHaveAttribute('data-shared-flag', 'aegis');
 });
 
 it('sends every staffed ship through its role picker', async () => {

@@ -29,6 +29,8 @@ export default function ShipRoleSelect() {
             className="ship-role-select__flag"
             src={ship.flag}
             alt={`${ship.nation} flag`}
+            data-shared-flag={ship.id}
+            style={{ viewTransitionName: 'shared-ship-flag' }}
           />
           <p className="eyebrow">{session.name} // {ship.name}</p>
           <h1 className="role-select__title">Select command role</h1>

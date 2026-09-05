@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, type Location } from 'react-router-dom';
 
 /**
@@ -9,6 +9,21 @@ import { useLocation, type Location } from 'react-router-dom';
  * the other.
  */
 export const SCREEN_FADE_MS = 100;
+export const SHARED_FLAG_MOVE_MS = 200;
+
+interface FlagMove {
+  readonly clone: HTMLImageElement;
+  readonly objectFit: string;
+  readonly objectPosition: string;
+  readonly opacity: string;
+  readonly shipId: string;
+  readonly source: DOMRect;
+}
+
+const shipIdFromPath = (pathname: string): string | null =>
+  pathname.match(/^\/ships\/([^/]+)/)?.[1] ?? null;
+const prefersReducedMotion = (): boolean =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
  * Holds the outgoing screen on stage while it fades, then swaps and brings the
@@ -30,6 +45,62 @@ export default function ScreenFade({
   const location = useLocation();
   const [displayed, setDisplayed] = useState(location);
   const [phase, setPhase] = useState<'in' | 'out'>('in');
+  const pendingFlag = useRef<FlagMove | null>(null);
+
+  useLayoutEffect(() => {
+    const move = pendingFlag.current;
+    if (!move) return;
+    pendingFlag.current = null;
+
+    const destination = document.querySelector<HTMLImageElement>(
+      `[data-shared-flag="${CSS.escape(move.shipId)}"]`,
+    );
+    if (
+      !destination || move.source.width <= 0 || move.source.height <= 0 ||
+      prefersReducedMotion()
+    ) return;
+
+    const target = destination.getBoundingClientRect();
+    const destinationOpacity = window.getComputedStyle(destination).opacity;
+    const clone = move.clone;
+    Object.assign(clone.style, {
+      position: 'fixed',
+      zIndex: '20',
+      left: `${move.source.left}px`,
+      top: `${move.source.top}px`,
+      width: `${move.source.width}px`,
+      height: `${move.source.height}px`,
+      margin: '0',
+      objectFit: move.objectFit,
+      objectPosition: move.objectPosition,
+      opacity: move.opacity,
+      pointerEvents: 'none',
+      transform: 'none',
+      transformOrigin: 'top left',
+      transition: `transform ${SHARED_FLAG_MOVE_MS}ms ease-in-out, opacity ${SHARED_FLAG_MOVE_MS}ms ease-in-out`,
+    });
+    clone.className = 'shared-flag-transition';
+    clone.alt = '';
+    clone.setAttribute('aria-hidden', 'true');
+    destination.style.visibility = 'hidden';
+    document.body.append(clone);
+
+    let finish = 0;
+    const frame = window.requestAnimationFrame(() => {
+      clone.style.opacity = destinationOpacity;
+      clone.style.transform = `translate(${target.left - move.source.left}px, ${target.top - move.source.top}px) scale(${target.width / move.source.width}, ${target.height / move.source.height})`;
+      finish = window.setTimeout(() => {
+        destination.style.removeProperty('visibility');
+        clone.remove();
+      }, SHARED_FLAG_MOVE_MS);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(finish);
+      destination.style.removeProperty('visibility');
+      clone.remove();
+    };
+  }, [displayed]);
 
   useEffect(() => {
     // A replace, or a guard redirecting back to where we already are, is not a
@@ -38,6 +109,21 @@ export default function ScreenFade({
 
     setPhase('out');
     const swap = window.setTimeout(() => {
+      const shipId = shipIdFromPath(location.pathname) ?? shipIdFromPath(displayed.pathname);
+      const source = shipId
+        ? document.querySelector<HTMLImageElement>(`[data-shared-flag="${CSS.escape(shipId)}"]`)
+        : null;
+      if (shipId && source && !prefersReducedMotion()) {
+        const sourceStyle = window.getComputedStyle(source);
+        pendingFlag.current = {
+          clone: source.cloneNode(true) as HTMLImageElement,
+          objectFit: sourceStyle.objectFit,
+          objectPosition: sourceStyle.objectPosition,
+          opacity: sourceStyle.opacity,
+          shipId,
+          source: source.getBoundingClientRect(),
+        };
+      }
       setDisplayed(location);
       setPhase('in');
     }, SCREEN_FADE_MS);

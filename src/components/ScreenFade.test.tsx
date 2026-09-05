@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
-import ScreenFade, { SCREEN_FADE_MS } from './ScreenFade';
+import ScreenFade, { SCREEN_FADE_MS, SHARED_FLAG_MOVE_MS } from './ScreenFade';
 
 function Harness({ to }: { to: string }) {
   const navigate = useNavigate();
@@ -28,6 +28,7 @@ function renderHarness(to: string) {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('ScreenFade', () => {
@@ -65,5 +66,30 @@ describe('ScreenFade', () => {
 
   it('spends as long going out as coming back in, for a fifth of a second in all', () => {
     expect(SCREEN_FADE_MS * 2).toBe(200);
+  });
+
+  it('moves a ship flag between screens over two tenths of a second', () => {
+    vi.useFakeTimers();
+    const userMotion = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <ScreenFade>{(location) => location.pathname === '/console'
+          ? <img data-shared-flag="aegis" alt="Roster flag" />
+          : <img data-shared-flag="aegis" alt="Command flag" />}
+        </ScreenFade>
+        <Harness to="/ships/aegis/roles" />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+    act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
+
+    expect(document.querySelector('.shared-flag-transition')).toBeInTheDocument();
+    expect(SHARED_FLAG_MOVE_MS).toBe(200);
+    act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));
+    expect(document.querySelector('.shared-flag-transition')).not.toBeInTheDocument();
+    window.matchMedia = userMotion;
   });
 });

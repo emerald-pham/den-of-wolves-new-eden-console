@@ -126,7 +126,12 @@ function FleetRoster({
                   to={rolesForShip(ship.id).length > 0 ? `/ships/${ship.id}/roles` : `/ships/${ship.id}`}
                   aria-label={`Join ${ship.name} ship`}
                 >
-                  <img className="fleet-card__flag" src={ship.flag} alt={`${ship.nation} flag`} />
+                  <img
+                    className="fleet-card__flag"
+                    src={ship.flag}
+                    alt={`${ship.nation} flag`}
+                    data-shared-flag={ship.id}
+                  />
                   <span className="fleet-card__content">
                     <span className="fleet-card__nation">{ship.nationShort} // {ship.vesselType}</span>
                     <span className="fleet-card__name">{ship.name}</span>

@@ -92,7 +92,13 @@ export default function ShipConsole() {
 
   return (
     <main className={`ship-console ship-console--${ship.id}`}>
-      <img className="ship-console__flag" src={ship.flag} alt={`${ship.nation} flag`} />
+      <img
+        className="ship-console__flag"
+        src={ship.flag}
+        alt={`${ship.nation} flag`}
+        data-shared-flag={ship.id}
+        style={{ viewTransitionName: 'shared-ship-flag' }}
+      />
       <section className="ship-console__identity" aria-labelledby="ship-name">
         <Link
           className="ship-console__back cic-text-button"

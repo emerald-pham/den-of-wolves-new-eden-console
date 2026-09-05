@@ -36,6 +36,8 @@ it('offers the three AEGIS command roles with the ship flag and no repeated cons
   expect(screen.getByRole('link', { name: /^wing commander$/i })).toBeInTheDocument();
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
   expect(screen.getByRole('img', { name: /interstellar council service navy flag/i })).toBeInTheDocument();
+  expect(screen.getByRole('img', { name: /interstellar council service navy flag/i }))
+    .toHaveStyle({ viewTransitionName: 'shared-ship-flag' });
   expect(screen.queryByText(/shared aegis command/i)).not.toBeInTheDocument();
 
   await user.click(screen.getByRole('link', { name: /^executive officer$/i }));
