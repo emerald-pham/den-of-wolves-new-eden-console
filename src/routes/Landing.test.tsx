@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -36,6 +36,7 @@ describe('Landing', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.mocked(createSession).mockReset();
     vi.mocked(joinSession).mockReset();
   });
@@ -45,6 +46,9 @@ describe('Landing', () => {
     const heading = screen.getByRole('heading', { level: 1 });
     expect(heading).toHaveTextContent('Den of Wolves: New Eden');
     expect(heading).toHaveTextContent('Unofficial Companion Console');
+    expect(screen.getByText('OPERATION NEW EDEN / CIC')).toBeInTheDocument();
+    expect(screen.getByText('OPERATION NEW EDEN')).toBeInTheDocument();
+    expect(screen.queryByText('NEW EDEN / CIC')).not.toBeInTheDocument();
   });
 
   it('includes the arrival display', () => {
@@ -138,6 +142,26 @@ describe('Landing', () => {
 
     expect(createSession).toHaveBeenCalledOnce();
     expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles');
+  });
+
+  it('stands down an active intrusion as soon as session entry begins', () => {
+    vi.useFakeTimers();
+    const onTransmission = vi.fn();
+    vi.mocked(createSession).mockReturnValue(new Promise<void>(() => undefined));
+    render(
+      <MemoryRouter>
+        <Landing onTransmission={onTransmission} />
+      </MemoryRouter>,
+    );
+
+    act(() => vi.advanceTimersByTime(20_000));
+    expect(onTransmission).toHaveBeenLastCalledWith(true);
+    expect(document.querySelector('.intrusion')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /create a session/i }));
+
+    expect(onTransmission).toHaveBeenLastCalledWith(false);
+    expect(document.querySelector('.intrusion')).not.toBeInTheDocument();
   });
 
   it('reports a failure to join instead of failing silently', async () => {

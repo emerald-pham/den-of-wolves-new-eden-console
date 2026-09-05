@@ -93,9 +93,11 @@ short-lived Workload Identity Federation credentials; there is no JSON key.
 
 ## Session lifecycle and audit guardrails
 
-- `useSessionStore` persists only the last server snapshot (`session`, `me`),
-  the local device mode, and the last allow-listed in-session route. Never
-  persist connection status or treat the local snapshot as fresh authority.
+- `useSessionStore` persists the last server snapshot (`session`, `me`), the
+  local GM-instance identity, the short-lived command outbox, the local device
+  mode, and the last allow-listed in-session route. Never persist connection
+  status or treat the local snapshot as fresh authority. Outbox commands expire
+  after 15 seconds and reconcile against server authority before being removed.
 - On startup, render the persisted snapshot immediately, then call
   `resumeSession`. Transient network failures keep the snapshot and mark the
   connection offline; `not-found`, `permission-denied`, and
@@ -104,9 +106,11 @@ short-lived Workload Identity Federation credentials; there is no JSON key.
   Only a player whose server record already has role `gm` may enter GM mode.
   Console is available to any session member. Do not re-add Observer until its
   server semantics and UI are implemented.
-- Disconnect is intentionally local and idempotent: clear the persisted session,
-  player, seats, mode, and route, then replace navigation with `/`. It does not
-  delete the server player record or session.
+- Disconnect is locally idempotent and server-aware: queue or send the presence
+  update, clear the persisted session, player, seats, GM instance, mode, and
+  route, then replace navigation with `/`. Preserve a queued disconnect long
+  enough to replay it. An empty session gets a renewable seven-day retention
+  deadline; reconnecting cancels it.
 - Session headers are readable only by members and may never be listed. Joining
   and resuming happen through callable functions. Preserve both denial tests.
 - A player may hold at most one seat. Keep the claim and release pointer checks

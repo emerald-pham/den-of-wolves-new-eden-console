@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   requireDiceRequest,
   requireElevationRequest,
+  requireGmClaimRequest,
+  requireGmInstanceActionRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -56,5 +58,33 @@ describe('callable request guards', () => {
       sides: 6,
       count: 2,
     });
+  });
+
+  it('requires a named GM instance with bounded device information', () => {
+    expectHttpsError(
+      () => requireGmClaimRequest({
+        sessionId: 's1', instanceId: 'i1', name: '   ', deviceLabel: 'Chrome',
+      }),
+      'invalid-argument',
+    );
+    expect(requireGmClaimRequest({
+      sessionId: 's1', instanceId: 'i1', name: ' Bridge laptop ',
+      deviceLabel: ' macOS / Chrome ',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop',
+      deviceLabel: 'macOS / Chrome',
+    });
+  });
+
+  it('requires caller and target instance ids for a kick', () => {
+    expectHttpsError(
+      () => requireGmInstanceActionRequest({
+        sessionId: 's1', instanceId: 'i1', targetInstanceId: '',
+      }),
+      'invalid-argument',
+    );
+    expect(requireGmInstanceActionRequest({
+      sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2',
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2' });
   });
 });

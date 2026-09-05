@@ -26,6 +26,15 @@ const session: GameSession = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const gmInstance = {
+  id: 'instance-1',
+  sessionId: 's1',
+  uid: 'u1',
+  name: 'Bridge laptop',
+  deviceLabel: 'Mac / Chrome',
+  claimedAt: '2026-01-01T00:00:00.000Z',
+};
+
 describe('useSessionStore', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
@@ -47,16 +56,18 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState().connection).toBe('idle');
   });
 
-  it('persists the current session, player, mode, and last route', () => {
+  it('persists the current session, player, GM instance, mode, and last route', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
     useSessionStore.getState().setMode('console');
     useSessionStore.getState().setLastRoute('/console');
+    useSessionStore.getState().setGmInstance(gmInstance);
 
     const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
     expect(saved.state).toMatchObject({
       session,
       me: player,
+      gmInstance,
       mode: 'console',
       lastRoute: '/console',
     });
@@ -67,7 +78,7 @@ describe('useSessionStore', () => {
     localStorage.setItem(
       SESSION_STORAGE_KEY,
       JSON.stringify({
-        state: { session, me: player, mode: 'console', lastRoute: '/console' },
+        state: { session, me: player, gmInstance, mode: 'console', lastRoute: '/console' },
         version: 1,
       }),
     );
@@ -77,6 +88,7 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState()).toMatchObject({
       session,
       me: player,
+      gmInstance,
       mode: 'console',
       lastRoute: '/console',
     });
@@ -87,6 +99,7 @@ describe('useSessionStore', () => {
     useSessionStore.getState().setMe(player);
     useSessionStore.getState().setMode('console');
     useSessionStore.getState().setLastRoute('/console');
+    useSessionStore.getState().setGmInstance(gmInstance);
 
     useSessionStore.getState().disconnect();
     useSessionStore.getState().disconnect();
@@ -94,6 +107,7 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState()).toMatchObject({
       session: null,
       me: null,
+      gmInstance: null,
       seats: [],
       mode: null,
       lastRoute: null,
@@ -102,16 +116,46 @@ describe('useSessionStore', () => {
     expect(saved.state).toMatchObject({
       session: null,
       me: null,
+      gmInstance: null,
       mode: null,
       lastRoute: null,
     });
   });
 
-  it('selectIsGm only matches the gm role', () => {
-    useSessionStore.getState().setMe(player);
+  it('persists offline commands until reconnect and removes them after delivery', () => {
+    const command = {
+      id: 'command-1',
+      kind: 'kickGmInstance' as const,
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    useSessionStore.getState().enqueueCommand(command);
+    expect(useSessionStore.getState().pendingCommands).toEqual([command]);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state.pendingCommands)
+      .toEqual([command]);
+
+    useSessionStore.getState().removeCommand('command-1');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  });
+
+  it('keeps communication errors ephemeral rather than persisting them', () => {
+    useSessionStore.getState().setCommunicationError({ code: 'aborted', message: 'Conflict.' });
+
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'aborted', message: 'Conflict.',
+    });
+    const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
+    expect(saved.state).not.toHaveProperty('communicationError');
+  });
+
+  it('selectIsGm only matches a local GM instance for the current session', () => {
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'gm' });
     expect(selectIsGm(useSessionStore.getState())).toBe(false);
-    useSessionStore.getState().setMe({ ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance(gmInstance);
     expect(selectIsGm(useSessionStore.getState())).toBe(true);
+    useSessionStore.getState().setSession({ ...session, id: 's2' });
+    expect(selectIsGm(useSessionStore.getState())).toBe(false);
   });
 });
 

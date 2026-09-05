@@ -14,7 +14,15 @@ vi.mock('./firebase', () => ({
   functions: vi.fn(() => ({ kind: 'functions' })),
 }));
 
-const { connect, joinSession } = await import('./sessionService');
+const {
+  claimGmInstance,
+  connect,
+  createSession,
+  disconnectFromSession,
+  joinSession,
+  kickGmInstance,
+  reconcileGmAuthority,
+} = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 
 const session = {
@@ -117,5 +125,166 @@ describe('joinSession', () => {
 
     expect(useSessionStore.getState().session).toEqual(session);
     expect(useSessionStore.getState().me).toEqual(player);
+  });
+});
+
+describe('GM instance commands', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(session, player);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('claims a named GM instance with this browser device information', async () => {
+    const instance = {
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const callable = callableReturning({ data: { instance } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await claimGmInstance('Bridge laptop');
+
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1',
+      name: 'Bridge laptop',
+      instanceId: expect.any(String),
+      deviceLabel: expect.any(String),
+    }));
+    expect(useSessionStore.getState().gmInstance).toEqual(instance);
+  });
+
+  it('queues a GM command while offline without contacting Firebase', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    await kickGmInstance('instance-2');
+
+    expect(httpsCallable).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().pendingCommands).toEqual([
+      expect.objectContaining({
+        kind: 'kickGmInstance',
+        payload: {
+          sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2',
+        },
+      }),
+    ]);
+  });
+
+  it('replays queued commands after refreshing the session on reconnect', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().enqueueCommand({
+      id: 'command-1', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      if (name === 'kickGmInstance') return callableReturning({ data: {} });
+      if (name === 'listGmInstances') return callableReturning({ data: { instances: [
+        useSessionStore.getState().gmInstance,
+      ] } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
+    expect(useSessionStore.getState().connection).toBe('live');
+  });
+
+  it('reports and drops a queued command that conflicts with server state', async () => {
+    useSessionStore.getState().enqueueCommand({
+      id: 'command-1', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      return callableRejecting({ code: 'functions/failed-precondition', message: 'Already released.' });
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'failed-precondition', message: 'Already released.',
+    });
+  });
+
+  it('expires offline commands after the fifteen-second reconnect window', async () => {
+    useSessionStore.getState().enqueueCommand({
+      id: 'command-1', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date(Date.now() - 15_001).toISOString(),
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'Wolf Intercepted Request Timeout',
+      message: 'The queued command expired before the connection returned.',
+    });
+  });
+
+  it('brings a kicked browser back to the server-authoritative role state', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setMode('gm');
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableReturning({ data: { instances: [] } }),
+    );
+
+    await reconcileGmAuthority();
+
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+    expect(useSessionStore.getState().mode).toBeNull();
+    expect(useSessionStore.getState().lastRoute).toBe('/roles');
+  });
+});
+
+describe('session lifecycle commands', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('does not create an overlapping session while one is loaded', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+
+    await expect(createSession()).rejects.toThrow('Disconnect from the current session first.');
+    expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it('queues an offline disconnect without pretending the server accepted it', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    useSessionStore.getState().setIdentity(session, player);
+
+    await disconnectFromSession();
+
+    expect(useSessionStore.getState().session).toEqual(session);
+    expect(useSessionStore.getState().pendingCommands).toEqual([
+      expect.objectContaining({
+        kind: 'disconnectFromSession',
+        payload: { sessionId: 's1' },
+      }),
+    ]);
   });
 });

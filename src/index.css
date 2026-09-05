@@ -417,6 +417,10 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.role-select__grid--four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .role-card {
   min-height: 10rem;
   display: grid;
@@ -463,6 +467,111 @@ body {
 .role-card--static {
   width: min(22rem, 100%);
   cursor: default;
+}
+
+.role-claim {
+  align-content: end;
+  cursor: default;
+}
+
+.role-claim:hover { background: var(--cic-panel); }
+
+.role-claim__input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  padding: 0.7rem;
+  font: 0.8rem/1.2 var(--cic-mono);
+}
+
+.role-claim__button,
+.gm-instance button {
+  min-height: 44px;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: transparent;
+  color: var(--cic-cyan);
+  font: 0.72rem/1 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.role-claim__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gm-instance-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gm-instance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.gm-instance div,
+.gm-instance span {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.gm-instance strong {
+  color: var(--cic-cyan);
+  font-family: var(--cic-display);
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.gm-instance span,
+.gm-console__status {
+  color: var(--cic-muted);
+  font: 0.68rem/1.5 var(--cic-mono);
+}
+
+.settings-dialog__warning {
+  border-left: 2px solid var(--cic-amber);
+  padding: 0.75rem;
+  background: color-mix(in srgb, var(--cic-amber) 10%, var(--cic-panel));
+  color: var(--cic-ink);
+}
+
+.communication-error {
+  position: fixed;
+  z-index: 20;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  width: min(28rem, calc(100vw - 2rem));
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem 3rem 1rem 1rem;
+  background: var(--cic-panel);
+  color: var(--cic-ink);
+  font: 0.72rem/1.5 var(--cic-mono);
+}
+
+.communication-error strong { color: var(--cic-scream); }
+.communication-error__reference { color: var(--cic-amber); }
+.communication-error button {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--cic-ink);
+  font-size: 1.5rem;
 }
 
 .session-mode {

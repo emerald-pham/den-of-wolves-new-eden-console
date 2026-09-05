@@ -1,17 +1,20 @@
 import { Navigate } from 'react-router-dom';
-import { useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
-  console: 'Console',
+  setup: 'Setup',
+  console: 'Roles',
 };
 
 export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const selectedMode = useSessionStore((state) => state.mode);
+  const isGm = useSessionStore(selectIsGm);
 
   if (!session || !me) return <Navigate to="/" replace />;
+  if ((mode === 'gm' || mode === 'setup') && !isGm) return <Navigate to="/roles" replace />;
   if (selectedMode !== mode) return <Navigate to="/roles" replace />;
 
   return (

@@ -44,6 +44,48 @@ export function requireElevationRequest(data: {
   return { sessionId, targetUid };
 }
 
+function requiredText(value: unknown, field: string, max: number): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > max) {
+    throw new HttpsError('invalid-argument', `${field} required (maximum ${max} characters).`);
+  }
+  return text;
+}
+
+function requiredId(value: unknown, field: string): string {
+  const id = requiredText(value, field, 128);
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new HttpsError('invalid-argument', `${field} contains invalid characters.`);
+  }
+  return id;
+}
+
+export function requireGmClaimRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  name?: unknown;
+  deviceLabel?: unknown;
+}): { sessionId: string; instanceId: string; name: string; deviceLabel: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    name: requiredText(data.name, 'name', 40),
+    deviceLabel: requiredText(data.deviceLabel, 'deviceLabel', 160),
+  };
+}
+
+export function requireGmInstanceActionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  targetInstanceId?: unknown;
+}): { sessionId: string; instanceId: string; targetInstanceId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    targetInstanceId: requiredId(data.targetInstanceId, 'targetInstanceId'),
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;

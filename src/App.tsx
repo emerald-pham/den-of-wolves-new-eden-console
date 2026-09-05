@@ -4,14 +4,17 @@ import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
 import SessionMode from '@/routes/SessionMode';
-import { connect } from '@/lib/sessionService';
+import GmConsole from '@/routes/GmConsole';
+import { connect, reconcileGmAuthority } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ContactPlot from '@/components/ContactPlot';
 import ScreenFade from '@/components/ScreenFade';
+import CommunicationError from '@/components/CommunicationError';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
-const SESSION_ROUTES = new Set(['/roles', '/gm', '/console']);
+const GM_RECONCILE_INTERVAL_MS = 5_000;
+const SESSION_ROUTES = new Set(['/roles', '/gm', '/setup', '/console']);
 
 function AppRoutes() {
   const location = useLocation();
@@ -43,12 +46,14 @@ function AppRoutes() {
     <>
       <ContactPlot hostile={intrusion} />
       <AppHeader />
+      <CommunicationError />
       <ScreenFade>
         {(screen) => (
           <Routes location={screen}>
             <Route path="/" element={home} />
             <Route path="/roles" element={<RoleSelect />} />
-            <Route path="/gm" element={<SessionMode mode="gm" />} />
+            <Route path="/gm" element={<GmConsole />} />
+            <Route path="/setup" element={<SessionMode mode="setup" />} />
             <Route path="/console" element={<SessionMode mode="console" />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -73,6 +78,12 @@ export default function App() {
     const retry = window.setInterval(() => {
       if (useSessionStore.getState().connection !== 'live') void connect();
     }, RECONNECT_INTERVAL_MS);
+    const reconcileGm = window.setInterval(() => {
+      const state = useSessionStore.getState();
+      if (state.connection === 'live' && state.gmInstance) {
+        void reconcileGmAuthority().catch(() => undefined);
+      }
+    }, GM_RECONCILE_INTERVAL_MS);
 
     const markOffline = () => {
       useSessionStore.getState().setConnection('offline');
@@ -86,6 +97,7 @@ export default function App() {
 
     return () => {
       window.clearInterval(retry);
+      window.clearInterval(reconcileGm);
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
     };

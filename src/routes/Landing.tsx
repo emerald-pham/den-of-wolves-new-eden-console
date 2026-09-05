@@ -41,13 +41,13 @@ export default function Landing({
 
   return (
     <main className="landing">
-      <div className="arrival-topline cic-overline"><span>NEW EDEN / CIC</span><span>SYSTEM STATUS</span></div>
+      <div className="arrival-topline cic-overline"><span>OPERATION NEW EDEN / CIC</span><span>SYSTEM STATUS</span></div>
       <h1 className="landing__title">
         <span className="landing__title-line">Den of Wolves: New Eden</span>
         <span className="landing__title-sub">Unofficial Companion Console</span>
       </h1>
 
-      <ArrivalDisplay onTransmission={onTransmission} />
+      <ArrivalDisplay onTransmission={onTransmission} standDown={busy} />
 
       <div className="landing__actions cic-frame">
         <button
@@ -94,7 +94,7 @@ export default function Landing({
           {error}
         </p>
       )}
-      <footer className="arrival-bottomline cic-overline"><span>NEW EDEN</span><span>SYSTEM INTERFACE</span></footer>
+      <footer className="arrival-bottomline cic-overline"><span>OPERATION NEW EDEN</span><span>SYSTEM INTERFACE</span></footer>
     </main>
   );
 }

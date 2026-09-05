@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -8,10 +8,16 @@ import type { GameSession, Player } from '@/types/game';
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn(),
+  disconnectFromSession: vi.fn(),
+  getSessionPresence: vi.fn().mockResolvedValue({ connectedPlayers: 2 }),
   joinSession: vi.fn(),
+  kickGmInstance: vi.fn(),
+  listGmInstances: vi.fn().mockResolvedValue([]),
+  reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+  releaseGmInstance: vi.fn(),
 }));
 
-const { connect } = await import('@/lib/sessionService');
+const { connect, disconnectFromSession, reconcileGmAuthority } = await import('@/lib/sessionService');
 
 describe('App', () => {
   const session: GameSession = {
@@ -36,6 +42,10 @@ describe('App', () => {
     window.location.hash = '#/';
     useSessionStore.getState().reset();
     localStorage.clear();
+    vi.mocked(disconnectFromSession).mockImplementation(async () => {
+      useSessionStore.getState().disconnect();
+      return 'applied';
+    });
   });
 
   afterEach(() => {
@@ -67,6 +77,23 @@ describe('App', () => {
     expect(connect).toHaveBeenCalledTimes(2);
   });
 
+  it('reconciles a claimed GM instance with the server every five seconds', async () => {
+    vi.useFakeTimers();
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    render(<App />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    expect(reconcileGmAuthority).toHaveBeenCalled();
+  });
+
   it('shows the active session code in the top-level header', () => {
     useSessionStore.getState().setSession(session);
 
@@ -85,7 +112,7 @@ describe('App', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: /console connected/i }),
+      await screen.findByRole('heading', { name: /roles connected/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
   });
@@ -105,7 +132,7 @@ describe('App', () => {
 
   it.each([
     ['/roles', /connect this device/i],
-    ['/console', /console connected/i],
+    ['/console', /roles connected/i],
   ])('keeps the contact plot behind %s, not just the launcher', async (route, heading) => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);

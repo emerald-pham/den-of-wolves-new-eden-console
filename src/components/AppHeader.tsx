@@ -2,18 +2,56 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConnectionIndicator from './ConnectionIndicator';
 import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
+import {
+  disconnectFromSession,
+  getSessionPresence,
+  releaseGmInstance,
+} from '@/lib/sessionService';
 
 export default function AppHeader() {
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const status = useSessionStore(selectConnectionStatus);
   const joinCode = useSessionStore((state) => state.session?.joinCode);
-  const disconnect = useSessionStore((state) => state.disconnect);
+  const gmInstance = useSessionStore((state) => state.gmInstance);
+  const releaseQueued = useSessionStore((state) =>
+    state.pendingCommands.some((command) => command.kind === 'releaseGmInstance'));
+  const disconnectQueued = useSessionStore((state) =>
+    state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
 
-  function disconnectNow(): void {
-    disconnect();
+  async function openSettings(): Promise<void> {
+    setSettingsOpen(true);
+    setConnectedPlayers(null);
+    try {
+      const presence = await getSessionPresence();
+      setConnectedPlayers(presence.connectedPlayers);
+    } catch {
+      // Offline settings remain usable without inventing a server count.
+    }
+  }
+
+  async function disconnectNow(): Promise<void> {
+    try {
+      const disposition = await disconnectFromSession();
+      if (disposition === 'queued') return;
+    } catch {
+      // A permanent rejection is reported by the shared interception notice.
+      return;
+    }
     setSettingsOpen(false);
     navigate('/', { replace: true });
+  }
+
+  async function releaseGm(): Promise<void> {
+    try {
+      const disposition = await releaseGmInstance();
+      if (disposition === 'queued') return;
+    } catch {
+      return;
+    }
+    setSettingsOpen(false);
+    navigate('/roles', { replace: true });
   }
 
   return (
@@ -30,7 +68,7 @@ export default function AppHeader() {
           className="settings-button"
           type="button"
           aria-label="Settings"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => void openSettings()}
         >
           <span aria-hidden="true">⚙</span>
         </button>
@@ -56,12 +94,29 @@ export default function AppHeader() {
               </button>
             </div>
             <p>Disconnect this device from session {joinCode}.</p>
+            {connectedPlayers === 1 && (
+              <p className="settings-dialog__warning">
+                You’re the last player to leave the server. After seven days of
+                inactivity, this session will be deleted.
+              </p>
+            )}
+            {gmInstance !== null && (
+              <button
+                className="settings-dialog__disconnect"
+                type="button"
+                disabled={releaseQueued}
+                onClick={() => void releaseGm()}
+              >
+                {releaseQueued ? 'Release queued' : 'Release GM role'}
+              </button>
+            )}
             <button
               className="settings-dialog__disconnect"
               type="button"
-              onClick={disconnectNow}
+              disabled={disconnectQueued}
+              onClick={() => void disconnectNow()}
             >
-              Disconnect
+              {disconnectQueued ? 'Disconnect queued' : 'Disconnect'}
             </button>
           </section>
         </div>

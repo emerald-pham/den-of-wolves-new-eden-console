@@ -50,6 +50,16 @@ export interface Player {
   readonly joinedAt: Timestamp;
 }
 
+/** One browser/device that has independently claimed GM authority. */
+export interface GmInstance {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly uid: Id;
+  readonly name: string;
+  readonly deviceLabel: string;
+  readonly claimedAt: Timestamp;
+}
+
 /** Anything the server generated and only some players may read. */
 export interface SecretRecord {
   readonly id: Id;

@@ -58,6 +58,13 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      match /gmInstances/{instanceId} {
+        allow get, list: if isMember(sessionId);
+        // Claims, kicks and releases also update player authority, so they are
+        // one server-side transaction and never a client write.
+        allow write: if false;
+      }
+
       match /seats/{seatId} {
         allow get, list: if isMember(sessionId);
         // Seat claims are adjudicated server-side; races must not be resolvable

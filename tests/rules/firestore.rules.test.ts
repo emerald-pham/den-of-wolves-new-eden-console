@@ -63,6 +63,11 @@ beforeEach(async () => {
       displayName: 'GM',
       seatId: null,
     });
+    await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
+      uid: 'gm1',
+      name: 'Bridge laptop',
+      deviceLabel: 'macOS / Chrome',
+    });
     await setDoc(doc(db, `${SESSION}/seats/seat1`), {
       label: 'Seat 1',
       status: 'open',
@@ -153,6 +158,14 @@ describe('join codes', () => {
   });
 });
 
+describe('active membership locks', () => {
+  it('cannot be read or changed by a client', async () => {
+    const lock = doc(as('alice'), 'activeMemberships/alice');
+    await assertFails(getDoc(lock));
+    await assertFails(setDoc(lock, { sessionId: 's1' }));
+  });
+});
+
 describe('seats', () => {
   it('are readable by members', async () => {
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/seats/seat1`)));
@@ -215,6 +228,29 @@ describe('players', () => {
         displayName: 'pwned',
       }),
     );
+  });
+});
+
+describe('GM instances', () => {
+  it('are readable and listable by session members', async () => {
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/gmInstances/bridge`)));
+    await assertSucceeds(getDocs(collection(as('alice'), `${SESSION}/gmInstances`)));
+  });
+
+  it('are not readable by non-members', async () => {
+    await assertFails(getDoc(doc(as('stranger'), `${SESSION}/gmInstances/bridge`)));
+    await assertFails(getDocs(collection(as('stranger'), `${SESSION}/gmInstances`)));
+  });
+
+  it('cannot be claimed, changed, or released directly by a client', async () => {
+    const target = doc(as('alice'), `${SESSION}/gmInstances/rogue`);
+    await assertFails(setDoc(target, {
+      uid: 'alice', name: 'Rogue browser', deviceLabel: 'Unknown browser',
+    }));
+    await assertFails(updateDoc(doc(as('gm1'), `${SESSION}/gmInstances/bridge`), {
+      name: 'Hijacked',
+    }));
+    await assertFails(deleteDoc(doc(as('gm1'), `${SESSION}/gmInstances/bridge`)));
   });
 });
 

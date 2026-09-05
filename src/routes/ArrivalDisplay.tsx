@@ -54,8 +54,10 @@ const messages = [
  */
 export default function ArrivalDisplay({
   onTransmission,
+  standDown = false,
 }: {
   onTransmission?: ((active: boolean) => void) | undefined;
+  standDown?: boolean | undefined;
 }) {
   const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
@@ -67,8 +69,8 @@ export default function ArrivalDisplay({
   }, [onTransmission]);
 
   useEffect(() => {
-    notify.current?.(message !== null && !paused);
-  }, [message, paused]);
+    notify.current?.(message !== null && !paused && !standDown);
+  }, [message, paused, standDown]);
 
   // Leaving the launcher stands the board down; nothing is hunting an unmounted
   // screen.
@@ -82,7 +84,7 @@ export default function ArrivalDisplay({
   }, []);
 
   useEffect(() => {
-    if (paused) { setMessage(null); return; }
+    if (paused || standDown) { setMessage(null); return; }
     const timers: number[] = [];
     manifests.forEach((manifest, index) => {
       const tick = () => {
@@ -105,7 +107,7 @@ export default function ArrivalDisplay({
     };
     timers.push(window.setTimeout(transmit, 20000));
     return () => timers.forEach(window.clearTimeout);
-  }, [paused]);
+  }, [paused, standDown]);
 
   return (
     <>
@@ -114,14 +116,14 @@ export default function ArrivalDisplay({
           {manifests.map((manifest, index) => (
             <div className="arrival-readout" key={index}>
               <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
-                <span key={values[index]} className={paused ? '' : 'arrival-digit'}>{values[index]}</span>
+                <span key={values[index]} className={paused || standDown ? '' : 'arrival-digit'}>{values[index]}</span>
               </div>
               <div className="arrival-readout__label">{manifest.label}</div>
             </div>
           ))}
         </div>
       </section>
-      {message && !paused && <Intrusion message={message} />}
+      {message && !paused && !standDown && <Intrusion message={message} />}
     </>
   );
 }
