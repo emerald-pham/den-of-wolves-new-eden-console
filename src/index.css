@@ -1692,6 +1692,7 @@ body {
   }
 
   .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate {
+    width: 4.5rem;
     min-width: 3.8rem;
     padding-bottom: 0.2rem;
     line-height: 1.15;
@@ -1711,11 +1712,15 @@ body {
 
   .ship-plot[data-expanded='false'] .ship-plot__galactic-coordinate-value {
     display: block;
+    max-width: 100%;
     margin-top: 0.18rem;
+    overflow-x: auto;
     color: var(--cic-cyan-hot);
     font-size: 0.76rem;
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.16em;
+    scrollbar-width: thin;
+    white-space: nowrap;
   }
 
   .app-header {

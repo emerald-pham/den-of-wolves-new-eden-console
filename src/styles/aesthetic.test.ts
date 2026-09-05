@@ -249,6 +249,9 @@ describe('ship console instrument layout', () => {
     expect(label).toContain('display: block');
     expect(value).toContain('display: block');
     expect(value).toContain('font-variant-numeric: tabular-nums');
+    expect(value).toContain('max-width: 100%');
+    expect(value).toContain('overflow-x: auto');
+    expect(value).toContain('white-space: nowrap');
   });
 
   it('places the shuttlebay in a dedicated rail below compact DRADIS', () => {
