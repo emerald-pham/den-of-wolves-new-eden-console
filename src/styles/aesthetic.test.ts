@@ -148,12 +148,12 @@ describe('the GM console', () => {
     expect(console).toContain('margin: 0');
   });
 
-  it('organizes growing GM instruments into three wide-screen columns', () => {
+  it('organizes growing GM instruments on a roomy console grid', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const grid = index.match(/\.gm-console__grid\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(grid).toContain('display: grid');
-    expect(grid).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    expect(grid).toContain('grid-template-columns: repeat(12, minmax(0, 1fr))');
   });
 
   it('collapses the GM instrument grid for tablet and phone widths', () => {
@@ -161,8 +161,8 @@ describe('the GM console', () => {
     const tablet = index.match(/@media \(max-width: 60rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
     const phone = index.match(/@media \(max-width: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
 
-    expect(tablet).toContain('grid-template-columns: repeat(2, minmax(0, 1fr))');
-    expect(phone).toContain('grid-template-columns: 1fr');
+    expect(tablet).toContain('.gm-console__module { grid-column: span 6; }');
+    expect(phone).toContain('.gm-console__module { grid-column: 1 / -1; }');
   });
 });
 

@@ -153,6 +153,28 @@ export function requireWolfAssignmentRequest(data: {
   };
 }
 
+export function requireManualWolfAssignmentRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  roleIds?: unknown;
+}): { sessionId: string; instanceId: string; roleIds: string[] } {
+  if (!Array.isArray(data.roleIds) || data.roleIds.length < 1 || data.roleIds.length > 2) {
+    throw new HttpsError('invalid-argument', 'Choose one or two wolves.');
+  }
+  const roleIds = data.roleIds.map((roleId) => requiredId(roleId, 'roleId'));
+  if (
+    new Set(roleIds).size !== roleIds.length ||
+    roleIds.some((roleId) => !(WOLF_ROLE_IDS as readonly string[]).includes(roleId))
+  ) {
+    throw new HttpsError('invalid-argument', 'Unknown or duplicate wolf role.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    roleIds,
+  };
+}
+
 export function requireActiveRoleSettingRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

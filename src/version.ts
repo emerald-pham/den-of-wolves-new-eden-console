@@ -1,2 +1,2 @@
 /** Human-visible release reference. Keep synchronized with package.json. */
-export const APP_VERSION = '0.1.33';
+export const APP_VERSION = '0.1.34';

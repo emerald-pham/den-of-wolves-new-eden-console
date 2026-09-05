@@ -24,6 +24,7 @@ const {
   popShipConfetti,
   reconcileGmAuthority,
   assignWolves,
+  assignWolfRoles,
   setCapybaraEnabled,
   setGmControlsLocked,
   setWolfRoleEnabled,
@@ -283,7 +284,7 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.capybaraEnabled).toBe(false);
   });
 
-  it('sends the GM registration and Setup lock through the active GM instance', async () => {
+  it('sends the GM registration lock through the active GM instance', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
@@ -329,6 +330,21 @@ describe('GM instance commands', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolves');
     expect(callable).toHaveBeenCalledWith({
       sessionId: 's1', instanceId: 'instance-1', count: 1,
+    });
+  });
+
+  it('asks the server to save the GM-selected wolf roles', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { roleIds: ['press-officer'] } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(assignWolfRoles(['press-officer'])).resolves.toEqual(['press-officer']);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolfRoles');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', roleIds: ['press-officer'],
     });
   });
 

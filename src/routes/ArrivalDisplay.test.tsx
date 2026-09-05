@@ -31,6 +31,7 @@ it('turns each readout over every five seconds on proportionally staggered beats
 });
 
 it('walks the wolves readout through its listed order', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.5);
   render(<ArrivalDisplay />);
   expect(readout(3)).toHaveTextContent('1');
   expect(screen.getByText('WOLF AMONG US')).toBeVisible();

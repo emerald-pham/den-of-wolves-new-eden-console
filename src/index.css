@@ -558,19 +558,22 @@ body {
 
 .gm-console__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   align-items: start;
-  gap: 1rem;
+  gap: clamp(1rem, 2vw, 2rem);
   margin-top: 2rem;
 }
 
 .gm-console__module {
   min-width: 0;
-  padding: 1rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+  grid-column: span 4;
 }
 
 .gm-console__module--event-log {
-  grid-column: span 2;
+  order: -1;
+  grid-column: 1 / -1;
+  min-height: 15rem;
 }
 
 .gm-event-alert--critical {
@@ -733,6 +736,10 @@ body {
 .gm-wolf-role input { width: 1.25rem; height: 1.25rem; accent-color: var(--cic-amber); }
 .gm-wolf-count select { min-height: 44px; }
 .gm-wolf-result { margin: 0; }
+.gm-wolf-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+.gm-wolf-actions .gm-controls-lock { margin: 0; }
+.gm-wolf-manual { display: grid; gap: 0.65rem; margin: 0; padding: 0.8rem; border: 1px solid var(--cic-rule); }
+.gm-wolf-manual legend { color: var(--cic-amber); font: 0.68rem/1.4 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
 
 .gm-controls-lock {
   width: 100%;
@@ -755,6 +762,8 @@ body {
 
 .gm-event-log {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  column-gap: clamp(1rem, 3vw, 3rem);
   gap: 0;
   margin: 0.65rem 0 0;
   padding: 0;
@@ -766,7 +775,7 @@ body {
   display: grid;
   grid-template-columns: minmax(6.5rem, auto) 1fr;
   gap: 1rem;
-  padding: 0.7rem 0;
+  padding: 1rem 0;
   border-bottom: 1px solid var(--cic-rule);
   color: var(--cic-ink);
   font: 0.66rem/1.5 var(--cic-mono);
@@ -1582,11 +1591,7 @@ body {
     transform-origin: top left;
   }
 
-  .gm-console__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .gm-console__module--event-log { grid-column: span 2; }
+  .gm-console__module { grid-column: span 6; }
 
   .gm-dradis[data-expanded='true'] { grid-template-columns: 1fr; }
 
@@ -1629,8 +1634,8 @@ body {
   .fleet-group__grid { grid-template-columns: 1fr; }
   .fleet-card { min-height: 14rem; }
   .fleet-card__content { width: min(82%, 24rem); }
-  .gm-console__grid { grid-template-columns: 1fr; }
-  .gm-console__module--event-log { grid-column: auto; }
+  .gm-console__module { grid-column: 1 / -1; }
+  .gm-wolf-actions { grid-template-columns: 1fr; }
 
   .ship-console__flag {
     left: 50%;

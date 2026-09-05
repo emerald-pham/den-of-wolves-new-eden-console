@@ -8,6 +8,7 @@ import {
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireWolfAssignmentRequest,
+  requireManualWolfAssignmentRequest,
   requireWolfRoleSettingRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
@@ -162,6 +163,15 @@ describe('callable request guards', () => {
     expect(requireWolfAssignmentRequest({
       sessionId: 's1', instanceId: 'i1', count: 2,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', count: 2 });
+  });
+
+  it('requires one or two distinct, known roles for a manual wolf assignment', () => {
+    expectHttpsError(() => requireManualWolfAssignmentRequest({
+      sessionId: 's1', instanceId: 'i1', roleIds: ['press-officer', 'press-officer'],
+    }), 'invalid-argument');
+    expect(requireManualWolfAssignmentRequest({
+      sessionId: 's1', instanceId: 'i1', roleIds: ['press-officer'],
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', roleIds: ['press-officer'] });
   });
 
   it('validates role availability and player-count presets', () => {

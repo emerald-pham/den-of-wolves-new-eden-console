@@ -33,6 +33,7 @@ import {
   requireSessionSeatRequest,
   requireUid,
   requireWolfAssignmentRequest,
+  requireManualWolfAssignmentRequest,
   requireWolfRoleSettingRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
@@ -579,7 +580,7 @@ export const setCapybaraEnabled = onCall<{
   return { capybaraEnabled: setting.capybaraEnabled };
 });
 
-/** Lock or unlock subsequent GM registration and access to Setup. */
+/** Lock or unlock subsequent GM registration. */
 export const setGmControlsLocked = onCall<{
   sessionId?: string;
   instanceId?: string;
@@ -769,6 +770,44 @@ export const assignWolves = onCall<{
   });
 
   return { roleIds };
+});
+
+/** Save a GM-selected wolf assignment after validating active eligibility. */
+export const assignWolfRoles = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  roleIds?: string[];
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireManualWolfAssignmentRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
+  );
+  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'gm' || !instance.exists || instance.get('uid') !== uid) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
+    const eligible = (session.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS];
+    if (assignment.roleIds.some((roleId) => !active.includes(roleId) || !eligible.includes(roleId))) {
+      throw new HttpsError('failed-precondition', 'Every selected wolf must be active and eligible.');
+    }
+    tx.set(secretRef, {
+      visibleToUids: [],
+      payload: { type: 'wolf-assignment', roleIds: assignment.roleIds },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { roleIds: assignment.roleIds };
 });
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */

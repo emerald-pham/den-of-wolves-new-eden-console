@@ -376,7 +376,7 @@ export async function setCapybaraEnabled(
 export async function setGmControlsLocked(locked: boolean): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
-    throw new Error('Claim GM before changing the GM registration and Setup lock.');
+    throw new Error('Claim GM before changing the GM registration lock.');
   }
   return sendOrQueue({
     id: commandId(),
@@ -464,6 +464,29 @@ export async function assignWolves(count: 1 | 2): Promise<readonly string[]> {
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       count,
+    });
+    return reply.data.roleIds;
+  } catch (cause) {
+    store.setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export async function assignWolfRoles(roleIds: readonly string[]): Promise<readonly string[]> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before assigning wolves.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string; roleIds: readonly string[] },
+    { roleIds: string[] }
+  >(functions(), 'assignWolfRoles');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      roleIds,
     });
     return reply.data.roleIds;
   } catch (cause) {

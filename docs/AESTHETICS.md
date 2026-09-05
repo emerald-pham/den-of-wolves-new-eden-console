@@ -203,7 +203,7 @@ Every perspective begins empty. Changing the reference ship restarts contact
 acquisition, and returns appear only as that new view's sweep reaches them;
 resizing the same view does not restart its scan.
 
-GM registration and Setup share one server-authoritative lock. Show its open
+GM registration uses one server-authoritative lock. Show its open
 or closed padlock icon and text state on the role-selection screen; non-GMs see
 the control greyed out. Existing GM instances retain console access so they can
 unlock it. If every GM instance has gone away, the registration lock yields to

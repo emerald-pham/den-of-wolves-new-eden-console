@@ -7,6 +7,7 @@ import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   assignWolves: vi.fn(),
+  assignWolfRoles: vi.fn(),
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeSessionEvents: vi.fn(),
 }));
 
-const { assignWolves, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
   setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset } =
   await import('@/lib/sessionService');
 const { subscribeGmInstances, subscribeSessionEvents } = await import('@/lib/firestore');
@@ -214,7 +215,7 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
   expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
 });
 
-it('uses a player-count slider for recommended roles and marks manual changes custom', async () => {
+it('uses a player-count slider for roles and marks manual changes custom', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -239,21 +240,36 @@ it('uses a player-count slider for recommended roles and marks manual changes cu
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const slider = screen.getByRole('slider', { name: /recommended player count/i });
+  const slider = screen.getByRole('slider', { name: /^player count$/i });
   expect(slider).toHaveAttribute('min', '8');
   expect(slider).toHaveAttribute('max', '21');
   expect(screen.getByText(/joint engineering union.*fewer than 18.*manually/i)).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: /press officer role availability/i })).toBeChecked();
 
   fireEvent.change(slider, { target: { value: '20' } });
-  expect(applyRolePreset).toHaveBeenLastCalledWith(20);
+  await waitFor(() => expect(applyRolePreset).toHaveBeenLastCalledWith(20));
 
   await user.click(screen.getByRole('switch', { name: /press officer role availability/i }));
   expect(setActiveRoleEnabled).toHaveBeenCalledWith('press-officer', true);
   expect(screen.getByText(/^custom$/i)).toBeInTheDocument();
 });
 
-it('configures wolf eligibility and randomly assigns from enabled roles', async () => {
+it('applies only the final player count after a short slider pause', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
+  const slider = screen.getByRole('slider', { name: /^player count$/i });
+  fireEvent.change(slider, { target: { value: '18' } });
+  fireEvent.change(slider, { target: { value: '20' } });
+
+  expect(applyRolePreset).not.toHaveBeenCalled();
+  await waitFor(() => expect(applyRolePreset).toHaveBeenCalledOnce());
+  expect(applyRolePreset).toHaveBeenCalledWith(20);
+});
+
+it('configures wolf eligibility and offers random or manual wolf assignments', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -266,17 +282,23 @@ it('configures wolf eligibility and randomly assigns from enabled roles', async 
     return 'applied';
   });
   vi.mocked(assignWolves).mockResolvedValue(['press-officer']);
+  vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   const eligibility = screen.getByRole('switch', { name: /press officer.*wolf/i });
   expect(eligibility).toBeChecked();
   expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(23);
-  expect(screen.getByRole('option', { name: /2 wolves/i })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /randomly assign 1 wolf/i })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /randomly assign 2 wolves/i })).toBeEnabled();
 
-  await user.click(screen.getByRole('button', { name: /randomly assign wolves/i }));
+  await user.click(screen.getByRole('button', { name: /randomly assign 1 wolf/i }));
   expect(assignWolves).toHaveBeenCalledWith(1);
   expect(await screen.findByText(/assigned.*press officer/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('checkbox', { name: /press officer manual wolf assignment/i }));
+  await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
+  expect(assignWolfRoles).toHaveBeenCalledWith(['press-officer']);
 
   await user.click(eligibility);
   expect(setWolfRoleEnabled).toHaveBeenCalledWith('press-officer', false);
@@ -330,7 +352,7 @@ it('can cancel adding Capybara back to the convoy', async () => {
   expect(screen.getByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
 });
 
-it('locks and unlocks subsequent GM registration and Setup', async () => {
+it('locks and unlocks subsequent GM registration without locking Setup', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -344,13 +366,17 @@ it('locks and unlocks subsequent GM registration and Setup', async () => {
   renderConsole();
 
   await user.click(await screen.findByRole('button', {
-    name: /lock gm registration and setup/i,
+    name: /lock gm registration/i,
   }));
 
   expect(setGmControlsLocked).toHaveBeenCalledWith(true);
   expect(await screen.findByRole('button', {
-    name: /unlock gm registration and setup/i,
+    name: /unlock gm registration/i,
   })).toHaveAttribute('aria-pressed', 'true');
+  const setup = screen.getByRole('button', { name: /^setup$/i });
+  expect(setup).toBeEnabled();
+  await user.click(setup);
+  expect(screen.getByRole('group', { name: /active roles/i })).toBeInTheDocument();
 });
 
 it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {
