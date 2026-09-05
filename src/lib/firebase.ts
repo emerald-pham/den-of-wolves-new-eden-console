@@ -52,6 +52,9 @@ export function db(): Firestore {
 
 export function auth(): Auth {
   if (!authInstance) {
+    // Ensure the app is fully initialized by initializing Firestore first.
+    // This prevents "auth/configuration-not-found" errors in some SDK versions.
+    db();
     authInstance = getAuth(app());
     if (useEmulators) {
       connectAuthEmulator(authInstance, 'http://127.0.0.1:9099', {
