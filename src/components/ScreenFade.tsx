@@ -62,7 +62,9 @@ export default function ScreenFade({
     ) return;
 
     const target = destination.getBoundingClientRect();
-    const destinationOpacity = window.getComputedStyle(destination).opacity;
+    const destinationStyle = window.getComputedStyle(destination);
+    const destinationOpacity = destinationStyle.opacity;
+    const destinationObjectPosition = destinationStyle.objectPosition;
     const clone = move.clone;
     Object.assign(clone.style, {
       position: 'fixed',
@@ -78,7 +80,7 @@ export default function ScreenFade({
       pointerEvents: 'none',
       transform: 'none',
       transformOrigin: 'top left',
-      transition: `transform ${SHARED_FLAG_MOVE_MS}ms ease-in-out, opacity ${SHARED_FLAG_MOVE_MS}ms ease-in-out`,
+      transition: `transform ${SHARED_FLAG_MOVE_MS}ms ease-in-out, opacity ${SHARED_FLAG_MOVE_MS}ms ease-in-out, object-position ${SHARED_FLAG_MOVE_MS}ms ease-in-out`,
     });
     clone.className = 'shared-flag-transition';
     clone.alt = '';
@@ -89,6 +91,7 @@ export default function ScreenFade({
     let finish = 0;
     const frame = window.requestAnimationFrame(() => {
       clone.style.opacity = destinationOpacity;
+      clone.style.objectPosition = destinationObjectPosition;
       clone.style.transform = `translate(${target.left - move.source.left}px, ${target.top - move.source.top}px) scale(${target.width / move.source.width}, ${target.height / move.source.height})`;
       finish = window.setTimeout(() => {
         destination.style.removeProperty('visibility');

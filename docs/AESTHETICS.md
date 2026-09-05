@@ -419,6 +419,9 @@ The moving shared-flag clone stays inside that stacking context. The ship
 console must not create a nested stacking context: its identity panel and the
 clone need to share `.screen-fade` so the panel's higher layer remains effective
 throughout the crossing.
+The clone also interpolates `object-position` to the destination image's
+alignment. Role-picker flags are left-aligned while console flags are centred;
+holding the source alignment until the clone disappears causes a visible snap.
 
 Navigation that lands on the screen already showing is not a crossing: a
 `replace`, or a route guard redirecting back to where we already are, compares

@@ -15,6 +15,33 @@ function Harness({ to }: { to: string }) {
   );
 }
 
+function FlagHarness() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <ScreenFade>{(location) => location.pathname.endsWith('/roles')
+        ? (
+            <img
+              data-shared-flag="aegis"
+              alt="Roster flag"
+              style={{ objectFit: 'contain', objectPosition: 'left center' }}
+            />
+          )
+        : (
+            <img
+              data-shared-flag="aegis"
+              alt="Command flag"
+              style={{ objectFit: 'contain', objectPosition: 'center center' }}
+            />
+          )}
+      </ScreenFade>
+      <button type="button" onClick={() => navigate('/ships/aegis/roles/commander')}>
+        Go
+      </button>
+    </>
+  );
+}
+
 // The fade wrapper is chrome with no role, name or text of its own.
 const fade = () => document.querySelector('.screen-fade');
 
@@ -75,21 +102,21 @@ describe('ScreenFade', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
       .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
     render(
-      <MemoryRouter initialEntries={['/console']}>
-        <ScreenFade>{(location) => location.pathname === '/console'
-          ? <img data-shared-flag="aegis" alt="Roster flag" />
-          : <img data-shared-flag="aegis" alt="Command flag" />}
-        </ScreenFade>
-        <Harness to="/ships/aegis/roles" />
+      <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+        <FlagHarness />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
     act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
 
-    const movingFlags = document.querySelectorAll('.shared-flag-transition');
-    expect(movingFlags).not.toHaveLength(0);
-    expect([...movingFlags].every((flag) => flag.parentElement?.classList.contains('screen-fade')))
-      .toBe(true);
+    const movingFlag = document.querySelector<HTMLImageElement>('.shared-flag-transition');
+    expect(movingFlag).toBeInTheDocument();
+    expect(movingFlag?.parentElement?.classList.contains('screen-fade')).toBe(true);
+    expect(movingFlag?.style.objectPosition).toBe('left center');
+
+    act(() => vi.advanceTimersByTime(20));
+    expect(movingFlag?.style.objectPosition).toBe('center center');
+    expect(movingFlag?.style.transition).toContain('object-position');
     expect(SHARED_FLAG_MOVE_MS).toBe(200);
     act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));
     expect(document.querySelector('.shared-flag-transition')).not.toBeInTheDocument();
