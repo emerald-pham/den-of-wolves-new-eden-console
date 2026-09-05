@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { followSweeps } from './sweep';
+import { useMotionPreference } from '@/lib/motionPreference';
 
 /**
  * The threat board behind the launcher.
@@ -183,18 +184,7 @@ export default function ContactPlot({
   contactTransitionMs?: number | undefined;
 }) {
   const plot = useRef<HTMLDivElement>(null);
-  const [still, setStill] = useState(
-    () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
-  );
-
-  useEffect(() => {
-    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const onChange = (event: MediaQueryListEvent) => {
-      if (event.matches) setStill(true);
-    };
-    preference?.addEventListener('change', onChange);
-    return () => preference?.removeEventListener('change', onChange);
-  }, []);
+  const { reducedMotion: still } = useMotionPreference();
 
   useEffect(() => {
     if (!scanning || still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;

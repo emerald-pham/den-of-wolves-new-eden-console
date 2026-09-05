@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, type Location } from 'react-router-dom';
+import { useMotionPreference } from '@/lib/motionPreference';
 
 /**
  * The crossing between screens.
@@ -22,8 +23,6 @@ interface FlagMove {
 
 const shipIdFromPath = (pathname: string): string | null =>
   pathname.match(/^\/ships\/([^/]+)/)?.[1] ?? null;
-const prefersReducedMotion = (): boolean =>
-  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /**
  * Holds the outgoing screen on stage while it fades, then swaps and brings the
@@ -43,6 +42,7 @@ export default function ScreenFade({
   children: (location: Location) => ReactNode;
 }) {
   const location = useLocation();
+  const { reducedMotion } = useMotionPreference();
   const [displayed, setDisplayed] = useState(location);
   const [phase, setPhase] = useState<'in' | 'out'>('in');
   const pendingFlag = useRef<FlagMove | null>(null);
@@ -58,7 +58,7 @@ export default function ScreenFade({
     );
     if (
       !destination || move.source.width <= 0 || move.source.height <= 0 ||
-      prefersReducedMotion()
+      reducedMotion
     ) return;
 
     const target = destination.getBoundingClientRect();
@@ -101,7 +101,7 @@ export default function ScreenFade({
       destination.style.removeProperty('visibility');
       clone.remove();
     };
-  }, [displayed]);
+  }, [displayed, reducedMotion]);
 
   useEffect(() => {
     // A replace, or a guard redirecting back to where we already are, is not a
@@ -114,7 +114,7 @@ export default function ScreenFade({
       const source = shipId
         ? document.querySelector<HTMLImageElement>(`[data-shared-flag="${CSS.escape(shipId)}"]`)
         : null;
-      if (shipId && source && !prefersReducedMotion()) {
+      if (shipId && source && !reducedMotion) {
         const sourceStyle = window.getComputedStyle(source);
         pendingFlag.current = {
           clone: source.cloneNode(true) as HTMLImageElement,
@@ -129,7 +129,7 @@ export default function ScreenFade({
       setPhase('in');
     }, SCREEN_FADE_MS);
     return () => window.clearTimeout(swap);
-  }, [location, displayed]);
+  }, [location, displayed, reducedMotion]);
 
   return (
     <div ref={fadeRoot} className="screen-fade" data-phase={phase}>

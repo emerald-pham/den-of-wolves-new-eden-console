@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
+import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
 /** Table codes are read aloud across a noisy room, so they stay short. */
 const CODE_LENGTH = 4;
@@ -16,6 +17,7 @@ export default function Landing({
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { reducedMotion } = useMotionPreference();
 
   /**
    * One place for the two things every call has to get right: the buttons go
@@ -49,6 +51,16 @@ export default function Landing({
       </h1>
 
       <ArrivalDisplay onTransmission={onTransmission} standDown={busy} />
+
+      <button
+        type="button"
+        className="landing__motion-control"
+        onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
+      >
+        <span aria-hidden="true">😞</span>{' '}
+        {reducedMotion ? 'Restore motion' : 'Reduce motion (reduce awesomeness)'}
+      </button>
+      {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
 
       <div className="landing__actions cic-frame">
         <button

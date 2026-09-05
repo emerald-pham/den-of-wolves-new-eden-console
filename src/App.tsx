@@ -14,6 +14,7 @@ import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import { useSessionStore } from '@/store/useSessionStore';
+import { useMotionPreference } from '@/lib/motionPreference';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -25,6 +26,7 @@ const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/');
 
 function AppRoutes() {
+  const { reducedMotion } = useMotionPreference();
   const location = useLocation();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
@@ -78,7 +80,7 @@ function AppRoutes() {
     );
 
   return (
-    <>
+    <div data-motion={reducedMotion ? 'reduce' : 'full'}>
       <ShipPlot
         hostile={intrusion}
         aboard={hasConsoleDradis(location.pathname)}
@@ -104,7 +106,7 @@ function AppRoutes() {
           </Routes>
         )}
       </ScreenFade>
-    </>
+    </div>
   );
 }
 

@@ -140,7 +140,7 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+[data-motion='reduce'] {
   .intrusion,
   .intrusion::after,
   .intrusion__message::before,

@@ -48,6 +48,6 @@
   .landing { gap: 1rem; }
   .arrival-readout__value { font-size: 4.5rem; }
 }
-@media (prefers-reduced-motion: reduce) {
+[data-motion='reduce'] {
   .arrival-digit { animation: none; }
 }

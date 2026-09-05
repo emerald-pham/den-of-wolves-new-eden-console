@@ -398,7 +398,7 @@
 .contact-plot[data-still='true'] .contact-plot__blip,
 .contact-plot[data-still='true'] .contact-plot__drop { opacity: 1; }
 
-@media (prefers-reduced-motion: reduce) {
+[data-motion='reduce'] {
   .contact-plot,
   .contact-plot__sweep,
   .contact-plot__blip,

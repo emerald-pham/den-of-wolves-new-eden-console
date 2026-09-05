@@ -17,9 +17,11 @@ import {
   applyRolePreset,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
+import { useMotionPreference } from '@/lib/motionPreference';
 import type { GmInstance, SessionEvent } from '@/types/game';
 
 export default function GmConsole() {
+  const { reducedMotion } = useMotionPreference();
   const session = useSessionStore((state) => state.session);
   const sessionId = session?.id;
   const me = useSessionStore((state) => state.me);
@@ -88,7 +90,7 @@ export default function GmConsole() {
     const previous = dradisPreviousBounds.current;
     dradisPreviousBounds.current = null;
     if (!dradis || !previous || typeof dradis.animate !== 'function') return;
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    if (reducedMotion) return;
 
     const next = dradis.getBoundingClientRect();
     if (next.width === 0 || next.height === 0) return;
@@ -102,7 +104,7 @@ export default function GmConsole() {
       duration: DRADIS_RESIZE_MS,
       easing: 'ease-in-out',
     });
-  }, [dradisExpanded]);
+  }, [dradisExpanded, reducedMotion]);
 
   const toggleDradis = () => {
     const dradis = dradisRef.current;
