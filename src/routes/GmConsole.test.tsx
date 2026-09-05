@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import GmConsole from './GmConsole';
@@ -44,7 +44,10 @@ function renderConsole() {
   return render(
     <MemoryRouter initialEntries={['/gm']}>
       <Routes>
-        <Route path="/roles" element={<p>Roles route</p>} />
+        <Route
+          path="/roles"
+          element={<><p>Roles route</p><Link to="/gm">Return to GM console</Link></>}
+        />
         <Route path="/gm" element={<GmConsole />} />
       </Routes>
     </MemoryRouter>,
@@ -200,7 +203,7 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
 });
 
-it('gives GMs live resource controls for every flagged ship', async () => {
+it('shows live resource stock for every flagged ship', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -228,10 +231,43 @@ it('gives GMs live resource controls for every flagged ship', async () => {
   expect(within(dione).getByRole('img', { name: 'Strytium Fuel icon' })).toBeInTheDocument();
   expect(within(dione).getByLabelText('Civil Unrest: 4')).toBeInTheDocument();
   expect(within(dione).getByRole('img', { name: 'Civil Unrest icon' })).toBeInTheDocument();
-  await user.click(within(dione).getByRole('button', { name: /increase strytium fuel/i }));
-  expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
+  expect(within(dione).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
   await user.click(within(dione).getByRole('button', { name: /increase civil unrest/i }));
   expect(adjustShipUnrest).toHaveBeenCalledWith('dione', 1);
+});
+
+it('keeps resource stores read-only until enabled and resets after leaving', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+  const writeMode = within(fleet).getByRole('button', { name: /resource stores write mode/i });
+  const increaseFuel = within(dione).getByRole('button', { name: /increase strytium fuel/i });
+
+  expect(writeMode).toHaveAttribute('aria-pressed', 'false');
+  expect(within(fleet).getByText(/resource access.*read only/i)).toBeInTheDocument();
+  expect(increaseFuel).toBeDisabled();
+
+  await user.click(writeMode);
+  expect(writeMode).toHaveAttribute('aria-pressed', 'true');
+  expect(within(fleet).getByText(/resource access.*write mode/i)).toBeInTheDocument();
+  expect(increaseFuel).toBeEnabled();
+
+  await user.click(increaseFuel);
+  expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
+
+  await user.click(screen.getByRole('link', { name: /back to roles/i }));
+  await user.click(screen.getByRole('link', { name: /return to gm console/i }));
+
+  const returnedFleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  expect(within(returnedFleet).getByRole('button', { name: /resource stores write mode/i }))
+    .toHaveAttribute('aria-pressed', 'false');
+  expect(within(
+    within(returnedFleet).getByRole('group', { name: 'Dione resource controls' }),
+  ).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
 });
 
 it('starts with a compact DRADIS and expands it on demand', async () => {

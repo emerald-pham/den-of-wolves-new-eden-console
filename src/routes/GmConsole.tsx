@@ -119,6 +119,7 @@ export default function GmConsole() {
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [resourceWrite, setResourceWrite] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
@@ -431,9 +432,20 @@ export default function GmConsole() {
             aria-label="Fleet resource controls"
           >
             <h2 className="gm-console__section-title">Fleet resource stores</h2>
-            <p className="gm-fleet-resources__status">
-              Authoritative stock // changes transmit to every staffed console
-            </p>
+            <div className="gm-fleet-resources__access">
+              <p className="gm-fleet-resources__status">
+                Resource access // {resourceWrite ? 'Write mode' : 'Read only'}
+              </p>
+              <button
+                className="cic-text-button"
+                type="button"
+                aria-label="Resource stores write mode"
+                aria-pressed={resourceWrite}
+                onClick={() => setResourceWrite((enabled) => !enabled)}
+              >
+                Write mode // {resourceWrite ? 'On' : 'Off'}
+              </button>
+            </div>
             <div className="gm-fleet-resources__ships">
               {SHIPS.map((ship) => {
                 const resources = resourcesForShip(ship.id, session.shipResources);
@@ -463,13 +475,14 @@ export default function GmConsole() {
                               <button
                                 type="button"
                                 aria-label={`Decrease ${resource.label}`}
-                                disabled={amount === 0}
+                                disabled={!resourceWrite || amount === 0}
                                 onClick={() => void adjustShipResource(ship.id, resource.id, -1)}
                               >−</button>
                               <strong>{amount}</strong>
                               <button
                                 type="button"
                                 aria-label={`Increase ${resource.label}`}
+                                disabled={!resourceWrite}
                                 onClick={() => void adjustShipResource(ship.id, resource.id, 1)}
                               >+</button>
                             </div>

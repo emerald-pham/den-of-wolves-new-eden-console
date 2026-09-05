@@ -656,11 +656,24 @@ body {
 }
 
 .gm-fleet-resources__status {
-  margin: 0.45rem 0 0;
+  margin: 0;
   color: var(--cic-ink);
   font: 0.62rem/1.5 var(--cic-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.gm-fleet-resources__access {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-top: 0.45rem;
+}
+
+.gm-fleet-resources__access .cic-text-button {
+  flex: none;
 }
 
 .gm-fleet-resources__ships {
