@@ -29,11 +29,15 @@ export const FLEET_FORMATION: Readonly<Record<string, FleetPoint>> = {
 
 const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 
-export function fleetViewFrom(viewerId: string): readonly FleetContact[] {
+export function fleetViewFrom(
+  viewerId: string,
+  capybaraEnabled = true,
+): readonly FleetContact[] {
   const viewer = FLEET_FORMATION[viewerId] ?? FLEET_FORMATION.aegis;
   if (!viewer) return [];
 
-  return SHIPS.filter((ship) => ship.id !== viewerId).flatMap((ship) => {
+  return SHIPS.filter((ship) =>
+    ship.id !== viewerId && (capybaraEnabled || ship.id !== 'capybara')).flatMap((ship) => {
     const point = FLEET_FORMATION[ship.id];
     if (!point) return [];
     return [{

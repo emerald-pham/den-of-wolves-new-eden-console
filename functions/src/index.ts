@@ -16,6 +16,7 @@ import {
   requireElevationRequest,
   requireGmClaimRequest,
   requireGmInstanceActionRequest,
+  requireShipAvailabilityRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -131,6 +132,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           name,
           joinCode,
           phase: 'lobby',
+          capybaraEnabled: true,
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -160,6 +162,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             name,
             joinCode,
             phase: 'lobby',
+            capybaraEnabled: true,
             ownerUid: uid,
             createdAt: now,
             updatedAt: now,
@@ -252,6 +255,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         name: sessionSnap.get('name') as string,
         joinCode,
         phase: sessionSnap.get('phase') as string,
+        capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
         updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -322,6 +326,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       name: sessionSnap.get('name') as string,
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
+      capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),
       updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -450,6 +455,42 @@ export const kickGmInstance = onCall(async (request) =>
 /** Release only the calling browser's own GM instance. */
 export const releaseGmInstance = onCall(async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, false));
+
+/** Include or remove the optional Capybara expansion ship for the whole session. */
+export const setCapybaraEnabled = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  capybaraEnabled?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireShipAvailabilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
+  );
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, {
+      capybaraEnabled: setting.capybaraEnabled,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { capybaraEnabled: setting.capybaraEnabled };
+});
 
 /** Connected-player count used for the last-player disconnect warning. */
 export const getSessionPresence = onCall<{ sessionId?: string }>(async (request) => {

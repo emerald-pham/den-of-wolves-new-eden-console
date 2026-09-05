@@ -202,7 +202,9 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Capybara' })).toBeInTheDocument();
     const display = screen.getByRole('button', { name: /expand dradis display/i });
     expect(screen.getByText('DRADIS // FULL SCREEN')).toBeInTheDocument();
-    expect(container.querySelector('.contact-plot')).toHaveAttribute('data-placement', 'widget');
+    const plot = container.querySelector('.contact-plot');
+    expect(plot).toHaveAttribute('data-placement', 'widget');
+    expect(plot).toHaveStyle({ '--plot-size': '92cqi' });
 
     await user.click(display);
     expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();

@@ -215,6 +215,38 @@
   transform-style: preserve-3d;
 }
 
+/* A return does not exist on the instrument until the sweep first acquires its
+   bearing. After that, its displayed fix changes by about one pixel only when
+   another sweep reaches it. This wrapper never owns --x/--y/--z: those remain
+   fixed on the parent contact as the canonical formation coordinate. */
+.contact-plot__apparent {
+  position: absolute;
+  opacity: 0;
+  transform-style: preserve-3d;
+  animation-name: plot-acquire, plot-drift;
+  animation-duration: 1ms, calc(var(--plot-turn) * 2.5);
+  animation-timing-function: steps(1, end), steps(1, end);
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: forwards, none;
+  animation-delay:
+    calc(var(--phase) * var(--plot-turn) / 2),
+    calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2);
+}
+
+@keyframes plot-acquire {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes plot-drift {
+  0% { transform: translate3d(-0.8px, 0.4px, 0.2px); }
+  20% { transform: translate3d(0.7px, -0.5px, -0.3px); }
+  40% { transform: translate3d(1.1px, 0.3px, 0.5px); }
+  60% { transform: translate3d(-0.4px, -0.9px, 0.1px); }
+  80% { transform: translate3d(0.3px, 0.8px, -0.4px); }
+  100% { transform: translate3d(-0.8px, 0.4px, 0.2px); }
+}
+
 .contact-plot__blip {
   position: absolute;
   left: -4px;
@@ -226,7 +258,7 @@
   /* The sweep is a plane, so it crosses any given bearing twice a turn, and a
      contact flares as it is painted. --phase lines each blip up with the disc. */
   animation: plot-paint calc(var(--plot-turn) / 2) linear infinite;
-  animation-delay: calc(var(--phase) * var(--plot-turn) / -2);
+  animation-delay: calc(var(--phase) * var(--plot-turn) / 2);
 }
 
 @keyframes plot-paint {
@@ -261,13 +293,28 @@
 
 .contact-plot__tag {
   position: absolute;
-  left: 11px;
-  top: -0.5rem;
   font: 0.55rem/1 var(--cic-mono);
   letter-spacing: 0.18em;
   white-space: nowrap;
   color: color-mix(in srgb, var(--contact-ink) 72%, var(--cic-ink));
   opacity: calc(0.22 + var(--depth) * 0.55);
+}
+
+.contact-plot__contact[data-label-anchor$='east'] .contact-plot__tag {
+  left: 11px;
+}
+
+.contact-plot__contact[data-label-anchor$='west'] .contact-plot__tag {
+  right: 11px;
+  text-align: right;
+}
+
+.contact-plot__contact[data-label-anchor^='north'] .contact-plot__tag {
+  bottom: 8px;
+}
+
+.contact-plot__contact[data-label-anchor^='south'] .contact-plot__tag {
+  top: 8px;
 }
 
 /* Threat state --------------------------------------------------------------
@@ -385,9 +432,11 @@
 .contact-plot[data-still='true'] .contact-plot__sweep,
 .contact-plot[data-still='true'] .contact-plot__blip,
 .contact-plot[data-still='true'] .contact-plot__boost,
+.contact-plot[data-still='true'] .contact-plot__apparent,
 .contact-plot[data-still='true'] .contact-plot__jitter {
   animation: none;
 }
+.contact-plot[data-still='true'] .contact-plot__apparent { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .contact-plot,
@@ -395,6 +444,7 @@
   .contact-plot__boost,
   .contact-plot__blip,
   .contact-plot__contact,
+  .contact-plot__apparent,
   .contact-plot__jitter,
   .contact-plot__meridian,
   .contact-plot__parallel,
@@ -402,4 +452,6 @@
     animation: none;
     transition: none;
   }
+
+  .contact-plot__apparent { opacity: 1; }
 }

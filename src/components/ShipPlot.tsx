@@ -7,10 +7,12 @@ export default function ShipPlot({
   hostile,
   aboard,
   viewerId,
+  capybaraEnabled = true,
 }: {
   hostile: boolean;
   aboard: boolean;
   viewerId: string;
+  capybaraEnabled?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -19,7 +21,7 @@ export default function ShipPlot({
   }, [aboard]);
 
   const viewer = findShip(viewerId) ?? findShip('aegis');
-  const contacts = fleetViewFrom(viewer?.id ?? 'aegis').map((ship) => ({
+  const contacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
     y: ship.y,
@@ -30,9 +32,10 @@ export default function ShipPlot({
   return (
     <div className="ship-plot" data-aboard={String(aboard)} data-expanded={String(expanded)}>
       <ContactPlot
+        key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
         hostile={hostile}
         placement={aboard ? 'widget' : 'field'}
-        size={aboard ? (expanded ? 'min(94vmin, 128vw)' : '92%') : undefined}
+        size={aboard ? (expanded ? 'min(94vmin, 128vw)' : '92cqi') : undefined}
         contacts={contacts}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
       />

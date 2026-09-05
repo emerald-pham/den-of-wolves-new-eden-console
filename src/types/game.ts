@@ -20,6 +20,8 @@ export interface GameSession {
   /** Short human-shareable code players type to join. */
   readonly joinCode: string;
   readonly phase: SessionPhase;
+  /** Expansion ship availability; absent legacy values are treated as enabled. */
+  readonly capybaraEnabled?: boolean;
   /** uid of the facilitator who may elevate others. */
   readonly ownerUid: Id;
   readonly createdAt: Timestamp;

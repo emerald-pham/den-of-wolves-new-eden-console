@@ -22,6 +22,7 @@ const {
   joinSession,
   kickGmInstance,
   reconcileGmAuthority,
+  setCapybaraEnabled,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -257,6 +258,23 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().gmInstance).toBeNull();
     expect(useSessionStore.getState().mode).toBeNull();
     expect(useSessionStore.getState().lastRoute).toBe('/roles');
+  });
+
+  it('sends Capybara availability through the active GM instance', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { capybaraEnabled: false } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setCapybaraEnabled(false);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setCapybaraEnabled');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', capybaraEnabled: false,
+    });
+    expect(useSessionStore.getState().session?.capybaraEnabled).toBe(false);
   });
 });
 

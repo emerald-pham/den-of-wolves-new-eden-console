@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { kickGmInstance } from '@/lib/sessionService';
+import ContactPlot from '@/components/ContactPlot';
+import { fleetViewFrom } from '@/data/fleetFormation';
+import { SHIPS } from '@/data/ships';
+import { kickGmInstance, setCapybaraEnabled } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance } from '@/types/game';
 
@@ -17,6 +20,23 @@ export default function GmConsole() {
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewerId, setViewerId] = useState('aegis');
+  const [changingCapybara, setChangingCapybara] = useState(false);
+  const capybaraEnabled = session?.capybaraEnabled !== false;
+  const capybaraQueued = pendingCommands.some(
+    (command) => command.kind === 'setCapybaraEnabled',
+  );
+  const availableShips = SHIPS.filter(
+    (ship) => capybaraEnabled || ship.id !== 'capybara',
+  );
+  const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
+  const contacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled).map((ship) => ({
+    tag: ship.name.toUpperCase(),
+    x: ship.x,
+    y: ship.y,
+    z: ship.z,
+    color: ship.color,
+  }));
 
   useEffect(() => {
     if (!isGm || !sessionId) return;
@@ -45,6 +65,10 @@ export default function GmConsole() {
     };
   }, [isGm, sessionId]);
 
+  useEffect(() => {
+    if (!capybaraEnabled && viewerId === 'capybara') setViewerId('aegis');
+  }, [capybaraEnabled, viewerId]);
+
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/roles" replace />;
 
@@ -59,6 +83,17 @@ export default function GmConsole() {
     }
   }
 
+  async function toggleCapybara(): Promise<void> {
+    setChangingCapybara(true);
+    try {
+      await setCapybaraEnabled(!capybaraEnabled);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingCapybara(false);
+    }
+  }
+
   return (
     <main className="session-mode gm-console">
       <section className="session-mode__panel cic-frame">
@@ -68,6 +103,48 @@ export default function GmConsole() {
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">GM Console</h1>
         <p className="role-select__lede">Active GM instances for session {session.joinCode}.</p>
+
+        <section className="gm-dradis" aria-label="Fleet DRADIS">
+          <div className="gm-dradis__viewport cic-frame">
+            <ContactPlot
+              key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
+              placement="inset"
+              size="min(92cqi, 26rem)"
+              contacts={contacts}
+              centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
+            />
+          </div>
+          <div className="gm-dradis__controls">
+            <p className="gm-dradis__perspective">
+              DRADIS perspective // {viewer?.name ?? 'AEGIS'}
+            </p>
+            <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
+              {availableShips.map((ship) => (
+                <button
+                  type="button"
+                  key={ship.id}
+                  aria-label={`View DRADIS from ${ship.name}`}
+                  aria-pressed={ship.id === viewer?.id}
+                  onClick={() => setViewerId(ship.id)}
+                >
+                  {ship.name}
+                </button>
+              ))}
+            </div>
+            <button
+              className="gm-dradis__capybara"
+              type="button"
+              aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
+              aria-pressed={capybaraEnabled}
+              disabled={changingCapybara || capybaraQueued}
+              onClick={() => void toggleCapybara()}
+            >
+              Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
+            </button>
+          </div>
+        </section>
+
+        <h2 className="gm-console__section-title">GM instances</h2>
         {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
           <ul className="gm-instance-list">
             {instances.map((instance) => {

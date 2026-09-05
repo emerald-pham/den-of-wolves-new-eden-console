@@ -33,4 +33,8 @@ describe('the initial fleet formation', () => {
       color: 'var(--cic-dradis-white)',
     });
   });
+
+  it('removes Capybara from DRADIS when the GM disables it', () => {
+    expect(fleetViewFrom('aegis', false).map(({ id }) => id)).not.toContain('capybara');
+  });
 });

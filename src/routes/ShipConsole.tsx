@@ -10,7 +10,10 @@ export default function ShipConsole() {
   const ship = findShip(shipId);
 
   if (!session || !me) return <Navigate to="/" replace />;
-  if (mode !== 'console' || !ship) return <Navigate to="/console" replace />;
+  if (
+    mode !== 'console' || !ship ||
+    (ship.id === 'capybara' && session.capybaraEnabled === false)
+  ) return <Navigate to="/console" replace />;
 
   return (
     <main className={`ship-console ship-console--${ship.id}`}>

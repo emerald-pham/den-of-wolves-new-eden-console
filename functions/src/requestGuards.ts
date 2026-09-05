@@ -86,6 +86,21 @@ export function requireGmInstanceActionRequest(data: {
   };
 }
 
+export function requireShipAvailabilityRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  capybaraEnabled?: unknown;
+}): { sessionId: string; instanceId: string; capybaraEnabled: boolean } {
+  if (typeof data.capybaraEnabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'capybaraEnabled must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    capybaraEnabled: data.capybaraEnabled,
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;

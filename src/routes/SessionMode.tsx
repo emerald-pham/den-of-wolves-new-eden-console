@@ -19,7 +19,12 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   if (selectedMode !== mode) return <Navigate to="/roles" replace />;
 
   if (mode === 'console') {
-    return <FleetRoster sessionName={session.name} />;
+    return (
+      <FleetRoster
+        sessionName={session.name}
+        capybaraEnabled={session.capybaraEnabled !== false}
+      />
+    );
   }
 
   return (
@@ -43,7 +48,13 @@ const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
   { origin: 'colonies', label: 'New Nations of the Colonies' },
 ];
 
-function FleetRoster({ sessionName }: { sessionName: string }) {
+function FleetRoster({
+  sessionName,
+  capybaraEnabled,
+}: {
+  sessionName: string;
+  capybaraEnabled: boolean;
+}) {
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">
@@ -59,7 +70,8 @@ function FleetRoster({ sessionName }: { sessionName: string }) {
         <section className="fleet-group" aria-labelledby={`fleet-${origin}`} key={origin}>
           <h2 className="fleet-group__title" id={`fleet-${origin}`}>{label}</h2>
           <div className="fleet-group__grid">
-            {SHIPS.filter((ship) => ship.origin === origin).map((ship) => (
+            {SHIPS.filter((ship) =>
+              ship.origin === origin && (capybaraEnabled || ship.id !== 'capybara')).map((ship) => (
               <article
                 className={`fleet-card fleet-card--${ship.id} cic-frame`}
                 aria-label={ship.name}

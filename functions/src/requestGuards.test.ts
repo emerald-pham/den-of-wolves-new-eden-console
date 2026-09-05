@@ -4,6 +4,7 @@ import {
   requireElevationRequest,
   requireGmClaimRequest,
   requireGmInstanceActionRequest,
+  requireShipAvailabilityRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -86,5 +87,17 @@ describe('callable request guards', () => {
     expect(requireGmInstanceActionRequest({
       sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2',
     })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2' });
+  });
+
+  it('requires a boolean ship availability setting from a named GM instance', () => {
+    expectHttpsError(
+      () => requireShipAvailabilityRequest({
+        sessionId: 's1', instanceId: 'i1', capybaraEnabled: 'yes',
+      }),
+      'invalid-argument',
+    );
+    expect(requireShipAvailabilityRequest({
+      sessionId: 's1', instanceId: 'i1', capybaraEnabled: false,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', capybaraEnabled: false });
   });
 });

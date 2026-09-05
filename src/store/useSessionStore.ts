@@ -32,6 +32,16 @@ export type PendingCommand =
       readonly kind: 'disconnectFromSession';
       readonly payload: { readonly sessionId: string };
       readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'setCapybaraEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly capybaraEnabled: boolean;
+      };
+      readonly createdAt: string;
     };
 
 export interface CommunicationError {

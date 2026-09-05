@@ -7,13 +7,14 @@ import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
+  setCapybaraEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
 }));
 
-const { kickGmInstance } = await import('@/lib/sessionService');
+const { kickGmInstance, setCapybaraEnabled } = await import('@/lib/sessionService');
 const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const local = {
@@ -114,4 +115,44 @@ it('updates when the live GM instance stream changes', async () => {
   act(() => publish?.([local, other]));
 
   expect(await screen.findByText('Tablet')).toBeInTheDocument();
+});
+
+it('shows fleet DRADIS and jumps between ship perspectives', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const { container } = renderConsole();
+
+  expect(await screen.findByRole('region', { name: /fleet dradis/i })).toBeInTheDocument();
+  expect(screen.getByText(/dradis perspective.*aegis/i)).toBeInTheDocument();
+  const aegisScan = container.querySelector('.gm-dradis .contact-plot__rig');
+
+  await user.click(screen.getByRole('button', { name: /view dradis from shepherd/i }));
+
+  expect(screen.getByText(/dradis perspective.*shepherd/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /view dradis from shepherd/i }))
+    .toHaveAttribute('aria-pressed', 'true');
+  expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
+});
+
+it('toggles Capybara off for the session and removes its perspective', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setCapybaraEnabled).mockImplementation(async (enabled) => {
+    const session = useSessionStore.getState().session;
+    if (session) useSessionStore.getState().setSession({ ...session, capybaraEnabled: enabled });
+    return 'applied';
+  });
+  renderConsole();
+
+  expect(await screen.findByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /view dradis from capybara/i })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /turn capybara off/i }));
+
+  expect(setCapybaraEnabled).toHaveBeenCalledWith(false);
+  expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
+    .not.toBeInTheDocument();
 });

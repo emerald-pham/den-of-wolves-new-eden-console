@@ -148,7 +148,7 @@ keyboard focus, error announcements, and at least 44px touch targets.
 
 ## Contact plot / threat board
 
-`<ContactPlot hostile={boolean} placement="field | inset" size="<css length>" />`
+`<ContactPlot hostile={boolean} placement="field | inset | widget" size="<css length>" />`
 — src/components/ContactPlot.tsx with src/styles/plot.css. `pointer-events:
 none`, `aria-hidden`, and nothing else on the page needs to know about it.
 
@@ -159,10 +159,24 @@ parent instead, for a board sitting inside a panel, and `size` overrides the
 diameter with any CSS length. Both keep identical geometry — only the diameter
 and the framing change. Do not add a route that switches it off.
 
-Today every route runs `field`: full-bleed, behind all of the interface. Keep
-the launcher and the role picker that way. `inset` is there for screens that
-have not been built yet, where the board becomes one instrument among several
-rather than the room the interface sits in.
+The compact shipboard plot sizes itself in container-query units (`92cqi`),
+never percentages. Percentage translations on its zero-size contact anchors
+resolve to zero and collapse every return onto the origin. Contact labels use
+four stable corner anchors around their returns; bias them away from the plot
+origin and alternate them near a centreline so neighboring names remain
+readable without moving between sweeps.
+
+The GM console contains an inset fleet DRADIS and a visible button for every
+available ship. Selecting a ship rebases only that GM device's view. Capybara
+availability is shared session state, defaults on (including legacy sessions
+with no stored setting), and can only be changed by an active GM instance.
+Turning it off removes Capybara from the join roster and all DRADIS views.
+Every perspective begins empty. Changing the reference ship restarts contact
+acquisition, and returns appear only as that new view's sweep reaches them;
+resizing the same view does not restart its scan.
+
+The launcher and role picker run `field`: full-bleed behind the interface. The
+GM console uses `inset`, where the board is one instrument among several.
 
 **It is rendered once in `App`, above the router.** One continuous scan runs
 from the launcher through the role picker to a connected console, rather than a

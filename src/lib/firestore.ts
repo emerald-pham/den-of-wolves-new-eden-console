@@ -40,6 +40,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
+    capybaraEnabled: data.capybaraEnabled !== false,
     ownerUid: data.ownerUid as string,
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),

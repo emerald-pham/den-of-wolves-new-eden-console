@@ -84,6 +84,31 @@ type PlotStyle = CSSProperties & Record<`--${string}`, string | number>;
 const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 const radians = (degrees: number): number => (degrees * Math.PI) / 180;
 
+type LabelAnchor = 'north-east' | 'north-west' | 'south-east' | 'south-west';
+
+function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
+  let x: number;
+  let y: number;
+  if ('x' in track) {
+    ({ x, y } = track);
+  } else {
+    const a = radians(track.bearing);
+    const e = radians(track.elevation);
+    x = track.range * Math.cos(e) * Math.sin(a);
+    y = -track.range * Math.sin(e);
+  }
+
+  // Push labels away from the origin. Near either centreline, alternate sides
+  // so close returns do not paint their names into the same strip of space.
+  const horizontal = Math.abs(x) < 0.16
+    ? (index % 2 === 0 ? 'east' : 'west')
+    : (x < 0 ? 'west' : 'east');
+  const vertical = Math.abs(y) < 0.16
+    ? (Math.floor(index / 2) % 2 === 0 ? 'south' : 'north')
+    : (y < 0 ? 'north' : 'south');
+  return `${vertical}-${horizontal}`;
+}
+
 /** Spherical coordinates to the offsets CSS translates a contact by. */
 function place({ bearing, elevation, range }: Track): PlotStyle {
   const a = radians(bearing);
@@ -141,7 +166,7 @@ export default function ContactPlot({
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
-   *  parent instead, for a board that sits inside a panel. */
+   *  parent; `widget` uses that same inset geometry inside a ship display. */
   placement?: 'field' | 'inset' | 'widget';
   /** Any CSS length. Overrides the placement's default diameter. */
   size?: string | undefined;
@@ -225,14 +250,20 @@ export default function ContactPlot({
             key={`${track.tag}-${index}`}
             data-spoof={String(spoof)}
             data-departing={String(spoof && exposed)}
-            style={'x' in track ? placeCartesian(track) : place(track)}
+            data-label-anchor={labelAnchor(track, index)}
+            style={{
+              ...('x' in track ? placeCartesian(track) : place(track)),
+              '--drift-slot': index % 5,
+            } as PlotStyle}
           >
-            <div className="contact-plot__jitter">
-              <span className="contact-plot__drop" />
-              <span className="contact-plot__blip" />
-              <span className="contact-plot__tag">
-                {spoof && exposed ? EXPOSED : track.tag}
-              </span>
+            <div className="contact-plot__apparent">
+              <div className="contact-plot__jitter">
+                <span className="contact-plot__drop" />
+                <span className="contact-plot__blip" />
+                <span className="contact-plot__tag">
+                  {spoof && exposed ? EXPOSED : track.tag}
+                </span>
+              </div>
             </div>
           </div>
         ))}

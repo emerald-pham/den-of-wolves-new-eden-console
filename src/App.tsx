@@ -76,6 +76,7 @@ function AppRoutes() {
         hostile={intrusion}
         aboard={location.pathname.startsWith('/ships/')}
         viewerId={shipId}
+        capybaraEnabled={session?.capybaraEnabled !== false}
       />
       <AppHeader />
       <CommunicationError />

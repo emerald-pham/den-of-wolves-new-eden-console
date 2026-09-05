@@ -147,4 +147,25 @@ describe('friendly DRADIS returns', () => {
     expect(contact).toContain('--contact-ink: var(--plot-hot)');
     expect(jitter).not.toContain('--contact-ink:');
   });
+
+  it('scales the compact plot against its container instead of a zero-size contact', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const shipPlot = index.match(/\.ship-plot\[data-aboard='true'\]\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(shipPlot).toContain('container-type: inline-size');
+  });
+
+  it('acquires contacts on their first sweep and only then applies stepped display drift', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const apparent = plot.match(/\.contact-plot__apparent\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(apparent).toContain('opacity: 0');
+    expect(apparent).toContain('plot-acquire');
+    expect(apparent).toContain('plot-drift');
+    expect(apparent).toContain('steps(1, end)');
+    expect(apparent).toContain('calc(var(--phase) * var(--plot-turn) / 2)');
+    expect(apparent).toContain(
+      'calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2)',
+    );
+  });
 });

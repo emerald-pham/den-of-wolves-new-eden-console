@@ -121,9 +121,11 @@ it('sweeps the volume with two discs on different axes, both riding the boost st
 it('separates a contact from the fault that shakes it', () => {
   const { container } = render(<ContactPlot />);
 
-  // The station transform and the break-up jitter are different layers, so the
-  // fault keyframes never have to restate where the contact actually is.
-  expect(contactsIn(container)[0]?.firstElementChild).toHaveClass('contact-plot__jitter');
+  // Canonical station, apparent scan drift, and break-up jitter are separate
+  // layers, so neither display effect can rewrite the true coordinate.
+  const apparent = contactsIn(container)[0]?.firstElementChild;
+  expect(apparent).toHaveClass('contact-plot__apparent');
+  expect(apparent?.firstElementChild).toHaveClass('contact-plot__jitter');
 });
 
 it('passes the spoofed tracks off as ordinary contacts until the hack ends, then calls them false', () => {
@@ -136,6 +138,20 @@ it('passes the spoofed tracks off as ordinary contacts until the hack ends, then
   rerender(<ContactPlot />);
 
   expect(container.textContent ?? '').toMatch(/FALSE/);
+});
+
+it('anchors nearby contact names on different sides of their returns', () => {
+  const contacts = [
+    { tag: 'ALPHA', x: 0.08, y: 0.06, z: 0.2, color: 'white' },
+    { tag: 'BETA', x: 0.1, y: 0.04, z: 0.24, color: 'white' },
+  ];
+  const { container } = render(<ContactPlot contacts={contacts} />);
+  const anchors = contactsIn(container).map((contact) => contact.dataset.labelAnchor);
+
+  expect(anchors.every(Boolean)).toBe(true);
+  expect(new Set(anchors)).toHaveLength(2);
+  expect(new Set(contactsIn(container).map((contact) =>
+    contact.style.getPropertyValue('--drift-slot'))).size).toBe(2);
 });
 
 it('holds the hostile tracks on the board after an intrusion so they can break up, then drops them', () => {

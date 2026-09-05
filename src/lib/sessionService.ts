@@ -90,6 +90,14 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     store.setLastRoute('/roles');
   }
   if (command.kind === 'disconnectFromSession') store.disconnect();
+  if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
+    const enabled =
+      typeof result === 'object' && result !== null && 'capybaraEnabled' in result &&
+      typeof result.capybaraEnabled === 'boolean'
+        ? result.capybaraEnabled
+        : command.payload.capybaraEnabled;
+    store.setSession({ ...store.session, capybaraEnabled: enabled });
+  }
 }
 
 async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition> {
@@ -304,6 +312,25 @@ export async function releaseGmInstance(): Promise<CommandDisposition> {
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       targetInstanceId: store.gmInstance.id,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setCapybaraEnabled(
+  capybaraEnabled: boolean,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing ship availability.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setCapybaraEnabled',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      capybaraEnabled,
     },
     createdAt: new Date().toISOString(),
   });

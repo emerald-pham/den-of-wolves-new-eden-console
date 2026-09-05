@@ -542,6 +542,86 @@ body {
   font: 0.68rem/1.5 var(--cic-mono);
 }
 
+.gm-console {
+  width: min(78rem, 100%);
+  align-content: start;
+}
+
+.gm-dradis {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1.35fr) minmax(15rem, 0.65fr);
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.gm-dradis__viewport {
+  position: relative;
+  container-type: inline-size;
+  min-height: clamp(20rem, 46vw, 30rem);
+  overflow: hidden;
+  background: var(--cic-void);
+}
+
+.gm-dradis__controls {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-panel);
+}
+
+.gm-dradis__perspective,
+.gm-console__section-title {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.gm-dradis__ships {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.gm-dradis__ships button,
+.gm-dradis__capybara {
+  min-height: 44px;
+  border: 1px solid var(--cic-rule);
+  background: transparent;
+  color: var(--cic-muted);
+  font: 0.65rem/1.25 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-dradis__ships button[aria-pressed='true'] {
+  border-color: var(--cic-cyan);
+  color: var(--cic-cyan-hot);
+  background: color-mix(in srgb, var(--cic-cyan) 9%, transparent);
+}
+
+.gm-dradis__capybara {
+  border-color: var(--cic-amber-dim);
+  color: var(--cic-amber);
+}
+
+.gm-dradis__capybara[aria-pressed='false'] {
+  border-color: var(--cic-rule);
+  color: var(--cic-muted);
+}
+
+.gm-dradis__ships button:focus-visible,
+.gm-dradis__capybara:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.gm-dradis__capybara:disabled { opacity: 0.45; }
+.gm-console__section-title { margin-top: 2rem; }
+
 .settings-dialog__warning {
   border-left: 2px solid var(--cic-amber);
   padding: 0.75rem;
@@ -818,6 +898,7 @@ body {
 .ship-plot[data-aboard='false'] { display: contents; }
 
 .ship-plot[data-aboard='true'] {
+  container-type: inline-size;
   position: fixed;
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
   right: max(0.75rem, env(safe-area-inset-right));
@@ -892,6 +973,8 @@ body {
   .fleet-group__grid { grid-template-columns: 1fr; }
   .fleet-card { min-height: 14rem; }
   .fleet-card__content { width: min(82%, 24rem); }
+  .gm-dradis { grid-template-columns: 1fr; }
+  .gm-dradis__viewport { min-height: min(92vw, 26rem); }
 
   .ship-console__flag {
     left: 50%;

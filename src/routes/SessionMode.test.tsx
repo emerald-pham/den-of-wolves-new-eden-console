@@ -90,3 +90,21 @@ it('joins a ship without assigning a shipboard subrole', async () => {
   expect(screen.getByText('Joined ship')).toBeInTheDocument();
   expect(useSessionStore.getState().mode).toBe('console');
 });
+
+it('removes Capybara from the joinable fleet when the GM disables it', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, capybaraEnabled: false });
+  useSessionStore.getState().setMode('console');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('img')).toHaveLength(6);
+});
