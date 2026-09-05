@@ -4,6 +4,12 @@ import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
+import {
+  requireDiceRequest,
+  requireElevationRequest,
+  requireSessionSeatRequest,
+  requireUid,
+} from './requestGuards';
 
 /**
  * Server-side authority for the companion console.
@@ -17,13 +23,6 @@ initializeApp();
 setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = getFirestore();
-
-function requireUid(auth: { uid: string } | undefined): string {
-  if (!auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Sign in before joining a table.');
-  }
-  return auth.uid;
-}
 
 async function requireGm(sessionId: string, uid: string): Promise<void> {
   const snap = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -194,10 +193,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 export const claimSeat = onCall<{ sessionId: string; seatId: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = request.data ?? {};
-    if (!sessionId || !seatId) {
-      throw new HttpsError('invalid-argument', 'sessionId and seatId required.');
-    }
+    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
@@ -235,10 +231,7 @@ export const claimSeat = onCall<{ sessionId: string; seatId: string }>(
 export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = request.data ?? {};
-    if (!sessionId || !seatId) {
-      throw new HttpsError('invalid-argument', 'sessionId and seatId required.');
-    }
+    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
 
@@ -274,10 +267,7 @@ export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
 export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, targetUid } = request.data ?? {};
-    if (!sessionId || !targetUid) {
-      throw new HttpsError('invalid-argument', 'sessionId and targetUid required.');
-    }
+    const { sessionId, targetUid } = requireElevationRequest(request.data ?? {});
 
     const sessionSnap = await db.doc(`sessions/${sessionId}`).get();
     if (!sessionSnap.exists) throw new HttpsError('not-found', 'No such session.');
@@ -298,14 +288,7 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
 export const rollDice = onCall<{ sessionId: string; sides: number; count: number }>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, sides, count } = request.data ?? {};
-    if (!sessionId) throw new HttpsError('invalid-argument', 'sessionId required.');
-    if (!Number.isInteger(sides) || sides < 2 || sides > 1000) {
-      throw new HttpsError('invalid-argument', 'sides must be 2..1000.');
-    }
-    if (!Number.isInteger(count) || count < 1 || count > 50) {
-      throw new HttpsError('invalid-argument', 'count must be 1..50.');
-    }
+    const { sessionId, sides, count } = requireDiceRequest(request.data ?? {});
 
     const player = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
     if (!player.exists) {
