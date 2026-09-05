@@ -29,9 +29,10 @@ export default function RoleSelect() {
   const [claiming, setClaiming] = useState(false);
   const [changingLock, setChangingLock] = useState(false);
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
+  const controlsLocked = session?.gmControlsLocked === true;
 
   useEffect(() => {
-    if (!session?.id) return;
+    if (!session?.id || !controlsLocked || isGm) return;
     let active = true;
     let unsubscribe: () => void = () => undefined;
     void import('@/lib/firestore').then(({ subscribeGmInstances }) => {
@@ -46,7 +47,7 @@ export default function RoleSelect() {
       active = false;
       unsubscribe();
     };
-  }, [session?.id]);
+  }, [controlsLocked, isGm, session?.id]);
 
   if (!session || !me) return <Navigate to="/" replace />;
 
@@ -79,7 +80,6 @@ export default function RoleSelect() {
   }
 
   const claimLabel = isGm ? 'GM claimed' : pendingClaim ? 'GM claim queued' : 'Claim GM';
-  const controlsLocked = session.gmControlsLocked === true;
   const registrationLocked = controlsLocked && activeGmCount !== 0;
 
   return (

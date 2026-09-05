@@ -83,6 +83,16 @@ describe('RoleSelect', () => {
     expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
   });
 
+  it('does not open a GM manifest stream while registration is unlocked', async () => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+
+    renderRoute();
+    await Promise.resolve();
+
+    expect(subscribeGmInstances).not.toHaveBeenCalled();
+  });
+
   it('requires an instance name before claiming GM and persists the claim', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
