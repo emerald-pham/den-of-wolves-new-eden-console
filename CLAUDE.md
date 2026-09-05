@@ -36,6 +36,26 @@ npm run test:rules  # security rules, wrapped in the Firestore emulator
 npm run test:all    # both — this is what CI runs
 ```
 
+## Worktree dependency bootstrap
+
+Every worktree has its own ignored dependency directories. At the start of work
+in a fresh worktree, before running tests, builds, or other repository scripts:
+
+- Run `npm ci` when the root `node_modules` directory is missing.
+- Run `npm ci --prefix functions` when `functions/node_modules` is missing.
+- Run the corresponding command again whenever `package-lock.json` or
+  `functions/package-lock.json` has changed since dependencies were installed.
+- Use `npm ci`, not `npm install`, so installation follows the committed lockfiles
+  without rewriting them. Do not commit `node_modules`.
+
+## Worktree branch bootstrap
+
+Agents must run `git branch --show-current` before changing files. If it prints
+nothing, the worktree has a detached `HEAD`; immediately create a uniquely
+named, short-lived task branch at the current `HEAD` and do all work there.
+Never make changes or commits while detached. Confirm the branch is based on
+the intended starting point (normally current `origin/main`) before proceeding.
+
 ## Concurrent worktrees and emulator ports
 
 Assume several local worktrees are active at the same time. Never start
