@@ -101,6 +101,21 @@ export function requireShipAvailabilityRequest(data: {
   };
 }
 
+export function requireGmControlsLockRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  locked?: unknown;
+}): { sessionId: string; instanceId: string; locked: boolean } {
+  if (typeof data.locked !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'locked must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    locked: data.locked,
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;

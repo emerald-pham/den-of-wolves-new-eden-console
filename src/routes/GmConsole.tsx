@@ -3,7 +3,11 @@ import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { SHIPS } from '@/data/ships';
-import { kickGmInstance, setCapybaraEnabled } from '@/lib/sessionService';
+import {
+  kickGmInstance,
+  setCapybaraEnabled,
+  setGmControlsLocked,
+} from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance } from '@/types/game';
 
@@ -22,9 +26,14 @@ export default function GmConsole() {
   const [loading, setLoading] = useState(true);
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
+  const [changingLock, setChangingLock] = useState(false);
   const capybaraEnabled = session?.capybaraEnabled !== false;
   const capybaraQueued = pendingCommands.some(
     (command) => command.kind === 'setCapybaraEnabled',
+  );
+  const controlsLocked = session?.gmControlsLocked === true;
+  const lockQueued = pendingCommands.some(
+    (command) => command.kind === 'setGmControlsLocked',
   );
   const availableShips = SHIPS.filter(
     (ship) => capybaraEnabled || ship.id !== 'capybara',
@@ -94,6 +103,17 @@ export default function GmConsole() {
     }
   }
 
+  async function toggleLock(): Promise<void> {
+    setChangingLock(true);
+    try {
+      await setGmControlsLocked(!controlsLocked);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingLock(false);
+    }
+  }
+
   return (
     <main className="session-mode gm-console">
       <section className="session-mode__panel cic-frame">
@@ -145,6 +165,17 @@ export default function GmConsole() {
         </section>
 
         <h2 className="gm-console__section-title">GM instances</h2>
+        <button
+          className="gm-controls-lock"
+          type="button"
+          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration and Setup`}
+          aria-pressed={controlsLocked}
+          disabled={changingLock || lockQueued}
+          onClick={() => void toggleLock()}
+        >
+          <span aria-hidden="true">{controlsLocked ? '🔒' : '🔓'}</span>
+          GM registration + Setup // {lockQueued ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
+        </button>
         {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
           <ul className="gm-instance-list">
             {instances.map((instance) => {

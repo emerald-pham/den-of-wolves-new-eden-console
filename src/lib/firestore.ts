@@ -41,6 +41,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
     capybaraEnabled: data.capybaraEnabled !== false,
+    gmControlsLocked: data.gmControlsLocked === true,
     ownerUid: data.ownerUid as string,
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),

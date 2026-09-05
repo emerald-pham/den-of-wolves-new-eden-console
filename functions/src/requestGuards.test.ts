@@ -3,6 +3,7 @@ import {
   requireDiceRequest,
   requireElevationRequest,
   requireGmClaimRequest,
+  requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireShipAvailabilityRequest,
   requireSessionRequest,
@@ -100,4 +101,17 @@ describe('callable request guards', () => {
       sessionId: 's1', instanceId: 'i1', capybaraEnabled: false,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', capybaraEnabled: false });
   });
+
+  it('requires a boolean GM and Setup lock setting from a named GM instance', () => {
+    expectHttpsError(
+      () => requireGmControlsLockRequest({
+        sessionId: 's1', instanceId: 'i1', locked: 'yes',
+      }),
+      'invalid-argument',
+    );
+    expect(requireGmControlsLockRequest({
+      sessionId: 's1', instanceId: 'i1', locked: true,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', locked: true });
+  });
+
 });

@@ -117,6 +117,10 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { phase: 'active' }));
   });
 
+  it('cannot change the GM registration and Setup lock from the client', async () => {
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.

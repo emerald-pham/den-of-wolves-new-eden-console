@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { claimGmInstance } from '@/lib/sessionService';
+import { claimGmInstance, setGmControlsLocked } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 
 const MODES: readonly {
@@ -22,9 +22,31 @@ export default function RoleSelect() {
   const isGm = useSessionStore(selectIsGm);
   const pendingClaim = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'claimGmInstance'));
+  const pendingLock = useSessionStore((state) =>
+    state.pendingCommands.some((command) => command.kind === 'setGmControlsLocked'));
   const setMode = useSessionStore((state) => state.setMode);
   const [instanceName, setInstanceName] = useState('');
   const [claiming, setClaiming] = useState(false);
+  const [changingLock, setChangingLock] = useState(false);
+  const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!session?.id) return;
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeGmInstances }) => {
+      if (!active) return;
+      unsubscribe = subscribeGmInstances(
+        session.id,
+        (instances) => setActiveGmCount(instances.length),
+        () => setActiveGmCount(null),
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [session?.id]);
 
   if (!session || !me) return <Navigate to="/" replace />;
 
@@ -45,7 +67,20 @@ export default function RoleSelect() {
     }
   }
 
+  async function toggleLock(): Promise<void> {
+    setChangingLock(true);
+    try {
+      await setGmControlsLocked(session?.gmControlsLocked !== true);
+    } catch {
+      // The shared interception notice carries the actionable server error.
+    } finally {
+      setChangingLock(false);
+    }
+  }
+
   const claimLabel = isGm ? 'GM claimed' : pendingClaim ? 'GM claim queued' : 'Claim GM';
+  const controlsLocked = session.gmControlsLocked === true;
+  const registrationLocked = controlsLocked && activeGmCount !== 0;
 
   return (
     <main className="role-select">
@@ -62,7 +97,7 @@ export default function RoleSelect() {
             id="gm-instance-name"
             className="role-claim__input"
             value={isGm ? gmInstance?.name ?? instanceName : instanceName}
-            disabled={isGm || pendingClaim || claiming}
+            disabled={isGm || pendingClaim || claiming || registrationLocked}
             maxLength={40}
             autoComplete="off"
             onChange={(event) => setInstanceName(event.target.value)}
@@ -70,17 +105,40 @@ export default function RoleSelect() {
           <button
             className="role-claim__button"
             type="submit"
-            disabled={isGm || pendingClaim || claiming || instanceName.trim().length === 0}
+            disabled={
+              isGm || pendingClaim || claiming || registrationLocked ||
+              instanceName.trim().length === 0
+            }
           >
             {claimLabel}
           </button>
+          {registrationLocked && <span className="role-card__description">GM registration locked.</span>}
+          {controlsLocked && activeGmCount === 0 && !isGm && (
+            <span className="role-card__description">Failsafe active // no active GM.</span>
+          )}
         </form>
+        <button
+          className="role-card role-controls-lock cic-frame"
+          type="button"
+          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration and Setup`}
+          aria-pressed={controlsLocked}
+          disabled={!isGm || changingLock || pendingLock}
+          onClick={() => void toggleLock()}
+        >
+          <span className="role-controls-lock__icon" aria-hidden="true">
+            {controlsLocked ? '🔒' : '🔓'}
+          </span>
+          <span className="role-card__name">GM registration + Setup</span>
+          <span className="role-card__description">
+            {pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
+          </span>
+        </button>
         {MODES.map(({ mode, label, description, gmOnly }) => (
           <button
             className="role-card cic-frame"
             type="button"
             key={mode}
-            disabled={gmOnly && !isGm}
+            disabled={(gmOnly && !isGm) || (mode === 'setup' && controlsLocked)}
             onClick={() => connectAs(mode)}
           >
             <span className="role-card__name">{label}</span>

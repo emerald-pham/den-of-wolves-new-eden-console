@@ -98,6 +98,14 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : command.payload.capybaraEnabled;
     store.setSession({ ...store.session, capybaraEnabled: enabled });
   }
+  if (command.kind === 'setGmControlsLocked' && store.session?.id === command.payload.sessionId) {
+    const locked =
+      typeof result === 'object' && result !== null && 'gmControlsLocked' in result &&
+      typeof result.gmControlsLocked === 'boolean'
+        ? result.gmControlsLocked
+        : command.payload.locked;
+    store.setSession({ ...store.session, gmControlsLocked: locked });
+  }
 }
 
 async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition> {
@@ -331,6 +339,23 @@ export async function setCapybaraEnabled(
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       capybaraEnabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setGmControlsLocked(locked: boolean): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing the GM registration and Setup lock.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setGmControlsLocked',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      locked,
     },
     createdAt: new Date().toISOString(),
   });

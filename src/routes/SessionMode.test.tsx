@@ -108,3 +108,20 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
   expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
+
+it('redirects Setup to roles when the shared GM controls lock is active', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
+
+  render(
+    <MemoryRouter initialEntries={['/setup']}>
+      <Routes>
+        <Route path="/roles" element={<p>Roles route</p>} />
+        <Route path="/setup" element={<SessionMode mode="setup" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Roles route')).toBeInTheDocument();
+});

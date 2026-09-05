@@ -11,10 +11,12 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
+import { mayClaimGmInstance } from './gmControlsLock';
 import {
   requireDiceRequest,
   requireElevationRequest,
   requireGmClaimRequest,
+  requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireShipAvailabilityRequest,
   requireSessionRequest,
@@ -133,6 +135,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           joinCode,
           phase: 'lobby',
           capybaraEnabled: true,
+          gmControlsLocked: false,
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -163,6 +166,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             joinCode,
             phase: 'lobby',
             capybaraEnabled: true,
+            gmControlsLocked: false,
             ownerUid: uid,
             createdAt: now,
             updatedAt: now,
@@ -256,6 +260,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinCode,
         phase: sessionSnap.get('phase') as string,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+        gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
         updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -327,6 +332,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+      gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),
       updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -366,17 +372,27 @@ export const claimGmInstance = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${claim.sessionId}`);
   const playerRef = db.doc(`sessions/${claim.sessionId}/players/${uid}`);
+  const instancesRef = db.collection(`sessions/${claim.sessionId}/gmInstances`);
   const instanceRef = db.doc(
     `sessions/${claim.sessionId}/gmInstances/${claim.instanceId}`,
   );
-
   await db.runTransaction(async (tx) => {
-    const [player, existing] = await Promise.all([
+    const [session, player, existing, activeInstances] = await Promise.all([
+      tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
+      tx.get(instancesRef),
     ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (
+      !existing.exists &&
+      !mayClaimGmInstance(session.get('gmControlsLocked') === true, activeInstances.size)
+    ) {
+      throw new HttpsError('failed-precondition', 'GM registration is locked.');
+    }
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
@@ -490,6 +506,42 @@ export const setCapybaraEnabled = onCall<{
   });
 
   return { capybaraEnabled: setting.capybaraEnabled };
+});
+
+/** Lock or unlock subsequent GM registration and access to Setup. */
+export const setGmControlsLocked = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  locked?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireGmControlsLockRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
+  );
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, {
+      gmControlsLocked: setting.locked,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { gmControlsLocked: setting.locked };
 });
 
 /** Connected-player count used for the last-player disconnect warning. */

@@ -168,4 +168,26 @@ describe('friendly DRADIS returns', () => {
       'calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2)',
     );
   });
+
+  it('keeps consecutive apparent fixes within a tiny subpixel step', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const drift = plot.match(/@keyframes plot-drift\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const fixes = [...drift.matchAll(
+      /translate3d\((-?[\d.]+)px,\s*(-?[\d.]+)px,\s*(-?[\d.]+)px\)/g,
+    )].map((match): [number, number, number] => [
+      Number(match[1]), Number(match[2]), Number(match[3]),
+    ]);
+
+    expect(fixes.length).toBeGreaterThan(4);
+    for (let index = 1; index < fixes.length; index += 1) {
+      const previous = fixes[index - 1];
+      const current = fixes[index];
+      if (!previous || !current) continue;
+      expect(Math.hypot(
+        current[0] - previous[0],
+        current[1] - previous[1],
+        current[2] - previous[2],
+      )).toBeLessThanOrEqual(0.35);
+    }
+  });
 });

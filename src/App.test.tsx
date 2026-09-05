@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { GameSession, Player } from '@/types/game';
+import type { GameSession, GmInstance, Player } from '@/types/game';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -16,10 +16,18 @@ vi.mock('@/lib/sessionService', () => ({
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
+  setGmControlsLocked: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeSessionState: vi.fn(() => vi.fn()),
+  subscribeGmInstances: vi.fn((
+    _sessionId: string,
+    onInstances: (instances: readonly GmInstance[]) => void,
+  ) => {
+    onInstances([]);
+    return vi.fn();
+  }),
 }));
 
 const { connect, disconnectFromSession, reconcileGmAuthority, refreshPresence } =

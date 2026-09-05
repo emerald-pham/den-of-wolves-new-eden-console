@@ -166,6 +166,11 @@ four stable corner anchors around their returns; bias them away from the plot
 origin and alternate them near a centreline so neighboring names remain
 readable without moving between sweeps.
 
+Apparent contact drift is a slow display estimate, not ship movement. Each
+sweep advances a contact through a fixed subpixel walk whose consecutive fixes
+remain within 0.35px; the contact is stationary between sweeps. Never modify
+the canonical XYZ formation to produce this effect.
+
 The GM console contains an inset fleet DRADIS and a visible button for every
 available ship. Selecting a ship rebases only that GM device's view. Capybara
 availability is shared session state, defaults on (including legacy sessions
@@ -174,6 +179,12 @@ Turning it off removes Capybara from the join roster and all DRADIS views.
 Every perspective begins empty. Changing the reference ship restarts contact
 acquisition, and returns appear only as that new view's sweep reaches them;
 resizing the same view does not restart its scan.
+
+GM registration and Setup share one server-authoritative lock. Show its open
+or closed padlock icon and text state on the role-selection screen; non-GMs see
+the control greyed out. Existing GM instances retain console access so they can
+unlock it. If every GM instance has gone away, the registration lock yields to
+the recovery failsafe and permits a new GM claim.
 
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several.

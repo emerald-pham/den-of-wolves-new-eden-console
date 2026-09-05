@@ -42,6 +42,16 @@ export type PendingCommand =
         readonly capybaraEnabled: boolean;
       };
       readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'setGmControlsLocked';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly locked: boolean;
+      };
+      readonly createdAt: string;
     };
 
 export interface CommunicationError {

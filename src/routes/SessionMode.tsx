@@ -16,6 +16,9 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if ((mode === 'gm' || mode === 'setup') && !isGm) return <Navigate to="/roles" replace />;
+  if (mode === 'setup' && session.gmControlsLocked === true) {
+    return <Navigate to="/roles" replace />;
+  }
   if (selectedMode !== mode) return <Navigate to="/roles" replace />;
 
   if (mode === 'console') {

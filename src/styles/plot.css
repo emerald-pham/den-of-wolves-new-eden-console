@@ -216,7 +216,7 @@
 }
 
 /* A return does not exist on the instrument until the sweep first acquires its
-   bearing. After that, its displayed fix changes by about one pixel only when
+   bearing. After that, its displayed fix changes by a subtle subpixel step only when
    another sweep reaches it. This wrapper never owns --x/--y/--z: those remain
    fixed on the parent contact as the canonical formation coordinate. */
 .contact-plot__apparent {
@@ -239,12 +239,12 @@
 }
 
 @keyframes plot-drift {
-  0% { transform: translate3d(-0.8px, 0.4px, 0.2px); }
-  20% { transform: translate3d(0.7px, -0.5px, -0.3px); }
-  40% { transform: translate3d(1.1px, 0.3px, 0.5px); }
-  60% { transform: translate3d(-0.4px, -0.9px, 0.1px); }
-  80% { transform: translate3d(0.3px, 0.8px, -0.4px); }
-  100% { transform: translate3d(-0.8px, 0.4px, 0.2px); }
+  0% { transform: translate3d(-0.20px, 0.10px, 0.04px); }
+  20% { transform: translate3d(-0.08px, 0.02px, 0.00px); }
+  40% { transform: translate3d(0.06px, -0.05px, -0.03px); }
+  60% { transform: translate3d(0.18px, -0.10px, 0.02px); }
+  80% { transform: translate3d(0.04px, 0.04px, 0.05px); }
+  100% { transform: translate3d(-0.20px, 0.10px, 0.04px); }
 }
 
 .contact-plot__blip {

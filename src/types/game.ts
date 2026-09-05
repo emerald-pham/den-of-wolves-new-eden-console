@@ -22,6 +22,8 @@ export interface GameSession {
   readonly phase: SessionPhase;
   /** Expansion ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
+  /** Locks Setup and subsequent GM claims while at least one GM remains present. */
+  readonly gmControlsLocked?: boolean;
   /** uid of the facilitator who may elevate others. */
   readonly ownerUid: Id;
   readonly createdAt: Timestamp;

@@ -8,13 +8,15 @@ import GmConsole from './GmConsole';
 vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
+  setGmControlsLocked: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
 }));
 
-const { kickGmInstance, setCapybaraEnabled } = await import('@/lib/sessionService');
+const { kickGmInstance, setCapybaraEnabled, setGmControlsLocked } =
+  await import('@/lib/sessionService');
 const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const local = {
@@ -155,4 +157,27 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
     .not.toBeInTheDocument();
+});
+
+it('locks and unlocks subsequent GM registration and Setup', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setGmControlsLocked).mockImplementation(async (locked) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) {
+      useSessionStore.getState().setSession({ ...activeSession, gmControlsLocked: locked });
+    }
+    return 'applied';
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', {
+    name: /lock gm registration and setup/i,
+  }));
+
+  expect(setGmControlsLocked).toHaveBeenCalledWith(true);
+  expect(await screen.findByRole('button', {
+    name: /unlock gm registration and setup/i,
+  })).toHaveAttribute('aria-pressed', 'true');
 });
