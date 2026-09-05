@@ -91,6 +91,7 @@ export type PendingCommand =
       readonly payload: {
         readonly sessionId: string;
         readonly shipId: string;
+        readonly roleId: string;
       };
       readonly createdAt: string;
     };

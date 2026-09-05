@@ -4,7 +4,7 @@ import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
-import { popShipConfetti } from '@/lib/sessionService';
+import { popShipConfetti, refreshPresence } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -33,12 +33,21 @@ export default function ShipConsole() {
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
+  const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
     (command) => command.kind === 'popShipConfetti' &&
       command.payload.sessionId === session.id && command.payload.shipId === ship.id,
   ));
   const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
+
+  useEffect(() => {
+    if (!consoleRole) return;
+    void refreshPresence(consoleRole.id).catch(() => undefined);
+    return () => {
+      void refreshPresence(null).catch(() => undefined);
+    };
+  }, [consoleRole]);
 
   useEffect(() => {
     if (!session?.id || !ship) return;
@@ -78,11 +87,12 @@ export default function ShipConsole() {
   ) return <Navigate to="/console" replace />;
 
   async function activate(): Promise<void> {
-    if (!ship || spent || queued || activating) return;
+    if (!ship || !consoleRole || spent || queued || activating) return;
     setActivating(true);
     try {
-      await popShipConfetti(ship.id);
-      setCoverOpen(false);
+      const result = await popShipConfetti(ship.id, consoleRole.id);
+      setAwaitingSecondOfficer(result === 'awaiting-officer');
+      if (result !== 'awaiting-officer') setCoverOpen(false);
     } catch {
       // The shared interception notice reports races and connectivity failures.
     } finally {
@@ -149,7 +159,7 @@ export default function ShipConsole() {
               : queued
                 ? 'Emergency Bridge Confetti Dispenser activation queued'
                 : 'Activate Emergency Bridge Confetti Dispenser'}
-            disabled={!coverOpen || spent || queued || activating}
+            disabled={!coverOpen || !consoleRole || spent || queued || activating}
             onClick={() => void activate()}
           >
             {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -170,7 +180,11 @@ export default function ShipConsole() {
         </p>
         {!spent && !queued && (
           <p className="confetti-dispenser__notice" role="status">
-            COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE
+            {awaitingSecondOfficer
+              ? 'AUTHORIZATION HELD // SECOND PERSON MUST PRESS TO FIRE THE CANNON'
+              : consoleRole
+                ? 'COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE'
+                : 'SELECT A COMMAND ROLE TO OPERATE THE CANNON'}
           </p>
         )}
         </section>

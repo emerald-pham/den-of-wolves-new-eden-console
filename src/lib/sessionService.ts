@@ -32,7 +32,7 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/unknown',
 ]);
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
-export type CommandDisposition = 'applied' | 'queued';
+export type CommandDisposition = 'applied' | 'queued' | 'awaiting-officer';
 
 function errorCode(cause: unknown): string | undefined {
   if (typeof cause !== 'object' || cause === null || !('code' in cause)) return undefined;
@@ -126,6 +126,10 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     if (roleIds) store.setSession({ ...store.session, activeRoleIds: roleIds });
   }
   if (command.kind === 'popShipConfetti' && store.session?.id === command.payload.sessionId) {
+    if (
+      typeof result === 'object' && result !== null && 'status' in result &&
+      result.status === 'awaiting-officer'
+    ) return;
     if (command.payload.shipId === 'snn-press-shuttle') return;
     const used = store.session.confettiUsedShipIds ?? [];
     if (!used.includes(command.payload.shipId)) {
@@ -146,7 +150,12 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
   }
   try {
     await ensureSignedIn();
-    applyCommandResult(command, await executeCommand(command));
+    const result = await executeCommand(command);
+    applyCommandResult(command, result);
+    if (
+      command.kind === 'popShipConfetti' && typeof result === 'object' && result !== null &&
+      'status' in result && result.status === 'awaiting-officer'
+    ) return 'awaiting-officer';
     return 'applied';
   } catch (cause) {
     if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
@@ -302,15 +311,19 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
   return (await call({ sessionId: session.id })).data;
 }
 
-export async function refreshPresence(): Promise<void> {
+export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
   await ensureSignedIn();
   const session = useSessionStore.getState().session;
   if (!session) return;
-  const call = httpsCallable<{ sessionId: string }, { sessionId: string }>(
+  const call = httpsCallable<{
+    sessionId: string; activeConsoleRoleId?: string | null;
+  }, { sessionId: string }>(
     functions(),
     'refreshPresence',
   );
-  await call({ sessionId: session.id });
+  await call(activeConsoleRoleId === undefined
+    ? { sessionId: session.id }
+    : { sessionId: session.id, activeConsoleRoleId });
 }
 
 export async function reconcileGmAuthority(): Promise<void> {
@@ -495,13 +508,13 @@ export async function assignWolfRoles(roleIds: readonly string[]): Promise<reado
   }
 }
 
-export async function popShipConfetti(shipId: string): Promise<CommandDisposition> {
+export async function popShipConfetti(shipId: string, roleId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before using the dispenser.');
   return sendOrQueue({
     id: commandId(),
     kind: 'popShipConfetti',
-    payload: { sessionId: store.session.id, shipId },
+    payload: { sessionId: store.session.id, shipId, roleId },
     createdAt: new Date().toISOString(),
   });
 }

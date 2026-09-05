@@ -110,10 +110,12 @@ export function requireGmControlsLockRequest(data: {
 export function requireShipConfettiRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;
-}): { sessionId: string; shipId: string } {
+  roleId?: unknown;
+}): { sessionId: string; shipId: string; roleId: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     shipId: requiredId(data.shipId, 'shipId'),
+    roleId: requiredId(data.roleId, 'roleId'),
   };
 }
 

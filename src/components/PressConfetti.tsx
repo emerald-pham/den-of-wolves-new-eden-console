@@ -56,7 +56,7 @@ export default function PressConfetti() {
     if (queued || firing) return;
     setFiring(true);
     try {
-      await popShipConfetti('snn-press-shuttle');
+      await popShipConfetti('snn-press-shuttle', 'press-officer');
       setCoverOpen(false);
     } catch {
       // The shared interception notice reports races and connectivity failures.

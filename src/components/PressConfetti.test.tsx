@@ -33,7 +33,7 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
   )).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));
   await user.click(screen.getByRole('button', { name: /activate newspaper confetti/i }));
-  expect(popShipConfetti).toHaveBeenCalledWith('snn-press-shuttle');
+  expect(popShipConfetti).toHaveBeenCalledWith('snn-press-shuttle', 'press-officer');
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
     's1', 'snn-press-shuttle', expect.any(Function), expect.any(Function),
   ));

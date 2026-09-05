@@ -98,6 +98,7 @@ export interface ShipConfettiEvent {
   readonly shipId: Id;
   readonly shipName: string;
   readonly actorName: string;
+  readonly actorRoleName: string;
   readonly createdAt: Timestamp;
 }
 

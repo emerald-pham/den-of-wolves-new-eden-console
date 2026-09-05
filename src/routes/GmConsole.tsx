@@ -512,7 +512,7 @@ export default function GmConsole() {
                   <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
                   <span>{event.type === 'fullscreen-alert'
                     ? `${event.sourceRoleName} // FULLSCREEN ALERT // ${event.message}`
-                    : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorName}`}</span>
+                    : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
               ))}
             </ul>

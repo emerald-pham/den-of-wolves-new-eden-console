@@ -368,21 +368,30 @@ describe('GM instance commands', () => {
   });
 
   it('activates a ship confetti dispenser and records its spent state', async () => {
-    const callable = callableReturning({ data: { shipId: 'aegis' } });
+    const callable = callableReturning({ data: { shipId: 'aegis', status: 'fired' } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await popShipConfetti('aegis');
+    await popShipConfetti('aegis', 'admiral');
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'popShipConfetti');
-    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis' });
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' });
     expect(useSessionStore.getState().session?.confettiUsedShipIds).toEqual(['aegis']);
+  });
+
+  it('does not spend the dispenser when one officer is waiting for a second', async () => {
+    const callable = callableReturning({ data: { shipId: 'dione', status: 'awaiting-officer' } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(popShipConfetti('dione', 'dione-engineer')).resolves.toBe('awaiting-officer');
+
+    expect(useSessionStore.getState().session?.confettiUsedShipIds ?? []).toEqual([]);
   });
 
   it('does not mark the reusable SNN evidence shredder spent', async () => {
     const callable = callableReturning({ data: { shipId: 'snn-press-shuttle' } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await popShipConfetti('snn-press-shuttle');
+    await popShipConfetti('snn-press-shuttle', 'press-officer');
 
     expect(useSessionStore.getState().session?.confettiUsedShipIds ?? []).toEqual([]);
   });

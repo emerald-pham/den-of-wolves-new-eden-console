@@ -382,7 +382,7 @@ it('locks and unlocks subsequent GM registration without locking Setup', async (
 it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {
   let publish: ((events: readonly [{
     id: string; sessionId: string; type: 'ship-confetti'; shipId: string;
-    shipName: string; actorName: string; createdAt: string;
+    shipName: string; actorName: string; actorRoleName: string; createdAt: string;
   }]) => void) | undefined;
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -396,12 +396,13 @@ it('shows Emergency Bridge Confetti Dispenser activations in the console log', a
 
   act(() => publish?.([{
       id: 'event-1', sessionId: 's1', type: 'ship-confetti', shipId: 'quellon',
-      shipName: 'Quellon', actorName: 'Player', createdAt: '2026-01-01T00:02:00.000Z',
+      shipName: 'Quellon', actorName: 'Player', actorRoleName: 'Explorer',
+      createdAt: '2026-01-01T00:02:00.000Z',
   }]));
 
-  await screen.findByText(/quellon.*emergency bridge confetti dispenser.*player/i);
+  await screen.findByText(/quellon.*emergency bridge confetti dispenser.*explorer.*player/i);
   expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
-    /quellon.*emergency bridge confetti dispenser.*player/i,
+    /quellon.*emergency bridge confetti dispenser.*explorer.*player/i,
   );
 });
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  confettiActivationDecision,
   canPopShipConfetti,
   confettiSignalTargets,
   isFleetShipId,
@@ -8,6 +9,41 @@ import {
 } from './shipConfetti';
 
 describe('Emergency Bridge Confetti Dispenser policy', () => {
+  it('requires two distinct non-captains on an ordinary ship', () => {
+    expect(confettiActivationDecision(
+      'dione', 'dione-engineer', 'u1', [], ['u1', 'u2'],
+    )).toEqual({
+      kind: 'awaiting-officer',
+      approvals: [{ roleId: 'dione-engineer', uid: 'u1' }],
+    });
+    expect(confettiActivationDecision('dione', 'dione-president', 'u2', [
+      { roleId: 'dione-engineer', uid: 'u1' },
+    ], ['u1', 'u2'])).toEqual({ kind: 'fire', actorRoleName: 'Engineer + President' });
+    expect(confettiActivationDecision('dione', 'dione-president', 'u1', [
+      { roleId: 'dione-engineer', uid: 'u1' },
+    ], ['u1', 'u2'])).toEqual({
+      kind: 'awaiting-officer',
+      approvals: [{ roleId: 'dione-engineer', uid: 'u1' }],
+    });
+  });
+
+  it('lets the only connected non-captain fire an ordinary ship', () => {
+    expect(confettiActivationDecision('dione', 'dione-engineer', 'u1', [], ['u1']))
+      .toEqual({ kind: 'fire', actorRoleName: 'Engineer' });
+  });
+
+  it('lets a captain, or Capybara single non-captain, fire immediately', () => {
+    expect(confettiActivationDecision('dione', 'dione-captain', 'u1', []))
+      .toEqual({ kind: 'fire', actorRoleName: 'Captain' });
+    expect(confettiActivationDecision('capybara', 'capybara-recycler', 'u1', []))
+      .toEqual({ kind: 'fire', actorRoleName: 'Capybara Recycler' });
+  });
+
+  it('rejects roles that do not belong to the ship', () => {
+    expect(() => confettiActivationDecision('dione', 'quellon-engineer', 'u1', []))
+      .toThrow(/role.*ship/i);
+  });
+
   it('recognizes only ships in the fleet', () => {
     expect(isFleetShipId('aegis')).toBe(true);
     expect(isFleetShipId('snn-press-shuttle')).toBe(true);

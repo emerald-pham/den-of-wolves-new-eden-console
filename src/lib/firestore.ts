@@ -205,6 +205,7 @@ export function subscribeSessionEvents(
         shipId: data.shipId as string,
         shipName: data.shipName as string,
         actorName: data.actorName as string,
+        actorRoleName: data.actorRoleName as string,
         createdAt: iso(data.createdAt),
       }];
     })),

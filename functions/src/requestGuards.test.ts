@@ -135,11 +135,11 @@ describe('callable request guards', () => {
 
   it('requires session and ship ids for a confetti activation', () => {
     expectHttpsError(
-      () => requireShipConfettiRequest({ sessionId: 's1', shipId: '' }),
+      () => requireShipConfettiRequest({ sessionId: 's1', shipId: '', roleId: 'admiral' }),
       'invalid-argument',
     );
-    expect(requireShipConfettiRequest({ sessionId: 's1', shipId: 'aegis' }))
-      .toEqual({ sessionId: 's1', shipId: 'aegis' });
+    expect(requireShipConfettiRequest({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' }))
+      .toEqual({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' });
   });
 
   it('requires an allow-listed role and boolean wolf setting', () => {

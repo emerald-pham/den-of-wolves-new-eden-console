@@ -7,6 +7,7 @@ import ShipConsole from './ShipConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
+  refreshPresence: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -14,10 +15,13 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { popShipConfetti } = await import('@/lib/sessionService');
+const { refreshPresence } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
 
 beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset();
+  vi.mocked(refreshPresence).mockReset();
+  vi.mocked(refreshPresence).mockResolvedValue(undefined);
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   useSessionStore.getState().reset();
@@ -54,7 +58,7 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByRole('link', { name: /leave ship/i })).toHaveAttribute('href', '/console');
   expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i })).toBeDisabled();
-  expect(screen.getByRole('status')).toHaveTextContent(/captain authority required.*two officers may override/i);
+  expect(screen.getByRole('status')).toHaveTextContent(/select a command role.*operate the cannon/i);
   expect(screen.queryByText(/engineer|recycler/i)).not.toBeInTheDocument();
   expect(screen.getByRole('region', { name: /shuttlebay/i })).toBeInTheDocument();
   const instruments = screen.getByRole('complementary', { name: /capybara instruments/i });
@@ -95,6 +99,7 @@ it.each([
 
   expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
   expect(screen.getByText(roleName)).toBeInTheDocument();
+  expect(refreshPresence).toHaveBeenCalledWith(roleId);
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
       's1', 'aegis', expect.any(Function), expect.any(Function),
     ));
@@ -177,8 +182,8 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
     return 'applied';
   });
   const { container } = render(
-    <MemoryRouter initialEntries={['/ships/aegis']}>
-      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
@@ -188,11 +193,29 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
   }));
   act(() => signal?.('aegis'));
 
-  expect(popShipConfetti).toHaveBeenCalledWith('aegis');
+  expect(popShipConfetti).toHaveBeenCalledWith('aegis', 'admiral');
   expect(screen.getByRole('button', { name: /emergency bridge confetti dispenser spent/i }))
     .toBeDisabled();
   expect(screen.getByText(/one use.*empty/i)).toBeInTheDocument();
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
+});
+
+it('tells a lone non-captain that a second person must fire the cannon', async () => {
+  const user = userEvent.setup();
+  vi.mocked(popShipConfetti).mockResolvedValue('awaiting-officer');
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: /open confetti activation cover/i }));
+  await user.click(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }));
+
+  expect(popShipConfetti).toHaveBeenCalledWith('dione', 'dione-engineer');
+  expect(screen.getByRole('status')).toHaveTextContent(/second person.*fire.*cannon/i);
+  expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }))
+    .toBeEnabled();
 });
 
 it('fires newspapers on the bridge when the docked SNN shuttle holds the presses', async () => {
@@ -220,8 +243,8 @@ it('locks the trigger while the one-shot activation is in flight', async () => {
     finish = () => resolve('applied');
   }));
   render(
-    <MemoryRouter initialEntries={['/ships/dione']}>
-      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
@@ -242,7 +265,7 @@ it('keeps an offline one-shot activation locked while it is queued', () => {
   useSessionStore.getState().enqueueCommand({
     id: 'command-1',
     kind: 'popShipConfetti',
-    payload: { sessionId: 's1', shipId: 'icebreaker' },
+    payload: { sessionId: 's1', shipId: 'icebreaker', roleId: 'icebreaker-captain' },
     createdAt: new Date().toISOString(),
   });
   render(

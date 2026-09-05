@@ -15,9 +15,11 @@ import { mayClaimGmInstance } from './gmControlsLock';
 import {
   FLEET_SHIP_NAMES,
   canPopShipConfetti,
+  confettiActivationDecision,
   confettiSignalTargets,
   isFleetShipId,
   isReusableConfettiSource,
+  isOfficerRoleForShip,
   isShipDispenserSignal,
   shouldLogShipConfettiEvent,
 } from './shipConfetti';
@@ -811,7 +813,9 @@ export const assignWolfRoles = onCall<{
 });
 
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
-export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(async (request) => {
+export const popShipConfetti = onCall<{
+  sessionId?: string; shipId?: string; roleId?: string;
+}>(async (request) => {
   const uid = requireUid(request.auth);
   const activation = requireShipConfettiRequest(request.data ?? {});
   const shipId = activation.shipId;
@@ -821,16 +825,46 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
   const sessionRef = db.doc(`sessions/${activation.sessionId}`);
   const playerRef = db.doc(`sessions/${activation.sessionId}/players/${uid}`);
   const eventRef = db.collection(`sessions/${activation.sessionId}/events`).doc();
+  const approvalRef = db.doc(`sessions/${activation.sessionId}/shipConfettiApprovals/${shipId}`);
+  const connectedPlayersQuery = db.collection(`sessions/${activation.sessionId}/players`)
+    .where('connected', '==', true);
 
-  await db.runTransaction(async (tx) => {
-    const [session, player] = await Promise.all([
+  const status = await db.runTransaction(async (tx): Promise<'fired' | 'awaiting-officer'> => {
+    const [session, player, approval, connectedPlayers] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
+      tx.get(approvalRef),
+      tx.get(connectedPlayersQuery),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
+    }
+    const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
+      DEFAULT_ACTIVE_ROLE_IDS;
+    if (!activeRoleIds.includes(activation.roleId)) {
+      throw new HttpsError('failed-precondition', 'That role is not active in this session.');
+    }
+    let decision;
+    try {
+      decision = confettiActivationDecision(
+        shipId,
+        activation.roleId,
+        uid,
+        (approval.get('approvals') as Array<{ uid: string; roleId: string }> | undefined) ?? [],
+        [uid, ...connectedPlayers.docs
+          .filter((connectedPlayer) => isOfficerRoleForShip(
+            connectedPlayer.get('activeConsoleRoleId'), shipId,
+          ))
+          .map((connectedPlayer) => connectedPlayer.id)],
+      );
+    } catch {
+      throw new HttpsError('permission-denied', 'That role cannot fire this ship dispenser.');
+    }
+    if (decision.kind === 'awaiting-officer') {
+      tx.set(approvalRef, { approvals: decision.approvals, updatedAt: FieldValue.serverTimestamp() });
+      return 'awaiting-officer';
     }
     const signalRefs = confettiSignalTargets(
       shipId,
@@ -854,6 +888,7 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
       shipName: FLEET_SHIP_NAMES[shipId],
       actorUid: uid,
       actorName: cleanName(player.get('displayName'), 'Player', 40),
+      actorRoleName: decision.actorRoleName,
       createdAt: FieldValue.serverTimestamp(),
     };
     tx.update(sessionRef, reusable ? {
@@ -864,10 +899,12 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
     });
     if (reusable) signalRefs.forEach((signalRef) => tx.set(signalRef, event));
     else tx.create(signalRefs[0]!, event);
+    tx.delete(approvalRef);
     if (shouldLogShipConfettiEvent(shipId)) tx.create(eventRef, event);
+    return 'fired';
   });
 
-  return { shipId };
+  return { shipId, status };
 });
 
 /** Connected-player count used for the last-player disconnect warning. */
@@ -883,7 +920,9 @@ export const getSessionPresence = onCall<{ sessionId?: string }>(async (request)
 });
 
 /** Renew the short server-side lease that distinguishes live devices from ghosts. */
-export const refreshPresence = onCall<{ sessionId?: string }>(async (request) => {
+export const refreshPresence = onCall<{
+  sessionId?: string; activeConsoleRoleId?: string | null;
+}>(async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
@@ -893,7 +932,19 @@ export const refreshPresence = onCall<{ sessionId?: string }>(async (request) =>
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
     }
-    tx.update(playerRef, { lastSeenAt: FieldValue.serverTimestamp() });
+    const presenceUpdate: Record<string, unknown> = {
+      lastSeenAt: FieldValue.serverTimestamp(),
+    };
+    if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
+    else if (typeof request.data?.activeConsoleRoleId === 'string') {
+      const activeRoleIds = (await tx.get(db.doc(`sessions/${sessionId}`)))
+        .get('activeRoleIds') as string[] | undefined;
+      if (!(activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(request.data.activeConsoleRoleId)) {
+        throw new HttpsError('failed-precondition', 'That console role is not active.');
+      }
+      presenceUpdate.activeConsoleRoleId = request.data.activeConsoleRoleId;
+    }
+    tx.update(playerRef, presenceUpdate);
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
   return { sessionId };
