@@ -107,15 +107,22 @@ that is a different, flatter instrument.
    - Parallels: `rotateX(90deg) translateZ(lift × radius) scale(girth)` where a
      ring at latitude *p* has `girth = cos(p)` and `lift = sin(p)`; use ±60, ±30, 0.
    - Limb: one untransformed circle at higher contrast — the silhouette.
-5. **Sweep.** One ring — `border-radius: 50%`, 2px rim, barely any fill —
-   sweeping as widely as a single circle can. It animates `rotateX` over
-   `--plot-turn` inside a gimbal animating `rotateY` over `2 × --plot-turn`, so
-   the vertical turn runs at half the rate of the horizontal one and the ring's
-   plane precesses instead of retracing the same pass. One element cannot carry
-   two rotations at two rates, which is why the gimbal is a wrapper rather than
-   a second transform. Edge-on the ring compresses to a bright line, which is
-   correct.
-6. **Contacts.** The component converts spherical coordinates to unitless
+5. **Sweep.** Two discs — `border-radius: 50%`, faint radial fill, bright rim.
+   One animates `rotateY` over `--plot-turn` (14s), the other `rotateX` over
+   `1.7 × --plot-turn` at 0.45 opacity, so the scan is spherical rather than a
+   spinning floor and the two never line up the same way twice. Both are
+   children of the boost stage. Edge-on a disc compresses to a bright line,
+   which is correct. These rates were chosen by eye and they work; a single
+   precessing ring was tried and looked worse.
+6. **Colour.** `--plot-ink` and `--plot-hot` are registered with `@property` as
+   `<color>`, which is the only reason the board can change colour smoothly.
+   Almost nothing on it is a transitionable property in its own right — the
+   sweep fill and the drop lines are gradients, the glows are box-shadows, the
+   cage is a `color-mix()` — but all of it derives from those two, so animating
+   the properties re-derives the whole board frame by frame. `initial-value`
+   has to be a literal, so it duplicates `--cic-cyan`/`--cic-cyan-hot`; keep
+   them in step.
+7. **Contacts.** The component converts spherical coordinates to unitless
    custom properties, and the stylesheet only ever multiplies by the radius:
 
    ```
@@ -131,11 +138,11 @@ that is a different, flatter instrument.
    Also passed: `--depth` = `(z + 1) / 2` for opacity falloff, `--drop` =
    `|y|` and `--flip` = ±1 for the altitude line down to the equatorial plane,
    and `--phase` = `(bearing mod 180) / 180`.
-7. **Paint flare.** The sweep is a plane, so it crosses a bearing twice per
+8. **Paint flare.** The sweep is a plane, so it crosses a bearing twice per
    turn: blips animate over `calc(var(--plot-turn) / 2)` with
    `animation-delay: calc(var(--phase) * var(--plot-turn) / -2)`, so each one
    flares as the disc reaches it.
-8. **Contacts are hand-placed, never random.** A randomised board rearranges
+9. **Contacts are hand-placed, never random.** A randomised board rearranges
    itself on re-render.
 
 ### Threat state
@@ -145,16 +152,24 @@ raises `--plot-glow` to 1, and adds the INBOUND tracks, which close from the
 skin of the sphere to its centre over 5s — matching the intrusion. The centre
 of the sphere is where we are.
 
-**Never speed the ring up by changing `--plot-turn`.** Changing
-`animation-duration` mid-turn recomputes progress as `elapsed / duration`, so
-the ring snaps to a new angle the instant the rate changes, and snaps again on
-the way back. The base rotations keep one rate forever. The urgency comes from
-`.contact-plot__boost`, a separate wrapper that is inert until the threat
-state, then eases up from rest and back down onto 1440° — four whole turns,
-which is the orientation it started from, so removing the animation moves
-nothing. Same principle everywhere else: the palette turnover transitions over
-700ms, and contacts carry a 1400ms transform transition so the inbound tracks
-glide back out to station rather than being dropped there.
+**Never speed the discs up by changing `--plot-turn`.** Changing
+`animation-duration` mid-turn recomputes progress as `elapsed / duration`, so a
+disc snaps to a new angle the instant the rate changes, and snaps again on the
+way back. The base rotations keep one rate forever. The urgency comes from
+`.contact-plot__boost`, a wrapper that is inert until the threat state, then
+eases up from rest and back down onto 1440° — four whole turns, the same
+orientation it started from, so removing the animation moves nothing. It runs
+4.6s against a 5s threat window, finishing before the state clears so it can
+never be removed part-way through a turn, and its easing
+(`cubic-bezier(0.5, 0, 0.15, 1)`) spends far longer winding down than spinning
+up. A small `x2` is what makes that tail long.
+
+**The threat flares in and settles out.** A transition is read from the state
+being moved *to*, so the durations live in two places on purpose: the threat
+rule carries 220–260ms so red arrives like an alarm, and the base rule carries
+1400–1600ms so blue comes back as a settle. Contacts also carry a 1400ms
+transform transition, so the inbound tracks glide back out to station rather
+than being dropped there.
 
 ### Motion
 
@@ -163,6 +178,35 @@ All movement is CSS: no render loop, no canvas, no timers. `data-still="true"`
 the board dead rather than slowing it; the still selectors are written to
 outrank the threat-state rules. Tuning knobs are `--plot-size`, `--plot-turn`,
 `--plot-glow`, `--plot-ink` and `--plot-hot`.
+
+## Screen crossings
+
+`<ScreenFade>{(screen) => <Routes location={screen}>…</Routes>}</ScreenFade>` —
+src/components/ScreenFade.tsx, styled in src/index.css. Every change of screen
+fades out and back in: `SCREEN_FADE_MS` each way, two tenths of a second in
+total. The constant and the CSS duration are the same figure in two places; move
+both.
+
+It takes a function rather than plain children because `Routes` reads the
+location from context — an already-rendered element is no help, since it would
+re-render against the new location the instant navigation happened. The delayed
+location has to be handed back and passed to `Routes` explicitly.
+
+**What does not cross:** the app header, the settings menu inside it, and the
+contact plot. Header chrome persists between screens, and the board is the room
+the interface sits in rather than part of any one screen. All three are
+siblings of the fade wrapper, not children.
+
+`.screen-fade` is `position: relative; z-index: 1` deliberately. An opacity
+below 1 makes it a stacking context, and an unpositioned stacking context paints
+in the in-flow layer — underneath the contact plot at `z-index: 0` — so the
+board would jump in front of the interface for the length of every crossing.
+
+Navigation that lands on the screen already showing is not a crossing: a
+`replace`, or a route guard redirecting back to where we already are, compares
+equal by pathname and is ignored. Under reduced motion the outgoing screen is
+held at full opacity instead of being faded, because without the transition a
+fade to zero is a flash rather than a fade.
 
 ## Intrusion / hostile takeover
 

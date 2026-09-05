@@ -1,3 +1,20 @@
+/* The board's two colours are registered so they can be transitioned. Almost
+   nothing on the board is a transitionable property in its own right -- the
+   sweep fill and the drop lines are gradients, the glows are box-shadows, the
+   cage is a colour-mix -- but every one of them is derived from these two, so
+   animating the properties re-derives the whole board frame by frame. The
+   initial values have to be literals; they mirror --cic-cyan/--cic-cyan-hot. */
+@property --plot-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #46c8de;
+}
+@property --plot-hot {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #8ceaf8;
+}
+
 /* ---------------------------------------------------------------------------
    Contact plot -- a wireframe sphere with a flat disc sweeping through it.
    Paired with src/components/ContactPlot.tsx. Recipe in docs/AESTHETICS.md.
@@ -31,7 +48,13 @@
   perspective: 130vmin;
   perspective-origin: 50% 44%;
   opacity: var(--plot-glow);
-  transition: opacity 900ms ease;
+  /* This is the transition off the threat state, because a transition is read
+     from the state being moved *to*. Coming back is a long settle; going
+     hostile is a flare, and that duration lives on the threat rule. */
+  transition:
+    opacity 1400ms ease,
+    --plot-ink 1600ms ease,
+    --plot-hot 1600ms ease;
 
   /* The board dissolves toward the edges instead of ending at a hard rim. */
   -webkit-mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
@@ -74,7 +97,6 @@
   inset: 0;
   border: 1px solid color-mix(in srgb, var(--plot-ink) 40%, transparent);
   border-radius: 50%;
-  transition: border-color 700ms ease;
 }
 
 .contact-plot__meridian {
@@ -95,48 +117,45 @@
 }
 
 /* The sweep -----------------------------------------------------------------
-   One ring, sweeping as widely as a single circle can. It turns about the
-   horizontal axis inside a gimbal turning about the vertical one at half the
-   rate, so its plane precesses and never retraces the same pass. A single
-   element cannot carry two rotations at two rates, which is why the gimbal and
-   the boost stage exist as wrappers. */
+   Two discs on different axes at different rates, so the scan is spherical
+   rather than a spinning floor and the two never line up the same way twice.
+   Both hang off the boost stage, which is what changes their rate under
+   threat. Edge-on a disc compresses to a bright line, which is correct. */
 
-.contact-plot__boost,
-.contact-plot__gimbal {
+.contact-plot__boost {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-}
-
-.contact-plot__gimbal {
-  animation: plot-precess calc(var(--plot-turn) * 2) linear infinite;
 }
 
 .contact-plot__sweep {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--plot-hot) 85%, transparent);
+  border: 1px solid color-mix(in srgb, var(--plot-hot) 70%, transparent);
   background: radial-gradient(
     circle at 50% 50%,
-    transparent 0 62%,
-    color-mix(in srgb, var(--plot-hot) 12%, transparent) 100%
+    color-mix(in srgb, var(--plot-hot) 3%, transparent) 0 34%,
+    color-mix(in srgb, var(--plot-hot) 22%, transparent) 100%
   );
-  box-shadow:
-    0 0 44px color-mix(in srgb, var(--plot-hot) 20%, transparent),
-    inset 0 0 44px color-mix(in srgb, var(--plot-hot) 10%, transparent);
+  box-shadow: 0 0 50px color-mix(in srgb, var(--plot-hot) 14%, transparent);
   animation: plot-sweep var(--plot-turn) linear infinite;
-  transition: border-color 700ms ease;
+}
+
+.contact-plot__sweep--polar {
+  opacity: 0.45;
+  animation-name: plot-sweep-polar;
+  animation-duration: calc(var(--plot-turn) * 1.7);
 }
 
 @keyframes plot-sweep {
   to {
-    transform: rotateX(360deg);
+    transform: rotateY(360deg);
   }
 }
-@keyframes plot-precess {
+@keyframes plot-sweep-polar {
   to {
-    transform: rotateY(360deg);
+    transform: rotateX(360deg);
   }
 }
 
@@ -225,6 +244,11 @@
   --plot-ink: var(--cic-hostile);
   --plot-hot: var(--cic-ember);
   --plot-glow: 1;
+  /* Snap to red, settle back to blue: the base rule owns the slow return. */
+  transition:
+    opacity 220ms ease,
+    --plot-ink 260ms ease,
+    --plot-hot 260ms ease;
 }
 
 /* The ring picks up speed rather than jumping to it. Changing
@@ -235,7 +259,7 @@
    a whole number of turns, which is the orientation it started from. Nothing
    moves discontinuously at either end. */
 .contact-plot[data-hostile='true'] .contact-plot__boost {
-  animation: plot-boost 5s cubic-bezier(0.45, 0, 0.35, 1) both;
+  animation: plot-boost 4.6s cubic-bezier(0.5, 0, 0.15, 1) both;
 }
 
 @keyframes plot-boost {
@@ -281,7 +305,6 @@
   transition: none;
 }
 .contact-plot[data-still='true'] .contact-plot__sweep,
-.contact-plot[data-still='true'] .contact-plot__gimbal,
 .contact-plot[data-still='true'] .contact-plot__blip,
 .contact-plot[data-still='true'] .contact-plot__boost,
 .contact-plot[data-still='true'] .contact-plot__contact[data-inbound='true'] {
@@ -291,7 +314,6 @@
 @media (prefers-reduced-motion: reduce) {
   .contact-plot,
   .contact-plot__sweep,
-  .contact-plot__gimbal,
   .contact-plot__boost,
   .contact-plot__blip,
   .contact-plot__contact,

@@ -7,6 +7,7 @@ import SessionMode from '@/routes/SessionMode';
 import { connect } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ContactPlot from '@/components/ContactPlot';
+import ScreenFade from '@/components/ScreenFade';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -42,13 +43,17 @@ function AppRoutes() {
     <>
       <ContactPlot hostile={intrusion} />
       <AppHeader />
-      <Routes>
-        <Route path="/" element={home} />
-        <Route path="/roles" element={<RoleSelect />} />
-        <Route path="/gm" element={<SessionMode mode="gm" />} />
-        <Route path="/console" element={<SessionMode mode="console" />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <ScreenFade>
+        {(screen) => (
+          <Routes location={screen}>
+            <Route path="/" element={home} />
+            <Route path="/roles" element={<RoleSelect />} />
+            <Route path="/gm" element={<SessionMode mode="gm" />} />
+            <Route path="/console" element={<SessionMode mode="console" />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        )}
+      </ScreenFade>
     </>
   );
 }

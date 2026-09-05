@@ -104,14 +104,17 @@ it('stills a running plot when the reduced-motion preference arrives late', () =
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
 });
 
-it('sweeps the volume with one ring whose plane precesses, not with a pair of discs', () => {
+it('sweeps the volume with two discs on different axes, both riding the boost stage', () => {
   const { container } = render(<ContactPlot />);
-  const rings = container.querySelectorAll('.contact-plot__sweep');
+  const discs = container.querySelectorAll('.contact-plot__sweep');
 
-  expect(rings).toHaveLength(1);
-  // One element cannot animate two rotations at different rates, so the ring
-  // turns on one axis inside a gimbal that turns on the other.
-  expect(rings[0]?.parentElement).toHaveClass('contact-plot__gimbal');
+  expect(discs).toHaveLength(2);
+  expect(discs[1]).toHaveClass('contact-plot__sweep--polar');
+  // Both hang off the stage that ramps the scan rate, so a threat accelerates
+  // the whole sweep rather than one half of it.
+  for (const disc of discs) {
+    expect(disc.parentElement).toHaveClass('contact-plot__boost');
+  }
 });
 
 it('runs full-bleed by default but lets a route inset it instead', () => {
