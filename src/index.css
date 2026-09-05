@@ -589,6 +589,7 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+  transform-origin: top left;
 }
 
 .gm-dradis__viewport {

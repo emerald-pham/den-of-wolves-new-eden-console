@@ -7,11 +7,12 @@ import {
   type PointerEvent,
 } from 'react';
 import ContactPlot from './ContactPlot';
+import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
-export const SHIP_PLOT_RESIZE_MS = 200;
+export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
 
 type ShipPlotStyle = CSSProperties & { '--ship-plot-resize': string };
 

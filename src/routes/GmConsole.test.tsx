@@ -161,6 +161,41 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
   expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
 });
 
+it('eases the GM DRADIS through both expansion and collapse', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  const compact = { left: 600, top: 180, width: 320, height: 420 } as DOMRect;
+  const expanded = { left: 0, top: 0, width: 1200, height: 800 } as DOMRect;
+  const measure = vi.spyOn(dradis, 'getBoundingClientRect')
+    .mockReturnValueOnce(compact)
+    .mockReturnValueOnce(expanded)
+    .mockReturnValueOnce(expanded)
+    .mockReturnValueOnce(compact);
+  const cancel = vi.fn();
+  const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
+  Object.defineProperty(dradis, 'animate', { configurable: true, value: animate });
+
+  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+
+  expect(animate).toHaveBeenNthCalledWith(1, [
+    { transform: 'translate(600px, 180px) scale(0.26666666666666666, 0.525)' },
+    { transform: 'none' },
+  ], { duration: 200, easing: 'ease-in-out' });
+
+  await user.click(screen.getByRole('button', { name: /collapse dradis display/i }));
+
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(animate).toHaveBeenNthCalledWith(2, [
+    { transform: 'translate(-600px, -180px) scale(3.75, 1.9047619047619047)' },
+    { transform: 'none' },
+  ], { duration: 200, easing: 'ease-in-out' });
+  expect(measure).toHaveBeenCalledTimes(4);
+});
+
 it('keeps Capybara convoy setup under a GM Console Setup subsection', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
