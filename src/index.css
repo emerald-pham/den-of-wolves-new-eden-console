@@ -865,6 +865,15 @@ body {
   min-width: 0;
 }
 
+.ship-role-select__flag {
+  width: min(100%, 18rem);
+  height: clamp(9rem, 24vw, 16rem);
+  display: block;
+  margin: 0 0 clamp(1rem, 3vw, 2rem);
+  object-fit: contain;
+  object-position: left center;
+}
+
 .ship-role-select .role-select__grid {
   align-self: stretch;
 }

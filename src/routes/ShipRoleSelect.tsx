@@ -25,11 +25,13 @@ export default function ShipRoleSelect() {
           <Link className="session-mode__back cic-text-button" to="/console">
             Back to fleet
           </Link>
+          <img
+            className="ship-role-select__flag"
+            src={ship.flag}
+            alt={`${ship.nation} flag`}
+          />
           <p className="eyebrow">{session.name} // {ship.name}</p>
           <h1 className="role-select__title">Select command role</h1>
-          <p className="role-select__lede">
-            These stations share the same {ship.name} command console.
-          </p>
         </div>
         <div className="role-select__grid">
           {roles.map((role) => (
@@ -40,7 +42,6 @@ export default function ShipRoleSelect() {
               aria-label={role.name}
             >
               <span className="role-card__name">{role.name}</span>
-              <span className="role-card__description">Shared {ship.name} command view</span>
             </Link>
           ))}
         </div>
