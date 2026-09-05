@@ -36,6 +36,37 @@ npm run test:rules  # security rules, wrapped in the Firestore emulator
 npm run test:all    # both — this is what CI runs
 ```
 
+## Concurrent worktrees and emulator ports
+
+Assume several local worktrees are active at the same time. Never start
+`firebase emulators:start`, `firebase emulators:exec`, `npm run emulators`,
+`npm run test:rules`, or `npm run test:all` in a worktree until that worktree has
+its own complete emulator port set. The defaults in `firebase.json` belong to
+only one worktree at a time; do not let Firebase silently reuse or kill another
+agent's emulator processes.
+
+Coordinate a free slot with the other active agents and announce the slot in
+the task before starting emulators. Use one row as a unit—do not mix ports from
+different rows:
+
+| Slot | Auth | Functions | Firestore | Hosting | UI | Hub | Logging |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 9099 | 5001 | 8080 | 5000 | 4000 | 4400 | 4500 |
+| 1 | 9109 | 5011 | 8090 | 5010 | 4010 | 4410 | 4510 |
+| 2 | 9119 | 5021 | 8100 | 5020 | 4020 | 4420 | 4520 |
+| 3 | 9129 | 5031 | 8110 | 5030 | 4030 | 4430 | 4530 |
+| 4 | 9139 | 5041 | 8120 | 5040 | 4040 | 4440 | 4540 |
+| 5 | 9149 | 5051 | 8130 | 5050 | 4050 | 4450 | 4550 |
+
+Before claiming a row, verify every port in it is free with
+`lsof -nP -iTCP:<port> -sTCP:LISTEN`. Put the chosen values for auth,
+Functions, Firestore, Hosting, Emulator UI, Hub, and Logging in a
+worktree-local Firebase config, and pass it explicitly with `--config` to both
+`firebase emulators:start` and `firebase emulators:exec`. Do not commit a
+developer's port-only config. When a task ends, stop its emulators so the slot
+becomes available. If all rows are occupied, add another row by continuing the
+same +10 offset; never take a port that is already listening.
+
 ### 2. Merge once done
 
 - Branch from `main`. Short-lived, one concern per branch.
