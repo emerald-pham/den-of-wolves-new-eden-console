@@ -1,9 +1,11 @@
+@import "./styles/cic.css";
+
 :root {
-  --bg: #0b0d10;
-  --bg-glow: #131820;
-  --fg: #e8e4dc;
-  --muted: #8b93a1;
-  --accent: #c2603a;
+  --bg: var(--cic-void);
+  --bg-glow: var(--cic-panel);
+  --fg: var(--cic-ink);
+  --muted: var(--cic-muted);
+  --accent: var(--cic-amber);
   color-scheme: dark;
 }
 

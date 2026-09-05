@@ -47,6 +47,11 @@ describe('Landing', () => {
     expect(heading).toHaveTextContent('Unofficial Companion Console');
   });
 
+  it('includes the convoy arrival display', () => {
+    renderLanding();
+    expect(screen.getByLabelText('SHIPS IN CONVOY')).toHaveTextContent('6');
+  });
+
   it('offers the two ways in', () => {
     renderLanding();
     expect(screen.getByRole('button', { name: /create a session/i })).toBeInTheDocument();

@@ -139,3 +139,15 @@ tests/rules/      assertions against the emulator
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys).
 - [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.
+
+## Aesthetic profiles and responsive UI
+
+Before changing UI, read [docs/AESTHETICS.md](docs/AESTHETICS.md). It stores the
+reusable CIC and interrupted-transmission profiles. Use the shared tokens in
+src/styles/cic.css and existing patterns to keep the entire website consistent.
+
+Every screen must work across mobile, laptop, and desktop, in landscape and
+portrait, including screen rotation while open. Use responsive layout, safe-area
+padding, accessible controls, and scrolling on short screens. Verify narrow,
+wide, and short landscape viewports. Honor reduced motion and preserve access
+to underlying controls during decorative effects.
