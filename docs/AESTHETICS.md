@@ -369,6 +369,9 @@ The break-up is a `steps(1, end)` animation on `.contact-plot__jitter`, a layer
 that exists purely so the fault never has to restate where the contact actually
 is — the station transform lives on the contact, the jitter on its child.
 `--phase` desynchronises the five so they never go at once.
+A freshly scanned return holds that station until its 7-second paint flare
+reaches the first dimmed keyframe at 1.12 seconds. A scan during break-up resets
+that hold, so a bright return never jumps before it has partially faded.
 
 Both discs keep their normal speed during intrusions. Threat state changes
 colour and introduces spoofed returns; it does not accelerate the sweep.

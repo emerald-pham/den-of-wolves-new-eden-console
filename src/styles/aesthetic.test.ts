@@ -277,4 +277,12 @@ describe('friendly DRADIS returns', () => {
     expect(plot).toContain('var(--fix-z, 0)');
     expect(plot).not.toContain('@keyframes plot-drift');
   });
+
+  it('delays departure jitter while the latest scan return is still bright', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    expect(plot).toContain("[data-departing='true'][data-scan-fresh='true']");
+    expect(plot).toMatch(
+      /\[data-scan-fresh='true'\][^{]*\{[^}]*animation:\s*none/,
+    );
+  });
 });

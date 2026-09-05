@@ -1,6 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ContactPlot, { SPASM_MS } from './ContactPlot';
+import { SCAN_FRESH_MS } from './sweep';
 
 // The plot is a decorative background layer. It deliberately exposes no role,
 // no accessible name and no meaningful text, so there is nothing to query it
@@ -223,6 +224,7 @@ it('carries no unrelated franchise-specific terminology', () => {
 });
 
 it('acquires and refreshes only when a rendered sweep crosses, including late-added contacts', () => {
+  vi.useFakeTimers();
   let frame: FrameRequestCallback = () => undefined;
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
     frame = callback;
@@ -265,6 +267,11 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
+  act(() => vi.advanceTimersByTime(SCAN_FRESH_MS - 1));
+  expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
+  act(() => vi.advanceTimersByTime(1));
+  expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'false');
   expect(painted.map(({ element }) => element.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
   expect(painted[0]?.keyframes[0]?.transform).toBe('scale(2)');
   const fix = apparent()?.style.cssText;

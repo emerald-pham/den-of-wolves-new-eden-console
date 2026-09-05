@@ -75,7 +75,7 @@ const EXPOSED = 'FALSE';
 /** How long the hostile tracks stay on the board after the intrusion clears,
  *  going to pieces. Long enough for the slowest of them to finish; the CSS
  *  carries the same budget across its duration and its delay. */
-export const SPASM_MS = 2200;
+export const SPASM_MS = 3300;
 
 const MERIDIANS = [0, 30, 60, 90, 120, 150];
 const PARALLELS = [-60, -30, 0, 30, 60];

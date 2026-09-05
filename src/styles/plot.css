@@ -319,6 +319,14 @@
   animation-delay: calc(var(--phase) * 0.25s);
 }
 
+/* A sweep-confirmed return holds its exact station until the flare has reached
+   its first, visibly dimmer keyframe. A later scan can therefore arrest a
+   departure already in progress instead of letting a bright contact jump. */
+.contact-plot__contact[data-departing='true'][data-scan-fresh='true']
+  .contact-plot__jitter {
+  animation: none;
+}
+
 @keyframes plot-spasm {
   0% {
     transform: none;

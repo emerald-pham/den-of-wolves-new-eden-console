@@ -21,6 +21,9 @@ export function rimDistance(point: Vector, normal: Vector, camera: Vector): numb
 
 const BEARING_WALK = [-1, -0.5, 1, 0.5, 0];
 
+/** The paint flare reaches its first dimmed keyframe 16% into a 7s fade. */
+export const SCAN_FRESH_MS = 1120;
+
 /** Display-only error, spanning two degrees around the real Y-axis bearing. */
 export function apparentFix(point: Vector, scan: number): Vector {
   const angle = (BEARING_WALK[scan % BEARING_WALK.length] ?? 0) * Math.PI / 180;
@@ -37,7 +40,12 @@ export function followSweeps(plot: HTMLElement): () => void {
   const rig = plot.querySelector<HTMLElement>('.contact-plot__rig');
   if (!rig) return () => undefined;
   const discs = Array.from(plot.querySelectorAll<HTMLElement>('.contact-plot__sweep'));
-  const returns = new Map<HTMLElement, { fix: Vector; scans: number; paint: Animation[] }>();
+  const returns = new Map<HTMLElement, {
+    fix: Vector;
+    scans: number;
+    paint: Animation[];
+    freshTimer: number | undefined;
+  }>();
   let previous: Vector[] = [];
   let lastFrame = -Infinity;
   let frame = 0;
@@ -67,6 +75,7 @@ export function followSweeps(plot: HTMLElement): () => void {
     for (const [element, state] of returns) {
       if (!plot.contains(element)) {
         state.paint.forEach((animation) => animation.cancel());
+        if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
         returns.delete(element);
       }
     }
@@ -80,7 +89,12 @@ export function followSweeps(plot: HTMLElement): () => void {
         z: Number(element.style.getPropertyValue('--z')),
       };
       const existing = returns.get(element);
-      const state = existing ?? { fix: canonical, scans: index, paint: [] };
+      const state = existing ?? {
+        fix: canonical,
+        scans: index,
+        paint: [],
+        freshTimer: undefined,
+      };
       returns.set(element, state);
       const anchor = apparent.getBoundingClientRect();
       const displayed = inverseRig.transformPoint({
@@ -100,6 +114,12 @@ export function followSweeps(plot: HTMLElement): () => void {
       const firstAcquisition = apparent.dataset.acquired !== 'true';
       state.fix = apparentFix(canonical, state.scans++);
       apparent.dataset.acquired = 'true';
+      element.dataset.scanFresh = 'true';
+      if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
+      state.freshTimer = window.setTimeout(() => {
+        element.dataset.scanFresh = 'false';
+        state.freshTimer = undefined;
+      }, SCAN_FRESH_MS);
       apparent.style.setProperty('--fix-x', String(state.fix.x - canonical.x));
       apparent.style.setProperty('--fix-z', String(state.fix.z - canonical.z));
       state.paint.forEach((animation) => animation.cancel());
@@ -122,6 +142,9 @@ export function followSweeps(plot: HTMLElement): () => void {
   frame = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(frame);
-    returns.forEach((state) => state.paint.forEach((animation) => animation.cancel()));
+    returns.forEach((state) => {
+      state.paint.forEach((animation) => animation.cancel());
+      if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
+    });
   };
 }
