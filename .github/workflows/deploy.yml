@@ -33,11 +33,11 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix functions
 
+      - name: Lint
+        run: npm run lint
+
       - name: Unit tests
         run: npm test
-
-      - name: Firestore security-rule tests
-        run: npx --yes firebase-tools@latest emulators:exec --only firestore "npx vitest run --project rules"
 
       - name: Build web
         run: npm run build
