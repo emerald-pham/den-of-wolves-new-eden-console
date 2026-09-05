@@ -103,7 +103,7 @@ it('groups every ship role by its world of origin without exposing ship actions'
     .toHaveAttribute('href', '/ships/aegis/roles');
 });
 
-it('joins a ship without assigning a shipboard subrole', async () => {
+it('sends every staffed ship through its role picker', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setMode('console');
   render(
@@ -111,14 +111,14 @@ it('joins a ship without assigning a shipboard subrole', async () => {
       <Routes>
         <Route path="/roles" element={<p>Roles route</p>} />
         <Route path="/console" element={<SessionMode mode="console" />} />
-        <Route path="/ships/:shipId" element={<p>Joined ship</p>} />
+        <Route path="/ships/:shipId/roles" element={<p>Ship roles</p>} />
       </Routes>
     </MemoryRouter>,
   );
 
   await user.click(screen.getByRole('link', { name: /join capybara/i }));
 
-  expect(screen.getByText('Joined ship')).toBeInTheDocument();
+  expect(screen.getByText('Ship roles')).toBeInTheDocument();
   expect(useSessionStore.getState().mode).toBe('console');
 });
 

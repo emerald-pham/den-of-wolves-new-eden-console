@@ -3,6 +3,23 @@ export const WOLF_ROLE_IDS = [
   'admiral',
   'executive-officer',
   'wing-commander',
+  'dione-captain',
+  'dione-engineer',
+  'dione-president',
+  'icebreaker-captain',
+  'icebreaker-engineer',
+  'icebreaker-miner',
+  'quellon-captain',
+  'quellon-engineer',
+  'quellon-explorer',
+  'shepherd-captain',
+  'shepherd-engineer',
+  'shepherd-scientist',
+  'refinery-124-captain',
+  'refinery-124-engineer',
+  'refinery-124-pdf-colonel',
+  'capybara-captain',
+  'capybara-recycler',
 ] as const;
 
 /** Fisher-Yates selection with an injected integer source for deterministic tests. */

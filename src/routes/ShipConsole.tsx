@@ -88,9 +88,9 @@ export default function ShipConsole() {
       <section className="ship-console__identity" aria-labelledby="ship-name">
         <Link
           className="ship-console__back cic-text-button"
-          to={ship.id === 'aegis' && roleId ? '/ships/aegis/roles' : '/console'}
+          to={roleId ? `/ships/${ship.id}/roles` : '/console'}
         >
-          {ship.id === 'aegis' && roleId ? 'Change role' : 'Leave ship'}
+          {roleId ? 'Change role' : 'Leave ship'}
         </Link>
         <p className="ship-console__nation">{ship.nation} // {ship.nationShort}</p>
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>

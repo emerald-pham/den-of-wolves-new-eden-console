@@ -269,12 +269,16 @@ describe('App', () => {
     expect(contacts()).not.toContain('AEGIS');
 
     await user.click(screen.getByRole('link', { name: /join quellon/i }));
+    expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: /^captain$/i }));
     expect(await screen.findByRole('heading', { name: 'Quellon' })).toBeInTheDocument();
     expect(center()).toBe('QUELLON');
     expect(contacts()).toContain('AEGIS');
     expect(contacts()).not.toContain('QUELLON');
 
-    await user.click(screen.getByRole('link', { name: /leave ship/i }));
+    await user.click(screen.getByRole('link', { name: /change role/i }));
+    expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
+    await user.click(await screen.findByRole('link', { name: /back to fleet/i }));
     expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
     expect(center()).toBe('AEGIS');
   });
