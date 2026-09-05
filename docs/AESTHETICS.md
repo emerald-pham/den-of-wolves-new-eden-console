@@ -400,6 +400,8 @@ siblings of the fade wrapper, not children.
 below 1 makes it a stacking context, and an unpositioned stacking context paints
 in the in-flow layer — underneath the contact plot at `z-index: 0` — so the
 board would jump in front of the interface for the length of every crossing.
+The moving shared-flag clone stays inside that stacking context, allowing ship
+console instruments to layer above it throughout the crossing.
 
 Navigation that lands on the screen already showing is not a crossing: a
 `replace`, or a route guard redirecting back to where we already are, compares

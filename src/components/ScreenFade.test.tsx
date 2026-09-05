@@ -86,7 +86,10 @@ describe('ScreenFade', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
     act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
 
-    expect(document.querySelector('.shared-flag-transition')).toBeInTheDocument();
+    const movingFlags = document.querySelectorAll('.shared-flag-transition');
+    expect(movingFlags).not.toHaveLength(0);
+    expect([...movingFlags].every((flag) => flag.parentElement?.classList.contains('screen-fade')))
+      .toBe(true);
     expect(SHARED_FLAG_MOVE_MS).toBe(200);
     act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));
     expect(document.querySelector('.shared-flag-transition')).not.toBeInTheDocument();

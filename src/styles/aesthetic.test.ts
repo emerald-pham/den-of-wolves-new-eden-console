@@ -178,6 +178,13 @@ describe('the shuttlecraft console template', () => {
 });
 
 describe('ship console instrument layout', () => {
+  it('keeps ship information above the shared flag during a screen crossing', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const identity = index.match(/\.ship-console__identity\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(identity).toContain('z-index: 21');
+  });
+
   it('eases DRADIS in and out between field, widget and expanded sizes', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const plot = index.match(/\.ship-plot\s*\{([^}]*)\}/)?.[1] ?? '';
