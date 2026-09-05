@@ -143,10 +143,13 @@ describe('the launcher manifest', () => {
     const arrival = SHEETS.find(({ name }) => name === 'src/routes/arrival.css')?.css ?? '';
     const grid = arrival.match(/\.arrival-manifest__grid\s*\{([^}]*)\}/)?.[1] ?? '';
     const readout = arrival.match(/\.arrival-readout\s*\{([^}]*)\}/)?.[1] ?? '';
+    const value = arrival.match(/\.arrival-readout__value\s*\{([^}]*)\}/)?.[1] ?? '';
+    const label = arrival.match(/\.arrival-readout__label\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(grid).toContain('grid-template-rows: minmax(0, 1fr) auto');
-    expect(readout).toContain('grid-template-rows: subgrid');
-    expect(readout).toContain('grid-row: span 2');
+    expect(readout).toContain('display: contents');
+    expect(value).toContain('grid-row: 1');
+    expect(label).toContain('grid-row: 2');
   });
 });
 
