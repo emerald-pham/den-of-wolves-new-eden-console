@@ -24,6 +24,9 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 const PROJECT_ID = 'dow-new-eden-rules-test';
 const SESSION = 'sessions/s1';
 
+const [firestoreHost = '127.0.0.1', firestorePort = '8080'] =
+  (process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:8080').split(':');
+
 let env: RulesTestEnvironment;
 
 beforeAll(async () => {
@@ -31,8 +34,8 @@ beforeAll(async () => {
     projectId: PROJECT_ID,
     firestore: {
       rules: readFileSync('firestore.rules', 'utf8'),
-      host: '127.0.0.1',
-      port: 8080,
+      host: firestoreHost,
+      port: Number(firestorePort),
     },
   });
 });
