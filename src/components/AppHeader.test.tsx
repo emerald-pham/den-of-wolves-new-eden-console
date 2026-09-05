@@ -33,7 +33,7 @@ it('shows the last-player warning inside settings', async () => {
 
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
-  expect(screen.getByText(/build 0\.1\.48/i)).toBeInTheDocument();
+  expect(screen.getByText(/build 0\.1\.49/i)).toBeInTheDocument();
 });
 
 it('shows the system motion setting and lets a player override it', async () => {

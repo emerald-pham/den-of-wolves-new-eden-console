@@ -327,9 +327,14 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
 }
 
 export async function selectConsoleRole(roleId: string): Promise<void> {
-  await refreshPresence(roleId);
-  const store = useSessionStore.getState();
-  if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: roleId });
+  try {
+    await refreshPresence(roleId);
+    const store = useSessionStore.getState();
+    if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: roleId });
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
 }
 
 export async function releaseConsoleRole(): Promise<void> {

@@ -936,7 +936,18 @@ export const refreshPresence = onCall<{
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   await db.runTransaction(async (tx) => {
-    const player = await tx.get(playerRef);
+    const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
+      ? request.data.activeConsoleRoleId
+      : null;
+    const roleHolders = requestedRoleId
+      ? db.collection(`sessions/${sessionId}/players`)
+        .where('activeConsoleRoleId', '==', requestedRoleId)
+      : null;
+    const [player, session, holders] = await Promise.all([
+      tx.get(playerRef),
+      tx.get(db.doc(`sessions/${sessionId}`)),
+      roleHolders ? tx.get(roleHolders) : null,
+    ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
     }
@@ -945,16 +956,22 @@ export const refreshPresence = onCall<{
     };
     if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
-      const activeRoleIds = (await tx.get(db.doc(`sessions/${sessionId}`)))
-        .get('activeRoleIds') as string[] | undefined;
+      const activeRoleIds = session.get('activeRoleIds') as string[] | undefined;
       if (!(activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(request.data.activeConsoleRoleId)) {
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
+      const heldByAnotherPlayer = holders?.docs.some(
+        (holder) => holder.id !== uid && isActivePlayer(holder),
+      ) ?? false;
       if (!canSelectConsoleRole(
         player.get('activeConsoleRoleId') as string | null | undefined,
         request.data.activeConsoleRoleId,
         player.get('role') === 'gm',
+        heldByAnotherPlayer,
       )) {
+        if (heldByAnotherPlayer) {
+          throw new HttpsError('already-exists', 'That console role is already taken.');
+        }
         throw new HttpsError(
           'failed-precondition',
           'Release your current role in settings before selecting another.',

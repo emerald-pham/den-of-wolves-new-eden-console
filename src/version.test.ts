@@ -5,7 +5,7 @@ import { APP_VERSION } from './version';
 it('keeps the visible build reference aligned with the package version', () => {
   const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
   expect(APP_VERSION).toBe(packageJson.version);
-  expect(APP_VERSION).toBe('0.1.48');
+  expect(APP_VERSION).toBe('0.1.49');
 });
 
 it('documents the release-maturity gates for later version numbers', () => {

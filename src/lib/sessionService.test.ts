@@ -420,6 +420,23 @@ describe('command role presence', () => {
     expect(useSessionStore.getState().mode).toBe('console');
     expect(useSessionStore.getState().lastRoute).toBe('/console');
   });
+
+  it('reports when another player already holds the selected role', async () => {
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/already-exists',
+      message: 'That console role is already taken.',
+    }));
+
+    await expect(selectConsoleRole('admiral')).rejects.toMatchObject({
+      code: 'functions/already-exists',
+    });
+
+    expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeUndefined();
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'already-exists',
+      message: 'That console role is already taken.',
+    });
+  });
 });
 
 describe('session lifecycle commands', () => {
