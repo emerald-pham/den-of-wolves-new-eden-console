@@ -32,7 +32,21 @@ it('shows the last-player warning inside settings', async () => {
 
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
-  expect(screen.getByText(/build 0\.1\.28/i)).toBeInTheDocument();
+  expect(screen.getByText(/build 0\.1\.29/i)).toBeInTheDocument();
+});
+
+it('shows the system motion setting and lets a player override it', async () => {
+  const user = userEvent.setup();
+  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 2 });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.getByText(/system reduced motion is off/i)).toBeInTheDocument();
+  const reduceMotion = screen.getByRole('checkbox', { name: /reduce motion/i });
+  await user.click(reduceMotion);
+  expect(reduceMotion).toBeChecked();
+  expect(screen.getByText(/overriding your system setting/i)).toBeInTheDocument();
 });
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {

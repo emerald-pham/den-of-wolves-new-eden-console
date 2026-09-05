@@ -7,6 +7,7 @@ import {
   type PointerEvent,
 } from 'react';
 import ContactPlot from './ContactPlot';
+import { useMotionPreference } from '@/lib/motionPreference';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
@@ -47,6 +48,7 @@ export default function ShipPlot({
   const [displayedViewerId, setDisplayedViewerId] = useState(viewerId);
   const [transitionViewerId, setTransitionViewerId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(true);
+  const { reducedMotion } = useMotionPreference();
   const previousDestination = useRef({ aboard, viewerId });
   const drag = useRef<Drag | null>(null);
 
@@ -55,7 +57,6 @@ export default function ShipPlot({
     previousDestination.current = { aboard, viewerId };
     if (previous.aboard === aboard && previous.viewerId === viewerId) return;
 
-    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (reducedMotion) {
       setDisplayedViewerId(viewerId);
       setTransitionViewerId(null);
@@ -71,7 +72,7 @@ export default function ShipPlot({
       setScanning(true);
     }, SHIP_PLOT_RESIZE_MS);
     return () => window.clearTimeout(arrived);
-  }, [aboard, viewerId]);
+  }, [aboard, viewerId, reducedMotion]);
 
   useEffect(() => {
     if (!aboard) setExpanded(false);

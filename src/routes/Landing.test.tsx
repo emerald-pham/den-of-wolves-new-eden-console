@@ -38,6 +38,7 @@ describe('Landing', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.localStorage.removeItem('new-eden-motion-override');
     vi.mocked(createSession).mockReset();
     vi.mocked(joinSession).mockReset();
   });
@@ -92,6 +93,17 @@ describe('Landing', () => {
     renderLanding();
     expect(screen.getByRole('button', { name: /create a session/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /join a session/i })).toBeInTheDocument();
+  });
+
+  it('lets a player reduce motion from the launcher', async () => {
+    const user = userEvent.setup();
+    renderLanding();
+
+    const control = screen.getByRole('button', { name: /reduce motion.*reduce awesomeness/i });
+    expect(control).toHaveTextContent('😞');
+
+    await user.click(control);
+    expect(screen.getByText(/motion is reduced/i)).toBeInTheDocument();
   });
 
   it('shows the status light as red before Firebase connects', () => {

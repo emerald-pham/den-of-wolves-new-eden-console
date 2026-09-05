@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Intrusion from '@/components/Intrusion';
+import { useMotionPreference } from '@/lib/motionPreference';
 
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
  *  once. The stagger is a third of the cycle, and both scale together. */
@@ -65,7 +66,7 @@ export default function ArrivalDisplay({
   onTransmission?: ((active: boolean) => void) | undefined;
   standDown?: boolean | undefined;
 }) {
-  const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
+  const { reducedMotion } = useMotionPreference();
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
   const [sus, setSus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,22 +77,15 @@ export default function ArrivalDisplay({
   }, [onTransmission]);
 
   useEffect(() => {
-    notify.current?.(message !== null && !paused && !standDown);
-  }, [message, paused, standDown]);
+    notify.current?.(message !== null && !reducedMotion && !standDown);
+  }, [message, reducedMotion, standDown]);
 
   // Leaving the launcher stands the board down; nothing is hunting an unmounted
   // screen.
   useEffect(() => () => notify.current?.(false), []);
 
   useEffect(() => {
-    const preference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    const onChange = (event: MediaQueryListEvent) => { if (event.matches) setPaused(true); };
-    preference?.addEventListener('change', onChange);
-    return () => preference?.removeEventListener('change', onChange);
-  }, []);
-
-  useEffect(() => {
-    if (paused || standDown) { setMessage(null); return; }
+    if (reducedMotion || standDown) { setMessage(null); return; }
     const timers: number[] = [];
     manifests.forEach((manifest, index) => {
       const tick = () => {
@@ -114,10 +108,10 @@ export default function ArrivalDisplay({
     };
     timers.push(window.setTimeout(transmit, 20000));
     return () => timers.forEach(window.clearTimeout);
-  }, [paused, standDown]);
+  }, [reducedMotion, standDown]);
 
   useEffect(() => {
-    if (paused || standDown) { setSus(false); return; }
+    if (reducedMotion || standDown) { setSus(false); return; }
 
     let clearSus: number | undefined;
     const rollForSus = () => {
@@ -131,7 +125,7 @@ export default function ArrivalDisplay({
       window.clearInterval(roll);
       if (clearSus !== undefined) window.clearTimeout(clearSus);
     };
-  }, [paused, standDown]);
+  }, [reducedMotion, standDown]);
 
   return (
     <>
@@ -140,7 +134,7 @@ export default function ArrivalDisplay({
           {manifests.map((manifest, index) => (
             <div className="arrival-readout" key={index}>
               <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
-                <span key={index === 2 && sus ? 'sus' : values[index]} className={paused || standDown ? '' : 'arrival-digit'}>
+                <span key={index === 2 && sus ? 'sus' : values[index]} className={reducedMotion || standDown ? '' : 'arrival-digit'}>
                   {index === 2 && sus ? 'sus' : values[index]}
                 </span>
               </div>
@@ -151,7 +145,7 @@ export default function ArrivalDisplay({
           ))}
         </div>
       </section>
-      {message && !paused && !standDown && <Intrusion message={message} />}
+      {message && !reducedMotion && !standDown && <Intrusion message={message} />}
     </>
   );
 }

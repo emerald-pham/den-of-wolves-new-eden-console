@@ -8,6 +8,7 @@ import {
   releaseGmInstance,
 } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
+import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
 export default function AppHeader() {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ export default function AppHeader() {
     state.pendingCommands.some((command) => command.kind === 'releaseGmInstance'));
   const disconnectQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
+  const { override, reducedMotion, systemReducedMotion } = useMotionPreference();
 
   async function openSettings(): Promise<void> {
     setSettingsOpen(true);
@@ -133,6 +135,28 @@ export default function AppHeader() {
             </div>
             <p>Disconnect this device from session {joinCode}.</p>
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
+            <section className="settings-dialog__motion" aria-labelledby="motion-settings-title">
+              <h3 id="motion-settings-title">Motion</h3>
+              <p>System reduced motion is {systemReducedMotion ? 'on' : 'off'}.</p>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={reducedMotion}
+                  onChange={(event) => setMotionOverride(event.target.checked ? 'reduce' : 'full')}
+                />
+                Reduce motion
+              </label>
+              <p>
+                {override === 'system'
+                  ? 'Following your system setting.'
+                  : 'Overriding your system setting for this console.'}
+              </p>
+              {override !== 'system' && (
+                <button type="button" className="settings-dialog__system" onClick={() => setMotionOverride('system')}>
+                  Use system setting
+                </button>
+              )}
+            </section>
             {connectedPlayers === 1 && (
               <p className="settings-dialog__warning">
                 You’re the last player to leave the server. After seven days of

@@ -1702,7 +1702,7 @@ body {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
+[data-motion='reduce'] {
   .confetti-dispenser__cover { transition: none; }
   .confetti-burst__piece {
     animation-duration: 1ms;
@@ -1722,4 +1722,84 @@ body {
     opacity: 1;
     transition: none;
   }
+}
+
+/* The console preference deliberately has the final say over the OS setting.
+   This makes the accessibility control useful both for opting in and opting
+   out, while the default remains to follow the system. */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  scroll-behavior: auto !important;
+}
+
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+.settings-dialog__motion {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.settings-dialog__motion h3 {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.75rem/1 var(--cic-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.settings-dialog__motion label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.75rem;
+  margin-top: 0.65rem;
+  color: var(--cic-ink);
+  cursor: pointer;
+}
+
+.settings-dialog__system {
+  min-height: 2.5rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: transparent;
+  color: var(--cic-cyan);
+  font: 0.7rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.landing__motion-control {
+  display: block;
+  min-height: 2.75rem;
+  margin: 1.25rem auto 0;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-muted);
+  font: 0.7rem/1.2 var(--cic-mono);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.landing__motion-control:hover,
+.landing__motion-control:focus-visible {
+  border-color: var(--cic-amber);
+  color: var(--cic-amber);
+}
+
+.landing__motion-status {
+  margin: 0.5rem 0 -0.5rem;
+  color: var(--cic-muted);
+  text-align: center;
+  font: 0.7rem/1.4 var(--cic-mono);
 }
