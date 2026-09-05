@@ -49,7 +49,7 @@ import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleCon
 import {
   INITIAL_SHIP_RESOURCES,
   INITIAL_SHIP_UNREST,
-  canAdjustShipResource,
+  canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
   shipResources,
@@ -1277,7 +1277,7 @@ async function requireShipCounterAuthority(
   const player = await tx.get(db.doc(`sessions/${sessionId}/players/${uid}`));
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
   const role = player.get('role');
-  if (gmOnly && !canAdjustShipResource(role, Boolean(instanceId))) {
+  if (gmOnly && !canAdjustShipCounter(role, Boolean(instanceId))) {
     throw new HttpsError('permission-denied', 'Active GM instance required.');
   }
   if (role === 'gm') {
@@ -1335,7 +1335,7 @@ export const adjustShipUnrest = onCall<{
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
-      tx, change.sessionId, uid, change.shipId, change.instanceId,
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');

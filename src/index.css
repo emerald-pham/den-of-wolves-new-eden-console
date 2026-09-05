@@ -1415,7 +1415,7 @@ body {
   outline-offset: 2px;
 }
 
-.ship-unrest {
+.ship-census {
   flex: 0 0 auto;
   padding: 0.75rem;
   border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
@@ -1423,10 +1423,28 @@ body {
   font-family: var(--cic-mono);
 }
 
-.ship-unrest > .ship-counter__controls { margin-top: 0.55rem; }
-.ship-unrest > .ship-counter__controls strong {
+.ship-census__counter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.55rem;
+  color: var(--cic-ink);
+}
+
+.ship-census__counter > strong {
   color: var(--cic-cyan-hot);
   font: 400 1.1rem/1 var(--cic-display);
+}
+
+.ship-census__counter > .ship-unrest__failure { grid-column: 1 / -1; }
+
+.gm-fleet-resource-ship__category {
+  margin: 0.65rem 0 0.25rem;
+  color: var(--cic-ink);
+  font: 0.58rem/1.2 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .ship-unrest__failure {

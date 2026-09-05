@@ -7,7 +7,6 @@ import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
-  adjustShipUnrest,
   popShipConfetti,
   selectConsoleRole,
 } from '@/lib/sessionService';
@@ -55,8 +54,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
   const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
-  const unrestAlertPending = Boolean(ship && session?.unrestAlerts?.[ship.id]);
-  const canAdjustUnrest = Boolean((consoleRole && !observer) || (observer && observerWrite));
 
   useEffect(() => {
     if (!consoleRole || observer) return;
@@ -162,7 +159,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               className="ship-resources cic-frame"
               aria-label={`${ship.name} resource stores`}
             >
-              <p className="ship-resources__eyebrow">Resource stores // GM-controlled live stock</p>
+              <p className="ship-resources__eyebrow">Resource stores</p>
               <ul>
                 {RESOURCE_DEFINITIONS.map((resource) => {
                   const amount = resources[resource.id];
@@ -180,30 +177,22 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             </section>
           )}
           <section
-            className="ship-unrest cic-frame"
-            aria-label={`${ship.name} unrest`}
+            className="ship-census cic-frame"
+            aria-label={`${ship.name} census`}
             data-critical={unrest > 7 ? 'true' : 'false'}
           >
-            <p className="ship-resources__eyebrow">Civil unrest // rated 0–7</p>
-            <div className="ship-counter__controls">
-              <button
-                type="button"
-                aria-label="Decrease unrest"
-                disabled={!canAdjustUnrest || unrest === 0 || unrestAlertPending}
-                onClick={() => void adjustShipUnrest(ship.id, -1)}
-              >−</button>
+            <p className="ship-resources__eyebrow">Census // tracked conditions</p>
+            <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
+              <span className="resource-label">
+                <ResourceIcon id="unrest" label="Civil Unrest" />
+                <span>Civil Unrest</span>
+              </span>
               {unrest > 7 ? (
                 <div className="ship-unrest__failure">
                   <strong>Unrest telemetry failure</strong>
                   <span>Reading exceeds rated maximum // console functions nominal</span>
                 </div>
               ) : <strong>{unrest} / 7</strong>}
-              <button
-                type="button"
-                aria-label="Increase unrest"
-                disabled={!canAdjustUnrest || unrest === 10 || unrestAlertPending}
-                onClick={() => void adjustShipUnrest(ship.id, 1)}
-              >+</button>
             </div>
           </section>
         </div>

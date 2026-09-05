@@ -137,21 +137,21 @@ it('renders changing shared stock as a read-only player instrument', () => {
   expect(adjustShipResource).not.toHaveBeenCalled();
 });
 
-it('shows unrest from zero to seven and lets a staffed console move it', async () => {
+it('tracks civil unrest read-only under census with the resource visual language', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({ ...session, shipUnrest: { capybara: 4 } });
-  const user = userEvent.setup();
   render(
     <MemoryRouter initialEntries={['/ships/capybara/roles/capybara-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
-  const tracker = screen.getByRole('region', { name: 'Capybara unrest' });
+  const tracker = screen.getByRole('region', { name: 'Capybara census' });
+  expect(within(tracker).getByRole('img', { name: 'Civil Unrest icon' })).toBeInTheDocument();
   expect(within(tracker).getByText('4 / 7')).toBeInTheDocument();
-  await user.click(within(tracker).getByRole('button', { name: 'Increase unrest' }));
-  expect(adjustShipUnrest).toHaveBeenCalledWith('capybara', 1);
+  expect(within(tracker).queryByRole('button')).not.toBeInTheDocument();
+  expect(adjustShipUnrest).not.toHaveBeenCalled();
 });
 
 it('breaks the unrest dial when the authoritative value is above seven', () => {
@@ -164,7 +164,7 @@ it('breaks the unrest dial when the authoritative value is above seven', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('region', { name: 'Capybara unrest' })).toHaveTextContent(
+  expect(screen.getByRole('region', { name: 'Capybara census' })).toHaveTextContent(
     /unrest telemetry failure.*exceeds rated maximum.*console functions nominal/i,
   );
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-unrest-critical', 'true');

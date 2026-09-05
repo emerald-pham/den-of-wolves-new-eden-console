@@ -19,6 +19,7 @@ import {
   setActiveRoleEnabled,
   applyRolePreset,
   adjustShipResource,
+  adjustShipUnrest,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -448,6 +449,7 @@ export default function GmConsole() {
                       <img src={ship.flag} alt={`${ship.name} flag`} />
                       <h3>{ship.name}</h3>
                     </header>
+                    <h4 className="gm-fleet-resource-ship__category">Resource stores</h4>
                     <ul>
                       {RESOURCE_DEFINITIONS.map((resource) => {
                         const amount = resources[resource.id];
@@ -474,6 +476,30 @@ export default function GmConsole() {
                           </li>
                         );
                       })}
+                    </ul>
+                    <h4 className="gm-fleet-resource-ship__category">Census</h4>
+                    <ul>
+                      <li aria-label={`Civil Unrest: ${session.shipUnrest?.[ship.id] ?? 0}`}>
+                        <span className="resource-label">
+                          <ResourceIcon id="unrest" label="Civil Unrest" />
+                          <span>Civil Unrest</span>
+                        </span>
+                        <div className="ship-counter__controls">
+                          <button
+                            type="button"
+                            aria-label="Decrease Civil Unrest"
+                            disabled={(session.shipUnrest?.[ship.id] ?? 0) === 0 || Boolean(session.unrestAlerts?.[ship.id])}
+                            onClick={() => void adjustShipUnrest(ship.id, -1)}
+                          >−</button>
+                          <strong>{session.shipUnrest?.[ship.id] ?? 0}</strong>
+                          <button
+                            type="button"
+                            aria-label="Increase Civil Unrest"
+                            disabled={(session.shipUnrest?.[ship.id] ?? 0) === 10 || Boolean(session.unrestAlerts?.[ship.id])}
+                            onClick={() => void adjustShipUnrest(ship.id, 1)}
+                          >+</button>
+                        </div>
+                      </li>
                     </ul>
                   </section>
                 );

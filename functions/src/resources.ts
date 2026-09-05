@@ -39,7 +39,7 @@ export function isResourceShipId(shipId: string): boolean {
   return Object.prototype.hasOwnProperty.call(INITIAL_SHIP_RESOURCES, shipId);
 }
 
-export function canAdjustShipResource(role: unknown, hasActiveGmInstance: boolean): boolean {
+export function canAdjustShipCounter(role: unknown, hasActiveGmInstance: boolean): boolean {
   return role === 'gm' && hasActiveGmInstance;
 }
 

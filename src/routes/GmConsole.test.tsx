@@ -16,6 +16,7 @@ vi.mock('@/lib/sessionService', () => ({
   setActiveRoleEnabled: vi.fn(),
   applyRolePreset: vi.fn(),
   adjustShipResource: vi.fn(),
+  adjustShipUnrest: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -25,7 +26,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
-  setActiveRoleEnabled, applyRolePreset, adjustShipResource } =
+  setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
   await import('@/lib/firestore');
@@ -210,6 +211,7 @@ it('gives GMs live resource controls for every flagged ship', async () => {
       ...INITIAL_SHIP_RESOURCES,
       dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 6 },
     },
+    shipUnrest: { dione: 4 },
   });
   renderConsole();
 
@@ -221,10 +223,15 @@ it('gives GMs live resource controls for every flagged ship', async () => {
     expect(within(ship).getByRole('img', { name: `${shipName} flag` })).toBeInTheDocument();
   }
   const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+  expect(within(dione).getByRole('heading', { name: 'Census' })).toBeInTheDocument();
   expect(within(dione).getByLabelText('Strytium Fuel: 6')).toBeInTheDocument();
   expect(within(dione).getByRole('img', { name: 'Strytium Fuel icon' })).toBeInTheDocument();
+  expect(within(dione).getByLabelText('Civil Unrest: 4')).toBeInTheDocument();
+  expect(within(dione).getByRole('img', { name: 'Civil Unrest icon' })).toBeInTheDocument();
   await user.click(within(dione).getByRole('button', { name: /increase strytium fuel/i }));
   expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
+  await user.click(within(dione).getByRole('button', { name: /increase civil unrest/i }));
+  expect(adjustShipUnrest).toHaveBeenCalledWith('dione', 1);
 });
 
 it('starts with a compact DRADIS and expands it on demand', async () => {
