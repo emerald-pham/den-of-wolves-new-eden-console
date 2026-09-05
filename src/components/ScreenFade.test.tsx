@@ -152,6 +152,7 @@ describe('ScreenFade', () => {
     expect(persistentFlag).toBeInTheDocument();
     expect(persistentFlag?.parentElement).toBe(fade());
     expect(persistentFlag?.parentElement).not.toHaveClass('screen-fade__content');
+    expect(persistentFlag?.style.zIndex).toBe('20');
 
     act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
 

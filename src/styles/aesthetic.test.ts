@@ -193,6 +193,7 @@ describe('ship console instrument layout', () => {
     expect(root).not.toContain('transition: opacity');
     expect(root).toContain('z-index: 1');
     expect(content).toContain('transition: opacity 100ms ease');
+    expect(content).toContain('z-index: 19');
     expect(crossing).toContain('z-index: 5');
     expect(plot).toContain('z-index: 4');
     expect(header).toContain('z-index: 10');
@@ -207,7 +208,7 @@ describe('ship console instrument layout', () => {
     expect(reducedMotion).toContain('opacity: 1 !important');
   });
 
-  it('keeps ship information above the shared flag during a screen crossing', () => {
+  it('keeps ship information above the stationary destination flag', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const console = index.match(/\.ship-console\s*\{([^}]*)\}/)?.[1] ?? '';
     const identity = index.match(/\.ship-console__identity\s*\{([^}]*)\}/)?.[1] ?? '';

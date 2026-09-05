@@ -420,8 +420,9 @@ plot and below the persistent header, so the resizing plot cannot abruptly
 cover the outgoing screen. Opacity belongs to the nested
 `.screen-fade__content`, leaving the moving shared-flag clone continuously
 visible as its surrounding screens fade. The clone stays in `.screen-fade`,
-immediately below the routed-content layer, so the ship identity panel can
-still paint over it at the destination.
+one explicit layer above the routed-content layer, so panel backgrounds cannot
+cover it during the move. When the move finishes, the clone is removed and the
+real destination flag returns to its normal place beneath the ship identity.
 The clone also interpolates `object-position` to the destination image's
 alignment. Role-picker flags are left-aligned while console flags are centred;
 holding the source alignment until the clone disappears causes a visible snap.

@@ -93,7 +93,7 @@ body {
    shared flag can stay visible while its surrounding screens cross. */
 .screen-fade__content {
   position: relative;
-  z-index: 21;
+  z-index: 19;
   transition: opacity 100ms ease;
 }
 
