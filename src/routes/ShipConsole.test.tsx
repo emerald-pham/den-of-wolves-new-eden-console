@@ -200,7 +200,7 @@ it.each([
   expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
   const vesselType = screen.getByText('Battleship / carrier');
   const description = screen.getByText(/main protector of the survivor fleet/i);
-  const renderedRole = screen.getByText(roleName);
+  const renderedRole = screen.getByText(`Your Role: ${roleName}`);
   expect(vesselType.compareDocumentPosition(description))
     .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(description.compareDocumentPosition(renderedRole))
@@ -315,7 +315,7 @@ it('gives a GM observer read-only access by default and resets it after leaving'
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Observer')).toBeInTheDocument();
+  expect(screen.getByText('Your Role: Observer')).toBeInTheDocument();
   const writeMode = screen.getByRole('button', { name: /observer write mode/i });
   expect(writeMode).toHaveAttribute('aria-pressed', 'false');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
