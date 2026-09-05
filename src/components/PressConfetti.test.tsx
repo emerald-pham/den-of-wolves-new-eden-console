@@ -28,6 +28,9 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
   });
   const { container } = render(<PressConfetti />);
   expect(screen.getByText(/reusable evidence shredder/i)).toBeInTheDocument();
+  expect(screen.getByText(
+    /warning.*warning.*this will cause shredded paper to enter the bridge of any docked ship/i,
+  )).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));
   await user.click(screen.getByRole('button', { name: /activate newspaper confetti/i }));
   expect(popShipConfetti).toHaveBeenCalledWith('snn-press-shuttle');
