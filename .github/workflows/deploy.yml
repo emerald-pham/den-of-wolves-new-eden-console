@@ -46,7 +46,7 @@ jobs:
         run: npm run build --prefix functions
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
-        uses: google-github-actions/auth@v2.1
+        uses: google-github-actions/auth@v2
         with:
           project_id: ${{ vars.FIREBASE_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
