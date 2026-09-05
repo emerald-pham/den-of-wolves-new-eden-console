@@ -43,6 +43,7 @@ export function followSweeps(plot: HTMLElement): () => void {
   const returns = new Map<HTMLElement, {
     fix: Vector;
     scans: number;
+    scannedAt: number;
     paint: Animation[];
     freshTimer: number | undefined;
   }>();
@@ -92,6 +93,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       const state = existing ?? {
         fix: canonical,
         scans: index,
+        scannedAt: -Infinity,
         paint: [],
         freshTimer: undefined,
       };
@@ -112,7 +114,13 @@ export function followSweeps(plot: HTMLElement): () => void {
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.
       const firstAcquisition = apparent.dataset.acquired !== 'true';
-      state.fix = apparentFix(canonical, state.scans++);
+      // Both rims can cross within a few frames. Confirm the existing fix
+      // while its paint is fresh; only a later crossing of a dimmed return
+      // may choose another bearing, before starting its new flash.
+      if (firstAcquisition || now - state.scannedAt >= SCAN_FRESH_MS) {
+        state.fix = apparentFix(canonical, state.scans++);
+      }
+      state.scannedAt = now;
       apparent.dataset.acquired = 'true';
       element.dataset.scanFresh = 'true';
       if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);

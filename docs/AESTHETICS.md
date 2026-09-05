@@ -188,7 +188,10 @@ ships must not sort underneath the rotating scan planes and disappear.
 
 Apparent contact drift is a slow display estimate, not ship movement. Each
 sweep advances a contact through a fixed bearing walk spanning no more than
-two degrees; the contact is stationary between sweeps. Never modify the
+two degrees; the contact is stationary between sweeps. Crossings within 1.12
+seconds of the latest scan refresh brightness without advancing that walk.
+Only a crossing after partial fading may update the fix, before relighting it;
+expiry of the freshness window never moves a contact by itself. Never modify the
 canonical XYZ formation to produce this effect.
 
 The GM console contains an inset fleet DRADIS and a visible button for every

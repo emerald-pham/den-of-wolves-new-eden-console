@@ -284,8 +284,19 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(80));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
-  expect(apparent()?.style.cssText).not.toBe(fix);
+  expect(apparent()?.style.cssText).toBe(fix);
   expect(painted[2]?.keyframes[0]?.transform).toBe('scale(1)');
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(96));
+  expect(apparent()?.style.cssText).toBe(fix);
+  // Keep sampling while both returns fade; expiry alone must never move one.
+  for (let now = 112; now < 96 + SCAN_FRESH_MS; now += 16) {
+    act(() => frame(now));
+  }
+  expect(apparent()?.style.cssText).toBe(fix);
+  normal = { x: 0, y: 0, z: 1 };
+  act(() => frame(96 + SCAN_FRESH_MS));
+  expect(apparent()?.style.cssText).not.toBe(fix);
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
   expect(cancel).toHaveBeenCalled();
