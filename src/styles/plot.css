@@ -235,7 +235,9 @@
   transform-style: preserve-3d;
   animation-name: plot-acquire, plot-drift;
   animation-duration: 1ms, calc(var(--plot-turn) * 2.5);
-  animation-timing-function: steps(1, end), steps(1, end);
+  /* Do not step the 1ms reveal. WebKit may stop infinitesimally before the
+     stepped endpoint and leave a contact permanently transparent. */
+  animation-timing-function: linear, steps(1, end);
   animation-iteration-count: 1, infinite;
   animation-fill-mode: forwards, none;
   animation-delay:
