@@ -111,4 +111,5 @@ tests/rules/      assertions against the emulator
 - [ ] `npm run build` and `npm run build --prefix functions` succeed.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
-- [ ] Branch merged to `main` and deleted.
+- [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys).
+- [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.
