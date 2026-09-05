@@ -1,0 +1,150 @@
+/* ---------------------------------------------------------------------------
+   Intrusion -- the overlay for when something hostile has the screen.
+   Paired with src/components/Intrusion.tsx. Recipe in docs/AESTHETICS.md.
+   --------------------------------------------------------------------------- */
+
+.intrusion {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  pointer-events: none;
+  /* Dense enough behind the message to stay legible, thin enough at the edges
+     that the threat board keeps burning through around it. */
+  background: radial-gradient(
+    ellipse 62% 58% at 50% 48%,
+    #080203f2 0%,
+    #050102e6 58%,
+    #030001bf 100%
+  );
+  animation: cic-transmission 5s ease-in-out both;
+}
+
+/* Red interference. Stationary and low-contrast: it fades with the overlay and
+   is never randomised per frame or strobed. */
+.intrusion::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.09;
+  background:
+    repeating-linear-gradient(0deg, var(--cic-hostile) 0 1px, transparent 1px 5px),
+    repeating-linear-gradient(
+      113deg,
+      transparent 0 7px,
+      var(--cic-ember) 7px 8px,
+      transparent 8px 13px
+    );
+}
+
+/* A slow arterial vignette. 2.6s and a narrow opacity band -- a breath, not a
+   flash. */
+.intrusion::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 52% 46% at 50% 50%,
+    transparent 52%,
+    var(--cic-blood) 118%
+  );
+  animation: cic-threat 2.6s ease-in-out infinite alternate;
+}
+
+.intrusion__signal {
+  position: relative;
+  z-index: 1;
+  width: min(950px, 100%);
+  text-align: center;
+}
+
+.intrusion__signal .cic-overline {
+  color: var(--cic-ember);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cic-hostile) 60%, transparent);
+}
+
+.intrusion__message {
+  position: relative;
+  margin: 1.5rem 0;
+  font: clamp(2.75rem, 9vw, 7rem) / 1.05 var(--cic-display);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  color: var(--cic-scream);
+  text-shadow:
+    0 0 6px color-mix(in srgb, var(--cic-ember) 90%, transparent),
+    0 0 26px var(--cic-hostile),
+    0 0 90px color-mix(in srgb, var(--cic-hostile) 80%, transparent);
+}
+
+/* Colour-split ghosts, drawn from data-text so the message is in the DOM once.
+   The drift is one slow pass, not a per-frame jitter. */
+.intrusion__message::before,
+.intrusion__message::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+.intrusion__message::before {
+  color: var(--cic-hostile);
+  opacity: 0.8;
+  animation: cic-split-red 4.2s ease-in-out infinite alternate;
+}
+.intrusion__message::after {
+  color: var(--cic-cyan);
+  opacity: 0.28;
+  animation: cic-split-cyan 4.2s ease-in-out infinite alternate;
+}
+
+@keyframes cic-transmission {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  18%,
+  82% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+@keyframes cic-threat {
+  from {
+    opacity: 0.42;
+  }
+  to {
+    opacity: 0.78;
+  }
+}
+@keyframes cic-split-red {
+  from {
+    transform: translate(-0.035em, 0.008em);
+  }
+  to {
+    transform: translate(-0.075em, -0.008em);
+  }
+}
+@keyframes cic-split-cyan {
+  from {
+    transform: translate(0.03em, -0.008em);
+  }
+  to {
+    transform: translate(0.065em, 0.008em);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intrusion,
+  .intrusion::after,
+  .intrusion__message::before,
+  .intrusion__message::after {
+    animation: none;
+  }
+}
