@@ -2,8 +2,11 @@ export function canSelectConsoleRole(
   activeRoleId: string | null | undefined,
   requestedRoleId: string,
   isGm: boolean,
+  heldByAnotherPlayer: boolean,
 ): boolean {
-  return isGm || activeRoleId == null || activeRoleId === requestedRoleId;
+  return !heldByAnotherPlayer && (
+    isGm || activeRoleId == null || activeRoleId === requestedRoleId
+  );
 }
 
 export function disconnectedRoleState(): {
