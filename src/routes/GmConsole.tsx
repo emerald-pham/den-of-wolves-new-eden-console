@@ -14,6 +14,7 @@ import {
   assignWolfRoles,
   kickGmInstance,
   setCapybaraEnabled,
+  setDioneEnabled,
   setGmControlsLocked,
   setActiveRoleEnabled,
   applyRolePreset,
@@ -125,6 +126,8 @@ export default function GmConsole() {
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
+  const [changingDione, setChangingDione] = useState(false);
+  const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
   const [changingLock, setChangingLock] = useState(false);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
@@ -137,6 +140,10 @@ export default function GmConsole() {
   const capybaraQueued = pendingCommands.some(
     (command) => command.kind === 'setCapybaraEnabled',
   );
+  const dioneEnabled = session?.dioneEnabled !== false;
+  const dioneQueued = pendingCommands.some(
+    (command) => command.kind === 'setDioneEnabled',
+  );
   const controlsLocked = session?.gmControlsLocked === true;
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
@@ -146,7 +153,9 @@ export default function GmConsole() {
   const isCustom = activeRoleIds.length !== recommendedIds.length ||
     activeRoleIds.some((roleId) => !recommendedIds.includes(roleId));
   const availableShips = SHIPS.filter(
-    (ship) => capybaraEnabled || ship.id !== 'capybara',
+    (ship) =>
+      (capybaraEnabled || ship.id !== 'capybara') &&
+      (dioneEnabled || ship.id !== 'dione'),
   );
   const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
   const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
@@ -155,6 +164,7 @@ export default function GmConsole() {
     viewer?.id ?? 'aegis',
     capybaraEnabled,
     session?.shipGalacticCoordinates,
+    dioneEnabled,
   ).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
@@ -250,6 +260,10 @@ export default function GmConsole() {
     if (!capybaraEnabled && viewerId === 'capybara') setViewerId('aegis');
   }, [capybaraEnabled, viewerId]);
 
+  useEffect(() => {
+    if (!dioneEnabled && viewerId === 'dione') setViewerId('aegis');
+  }, [dioneEnabled, viewerId]);
+
   useEffect(() => () => {
     if (presetTimer.current !== null) window.clearTimeout(presetTimer.current);
   }, []);
@@ -277,6 +291,18 @@ export default function GmConsole() {
     } finally {
       setChangingCapybara(false);
       setPendingCapybaraEnabled(null);
+    }
+  }
+
+  async function changeDione(enabled: boolean): Promise<void> {
+    setChangingDione(true);
+    try {
+      await setDioneEnabled(enabled);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingDione(false);
+      setPendingDioneEnabled(null);
     }
   }
 
@@ -365,7 +391,7 @@ export default function GmConsole() {
           >
             <div className="gm-dradis__viewport">
               <ContactPlot
-                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
+                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
                 placement="inset"
                 size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
                 contacts={contacts}
@@ -467,7 +493,7 @@ export default function GmConsole() {
             {setupOpen && (
               <div className="gm-setup" aria-label="Setup controls">
                 <button
-                  className="gm-dradis__capybara"
+                  className="gm-dradis__availability"
                   type="button"
                   aria-label={`Turn Capybara ${capybaraEnabled ? 'off' : 'on'}`}
                   aria-pressed={capybaraEnabled}
@@ -475,6 +501,16 @@ export default function GmConsole() {
                   onClick={() => setPendingCapybaraEnabled(!capybaraEnabled)}
                 >
                   Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
+                </button>
+                <button
+                  className="gm-dradis__availability"
+                  type="button"
+                  aria-label={`Turn Dione ${dioneEnabled ? 'off' : 'on'}`}
+                  aria-pressed={dioneEnabled}
+                  disabled={changingDione || dioneQueued}
+                  onClick={() => setPendingDioneEnabled(!dioneEnabled)}
+                >
+                  Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
                 </button>
                 <fieldset className="gm-role-setup">
                   <legend>Active roles</legend>
@@ -702,6 +738,45 @@ export default function GmConsole() {
               onClick={() => void changeCapybara(pendingCapybaraEnabled)}
             >
               Confirm {pendingCapybaraEnabled ? 'add' : 'remove'} Capybara
+            </button>
+          </section>
+        </div>
+      )}
+      {pendingDioneEnabled !== null && (
+        <div
+          className="settings-backdrop"
+          onMouseDown={() => setPendingDioneEnabled(null)}
+        >
+          <section
+            className="settings-dialog cic-frame"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="dione-convoy-confirm-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="settings-dialog__header">
+              <h2 id="dione-convoy-confirm-title">Change convoy manifest</h2>
+            </div>
+            <p>
+              {pendingDioneEnabled
+                ? 'Add Dione back to the convoy and every DRADIS view?'
+                : 'Remove Dione from the convoy and every DRADIS view?'}
+            </p>
+            <button
+              className="cic-text-button"
+              type="button"
+              autoFocus
+              onClick={() => setPendingDioneEnabled(null)}
+            >
+              Cancel convoy change
+            </button>
+            <button
+              className="settings-dialog__disconnect"
+              type="button"
+              disabled={changingDione}
+              onClick={() => void changeDione(pendingDioneEnabled)}
+            >
+              Confirm {pendingDioneEnabled ? 'add' : 'remove'} Dione
             </button>
           </section>
         </div>

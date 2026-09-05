@@ -33,6 +33,7 @@ export function fleetViewFrom(
   viewerId: string,
   capybaraEnabled = true,
   shipGalacticCoordinates: Readonly<Record<string, string>> = {},
+  dioneEnabled = true,
 ): readonly FleetContact[] {
   const viewer = FLEET_FORMATION[viewerId] ?? FLEET_FORMATION.aegis;
   if (!viewer) return [];
@@ -41,6 +42,7 @@ export function fleetViewFrom(
   return SHIPS.filter((ship) =>
     ship.id !== viewerId &&
     (capybaraEnabled || ship.id !== 'capybara') &&
+    (dioneEnabled || ship.id !== 'dione') &&
     (shipGalacticCoordinates[ship.id] ?? ORIGIN_GALACTIC_COORDINATE) === viewerCoordinate)
     .flatMap((ship) => {
     const point = FLEET_FORMATION[ship.id];

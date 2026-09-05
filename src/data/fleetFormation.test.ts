@@ -38,6 +38,10 @@ describe('the initial fleet formation', () => {
     expect(fleetViewFrom('aegis', false).map(({ id }) => id)).not.toContain('capybara');
   });
 
+  it('removes Dione from DRADIS when the GM disables it', () => {
+    expect(fleetViewFrom('aegis', true, {}, false).map(({ id }) => id)).not.toContain('dione');
+  });
+
   it('keeps DRADIS geometry fixed while hiding ships in other galactic systems', () => {
     const coordinates = {
       aegis: '0000',

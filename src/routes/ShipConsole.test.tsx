@@ -376,6 +376,23 @@ it('returns to the fleet roster when Capybara is disabled', () => {
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
+it('returns to the fleet roster when Dione is disabled', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, dioneEnabled: false });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});
+
 it('leaves the ship through the visible return control', async () => {
   const user = userEvent.setup();
   render(

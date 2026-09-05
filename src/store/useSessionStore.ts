@@ -45,6 +45,16 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setDioneEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly dioneEnabled: boolean;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setGmControlsLocked';
       readonly payload: {
         readonly sessionId: string;

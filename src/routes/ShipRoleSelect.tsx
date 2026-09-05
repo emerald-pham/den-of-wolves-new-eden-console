@@ -17,6 +17,10 @@ export default function ShipRoleSelect() {
   const roles = rolesForShip(shipId ?? '').filter((role) => activeRoleIds.includes(role.id));
 
   if (!session || !me) return <Navigate to="/" replace />;
+  const shipEnabled =
+    (ship?.id !== 'capybara' || session.capybaraEnabled !== false) &&
+    (ship?.id !== 'dione' || session.dioneEnabled !== false);
+  if (!shipEnabled) return <Navigate to="/console" replace />;
   if (!isGm && me.activeConsoleRoleId) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }

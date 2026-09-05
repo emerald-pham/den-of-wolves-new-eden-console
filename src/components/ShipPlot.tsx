@@ -35,12 +35,14 @@ export default function ShipPlot({
   aboard,
   viewerId,
   capybaraEnabled = true,
+  dioneEnabled = true,
   shipGalacticCoordinates = {},
 }: {
   hostile: boolean;
   aboard: boolean;
   viewerId: string;
   capybaraEnabled?: boolean;
+  dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -109,6 +111,7 @@ export default function ShipPlot({
     effectiveViewerId,
     capybaraEnabled,
     shipGalacticCoordinates,
+    dioneEnabled,
   );
   const contacts = fleetContacts.map((ship) => ({
     tag: ship.name.toUpperCase(),
@@ -127,7 +130,7 @@ export default function ShipPlot({
       style={{ '--ship-plot-resize': `${SHIP_PLOT_RESIZE_MS}ms` } as ShipPlotStyle}
     >
       <ContactPlot
-        key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}`}
+        key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
         hostile={hostile}
         placement={aboard ? 'widget' : 'inset'}
         size="min(92cqi, 92cqb)"

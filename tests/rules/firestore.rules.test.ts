@@ -139,6 +139,12 @@ describe('session header', () => {
     }));
   });
 
+  it('cannot change ship availability from the client', async () => {
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, { capybaraEnabled: false }));
+    await assertFails(updateDoc(session, { dioneEnabled: false }));
+  });
+
   it('cannot change authoritative ship stores, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));

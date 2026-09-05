@@ -5,6 +5,7 @@ import {
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
+  requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireWolfAssignmentRequest,
@@ -120,6 +121,18 @@ describe('callable request guards', () => {
     expect(requireShipAvailabilityRequest({
       sessionId: 's1', instanceId: 'i1', capybaraEnabled: false,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', capybaraEnabled: false });
+  });
+
+  it('requires a boolean Dione availability setting from a named GM instance', () => {
+    expectHttpsError(
+      () => requireDioneAvailabilityRequest({
+        sessionId: 's1', instanceId: 'i1', dioneEnabled: 'yes',
+      }),
+      'invalid-argument',
+    );
+    expect(requireDioneAvailabilityRequest({
+      sessionId: 's1', instanceId: 'i1', dioneEnabled: false,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', dioneEnabled: false });
   });
 
   it('requires a boolean GM and Setup lock setting from a named GM instance', () => {

@@ -827,7 +827,7 @@ body {
 }
 
 .gm-dradis__ships button,
-.gm-dradis__capybara {
+.gm-dradis__availability {
   min-height: 44px;
   border: 1px solid var(--cic-rule);
   background: transparent;
@@ -843,24 +843,24 @@ body {
   background: color-mix(in srgb, var(--cic-cyan) 9%, transparent);
 }
 
-.gm-dradis__capybara {
+.gm-dradis__availability {
   width: 100%;
   border-color: var(--cic-amber-dim);
   color: var(--cic-amber);
 }
 
-.gm-dradis__capybara[aria-pressed='false'] {
+.gm-dradis__availability[aria-pressed='false'] {
   border-color: var(--cic-rule);
   color: var(--cic-muted);
 }
 
 .gm-dradis__ships button:focus-visible,
-.gm-dradis__capybara:focus-visible {
+.gm-dradis__availability:focus-visible {
   outline: 2px solid var(--cic-amber);
   outline-offset: 2px;
 }
 
-.gm-dradis__capybara:disabled { opacity: 0.45; }
+.gm-dradis__availability:disabled { opacity: 0.45; }
 .gm-console__section-title { margin-top: 2rem; }
 
 .gm-setup { display: grid; gap: 1rem; }

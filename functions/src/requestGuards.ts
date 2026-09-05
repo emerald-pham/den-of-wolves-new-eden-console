@@ -93,6 +93,21 @@ export function requireShipAvailabilityRequest(data: {
   };
 }
 
+export function requireDioneAvailabilityRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  dioneEnabled?: unknown;
+}): { sessionId: string; instanceId: string; dioneEnabled: boolean } {
+  if (typeof data.dioneEnabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'dioneEnabled must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    dioneEnabled: data.dioneEnabled,
+  };
+}
+
 export function requireGmControlsLockRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -59,6 +59,23 @@ it('returns to the fleet roster through a visible control', async () => {
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
+it('returns to the fleet roster when Dione is disabled', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, dioneEnabled: false });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});
+
 it('offers only roles the GM has enabled', () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');

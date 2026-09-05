@@ -27,6 +27,7 @@ const {
   assignWolves,
   assignWolfRoles,
   setCapybaraEnabled,
+  setDioneEnabled,
   setGmControlsLocked,
   setActiveRoleEnabled,
   selectConsoleRole,
@@ -283,6 +284,23 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', capybaraEnabled: false,
     });
     expect(useSessionStore.getState().session?.capybaraEnabled).toBe(false);
+  });
+
+  it('sends Dione availability through the active GM instance', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { dioneEnabled: false } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setDioneEnabled(false);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setDioneEnabled');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', dioneEnabled: false,
+    });
+    expect(useSessionStore.getState().session?.dioneEnabled).toBe(false);
   });
 
   it('sends the GM registration lock through the active GM instance', async () => {

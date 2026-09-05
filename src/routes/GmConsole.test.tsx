@@ -11,6 +11,7 @@ vi.mock('@/lib/sessionService', () => ({
   assignWolfRoles: vi.fn(),
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
+  setDioneEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
   setActiveRoleEnabled: vi.fn(),
   applyRolePreset: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeSessionEvents: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
   setActiveRoleEnabled, applyRolePreset, adjustShipResource } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
@@ -419,6 +420,34 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   expect(setCapybaraEnabled).toHaveBeenCalledWith(false);
   expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
+    .not.toBeInTheDocument();
+});
+
+it('toggles Dione off for the session and removes its perspective', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setDioneEnabled).mockImplementation(async (enabled) => {
+    const session = useSessionStore.getState().session;
+    if (session) useSessionStore.getState().setSession({ ...session, dioneEnabled: enabled });
+    return 'applied';
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /turn dione off/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /view dradis from dione/i })).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /turn dione off/i }));
+
+  expect(setDioneEnabled).not.toHaveBeenCalled();
+  expect(screen.getByRole('alertdialog', { name: /change convoy manifest/i }))
+    .toHaveTextContent(/remove dione/i);
+  await user.click(screen.getByRole('button', { name: /confirm remove dione/i }));
+
+  expect(setDioneEnabled).toHaveBeenCalledWith(false);
+  expect(await screen.findByRole('button', { name: /turn dione on/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /view dradis from dione/i }))
     .not.toBeInTheDocument();
 });
 

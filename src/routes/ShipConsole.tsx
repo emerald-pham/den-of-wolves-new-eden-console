@@ -108,7 +108,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   if (
     mode !== 'console' || !ship || !validRole ||
     (!roleEnabled && me.activeConsoleRoleId !== roleId) ||
-    (ship.id === 'capybara' && session.capybaraEnabled === false)
+    (ship.id === 'capybara' && session.capybaraEnabled === false) ||
+    (ship.id === 'dione' && session.dioneEnabled === false)
   ) return <Navigate to="/console" replace />;
 
   async function activate(): Promise<void> {

@@ -40,8 +40,9 @@ export interface GameSession {
   /** Short human-shareable code players type to join. */
   readonly joinCode: string;
   readonly phase: SessionPhase;
-  /** Expansion ship availability; absent legacy values are treated as enabled. */
+  /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
+  readonly dioneEnabled?: boolean;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */

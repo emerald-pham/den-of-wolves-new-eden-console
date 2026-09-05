@@ -47,6 +47,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
     capybaraEnabled: data.capybaraEnabled !== false,
+    dioneEnabled: data.dioneEnabled !== false,
     shipGalacticCoordinates:
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }

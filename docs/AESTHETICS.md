@@ -215,13 +215,13 @@ expiry of the freshness window never moves a contact by itself. Never modify the
 canonical XYZ formation to produce this effect.
 
 The GM console contains an inset fleet DRADIS and a visible button for every
-available ship. Selecting a ship rebases only that GM device's view. Capybara
-availability is shared session state, defaults on (including legacy sessions
-with no stored setting), and can only be changed by an active GM instance.
-Turning it off removes Capybara from the join roster and all DRADIS views.
-Every perspective begins empty. Changing the reference ship restarts contact
-acquisition, and returns appear only as that new view's sweep reaches them;
-resizing the same view does not restart its scan.
+available ship. Selecting a ship rebases only that GM device's view. Dione and
+Capybara availability are shared session state, default on (including legacy
+sessions with no stored setting), and can only be changed by an active GM
+instance. Turning either ship off removes it from the join roster and all
+DRADIS views. Every perspective begins empty. Changing the reference ship
+restarts contact acquisition, and returns appear only as that new view's sweep
+reaches them; resizing the same view does not restart its scan.
 
 GM registration uses one server-authoritative lock. Show its open
 or closed padlock icon and text state on the role-selection screen; non-GMs see

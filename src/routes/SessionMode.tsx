@@ -1,7 +1,7 @@
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 import { SHIPS, type ShipOrigin } from '@/data/ships';
-import { rolesForShip } from '@/data/roles';
+import { findConsoleRole, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { consoleRoleRoute } from '@/lib/consoleRole';
@@ -20,7 +20,11 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (mode === 'gm' && !isGm) return <Navigate to="/roles" replace />;
-  if (mode === 'console' && !isGm && me.activeConsoleRoleId) {
+  const activeRoleShipId = findConsoleRole(me.activeConsoleRoleId ?? undefined)?.shipId;
+  const activeRoleShipEnabled =
+    (activeRoleShipId !== 'capybara' || session.capybaraEnabled !== false) &&
+    (activeRoleShipId !== 'dione' || session.dioneEnabled !== false);
+  if (mode === 'console' && !isGm && me.activeConsoleRoleId && activeRoleShipEnabled) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }
   const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
@@ -31,6 +35,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
       <FleetRoster
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
+        dioneEnabled={session.dioneEnabled !== false}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
         isGm={isGm}
       />
@@ -65,11 +70,13 @@ const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
 function FleetRoster({
   sessionName,
   capybaraEnabled,
+  dioneEnabled,
   activeRoleIds,
   isGm,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
+  dioneEnabled: boolean;
   activeRoleIds: readonly string[];
   isGm: boolean;
 }) {
@@ -122,6 +129,7 @@ function FleetRoster({
             {SHIPS.filter((ship) =>
               ship.origin === origin &&
               (capybaraEnabled || ship.id !== 'capybara') &&
+              (dioneEnabled || ship.id !== 'dione') &&
               (isGm || rolesForShip(ship.id).some((role) => active.has(role.id)))).map((ship) => (
               <article
                 className={`fleet-card fleet-card--${ship.id} cic-frame`}

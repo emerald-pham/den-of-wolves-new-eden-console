@@ -87,6 +87,7 @@ function AppRoutes() {
         aboard={hasConsoleDradis(location.pathname)}
         viewerId={shipId}
         capybaraEnabled={session?.capybaraEnabled !== false}
+        dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
       />
       <AppHeader />

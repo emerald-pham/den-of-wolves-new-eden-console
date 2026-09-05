@@ -99,6 +99,14 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : command.payload.capybaraEnabled;
     store.setSession({ ...store.session, capybaraEnabled: enabled });
   }
+  if (command.kind === 'setDioneEnabled' && store.session?.id === command.payload.sessionId) {
+    const enabled =
+      typeof result === 'object' && result !== null && 'dioneEnabled' in result &&
+      typeof result.dioneEnabled === 'boolean'
+        ? result.dioneEnabled
+        : command.payload.dioneEnabled;
+    store.setSession({ ...store.session, dioneEnabled: enabled });
+  }
   if (command.kind === 'setGmControlsLocked' && store.session?.id === command.payload.sessionId) {
     const locked =
       typeof result === 'object' && result !== null && 'gmControlsLocked' in result &&
@@ -457,6 +465,23 @@ export async function setCapybaraEnabled(
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       capybaraEnabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setDioneEnabled(dioneEnabled: boolean): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing ship availability.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setDioneEnabled',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      dioneEnabled,
     },
     createdAt: new Date().toISOString(),
   });

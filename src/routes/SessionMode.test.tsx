@@ -147,6 +147,24 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
 
+it('removes Dione from the joinable fleet when the GM disables it', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, dioneEnabled: false });
+  useSessionStore.getState().setMode('console');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
+  expect(screen.getAllByRole('img')).toHaveLength(6);
+});
+
 it('hides disabled roles and offers enabled Joint Engineering Union stations', () => {
   const session = useSessionStore.getState().session;
   const me = useSessionStore.getState().me;
@@ -190,6 +208,31 @@ it('returns a non-GM directly to their active command role', () => {
   );
 
   expect(screen.getByText('Locked role')).toBeInTheDocument();
+});
+
+it('does not redirect a player back into Dione after the GM disables it', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test session.');
+  useSessionStore.getState().setGmInstance(null);
+  useSessionStore.getState().setMe({
+    ...me,
+    role: 'player',
+    activeConsoleRoleId: 'dione-engineer',
+  });
+  useSessionStore.getState().setSession({ ...session, dioneEnabled: false });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/ships/dione/roles/dione-engineer" element={<p>Dione console</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+  expect(screen.queryByText('Dione console')).not.toBeInTheDocument();
 });
 
 it('lets a GM reach every ship observer when command roles are disabled', () => {

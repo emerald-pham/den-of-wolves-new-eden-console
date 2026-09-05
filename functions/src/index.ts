@@ -26,6 +26,7 @@ import {
 } from './shipConfetti';
 import {
   requireDiceRequest,
+  requireDioneAvailabilityRequest,
   requireElevationRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
@@ -222,6 +223,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           joinCode,
           phase: 'lobby',
           capybaraEnabled: true,
+          dioneEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipResources: INITIAL_SHIP_RESOURCES,
           shipUnrest: INITIAL_SHIP_UNREST,
@@ -263,6 +265,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             joinCode,
             phase: 'lobby',
             capybaraEnabled: true,
+            dioneEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
             shipResources: INITIAL_SHIP_RESOURCES,
             shipUnrest: INITIAL_SHIP_UNREST,
@@ -368,6 +371,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinCode,
         phase: sessionSnap.get('phase') as string,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+        dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         shipResources: shipResources(sessionSnap.get('shipResources')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -455,6 +459,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+      dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       shipResources: shipResources(sessionSnap.get('shipResources')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -642,6 +647,42 @@ export const setCapybaraEnabled = onCall<{
   });
 
   return { capybaraEnabled: setting.capybaraEnabled };
+});
+
+/** Include or remove Dione for the whole session. */
+export const setDioneEnabled = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  dioneEnabled?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireDioneAvailabilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
+  );
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, {
+      dioneEnabled: setting.dioneEnabled,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { dioneEnabled: setting.dioneEnabled };
 });
 
 /** Lock or unlock subsequent GM registration. */
@@ -855,6 +896,9 @@ export const popShipConfetti = onCall<{
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
+    }
+    if (shipId === 'dione' && session.get('dioneEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Dione is not in this convoy.');
     }
     const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;
