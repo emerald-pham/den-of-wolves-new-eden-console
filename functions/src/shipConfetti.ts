@@ -22,3 +22,20 @@ export const isReusableConfettiSource = (shipId: string): boolean =>
 
 export const shouldLogShipConfettiEvent = (shipId: string): boolean =>
   shipId !== 'snn-press-shuttle';
+
+export const isShipDispenserSignal = (sourceShipId: string, shipId: string): boolean =>
+  sourceShipId === shipId;
+
+interface ShuttleDocking {
+  readonly shuttleId: string;
+  readonly shipId: string;
+}
+
+export function confettiSignalTargets(
+  shipId: string,
+  shuttleDockings: readonly ShuttleDocking[],
+): string[] {
+  if (shipId !== 'snn-press-shuttle') return [shipId];
+  const hostShipId = shuttleDockings.find((docking) => docking.shuttleId === shipId)?.shipId;
+  return hostShipId ? [shipId, hostShipId] : [shipId];
+}

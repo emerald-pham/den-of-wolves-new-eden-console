@@ -15,8 +15,10 @@ import { mayClaimGmInstance } from './gmControlsLock';
 import {
   FLEET_SHIP_NAMES,
   canPopShipConfetti,
+  confettiSignalTargets,
   isFleetShipId,
   isReusableConfettiSource,
+  isShipDispenserSignal,
   shouldLogShipConfettiEvent,
 } from './shipConfetti';
 import {
@@ -759,25 +761,32 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
   }
   const sessionRef = db.doc(`sessions/${activation.sessionId}`);
   const playerRef = db.doc(`sessions/${activation.sessionId}/players/${uid}`);
-  const signalRef = db.doc(
-    `sessions/${activation.sessionId}/shipConfetti/${shipId}`,
-  );
   const eventRef = db.collection(`sessions/${activation.sessionId}/events`).doc();
 
   await db.runTransaction(async (tx) => {
-    const [session, player, signal] = await Promise.all([
+    const [session, player] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
-      tx.get(signalRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
     }
+    const signalRefs = confettiSignalTargets(
+      shipId,
+      (session.get('shuttleDockings') as Array<{ shuttleId: string; shipId: string }> | undefined) ??
+        INITIAL_SHUTTLE_DOCKINGS,
+    ).map((targetShipId) => db.doc(
+      `sessions/${activation.sessionId}/shipConfetti/${targetShipId}`,
+    ));
+    const signals = await Promise.all(signalRefs.map((signalRef) => tx.get(signalRef)));
     const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
     const reusable = isReusableConfettiSource(shipId);
-    if ((!reusable && signal.exists) || !canPopShipConfetti(used, shipId)) {
+    const existingSignalIsOwn = Boolean(
+      signals[0]?.exists && isShipDispenserSignal(String(signals[0].get('shipId')), shipId),
+    );
+    if ((!reusable && existingSignalIsOwn) || !canPopShipConfetti(used, shipId)) {
       throw new HttpsError('already-exists', 'That dispenser has already been used.');
     }
     const event = {
@@ -794,8 +803,8 @@ export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(a
       confettiUsedShipIds: FieldValue.arrayUnion(shipId),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    if (reusable) tx.set(signalRef, event);
-    else tx.create(signalRef, event);
+    if (reusable) signalRefs.forEach((signalRef) => tx.set(signalRef, event));
+    else tx.create(signalRefs[0]!, event);
     if (shouldLogShipConfettiEvent(shipId)) tx.create(eventRef, event);
   });
 

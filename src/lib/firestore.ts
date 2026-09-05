@@ -148,7 +148,7 @@ export function subscribeGmInstances(
 export function subscribeShipConfetti(
   sessionId: string,
   shipId: string,
-  onPop: () => void,
+  onPop: (sourceShipId: string) => void,
   onError: () => void = () => undefined,
 ): Unsubscribe {
   let initial = true;
@@ -157,13 +157,14 @@ export function subscribeShipConfetti(
     doc(db(), `sessions/${sessionId}/shipConfetti/${shipId}`),
     (snapshot) => {
       const signal = snapshot.exists() ? iso(snapshot.get('createdAt')) : null;
+      const sourceShipId = snapshot.exists() ? String(snapshot.get('shipId')) : shipId;
       if (initial) {
         initial = false;
         lastSignal = signal;
-        if (signal && Date.now() - Date.parse(signal) < 5_000) onPop();
+        if (signal && Date.now() - Date.parse(signal) < 5_000) onPop(sourceShipId);
         return;
       }
-      if (signal && signal !== lastSignal) onPop();
+      if (signal && signal !== lastSignal) onPop(sourceShipId);
       lastSignal = signal;
     },
     onError,
