@@ -63,6 +63,22 @@ function RapidFlagHarness() {
   );
 }
 
+function RouteAwareFlagHarness({ to }: { to: string }) {
+  const navigate = useNavigate();
+  return (
+    <>
+      <ScreenFade>{(location) => (
+        <img
+          data-shared-flag="aegis"
+          alt={`Flag ${location.pathname}`}
+          style={{ objectFit: 'contain', objectPosition: 'center center' }}
+        />
+      )}</ScreenFade>
+      <button type="button" onClick={() => navigate(to)}>Go</button>
+    </>
+  );
+}
+
 // The fade wrapper is chrome with no role, name or text of its own.
 const fade = () => document.querySelector('.screen-fade');
 
@@ -193,6 +209,45 @@ describe('ScreenFade', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Executive officer' }));
 
     expect(document.querySelectorAll('.shared-flag-transition')).toHaveLength(1);
+    window.matchMedia = userMotion;
+  });
+
+  it('crossfades a fleet-card flag into command-role selection without floating it', () => {
+    vi.useFakeTimers();
+    const userMotion = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
+    render(
+      <MemoryRouter initialEntries={['/console']}>
+        <RouteAwareFlagHarness to="/ships/aegis/roles" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+
+    expect(document.querySelector('.shared-flag-transition')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Flag /console' })).not.toHaveStyle({
+      visibility: 'hidden',
+    });
+    act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
+    expect(screen.getByRole('img', { name: 'Flag /ships/aegis/roles' })).toBeVisible();
+    window.matchMedia = userMotion;
+  });
+
+  it('keeps the shared move when returning from a ship console to command-role selection', () => {
+    vi.useFakeTimers();
+    const userMotion = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
+    render(
+      <MemoryRouter initialEntries={['/ships/aegis/roles/commander']}>
+        <RouteAwareFlagHarness to="/ships/aegis/roles" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+
+    expect(document.querySelector('.shared-flag-transition')).toBeInTheDocument();
     window.matchMedia = userMotion;
   });
 });

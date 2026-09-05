@@ -423,6 +423,9 @@ visible as its surrounding screens fade. The clone stays in `.screen-fade`,
 one explicit layer above the routed-content layer, so panel backgrounds cannot
 cover it during the move. When the move finishes, the clone is removed and the
 real destination flag returns to its normal place beneath the ship identity.
+The floating clone is limited to crossings between two routes for the same
+ship. Fleet-card and command-role-picker flags crossfade with their screens;
+floating a card flag over the opaque role-picker panel creates a visible flash.
 The clone also interpolates `object-position` to the destination image's
 alignment. Role-picker flags are left-aligned while console flags are centred;
 holding the source alignment until the clone disappears causes a visible snap.

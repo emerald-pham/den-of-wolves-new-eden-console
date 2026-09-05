@@ -22,6 +22,12 @@ interface FlagMove {
 const shipIdFromPath = (pathname: string): string | null =>
   pathname.match(/^\/ships\/([^/]+)/)?.[1] ?? null;
 
+const sharedShipForCrossing = (fromPath: string, toPath: string): string | null => {
+  const fromShipId = shipIdFromPath(fromPath);
+  const toShipId = shipIdFromPath(toPath);
+  return fromShipId && fromShipId === toShipId ? fromShipId : null;
+};
+
 /**
  * Holds the outgoing screen on stage while it fades, then swaps and brings the
  * new one in. `Routes` reads the location from context, so an already-rendered
@@ -112,7 +118,7 @@ export default function ScreenFade({
       pendingFlag.current = null;
     }
 
-    const shipId = shipIdFromPath(location.pathname) ?? shipIdFromPath(displayed.pathname);
+    const shipId = sharedShipForCrossing(displayed.pathname, location.pathname);
     const source = shipId && !reducedMotion
       ? document.querySelector<HTMLImageElement>(
           `[data-shared-flag="${CSS.escape(shipId)}"]`,
