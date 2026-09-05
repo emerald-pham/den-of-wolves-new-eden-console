@@ -152,7 +152,7 @@ export default function ShipConsole() {
             disabled={!coverOpen || spent || queued || activating}
             onClick={() => void activate()}
           >
-            {spent ? 'SPENT' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
+            {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
           </button>
           <button
             className="confetti-dispenser__cover"
@@ -166,7 +166,7 @@ export default function ShipConsole() {
           </button>
         </div>
         <p className="confetti-dispenser__status">
-          ONE USE // {spent ? 'DISCHARGED' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+          ONE USE // {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
         </p>
         {!spent && !queued && (
           <p className="confetti-dispenser__notice" role="status">
