@@ -7,6 +7,7 @@ import {
   getSessionPresence,
   releaseGmInstance,
 } from '@/lib/sessionService';
+import { APP_VERSION } from '@/version';
 
 export default function AppHeader() {
   const navigate = useNavigate();
@@ -131,6 +132,7 @@ export default function AppHeader() {
               </button>
             </div>
             <p>Disconnect this device from session {joinCode}.</p>
+            <p className="settings-dialog__version">Build {APP_VERSION}</p>
             {connectedPlayers === 1 && (
               <p className="settings-dialog__warning">
                 You’re the last player to leave the server. After seven days of

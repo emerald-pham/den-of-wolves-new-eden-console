@@ -52,6 +52,17 @@ npm run test:all    # both — this is what CI runs
 Commit messages: imperative subject under 72 characters, and a body that says
 *why* when the why is not obvious. Reference the behavior, not the file list.
 
+## Version references
+
+- Increment the application version with every completed edit so deployed progress has a stable reference.
+- The application version must never decrease. A later build must always compare newer than every earlier build.
+- Major system additions may increment the middle number, but only when they represent a meaningful milestone in overall release readiness. Do not mechanically advance toward release for every subsystem.
+- Smaller additions, fixes, and refinements increment the final number (for example, `0.1.12` to `0.1.13`). The final number may exceed 9.
+- `0.9.x` is reserved for builds genuinely close to release readiness.
+- `1.0.0` requires the complete 20-player set with full, complex gameplay: players must move through multiple interacting systems, complete a coherent gameplay loop, and reach a clear, implemented game end. Twenty selectable roles, placeholder screens, isolated mechanics, or shallow role stubs do not qualify.
+- Keep `package.json`, the root entry in `package-lock.json`, and `src/version.ts` synchronized.
+- Show the version in the in-app settings dialog.
+
 ## Stack, and what not to swap
 
 Vite 5 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12 modular

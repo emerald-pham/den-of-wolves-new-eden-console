@@ -13,5 +13,11 @@ only read this file:
    it is green and complete. No long-lived branches, no stacked half-finished
    work, no "I'll merge it later."
 
+3. **Version every completed edit.** Keep the monotonic application version in
+   sync and visible. Patch numbers may exceed 9; reserve `0.9.x` for genuine
+   release-candidate maturity, and never call a build `1.0.0` until the complete
+   20-player set has full, complex gameplay across interacting systems and a
+   clear game end. See `CLAUDE.md` for the full policy.
+
 Everything else — stack, layout, the security model, what may and may not be
 written from a client, commit conventions — is in `CLAUDE.md`. Go read it.
