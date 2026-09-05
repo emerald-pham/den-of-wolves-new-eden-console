@@ -21,12 +21,16 @@ export default function ShipRoleSelect() {
   return (
     <main className="session-mode ship-role-select">
       <section className="session-mode__panel cic-frame">
-        <Link className="session-mode__back cic-text-button" to="/console">
-          Back to fleet
-        </Link>
-        <p className="eyebrow">{session.name} // {ship.name}</p>
-        <h1 className="role-select__title">Select command role</h1>
-        <p className="role-select__lede">These stations share the same {ship.name} command console.</p>
+        <div className="ship-role-select__intro">
+          <Link className="session-mode__back cic-text-button" to="/console">
+            Back to fleet
+          </Link>
+          <p className="eyebrow">{session.name} // {ship.name}</p>
+          <h1 className="role-select__title">Select command role</h1>
+          <p className="role-select__lede">
+            These stations share the same {ship.name} command console.
+          </p>
+        </div>
         <div className="role-select__grid">
           {roles.map((role) => (
             <Link

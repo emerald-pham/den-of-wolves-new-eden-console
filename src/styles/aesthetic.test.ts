@@ -197,6 +197,18 @@ describe('ship console instrument layout', () => {
     expect(bay).toContain('overflow: auto');
     expect(bay).toContain('min-height: 0');
   });
+
+  it('reserves the shipboard instrument rail beside the command-role picker', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const picker = index.match(/\.ship-role-select\s*\{([^}]*)\}/)?.[1] ?? '';
+    const panel = index.match(
+      /\.ship-role-select\s+\.session-mode__panel\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(picker).toContain('max-width: none');
+    expect(picker).toContain('--ship-plot-widget-size');
+    expect(panel).toContain('grid-template-columns:');
+  });
 });
 
 describe('friendly DRADIS returns', () => {

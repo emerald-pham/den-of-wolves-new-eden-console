@@ -839,6 +839,40 @@ body {
   color: var(--cic-amber);
 }
 
+/* A ship's role picker shares the viewport with its persistent DRADIS. Its
+   asymmetric panel is the main workspace; the right edge is an instrument
+   rail, so neither system has to cover the other. */
+.ship-role-select {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-left: max(clamp(1rem, 4vw, 3rem), env(safe-area-inset-left));
+  padding-right: calc(
+    max(0.75rem, env(safe-area-inset-right)) +
+    var(--ship-plot-widget-size) + clamp(1.5rem, 4vw, 3rem)
+  );
+}
+
+.ship-role-select .session-mode__panel {
+  width: min(76rem, 100%);
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.78fr) minmax(30rem, 1.45fr);
+  align-items: end;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+}
+
+.ship-role-select__intro {
+  min-width: 0;
+}
+
+.ship-role-select .role-select__grid {
+  align-self: stretch;
+}
+
+.ship-role-select .role-card {
+  min-height: 13rem;
+}
+
 /* Fleet roster ------------------------------------------------------ */
 
 .fleet-roster {
@@ -1358,6 +1392,18 @@ body {
 }
 
 @media (max-width: 60rem) {
+  .ship-role-select .session-mode__panel {
+    grid-template-columns: 1fr;
+  }
+
+  .ship-role-select__intro {
+    max-width: 38rem;
+  }
+
+  .ship-role-select .role-select__grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  }
+
   .confetti-dispenser {
     top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
     right: auto;
@@ -1396,6 +1442,19 @@ body {
   }
 
   .role-card {
+    min-height: 7.5rem;
+  }
+
+  .ship-role-select {
+    align-content: start;
+    padding-top: calc(
+      max(0.75rem, env(safe-area-inset-top)) + 5.25rem +
+      var(--ship-plot-widget-size) + 1rem
+    );
+    padding-right: max(clamp(1rem, 5vw, 3rem), env(safe-area-inset-right));
+  }
+
+  .ship-role-select .role-card {
     min-height: 7.5rem;
   }
 
