@@ -12,38 +12,27 @@ export function requireUid(auth: { uid: string } | undefined): string {
 export function requireSessionRequest(data: {
   sessionId?: unknown;
 }): { sessionId: string } {
-  const { sessionId } = data;
-  if (typeof sessionId !== 'string' || !sessionId) {
-    throw new HttpsError('invalid-argument', 'sessionId required.');
-  }
-  return { sessionId };
+  return { sessionId: requiredId(data.sessionId, 'sessionId') };
 }
 
 export function requireSessionSeatRequest(data: {
   sessionId?: unknown;
   seatId?: unknown;
 }): { sessionId: string; seatId: string } {
-  const { sessionId, seatId } = data;
-  if (typeof sessionId !== 'string' || !sessionId || typeof seatId !== 'string' || !seatId) {
-    throw new HttpsError('invalid-argument', 'sessionId and seatId required.');
-  }
-  return { sessionId, seatId };
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    seatId: requiredId(data.seatId, 'seatId'),
+  };
 }
 
 export function requireElevationRequest(data: {
   sessionId?: unknown;
   targetUid?: unknown;
 }): { sessionId: string; targetUid: string } {
-  const { sessionId, targetUid } = data;
-  if (
-    typeof sessionId !== 'string' ||
-    !sessionId ||
-    typeof targetUid !== 'string' ||
-    !targetUid
-  ) {
-    throw new HttpsError('invalid-argument', 'sessionId and targetUid required.');
-  }
-  return { sessionId, targetUid };
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+  };
 }
 
 function requiredText(value: unknown, field: string, max: number): string {
@@ -208,10 +197,8 @@ export function requireDiceRequest(data: {
   sides?: unknown;
   count?: unknown;
 }): { sessionId: string; sides: number; count: number } {
-  const { sessionId, sides, count } = data;
-  if (typeof sessionId !== 'string' || !sessionId) {
-    throw new HttpsError('invalid-argument', 'sessionId required.');
-  }
+  const { sides, count } = data;
+  const sessionId = requiredId(data.sessionId, 'sessionId');
   if (typeof sides !== 'number' || !Number.isInteger(sides) || sides < 2 || sides > 1000) {
     throw new HttpsError('invalid-argument', 'sides must be 2..1000.');
   }

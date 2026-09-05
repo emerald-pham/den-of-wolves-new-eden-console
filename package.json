@@ -16,7 +16,7 @@
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
-    "test:rules": "firebase emulators:exec --only firestore \"vitest run --project rules\"",
+    "test:rules": "npx --yes firebase-tools@15.29.0 emulators:exec --only firestore \"vitest run --project rules\"",
     "test:all": "npm run test && npm run test:rules",
     "emulators": "firebase emulators:start",
     "deploy": "npm run build && firebase deploy",
@@ -44,7 +44,7 @@
     "eslint-plugin-react-refresh": "^0.4.14",
     "jsdom": "^25.0.1",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
+    "vite": "6.4.3",
     "vitest": "^3.2.4"
   }
 }

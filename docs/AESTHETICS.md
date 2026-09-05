@@ -440,14 +440,14 @@ panel stay above it. Decorative overlines are amber-ember; the message is
 
 The launcher's schedule: first intrusion at 20 seconds, subsequent starts 60
 seconds apart, chosen randomly without an immediate repeat. Text, always in
-caps: EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU / YOUR CHILDREN
-WILL SUFFER IN THE VOID / YOU WILL DIE A HORRIBLE DEATH / EVERYONE YOU KNOW IS A
-SPY / WE CANNOT BE STOPPED. `ArrivalDisplay`
+caps: EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU / YOU WILL DIE
+A HORRIBLE DEATH / EVERYONE YOU KNOW IS A SPY / WE CANNOT BE STOPPED.
+`ArrivalDisplay`
 reports the intrusion up through an optional `onTransmission` callback, held in
 a ref so a parent handing over a fresh closure cannot restart the timers.
 
-Readouts turn over every 7.5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
-cycle so the three never move together — first changes at 7.5/9.75/12 seconds.
+Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
+cycle so the three never move together — first changes at 5/6.5/8 seconds.
 SHIPS IN CONVOY alternates between 6 and 7, while PERSONNEL GRANTED CIC DATA
 ACCESS draws from 8–21;
 WOLVES AMONG US walks its listed order, 1, ?, 2. Every readout refuses to land on the value it

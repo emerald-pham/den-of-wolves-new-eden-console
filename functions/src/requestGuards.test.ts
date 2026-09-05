@@ -44,6 +44,19 @@ describe('callable request guards', () => {
     expect(requireSessionRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
   });
 
+  it('rejects path separators in every Firestore document id', () => {
+    const malformedRequests = [
+      () => requireSessionRequest({ sessionId: 's1/players' }),
+      () => requireSessionSeatRequest({ sessionId: 's1', seatId: 'seat/one' }),
+      () => requireElevationRequest({ sessionId: 's1', targetUid: '../target' }),
+      () => requireDiceRequest({ sessionId: 's1/events', sides: 6, count: 1 }),
+    ];
+
+    for (const request of malformedRequests) {
+      expectHttpsError(request, 'invalid-argument');
+    }
+  });
+
   it('requires both session and target ids for elevation', () => {
     expectHttpsError(
       () => requireElevationRequest({ sessionId: 's1', targetUid: '' }),

@@ -39,6 +39,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Firestore security-rule tests
+        run: npm run test:rules
+
       - name: Build web
         run: npm run build
 
@@ -54,7 +57,7 @@ jobs:
 
       - name: Deploy hosting, Firestore rules and functions
         run: |
-          npx --yes firebase-tools@latest deploy \
+          npx --yes firebase-tools@15.29.0 deploy \
             --project "${{ vars.FIREBASE_PROJECT_ID }}" \
             --only hosting,firestore,functions \
             --non-interactive

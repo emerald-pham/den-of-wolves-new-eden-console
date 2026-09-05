@@ -31,7 +31,7 @@ jobs:
         run: npm test
 
       - name: Firestore security-rule tests
-        run: npx --yes firebase-tools@latest emulators:exec --only firestore "npx vitest run --project rules"
+        run: npm run test:rules
 
       - name: Build web
         run: npm run build

@@ -67,7 +67,7 @@ Commit messages: imperative subject under 72 characters, and a body that says
 
 ## Stack, and what not to swap
 
-Vite 5 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12 modular
+Vite 6 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12 modular
 · Cloud Functions 2nd gen (Node 22) · React Router `HashRouter` · Vitest + RTL +
 `@firebase/rules-unit-testing` · GitHub Actions → Firebase.
 
