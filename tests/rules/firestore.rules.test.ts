@@ -4,7 +4,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
@@ -85,6 +85,55 @@ describe('session header', () => {
 
   it('cannot be phase-changed from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { phase: 'active' }));
+  });
+
+  // This denial is the whole reason createSession has to be a callable: a
+  // client that could write its own session header could mint a join code
+  // that collides with someone else's table, and name itself owner.
+  it('cannot be created from the client -- creation goes through a function', async () => {
+    await assertFails(
+      setDoc(doc(as('stranger'), 'sessions/s2'), {
+        name: 'Mine',
+        joinCode: '1234',
+        phase: 'lobby',
+        ownerUid: 'stranger',
+      }),
+    );
+  });
+
+  it('cannot be created with someone else named as owner either', async () => {
+    await assertFails(
+      setDoc(doc(as('stranger'), 'sessions/s3'), {
+        name: 'Not mine',
+        joinCode: '5678',
+        phase: 'lobby',
+        ownerUid: 'gm1',
+      }),
+    );
+  });
+
+  it('cannot be deleted from the client', async () => {
+    await assertFails(deleteDoc(doc(as('gm1'), SESSION)));
+  });
+});
+
+// The join-code index is what makes a four-digit code redeemable. It is only
+// useful to the server: if a client could read it, ten thousand GETs would
+// enumerate every table in existence, and if it could write it, one client
+// could point an existing code at a session it controls.
+describe('join codes', () => {
+  it('cannot be read from the client', async () => {
+    await assertFails(getDoc(doc(as('stranger'), 'joinCodes/1234')));
+  });
+
+  it('cannot be read by a member of a session either', async () => {
+    await assertFails(getDoc(doc(as('alice'), 'joinCodes/1234')));
+  });
+
+  it('cannot be written from the client', async () => {
+    await assertFails(
+      setDoc(doc(as('stranger'), 'joinCodes/1234'), { sessionId: 's1' }),
+    );
   });
 });
 

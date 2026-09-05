@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -30,6 +30,146 @@ async function requireGm(sessionId: string, uid: string): Promise<void> {
     throw new HttpsError('permission-denied', 'GM only.');
   }
 }
+
+function isoOf(value: unknown): string {
+  return value instanceof Timestamp
+    ? value.toDate().toISOString()
+    : new Date().toISOString();
+}
+
+function cleanName(value: unknown, fallback: string, max: number): string {
+  const text = typeof value === 'string' ? value.trim().slice(0, max) : '';
+  return text.length > 0 ? text : fallback;
+}
+
+/** Four digits, because the code gets read aloud across a noisy table. */
+function makeJoinCode(): string {
+  return String(randomInt(0, 10_000)).padStart(4, '0');
+}
+
+/**
+ * Only ten thousand codes exist, so collisions are a certainty rather than a
+ * curiosity. `joinCodes/{code}` is a uniqueness lock: creating it inside the
+ * same transaction as the session is what makes "pick a code" safe against two
+ * tables being made at the same instant. It also lives outside `sessions`,
+ * which the rules deny to clients entirely -- so a code can be redeemed but
+ * never enumerated.
+ */
+const CODE_ATTEMPTS = 12;
+
+export const createSession = onCall<{ name?: string; displayName?: string }>(
+  async (request) => {
+    const uid = requireUid(request.auth);
+    const name = cleanName(request.data?.name, 'New session', 80);
+    const displayName = cleanName(request.data?.displayName, 'GM', 40);
+
+    for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
+      const joinCode = makeJoinCode();
+      const codeRef = db.doc(`joinCodes/${joinCode}`);
+      const sessionRef = db.collection('sessions').doc();
+
+      const claimed = await db.runTransaction(async (tx) => {
+        if ((await tx.get(codeRef)).exists) return false;
+
+        tx.set(codeRef, {
+          sessionId: sessionRef.id,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(sessionRef, {
+          name,
+          joinCode,
+          phase: 'lobby',
+          ownerUid: uid,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        // The creator is the GM. This is exactly the write the rules forbid a
+        // client to make for itself.
+        tx.set(db.doc(`sessions/${sessionRef.id}/players/${uid}`), {
+          uid,
+          sessionId: sessionRef.id,
+          displayName,
+          role: 'gm',
+          seatId: null,
+          joinedAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+
+      if (claimed) {
+        const now = new Date().toISOString();
+        return {
+          session: {
+            id: sessionRef.id,
+            name,
+            joinCode,
+            phase: 'lobby',
+            ownerUid: uid,
+            createdAt: now,
+            updatedAt: now,
+          },
+        };
+      }
+    }
+
+    throw new HttpsError(
+      'resource-exhausted',
+      'Could not find a free session code. Please try again.',
+    );
+  },
+);
+
+/** Redeem a four-digit code and register presence in that session. */
+export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
+  async (request) => {
+    const uid = requireUid(request.auth);
+    const joinCode = request.data?.joinCode ?? '';
+    if (!/^\d{4}$/.test(joinCode)) {
+      throw new HttpsError('invalid-argument', 'A session code is four digits.');
+    }
+    const displayName = cleanName(request.data?.displayName, 'Player', 40);
+
+    const codeSnap = await db.doc(`joinCodes/${joinCode}`).get();
+    if (!codeSnap.exists) {
+      throw new HttpsError('not-found', 'No session with that code.');
+    }
+    const sessionId = codeSnap.get('sessionId') as string;
+
+    const sessionSnap = await db.doc(`sessions/${sessionId}`).get();
+    if (!sessionSnap.exists) {
+      throw new HttpsError('not-found', 'No session with that code.');
+    }
+    if (sessionSnap.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'That session has closed.');
+    }
+
+    // Rejoining is normal -- a phone locks, a browser reloads -- so an existing
+    // player document is left exactly as it is, role and seat included.
+    const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+    if (!(await playerRef.get()).exists) {
+      await playerRef.set({
+        uid,
+        sessionId,
+        displayName,
+        role: 'player',
+        seatId: null,
+        joinedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    return {
+      session: {
+        id: sessionId,
+        name: sessionSnap.get('name') as string,
+        joinCode,
+        phase: sessionSnap.get('phase') as string,
+        ownerUid: sessionSnap.get('ownerUid') as string,
+        createdAt: isoOf(sessionSnap.get('createdAt')),
+        updatedAt: isoOf(sessionSnap.get('updatedAt')),
+      },
+    };
+  },
+);
 
 /** Claim an open seat. First transaction wins; losers get a clean error. */
 export const claimSeat = onCall<{ sessionId: string; seatId: string }>(

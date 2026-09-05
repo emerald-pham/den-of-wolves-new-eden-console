@@ -62,3 +62,135 @@ body {
   color: var(--accent);
   font-size: 0.9rem;
 }
+
+/* Status light -------------------------------------------------------- */
+
+/* Fixed rather than in flow: the landing content is centred in the
+   viewport, and the light belongs to the app, not to the column. */
+.landing__bar {
+  position: fixed;
+  top: 1rem;
+  right: 1.25rem;
+  z-index: 1;
+}
+
+.indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #ffffff14;
+  border-radius: 999px;
+  background: #ffffff08;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.indicator__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot) 22%, transparent);
+}
+
+.indicator[data-status='red'] {
+  --dot: #d1503f;
+}
+.indicator[data-status='yellow'] {
+  --dot: #d7a13b;
+}
+.indicator[data-status='green'] {
+  --dot: #5aa469;
+}
+
+/* Join / create ------------------------------------------------------- */
+
+.landing__actions {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+}
+
+.landing__or {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landing__join {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+}
+
+.landing__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landing__code {
+  width: 6.5ch;
+  padding: 0.5rem 0;
+  border: 1px solid #ffffff1f;
+  border-radius: 0.5rem;
+  background: #00000038;
+  color: var(--fg);
+  font: inherit;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.35em;
+  /* The letter-spacing adds a trailing gap that throws the glyphs off-centre. */
+  text-indent: 0.35em;
+  text-align: center;
+}
+
+.landing__code::placeholder {
+  color: #ffffff24;
+}
+
+.landing__button {
+  padding: 0.6rem 1.4rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+.landing__button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.landing__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.landing__code:focus-visible,
+.landing__button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.landing__error {
+  margin: 0;
+  color: #e2836f;
+  font-size: 0.85rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing__button {
+    transition: none;
+  }
+}

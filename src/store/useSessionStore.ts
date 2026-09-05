@@ -39,3 +39,18 @@ export const useSessionStore = create<SessionState>((set) => ({
 
 export const selectIsGm = (state: SessionState): boolean =>
   state.me?.role === 'gm';
+
+/**
+ * What the status light in the header shows.
+ *
+ * Two independent connections matter to a player: the one to Firebase, and the
+ * one to a session. Green means both; yellow means Firebase only; red means the
+ * Firebase link is down, which makes any session state on screen stale whether
+ * or not a session is still loaded.
+ */
+export type ConnectionStatus = 'red' | 'yellow' | 'green';
+
+export const selectConnectionStatus = (state: SessionState): ConnectionStatus => {
+  if (state.connection !== 'live') return 'red';
+  return state.session ? 'green' : 'yellow';
+};
