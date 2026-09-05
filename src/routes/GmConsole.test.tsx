@@ -301,6 +301,33 @@ it('uses a player-count slider for roles and marks manual changes custom', async
   expect(screen.getByText(/^custom$/i)).toBeInTheDocument();
 });
 
+it('groups setup roles by ship and labels every ship with its flag', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+
+  const activeRoles = screen.getByRole('group', { name: /^active roles$/i });
+  for (const shipName of [
+    'AEGIS', 'Dione', 'Icebreaker', 'Capybara', 'Shepherd', 'Quellon', 'Refinery 124',
+  ]) {
+    const ship = within(activeRoles).getByRole('group', { name: `${shipName} roles` });
+    expect(within(ship).getByRole('img', { name: `${shipName} flag` })).toBeInTheDocument();
+  }
+  expect(within(
+    within(activeRoles).getByRole('group', { name: 'AEGIS roles' }),
+  ).getByRole('switch', { name: /admiral role availability/i })).toBeInTheDocument();
+  expect(within(
+    within(activeRoles).getByRole('group', { name: 'Dione roles' }),
+  ).getByRole('switch', { name: /captain role availability/i })).toBeInTheDocument();
+
+  const wolfEligibility = screen.getByRole('group', { name: /^wolf eligibility$/i });
+  expect(within(wolfEligibility).getAllByRole('group', { name: 'AEGIS roles' }))
+    .toHaveLength(2);
+});
+
 it('applies only the final player count after a short slider pause', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);

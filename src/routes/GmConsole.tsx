@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -25,6 +25,40 @@ interface PlayerRoleGroup {
   readonly id: string;
   readonly label: string;
   readonly players: readonly Player[];
+}
+
+interface ShipRoleGroupsProps {
+  readonly roles: typeof CONSOLE_ROLES;
+  readonly renderRole: (role: typeof CONSOLE_ROLES[number]) => ReactNode;
+}
+
+function ShipRoleGroups({ roles, renderRole }: ShipRoleGroupsProps) {
+  const shipRoleIds = new Set(SHIPS.map((ship) => ship.id));
+  const independentRoles = roles.filter((role) => !shipRoleIds.has(role.shipId));
+
+  return (
+    <div className="gm-role-groups">
+      {SHIPS.map((ship) => {
+        const rolesAboard = roles.filter((role) => role.shipId === ship.id);
+        if (rolesAboard.length === 0) return null;
+        return (
+          <section className="gm-role-group" role="group" aria-label={`${ship.name} roles`} key={ship.id}>
+            <header className="gm-role-group__header">
+              <img src={ship.flag} alt={`${ship.name} flag`} />
+              <span>{ship.name}</span>
+            </header>
+            <div className="gm-role-group__roles">{rolesAboard.map(renderRole)}</div>
+          </section>
+        );
+      })}
+      {independentRoles.length > 0 && (
+        <section className="gm-role-group gm-role-group--independent" role="group" aria-label="Independent roles">
+          <header className="gm-role-group__header"><span>Independent stations</span></header>
+          <div className="gm-role-group__roles">{independentRoles.map(renderRole)}</div>
+        </section>
+      )}
+    </div>
+  );
 }
 
 function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleGroup[] {
@@ -423,8 +457,9 @@ export default function GmConsole() {
                     Joint Engineering Union is recommended with fewer than 18 active roles,
                     but may be enabled manually at any time.
                   </p>
-                  <div className="gm-role-setup__grid">
-                    {CONSOLE_ROLES.map((role) => {
+                  <ShipRoleGroups
+                    roles={CONSOLE_ROLES}
+                    renderRole={(role) => {
                       const enabled = activeRoleIds.includes(role.id);
                       return (
                         <label className="gm-wolf-role" key={role.id}>
@@ -439,12 +474,14 @@ export default function GmConsole() {
                           />
                         </label>
                       );
-                    })}
-                  </div>
+                    }}
+                  />
                 </fieldset>
                 <fieldset className="gm-wolf-setup">
                   <legend>Wolf eligibility</legend>
-                  {CONSOLE_ROLES.map((role) => {
+                  <ShipRoleGroups
+                    roles={CONSOLE_ROLES}
+                    renderRole={(role) => {
                     const enabled = wolfEligibleRoleIds.includes(role.id);
                     return (
                       <label className="gm-wolf-role" key={role.id}>
@@ -459,7 +496,8 @@ export default function GmConsole() {
                         />
                       </label>
                     );
-                  })}
+                    }}
+                  />
                   <div className="gm-wolf-actions" aria-label="Random wolf assignment">
                     <button
                       className="gm-controls-lock"
@@ -480,7 +518,9 @@ export default function GmConsole() {
                   </div>
                   <fieldset className="gm-wolf-manual">
                     <legend>Manual wolf assignment</legend>
-                    {CONSOLE_ROLES.filter((role) => wolfEligibleRoleIds.includes(role.id)).map((role) => (
+                    <ShipRoleGroups
+                      roles={CONSOLE_ROLES.filter((role) => wolfEligibleRoleIds.includes(role.id))}
+                      renderRole={(role) => (
                       <label className="gm-wolf-role" key={role.id}>
                         <span>{role.name}</span>
                         <input
@@ -494,7 +534,8 @@ export default function GmConsole() {
                               : [...selected, role.id])}
                         />
                       </label>
-                    ))}
+                      )}
+                    />
                     <button
                       className="gm-controls-lock"
                       type="button"
