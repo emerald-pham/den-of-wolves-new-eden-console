@@ -1321,7 +1321,7 @@ body {
 
 .ship-console__counters {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(11rem, 1fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(15rem, 1fr);
   gap: 0.75rem;
   margin-top: 1rem;
 }
@@ -1448,6 +1448,33 @@ body {
 .ship-census__counter > strong {
   color: var(--cic-cyan-hot);
   font: 400 1.1rem/1 var(--cic-display);
+}
+
+.overflow-ticker {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.overflow-ticker__track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+}
+
+.overflow-ticker[data-overflow='true'] .overflow-ticker__track {
+  animation: overflow-ticker-scroll 8s linear infinite;
+}
+
+.overflow-ticker[data-overflow='true'] .overflow-ticker__copy {
+  flex: none;
+  padding-right: 2rem;
+}
+
+@keyframes overflow-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 .ship-census__counter > .ship-unrest__failure { grid-column: 1 / -1; }

@@ -287,6 +287,15 @@ describe('ship console instrument layout', () => {
     expect(bay).toContain('min-height: 0');
   });
 
+  it('gives census conditions more width and scrolls only overflowing labels', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const counters = index.match(/\.ship-console__counters\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(counters).toContain('grid-template-columns: minmax(0, 1.65fr) minmax(15rem, 1fr)');
+    expect(index).toContain(".overflow-ticker[data-overflow='true'] .overflow-ticker__track");
+    expect(index).toContain('@keyframes overflow-ticker-scroll');
+  });
+
   it('reserves the shipboard instrument rail beside the command-role picker', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const picker = index.match(/\.ship-role-select\s*\{([^}]*)\}/)?.[1] ?? '';

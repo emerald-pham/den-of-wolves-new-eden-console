@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
@@ -185,7 +186,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
               <span className="resource-label">
                 <ResourceIcon id="unrest" label="Civil Unrest" />
-                <span>Civil Unrest</span>
+                <OverflowTicker text="Civil Unrest" />
               </span>
               {unrest > 7 ? (
                 <div className="ship-unrest__failure">
