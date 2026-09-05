@@ -30,8 +30,11 @@ import {
   requireUid,
   requireWolfAssignmentRequest,
   requireWolfRoleSettingRequest,
+  requireActiveRoleSettingRequest,
+  requireRolePresetRequest,
 } from './requestGuards';
 import { chooseWolfRoles, WOLF_ROLE_IDS } from './wolfAssignment';
+import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -51,6 +54,13 @@ initializeApp();
 setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = getFirestore();
+const INITIAL_SHUTTLE_DOCKINGS = [
+  { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+];
+const INITIAL_SHUTTLE_VISITS = [{
+  id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+  action: 'docked', occurredAt: 'SESSION START',
+}];
 
 async function requireGm(sessionId: string, uid: string): Promise<void> {
   const snap = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -146,6 +156,9 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           capybaraEnabled: true,
           gmControlsLocked: false,
           wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
+          activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
+          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
+          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -179,6 +192,9 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             capybaraEnabled: true,
             gmControlsLocked: false,
             wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
+            activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
+            shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
+            shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
             confettiUsedShipIds: [],
             ownerUid: uid,
             createdAt: now,
@@ -276,6 +292,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         wolfEligibleRoleIds:
           (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
+        activeRoleIds:
+          (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
+        shuttleDockings:
+          (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
+        shuttleVisitLog:
+          (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
@@ -351,6 +373,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       wolfEligibleRoleIds:
         (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
+      activeRoleIds:
+        (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
+      shuttleDockings:
+        (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
+      shuttleVisitLog:
+        (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),
@@ -605,6 +633,73 @@ export const setWolfRoleEnabled = onCall<{
   return { wolfEligibleRoleIds };
 });
 
+/** Enable or disable a playable role for this session. */
+export const setActiveRoleEnabled = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  roleId?: string;
+  enabled?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireActiveRoleSettingRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
+
+  const activeRoleIds = await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    const current = new Set(
+      (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS,
+    );
+    if (setting.enabled) current.add(setting.roleId);
+    else current.delete(setting.roleId);
+    const next = ROLE_IDS.filter((roleId) => current.has(roleId));
+    tx.update(sessionRef, { activeRoleIds: next, updatedAt: FieldValue.serverTimestamp() });
+    return next;
+  });
+
+  return { activeRoleIds };
+});
+
+/** Replace role availability with the recommended player-count template. */
+export const applyRolePreset = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  playerCount?: number;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireRolePresetRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
+  const activeRoleIds = [...recommendedRoleIds(setting.playerCount)];
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
+  });
+
+  return { activeRoleIds, playerCount: setting.playerCount };
+});
+
 /** Securely choose one or two wolf roles and keep the result GM-only. */
 export const assignWolves = onCall<{
   sessionId?: string;
@@ -633,7 +728,10 @@ export const assignWolves = onCall<{
     }
     const enabledRoleIds = (
       (session.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS]
-    ).filter((roleId) => (WOLF_ROLE_IDS as readonly string[]).includes(roleId));
+    ).filter((roleId) => {
+      const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
+      return (WOLF_ROLE_IDS as readonly string[]).includes(roleId) && active.includes(roleId);
+    });
     if (enabledRoleIds.length < assignment.count) {
       throw new HttpsError('failed-precondition', 'Not enough enabled roles for that many wolves.');
     }

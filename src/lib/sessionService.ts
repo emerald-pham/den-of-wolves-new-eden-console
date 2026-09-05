@@ -114,6 +114,17 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : undefined;
     if (roleIds) store.setSession({ ...store.session, wolfEligibleRoleIds: roleIds });
   }
+  if (
+    (command.kind === 'setActiveRoleEnabled' || command.kind === 'applyRolePreset') &&
+    store.session?.id === command.payload.sessionId
+  ) {
+    const roleIds =
+      typeof result === 'object' && result !== null && 'activeRoleIds' in result &&
+      Array.isArray(result.activeRoleIds)
+        ? result.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
+        : undefined;
+    if (roleIds) store.setSession({ ...store.session, activeRoleIds: roleIds });
+  }
   if (command.kind === 'popShipConfetti' && store.session?.id === command.payload.sessionId) {
     const used = store.session.confettiUsedShipIds ?? [];
     if (!used.includes(command.payload.shipId)) {
@@ -394,6 +405,44 @@ export async function setWolfRoleEnabled(
       instanceId: store.gmInstance.id,
       roleId,
       enabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setActiveRoleEnabled(
+  roleId: string,
+  enabled: boolean,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing role availability.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setActiveRoleEnabled',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      roleId,
+      enabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function applyRolePreset(playerCount: number): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before applying a role preset.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'applyRolePreset',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      playerCount,
     },
     createdAt: new Date().toISOString(),
   });

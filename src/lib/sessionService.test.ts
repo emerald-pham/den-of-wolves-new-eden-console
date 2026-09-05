@@ -27,6 +27,8 @@ const {
   setCapybaraEnabled,
   setGmControlsLocked,
   setWolfRoleEnabled,
+  setActiveRoleEnabled,
+  applyRolePreset,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -328,6 +330,25 @@ describe('GM instance commands', () => {
     expect(callable).toHaveBeenCalledWith({
       sessionId: 's1', instanceId: 'instance-1', count: 1,
     });
+  });
+
+  it('changes role availability and applies player-count presets through the active GM', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { activeRoleIds: ['admiral'] } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setActiveRoleEnabled('press-officer', false);
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', roleId: 'press-officer', enabled: false,
+    });
+    await applyRolePreset(8);
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', playerCount: 8,
+    });
+    expect(useSessionStore.getState().session?.activeRoleIds).toEqual(['admiral']);
   });
 
   it('activates a ship confetti dispenser and records its spent state', async () => {

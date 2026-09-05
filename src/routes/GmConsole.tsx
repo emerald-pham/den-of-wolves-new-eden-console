@@ -3,13 +3,16 @@ import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { SHIPS } from '@/data/ships';
-import { CONSOLE_ROLES, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
+import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
+import { MAX_PLAYER_PRESET, MIN_PLAYER_PRESET, recommendedRoleIds } from '@/data/rolePresets';
 import {
   assignWolves,
   kickGmInstance,
   setCapybaraEnabled,
   setGmControlsLocked,
   setWolfRoleEnabled,
+  setActiveRoleEnabled,
+  applyRolePreset,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance, SessionEvent } from '@/types/game';
@@ -38,6 +41,9 @@ export default function GmConsole() {
   const [wolfCount, setWolfCount] = useState<1 | 2>(1);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
+  const [playerCount, setPlayerCount] = useState(21);
+  const [changingActiveRole, setChangingActiveRole] = useState<string | null>(null);
+  const [applyingPreset, setApplyingPreset] = useState(false);
   const capybaraEnabled = session?.capybaraEnabled !== false;
   const capybaraQueued = pendingCommands.some(
     (command) => command.kind === 'setCapybaraEnabled',
@@ -47,6 +53,10 @@ export default function GmConsole() {
     (command) => command.kind === 'setGmControlsLocked',
   );
   const wolfEligibleRoleIds = session?.wolfEligibleRoleIds ?? DEFAULT_WOLF_ELIGIBLE_ROLE_IDS;
+  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const recommendedIds = recommendedRoleIds(playerCount);
+  const isCustom = activeRoleIds.length !== recommendedIds.length ||
+    activeRoleIds.some((roleId) => !recommendedIds.includes(roleId));
   const wolfRoleQueued = new Set(pendingCommands.flatMap((command) =>
     command.kind === 'setWolfRoleEnabled' ? [command.payload.roleId] : []));
   const availableShips = SHIPS.filter(
@@ -60,6 +70,7 @@ export default function GmConsole() {
     z: ship.z,
     color: ship.color,
   }));
+  const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
 
   useEffect(() => {
     if (!isGm || !sessionId) return;
@@ -169,6 +180,29 @@ export default function GmConsole() {
     }
   }
 
+  async function changePreset(nextCount: number): Promise<void> {
+    setPlayerCount(nextCount);
+    setApplyingPreset(true);
+    try {
+      await applyRolePreset(nextCount);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setApplyingPreset(false);
+    }
+  }
+
+  async function toggleActiveRole(roleId: string, enabled: boolean): Promise<void> {
+    setChangingActiveRole(roleId);
+    try {
+      await setActiveRoleEnabled(roleId, enabled);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingActiveRole(null);
+    }
+  }
+
   return (
     <main className="session-mode gm-console">
       <section className="session-mode__panel cic-frame">
@@ -243,6 +277,47 @@ export default function GmConsole() {
                 >
                   Capybara // {capybaraQueued ? 'Change queued' : capybaraEnabled ? 'In convoy' : 'Offline'}
                 </button>
+                <fieldset className="gm-role-setup">
+                  <legend>Active roles</legend>
+                  <label className="gm-role-preset">
+                    <span>Recommended player count</span>
+                    <input
+                      type="range"
+                      aria-label="Recommended player count"
+                      min={MIN_PLAYER_PRESET}
+                      max={MAX_PLAYER_PRESET}
+                      value={playerCount}
+                      disabled={applyingPreset}
+                      onChange={(event) => void changePreset(Number(event.target.value))}
+                    />
+                    <output>{playerCount} players</output>
+                  </label>
+                  <p className="gm-role-template-status" aria-live="polite">
+                    {isCustom ? 'Custom' : 'Recommended'}
+                  </p>
+                  <p className="gm-role-setup__note">
+                    Joint Engineering Union is recommended with fewer than 18 active roles,
+                    but may be enabled manually at any time.
+                  </p>
+                  <div className="gm-role-setup__grid">
+                    {CONSOLE_ROLES.map((role) => {
+                      const enabled = activeRoleIds.includes(role.id);
+                      return (
+                        <label className="gm-wolf-role" key={role.id}>
+                          <span>{role.name}</span>
+                          <input
+                            type="checkbox"
+                            role="switch"
+                            aria-label={`${role.name} role availability`}
+                            checked={enabled}
+                            disabled={changingActiveRole === role.id}
+                            onChange={() => void toggleActiveRole(role.id, !enabled)}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
                 <fieldset className="gm-wolf-setup">
                   <legend>Wolf eligibility</legend>
                   {CONSOLE_ROLES.map((role) => {
@@ -255,7 +330,7 @@ export default function GmConsole() {
                           role="switch"
                           aria-label={`${role.name} wolf eligibility`}
                           checked={enabled}
-                          disabled={changingWolfRole === role.id || wolfRoleQueued.has(role.id)}
+                          disabled={!activeRoleIds.includes(role.id) || changingWolfRole === role.id || wolfRoleQueued.has(role.id)}
                           onChange={() => void toggleWolfRole(role.id, !enabled)}
                         />
                       </label>
@@ -333,11 +408,18 @@ export default function GmConsole() {
 
           <section className="gm-console__module gm-console__module--event-log cic-frame">
             <h2 className="gm-console__section-title">Event log</h2>
+            {latestAlert?.type === 'fullscreen-alert' && (
+              <div className="gm-event-alert gm-event-alert--critical" role="alert">
+                {latestAlert.sourceRoleName} // {latestAlert.message}
+              </div>
+            )}
             <ul className="gm-event-log" aria-label="GM event log">
               {events.length === 0 ? <li>No logged events.</li> : events.map((event) => (
                 <li key={event.id}>
                   <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
-                  <span>{event.shipName} // Emergency Bridge Confetti Dispenser // {event.actorName}</span>
+                  <span>{event.type === 'fullscreen-alert'
+                    ? `${event.sourceRoleName} // FULLSCREEN ALERT // ${event.message}`
+                    : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorName}`}</span>
                 </li>
               ))}
             </ul>

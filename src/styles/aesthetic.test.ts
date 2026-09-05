@@ -208,11 +208,20 @@ describe('friendly DRADIS returns', () => {
     expect(returns).toContain('isolation: isolate');
   });
 
-  it('gives apparent returns a three-degree bearing drift without changing formation coordinates', () => {
+  it('lets blips nearly decay between sweeps while acquired ship names remain solid', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const paint = plot.match(/@keyframes plot-paint\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const tag = plot.match(/\.contact-plot__tag\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(paint).toContain('opacity: 0.03');
+    expect(tag).toContain('opacity: 1');
+  });
+
+  it('gives apparent returns a two-degree bearing drift without changing formation coordinates', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
     const drift = plot.match(/@keyframes plot-drift\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-    expect(drift).toContain('rotateZ(-3deg)');
-    expect(drift).toContain('rotateZ(3deg)');
+    expect(drift).toContain('rotateZ(-2deg)');
+    expect(drift).toContain('rotateZ(2deg)');
     expect(plot).toContain('transform-origin: calc(var(--x) * -1 * var(--plot-radius))');
   });
 });

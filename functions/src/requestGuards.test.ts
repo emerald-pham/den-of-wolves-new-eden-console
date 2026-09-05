@@ -9,6 +9,8 @@ import {
   requireShipConfettiRequest,
   requireWolfAssignmentRequest,
   requireWolfRoleSettingRequest,
+  requireActiveRoleSettingRequest,
+  requireRolePresetRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -147,6 +149,21 @@ describe('callable request guards', () => {
     expect(requireWolfAssignmentRequest({
       sessionId: 's1', instanceId: 'i1', count: 2,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', count: 2 });
+  });
+
+  it('validates role availability and player-count presets', () => {
+    expectHttpsError(() => requireActiveRoleSettingRequest({
+      sessionId: 's1', instanceId: 'i1', roleId: 'unknown', enabled: true,
+    }), 'invalid-argument');
+    expect(requireActiveRoleSettingRequest({
+      sessionId: 's1', instanceId: 'i1', roleId: 'press-officer', enabled: false,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', roleId: 'press-officer', enabled: false });
+    expectHttpsError(() => requireRolePresetRequest({
+      sessionId: 's1', instanceId: 'i1', playerCount: 22,
+    }), 'invalid-argument');
+    expect(requireRolePresetRequest({
+      sessionId: 's1', instanceId: 'i1', playerCount: 14,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 14 });
   });
 
 });

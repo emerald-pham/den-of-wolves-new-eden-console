@@ -1,26 +1,6 @@
-export const WOLF_ROLE_IDS = [
-  'press-officer',
-  'admiral',
-  'executive-officer',
-  'wing-commander',
-  'dione-captain',
-  'dione-engineer',
-  'dione-president',
-  'icebreaker-captain',
-  'icebreaker-engineer',
-  'icebreaker-miner',
-  'quellon-captain',
-  'quellon-engineer',
-  'quellon-explorer',
-  'shepherd-captain',
-  'shepherd-engineer',
-  'shepherd-scientist',
-  'refinery-124-captain',
-  'refinery-124-engineer',
-  'refinery-124-pdf-colonel',
-  'capybara-captain',
-  'capybara-recycler',
-] as const;
+import { ROLE_IDS } from './roleConfiguration';
+
+export const WOLF_ROLE_IDS = ROLE_IDS;
 
 /** Fisher-Yates selection with an injected integer source for deterministic tests. */
 export function chooseWolfRoles(

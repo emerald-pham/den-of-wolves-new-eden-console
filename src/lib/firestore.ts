@@ -14,7 +14,9 @@ import {
 import { app } from './firebase';
 import { useEmulators } from './firebaseConfig';
 import type { GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
+import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
+import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
 
 let firestore: Firestore | undefined;
 
@@ -47,6 +49,15 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     wolfEligibleRoleIds: Array.isArray(data.wolfEligibleRoleIds)
       ? data.wolfEligibleRoleIds as string[]
       : DEFAULT_WOLF_ELIGIBLE_ROLE_IDS,
+    activeRoleIds: Array.isArray(data.activeRoleIds)
+      ? data.activeRoleIds as string[]
+      : DEFAULT_ACTIVE_ROLE_IDS,
+    shuttleDockings: Array.isArray(data.shuttleDockings)
+      ? data.shuttleDockings as NonNullable<GameSession['shuttleDockings']>
+      : INITIAL_SHUTTLE_DOCKINGS,
+    shuttleVisitLog: Array.isArray(data.shuttleVisitLog)
+      ? data.shuttleVisitLog as NonNullable<GameSession['shuttleVisitLog']>
+      : INITIAL_SHUTTLE_VISITS,
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
       ? data.confettiUsedShipIds as string[]
       : [],
@@ -170,8 +181,16 @@ export function subscribeSessionEvents(
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
-    (snapshot) => onEvents(snapshot.docs.flatMap((event) => {
+    (snapshot) => onEvents(snapshot.docs.flatMap<SessionEvent>((event) => {
       const data = event.data();
+      if (data.type === 'fullscreen-alert') return [{
+        id: event.id,
+        sessionId,
+        type: 'fullscreen-alert' as const,
+        sourceRoleName: data.sourceRoleName as string,
+        message: data.message as string,
+        createdAt: iso(data.createdAt),
+      }];
       if (data.type !== 'ship-confetti') return [];
       return [{
         id: event.id,

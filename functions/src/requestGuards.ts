@@ -1,5 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { WOLF_ROLE_IDS } from './wolfAssignment';
+import { ROLE_IDS } from './roleConfiguration';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -160,6 +161,45 @@ export function requireWolfAssignmentRequest(data: {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     count: data.count,
+  };
+}
+
+export function requireActiveRoleSettingRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  roleId?: unknown;
+  enabled?: unknown;
+}): { sessionId: string; instanceId: string; roleId: string; enabled: boolean } {
+  const roleId = requiredId(data.roleId, 'roleId');
+  if (!(ROLE_IDS as readonly string[]).includes(roleId)) {
+    throw new HttpsError('invalid-argument', 'Unknown role.');
+  }
+  if (typeof data.enabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'enabled must be boolean.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    roleId,
+    enabled: data.enabled,
+  };
+}
+
+export function requireRolePresetRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  playerCount?: unknown;
+}): { sessionId: string; instanceId: string; playerCount: number } {
+  if (
+    typeof data.playerCount !== 'number' || !Number.isInteger(data.playerCount) ||
+    data.playerCount < 8 || data.playerCount > 21
+  ) {
+    throw new HttpsError('invalid-argument', 'playerCount must be an integer from 8 through 21.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    playerCount: data.playerCount,
   };
 }
 

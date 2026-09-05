@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rolesForShip } from './roles';
+import { DEFAULT_ACTIVE_ROLE_IDS, rolesForShip } from './roles';
 
 describe('fleet console roles', () => {
   it.each([
@@ -12,5 +12,14 @@ describe('fleet console roles', () => {
     ['capybara', ['Capybara Captain', 'Capybara Recycler']],
   ])('defines the pictured %s stations', (shipId, names) => {
     expect(rolesForShip(shipId).map(({ name }) => name)).toEqual(names);
+  });
+
+  it('defines two Joint Engineering Union seats that start disabled', () => {
+    const union = rolesForShip('joint-engineering-union');
+    expect(union.map(({ name }) => name)).toEqual([
+      'Quellon / Refinery Engineer',
+      'Shepherd / Icebreaker Engineer',
+    ]);
+    expect(union.every(({ id }) => !DEFAULT_ACTIVE_ROLE_IDS.includes(id))).toBe(true);
   });
 });

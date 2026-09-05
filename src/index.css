@@ -572,6 +572,18 @@ body {
   grid-column: span 2;
 }
 
+.gm-event-alert--critical {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--cic-hostile);
+  background: color-mix(in srgb, var(--cic-hostile) 38%, var(--cic-void));
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--cic-hostile) 38%, transparent);
+  color: var(--cic-ink);
+  font: 700 0.72rem/1.5 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .gm-dradis {
   display: grid;
   grid-template-columns: 1fr;
@@ -1032,6 +1044,60 @@ body {
   font: 0.78rem/1.7 var(--cic-mono);
 }
 
+.ship-shuttlebay {
+  position: absolute;
+  top: clamp(7rem, 18vh, 11rem);
+  right: clamp(1rem, 5vw, 4rem);
+  z-index: 5;
+  width: min(25rem, 38vw);
+  max-height: min(46vh, 25rem);
+  overflow: auto;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.ship-shuttlebay h2,
+.ship-shuttlebay h3,
+.ship-shuttlebay p { margin: 0; }
+
+.ship-shuttlebay h2 {
+  margin-top: 0.4rem;
+  color: var(--cic-ink);
+  font: 400 1.25rem/1.1 var(--cic-display);
+  text-transform: uppercase;
+}
+
+.ship-shuttlebay h3,
+.ship-shuttlebay__eyebrow {
+  margin-top: 1rem;
+  color: var(--ship-accent);
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ship-shuttlebay > p:not(.ship-shuttlebay__eyebrow) {
+  margin-top: 0.65rem;
+  color: var(--cic-muted);
+  font-size: 0.68rem;
+}
+
+.ship-shuttlebay ul,
+.ship-shuttlebay ol { margin: 0.65rem 0 0; padding: 0; list-style: none; }
+.ship-shuttlebay li { display: grid; gap: 0.2rem; color: var(--cic-muted); font-size: 0.62rem; }
+.ship-shuttlebay li strong { color: var(--ship-accent); }
+.ship-shuttlebay__log li { grid-template-columns: 1fr auto; border-top: 1px solid var(--cic-rule); padding: 0.45rem 0; }
+.ship-shuttlebay__log time { grid-column: 1 / -1; }
+
+.gm-role-setup { margin: 1rem 0; border: 1px solid var(--cic-rule); padding: 0.8rem; }
+.gm-role-preset { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; color: var(--cic-muted); font: 0.65rem/1.4 var(--cic-mono); text-transform: uppercase; }
+.gm-role-preset input { grid-column: 1 / -1; width: 100%; accent-color: var(--cic-cyan); }
+.gm-role-template-status { color: var(--cic-amber); font: 0.7rem/1.4 var(--cic-mono); text-transform: uppercase; }
+.gm-role-setup__note { color: var(--cic-muted); font: 0.6rem/1.5 var(--cic-mono); }
+.gm-role-setup__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 0.75rem; }
+
 /* One-shot bridge morale system ---------------------------------- */
 
 .confetti-dispenser {
@@ -1129,6 +1195,16 @@ body {
   animation: confetti-pop 2.8s cubic-bezier(0.14, 0.72, 0.28, 1) var(--confetti-delay) both;
 }
 
+.confetti-burst__piece--newspaper {
+  width: clamp(1.2rem, 2.4vw, 2.2rem);
+  height: clamp(1.7rem, 3.4vw, 3rem);
+  border: 1px solid rgb(20 25 25 / 70%);
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgb(15 20 20 / 55%) 3px 4px),
+    var(--cic-ink);
+  filter: sepia(0.35);
+}
+
 @keyframes confetti-pop {
   0% { transform: translate3d(0, 0, 0) rotate(0); opacity: 1; }
   70% { opacity: 1; }
@@ -1206,6 +1282,13 @@ body {
     width: 9.5rem;
     transform: scale(0.78);
     transform-origin: top left;
+  }
+
+  .ship-shuttlebay {
+    top: auto;
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    width: min(19rem, 44vw);
   }
 
   .gm-console__grid {

@@ -170,7 +170,7 @@ ships must not sort underneath the rotating scan planes and disappear.
 
 Apparent contact drift is a slow display estimate, not ship movement. Each
 sweep advances a contact through a fixed bearing walk spanning no more than
-three degrees; the contact is stationary between sweeps. Never modify the
+two degrees; the contact is stationary between sweeps. Never modify the
 canonical XYZ formation to produce this effect.
 
 The GM console contains an inset fleet DRADIS and a visible button for every
@@ -276,7 +276,8 @@ that is a different, flatter instrument.
 8. **Paint flare.** The sweep is a plane, so it crosses a bearing twice per
    turn: blips animate over `calc(var(--plot-turn) / 2)` with
    `animation-delay: calc(var(--phase) * var(--plot-turn) / -2)`, so each one
-   flares as the disc reaches it.
+   flares as the disc reaches it and fades to a 0.03 trace before the next pass.
+   Once acquired, the ship name remains at full opacity between sweeps.
 9. **Contacts are hand-placed, never random.** A randomised board rearranges
    itself on re-render.
 

@@ -248,6 +248,25 @@ describe('App', () => {
     expect(container.querySelector('.contact-plot')).toHaveAttribute('data-placement', 'widget');
   });
 
+  it('keeps the Press console aboard SNN while centering DRADIS on its docked host', async () => {
+    window.location.hash = '#/press';
+    useSessionStore.getState().setIdentity({
+      ...session,
+      shuttleDockings: [{
+        shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: '2026-01-01T01:00:00.000Z',
+      }],
+    }, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/press');
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
+    expect(screen.getByText(/shuttle location.*docked.*dione/i)).toBeInTheDocument();
+    expect(container.querySelector('.contact-plot__origin')).toHaveTextContent('DIONE');
+    expect(container.querySelectorAll('.contact-plot__tag')).not.toContain('SNN');
+  });
+
   it('rebases the named fleet contacts around the joined ship and returns to the AEGIS view', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/console';

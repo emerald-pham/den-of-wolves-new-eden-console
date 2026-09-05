@@ -26,12 +26,30 @@ export interface GameSession {
   readonly gmControlsLocked?: boolean;
   /** Playable role ids currently eligible for a random wolf assignment. */
   readonly wolfEligibleRoleIds?: readonly string[];
+  /** Playable role ids currently offered by role selection. */
+  readonly activeRoleIds?: readonly string[];
+  readonly shuttleDockings?: readonly ShuttleDocking[];
+  readonly shuttleVisitLog?: readonly ShuttleVisit[];
   /** Fleet ships whose one-shot bridge dispenser has already been fired. */
   readonly confettiUsedShipIds?: readonly string[];
   /** uid of the facilitator who may elevate others. */
   readonly ownerUid: Id;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
+}
+
+export interface ShuttleDocking {
+  readonly shuttleId: Id;
+  readonly shipId: Id;
+  readonly dockedAt: Timestamp;
+}
+
+export interface ShuttleVisit {
+  readonly id: Id;
+  readonly shuttleId: Id;
+  readonly shipId: Id;
+  readonly action: 'docked' | 'departed';
+  readonly occurredAt: Timestamp;
 }
 
 export type SeatStatus = 'open' | 'claimed' | 'locked';
@@ -68,7 +86,7 @@ export interface GmInstance {
   readonly claimedAt: Timestamp;
 }
 
-export interface SessionEvent {
+export interface ShipConfettiEvent {
   readonly id: Id;
   readonly sessionId: Id;
   readonly type: 'ship-confetti';
@@ -77,6 +95,17 @@ export interface SessionEvent {
   readonly actorName: string;
   readonly createdAt: Timestamp;
 }
+
+export interface FullscreenAlertEvent {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly type: 'fullscreen-alert';
+  readonly sourceRoleName: string;
+  readonly message: string;
+  readonly createdAt: Timestamp;
+}
+
+export type SessionEvent = ShipConfettiEvent | FullscreenAlertEvent;
 
 /** Anything the server generated and only some players may read. */
 export interface SecretRecord {

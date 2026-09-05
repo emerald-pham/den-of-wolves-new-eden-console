@@ -66,6 +66,27 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setActiveRoleEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly roleId: string;
+        readonly enabled: boolean;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'applyRolePreset';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly playerCount: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'popShipConfetti';
       readonly payload: {
         readonly sessionId: string;

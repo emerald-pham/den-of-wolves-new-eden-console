@@ -7,6 +7,7 @@ import SessionMode from '@/routes/SessionMode';
 import ShipConsole from '@/routes/ShipConsole';
 import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
+import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ShipPlot from '@/components/ShipPlot';
@@ -19,9 +20,9 @@ const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press']);
 const isSessionRoute = (path: string): boolean =>
-  SESSION_ROUTES.has(path) || path.startsWith('/ships/');
+  SESSION_ROUTES.has(path) || path.startsWith('/ships/') || path.startsWith('/union/');
 const hasConsoleDradis = (path: string): boolean =>
-  path === '/press' || path.startsWith('/ships/');
+  path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/');
 
 function AppRoutes() {
   const location = useLocation();
@@ -37,7 +38,10 @@ function AppRoutes() {
   const [intrusion, setIntrusion] = useState(false);
   const shipId = location.pathname.startsWith('/ships/')
     ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
-    : 'aegis';
+    : location.pathname === '/press'
+      ? session?.shuttleDockings?.find((docking) => docking.shuttleId === 'snn-press-shuttle')
+        ?.shipId ?? 'aegis'
+      : 'aegis';
 
   useEffect(() => {
     if (session && isSessionRoute(location.pathname)) {
@@ -94,6 +98,7 @@ function AppRoutes() {
             <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
             <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
             <Route path="/ships/:shipId" element={<ShipConsole />} />
+            <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         )}

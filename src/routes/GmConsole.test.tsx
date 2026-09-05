@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -11,6 +11,8 @@ vi.mock('@/lib/sessionService', () => ({
   setCapybaraEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
   setWolfRoleEnabled: vi.fn(),
+  setActiveRoleEnabled: vi.fn(),
+  applyRolePreset: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -19,7 +21,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
-  setWolfRoleEnabled } =
+  setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset } =
   await import('@/lib/sessionService');
 const { subscribeGmInstances, subscribeSessionEvents } = await import('@/lib/firestore');
 
@@ -175,6 +177,45 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
   expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
 });
 
+it('uses a player-count slider for recommended roles and marks manual changes custom', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(applyRolePreset).mockImplementation(async (playerCount) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) useSessionStore.getState().setSession({
+      ...activeSession,
+      activeRoleIds: playerCount === 20
+        ? ['admiral', 'capybara-captain', 'capybara-recycler']
+        : ['admiral'],
+    });
+    return 'applied';
+  });
+  vi.mocked(setActiveRoleEnabled).mockImplementation(async (roleId, enabled) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) useSessionStore.getState().setSession({
+      ...activeSession,
+      activeRoleIds: enabled ? [...(activeSession.activeRoleIds ?? []), roleId] : [],
+    });
+    return 'applied';
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const slider = screen.getByRole('slider', { name: /recommended player count/i });
+  expect(slider).toHaveAttribute('min', '8');
+  expect(slider).toHaveAttribute('max', '21');
+  expect(screen.getByText(/joint engineering union.*fewer than 18.*manually/i)).toBeInTheDocument();
+  expect(screen.getByRole('switch', { name: /press officer role availability/i })).toBeChecked();
+
+  fireEvent.change(slider, { target: { value: '20' } });
+  expect(applyRolePreset).toHaveBeenLastCalledWith(20);
+
+  await user.click(screen.getByRole('switch', { name: /press officer role availability/i }));
+  expect(setActiveRoleEnabled).toHaveBeenCalledWith('press-officer', true);
+  expect(screen.getByText(/^custom$/i)).toBeInTheDocument();
+});
+
 it('configures wolf eligibility and randomly assigns from enabled roles', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -193,7 +234,7 @@ it('configures wolf eligibility and randomly assigns from enabled roles', async 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   const eligibility = screen.getByRole('switch', { name: /press officer.*wolf/i });
   expect(eligibility).toBeChecked();
-  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(21);
+  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(23);
   expect(screen.getByRole('option', { name: /2 wolves/i })).toBeEnabled();
 
   await user.click(screen.getByRole('button', { name: /randomly assign wolves/i }));
@@ -298,5 +339,26 @@ it('shows Emergency Bridge Confetti Dispenser activations in the console log', a
   await screen.findByText(/quellon.*emergency bridge confetti dispenser.*player/i);
   expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
     /quellon.*emergency bridge confetti dispenser.*player/i,
+  );
+});
+
+it('mirrors an in-game fullscreen alert as a red GM activity banner', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
+    onEvents([{
+      id: 'alert-1', sessionId: 's1', type: 'fullscreen-alert',
+      sourceRoleName: 'Admiral', message: 'Reactor containment failure',
+      createdAt: '2026-01-01T00:03:00.000Z',
+    }]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent(/admiral.*reactor containment failure/i);
+  expect(alert).toHaveClass('gm-event-alert--critical');
+  expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
+    /reactor containment failure/i,
   );
 });

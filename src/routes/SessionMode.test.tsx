@@ -139,3 +139,23 @@ it('removes Capybara from the joinable fleet when the GM disables it', () => {
   expect(screen.queryByRole('link', { name: /join capybara/i })).not.toBeInTheDocument();
   expect(screen.getAllByRole('img')).toHaveLength(6);
 });
+
+it('hides disabled roles and offers enabled Joint Engineering Union stations', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    activeRoleIds: ['admiral', 'joint-engineering-quellon-refinery'],
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /press officer/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /quellon.*refinery engineer/i }))
+    .toHaveAttribute('href', '/union/roles/joint-engineering-quellon-refinery');
+});

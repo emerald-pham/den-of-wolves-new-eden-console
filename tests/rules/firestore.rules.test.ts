@@ -127,6 +127,12 @@ describe('session header', () => {
     }));
   });
 
+  it('cannot change active role availability from the client', async () => {
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
+      activeRoleIds: ['admiral'],
+    }));
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.

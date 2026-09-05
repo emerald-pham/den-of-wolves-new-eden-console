@@ -254,12 +254,12 @@
 }
 
 @keyframes plot-drift {
-  0% { transform: rotateZ(-3deg); }
+  0% { transform: rotateZ(-2deg); }
   20% { transform: rotateZ(-1deg); }
   40% { transform: rotateZ(2deg); }
-  60% { transform: rotateZ(3deg); }
+  60% { transform: rotateZ(2deg); }
   80% { transform: rotateZ(1deg); }
-  100% { transform: rotateZ(-3deg); }
+  100% { transform: rotateZ(-2deg); }
 }
 
 .contact-plot__blip {
@@ -286,7 +286,7 @@
     transform: scale(1);
   }
   100% {
-    opacity: calc(0.2 + var(--depth) * 0.34);
+    opacity: 0.03;
     transform: scale(1);
   }
 }
@@ -312,7 +312,7 @@
   letter-spacing: 0.18em;
   white-space: nowrap;
   color: color-mix(in srgb, var(--contact-ink) 72%, var(--cic-ink));
-  opacity: calc(0.22 + var(--depth) * 0.55);
+  opacity: 1;
 }
 
 .contact-plot__contact[data-label-anchor$='east'] .contact-plot__tag {

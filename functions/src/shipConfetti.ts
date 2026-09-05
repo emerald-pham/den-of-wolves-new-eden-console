@@ -6,6 +6,7 @@ export const FLEET_SHIP_NAMES = {
   shepherd: 'Shepherd',
   quellon: 'Quellon',
   'refinery-124': 'Refinery 124',
+  'snn-press-shuttle': 'SNN Independent Press Shuttle',
 } as const;
 
 export function isFleetShipId(shipId: string): shipId is keyof typeof FLEET_SHIP_NAMES {

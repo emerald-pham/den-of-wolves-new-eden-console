@@ -2,6 +2,8 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
 import { findConsoleRole } from '@/data/roles';
+import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { shuttlebayForShip } from '@/data/shuttles';
 import { popShipConfetti } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
 
@@ -26,6 +28,7 @@ export default function ShipConsole() {
   const ship = findShip(shipId);
   const consoleRole = findConsoleRole(roleId);
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
+  const roleEnabled = !roleId || (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(roleId);
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
@@ -34,6 +37,7 @@ export default function ShipConsole() {
     (command) => command.kind === 'popShipConfetti' &&
       command.payload.sessionId === session.id && command.payload.shipId === ship.id,
   ));
+  const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
 
   useEffect(() => {
     if (!session?.id || !ship) return;
@@ -65,7 +69,7 @@ export default function ShipConsole() {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (
-    mode !== 'console' || !ship || !validRole ||
+    mode !== 'console' || !ship || !validRole || !roleEnabled ||
     (ship.id === 'capybara' && session.capybaraEnabled === false)
   ) return <Navigate to="/console" replace />;
 
@@ -97,6 +101,29 @@ export default function ShipConsole() {
         <p className="ship-console__type">{ship.vesselType}</p>
         {consoleRole && <p className="ship-console__role">{consoleRole.name}</p>}
         <p className="ship-console__description">{ship.description}</p>
+      </section>
+      <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
+        <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
+        <h2>Docked shuttlecraft</h2>
+        {shuttlebay?.dockedShuttles.length ? (
+          <ul className="ship-shuttlebay__docked">
+            {shuttlebay.dockedShuttles.map((shuttle) => (
+              <li key={shuttle.id}><strong>{shuttle.name}</strong><span>Currently docked</span></li>
+            ))}
+          </ul>
+        ) : <p>No shuttle docked</p>}
+        <h3>Visit log</h3>
+        {shuttlebay?.visits.length ? (
+          <ol className="ship-shuttlebay__log" aria-label="Shuttle visit log">
+            {shuttlebay.visits.map((visit) => (
+              <li key={visit.id}>
+                <span>{visit.shuttle.shortName}</span>
+                <strong>{visit.action.toUpperCase()}</strong>
+                <time>{visit.occurredAt}</time>
+              </li>
+            ))}
+          </ol>
+        ) : <p>No recorded shuttle visits</p>}
       </section>
       <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
         <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>

@@ -2,6 +2,8 @@ import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 import { SHIPS, type ShipOrigin } from '@/data/ships';
 import { rolesForShip } from '@/data/roles';
+import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
+import PressConfetti from '@/components/PressConfetti';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -25,11 +27,16 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
       <FleetRoster
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
+        activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
       />
     );
   }
 
   if (mode === 'press') {
+    const dockedShipId = session.shuttleDockings?.find(
+      (docking) => docking.shuttleId === 'snn-press-shuttle',
+    )?.shipId ?? 'aegis';
+    const dockedShip = SHIPS.find((ship) => ship.id === dockedShipId);
     return (
       <main className="session-mode">
         <div className="session-mode__panel cic-frame">
@@ -39,6 +46,10 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
           <p className="eyebrow">{session.name} // Independent Press</p>
           <h1 className="role-select__title">SNN — System News Network</h1>
           <p className="role-select__lede">Unaffiliated Independent Press Shuttle</p>
+          <p className="press-shuttle__location">
+            Shuttle location // docked // {dockedShip?.name ?? dockedShipId}
+          </p>
+          <PressConfetti />
         </div>
       </main>
     );
@@ -68,10 +79,16 @@ const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
 function FleetRoster({
   sessionName,
   capybaraEnabled,
+  activeRoleIds,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
+  activeRoleIds: readonly string[];
 }) {
+  const active = new Set(activeRoleIds);
+  const unionRoles = CONSOLE_ROLES.filter(
+    (role) => role.shipId === 'joint-engineering-union' && active.has(role.id),
+  );
   return (
     <main className="fleet-roster">
       <header className="fleet-roster__header">
@@ -86,7 +103,7 @@ function FleetRoster({
       <section className="fleet-group" aria-labelledby="independent-roles">
         <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>
         <div className="role-select__grid">
-          <Link
+          {active.has('press-officer') && <Link
             className="role-card cic-frame"
             to="/press"
             aria-label="Press Officer"
@@ -95,7 +112,18 @@ function FleetRoster({
             <span className="role-card__description">
               SNN // Unaffiliated Independent Press Shuttle
             </span>
-          </Link>
+          </Link>}
+          {unionRoles.map((role) => (
+            <Link
+              className="role-card cic-frame"
+              to={`/union/roles/${role.id}`}
+              aria-label={role.name}
+              key={role.id}
+            >
+              <span className="role-card__name">{role.name}</span>
+              <span className="role-card__description">Joint Engineering Union</span>
+            </Link>
+          ))}
         </div>
       </section>
 
@@ -104,7 +132,9 @@ function FleetRoster({
           <h2 className="fleet-group__title" id={`fleet-${origin}`}>{label}</h2>
           <div className="fleet-group__grid">
             {SHIPS.filter((ship) =>
-              ship.origin === origin && (capybaraEnabled || ship.id !== 'capybara')).map((ship) => (
+              ship.origin === origin &&
+              (capybaraEnabled || ship.id !== 'capybara') &&
+              rolesForShip(ship.id).some((role) => active.has(role.id))).map((ship) => (
               <article
                 className={`fleet-card fleet-card--${ship.id} cic-frame`}
                 aria-label={ship.name}

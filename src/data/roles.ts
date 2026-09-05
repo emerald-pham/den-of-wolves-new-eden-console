@@ -1,5 +1,6 @@
 export type ConsoleShipId =
   | 'press'
+  | 'joint-engineering-union'
   | 'aegis'
   | 'dione'
   | 'icebreaker'
@@ -38,7 +39,30 @@ export const CONSOLE_ROLES: readonly ConsoleRole[] = [
   { id: 'refinery-124-pdf-colonel', name: 'P.D.F. Colonel', shipId: 'refinery-124', commandAuthority: 'officer' },
   { id: 'capybara-captain', name: 'Capybara Captain', shipId: 'capybara', commandAuthority: 'captain' },
   { id: 'capybara-recycler', name: 'Capybara Recycler', shipId: 'capybara', commandAuthority: 'officer' },
+  {
+    id: 'joint-engineering-quellon-refinery',
+    name: 'Quellon / Refinery Engineer',
+    shipId: 'joint-engineering-union',
+    commandAuthority: 'officer',
+  },
+  {
+    id: 'joint-engineering-shepherd-icebreaker',
+    name: 'Shepherd / Icebreaker Engineer',
+    shipId: 'joint-engineering-union',
+    commandAuthority: 'officer',
+  },
 ];
+
+export const JOINT_ENGINEERING_ROLE_IDS = [
+  'joint-engineering-quellon-refinery',
+  'joint-engineering-shepherd-icebreaker',
+] as const;
+
+export const DEFAULT_ACTIVE_ROLE_IDS = CONSOLE_ROLES
+  .filter((role) => !JOINT_ENGINEERING_ROLE_IDS.includes(
+    role.id as typeof JOINT_ENGINEERING_ROLE_IDS[number],
+  ))
+  .map((role) => role.id);
 
 export const DEFAULT_WOLF_ELIGIBLE_ROLE_IDS = CONSOLE_ROLES.map((role) => role.id);
 

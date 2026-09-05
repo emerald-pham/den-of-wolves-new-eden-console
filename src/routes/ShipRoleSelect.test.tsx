@@ -54,3 +54,19 @@ it('returns to the fleet roster through a visible control', async () => {
   await user.click(screen.getByRole('link', { name: /back to fleet/i }));
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
+
+it('offers only roles the GM has enabled', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: ['admiral'] });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+      <Routes><Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /^admiral$/i })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /executive officer/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /wing commander/i })).not.toBeInTheDocument();
+});

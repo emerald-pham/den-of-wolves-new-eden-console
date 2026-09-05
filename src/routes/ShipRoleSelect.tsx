@@ -1,6 +1,7 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
 import { rolesForShip } from '@/data/roles';
+import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 
 export default function ShipRoleSelect() {
@@ -9,7 +10,8 @@ export default function ShipRoleSelect() {
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
   const ship = findShip(shipId);
-  const roles = rolesForShip(shipId ?? '');
+  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const roles = rolesForShip(shipId ?? '').filter((role) => activeRoleIds.includes(role.id));
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (mode !== 'console' || !ship || roles.length === 0) {

@@ -56,6 +56,23 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i })).toBeDisabled();
   expect(screen.getByRole('status')).toHaveTextContent(/captain authority required.*two officers may override/i);
   expect(screen.queryByText(/engineer|recycler/i)).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /shuttlebay/i })).toBeInTheDocument();
+  expect(screen.getByText(/no shuttle docked/i)).toBeInTheDocument();
+  expect(screen.getByText(/no recorded shuttle visits/i)).toBeInTheDocument();
+});
+
+it('shows the SNN shuttle docked at AEGIS and records its initial visit', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('SNN Independent Press Shuttle')).toBeInTheDocument();
+  expect(screen.getByText(/currently docked/i)).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: /shuttle visit log/i })).toHaveTextContent(
+    /SNN.*docked/i,
+  );
 });
 
 it.each([
