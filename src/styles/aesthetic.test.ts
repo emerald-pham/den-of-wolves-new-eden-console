@@ -180,8 +180,10 @@ describe('the shuttlecraft console template', () => {
 describe('ship console instrument layout', () => {
   it('keeps ship information above the shared flag during a screen crossing', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const console = index.match(/\.ship-console\s*\{([^}]*)\}/)?.[1] ?? '';
     const identity = index.match(/\.ship-console__identity\s*\{([^}]*)\}/)?.[1] ?? '';
 
+    expect(console).not.toContain('z-index:');
     expect(identity).toContain('z-index: 21');
   });
 

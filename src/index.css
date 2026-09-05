@@ -1011,7 +1011,6 @@ body {
   --ship-accent: var(--cic-cyan);
   --ship-secondary: var(--cic-ink);
   position: relative;
-  z-index: 1;
   min-height: 100dvh;
   overflow: hidden;
   padding: clamp(6rem, 13vh, 9rem) clamp(1rem, 5vw, 4rem) 2rem;
