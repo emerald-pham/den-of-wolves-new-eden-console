@@ -91,6 +91,23 @@ short-lived Workload Identity Federation credentials; there is no JSON key.
 - A component should never have to work out which is which. Snapshots land in
   the store; mutations go out through callables.
 
+## Navigability — no dead ends
+
+Navigation is a feature, not cleanup. Every non-landing screen and device mode
+must expose an obvious, visible route back to its logical parent (normally the
+Roles screen). Never rely on the browser Back button, the settings dialog, a
+route guard, or disconnecting as the only way out of a screen.
+
+- Add the return path in the same change that introduces a screen or mode.
+- Keep it keyboard-accessible, at least 44px on touch devices, and available at
+  every supported viewport size and orientation.
+- Preserve state when returning unless the user explicitly chose to release,
+  disconnect, or reset it.
+- Add a route-level test that activates the visible navigation control and
+  verifies its destination. A render-only test is not enough.
+- Before finishing UI work, traverse forward and back through every affected
+  route and check for navigation traps.
+
 ## Session lifecycle and audit guardrails
 
 - `useSessionStore` persists the last server snapshot (`session`, `me`), the
@@ -141,6 +158,7 @@ tests/rules/      assertions against the emulator
 - [ ] `npm run build` and `npm run build --prefix functions` succeed.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
+- [ ] Every affected screen has a visible, tested route back to its logical parent.
 - [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys).
 - [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.
 
