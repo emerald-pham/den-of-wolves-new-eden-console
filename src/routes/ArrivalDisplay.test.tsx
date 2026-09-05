@@ -14,30 +14,30 @@ const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 const readout = (n: number) => screen.getByLabelText(`Arrival readout ${n}`);
 const shown = (n: number) => readout(n).textContent ?? '';
 
-it('turns each readout over on its own beat, a third faster than a ten-second cycle', () => {
+it('turns each readout over every five seconds on proportionally staggered beats', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
   render(<ArrivalDisplay />);
   expect(readout(1)).toHaveTextContent('6');
   expect(readout(2)).toHaveTextContent('20');
   expect(readout(3)).toHaveTextContent('1');
 
-  advance(7500);
+  advance(5000);
   expect(shown(1)).not.toBe('6');
   expect(shown(2)).toBe('20');
-  advance(2250);
+  advance(1500);
   expect(shown(2)).not.toBe('20');
-  advance(2250);
+  advance(1500);
   expect(readout(3)).toHaveTextContent('?');
 });
 
 it('walks the wolves readout through its listed order', () => {
   render(<ArrivalDisplay />);
   expect(readout(3)).toHaveTextContent('1');
-  advance(12000);
+  advance(8000);
   expect(readout(3)).toHaveTextContent('?');
-  advance(7500);
+  advance(5000);
   expect(readout(3)).toHaveTextContent('2');
-  advance(7500);
+  advance(5000);
   expect(readout(3)).toHaveTextContent('1');
 });
 
@@ -46,13 +46,13 @@ it('draws ships from one to seven and crew from eight to twenty-one', () => {
   const ships = [shown(1)];
   const crew = [shown(2)];
 
-  // 9750ms lands on the first beat of both readouts; every 7500ms after that
+  // 6500ms lands on the first beat of both readouts; every 5000ms after that
   // moves both again, so consecutive samples are genuine consecutive values.
-  advance(9750);
+  advance(6500);
   ships.push(shown(1));
   crew.push(shown(2));
   for (let i = 0; i < 50; i += 1) {
-    advance(7500);
+    advance(5000);
     ships.push(shown(1));
     crew.push(shown(2));
   }
@@ -75,13 +75,13 @@ it('never redraws the value a readout is already showing', () => {
   let ship = shown(1);
   let crew = shown(2);
 
-  advance(9750);
+  advance(6500);
   for (let i = 0; i < 60; i += 1) {
     expect(shown(1)).not.toBe(ship);
     expect(shown(2)).not.toBe(crew);
     ship = shown(1);
     crew = shown(2);
-    advance(7500);
+    advance(5000);
   }
 });
 it('transmits at twenty seconds for five seconds, then a different message each minute', () => {

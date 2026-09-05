@@ -3,7 +3,7 @@ import Intrusion from '@/components/Intrusion';
 
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
  *  once. The stagger is a third of the cycle, and both scale together. */
-const CYCLE_MS = 7500;
+const CYCLE_MS = 5000;
 
 /**
  * A readout either walks a fixed sequence or draws from a range. Both refuse to
