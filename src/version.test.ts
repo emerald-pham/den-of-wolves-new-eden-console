@@ -5,7 +5,7 @@ import { APP_VERSION } from './version';
 it('keeps the visible build reference aligned with the package version', () => {
   const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
   expect(APP_VERSION).toBe(packageJson.version);
-  expect(APP_VERSION).toBe('0.1.27');
+  expect(APP_VERSION).toBe('0.1.28');
 });
 
 it('documents the release-maturity gates for later version numbers', () => {
@@ -21,6 +21,6 @@ it('documents the release-maturity gates for later version numbers', () => {
   expect(agreement).toContain('Only the product owner may authorize `0.9.x`');
   expect(agreement).toContain('Only the product owner may authorize `1.0.0`');
   expect(agreement).toContain('state the exact version in the user-facing chat');
-  expect(agreement).toContain('does not include GitHub Actions read access');
+  expect(agreement).toContain('Local tests always run before deployment');
   expect(agentEntry).toContain('Version every completed edit');
 });

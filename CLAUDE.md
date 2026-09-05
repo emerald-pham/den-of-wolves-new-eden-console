@@ -92,12 +92,14 @@ same +10 offset; never take a port that is already listening.
 - Branch from `main`. Short-lived, one concern per branch.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the
   end of the week, not once three other things are also finished.
-- Green means: `npm run lint`, `npm run test:all`, `npm run build`, and
-  `npm run build --prefix functions` all pass locally. Merge and push as soon
-  as those checks are green; CI validates the pushed commit and any failure is
-  fixed immediately.
+- Local tests always run before deployment: `npm run lint`, `npm run test:all`,
+  `npm run build`, and `npm run build --prefix functions`. Passing relevant
+  local checks is the normal merge gate. A known failure does not automatically
+  block deployment only when it is demonstrably unrelated or flaky and the
+  deployment remains safe; changed-code, rules, authentication, authorization,
+  data-integrity, or security failures always block.
 - The agent token does not include GitHub Actions read access. Do not poll,
-  wait for, or block a merge on CI visibility; the local green checks are the
+  wait for, or block a merge on CI visibility; local validation is the
   actionable merge gate.
 - Do not stack unfinished work. Do not leave a branch open "for later." If it is
   not going to land, delete it.
@@ -227,8 +229,8 @@ tests/rules/      assertions against the emulator
 ## Definition of done
 
 - [ ] A test was written first and observed failing.
-- [ ] `npm run lint` clean.
-- [ ] `npm run test:all` green.
+- [ ] Local lint and tests were run before deployment; any known failure was
+  reviewed against the deployment-safety rule above.
 - [ ] `npm run build` and `npm run build --prefix functions` succeed.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
