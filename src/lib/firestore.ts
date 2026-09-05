@@ -7,6 +7,7 @@ import {
   orderBy,
   limit,
   query,
+  where,
   type DocumentData,
   type Unsubscribe,
   type Firestore,
@@ -147,6 +148,22 @@ export function subscribeGmInstances(
     query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
     (snapshot) => onInstances(snapshot.docs.map((instance) =>
       gmInstanceFrom(sessionId, instance.id, instance.data()))),
+    onError,
+  );
+}
+
+export function subscribeConnectedPlayers(
+  sessionId: string,
+  onPlayers: (players: readonly Player[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/players`),
+      where('connected', '==', true),
+    ),
+    (snapshot) => onPlayers(snapshot.docs.map((player) =>
+      playerFrom(sessionId, player.id, player.data()))),
     onError,
   );
 }

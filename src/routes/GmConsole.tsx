@@ -19,7 +19,51 @@ import {
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
-import type { GmInstance, SessionEvent } from '@/types/game';
+import type { GmInstance, Player, SessionEvent } from '@/types/game';
+
+interface PlayerRoleGroup {
+  readonly id: string;
+  readonly label: string;
+  readonly players: readonly Player[];
+}
+
+function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleGroup[] {
+  const assignedRoleIds = new Set(CONSOLE_ROLES.map((role) => role.id));
+  const groups: PlayerRoleGroup[] = CONSOLE_ROLES.map((role) => {
+    const shipName = SHIPS.find((ship) => ship.id === role.shipId)?.name ??
+      role.shipId.replaceAll('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return {
+      id: role.id,
+      label: `${shipName} // ${role.name}`,
+      players: players.filter((player) => player.activeConsoleRoleId === role.id),
+    };
+  });
+  groups.push(
+    {
+      id: 'gm',
+      label: 'GM',
+      players: players.filter((player) => player.role === 'gm' && !player.activeConsoleRoleId),
+    },
+    {
+      id: 'observer',
+      label: 'Observer',
+      players: players.filter((player) => player.role === 'observer' && !player.activeConsoleRoleId),
+    },
+    {
+      id: 'unassigned',
+      label: 'Unassigned',
+      players: players.filter((player) => player.role === 'player' &&
+        (!player.activeConsoleRoleId || !assignedRoleIds.has(player.activeConsoleRoleId))),
+    },
+  );
+  return groups
+    .filter((group) => group.players.length > 0)
+    .map((group) => ({
+      ...group,
+      players: [...group.players].sort((left, right) =>
+        left.displayName.localeCompare(right.displayName)),
+    }));
+}
 
 export default function GmConsole() {
   const { reducedMotion } = useMotionPreference();
@@ -34,6 +78,7 @@ export default function GmConsole() {
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
+  const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -86,6 +131,7 @@ export default function GmConsole() {
     color: ship.color,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
+  const connectedPlayerGroups = groupConnectedPlayers(connectedPlayers);
 
   useLayoutEffect(() => {
     const dradis = dradisRef.current;
@@ -121,6 +167,7 @@ export default function GmConsole() {
     let active = true;
     let unsubscribe: () => void = () => undefined;
     void import('@/lib/firestore').then(({
+      subscribeConnectedPlayers,
       subscribeGmInstances,
       subscribeSessionEvents,
     }) => {
@@ -147,9 +194,18 @@ export default function GmConsole() {
           message: 'The live GM event log could not be refreshed.',
         }),
       );
+      const stopPlayers = subscribeConnectedPlayers(
+        sessionId,
+        setConnectedPlayers,
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-player-roster-link',
+          message: 'The connected player roster could not be refreshed.',
+        }),
+      );
       unsubscribe = () => {
         stopInstances();
         stopEvents();
+        stopPlayers();
       };
     });
     return () => {
@@ -456,6 +512,35 @@ export default function GmConsole() {
                   )}
                 </fieldset>
               </div>
+            )}
+          </section>
+
+          <section
+            className="gm-console__module cic-frame"
+            aria-label="Connected players by role"
+          >
+            <h2 className="gm-console__section-title">Connected players</h2>
+            <p className="gm-player-roster__count">
+              Live manifest // {connectedPlayers.length} connected
+            </p>
+            {connectedPlayerGroups.length === 0 ? (
+              <p className="gm-console__status">No connected players.</p>
+            ) : (
+              <ul className="gm-player-roster">
+                {connectedPlayerGroups.map((group) => (
+                  <li className="gm-player-roster__group" key={group.id}>
+                    <div className="gm-player-roster__role">
+                      <strong>{group.label}</strong>
+                      <span>{group.players.length}</span>
+                    </div>
+                    <ul aria-label={`${group.label} players`}>
+                      {group.players.map((player) => (
+                        <li key={player.uid}>{player.displayName}</li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

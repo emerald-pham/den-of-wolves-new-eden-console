@@ -560,6 +560,64 @@ body {
   font: 0.68rem/1.5 var(--cic-mono);
 }
 
+.gm-player-roster__count {
+  margin: 0.75rem 0 0;
+  color: var(--cic-muted);
+  font: 0.68rem/1.5 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-player-roster,
+.gm-player-roster__group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gm-player-roster {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.gm-player-roster__group {
+  border-left: 2px solid var(--cic-amber-dim);
+  padding: 0.65rem 0.75rem;
+  background: color-mix(in srgb, var(--cic-amber-dim) 8%, transparent);
+}
+
+.gm-player-roster__role {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--cic-cyan);
+  font: 0.7rem/1.4 var(--cic-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-player-roster__role strong {
+  font-weight: 400;
+}
+
+.gm-player-roster__role span {
+  color: var(--cic-muted);
+  font-family: var(--cic-mono);
+}
+
+.gm-player-roster__group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  margin-top: 0.45rem;
+}
+
+.gm-player-roster__group li li {
+  color: var(--cic-ink);
+  font: 0.76rem/1.45 var(--cic-mono);
+}
+
 .gm-console {
   width: 100%;
   max-width: none;

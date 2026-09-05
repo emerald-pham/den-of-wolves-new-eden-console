@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -17,6 +17,7 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
+  subscribeConnectedPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeSessionEvents: vi.fn(),
 }));
@@ -24,7 +25,8 @@ vi.mock('@/lib/firestore', () => ({
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setGmControlsLocked,
   setWolfRoleEnabled, setActiveRoleEnabled, applyRolePreset } =
   await import('@/lib/sessionService');
-const { subscribeGmInstances, subscribeSessionEvents } = await import('@/lib/firestore');
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
+  await import('@/lib/firestore');
 
 const local = {
   id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
@@ -60,6 +62,10 @@ beforeEach(() => {
   );
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([]);
     return vi.fn();
   });
 });
@@ -128,6 +134,47 @@ it('updates when the live GM instance stream changes', async () => {
   act(() => publish?.([local, other]));
 
   expect(await screen.findByText('Tablet')).toBeInTheDocument();
+});
+
+it('groups connected players by command role in the GM console', async () => {
+  const stopPlayers = vi.fn();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      {
+        uid: 'u1', sessionId: 's1', displayName: 'Morgan', role: 'gm', seatId: null,
+        activeConsoleRoleId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: null,
+        activeConsoleRoleId: 'dione-captain', joinedAt: '2026-01-01T00:01:00.000Z',
+      },
+      {
+        uid: 'u3', sessionId: 's1', displayName: 'Bea', role: 'player', seatId: null,
+        activeConsoleRoleId: 'dione-captain', joinedAt: '2026-01-01T00:02:00.000Z',
+      },
+      {
+        uid: 'u4', sessionId: 's1', displayName: 'Cy', role: 'player', seatId: null,
+        activeConsoleRoleId: null, joinedAt: '2026-01-01T00:03:00.000Z',
+      },
+    ]);
+    return stopPlayers;
+  });
+
+  const { unmount } = renderConsole();
+  const roster = await screen.findByRole('region', { name: /connected players by role/i });
+
+  expect(within(roster).getByText('Dione // Captain')).toBeInTheDocument();
+  expect(within(roster).getByText('Ari')).toBeInTheDocument();
+  expect(within(roster).getByText('Bea')).toBeInTheDocument();
+  expect(within(roster).getByText('GM')).toBeInTheDocument();
+  expect(within(roster).getByText('Morgan')).toBeInTheDocument();
+  expect(within(roster).getByText('Unassigned')).toBeInTheDocument();
+  expect(within(roster).getByText('Cy')).toBeInTheDocument();
+
+  unmount();
+  expect(stopPlayers).toHaveBeenCalledOnce();
 });
 
 it('shows fleet DRADIS and jumps between ship perspectives', async () => {
