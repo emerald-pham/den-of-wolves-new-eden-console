@@ -10,6 +10,7 @@ import AppHeader from '@/components/AppHeader';
 import ContactPlot from '@/components/ContactPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
+import LastPlayerWarning from '@/components/LastPlayerWarning';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -46,6 +47,7 @@ function AppRoutes() {
     <>
       <ContactPlot hostile={intrusion} />
       <AppHeader />
+      <LastPlayerWarning />
       <CommunicationError />
       <ScreenFade>
         {(screen) => (

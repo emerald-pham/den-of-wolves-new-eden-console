@@ -6,10 +6,10 @@ import { useSessionStore } from '@/store/useSessionStore';
 import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
-  getSessionPresence: vi.fn(),
   releaseGmInstance: vi.fn(),
+  disconnectFromSession: vi.fn(),
 }));
-const { getSessionPresence, releaseGmInstance } = await import('@/lib/sessionService');
+const { releaseGmInstance, disconnectFromSession } = await import('@/lib/sessionService');
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -21,15 +21,16 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
-it('warns when this is the last connected player before disconnecting', async () => {
+it('disconnects without showing a warning dialog', async () => {
   const user = userEvent.setup();
-  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 1 });
+  vi.mocked(disconnectFromSession).mockResolvedValue('applied');
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /disconnect/i }));
 
-  expect(await screen.findByText(/you.re the last player to leave the server/i))
-    .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
+  expect(disconnectFromSession).toHaveBeenCalledOnce();
+  expect(screen.queryByText(/you.re the last player to leave the server/i)).not.toBeInTheDocument();
 });
 
 it('releases this browser GM role from settings', async () => {
