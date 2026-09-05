@@ -5,6 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import Landing from './Landing';
 import AppHeader from '@/components/AppHeader';
 import { useSessionStore } from '@/store/useSessionStore';
+import { APP_VERSION } from '@/version';
 
 // Firebase is a genuine boundary, so the service that wraps it is stubbed here.
 // Everything below the mock -- form state, validation, status light, error
@@ -49,6 +50,11 @@ describe('Landing', () => {
     expect(screen.getByText('OPERATION NEW EDEN / CIC')).toBeInTheDocument();
     expect(screen.getByText('OPERATION NEW EDEN')).toBeInTheDocument();
     expect(screen.queryByText('NEW EDEN / CIC')).not.toBeInTheDocument();
+  });
+
+  it('shows the current build beside the system-interface footer label', () => {
+    renderLanding();
+    expect(screen.getByText(/SYSTEM INTERFACE \/ BUILD/)).toHaveTextContent(`SYSTEM INTERFACE / BUILD ${APP_VERSION}`);
   });
 
   it('includes the arrival display', () => {
