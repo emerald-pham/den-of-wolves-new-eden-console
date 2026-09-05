@@ -432,6 +432,11 @@ panel stay above it. Decorative overlines are amber-ember; the message is
   and every `getByText` against the message breaks.
 - **Five seconds total**, including a 0.9-second entry and exit
   (`cic-transmission`, 18%/82% hold).
+- **Status-copy corruption** affects the two overlines, not the hostile message.
+  On mount, guarantee at least one distorted letter in each status line. While
+  the intrusion remains active, redraw both lines once per second from their
+  canonical copy, giving each letter an independent 10% chance of replacement.
+  Preserve spaces and punctuation so the words flicker without shifting layout.
 
 The launcher's schedule: first intrusion at 20 seconds, subsequent starts 60
 seconds apart, chosen randomly without an immediate repeat. Text, always in
