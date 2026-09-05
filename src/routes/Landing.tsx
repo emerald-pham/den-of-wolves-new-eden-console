@@ -1,7 +1,8 @@
 import ArrivalDisplay from './ArrivalDisplay';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createSession, joinSession } from '@/lib/sessionService';
+import { createSession, getSurvivorPopulation, joinSession } from '@/lib/sessionService';
+import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
@@ -17,7 +18,18 @@ export default function Landing({
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [survivorPopulation, setSurvivorPopulation] = useState<number | null>(null);
   const { reducedMotion } = useMotionPreference();
+  const connection = useSessionStore((state) => state.connection);
+
+  useEffect(() => {
+    if (connection !== 'live') return;
+    let active = true;
+    void getSurvivorPopulation()
+      .then((population) => { if (active) setSurvivorPopulation(population); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [connection]);
 
   /**
    * One place for the two things every call has to get right: the buttons go
@@ -50,7 +62,11 @@ export default function Landing({
         <span className="landing__title-sub">Unofficial Companion Console</span>
       </h1>
 
-      <ArrivalDisplay onTransmission={onTransmission} standDown={busy} />
+      <ArrivalDisplay
+        onTransmission={onTransmission}
+        standDown={busy}
+        survivorPopulation={survivorPopulation}
+      />
 
       <div className="landing__actions cic-frame">
         <div className="landing__primary-actions">

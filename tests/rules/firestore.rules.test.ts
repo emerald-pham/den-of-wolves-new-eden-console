@@ -92,6 +92,15 @@ beforeEach(async () => {
 
 const as = (uid: string) => env.authenticatedContext(uid).firestore();
 
+describe('app-wide arrival state', () => {
+  it('cannot be read or changed directly by a client', async () => {
+    const state = doc(as('alice'), 'appState/arrival');
+
+    await assertFails(getDoc(state));
+    await assertFails(setDoc(state, { survivorPopulation: 222_501 }));
+  });
+});
+
 describe('session header', () => {
   it('is readable by a session member', async () => {
     await assertSucceeds(getDoc(doc(as('alice'), SESSION)));

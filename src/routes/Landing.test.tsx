@@ -12,10 +12,11 @@ import { APP_VERSION } from '@/version';
 // reporting -- is exercised for real.
 vi.mock('@/lib/sessionService', () => ({
   createSession: vi.fn(),
+  getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),
   joinSession: vi.fn(),
 }));
 
-const { createSession, joinSession } = await import('@/lib/sessionService');
+const { createSession, getSurvivorPopulation, joinSession } = await import('@/lib/sessionService');
 
 function LocationProbe() {
   return <div aria-label="Current route">{useLocation().pathname}</div>;
@@ -61,6 +62,16 @@ describe('Landing', () => {
   it('includes the arrival display', () => {
     renderLanding();
     expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
+  });
+
+  it('loads the survivor count from the cloud after Firebase is live', async () => {
+    useSessionStore.getState().setConnection('live');
+    renderLanding();
+
+    await waitFor(() => {
+      expect(getSurvivorPopulation).toHaveBeenCalledOnce();
+    });
+    expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('232,501');
   });
 
   it('reports an intrusion upward so the board behind every route can go hostile', () => {
@@ -116,10 +127,12 @@ describe('Landing', () => {
     expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
   });
 
-  it('shows the status light as yellow once Firebase is live but no session is joined', () => {
+  it('shows the status light as yellow once Firebase is live but no session is joined', async () => {
     useSessionStore.getState().setConnection('live');
     renderLanding();
-    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'yellow');
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveAttribute('data-status', 'yellow');
+    });
   });
 
   it('keeps join disabled until a full four-digit code is entered', async () => {

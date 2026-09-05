@@ -46,7 +46,7 @@ describe('Intrusion', () => {
     expect(scrambleSignalText('SIGNAL 42', () => 0.5)).toBe('SIGNAL 42');
   });
 
-  it('starts with distorted signal copy and refreshes it once per second', () => {
+  it('starts with distorted signal copy and refreshes it at a safe two hertz', () => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const { container } = render(<Intrusion message="BE AFRAID" />);
@@ -55,6 +55,7 @@ describe('Intrusion', () => {
     expect(signalCopy[0]).not.toHaveTextContent('UNAUTHORIZED TRANSMISSION / SOURCE UNKNOWN');
     expect(signalCopy[1]).not.toHaveTextContent('SIGNAL INTEGRITY COMPROMISED');
     expect(screen.getByText('BE AFRAID')).toHaveAttribute('data-text', 'BE AFRAID');
+    expect(SIGNAL_GLITCH_INTERVAL_MS).toBe(500);
 
     act(() => vi.advanceTimersByTime(SIGNAL_GLITCH_INTERVAL_MS));
 

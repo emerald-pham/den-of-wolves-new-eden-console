@@ -7,14 +7,6 @@ import { useMotionPreference } from '@/lib/motionPreference';
 const CYCLE_MS = 5000;
 const SUS_ROLL_MS = 1000;
 const SUS_DURATION_MS = SUS_ROLL_MS / 30;
-const SURVIVOR_DIGITS = [1, 2, 3, 4, 6, 7, 8, 9] as const;
-
-const drawSurvivorPopulation = () => {
-  const index = Math.floor(Math.random() * 16_000);
-  const population = 222_500 + Math.floor(index / SURVIVOR_DIGITS.length) * 10
-    + (SURVIVOR_DIGITS[index % SURVIVOR_DIGITS.length] ?? 1);
-  return population.toLocaleString('en-US');
-};
 
 /**
  * A readout either walks a fixed sequence or draws from a range. Both refuse to
@@ -70,13 +62,14 @@ const messages = [
 export default function ArrivalDisplay({
   onTransmission,
   standDown = false,
+  survivorPopulation = null,
 }: {
   onTransmission?: ((active: boolean) => void) | undefined;
   standDown?: boolean | undefined;
+  survivorPopulation?: number | null | undefined;
 }) {
   const { reducedMotion } = useMotionPreference();
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
-  const [survivorPopulation] = useState(drawSurvivorPopulation);
   const [sus, setSus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const notify = useRef(onTransmission);
@@ -154,7 +147,7 @@ export default function ArrivalDisplay({
           ))}
           <div className="arrival-readout arrival-readout--population">
             <div className="arrival-readout__value" aria-label="Arrival readout 4">
-              <span>{survivorPopulation}</span>
+              <span>{survivorPopulation?.toLocaleString('en-US') ?? '—'}</span>
             </div>
             <div className="arrival-readout__label">SURVIVORS</div>
           </div>

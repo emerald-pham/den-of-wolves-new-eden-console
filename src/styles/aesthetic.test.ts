@@ -138,6 +138,18 @@ describe('the in-session header', () => {
   });
 });
 
+describe('the launcher manifest', () => {
+  it('uses shared value and label rows so every readout aligns', () => {
+    const arrival = SHEETS.find(({ name }) => name === 'src/routes/arrival.css')?.css ?? '';
+    const grid = arrival.match(/\.arrival-manifest__grid\s*\{([^}]*)\}/)?.[1] ?? '';
+    const readout = arrival.match(/\.arrival-readout\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(grid).toContain('grid-template-rows: minmax(0, 1fr) auto');
+    expect(readout).toContain('grid-template-rows: subgrid');
+    expect(readout).toContain('grid-row: span 2');
+  });
+});
+
 describe('the GM console', () => {
   it('uses the full viewport instead of the centered session-mode width cap', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';

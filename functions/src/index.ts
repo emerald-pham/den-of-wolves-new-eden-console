@@ -49,6 +49,7 @@ import {
   deletionDeadline,
   isPresenceStale,
 } from './sessionLifecycle';
+import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
 
 /**
  * Server-side authority for the companion console.
@@ -62,6 +63,7 @@ initializeApp();
 setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = getFirestore();
+const ARRIVAL_STATE = db.doc('appState/arrival');
 const INITIAL_SHUTTLE_DOCKINGS = [
   { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
 ];
@@ -127,6 +129,36 @@ function cleanName(value: unknown, fallback: string, max: number): string {
 function makeJoinCode(): string {
   return String(randomInt(0, 10_000)).padStart(4, '0');
 }
+
+/**
+ * One app-wide arrival figure is server-owned. Every live instance renews the
+ * activity lease; only a full week with no launcher or session activity draws
+ * a new value.
+ */
+async function touchSurvivorPopulation(): Promise<number> {
+  return db.runTransaction(async (tx) => {
+    const state = await tx.get(ARRIVAL_STATE);
+    const now = new Date();
+    const lastActivity = state.get('lastActivityAt') as Timestamp | undefined;
+    const currentPopulation = state.get('survivorPopulation') as number | undefined;
+    const refresh = !state.exists || !Number.isInteger(currentPopulation) ||
+      !(lastActivity instanceof Timestamp) || shouldRefreshSurvivorPopulation(lastActivity.toDate(), now);
+    const survivorPopulation = refresh || currentPopulation === undefined
+      ? generateSurvivorPopulation(() => randomInt(0, 16_000) / 16_000)
+      : currentPopulation;
+    tx.set(ARRIVAL_STATE, {
+      survivorPopulation,
+      lastActivityAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return survivorPopulation;
+  });
+}
+
+/** Read and renew the global launcher statistic for this signed-in app instance. */
+export const getSurvivorPopulation = onCall<Record<string, never>>(async (request) => {
+  requireUid(request.auth);
+  return { survivorPopulation: await touchSurvivorPopulation() };
+});
 
 /**
  * Only ten thousand codes exist, so collisions are a certainty rather than a
@@ -208,6 +240,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
       });
 
       if (claimed) {
+        await touchSurvivorPopulation();
         const now = new Date().toISOString();
         return {
           session: {
@@ -309,6 +342,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
     });
+    await touchSurvivorPopulation();
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
     return {
@@ -394,6 +428,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
+
+  await touchSurvivorPopulation();
 
   return {
     session: {
@@ -982,6 +1018,7 @@ export const refreshPresence = onCall<{
     tx.update(playerRef, presenceUpdate);
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
+  await touchSurvivorPopulation();
   return { sessionId };
 });
 

@@ -1,6 +1,8 @@
 const SIGNAL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-export const SIGNAL_GLITCH_INTERVAL_MS = 1000;
+// Text-only interference at 2 Hz: twice the former cadence and below the
+// three-flashes-per-second WCAG threshold. It never changes screen luminance.
+export const SIGNAL_GLITCH_INTERVAL_MS = 500;
 export const SIGNAL_SCRAMBLE_CHANCE = 0.1;
 
 function nextLetter(letter: string): string {

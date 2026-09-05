@@ -10,6 +10,7 @@ vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
+  getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),
   getSessionPresence: vi.fn().mockResolvedValue({ connectedPlayers: 2 }),
   joinSession: vi.fn(),
   kickGmInstance: vi.fn(),

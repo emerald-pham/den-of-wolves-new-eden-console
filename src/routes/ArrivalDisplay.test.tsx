@@ -16,7 +16,7 @@ const shown = (n: number) => readout(n).textContent ?? '';
 
 it('turns each readout over every five seconds on proportionally staggered beats', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0.5);
-  render(<ArrivalDisplay />);
+  render(<ArrivalDisplay survivorPopulation={222_501} />);
   expect(readout(1)).toHaveTextContent('6');
   expect(readout(2)).toHaveTextContent('20');
   expect(readout(3)).toHaveTextContent('1');
@@ -31,8 +31,7 @@ it('turns each readout over every five seconds on proportionally staggered beats
 });
 
 it('draws one fixed estimated survivor population with no trailing zero or five', () => {
-  vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.5);
-  render(<ArrivalDisplay />);
+  render(<ArrivalDisplay survivorPopulation={222_501} />);
 
   expect(readout(4)).toHaveTextContent('222,501');
   expect(screen.getByText('SURVIVORS')).toBeVisible();
