@@ -1,6 +1,7 @@
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
 import { SHIPS, type ShipOrigin } from '@/data/ships';
+import { rolesForShip } from '@/data/roles';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -111,7 +112,7 @@ function FleetRoster({
               >
                 <Link
                   className="fleet-card__link"
-                  to={ship.id === 'aegis' ? '/ships/aegis/roles' : `/ships/${ship.id}`}
+                  to={rolesForShip(ship.id).length > 0 ? `/ships/${ship.id}/roles` : `/ships/${ship.id}`}
                   aria-label={`Join ${ship.name} ship`}
                 >
                   <img className="fleet-card__flag" src={ship.flag} alt={`${ship.nation} flag`} />

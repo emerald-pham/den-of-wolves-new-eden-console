@@ -193,7 +193,7 @@ it('configures wolf eligibility and randomly assigns from enabled roles', async 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
   const eligibility = screen.getByRole('switch', { name: /press officer.*wolf/i });
   expect(eligibility).toBeChecked();
-  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(4);
+  expect(screen.getAllByRole('switch', { name: /wolf/i })).toHaveLength(21);
   expect(screen.getByRole('option', { name: /2 wolves/i })).toBeEnabled();
 
   await user.click(screen.getByRole('button', { name: /randomly assign wolves/i }));

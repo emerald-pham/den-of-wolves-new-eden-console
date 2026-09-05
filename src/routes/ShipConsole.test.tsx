@@ -79,6 +79,21 @@ it.each([
   expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
 });
 
+it('returns every staffed ship console to its own role picker', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-president']}>
+      <Routes>
+        <Route path="/ships/:shipId/roles" element={<p>Dione roles</p>} />
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('link', { name: /change role/i }));
+  expect(screen.getByText('Dione roles')).toBeInTheDocument();
+});
+
 it('returns to the fleet roster when the ship id is unknown', () => {
   render(
     <MemoryRouter initialEntries={['/ships/not-a-ship']}>
