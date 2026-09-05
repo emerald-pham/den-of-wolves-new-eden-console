@@ -20,9 +20,10 @@ and cinematic headlines. Use system fonts; no external font dependency.
 Use --cic-radius for squared controls and --cic-space for fluid spacing.
 .cic-overline and .cic-text-button are shared utilities.
 
-Large numbers sit above tracked uppercase labels. Small metadata sits at the
-edges of ruled panels. Use a three-column manifest on wide screens; compact
-stacked rows on phones. Clearly distinguish atmospheric numbers from live
+Arrival readouts show only their changing value; do not add labels, sequence
+traces, counters, or franchise-specific terminology. Keep CIC as the one
+permitted reference. Use a three-column display on wide screens and compact
+stacked values on phones. Clearly distinguish atmospheric numbers from live
 session state. Preserve native buttons, labels, visible keyboard focus, error
 announcements, and at least 44px touch targets.
 
@@ -39,8 +40,8 @@ immediate repeat. Text: EARTH IS NOT FOR YOU / BE AFRAID /
 A COLD GRAVE AWAITS YOU.
 
 Manifest values cycle in listed order every 10 seconds, with first changes at
-10/13/16 seconds: ships 6,7,5,0,1,3,4; crew 20,18,8,6,0,21;
-wolf 1,?,2. Resolve digits once over 1.1 seconds; never rapidly flicker.
+10/13/16 seconds: 6,7,5,0,1,3,4; 20,18,8,6,0,21; and 1,?,2.
+Resolve digits once over 1.1 seconds; never rapidly flicker.
 Provide a reachable Pause effects control. Reduced motion starts paused and a
 new reduced-motion preference pauses ongoing effects. Clean up timers on exit.
 These are conservative motion choices, not a medical guarantee.
