@@ -5,6 +5,86 @@ src/styles/cic.css and the existing components before inventing a new pattern.
 The reference implementations are src/components/ContactPlot.tsx,
 src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 
+## The philosophy, and what it rules out
+
+The reference is the Colonial fleet's displays in *Battlestar Galactica* (2003):
+the CIC wall panels and station readouts — amber line art on black, hairline
+rules, wireframe schematics, dense blocks of small monospaced type, an
+occasional cold cyan trace where a value is live. Everything below is downstream
+of that one image, and every rule in the profiles that follow is this philosophy
+made specific. When a new screen has no precedent in this document, decide it
+from these seven.
+
+**1. It is BSG, not LCARS.** This is the trap, because the two look adjacent in
+a thumbnail and are opposites in practice. LCARS is rounded elbows, pill blocks,
+flat colour-coded slabs and a frame that swoops. Ours is drafting: every corner
+is 90°, every division is a hairline rule or a tick strip, nothing is a
+container with a personality. `--cic-radius` is `0` and it is never overridden.
+If a new pattern would look at home in a Star Trek okudagram, it is wrong here.
+
+**2. Borrow the grammar, never the vocabulary.** The look is a reference; the
+words are ours. No franchise proper nouns anywhere a player can read them —
+not in a heading, not in a status line, not in decorative text inside the
+contact plot. DRADIS and COLONIAL are out. CIC is an actual naval term and
+stays.
+
+**3. The screen is an instrument, not a page.** Everything on it is a
+measurement, the label of a measurement, or the frame around one. There are no
+cards, no hero sections, no marketing rhythm. A player is reading a panel that
+belongs to a ship, and the panel's job is to report.
+
+**4. Drawn, not rendered.** Line art at hairline weight. Schematics rather than
+illustrations, outlines rather than fills, type rather than iconography. No
+gloss, no gradient used as material, no photographic texture.
+
+**5. The room is dark and the panel is the only light.** Depth is glow and
+contrast — a bright rim, a hot value, a dim rule — never a shadow cast under a
+floating surface. A box-shadow with an offset says "this card hovers above the
+page," which is a web idea; a box-shadow with no offset says "this is emitting
+light," which is the whole premise.
+
+**6. It was already running before the player arrived.** The interface is
+built, issued and worn. It does not greet, onboard, congratulate or animate
+itself into existence. Motion is a scan sweeping, a digit resolving, a lamp
+changing state — the machine doing its job, not the interface performing.
+
+**7. Density is earned, never faked.** BSG panels are dense because a warship
+genuinely has that many readouts. Ours may be dense only where we have real
+values to show. A chart, gauge or scrolling column that implies a measurement
+the app does not actually hold is the one unforgivable move: it turns an
+instrument into a screensaver, and once a player catches it, nothing else on
+the screen is trusted either.
+
+### Colour has one more role than the table says
+
+The table below assigns amber to structure and cyan to instrumentation. Controls
+are the gap it leaves, and the established answer is cyan: a control is the
+place a value is read and changed, so it belongs with the instruments, which is
+why `.cic-text-button` is cyan. Amber stays on the control's edges — border,
+focus ring, label — because those are structure. So a button reads as a cyan
+word inside an amber frame, and that pairing is deliberate rather than
+decorative.
+
+### How this is enforced
+
+`src/styles/aesthetic.test.ts` checks the three rules a stylesheet can be
+checked against without rendering it: colours are palette tokens or the
+near-black of the ground, `border-radius` is only ever `0` or a full circle,
+and box-shadows have no offset. It is a ratchet — it holds the line where it
+is rather than passing judgement on what exists, and it carries a short,
+annotated list of deviations that predate it:
+
+- the connection lamp's green, which has no role in the palette;
+- the settings dialog's depth shadow.
+
+Both are findings, not precedents. Fix one and delete its line; do not add a
+line without saying here which role the new value carries and why no token
+could carry it.
+
+The rest is prose because the rest needs eyes: whether a screen is dense with
+real values or busy with fake ones, whether motion is a machine working or an
+interface performing, is not something a regular expression can tell you.
+
 ## CIC / default interface
 
 A worn military information terminal, seen in a dark room: black ground, amber
