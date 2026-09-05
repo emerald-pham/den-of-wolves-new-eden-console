@@ -62,9 +62,11 @@ describe('joinSession', () => {
       seatId: null,
       joinedAt: '2026-01-01T00:00:00.000Z',
     };
-    vi.mocked(httpsCallable).mockReturnValue(
+    const callable = Object.assign(
       vi.fn().mockResolvedValue({ data: { session, player } }),
+      { stream: vi.fn() },
     );
+    vi.mocked(httpsCallable).mockReturnValue(callable);
 
     await joinSession('4821');
 

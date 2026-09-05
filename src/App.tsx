@@ -43,9 +43,7 @@ export default function App() {
   }, []);
 
   return (
-    <HashRouter
-      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    >
+    <HashRouter>
       <AppHeader />
       <Routes>
         <Route path="/" element={<Landing />} />
