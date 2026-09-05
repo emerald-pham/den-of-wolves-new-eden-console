@@ -75,3 +75,10 @@ it('shows only live values inside readouts and no franchise-specific copy', () =
   expect(screen.queryByText('SHIPS IN CONVOY')).not.toBeInTheDocument();
   expect(screen.queryByText('6 — 7 — 5 — 0 — 1 — 3 — 4')).not.toBeInTheDocument();
 });
+
+it('labels the effects control with the shortened scenario signal copy', () => {
+  render(<ArrivalDisplay />);
+
+  expect(screen.getByText('SCENARIO SIGNAL')).toBeInTheDocument();
+  expect(screen.queryByText(/NOT LIVE SESSION DATA/i)).not.toBeInTheDocument();
+});
