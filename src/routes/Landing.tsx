@@ -2,6 +2,7 @@ import ArrivalDisplay from './ArrivalDisplay';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
+import { APP_VERSION } from '@/version';
 
 /** Table codes are read aloud across a noisy room, so they stay short. */
 const CODE_LENGTH = 4;
@@ -94,7 +95,7 @@ export default function Landing({
           {error}
         </p>
       )}
-      <footer className="arrival-bottomline cic-overline"><span>OPERATION NEW EDEN</span><span>SYSTEM INTERFACE</span></footer>
+      <footer className="arrival-bottomline cic-overline"><span>OPERATION NEW EDEN</span><span>SYSTEM INTERFACE / BUILD {APP_VERSION}</span></footer>
     </main>
   );
 }
