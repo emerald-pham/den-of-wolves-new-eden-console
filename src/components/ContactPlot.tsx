@@ -1,4 +1,5 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { followSweeps } from './sweep';
 
 /**
  * The threat board behind the launcher.
@@ -15,9 +16,9 @@ import { useEffect, useState, type CSSProperties } from 'react';
  * is -- full-bleed behind everything, or inset at whatever size suits the
  * screen -- never whether it is there at all.
  *
- * Every moving part is a CSS animation. There is no render loop, no canvas and
- * no timer, so an idle console costs nothing on the main thread and a
- * reduced-motion preference stops the whole board by flipping one attribute.
+ * CSS owns the sweep rotations. A frame observer reads those rendered planes
+ * to acquire and refresh returns at their actual intersections. Reduced motion
+ * stops both the CSS motion and the observer.
  */
 
 type Track = {
@@ -129,7 +130,7 @@ function place({ bearing, elevation, range }: Track): PlotStyle {
     // downward for anything above it and upward for anything below.
     '--drop': round(Math.abs(y)),
     '--flip': y < 0 ? 1 : -1,
-    // The sweep disc is a plane, so it crosses a given bearing twice a turn.
+    // Phase only staggers the spoofed-contact break-up effect.
     '--phase': round((((bearing % 180) + 180) % 180) / 180),
   };
 }
@@ -173,6 +174,7 @@ export default function ContactPlot({
   contacts?: readonly PlotContact[] | undefined;
   centerLabel?: string | undefined;
 }) {
+  const plot = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
   );
@@ -185,6 +187,11 @@ export default function ContactPlot({
     preference?.addEventListener('change', onChange);
     return () => preference?.removeEventListener('change', onChange);
   }, []);
+
+  useEffect(() => {
+    if (still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
+    return followSweeps(plot.current);
+  }, [still]);
 
   // The hostile tracks outlive the intrusion by exactly as long as it takes
   // them to break up. Unmounting them the instant the threat clears would cut
@@ -216,6 +223,7 @@ export default function ContactPlot({
 
   return (
     <div
+      ref={plot}
       className="contact-plot"
       aria-hidden="true"
       data-hostile={String(hostile)}
@@ -240,10 +248,8 @@ export default function ContactPlot({
         ))}
         <span className="contact-plot__limb" />
         {centerLabel ? <span className="contact-plot__origin">{centerLabel}</span> : null}
-        <div className="contact-plot__boost">
-          <div className="contact-plot__sweep" />
-          <div className="contact-plot__sweep contact-plot__sweep--polar" />
-        </div>
+        <div className="contact-plot__sweep" />
+        <div className="contact-plot__sweep contact-plot__sweep--polar" />
         <div className="contact-plot__returns">
           {tracks.map(({ track, spoof }, index) => (
             <div
@@ -252,10 +258,7 @@ export default function ContactPlot({
               data-spoof={String(spoof)}
               data-departing={String(spoof && exposed)}
               data-label-anchor={labelAnchor(track, index)}
-              style={{
-                ...('x' in track ? placeCartesian(track) : place(track)),
-                '--drift-slot': index % 5,
-              } as PlotStyle}
+              style={'x' in track ? placeCartesian(track) : place(track)}
             >
               <div className="contact-plot__apparent">
                 <div className="contact-plot__jitter">

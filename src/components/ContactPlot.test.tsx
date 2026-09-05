@@ -105,16 +105,14 @@ it('stills a running plot when the reduced-motion preference arrives late', () =
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
 });
 
-it('sweeps the volume with two discs on different axes, both riding the boost stage', () => {
-  const { container } = render(<ContactPlot />);
+it('keeps both sweep discs on the rig without an intrusion speed boost', () => {
+  const { container } = render(<ContactPlot hostile />);
   const discs = container.querySelectorAll('.contact-plot__sweep');
 
   expect(discs).toHaveLength(2);
   expect(discs[1]).toHaveClass('contact-plot__sweep--polar');
-  // Both hang off the stage that ramps the scan rate, so a threat accelerates
-  // the whole sweep rather than one half of it.
   for (const disc of discs) {
-    expect(disc.parentElement).toHaveClass('contact-plot__boost');
+    expect(disc.parentElement).toHaveClass('contact-plot__rig');
   }
 });
 
@@ -160,8 +158,6 @@ it('anchors nearby contact names on different sides of their returns', () => {
 
   expect(anchors.every(Boolean)).toBe(true);
   expect(new Set(anchors)).toHaveLength(2);
-  expect(new Set(contactsIn(container).map((contact) =>
-    contact.style.getPropertyValue('--drift-slot'))).size).toBe(2);
 });
 
 it('holds the hostile tracks on the board after an intrusion so they can break up, then drops them', () => {
@@ -223,4 +219,47 @@ it('carries no unrelated franchise-specific terminology', () => {
   const { container } = render(<ContactPlot hostile />);
 
   expect(container.textContent ?? '').not.toMatch(/colonial/i);
+});
+
+it('acquires and refreshes only when a rendered sweep crosses, including late-added contacts', () => {
+  let frame: FrameRequestCallback = () => undefined;
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  let normal = { x: 0, y: 0, z: 1 };
+  vi.stubGlobal('DOMMatrixReadOnly', class {
+    constructor(private value: string) {}
+    transformPoint(point: DOMPointInit) {
+      return this.value === 'sweep' ? normal : point;
+    }
+  });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
+    transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
+  }) as CSSStyleDeclaration);
+  const contact = { tag: 'AHEAD', x: 0, y: 0.2, z: 0.8, color: 'white' };
+  const { container, rerender, unmount } = render(<ContactPlot contacts={[contact]} />);
+  const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
+  act(() => frame(0));
+  expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  normal = { x: 1, y: 0, z: 0.01 };
+  act(() => frame(16));
+  expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
+  normal = { x: 1, y: 0, z: -0.01 };
+  act(() => frame(32));
+  expect(apparent()).toHaveAttribute('data-acquired', 'true');
+  const fix = apparent()?.style.cssText;
+  normal = { x: 0.8, y: 0, z: -0.6 };
+  act(() => frame(48));
+  expect(apparent()?.style.cssText).toBe(fix);
+  rerender(<ContactPlot placement="widget" contacts={[contact, { ...contact, tag: 'NEW' }]} />);
+  act(() => frame(64));
+  expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(1);
+  normal = { x: -1, y: 0, z: 0.1 };
+  act(() => frame(80));
+  expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
+  expect(apparent()?.style.cssText).not.toBe(fix);
+  unmount();
+  expect(cancelAnimationFrame).toHaveBeenCalled();
 });

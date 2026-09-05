@@ -297,7 +297,7 @@ that is a different, flatter instrument.
    One animates `rotateY` over `--plot-turn` (14s), the other `rotateX` over
    `1.7 × --plot-turn` at 0.45 opacity, so the scan is spherical rather than a
    spinning floor and the two never line up the same way twice. Both are
-   children of the boost stage. Edge-on a disc compresses to a bright line,
+   children of the rig. Edge-on a disc compresses to a bright line,
    which is correct. These rates were chosen by eye and they work; a single
    precessing ring was tried and looked worse.
 6. **Colour.** `--plot-ink` and `--plot-hot` are registered with `@property` as
@@ -324,11 +324,15 @@ that is a different, flatter instrument.
    Also passed: `--depth` = `(z + 1) / 2` for opacity falloff, `--drop` =
    `|y|` and `--flip` = ±1 for the altitude line down to the equatorial plane,
    and `--phase` = `(bearing mod 180) / 180`.
-8. **Paint flare.** The sweep is a plane, so it crosses a bearing twice per
-   turn: blips animate over `calc(var(--plot-turn) / 2)` with
-   `animation-delay: calc(var(--phase) * var(--plot-turn) / -2)`, so each one
-   flares as the disc reaches it and fades to a 0.03 trace before the next pass.
-   Once acquired, the ship name remains at full opacity between sweeps.
+8. **Paint flare.** A frame observer reads each disc's rendered CSS transform.
+   A contact acquires and refreshes when its signed distance to either plane
+   crosses zero. Acquisition, a one-shot blip flare, and the display bearing
+   step share that event; there are no independent repeating contact timers.
+   The bearing walk spans -1 to +1 degrees around the vertical axis, retaining
+   canonical formation coordinates. Names remain solid after acquisition.
+   New contacts wait for a crossing of the existing scan; resizing preserves it.
+   After a suspended frame interval, resume sampling without replaying missed
+   contacts. Reduced motion reveals all contacts and stops the observer.
 9. **Contacts are hand-placed, never random.** A randomised board rearranges
    itself on re-render.
 
@@ -351,32 +355,19 @@ that exists purely so the fault never has to restate where the contact actually
 is — the station transform lives on the contact, the jitter on its child.
 `--phase` desynchronises the five so they never go at once.
 
-**Never speed the discs up by changing `--plot-turn`.** Changing
-`animation-duration` mid-turn recomputes progress as `elapsed / duration`, so a
-disc snaps to a new angle the instant the rate changes, and snaps again on the
-way back. The base rotations keep one rate forever. The urgency comes from
-`.contact-plot__boost`, a wrapper that is inert until the threat state, then
-eases up from rest and back down onto 1440° — four whole turns, the same
-orientation it started from, so removing the animation moves nothing. It runs
-4.6s against a 5s threat window, finishing before the state clears so it can
-never be removed part-way through a turn, and its easing
-(`cubic-bezier(0.5, 0, 0.15, 1)`) spends far longer winding down than spinning
-up. A small `x2` is what makes that tail long.
-
-**The threat flares in and settles out.** A transition is read from the state
-being moved *to*, so the durations live in two places on purpose: the threat
-rule carries 220–260ms so red arrives like an alarm, and the base rule carries
-1400–1600ms so blue comes back as a settle. Contacts also carry a 1400ms
-transform transition, so the inbound tracks glide back out to station rather
-than being dropped there.
+Both discs keep their normal speed during intrusions. Threat state changes
+colour and introduces spoofed returns; it does not accelerate the sweep.
 
 ### Motion
 
-All movement is CSS: no render loop, no canvas, no timers. `data-still="true"`
-(set from `prefers-reduced-motion`, and it only ever escalates to still) stops
-the board dead rather than slowing it; the still selectors are written to
-outrank the threat-state rules. Tuning knobs are `--plot-size`, `--plot-turn`,
-`--plot-glow`, `--plot-ink` and `--plot-hot`.
+CSS owns the disc rotations and spoofed-return breakup. A requestAnimationFrame
+observer reads both rendered disc matrices and detects plane intersections;
+it does not advance an independent scan clock or cause React renders per frame.
+Each hit updates the apparent fix and starts a one-shot Web Animation for the
+blip decay. Cleanup cancels the observer and its blip animations.
+`data-still="true"` (set from `prefers-reduced-motion`, and it only ever escalates
+to still) stops the board and displays all contacts. Tuning knobs are
+`--plot-size`, `--plot-turn`, `--plot-glow`, `--plot-ink` and `--plot-hot`.
 
 ## Screen crossings
 

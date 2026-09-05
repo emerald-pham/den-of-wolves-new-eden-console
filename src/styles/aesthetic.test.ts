@@ -221,16 +221,9 @@ describe('friendly DRADIS returns', () => {
     const apparent = plot.match(/\.contact-plot__apparent\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(apparent).toContain('opacity: 0');
-    expect(apparent).toContain('plot-acquire');
-    expect(apparent).toContain('plot-drift');
-    // The one-millisecond acquisition must interpolate: Safari/WebKit can
-    // retain the `from` opacity with a stepped endpoint at 0.999… progress.
-    expect(apparent).toContain('linear, steps(1, end)');
-    expect(apparent).toContain('steps(1, end)');
-    expect(apparent).toContain('calc(var(--phase) * var(--plot-turn) / 2)');
-    expect(apparent).toContain(
-      'calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2)',
-    );
+    expect(apparent).not.toContain('animation');
+    expect(plot).toContain(".contact-plot__apparent[data-acquired='true']");
+    expect(plot).not.toContain('plot-boost');
   });
 
   it('keeps far-side returns in a foreground layer above the scan planes', () => {
@@ -243,18 +236,17 @@ describe('friendly DRADIS returns', () => {
 
   it('lets blips nearly decay between sweeps while acquired ship names remain solid', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
-    const paint = plot.match(/@keyframes plot-paint\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const blip = plot.match(/\.contact-plot__blip\s*\{([^}]*)\}/)?.[1] ?? '';
     const tag = plot.match(/\.contact-plot__tag\s*\{([^}]*)\}/)?.[1] ?? '';
-
-    expect(paint).toContain('opacity: 0.03');
+    expect(blip).toContain('opacity: 0.03');
+    expect(blip).not.toContain('animation');
     expect(tag).toContain('opacity: 1');
   });
 
   it('gives apparent returns a two-degree bearing drift without changing formation coordinates', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
-    const drift = plot.match(/@keyframes plot-drift\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-    expect(drift).toContain('rotateZ(-2deg)');
-    expect(drift).toContain('rotateZ(2deg)');
-    expect(plot).toContain('transform-origin: calc(var(--x) * -1 * var(--plot-radius))');
+    expect(plot).toContain('var(--fix-x, 0)');
+    expect(plot).toContain('var(--fix-z, 0)');
+    expect(plot).not.toContain('@keyframes plot-drift');
   });
 });

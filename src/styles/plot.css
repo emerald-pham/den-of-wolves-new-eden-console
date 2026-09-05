@@ -147,14 +147,8 @@
 /* The sweep -----------------------------------------------------------------
    Two discs on different axes at different rates, so the scan is spherical
    rather than a spinning floor and the two never line up the same way twice.
-   Both hang off the boost stage, which is what changes their rate under
-   threat. Edge-on a disc compresses to a bright line, which is correct. */
-
-.contact-plot__boost {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-}
+   Edge-on a disc compresses to a bright line, which is correct. Contact
+   acquisition reads these rendered planes directly. */
 
 .contact-plot__sweep {
   position: absolute;
@@ -233,34 +227,14 @@
   position: absolute;
   opacity: 0;
   transform-style: preserve-3d;
-  /* Rotate around the plot origin, not the contact, so this reads as a
-     three-degree bearing estimate error rather than a spinning icon. */
-  transform-origin: calc(var(--x) * -1 * var(--plot-radius)) calc(var(--y) * -1 * var(--plot-radius));
-  animation-name: plot-acquire, plot-drift;
-  animation-duration: 1ms, calc(var(--plot-turn) * 2.5);
-  /* Do not step the 1ms reveal. WebKit may stop infinitesimally before the
-     stepped endpoint and leave a contact permanently transparent. */
-  animation-timing-function: linear, steps(1, end);
-  animation-iteration-count: 1, infinite;
-  animation-fill-mode: forwards, none;
-  animation-delay:
-    calc(var(--phase) * var(--plot-turn) / 2),
-    calc((var(--phase) - var(--drift-slot)) * var(--plot-turn) / 2);
+  transform: translate3d(
+    calc(var(--fix-x, 0) * var(--plot-radius)),
+    0,
+    calc(var(--fix-z, 0) * var(--plot-radius))
+  );
 }
 
-@keyframes plot-acquire {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes plot-drift {
-  0% { transform: rotateZ(-2deg); }
-  20% { transform: rotateZ(-1deg); }
-  40% { transform: rotateZ(2deg); }
-  60% { transform: rotateZ(2deg); }
-  80% { transform: rotateZ(1deg); }
-  100% { transform: rotateZ(-2deg); }
-}
+.contact-plot__apparent[data-acquired='true'] { opacity: 1; }
 
 .contact-plot__blip {
   position: absolute;
@@ -270,25 +244,7 @@
   height: 8px;
   background: var(--contact-ink);
   box-shadow: 0 0 14px 3px color-mix(in srgb, var(--contact-ink) 55%, transparent);
-  /* The sweep is a plane, so it crosses any given bearing twice a turn, and a
-     contact flares as it is painted. --phase lines each blip up with the disc. */
-  animation: plot-paint calc(var(--plot-turn) / 2) linear infinite;
-  animation-delay: calc(var(--phase) * var(--plot-turn) / 2);
-}
-
-@keyframes plot-paint {
-  0% {
-    opacity: 1;
-    transform: scale(2);
-  }
-  16% {
-    opacity: calc(0.34 + var(--depth) * 0.5);
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0.03;
-    transform: scale(1);
-  }
+  opacity: 0.03;
 }
 
 /* Hangs from the contact to the equatorial plane so altitude is legible. */
@@ -333,8 +289,7 @@
 }
 
 /* Threat state --------------------------------------------------------------
-   The board turns over to the hostile palette, the scan doubles its rate, and
-   the inbound tracks close on the centre of the sphere, which is where we are. */
+   The board turns over to the hostile palette; both scans keep their speed. */
 
 .contact-plot[data-hostile='true'] {
   --plot-ink: var(--cic-hostile);
@@ -345,26 +300,6 @@
     opacity 220ms ease,
     --plot-ink 260ms ease,
     --plot-hot 260ms ease;
-}
-
-/* The ring picks up speed rather than jumping to it. Changing
-   `animation-duration` mid-turn recomputes progress as elapsed/duration, so the
-   ring snaps to a new angle the instant the rate changes -- and snaps back when
-   it returns. So the base rotations keep one rate forever, and the urgency
-   comes from a separate stage that eases up from rest and eases back down onto
-   a whole number of turns, which is the orientation it started from. Nothing
-   moves discontinuously at either end. */
-.contact-plot[data-hostile='true'] .contact-plot__boost {
-  animation: plot-boost 4.6s cubic-bezier(0.5, 0, 0.15, 1) both;
-}
-
-@keyframes plot-boost {
-  from {
-    transform: rotate3d(1, 1.6, 0.2, 0deg);
-  }
-  to {
-    transform: rotate3d(1, 1.6, 0.2, 1440deg);
-  }
 }
 
 /* The hostile tracks hold station for the length of the intrusion. It is on the
@@ -446,17 +381,16 @@
 }
 .contact-plot[data-still='true'] .contact-plot__sweep,
 .contact-plot[data-still='true'] .contact-plot__blip,
-.contact-plot[data-still='true'] .contact-plot__boost,
 .contact-plot[data-still='true'] .contact-plot__apparent,
 .contact-plot[data-still='true'] .contact-plot__jitter {
   animation: none;
 }
 .contact-plot[data-still='true'] .contact-plot__apparent { opacity: 1; }
+.contact-plot[data-still='true'] .contact-plot__blip { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) {
   .contact-plot,
   .contact-plot__sweep,
-  .contact-plot__boost,
   .contact-plot__blip,
   .contact-plot__contact,
   .contact-plot__apparent,
@@ -469,4 +403,5 @@
   }
 
   .contact-plot__apparent { opacity: 1; }
+  .contact-plot__blip { opacity: 1; }
 }
