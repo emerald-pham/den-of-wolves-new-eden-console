@@ -1777,16 +1777,14 @@ body {
 }
 
 .landing__motion-control {
-  display: block;
-  min-height: 2.75rem;
-  margin: 1.25rem auto 0;
-  padding: 0.55rem 0.8rem;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.65rem;
   border: 1px solid var(--cic-rule);
   border-radius: var(--cic-radius);
   background: var(--cic-void);
   color: var(--cic-muted);
-  font: 0.7rem/1.2 var(--cic-mono);
-  letter-spacing: 0.08em;
+  font: 0.6rem/1.2 var(--cic-mono);
+  letter-spacing: 0.05em;
   cursor: pointer;
 }
 
@@ -1797,8 +1795,16 @@ body {
 }
 
 .landing__motion-status {
-  margin: 0.5rem 0 -0.5rem;
+  margin: -0.4rem 0 0;
   color: var(--cic-muted);
   text-align: center;
   font: 0.7rem/1.4 var(--cic-mono);
+}
+
+.landing__primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
 }

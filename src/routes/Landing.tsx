@@ -52,25 +52,25 @@ export default function Landing({
 
       <ArrivalDisplay onTransmission={onTransmission} standDown={busy} />
 
-      <button
-        type="button"
-        className="landing__motion-control"
-        onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
-      >
-        <span aria-hidden="true">😞</span>{' '}
-        {reducedMotion ? 'Restore motion' : 'Reduce motion (reduce awesomeness)'}
-      </button>
-      {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
-
       <div className="landing__actions cic-frame">
-        <button
-          type="button"
-          className="landing__button"
-          disabled={busy}
-          onClick={() => void enterSession(() => createSession())}
-        >
-          Create a session
-        </button>
+        <div className="landing__primary-actions">
+          <button
+            type="button"
+            className="landing__button"
+            disabled={busy}
+            onClick={() => void enterSession(() => createSession())}
+          >
+            Create a session
+          </button>
+          <button
+            type="button"
+            className="landing__motion-control"
+            onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
+          >
+            {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}
+          </button>
+        </div>
+        {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
 
         <p className="landing__or">or</p>
 

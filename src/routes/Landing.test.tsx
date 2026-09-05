@@ -100,10 +100,12 @@ describe('Landing', () => {
     renderLanding();
 
     const control = screen.getByRole('button', { name: /reduce motion.*reduce awesomeness/i });
-    expect(control).toHaveTextContent('😞');
+    expect(control.parentElement).toBe(screen.getByRole('button', { name: /create a session/i }).parentElement);
+    expect(control).toHaveTextContent('Reduce motion (reduce awesomeness) 😞');
 
     await user.click(control);
     expect(screen.getByText(/motion is reduced/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /restore motion/i })).toHaveTextContent('Restore motion 😀');
   });
 
   it('shows the status light as red before Firebase connects', () => {

@@ -43,6 +43,7 @@
   .landing__join { width: 100%; }
   .landing__label { width: 100%; }
   .landing__join .landing__button { flex: 1; }
+  .landing__primary-actions { width: 100%; }
 }
 @media (max-height: 500px) and (orientation: landscape) {
   .landing { gap: 1rem; }
