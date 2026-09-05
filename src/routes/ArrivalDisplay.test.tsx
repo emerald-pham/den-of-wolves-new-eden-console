@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
+import { act, render, screen, cleanup } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ArrivalDisplay from './ArrivalDisplay';
 
@@ -47,14 +47,9 @@ it('transmits at twenty seconds for five seconds, then a different message each 
   advance(55000);
   expect(screen.getByText('BE AFRAID')).toBeInTheDocument();
 });
-it('lets users disable all effects and clears timers on unmount', () => {
+it('has no motion control and clears timers on unmount', () => {
   const { unmount } = render(<ArrivalDisplay />);
-  advance(20000);
-  fireEvent.click(screen.getByRole('button', { name: /pause effects/i }));
-  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
-  const value = screen.getByLabelText('Arrival readout 1').textContent;
-  advance(120000);
-  expect(screen.getByLabelText('Arrival readout 1').textContent).toBe(value);
+  expect(screen.queryByRole('button', { name: /pause effects|resume effects/i })).not.toBeInTheDocument();
   unmount();
   expect(vi.getTimerCount()).toBe(0);
 });
@@ -64,7 +59,7 @@ it('defaults to still mode when reduced motion is requested', () => {
   advance(80000);
   expect(screen.getByLabelText('Arrival readout 1').textContent).toBe('6');
   expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /resume effects/i })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /pause effects|resume effects/i })).not.toBeInTheDocument();
 });
 
 it('shows only live values inside readouts and no franchise-specific copy', () => {
