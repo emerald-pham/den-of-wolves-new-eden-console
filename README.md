@@ -79,11 +79,20 @@ process).
 Pushes to `main` run lint, unit tests, rule tests and the build, then deploy
 hosting, Firestore rules and functions.
 
-Repository settings CI expects:
+Auth is **Workload Identity Federation** — GitHub mints a short-lived Google
+credential per run, so no service-account key exists to leak, rotate or commit.
 
-- **Variable** `FIREBASE_PROJECT_ID` — the Firebase project id.
-- **Secret** `FIREBASE_SERVICE_ACCOUNT` — the full JSON of a service account
-  with the *Firebase Admin* and *Cloud Functions Admin* roles.
+Repository **variables** (Settings → Secrets and variables → Actions → Variables).
+None of these are secrets:
+
+- `FIREBASE_PROJECT_ID` — `dow-new-eden-console`
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` —
+  `projects/<project-number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>`
+- `GCP_SERVICE_ACCOUNT` — the deploy service account's email
+
+The service account needs *Firebase Hosting Admin*, *Cloud Datastore Owner*
+(for rules) and *Cloud Functions Admin*, plus *Service Account User* on itself,
+and the pool's principal must be restricted to this repository.
 
 Manual deploy:
 

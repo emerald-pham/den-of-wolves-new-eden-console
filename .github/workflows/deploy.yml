@@ -12,8 +12,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # id-token is what lets this job mint a short-lived Google credential via
+    # Workload Identity Federation. No service-account key is stored anywhere.
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -36,17 +39,22 @@ jobs:
       - name: Firestore security-rule tests
         run: npx --yes firebase-tools@latest emulators:exec --only firestore "npx vitest run --project rules"
 
-      - name: Build
+      - name: Build web
         run: npm run build
 
+      - name: Build functions
+        run: npm run build --prefix functions
+
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ vars.FIREBASE_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
       - name: Deploy hosting, Firestore rules and functions
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
-          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
         run: |
-          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
           npx --yes firebase-tools@latest deploy \
-            --project "$FIREBASE_PROJECT_ID" \
+            --project "${{ vars.FIREBASE_PROJECT_ID }}" \
             --only hosting,firestore,functions \
             --non-interactive
-          rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
