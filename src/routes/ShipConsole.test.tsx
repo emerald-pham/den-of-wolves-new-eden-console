@@ -196,7 +196,13 @@ it.each([
   );
 
   expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
-  expect(screen.getByText(roleName)).toBeInTheDocument();
+  const vesselType = screen.getByText('Battleship / carrier');
+  const description = screen.getByText(/main protector of the survivor fleet/i);
+  const renderedRole = screen.getByText(roleName);
+  expect(vesselType.compareDocumentPosition(description))
+    .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(description.compareDocumentPosition(renderedRole))
+    .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(selectConsoleRole).toHaveBeenCalledWith(roleId);
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
       's1', 'aegis', expect.any(Function), expect.any(Function),

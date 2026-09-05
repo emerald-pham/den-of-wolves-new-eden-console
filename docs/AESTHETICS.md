@@ -252,8 +252,8 @@ issued console system, not a centered web page. Shuttle-specific classes may
 specialize the accent and modules but must not replace the shell.
 
 - The identity block uses the same order as a ship: visible exit control,
-  operator and short code, craft or service name, vessel type, current role,
-  and a factual description. The role line identifies the shuttle captain.
+  operator and short code, craft or service name, vessel type, a factual
+  description, and current role. The role line identifies the shuttle captain.
 - The compact DRADIS remains in the shared upper-right instrument position.
   When docked, its origin is the host ship; the shuttle is not rendered as a
   separate contact. In flight, the shuttle becomes a sampled DRADIS contact

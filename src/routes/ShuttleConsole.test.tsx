@@ -41,7 +41,10 @@ it('uses the shared full-screen shuttlecraft console template for SNN', () => {
     'data-console-kind', 'shuttlecraft',
   );
   expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
-  expect(screen.getByText(/press officer.*captain/i)).toBeInTheDocument();
+  const description = screen.getByText(/carries the system news network/i);
+  const captain = screen.getByText(/press officer.*captain/i);
+  expect(description.compareDocumentPosition(captain))
+    .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
     /docked.*aegis/i,
   );

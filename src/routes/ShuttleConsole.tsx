@@ -52,8 +52,8 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
         <p className="ship-console__nation">{shuttle.operator} // {shuttle.operatorShort}</p>
         <h1 className="ship-console__name" id="shuttle-name">{shuttle.consoleName}</h1>
         <p className="ship-console__type">{shuttle.vesselType}</p>
-        <p className="ship-console__role">{captainRole?.name ?? 'Captain'} // Captain</p>
         <p className="ship-console__description">{shuttle.description}</p>
+        <p className="ship-console__role">{captainRole?.name ?? 'Captain'} // Captain</p>
       </section>
 
       <aside className="ship-console__instruments" aria-label={`${shuttle.consoleName} instruments`}>
