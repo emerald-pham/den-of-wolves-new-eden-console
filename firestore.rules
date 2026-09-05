@@ -1,0 +1,84 @@
+rules_version = '2';
+
+// Den of Wolves: New Eden -- Unofficial Companion Console
+//
+// Principle: the client may READ what it is entitled to see and may write only
+// its own presence document. Every authoritative mutation -- claiming a seat,
+// elevating a GM, generating a secret or a random result -- goes through a
+// callable Cloud Function running with admin privileges. Anything a player
+// could gain by lying about is therefore not writable from the client at all.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isMember(sessionId) {
+      return signedIn() && exists(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      );
+    }
+
+    function isGm(sessionId) {
+      return signedIn() && get(
+        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+      ).data.role == 'gm';
+    }
+
+    match /sessions/{sessionId} {
+      // Anyone signed in may read the session header in order to find and join
+      // it by code. Everything interesting lives in subcollections.
+      allow get, list: if signedIn();
+      // Created, phased and closed only by callable functions.
+      allow create, update, delete: if false;
+
+      match /players/{playerUid} {
+        allow get, list: if isMember(sessionId);
+
+        // A player registers their own presence, as a player, once.
+        allow create: if signedIn()
+          && playerUid == uid()
+          && request.resource.data.uid == uid()
+          && request.resource.data.role == 'player'
+          && request.resource.data.seatId == null;
+
+        // They may change their display name and nothing else.
+        allow update: if signedIn()
+          && playerUid == uid()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['displayName']);
+
+        allow delete: if false;
+      }
+
+      match /seats/{seatId} {
+        allow get, list: if isMember(sessionId);
+        // Seat claims are adjudicated server-side; races must not be resolvable
+        // by whoever's write lands first.
+        allow write: if false;
+      }
+
+      match /secrets/{secretId} {
+        allow get, list: if isMember(sessionId)
+          && (isGm(sessionId) || uid() in resource.data.visibleToUids);
+        allow write: if false;
+      }
+
+      match /events/{eventId} {
+        allow get, list: if isMember(sessionId);
+        allow write: if false;
+      }
+    }
+
+    // Nothing else is reachable.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,29 @@
+node_modules/
+dist/
+functions/lib/
+functions/node_modules/
+coverage/
+
+# local env / secrets
+.env
+.env.local
+.env.*.local
+*-service-account*.json
+serviceAccountKey*.json
+
+# firebase local state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+
+# editors / os
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# build info
+*.tsbuildinfo

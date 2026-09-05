@@ -1,0 +1,64 @@
+:root {
+  --bg: #0b0d10;
+  --bg-glow: #131820;
+  --fg: #e8e4dc;
+  --muted: #8b93a1;
+  --accent: #c2603a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--bg-glow) 0%, var(--bg) 60%),
+    var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.landing {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.landing__title {
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+  font-weight: 600;
+}
+
+.landing__title-line {
+  font-size: clamp(1.75rem, 6vw, 3.25rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.landing__title-sub {
+  font-size: clamp(0.8rem, 2.2vw, 1rem);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.landing__link {
+  color: var(--accent);
+  font-size: 0.9rem;
+}

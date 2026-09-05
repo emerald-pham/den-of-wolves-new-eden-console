@@ -1,0 +1,21 @@
+{
+  "name": "den-of-wolves-new-eden-console-functions",
+  "private": true,
+  "main": "lib/index.js",
+  "type": "commonjs",
+  "engines": { "node": "22" },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions,firestore",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  }
+}
