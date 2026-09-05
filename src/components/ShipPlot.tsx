@@ -9,6 +9,7 @@ import {
 import ContactPlot from './ContactPlot';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
+import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
 export const SHIP_PLOT_RESIZE_MS = 1_000;
@@ -33,11 +34,13 @@ export default function ShipPlot({
   aboard,
   viewerId,
   capybaraEnabled = true,
+  shipGalacticCoordinates = {},
 }: {
   hostile: boolean;
   aboard: boolean;
   viewerId: string;
   capybaraEnabled?: boolean;
+  shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
@@ -125,7 +128,14 @@ export default function ShipPlot({
   }
 
   const viewer = findShip(displayedViewerId) ?? findShip('aegis');
-  const fleetContacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled);
+  const effectiveViewerId = viewer?.id ?? 'aegis';
+  const galacticCoordinate = shipGalacticCoordinates[effectiveViewerId] ??
+    ORIGIN_GALACTIC_COORDINATE;
+  const fleetContacts = fleetViewFrom(
+    effectiveViewerId,
+    capybaraEnabled,
+    shipGalacticCoordinates,
+  );
   const destination = transitionViewerId
     ? fleetContacts.find((ship) => ship.id === transitionViewerId)
     : undefined;
@@ -163,6 +173,9 @@ export default function ShipPlot({
           </span>
           {expanded ? (
             <>
+              <span className="ship-plot__galactic-coordinate">
+                Galactic coordinates // {galacticCoordinate}
+              </span>
               <div
                 className="ship-plot__viewport"
                 role={SHIP_PLOT_ROTATION_ENABLED ? 'application' : undefined}
@@ -204,14 +217,17 @@ export default function ShipPlot({
               </div>
             </>
           ) : (
-            <button
-              className="ship-plot__toggle"
-              type="button"
-              aria-label="Zoom into DRADIS panel"
-              onClick={() => setExpanded(true)}
-            >
-              Zoom
-            </button>
+            <div className="ship-plot__compact-controls">
+              <span className="ship-plot__galactic-coordinate">{galacticCoordinate}</span>
+              <button
+                className="ship-plot__toggle"
+                type="button"
+                aria-label="Zoom into DRADIS panel"
+                onClick={() => setExpanded(true)}
+              >
+                Zoom
+              </button>
+            </div>
           )}
         </>
       ) : null}

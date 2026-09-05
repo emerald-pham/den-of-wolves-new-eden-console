@@ -4,6 +4,7 @@ import ContactPlot from '@/components/ContactPlot';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { SHIPS } from '@/data/ships';
+import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS, DEFAULT_WOLF_ELIGIBLE_ROLE_IDS } from '@/data/roles';
 import { MAX_PLAYER_PRESET, MIN_PLAYER_PRESET, recommendedRoleIds } from '@/data/rolePresets';
 import {
@@ -67,7 +68,13 @@ export default function GmConsole() {
     (ship) => capybaraEnabled || ship.id !== 'capybara',
   );
   const viewer = availableShips.find((ship) => ship.id === viewerId) ?? availableShips[0];
-  const contacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled).map((ship) => ({
+  const viewerCoordinate = session?.shipGalacticCoordinates?.[viewer?.id ?? 'aegis'] ??
+    ORIGIN_GALACTIC_COORDINATE;
+  const contacts = fleetViewFrom(
+    viewer?.id ?? 'aegis',
+    capybaraEnabled,
+    session?.shipGalacticCoordinates,
+  ).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
     y: ship.y,
@@ -271,7 +278,7 @@ export default function GmConsole() {
             </div>
             <div className="gm-dradis__controls">
               <p className="gm-dradis__perspective">
-                DRADIS perspective // {viewer?.name ?? 'AEGIS'}
+                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // Galactic coordinates // {viewerCoordinate}
               </p>
               <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
                 {availableShips.map((ship) => (

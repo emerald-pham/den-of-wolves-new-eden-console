@@ -65,6 +65,22 @@ const INITIAL_SHUTTLE_VISITS = [{
   id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
   action: 'docked', occurredAt: 'SESSION START',
 }];
+const INITIAL_SHIP_GALACTIC_COORDINATES = {
+  aegis: '0000',
+  dione: '0000',
+  icebreaker: '0000',
+  capybara: '0000',
+  shepherd: '0000',
+  quellon: '0000',
+  'refinery-124': '0000',
+};
+
+function shipGalacticCoordinates(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null) {
+    return { ...INITIAL_SHIP_GALACTIC_COORDINATES };
+  }
+  return { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...value as Record<string, string> };
+}
 
 async function requireGm(sessionId: string, uid: string): Promise<void> {
   const snap = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
@@ -158,6 +174,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           joinCode,
           phase: 'lobby',
           capybaraEnabled: true,
+          shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           gmControlsLocked: false,
           wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -194,6 +211,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             joinCode,
             phase: 'lobby',
             capybaraEnabled: true,
+            shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
             gmControlsLocked: false,
             wolfEligibleRoleIds: [...WOLF_ROLE_IDS],
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -293,6 +311,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinCode,
         phase: sessionSnap.get('phase') as string,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+        shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         wolfEligibleRoleIds:
           (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],
@@ -374,6 +393,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
+      shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       wolfEligibleRoleIds:
         (sessionSnap.get('wolfEligibleRoleIds') as string[] | undefined) ?? [...WOLF_ROLE_IDS],

@@ -37,4 +37,19 @@ describe('the initial fleet formation', () => {
   it('removes Capybara from DRADIS when the GM disables it', () => {
     expect(fleetViewFrom('aegis', false).map(({ id }) => id)).not.toContain('capybara');
   });
+
+  it('keeps DRADIS geometry fixed while hiding ships in other galactic systems', () => {
+    const coordinates = {
+      aegis: '0000',
+      dione: '0000',
+      icebreaker: '0042',
+    };
+    const originView = fleetViewFrom('aegis', true, coordinates);
+
+    expect(originView.find((contact) => contact.id === 'dione')).toMatchObject({
+      x: -0.32, y: 0.18, z: 0.22,
+    });
+    expect(originView.some((contact) => contact.id === 'icebreaker')).toBe(false);
+    expect(fleetViewFrom('icebreaker', true, coordinates)).toHaveLength(0);
+  });
 });

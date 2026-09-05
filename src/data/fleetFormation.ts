@@ -1,4 +1,4 @@
-import { SHIPS } from './ships';
+import { ORIGIN_GALACTIC_COORDINATE, SHIPS } from './ships';
 
 export interface FleetPoint {
   readonly x: number;
@@ -32,12 +32,17 @@ const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 export function fleetViewFrom(
   viewerId: string,
   capybaraEnabled = true,
+  shipGalacticCoordinates: Readonly<Record<string, string>> = {},
 ): readonly FleetContact[] {
   const viewer = FLEET_FORMATION[viewerId] ?? FLEET_FORMATION.aegis;
   if (!viewer) return [];
 
+  const viewerCoordinate = shipGalacticCoordinates[viewerId] ?? ORIGIN_GALACTIC_COORDINATE;
   return SHIPS.filter((ship) =>
-    ship.id !== viewerId && (capybaraEnabled || ship.id !== 'capybara')).flatMap((ship) => {
+    ship.id !== viewerId &&
+    (capybaraEnabled || ship.id !== 'capybara') &&
+    (shipGalacticCoordinates[ship.id] ?? ORIGIN_GALACTIC_COORDINATE) === viewerCoordinate)
+    .flatMap((ship) => {
     const point = FLEET_FORMATION[ship.id];
     if (!point) return [];
     return [{

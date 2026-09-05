@@ -14,6 +14,9 @@ export type Timestamp = string;
 
 export type SessionPhase = 'lobby' | 'briefing' | 'active' | 'debrief' | 'closed';
 
+export type GalacticCoordinate = string;
+export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
+
 export interface GameSession {
   readonly id: Id;
   readonly name: string;
@@ -22,6 +25,8 @@ export interface GameSession {
   readonly phase: SessionPhase;
   /** Expansion ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
+  /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
+  readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Locks Setup and subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
   /** Playable role ids currently eligible for a random wolf assignment. */

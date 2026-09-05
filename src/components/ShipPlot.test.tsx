@@ -31,6 +31,24 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   expect(plot).toHaveAttribute('data-expanded', 'false');
 });
 
+it('shows the current galactic coordinate beside Zoom and in the expanded display', async () => {
+  const user = userEvent.setup();
+  render(
+    <ShipPlot
+      hostile={false}
+      aboard
+      viewerId="aegis"
+      shipGalacticCoordinates={{ aegis: '0042' }}
+    />,
+  );
+
+  const zoom = screen.getByRole('button', { name: /zoom into dradis/i });
+  expect(zoom.previousElementSibling).toHaveTextContent('0042');
+
+  await user.click(zoom);
+  expect(screen.getByText(/galactic coordinates \/\/ 0042/i)).toBeInTheDocument();
+});
+
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {
   const user = userEvent.setup();
   const { container } = render(
