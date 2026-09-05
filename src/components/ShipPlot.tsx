@@ -7,12 +7,11 @@ import {
   type PointerEvent,
 } from 'react';
 import ContactPlot from './ContactPlot';
-import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
-export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
+export const SHIP_PLOT_RESIZE_MS = 1_000;
 /** Keep the complete rotation path ready, but do not expose orientation changes yet. */
 export const SHIP_PLOT_ROTATION_ENABLED = false;
 
@@ -43,6 +42,7 @@ export default function ShipPlot({
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
   const [displayedViewerId, setDisplayedViewerId] = useState(viewerId);
+  const [transitionViewerId, setTransitionViewerId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(true);
   const previousDestination = useRef({ aboard, viewerId });
   const drag = useRef<Drag | null>(null);
@@ -55,13 +55,16 @@ export default function ShipPlot({
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (reducedMotion) {
       setDisplayedViewerId(viewerId);
+      setTransitionViewerId(null);
       setScanning(true);
       return;
     }
 
     setScanning(false);
+    setTransitionViewerId(viewerId);
     const arrived = window.setTimeout(() => {
       setDisplayedViewerId(viewerId);
+      setTransitionViewerId(null);
       setScanning(true);
     }, SHIP_PLOT_RESIZE_MS);
     return () => window.clearTimeout(arrived);
@@ -122,11 +125,15 @@ export default function ShipPlot({
   }
 
   const viewer = findShip(displayedViewerId) ?? findShip('aegis');
-  const contacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled).map((ship) => ({
+  const fleetContacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled);
+  const destination = transitionViewerId
+    ? fleetContacts.find((ship) => ship.id === transitionViewerId)
+    : undefined;
+  const contacts = fleetContacts.map((ship) => ({
     tag: ship.name.toUpperCase(),
-    x: ship.x,
-    y: ship.y,
-    z: ship.z,
+    x: ship.x - (destination?.x ?? 0),
+    y: ship.y - (destination?.y ?? 0),
+    z: ship.z - (destination?.z ?? 0),
     color: ship.color,
   }));
 
@@ -147,6 +154,7 @@ export default function ShipPlot({
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
         scanning={scanning}
+        contactTransitionMs={transitionViewerId ? SHIP_PLOT_RESIZE_MS : undefined}
       />
       {aboard ? (
         <>

@@ -161,9 +161,12 @@ and the framing change. Do not add a route that switches it off.
 
 The compact shipboard plot sizes itself in container-query units, never
 percentages. Its parent morphs between a full-viewport size container and the
-corner instrument over 200ms, so entering or leaving a console changes the
+corner instrument over one second, so entering or leaving a console changes the
 scale continuously instead of crossfading the DRADIS. Keep this duration
 isolated in `SHIP_PLOT_RESIZE_MS` so the experiment is easy to tune or revert.
+During that second, the destination ship translates from its actual fleet
+position into the origin and every other visible return shifts by the same
+offset. The sweeps and acquisition observer stay paused until arrival.
 The expanded shipboard plot is orientation-locked. Its dormant rotation path
 transforms the complete rig—including returns, names and altitude lines—so the
 whole instrument will move coherently if rotation is enabled in the future.
@@ -382,7 +385,7 @@ fades out and back in: `SCREEN_FADE_MS` each way, two tenths of a second in
 total. The constant and the CSS duration are the same figure in two places; move
 both. This crossing applies to routed foreground content only. Persistent
 background instrumentation does not fade; when DRADIS changes between field and
-corner modes, its own 200ms ease-in-out geometry transition communicates that
+corner modes, its own one-second ease-in-out geometry transition communicates that
 change. Activating a compact ship or shuttle DRADIS uses that same transition to
 zoom in and out.
 
