@@ -64,4 +64,5 @@ jobs:
           npx --yes firebase-tools@15.29.0 deploy \
             --project "${{ vars.FIREBASE_PROJECT_ID }}" \
             --only hosting,firestore,functions \
-            --non-interactive
+            --non-interactive \
+            --force

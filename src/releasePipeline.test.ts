@@ -26,6 +26,13 @@ it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {
   expect(packageJson.scripts['test:rules']).not.toContain('firebase-tools@latest');
 });
 
+it('removes retired Cloud Functions during non-interactive deployment', () => {
+  const deployment = deploy.slice(deploy.indexOf(`${FIREBASE_CLI} deploy`));
+
+  expect(deployment).toContain('--non-interactive');
+  expect(deployment).toContain('--force');
+});
+
 it('skips CI and deployment for documentation-only changes', () => {
   for (const workflow of [ci, deploy]) {
     expect(workflow).toContain('paths-ignore:');
