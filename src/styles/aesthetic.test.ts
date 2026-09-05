@@ -178,6 +178,35 @@ describe('the shuttlecraft console template', () => {
 });
 
 describe('ship console instrument layout', () => {
+  it('fades routed content while shared movement stays visible above DRADIS', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const root = index.match(/\.screen-fade\s*\{([^}]*)\}/)?.[1] ?? '';
+    const content = index.match(/\.screen-fade__content\s*\{([^}]*)\}/)?.[1] ?? '';
+    const crossing = index.match(
+      /\.screen-fade\[data-crossing='true'\]\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+    const plot = index.match(
+      /\.ship-plot\[data-aboard='true'\]\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+    const header = index.match(/\.app-header\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(root).not.toContain('transition: opacity');
+    expect(root).toContain('z-index: 1');
+    expect(content).toContain('transition: opacity 100ms ease');
+    expect(crossing).toContain('z-index: 5');
+    expect(plot).toContain('z-index: 4');
+    expect(header).toContain('z-index: 10');
+  });
+
+  it('never blanks routed content under the in-app reduced-motion override', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const reducedMotion = index.match(
+      /\[data-motion='reduce'\] \.screen-fade__content,\s*\[data-motion='reduce'\] \.screen-fade\[data-phase='out'\] \.screen-fade__content\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(reducedMotion).toContain('opacity: 1 !important');
+  });
+
   it('keeps ship information above the shared flag during a screen crossing', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const console = index.match(/\.ship-console\s*\{([^}]*)\}/)?.[1] ?? '';

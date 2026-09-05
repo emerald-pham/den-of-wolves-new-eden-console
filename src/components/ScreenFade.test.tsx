@@ -42,6 +42,27 @@ function FlagHarness() {
   );
 }
 
+function RapidFlagHarness() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <ScreenFade>{(location) => (
+        <img
+          data-shared-flag="aegis"
+          alt={`Flag ${location.pathname}`}
+          style={{ objectFit: 'contain', objectPosition: 'center center' }}
+        />
+      )}</ScreenFade>
+      <button type="button" onClick={() => navigate('/ships/aegis/roles/commander')}>
+        Commander
+      </button>
+      <button type="button" onClick={() => navigate('/ships/aegis/roles/executive-officer')}>
+        Executive officer
+      </button>
+    </>
+  );
+}
+
 // The fade wrapper is chrome with no role, name or text of its own.
 const fade = () => document.querySelector('.screen-fade');
 
@@ -70,6 +91,9 @@ describe('ScreenFade', () => {
 
     // Still the old screen: it has to be on screen to be fading out.
     expect(fade()).toHaveAttribute('data-phase', 'out');
+    expect(fade()?.querySelector('.screen-fade__content')).toContainElement(
+      screen.getByText('screen /first'),
+    );
     expect(screen.getByText('screen /first')).toBeInTheDocument();
 
     act(() => {
@@ -78,6 +102,17 @@ describe('ScreenFade', () => {
 
     expect(screen.getByText('screen /second')).toBeInTheDocument();
     expect(fade()).toHaveAttribute('data-phase', 'in');
+    expect(fade()).toHaveAttribute('data-crossing', 'true');
+
+    act(() => {
+      vi.advanceTimersByTime(SCREEN_FADE_MS);
+    });
+    expect(fade()).toHaveAttribute('data-crossing', 'true');
+
+    act(() => {
+      vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS - SCREEN_FADE_MS);
+    });
+    expect(fade()).toHaveAttribute('data-crossing', 'false');
   });
 
   it('stays put when navigation lands on the screen already showing', () => {
@@ -108,6 +143,16 @@ describe('ScreenFade', () => {
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole('button', { name: 'Go' }));
+
+    const sourceFlag = document.querySelector<HTMLImageElement>(
+      '.screen-fade__content [alt="Roster flag"]',
+    );
+    const persistentFlag = document.querySelector<HTMLImageElement>('.shared-flag-transition');
+    expect(sourceFlag).toHaveStyle({ visibility: 'hidden' });
+    expect(persistentFlag).toBeInTheDocument();
+    expect(persistentFlag?.parentElement).toBe(fade());
+    expect(persistentFlag?.parentElement).not.toHaveClass('screen-fade__content');
+
     act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
 
     const movingFlag = document.querySelector<HTMLImageElement>('.shared-flag-transition');
@@ -127,6 +172,26 @@ describe('ScreenFade', () => {
     expect(SHARED_FLAG_MOVE_MS).toBe(200);
     act(() => vi.advanceTimersByTime(SHARED_FLAG_MOVE_MS + 20));
     expect(document.querySelector('.shared-flag-transition')).not.toBeInTheDocument();
+    window.matchMedia = userMotion;
+  });
+
+  it('retires an active shared move before rapid navigation starts another', () => {
+    vi.useFakeTimers();
+    const userMotion = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as typeof window.matchMedia;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 10, top: 20, width: 100, height: 80 } as DOMRect);
+    render(
+      <MemoryRouter initialEntries={['/ships/aegis/roles']}>
+        <RapidFlagHarness />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Commander' }));
+    act(() => vi.advanceTimersByTime(SCREEN_FADE_MS));
+    fireEvent.click(screen.getByRole('button', { name: 'Executive officer' }));
+
+    expect(document.querySelectorAll('.shared-flag-transition')).toHaveLength(1);
     window.matchMedia = userMotion;
   });
 });

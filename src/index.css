@@ -75,17 +75,29 @@ body {
 
 /* Screen crossings ---------------------------------------------------- */
 
-/* Positioned deliberately: an opacity below 1 makes this a stacking context,
-   and an unpositioned one would paint in the in-flow layer -- underneath the
-   contact plot at z-index 0, so the board would jump in front of the interface
-   for the length of every crossing. */
+/* Positioned deliberately so the routed foreground has a stable stacking slot
+   above the field DRADIS at rest. */
 .screen-fade {
   position: relative;
   z-index: 1;
+}
+
+/* DRADIS is z-index 4 and the persistent header is z-index 10. Raising only
+   during a crossing gives the routed foreground one unambiguous slot between
+   them while DRADIS changes geometry underneath it. */
+.screen-fade[data-crossing='true'] {
+  z-index: 5;
+}
+
+/* Opacity belongs to routed content rather than the transition root so the
+   shared flag can stay visible while its surrounding screens cross. */
+.screen-fade__content {
+  position: relative;
+  z-index: 21;
   transition: opacity 100ms ease;
 }
 
-.screen-fade[data-phase='out'] {
+.screen-fade[data-phase='out'] .screen-fade__content {
   opacity: 0;
 }
 
@@ -1717,8 +1729,8 @@ body {
 
   /* Hold the outgoing screen at full strength rather than blinking it out:
      without the transition, fading to zero would be a flash, not a fade. */
-  .screen-fade,
-  .screen-fade[data-phase='out'] {
+  .screen-fade__content,
+  .screen-fade[data-phase='out'] .screen-fade__content {
     opacity: 1;
     transition: none;
   }
@@ -1737,6 +1749,12 @@ body {
 [data-motion='reduce'] *::before,
 [data-motion='reduce'] *::after {
   animation: none !important;
+  transition: none !important;
+}
+
+[data-motion='reduce'] .screen-fade__content,
+[data-motion='reduce'] .screen-fade[data-phase='out'] .screen-fade__content {
+  opacity: 1 !important;
   transition: none !important;
 }
 

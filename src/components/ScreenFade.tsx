@@ -14,11 +14,9 @@ export const SHARED_FLAG_MOVE_MS = 200;
 
 interface FlagMove {
   readonly clone: HTMLImageElement;
-  readonly objectFit: string;
-  readonly objectPosition: string;
-  readonly opacity: string;
   readonly shipId: string;
   readonly source: DOMRect;
+  readonly sourceElement: HTMLImageElement;
 }
 
 const shipIdFromPath = (pathname: string): string | null =>
@@ -45,8 +43,11 @@ export default function ScreenFade({
   const { reducedMotion } = useMotionPreference();
   const [displayed, setDisplayed] = useState(location);
   const [phase, setPhase] = useState<'in' | 'out'>('in');
+  const [crossing, setCrossing] = useState(false);
   const pendingFlag = useRef<FlagMove | null>(null);
+  const activeFlagCleanup = useRef<(() => void) | null>(null);
   const fadeRoot = useRef<HTMLDivElement>(null);
+  const crossingEnd = useRef(0);
 
   useLayoutEffect(() => {
     const move = pendingFlag.current;
@@ -59,7 +60,11 @@ export default function ScreenFade({
     if (
       !destination || move.source.width <= 0 || move.source.height <= 0 ||
       reducedMotion
-    ) return;
+    ) {
+      move.sourceElement.style.removeProperty('visibility');
+      move.clone.remove();
+      return;
+    }
 
     const target = destination.getBoundingClientRect();
     const destinationStyle = window.getComputedStyle(destination);
@@ -67,45 +72,30 @@ export default function ScreenFade({
     const destinationObjectPosition = destinationStyle.objectPosition;
     const clone = move.clone;
     Object.assign(clone.style, {
-      position: 'fixed',
-      zIndex: '20',
-      left: `${move.source.left}px`,
-      top: `${move.source.top}px`,
-      width: `${move.source.width}px`,
-      height: `${move.source.height}px`,
-      margin: '0',
-      objectFit: move.objectFit,
-      objectPosition: move.objectPosition,
-      opacity: move.opacity,
-      pointerEvents: 'none',
-      transform: 'none',
       transition: `left ${SHARED_FLAG_MOVE_MS}ms ease-in-out, top ${SHARED_FLAG_MOVE_MS}ms ease-in-out, width ${SHARED_FLAG_MOVE_MS}ms ease-in-out, height ${SHARED_FLAG_MOVE_MS}ms ease-in-out, opacity ${SHARED_FLAG_MOVE_MS}ms ease-in-out, object-position ${SHARED_FLAG_MOVE_MS}ms ease-in-out`,
     });
-    clone.className = 'shared-flag-transition';
-    clone.alt = '';
-    clone.setAttribute('aria-hidden', 'true');
     destination.style.visibility = 'hidden';
-    fadeRoot.current?.append(clone);
 
     let finish = 0;
-    const frame = window.requestAnimationFrame(() => {
+    let frame = 0;
+    const cleanup = () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(finish);
+      destination.style.removeProperty('visibility');
+      clone.remove();
+      if (activeFlagCleanup.current === cleanup) activeFlagCleanup.current = null;
+    };
+    activeFlagCleanup.current = cleanup;
+    frame = window.requestAnimationFrame(() => {
       clone.style.left = `${target.left}px`;
       clone.style.top = `${target.top}px`;
       clone.style.width = `${target.width}px`;
       clone.style.height = `${target.height}px`;
       clone.style.opacity = destinationOpacity;
       clone.style.objectPosition = destinationObjectPosition;
-      finish = window.setTimeout(() => {
-        destination.style.removeProperty('visibility');
-        clone.remove();
-      }, SHARED_FLAG_MOVE_MS);
+      finish = window.setTimeout(cleanup, SHARED_FLAG_MOVE_MS);
     });
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(finish);
-      destination.style.removeProperty('visibility');
-      clone.remove();
-    };
+    return cleanup;
   }, [displayed, reducedMotion]);
 
   useEffect(() => {
@@ -113,32 +103,77 @@ export default function ScreenFade({
     // crossing. Only a change of screen is.
     if (location.pathname === displayed.pathname) return;
 
+    window.clearTimeout(crossingEnd.current);
+    activeFlagCleanup.current?.();
+    const previousMove = pendingFlag.current;
+    if (previousMove) {
+      previousMove.sourceElement.style.removeProperty('visibility');
+      previousMove.clone.remove();
+      pendingFlag.current = null;
+    }
+
+    const shipId = shipIdFromPath(location.pathname) ?? shipIdFromPath(displayed.pathname);
+    const source = shipId && !reducedMotion
+      ? document.querySelector<HTMLImageElement>(
+          `[data-shared-flag="${CSS.escape(shipId)}"]`,
+        )
+      : null;
+    if (shipId && source) {
+      const sourceStyle = window.getComputedStyle(source);
+      const sourceRect = source.getBoundingClientRect();
+      const clone = source.cloneNode(true) as HTMLImageElement;
+      Object.assign(clone.style, {
+        position: 'fixed',
+        zIndex: '20',
+        left: `${sourceRect.left}px`,
+        top: `${sourceRect.top}px`,
+        width: `${sourceRect.width}px`,
+        height: `${sourceRect.height}px`,
+        margin: '0',
+        objectFit: sourceStyle.objectFit,
+        objectPosition: sourceStyle.objectPosition,
+        opacity: sourceStyle.opacity,
+        pointerEvents: 'none',
+        transform: 'none',
+      });
+      clone.className = 'shared-flag-transition';
+      clone.alt = '';
+      clone.setAttribute('aria-hidden', 'true');
+      source.style.visibility = 'hidden';
+      fadeRoot.current?.append(clone);
+      pendingFlag.current = {
+        clone,
+        shipId,
+        source: sourceRect,
+        sourceElement: source,
+      };
+    }
+
+    setCrossing(true);
     setPhase('out');
     const swap = window.setTimeout(() => {
-      const shipId = shipIdFromPath(location.pathname) ?? shipIdFromPath(displayed.pathname);
-      const source = shipId
-        ? document.querySelector<HTMLImageElement>(`[data-shared-flag="${CSS.escape(shipId)}"]`)
-        : null;
-      if (shipId && source && !reducedMotion) {
-        const sourceStyle = window.getComputedStyle(source);
-        pendingFlag.current = {
-          clone: source.cloneNode(true) as HTMLImageElement,
-          objectFit: sourceStyle.objectFit,
-          objectPosition: sourceStyle.objectPosition,
-          opacity: sourceStyle.opacity,
-          shipId,
-          source: source.getBoundingClientRect(),
-        };
-      }
       setDisplayed(location);
       setPhase('in');
+      // Keep the foreground's layer stable through both the fade-in and the
+      // longer shared-flag move. Dropping it at the fade timer boundary can
+      // expose DRADIS one frame before the CSS transition finishes painting.
+      crossingEnd.current = window.setTimeout(() => setCrossing(false), SHARED_FLAG_MOVE_MS);
     }, SCREEN_FADE_MS);
     return () => window.clearTimeout(swap);
   }, [location, displayed, reducedMotion]);
 
+  useEffect(() => () => window.clearTimeout(crossingEnd.current), []);
+
   return (
-    <div ref={fadeRoot} className="screen-fade" data-phase={phase}>
-      {children(displayed)}
+    <div
+      ref={fadeRoot}
+      className="screen-fade"
+      data-crossing={String(crossing)}
+      data-phase={phase}
+    >
+      <div className="screen-fade__content">
+        {children(displayed)}
+      </div>
     </div>
   );
 }

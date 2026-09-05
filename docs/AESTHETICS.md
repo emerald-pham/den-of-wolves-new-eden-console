@@ -411,14 +411,14 @@ contact plot. Header chrome persists between screens, and the board is the room
 the interface sits in rather than part of any one screen. All three are
 siblings of the fade wrapper, not children.
 
-`.screen-fade` is `position: relative; z-index: 1` deliberately. An opacity
-below 1 makes it a stacking context, and an unpositioned stacking context paints
-in the in-flow layer — underneath the contact plot at `z-index: 0` — so the
-board would jump in front of the interface for the length of every crossing.
-The moving shared-flag clone stays inside that stacking context. The ship
-console must not create a nested stacking context: its identity panel and the
-clone need to share `.screen-fade` so the panel's higher layer remains effective
-throughout the crossing.
+`.screen-fade` is `position: relative; z-index: 1` deliberately. During a
+crossing it rises to `z-index: 5`, one explicit layer above the compact contact
+plot and below the persistent header, so the resizing plot cannot abruptly
+cover the outgoing screen. Opacity belongs to the nested
+`.screen-fade__content`, leaving the moving shared-flag clone continuously
+visible as its surrounding screens fade. The clone stays in `.screen-fade`,
+immediately below the routed-content layer, so the ship identity panel can
+still paint over it at the destination.
 The clone also interpolates `object-position` to the destination image's
 alignment. Role-picker flags are left-aligned while console flags are centred;
 holding the source alignment until the clone disappears causes a visible snap.
