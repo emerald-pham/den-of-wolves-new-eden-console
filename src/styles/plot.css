@@ -233,6 +233,9 @@
   position: absolute;
   opacity: 0;
   transform-style: preserve-3d;
+  /* Rotate around the plot origin, not the contact, so this reads as a
+     three-degree bearing estimate error rather than a spinning icon. */
+  transform-origin: calc(var(--x) * -1 * var(--plot-radius)) calc(var(--y) * -1 * var(--plot-radius));
   animation-name: plot-acquire, plot-drift;
   animation-duration: 1ms, calc(var(--plot-turn) * 2.5);
   /* Do not step the 1ms reveal. WebKit may stop infinitesimally before the
@@ -251,12 +254,12 @@
 }
 
 @keyframes plot-drift {
-  0% { transform: translate3d(-0.20px, 0.10px, 0.04px); }
-  20% { transform: translate3d(-0.08px, 0.02px, 0.00px); }
-  40% { transform: translate3d(0.06px, -0.05px, -0.03px); }
-  60% { transform: translate3d(0.18px, -0.10px, 0.02px); }
-  80% { transform: translate3d(0.04px, 0.04px, 0.05px); }
-  100% { transform: translate3d(-0.20px, 0.10px, 0.04px); }
+  0% { transform: rotateZ(-3deg); }
+  20% { transform: rotateZ(-1deg); }
+  40% { transform: rotateZ(2deg); }
+  60% { transform: rotateZ(3deg); }
+  80% { transform: rotateZ(1deg); }
+  100% { transform: rotateZ(-3deg); }
 }
 
 .contact-plot__blip {

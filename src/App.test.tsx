@@ -235,6 +235,19 @@ describe('App', () => {
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
   });
 
+  it('gives the SNN Press Shuttle the same minimized DRADIS instrument as ship consoles', async () => {
+    window.location.hash = '#/press';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/press');
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /expand dradis display/i })).toBeInTheDocument();
+    expect(container.querySelector('.contact-plot')).toHaveAttribute('data-placement', 'widget');
+  });
+
   it('rebases the named fleet contacts around the joined ship and returns to the AEGIS view', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/console';

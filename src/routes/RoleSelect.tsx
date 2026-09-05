@@ -83,7 +83,7 @@ export default function RoleSelect() {
     }
   }
 
-  const claimLabel = isGm ? 'GM claimed' : pendingClaim ? 'GM claim queued' : 'Claim GM';
+  const claimLabel = isGm ? 'GM joined' : pendingClaim ? 'GM join queued' : 'Join as GM';
   const registrationLocked = controlsLocked && activeGmCount !== 0;
 
   return (
@@ -96,16 +96,6 @@ export default function RoleSelect() {
 
       <div className="role-select__grid role-select__grid--four">
         <form className="role-card role-claim cic-frame" onSubmit={(event) => void claim(event)}>
-          <label className="role-card__name" htmlFor="gm-instance-name">GM instance name</label>
-          <input
-            id="gm-instance-name"
-            className="role-claim__input"
-            value={isGm ? gmInstance?.name ?? instanceName : instanceName}
-            disabled={isGm || pendingClaim || claiming || registrationLocked}
-            maxLength={40}
-            autoComplete="off"
-            onChange={(event) => setInstanceName(event.target.value)}
-          />
           <button
             className="role-claim__button"
             type="submit"
@@ -116,6 +106,16 @@ export default function RoleSelect() {
           >
             {claimLabel}
           </button>
+          <label className="role-card__name" htmlFor="gm-instance-name">Input name</label>
+          <input
+            id="gm-instance-name"
+            className="role-claim__input"
+            value={isGm ? gmInstance?.name ?? instanceName : instanceName}
+            disabled={isGm || pendingClaim || claiming || registrationLocked}
+            maxLength={40}
+            autoComplete="off"
+            onChange={(event) => setInstanceName(event.target.value)}
+          />
           {registrationLocked && <span className="role-card__description">GM registration locked.</span>}
           {controlsLocked && activeGmCount === 0 && !isGm && (
             <span className="role-card__description">Failsafe active // no active GM.</span>
@@ -124,7 +124,7 @@ export default function RoleSelect() {
         <button
           className="role-card role-controls-lock cic-frame"
           type="button"
-          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration and Setup`}
+          aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} lock out more GMs being added`}
           aria-pressed={controlsLocked}
           disabled={!isGm || changingLock || pendingLock}
           onClick={() => void toggleLock()}
@@ -132,7 +132,7 @@ export default function RoleSelect() {
           <span className="role-controls-lock__icon" aria-hidden="true">
             {controlsLocked ? '🔒' : '🔓'}
           </span>
-          <span className="role-card__name">GM registration + Setup</span>
+          <span className="role-card__name">Lock out more GMs being added</span>
           <span className="role-card__description">
             {pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
           </span>

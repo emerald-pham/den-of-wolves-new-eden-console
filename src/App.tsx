@@ -20,6 +20,8 @@ const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press']);
 const isSessionRoute = (path: string): boolean =>
   SESSION_ROUTES.has(path) || path.startsWith('/ships/');
+const hasConsoleDradis = (path: string): boolean =>
+  path === '/press' || path.startsWith('/ships/');
 
 function AppRoutes() {
   const location = useLocation();
@@ -75,7 +77,7 @@ function AppRoutes() {
     <>
       <ShipPlot
         hostile={intrusion}
-        aboard={location.pathname.startsWith('/ships/')}
+        aboard={hasConsoleDradis(location.pathname)}
         viewerId={shipId}
         capybaraEnabled={session?.capybaraEnabled !== false}
       />
