@@ -26,14 +26,15 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
 .landing {
-  min-height: 100%;
+  min-height: 100dvh;
   display: grid;
   place-content: center;
   gap: 1.5rem;
-  padding: 2rem;
+  padding: clamp(5.5rem, 12vh, 8rem) clamp(1rem, 5vw, 3rem) 2rem;
   text-align: center;
 }
 
@@ -65,13 +66,43 @@ body {
 
 /* Status light -------------------------------------------------------- */
 
-/* Fixed rather than in flow: the landing content is centred in the
-   viewport, and the light belongs to the app, not to the column. */
-.landing__bar {
+/* Shared app chrome -------------------------------------------------- */
+
+.app-header {
   position: fixed;
-  top: 1rem;
-  right: 1.25rem;
-  z-index: 1;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  max-width: calc(100vw - 1.5rem);
+}
+
+.session-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #ffffff1f;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.session-badge__label {
+  color: var(--muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.session-badge__code {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 1rem;
+  letter-spacing: 0.12em;
 }
 
 .indicator {
@@ -136,18 +167,16 @@ body {
 }
 
 .landing__code {
-  width: 6.5ch;
-  padding: 0.5rem 0;
+  width: 7.25rem;
+  padding: 0.6rem 0.55rem 0.6rem 1.15rem;
   border: 1px solid #ffffff1f;
   border-radius: 0.5rem;
   background: #00000038;
   color: var(--fg);
-  font: inherit;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
   font-size: 1.6rem;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.35em;
-  /* The letter-spacing adds a trailing gap that throws the glyphs off-centre. */
-  text-indent: 0.35em;
+  letter-spacing: 0.4rem;
   text-align: center;
 }
 
@@ -156,6 +185,7 @@ body {
 }
 
 .landing__button {
+  min-height: 2.75rem;
   padding: 0.6rem 1.4rem;
   border: 1px solid var(--accent);
   border-radius: 0.5rem;
@@ -189,8 +219,135 @@ body {
   font-size: 0.85rem;
 }
 
+/* Role selection ----------------------------------------------------- */
+
+.role-select {
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  gap: clamp(1.5rem, 5vw, 3rem);
+  width: min(68rem, 100%);
+  margin: 0 auto;
+  padding: clamp(6rem, 14vh, 9rem) clamp(1rem, 5vw, 3rem) 2rem;
+}
+
+.role-select__intro {
+  max-width: 38rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.role-select__title {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  line-height: 1;
+}
+
+.role-select__lede {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+}
+
+.role-select__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.role-card {
+  min-height: 10rem;
+  display: grid;
+  align-content: end;
+  gap: 0.55rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid #ffffff1f;
+  border-radius: 0.75rem;
+  background: #ffffff08;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.role-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  transform: translateY(-2px);
+}
+
+.role-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.role-card__name {
+  font-size: clamp(1.15rem, 2.5vw, 1.5rem);
+  font-weight: 650;
+}
+
+.role-card__description {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 42rem) {
+  .app-header {
+    align-items: stretch;
+  }
+
+  .session-badge__label,
+  .indicator__label {
+    font-size: 0.62rem;
+  }
+
+  .role-select__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-card {
+    min-height: 7.5rem;
+  }
+}
+
+@media (max-width: 24rem) {
+  .app-header {
+    gap: 0.4rem;
+  }
+
+  .session-badge {
+    gap: 0.35rem;
+  }
+
+  .session-badge__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .landing__title-sub {
+    letter-spacing: 0.14em;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .landing__button {
+  .landing__button,
+  .role-card {
     transition: none;
+  }
+
+  .role-card:hover {
+    transform: none;
   }
 }

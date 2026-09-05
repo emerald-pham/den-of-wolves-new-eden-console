@@ -1,13 +1,12 @@
 import { useState, type FormEvent } from 'react';
-import ConnectionIndicator from '@/components/ConnectionIndicator';
+import { useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
-import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
 
 /** Table codes are read aloud across a noisy room, so they stay short. */
 const CODE_LENGTH = 4;
 
 export default function Landing() {
-  const status = useSessionStore(selectConnectionStatus);
+  const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,11 +16,12 @@ export default function Landing() {
    * dead while a request is in flight, and a rejection is shown to the player
    * rather than disappearing into an unhandled promise.
    */
-  async function run(action: () => Promise<void>): Promise<void> {
+  async function enterSession(action: () => Promise<void>): Promise<void> {
     setBusy(true);
     setError(null);
     try {
       await action();
+      navigate('/roles');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Something went wrong.');
     } finally {
@@ -31,15 +31,11 @@ export default function Landing() {
 
   function onJoin(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    void run(() => joinSession(code));
+    void enterSession(() => joinSession(code));
   }
 
   return (
     <main className="landing">
-      <header className="landing__bar">
-        <ConnectionIndicator status={status} />
-      </header>
-
       <h1 className="landing__title">
         <span className="landing__title-line">Den of Wolves: New Eden</span>
         <span className="landing__title-sub">Unofficial Companion Console</span>
@@ -50,7 +46,7 @@ export default function Landing() {
           type="button"
           className="landing__button"
           disabled={busy}
-          onClick={() => void run(() => createSession())}
+          onClick={() => void enterSession(() => createSession())}
         >
           Create a session
         </button>

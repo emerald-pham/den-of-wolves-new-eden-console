@@ -30,13 +30,17 @@ async function ensureSignedIn(): Promise<void> {
 }
 
 /**
- * Establish the Firebase half of the connection. Called once as the app mounts;
- * the status light is red until this resolves and red again if it throws.
+ * Establish the Firebase half of the connection. Called as the app mounts and
+ * retried while offline; the status light is red until this resolves and red
+ * again if it throws.
  */
 export async function connect(): Promise<void> {
   const store = useSessionStore.getState();
   store.setConnection('connecting');
   try {
+    if (!window.navigator.onLine) {
+      throw new Error('Browser is offline.');
+    }
     await ensureSignedIn();
     store.setConnection('live');
   } catch {
