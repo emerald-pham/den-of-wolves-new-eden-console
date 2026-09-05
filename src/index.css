@@ -1374,21 +1374,91 @@ body {
 
 .ship-plot__toggle {
   position: absolute;
-  inset: 0;
-  z-index: 2;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  z-index: 4;
   min-width: 44px;
   min-height: 44px;
-  border: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--cic-amber-dim);
   border-radius: var(--cic-radius);
-  background: transparent;
+  background: color-mix(in srgb, var(--cic-void) 92%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 600 0.56rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: zoom-in;
 }
 
-.ship-plot[data-expanded='true'] .ship-plot__toggle { cursor: zoom-out; }
-
 .ship-plot__toggle:focus-visible {
   outline: 2px solid var(--cic-amber);
-  outline-offset: -4px;
+  outline-offset: 2px;
+}
+
+.ship-plot__viewport {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.ship-plot__viewport:active { cursor: grabbing; }
+
+.ship-plot__viewport:focus-visible {
+  outline: 1px solid var(--cic-amber-dim);
+  outline-offset: -0.6rem;
+}
+
+.ship-plot__close,
+.ship-plot__legend {
+  position: absolute;
+  z-index: 4;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  color: var(--cic-cyan-hot);
+  font-family: var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ship-plot__close {
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  padding: 0.7rem 0.9rem;
+  font-size: 0.62rem;
+}
+
+.ship-plot__legend {
+  left: max(0.75rem, env(safe-area-inset-left));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template: auto repeat(3, 1.2rem) / repeat(3, minmax(2.8rem, auto));
+  place-items: center;
+  padding: 0.55rem 0.7rem 0.7rem;
+  color: var(--cic-amber);
+  font-size: 0.52rem;
+}
+
+.ship-plot__legend-title {
+  grid-column: 1 / -1;
+  margin-bottom: 0.25rem;
+  color: var(--cic-muted);
+}
+
+.ship-plot__legend-north { grid-area: 2 / 2; }
+.ship-plot__legend-west { grid-area: 3 / 1; }
+.ship-plot__legend-origin { grid-area: 3 / 2; color: var(--cic-cyan-hot); }
+.ship-plot__legend-east { grid-area: 3 / 3; }
+.ship-plot__legend-south { grid-area: 4 / 2; }
+
+.ship-plot__close:focus-visible,
+.ship-plot__legend:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
 }
 
 @media (max-width: 60rem) {

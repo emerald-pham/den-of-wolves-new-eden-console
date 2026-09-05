@@ -83,7 +83,7 @@
   transform-style: preserve-3d;
   /* Looking very slightly down on the sphere reads as three-dimensional at a
      glance; straight on, a wireframe globe collapses into concentric circles. */
-  transform: rotateX(14deg);
+  transform: rotateX(var(--view-pitch, 14deg)) rotateY(var(--view-yaw, 0deg));
 }
 
 .contact-plot__origin {

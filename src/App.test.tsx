@@ -210,7 +210,7 @@ describe('App', () => {
     expect(fade?.contains(screen.getByRole('button', { name: /settings/i }))).toBe(false);
   });
 
-  it('shrinks the tactical display after joining a ship and toggles full-screen on activation', async () => {
+  it('shrinks the tactical display after joining a ship and zooms it with explicit controls', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/ships/capybara';
     useSessionStore.getState().setIdentity(session, player);
@@ -220,19 +220,19 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(await screen.findByRole('heading', { name: 'Capybara' })).toBeInTheDocument();
-    const display = screen.getByRole('button', { name: /expand dradis display/i });
-    expect(screen.getByText('DRADIS // FULL SCREEN')).toBeInTheDocument();
+    const display = screen.getByRole('button', { name: /zoom into dradis panel/i });
+    expect(screen.getByText('DRADIS // LOCAL PLOT')).toBeInTheDocument();
     const plot = container.querySelector('.contact-plot');
     expect(plot).toHaveAttribute('data-placement', 'widget');
     expect(plot).toHaveStyle({ '--plot-size': 'min(92cqi, 92cqb)' });
 
     await user.click(display);
-    expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
-    expect(screen.getByText('DRADIS // RETURN')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close dradis/i })).toBeInTheDocument();
+    expect(screen.getByText('DRADIS // DRAG TO ORIENT')).toBeInTheDocument();
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'true');
 
-    await user.click(screen.getByRole('button', { name: /collapse dradis display/i }));
-    expect(screen.getByRole('button', { name: /expand dradis display/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /close dradis/i }));
+    expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toBeInTheDocument();
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
     expect(SHIP_PLOT_RESIZE_MS).toBe(200);
     expect(container.querySelector('.ship-plot')).toHaveStyle({
@@ -249,7 +249,7 @@ describe('App', () => {
     const { container } = render(<App />);
 
     expect(await screen.findByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /expand dradis display/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toBeInTheDocument();
     expect(container.querySelector('.contact-plot')).toHaveAttribute('data-placement', 'widget');
   });
 

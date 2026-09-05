@@ -164,6 +164,7 @@ export default function ContactPlot({
   size,
   contacts,
   centerLabel,
+  orientation,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
@@ -173,6 +174,7 @@ export default function ContactPlot({
   size?: string | undefined;
   contacts?: readonly PlotContact[] | undefined;
   centerLabel?: string | undefined;
+  orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(
@@ -231,7 +233,13 @@ export default function ContactPlot({
       data-still={String(still)}
       style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >
-      <div className="contact-plot__rig">
+      <div
+        className="contact-plot__rig"
+        style={orientation ? {
+          '--view-pitch': `${orientation.pitch}deg`,
+          '--view-yaw': `${orientation.yaw}deg`,
+        } as PlotStyle : undefined}
+      >
         {MERIDIANS.map((turn) => (
           <span
             className="contact-plot__meridian"
