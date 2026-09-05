@@ -4,6 +4,8 @@ import Intrusion from '@/components/Intrusion';
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
  *  once. The stagger is a third of the cycle, and both scale together. */
 const CYCLE_MS = 5000;
+const SUS_ROLL_MS = 1000;
+const SUS_DURATION_MS = SUS_ROLL_MS / 30;
 
 /**
  * A readout either walks a fixed sequence or draws from a range. Both refuse to
@@ -65,6 +67,7 @@ export default function ArrivalDisplay({
 }) {
   const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
+  const [sus, setSus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const notify = useRef(onTransmission);
 
@@ -113,6 +116,23 @@ export default function ArrivalDisplay({
     return () => timers.forEach(window.clearTimeout);
   }, [paused, standDown]);
 
+  useEffect(() => {
+    if (paused || standDown) { setSus(false); return; }
+
+    let clearSus: number | undefined;
+    const rollForSus = () => {
+      if (Math.random() >= 0.01) return;
+      setSus(true);
+      if (clearSus !== undefined) window.clearTimeout(clearSus);
+      clearSus = window.setTimeout(() => setSus(false), SUS_DURATION_MS);
+    };
+    const roll = window.setInterval(rollForSus, SUS_ROLL_MS);
+    return () => {
+      window.clearInterval(roll);
+      if (clearSus !== undefined) window.clearTimeout(clearSus);
+    };
+  }, [paused, standDown]);
+
   return (
     <>
       <section className="arrival-manifest cic-frame" aria-label="Arrival display">
@@ -120,9 +140,13 @@ export default function ArrivalDisplay({
           {manifests.map((manifest, index) => (
             <div className="arrival-readout" key={index}>
               <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
-                <span key={values[index]} className={paused || standDown ? '' : 'arrival-digit'}>{values[index]}</span>
+                <span key={index === 2 && sus ? 'sus' : values[index]} className={paused || standDown ? '' : 'arrival-digit'}>
+                  {index === 2 && sus ? 'sus' : values[index]}
+                </span>
               </div>
-              <div className="arrival-readout__label">{manifest.label}</div>
+              <div className="arrival-readout__label">
+                {index === 2 && values[index] === '1' ? 'WOLF AMONG US' : manifest.label}
+              </div>
             </div>
           ))}
         </div>
