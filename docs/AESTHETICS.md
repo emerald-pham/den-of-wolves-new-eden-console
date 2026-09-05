@@ -164,6 +164,11 @@ percentages. Its parent morphs between a full-viewport size container and the
 corner instrument over 200ms, so entering or leaving a console changes the
 scale continuously instead of crossfading the DRADIS. Keep this duration
 isolated in `SHIP_PLOT_RESIZE_MS` so the experiment is easy to tune or revert.
+The expanded shipboard plot is orientation-locked. Its dormant rotation path
+transforms the complete rig—including returns, names and altitude lines—so the
+whole instrument will move coherently if rotation is enabled in the future.
+Keep the galactic orientation compass non-interactive and render it as a
+three-dimensional wireframe instrument rather than a flat reset control.
 Percentage translations on its zero-size contact anchors
 resolve to zero and collapse every return onto the origin. Contact labels use
 four stable corner anchors around their returns; bias them away from the plot

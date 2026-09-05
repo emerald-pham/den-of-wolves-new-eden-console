@@ -1413,6 +1413,12 @@ body {
   touch-action: none;
 }
 
+.ship-plot[data-rotation-enabled='false'] .ship-plot__viewport {
+  pointer-events: none;
+  cursor: default;
+  touch-action: auto;
+}
+
 .ship-plot__viewport:active { cursor: grabbing; }
 
 .ship-plot__viewport:focus-visible {
@@ -1421,7 +1427,7 @@ body {
 }
 
 .ship-plot__close,
-.ship-plot__legend {
+.ship-plot__compass {
   position: absolute;
   z-index: 4;
   min-width: 44px;
@@ -1442,31 +1448,81 @@ body {
   font-size: 0.62rem;
 }
 
-.ship-plot__legend {
+.ship-plot__compass {
   left: max(0.75rem, env(safe-area-inset-left));
   bottom: max(0.75rem, env(safe-area-inset-bottom));
   display: grid;
-  grid-template: auto repeat(3, 1.2rem) / repeat(3, minmax(2.8rem, auto));
   place-items: center;
-  padding: 0.55rem 0.7rem 0.7rem;
+  width: 9.5rem;
+  padding: 0.55rem;
   color: var(--cic-amber);
   font-size: 0.52rem;
+  pointer-events: none;
+  perspective: 11rem;
 }
 
-.ship-plot__legend-title {
-  grid-column: 1 / -1;
+.ship-plot__compass-title {
   margin-bottom: 0.25rem;
   color: var(--cic-muted);
 }
 
-.ship-plot__legend-north { grid-area: 2 / 2; }
-.ship-plot__legend-west { grid-area: 3 / 1; }
-.ship-plot__legend-origin { grid-area: 3 / 2; color: var(--cic-cyan-hot); }
-.ship-plot__legend-east { grid-area: 3 / 3; }
-.ship-plot__legend-south { grid-area: 4 / 2; }
+.ship-plot__compass-rig {
+  position: relative;
+  display: block;
+  width: 7rem;
+  height: 5.25rem;
+  transform: rotateX(58deg) rotateZ(-18deg);
+  transform-style: preserve-3d;
+}
 
-.ship-plot__close:focus-visible,
-.ship-plot__legend:focus-visible {
+.ship-plot__compass-ring,
+.ship-plot__compass-axis,
+.ship-plot__compass-north,
+.ship-plot__compass-south,
+.ship-plot__compass-east,
+.ship-plot__compass-west,
+.ship-plot__compass-origin {
+  position: absolute;
+  transform-style: preserve-3d;
+}
+
+.ship-plot__compass-ring {
+  inset: 0;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: 50%;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--cic-amber) 18%, transparent);
+}
+
+.ship-plot__compass-ring--vertical { transform: rotateX(90deg); }
+
+.ship-plot__compass-axis {
+  left: 50%;
+  top: 50%;
+  width: 82%;
+  height: 1px;
+  background: var(--cic-amber-dim);
+  transform-origin: center;
+}
+
+.ship-plot__compass-axis--north-south { transform: translate(-50%, -50%) rotate(90deg); }
+.ship-plot__compass-axis--east-west { transform: translate(-50%, -50%); }
+
+.ship-plot__compass-north,
+.ship-plot__compass-south,
+.ship-plot__compass-east,
+.ship-plot__compass-west,
+.ship-plot__compass-origin {
+  color: var(--cic-cyan-hot);
+  text-shadow: 0 0 6px var(--cic-cyan);
+}
+
+.ship-plot__compass-north { left: 50%; top: -0.2rem; transform: translateX(-50%) translateZ(2px); }
+.ship-plot__compass-south { left: 50%; bottom: -0.2rem; transform: translateX(-50%) translateZ(2px); }
+.ship-plot__compass-west { left: -0.35rem; top: 50%; transform: translateY(-50%) translateZ(2px); }
+.ship-plot__compass-east { right: -0.35rem; top: 50%; transform: translateY(-50%) translateZ(2px); }
+.ship-plot__compass-origin { left: 50%; top: 50%; transform: translate(-50%, -50%) translateZ(4px); }
+
+.ship-plot__close:focus-visible {
   outline: 2px solid var(--cic-amber);
   outline-offset: 2px;
 }

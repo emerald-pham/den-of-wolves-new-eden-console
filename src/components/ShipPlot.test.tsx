@@ -31,32 +31,45 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   expect(plot).toHaveAttribute('data-expanded', 'false');
 });
 
-it('rotates the expanded DRADIS by pointer and resets from its galactic legend', async () => {
+it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {
   const user = userEvent.setup();
   const { container } = render(
     <ShipPlot hostile={false} aboard viewerId="aegis" />,
   );
   await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
 
-  const viewport = screen.getByRole('application', { name: /rotatable dradis/i });
+  const viewport = container.querySelector<HTMLElement>('.ship-plot__viewport');
   const rig = container.querySelector<HTMLElement>('.contact-plot__rig');
+  expect(viewport).toBeInTheDocument();
   expect(rig?.style.getPropertyValue('--view-pitch')).toBe('14deg');
   expect(rig?.style.getPropertyValue('--view-yaw')).toBe('0deg');
 
+  if (!viewport) throw new Error('Expected a DRADIS viewport.');
   fireEvent.pointerDown(viewport, { pointerId: 1, clientX: 100, clientY: 100 });
   fireEvent.pointerMove(viewport, { pointerId: 1, clientX: 140, clientY: 125 });
   fireEvent.pointerUp(viewport, { pointerId: 1, clientX: 140, clientY: 125 });
-
-  expect(rig?.style.getPropertyValue('--view-pitch')).not.toBe('14deg');
-  expect(rig?.style.getPropertyValue('--view-yaw')).not.toBe('0deg');
-
-  const legend = screen.getByRole('button', { name: /reset.*galactic orientation/i });
-  expect(legend).toHaveTextContent(/north/i);
-  expect(legend).toHaveTextContent(/south/i);
-  expect(legend).toHaveTextContent(/east/i);
-  expect(legend).toHaveTextContent(/west/i);
-  await user.click(legend);
+  fireEvent.keyDown(viewport, { key: 'ArrowRight' });
 
   expect(rig?.style.getPropertyValue('--view-pitch')).toBe('14deg');
   expect(rig?.style.getPropertyValue('--view-yaw')).toBe('0deg');
+  expect(screen.queryByRole('application', { name: /rotatable dradis/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /reset.*galactic orientation/i }))
+    .not.toBeInTheDocument();
+
+  const compass = screen.getByRole('img', { name: /3d galactic orientation/i });
+  expect(compass).toHaveTextContent(/north/i);
+  expect(compass).toHaveTextContent(/south/i);
+  expect(compass).toHaveTextContent(/east/i);
+  expect(compass).toHaveTextContent(/west/i);
+});
+
+it('keeps contacts, names, and altitude indicators inside the oriented 3D rig', () => {
+  const { container } = render(
+    <ShipPlot hostile={false} aboard viewerId="aegis" />,
+  );
+  const rig = container.querySelector('.contact-plot__rig');
+
+  expect(rig).toContainElement(container.querySelector('.contact-plot__blip'));
+  expect(rig).toContainElement(container.querySelector('.contact-plot__tag'));
+  expect(rig).toContainElement(container.querySelector('.contact-plot__drop'));
 });

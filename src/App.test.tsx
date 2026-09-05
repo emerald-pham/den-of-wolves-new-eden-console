@@ -228,7 +228,7 @@ describe('App', () => {
 
     await user.click(display);
     expect(screen.getByRole('button', { name: /close dradis/i })).toBeInTheDocument();
-    expect(screen.getByText('DRADIS // DRAG TO ORIENT')).toBeInTheDocument();
+    expect(screen.getByText('DRADIS // ORIENTATION LOCKED')).toBeInTheDocument();
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'true');
 
     await user.click(screen.getByRole('button', { name: /close dradis/i }));
