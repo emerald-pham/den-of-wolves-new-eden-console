@@ -73,13 +73,14 @@ export default function AppHeader() {
   }, [settingsOpen]);
 
   async function disconnectNow(): Promise<void> {
+    const disconnecting = disconnectFromSession();
+    setSettingsOpen(false);
+    navigate('/', { replace: true });
     try {
-      await disconnectFromSession();
+      await disconnecting;
     } catch {
       // A permanent rejection is reported by the shared interception notice.
     }
-    setSettingsOpen(false);
-    navigate('/', { replace: true });
   }
 
   async function releaseGm(): Promise<void> {

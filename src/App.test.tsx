@@ -325,8 +325,15 @@ describe('App', () => {
     expect(center()).toBe('AEGIS');
   });
 
-  it('disconnects robustly from settings and returns home', async () => {
+  it('returns to the launcher immediately while disconnect finishes in the background', async () => {
     const user = userEvent.setup();
+    let finishDisconnect!: () => void;
+    vi.mocked(disconnectFromSession).mockImplementation(() => {
+      useSessionStore.getState().disconnect();
+      return new Promise((resolve) => {
+        finishDisconnect = () => resolve('applied');
+      });
+    });
     window.location.hash = '#/console';
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
@@ -343,6 +350,9 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/');
     expect(useSessionStore.getState().session).toBeNull();
-    expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^settings$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /session settings/i })).not.toBeInTheDocument();
+
+    await act(async () => finishDisconnect());
   });
 });
