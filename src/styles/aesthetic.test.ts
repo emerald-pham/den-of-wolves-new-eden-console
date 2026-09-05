@@ -150,7 +150,7 @@ describe('the launcher manifest', () => {
     expect(readout).toContain('display: grid');
     expect(readout).toContain('grid-row: span 2');
     expect(readout).toContain('grid-template-rows: subgrid');
-    expect(value).toContain('align-self: last baseline');
+    expect(value).toContain('align-self: center');
     expect(value).not.toContain('min-height:');
     expect(arrival).toContain('.arrival-readout + .arrival-readout { border-left: 1px solid var(--cic-rule); }');
     expect(value).toContain('grid-row: 1');
