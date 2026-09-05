@@ -41,7 +41,7 @@ it('walks the wolves readout through its listed order', () => {
   expect(readout(3)).toHaveTextContent('1');
 });
 
-it('alternates the convoy between six and seven ships while crew stays in range', () => {
+it('alternates the convoy between six and seven ships while personnel stays in range', () => {
   render(<ArrivalDisplay />);
   const ships = [shown(1)];
   const crew = [shown(2)];
@@ -131,7 +131,7 @@ it('keeps descriptive labels visible while hiding sequences and franchise-specif
 
   expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   expect(screen.queryByText('DRADIS', { exact: false })).not.toBeInTheDocument();
-  for (const label of ['SHIPS IN CONVOY', 'CREW', 'WOLVES AMONG US']) {
+  for (const label of ['SHIPS IN CONVOY', 'PERSONNEL', 'WOLVES AMONG US']) {
     expect(screen.getByText(label)).toBeVisible();
   }
   expect(screen.queryByText('6 — 7 — 5 — 0 — 1 — 3 — 4')).not.toBeInTheDocument();

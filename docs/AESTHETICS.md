@@ -133,7 +133,8 @@ Shared utilities, all in src/styles/cic.css:
 - `.cic-text-button` — borderless cyan control, 44px minimum.
 
 Arrival readouts show a changing value with its descriptive label underneath:
-SHIPS IN CONVOY, CREW, and WOLVES AMONG US, in that order. Keep these labels
+SHIPS IN CONVOY, PERSONNEL, and WOLVES AMONG US, in that order. PERSONNEL is
+the 8–21 player-held posts—not the roughly 200,000 souls in the fleet. Keep these labels
 visible at every viewport size. Hide the sequences of possible numbers; do not
 confuse those sequences with the descriptive labels. Do not show a SCENARIO
 SIGNAL footer. Avoid other franchise-specific terminology anywhere a player
@@ -348,7 +349,7 @@ a ref so a parent handing over a fresh closure cannot restart the timers.
 
 Readouts turn over every 7.5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 7.5/9.75/12 seconds.
-SHIPS IN CONVOY alternates between 6 and 7, while CREW draws from 8–21;
+SHIPS IN CONVOY alternates between 6 and 7, while PERSONNEL draws from 8–21;
 WOLVES AMONG US walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
 is already showing: a readout that "changes" to what it already reads looks like
 a panel that has stopped working.
