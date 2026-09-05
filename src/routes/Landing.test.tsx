@@ -103,6 +103,7 @@ describe('Landing', () => {
     expect(
       screen.getByRole('button', { name: /join a session/i }).compareDocumentPosition(control),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(control.parentElement?.tagName).toBe('FORM');
     expect(control).toHaveTextContent('Reduce motion (reduce awesomeness) 😞');
 
     await user.click(control);

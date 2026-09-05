@@ -91,14 +91,14 @@ export default function Landing({
           >
             Join a session
           </button>
+          <button
+            type="button"
+            className="landing__motion-control"
+            onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
+          >
+            {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}
+          </button>
         </form>
-        <button
-          type="button"
-          className="landing__motion-control"
-          onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
-        >
-          {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}
-        </button>
         {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
       </div>
 
