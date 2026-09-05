@@ -37,7 +37,7 @@ export default function Landing() {
 
   return (
     <main className="landing">
-      <div className="arrival-topline cic-overline"><span>NEW EDEN / COMBAT INFORMATION CENTER</span><span>COLONIAL RELAY · 075</span></div>
+      <div className="arrival-topline cic-overline"><span>NEW EDEN / CIC</span><span>SYSTEM STATUS</span></div>
       <h1 className="landing__title">
         <span className="landing__title-line">Den of Wolves: New Eden</span>
         <span className="landing__title-sub">Unofficial Companion Console</span>
@@ -90,7 +90,7 @@ export default function Landing() {
           {error}
         </p>
       )}
-      <footer className="arrival-bottomline cic-overline"><span>THE FLEET IS ALL THAT REMAINS.</span><span>KEEP THE SIGNAL ALIVE. // NEW EDEN</span></footer>
+      <footer className="arrival-bottomline cic-overline"><span>NEW EDEN</span><span>SYSTEM INTERFACE</span></footer>
     </main>
   );
 }

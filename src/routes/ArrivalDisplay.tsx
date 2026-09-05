@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 
 const manifests = [
-  { label: 'SHIPS IN CONVOY', values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
-  { label: 'CREW', values: ['20', '18', '8', '6', '0', '21'], offset: 3000 },
-  { label: 'WOLF AMONG US', values: ['1', '?', '2'], offset: 6000 },
+  { values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
+  { values: ['20', '18', '8', '6', '0', '21'], offset: 3000 },
+  { values: ['1', '?', '2'], offset: 6000 },
 ];
 const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'];
 
@@ -45,22 +45,17 @@ export default function ArrivalDisplay() {
 
   return (
     <>
-      <section className="arrival-manifest" aria-label="Convoy transmission — atmospheric display">
-        <div className="cic-overline arrival-manifest__header"><span>DRADIS / FLEET TELEMETRY</span><span>RELAY 01</span></div>
+      <section className="arrival-manifest" aria-label="Arrival display">
         <div className="arrival-manifest__grid">
           {manifests.map((manifest, index) => (
-            <div className="arrival-readout" key={manifest.label}>
-              <div className="arrival-readout__index" aria-hidden="true">0{index + 1} / {index === 2 ? 'INTERNAL THREAT' : 'MANIFEST'}</div>
-              <div className="arrival-readout__value" aria-label={manifest.label}>
+            <div className="arrival-readout" key={index}>
+              <div className="arrival-readout__value" aria-label={`Arrival readout ${index + 1}`}>
                 <span key={indices[index]} className={paused ? '' : 'arrival-digit'}>{manifest.values[indices[index] ?? 0]}</span>
               </div>
-              <div className="arrival-readout__label">{manifest.label}</div>
-              <div className="arrival-readout__trace" aria-hidden="true">{manifest.values.join(' — ')}</div>
             </div>
           ))}
         </div>
         <div className="arrival-manifest__footer cic-overline">
-          <span>SCENARIO SIGNAL / NOT LIVE SESSION DATA</span>
           <button className="cic-text-button" type="button" onClick={() => setPaused(!paused)}>{paused ? 'Resume effects' : 'Pause effects'}</button>
         </div>
       </section>
