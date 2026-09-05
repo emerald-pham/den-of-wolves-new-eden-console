@@ -155,6 +155,26 @@ are the deliberate exceptions. Use a three-column display on wide screens and
 compact stacked readouts on phones. Preserve native buttons, labels, visible
 keyboard focus, error announcements, and at least 44px touch targets.
 
+### Control rows and everyday layout
+
+Treat related controls as one composition. Boxed buttons and inputs in the same
+action row should share a height and align their top and bottom edges. Use a
+shared sizing rule so a later edit cannot quietly resize just one control.
+The launcher uses a 48px minimum for Create, Session code, Join, and the motion
+button. The motion button follows Join in both visual and keyboard order;
+both Reduce motion and Restore motion use the same height. Secondary emphasis
+can come from the existing type and border treatment without shrinking the
+touch target. This does not require unrelated instruments, icon controls, or
+multiline panels elsewhere to have identical dimensions.
+
+Keep spacing consistent within a group and labels close to their inputs. When
+space runs out, wrap in reading order with clear gaps; allow controls to grow
+for wrapped text rather than clipping it or shrinking text to force a row.
+Status and error messages should remain readable without covering controls.
+Check both states of toggles, disabled controls, and longer labels on narrow,
+wide, and short landscape screens. Inspect the rendered boxes: correct DOM
+order alone does not establish equal heights or visual alignment.
+
 ## Contact plot / threat board
 
 `<ContactPlot hostile={boolean} placement="field | inset | widget" size="<css length>" />`

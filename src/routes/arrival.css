@@ -29,8 +29,9 @@
 .landing__label { color: var(--cic-amber); }
 .landing__or { align-self: center; }
 .landing__button, .landing__code { border-radius: var(--cic-radius); font-family: var(--cic-mono); }
-.landing__button { text-transform: uppercase; font-size: 0.75rem; min-height: 48px; }
-.landing__code { font-size: 1.25rem; min-height: 48px; }
+.landing__button, .landing__code, .landing__motion-control { min-height: 48px; }
+.landing__button { text-transform: uppercase; font-size: 0.75rem; }
+.landing__code { font-size: 1.25rem; }
 .landing__error { position: relative; z-index: 6; background: var(--cic-void); padding: 1rem; }
 .arrival-bottomline { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-top: 1px solid var(--cic-rule); padding-top: 0.75rem; }
 @keyframes cic-resolve { from { opacity: 0.65; filter: blur(1px); } to { opacity: 1; filter: blur(0); } }

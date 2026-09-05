@@ -1960,7 +1960,6 @@ body {
 }
 
 .landing__motion-control {
-  min-height: 2.25rem;
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--cic-rule);
   border-radius: var(--cic-radius);
