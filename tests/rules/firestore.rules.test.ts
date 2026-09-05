@@ -151,6 +151,34 @@ describe('session header', () => {
   });
 });
 
+describe('events', () => {
+  it('can be read by members but not forged by clients', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/events/confetti-1`), {
+        type: 'ship-confetti', shipId: 'aegis', shipName: 'AEGIS', actorName: 'Alice',
+      });
+    });
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/events/confetti-1`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/confetti-2`), {
+      type: 'ship-confetti', shipId: 'aegis',
+    }));
+  });
+});
+
+describe('ship confetti signals', () => {
+  it('can be read by members but not forged or reset by clients', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/shipConfetti/aegis`), {
+        type: 'ship-confetti', shipId: 'aegis', createdAt: new Date(),
+      });
+    });
+    const signal = doc(as('alice'), `${SESSION}/shipConfetti/aegis`);
+    await assertSucceeds(getDoc(signal));
+    await assertFails(updateDoc(signal, { createdAt: new Date() }));
+    await assertFails(deleteDoc(signal));
+  });
+});
+
 // The join-code index is what makes a four-digit code redeemable. It is only
 // useful to the server: if a client could read it, ten thousand GETs would
 // enumerate every table in existence, and if it could write it, one client

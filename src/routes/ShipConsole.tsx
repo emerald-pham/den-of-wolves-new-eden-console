@@ -1,19 +1,83 @@
+import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
+import { popShipConfetti } from '@/lib/sessionService';
 import { useSessionStore } from '@/store/useSessionStore';
+
+type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
+const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
+  index,
+  style: {
+    '--confetti-x': `${((index * 47) % 101) - 50}vw`,
+    '--confetti-y': `${-35 - ((index * 29) % 55)}vh`,
+    '--confetti-turn': `${180 + ((index * 83) % 720)}deg`,
+    '--confetti-delay': `${(index % 8) * 24}ms`,
+    '--confetti-hue': (index * 67) % 360,
+  } as ConfettiStyle,
+}));
 
 export default function ShipConsole() {
   const { shipId } = useParams();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
+  const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const ship = findShip(shipId);
+  const [coverOpen, setCoverOpen] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [burst, setBurst] = useState(0);
+  const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
+  const queued = Boolean(ship && session && pendingCommands.some(
+    (command) => command.kind === 'popShipConfetti' &&
+      command.payload.sessionId === session.id && command.payload.shipId === ship.id,
+  ));
+
+  useEffect(() => {
+    if (!session?.id || !ship) return;
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeShipConfetti }) => {
+      if (!active) return;
+      unsubscribe = subscribeShipConfetti(
+        session.id,
+        ship.id,
+        () => setBurst((current) => current + 1),
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'confetti-signal-link',
+          message: 'The Emergency Bridge Confetti Dispenser signal link was lost.',
+        }),
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [session?.id, ship]);
+
+  useEffect(() => {
+    if (burst === 0) return;
+    const timer = window.setTimeout(() => setBurst(0), 3_500);
+    return () => window.clearTimeout(timer);
+  }, [burst]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (
     mode !== 'console' || !ship ||
     (ship.id === 'capybara' && session.capybaraEnabled === false)
   ) return <Navigate to="/console" replace />;
+
+  async function activate(): Promise<void> {
+    if (!ship || spent || queued || activating) return;
+    setActivating(true);
+    try {
+      await popShipConfetti(ship.id);
+      setCoverOpen(false);
+    } catch {
+      // The shared interception notice reports races and connectivity failures.
+    } finally {
+      setActivating(false);
+    }
+  }
 
   return (
     <main className={`ship-console ship-console--${ship.id}`}>
@@ -25,6 +89,44 @@ export default function ShipConsole() {
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
       </section>
+      <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
+        <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>
+        <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
+          <button
+            className="confetti-dispenser__trigger"
+            type="button"
+            aria-label={spent
+              ? 'Emergency Bridge Confetti Dispenser spent'
+              : queued
+                ? 'Emergency Bridge Confetti Dispenser activation queued'
+                : 'Activate Emergency Bridge Confetti Dispenser'}
+            disabled={!coverOpen || spent || queued || activating}
+            onClick={() => void activate()}
+          >
+            {spent ? 'SPENT' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
+          </button>
+          <button
+            className="confetti-dispenser__glass"
+            type="button"
+            aria-label={`${coverOpen ? 'Close' : 'Open'} protective glass cover`}
+            aria-pressed={coverOpen}
+            disabled={spent || queued}
+            onClick={() => setCoverOpen((current) => !current)}
+          >
+            <span aria-hidden="true">PROTECTIVE GLASS</span>
+          </button>
+        </div>
+        <p className="confetti-dispenser__status">
+          ONE USE // {spent ? 'DISCHARGED' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+        </p>
+      </section>
+      {burst > 0 && (
+        <div className="confetti-burst" key={burst} aria-hidden="true">
+          {CONFETTI_PIECES.map((piece) => (
+            <i className="confetti-burst__piece" key={piece.index} style={piece.style} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }

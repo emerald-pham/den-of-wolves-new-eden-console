@@ -13,11 +13,12 @@ vi.mock('@/lib/sessionService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
+  subscribeSessionEvents: vi.fn(),
 }));
 
 const { kickGmInstance, setCapybaraEnabled, setGmControlsLocked } =
   await import('@/lib/sessionService');
-const { subscribeGmInstances } = await import('@/lib/firestore');
+const { subscribeGmInstances, subscribeSessionEvents } = await import('@/lib/firestore');
 
 const local = {
   id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
@@ -51,9 +52,13 @@ beforeEach(() => {
       joinedAt: '2026-01-01T00:00:00.000Z',
     },
   );
+  vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
+    onEvents([]);
+    return vi.fn();
+  });
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => vi.clearAllMocks());
 
 function streamInstances(instances: readonly typeof local[]) {
   vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
@@ -180,4 +185,30 @@ it('locks and unlocks subsequent GM registration and Setup', async () => {
   expect(await screen.findByRole('button', {
     name: /unlock gm registration and setup/i,
   })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {
+  let publish: ((events: readonly [{
+    id: string; sessionId: string; type: 'ship-confetti'; shipId: string;
+    shipName: string; actorName: string; createdAt: string;
+  }]) => void) | undefined;
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
+    publish = onEvents;
+    onEvents([]);
+    return vi.fn();
+  });
+  renderConsole();
+  await waitFor(() => expect(publish).toBeDefined());
+
+  act(() => publish?.([{
+      id: 'event-1', sessionId: 's1', type: 'ship-confetti', shipId: 'quellon',
+      shipName: 'Quellon', actorName: 'Player', createdAt: '2026-01-01T00:02:00.000Z',
+  }]));
+
+  await screen.findByText(/quellon.*emergency bridge confetti dispenser.*player/i);
+  expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
+    /quellon.*emergency bridge confetti dispenser.*player/i,
+  );
 });

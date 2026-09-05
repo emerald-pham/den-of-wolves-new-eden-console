@@ -6,6 +6,7 @@ import {
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireShipAvailabilityRequest,
+  requireShipConfettiRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -112,6 +113,15 @@ describe('callable request guards', () => {
     expect(requireGmControlsLockRequest({
       sessionId: 's1', instanceId: 'i1', locked: true,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', locked: true });
+  });
+
+  it('requires session and ship ids for a confetti activation', () => {
+    expectHttpsError(
+      () => requireShipConfettiRequest({ sessionId: 's1', shipId: '' }),
+      'invalid-argument',
+    );
+    expect(requireShipConfettiRequest({ sessionId: 's1', shipId: 'aegis' }))
+      .toEqual({ sessionId: 's1', shipId: 'aegis' });
   });
 
 });

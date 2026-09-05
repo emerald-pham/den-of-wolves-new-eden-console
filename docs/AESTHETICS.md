@@ -186,6 +186,21 @@ the control greyed out. Existing GM instances retain console access so they can
 unlock it. If every GM instance has gone away, the registration lock yields to
 the recovery failsafe and permits a new GM claim.
 
+Every joined ship carries one Emergency Bridge Confetti Dispenser. It is a
+physical-looking red threat control beneath a square protective-glass cover,
+not an ordinary interface button. Opening the cover is harmless; firing is a
+server-authoritative, once-per-ship action shared by every client currently
+viewing that ship. A successful firing permanently marks that ship's dispenser
+DISCHARGED for the session and adds the ship, activating person and time to the
+GM event log. Clients may read the ship signal and event log but may never
+write, reset or forge either one.
+
+The burst is intentionally finite: 48 fixed CSS pieces, one animation, and no
+canvas, particle loop or retained history. Remove the burst layer after 3.5
+seconds, unsubscribe when leaving the ship, and honor reduced motion. The GM
+log keeps only its 30 newest visible entries. These bounds are part of the
+feature, not tunable spectacle.
+
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several.
 

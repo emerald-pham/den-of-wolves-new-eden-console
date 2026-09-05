@@ -21,6 +21,7 @@ const {
   disconnectFromSession,
   joinSession,
   kickGmInstance,
+  popShipConfetti,
   reconcileGmAuthority,
   setCapybaraEnabled,
   setGmControlsLocked,
@@ -293,6 +294,17 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', locked: true,
     });
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
+  });
+
+  it('activates a ship confetti dispenser and records its spent state', async () => {
+    const callable = callableReturning({ data: { shipId: 'aegis' } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await popShipConfetti('aegis');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'popShipConfetti');
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis' });
+    expect(useSessionStore.getState().session?.confettiUsedShipIds).toEqual(['aegis']);
   });
 
 });

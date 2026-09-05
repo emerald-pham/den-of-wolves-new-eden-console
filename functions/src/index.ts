@@ -13,12 +13,18 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
 import {
+  FLEET_SHIP_NAMES,
+  canPopShipConfetti,
+  isFleetShipId,
+} from './shipConfetti';
+import {
   requireDiceRequest,
   requireElevationRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireShipAvailabilityRequest,
+  requireShipConfettiRequest,
   requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -136,6 +142,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           phase: 'lobby',
           capybaraEnabled: true,
           gmControlsLocked: false,
+          confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
@@ -167,6 +174,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             phase: 'lobby',
             capybaraEnabled: true,
             gmControlsLocked: false,
+            confettiUsedShipIds: [],
             ownerUid: uid,
             createdAt: now,
             updatedAt: now,
@@ -261,6 +269,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         phase: sessionSnap.get('phase') as string,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
+        confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
         updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -333,6 +342,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       phase: sessionSnap.get('phase') as string,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
+      confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),
       updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -542,6 +552,55 @@ export const setGmControlsLocked = onCall<{
   });
 
   return { gmControlsLocked: setting.locked };
+});
+
+/** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
+export const popShipConfetti = onCall<{ sessionId?: string; shipId?: string }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const activation = requireShipConfettiRequest(request.data ?? {});
+  const shipId = activation.shipId;
+  if (!isFleetShipId(shipId)) {
+    throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
+  }
+  const sessionRef = db.doc(`sessions/${activation.sessionId}`);
+  const playerRef = db.doc(`sessions/${activation.sessionId}/players/${uid}`);
+  const signalRef = db.doc(
+    `sessions/${activation.sessionId}/shipConfetti/${shipId}`,
+  );
+  const eventRef = db.collection(`sessions/${activation.sessionId}/events`).doc();
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, signal] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(signalRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
+    }
+    const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
+    if (signal.exists || !canPopShipConfetti(used, shipId)) {
+      throw new HttpsError('already-exists', 'That dispenser has already been used.');
+    }
+    const event = {
+      type: 'ship-confetti',
+      shipId,
+      shipName: FLEET_SHIP_NAMES[shipId],
+      actorUid: uid,
+      actorName: cleanName(player.get('displayName'), 'Player', 40),
+      createdAt: FieldValue.serverTimestamp(),
+    };
+    tx.update(sessionRef, {
+      confettiUsedShipIds: FieldValue.arrayUnion(shipId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.create(signalRef, event);
+    tx.create(eventRef, event);
+  });
+
+  return { shipId };
 });
 
 /** Connected-player count used for the last-player disconnect warning. */

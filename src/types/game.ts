@@ -24,6 +24,8 @@ export interface GameSession {
   readonly capybaraEnabled?: boolean;
   /** Locks Setup and subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
+  /** Fleet ships whose one-shot bridge dispenser has already been fired. */
+  readonly confettiUsedShipIds?: readonly string[];
   /** uid of the facilitator who may elevate others. */
   readonly ownerUid: Id;
   readonly createdAt: Timestamp;
@@ -62,6 +64,16 @@ export interface GmInstance {
   readonly name: string;
   readonly deviceLabel: string;
   readonly claimedAt: Timestamp;
+}
+
+export interface SessionEvent {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly type: 'ship-confetti';
+  readonly shipId: Id;
+  readonly shipName: string;
+  readonly actorName: string;
+  readonly createdAt: Timestamp;
 }
 
 /** Anything the server generated and only some players may read. */

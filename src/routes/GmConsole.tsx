@@ -9,7 +9,7 @@ import {
   setGmControlsLocked,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import type { GmInstance } from '@/types/game';
+import type { GmInstance, SessionEvent } from '@/types/game';
 
 export default function GmConsole() {
   const session = useSessionStore((state) => state.session);
@@ -23,6 +23,7 @@ export default function GmConsole() {
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
+  const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
@@ -51,9 +52,12 @@ export default function GmConsole() {
     if (!isGm || !sessionId) return;
     let active = true;
     let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeGmInstances }) => {
+    void import('@/lib/firestore').then(({
+      subscribeGmInstances,
+      subscribeSessionEvents,
+    }) => {
       if (!active) return;
-      unsubscribe = subscribeGmInstances(
+      const stopInstances = subscribeGmInstances(
         sessionId,
         (next) => {
           setInstances(next);
@@ -67,6 +71,18 @@ export default function GmConsole() {
           });
         },
       );
+      const stopEvents = subscribeSessionEvents(
+        sessionId,
+        setEvents,
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-event-log-link',
+          message: 'The live GM event log could not be refreshed.',
+        }),
+      );
+      unsubscribe = () => {
+        stopInstances();
+        stopEvents();
+      };
     });
     return () => {
       active = false;
@@ -201,6 +217,15 @@ export default function GmConsole() {
             })}
           </ul>
         )}
+        <h2 className="gm-console__section-title">Event log</h2>
+        <ul className="gm-event-log" aria-label="GM event log">
+          {events.length === 0 ? <li>No logged events.</li> : events.map((event) => (
+            <li key={event.id}>
+              <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
+              <span>{event.shipName} // Emergency Bridge Confetti Dispenser // {event.actorName}</span>
+            </li>
+          ))}
+        </ul>
       </section>
     </main>
   );

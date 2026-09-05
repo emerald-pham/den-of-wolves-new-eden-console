@@ -82,6 +82,11 @@ service cloud.firestore {
         allow get, list: if isMember(sessionId);
         allow write: if false;
       }
+
+      match /shipConfetti/{shipId} {
+        allow get: if isMember(sessionId);
+        allow list, write: if false;
+      }
     }
 
     // Nothing else is reachable.

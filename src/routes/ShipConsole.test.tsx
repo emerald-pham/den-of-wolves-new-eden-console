@@ -1,11 +1,25 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
 
+vi.mock('@/lib/sessionService', () => ({
+  popShipConfetti: vi.fn(),
+}));
+
+vi.mock('@/lib/firestore', () => ({
+  subscribeShipConfetti: vi.fn(),
+}));
+
+const { popShipConfetti } = await import('@/lib/sessionService');
+const { subscribeShipConfetti } = await import('@/lib/firestore');
+
 beforeEach(() => {
+  vi.mocked(popShipConfetti).mockReset();
+  vi.mocked(subscribeShipConfetti).mockReset();
+  vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(
     {
@@ -19,6 +33,8 @@ beforeEach(() => {
   );
   useSessionStore.getState().setMode('console');
 });
+
+afterEach(() => vi.useRealTimers());
 
 it('shows only the joined ship identity, nation marking, and fleet role', () => {
   render(
@@ -36,7 +52,7 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(screen.getByText(/supplies the fleet with essential food, water, and materials/i)).toBeInTheDocument();
   expect(screen.getByRole('img', { name: /south american nations flag/i })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: /leave ship/i })).toHaveAttribute('href', '/console');
-  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /open protective glass cover/i })).toBeInTheDocument();
   expect(screen.queryByText(/captain|engineer|recycler/i)).not.toBeInTheDocument();
 });
 
@@ -83,4 +99,107 @@ it('leaves the ship through the visible return control', async () => {
 
   await user.click(screen.getByRole('link', { name: /leave ship/i }));
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+});
+
+it('opens the glass cover and activates the one-shot Emergency Bridge Confetti Dispenser', async () => {
+  const user = userEvent.setup();
+  let signal: (() => void) | undefined;
+  vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
+    signal = onPop;
+    return vi.fn();
+  });
+  vi.mocked(popShipConfetti).mockImplementation(async (shipId) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) useSessionStore.getState().setSession({
+      ...activeSession,
+      confettiUsedShipIds: [...(activeSession.confettiUsedShipIds ?? []), shipId],
+    });
+    return 'applied';
+  });
+  const { container } = render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('button', { name: /activate emergency bridge confetti dispenser/i }))
+    .toBeDisabled();
+  await user.click(screen.getByRole('button', { name: /open protective glass cover/i }));
+  await user.click(screen.getByRole('button', {
+    name: /activate emergency bridge confetti dispenser/i,
+  }));
+  act(() => signal?.());
+
+  expect(popShipConfetti).toHaveBeenCalledWith('aegis');
+  expect(screen.getByRole('button', { name: /emergency bridge confetti dispenser spent/i }))
+    .toBeDisabled();
+  expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
+});
+
+it('locks the trigger while the one-shot activation is in flight', async () => {
+  const user = userEvent.setup();
+  let finish: (() => void) | undefined;
+  vi.mocked(popShipConfetti).mockImplementation(() => new Promise((resolve) => {
+    finish = () => resolve('applied');
+  }));
+  render(
+    <MemoryRouter initialEntries={['/ships/dione']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await user.click(screen.getByRole('button', { name: /open protective glass cover/i }));
+  const trigger = screen.getByRole('button', {
+    name: /activate emergency bridge confetti dispenser/i,
+  });
+  await user.click(trigger);
+
+  expect(trigger).toBeDisabled();
+  await user.click(trigger);
+  expect(popShipConfetti).toHaveBeenCalledTimes(1);
+
+  await act(async () => finish?.());
+});
+
+it('keeps an offline one-shot activation locked while it is queued', () => {
+  useSessionStore.getState().enqueueCommand({
+    id: 'command-1',
+    kind: 'popShipConfetti',
+    payload: { sessionId: 's1', shipId: 'icebreaker' },
+    createdAt: new Date().toISOString(),
+  });
+  render(
+    <MemoryRouter initialEntries={['/ships/icebreaker']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('button', {
+    name: /emergency bridge confetti dispenser activation queued/i,
+  })).toBeDisabled();
+  expect(screen.getByText(/one use.*queued/i)).toBeInTheDocument();
+});
+
+it('removes the bounded burst and ship listener when they are no longer needed', async () => {
+  vi.useFakeTimers();
+  let signal: (() => void) | undefined;
+  const unsubscribe = vi.fn();
+  vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
+    signal = onPop;
+    return unsubscribe;
+  });
+  const { container, unmount } = render(
+    <MemoryRouter initialEntries={['/ships/shepherd']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+  await act(async () => Promise.resolve());
+
+  act(() => signal?.());
+  expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
+
+  act(() => vi.advanceTimersByTime(3_500));
+  expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(0);
+  unmount();
+  expect(unsubscribe).toHaveBeenCalledOnce();
 });

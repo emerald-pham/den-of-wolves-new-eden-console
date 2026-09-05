@@ -13,6 +13,7 @@ vi.mock('@/lib/sessionService', () => ({
   joinSession: vi.fn(),
   kickGmInstance: vi.fn(),
   listGmInstances: vi.fn().mockResolvedValue([]),
+  popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
@@ -26,6 +27,11 @@ vi.mock('@/lib/firestore', () => ({
     onInstances: (instances: readonly GmInstance[]) => void,
   ) => {
     onInstances([]);
+    return vi.fn();
+  }),
+  subscribeShipConfetti: vi.fn(() => vi.fn()),
+  subscribeSessionEvents: vi.fn((_sessionId: string, onEvents: (events: never[]) => void) => {
+    onEvents([]);
     return vi.fn();
   }),
 }));

@@ -5,6 +5,7 @@ import {
   getFirestore,
   onSnapshot,
   orderBy,
+  limit,
   query,
   type DocumentData,
   type Unsubscribe,
@@ -12,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { app } from './firebase';
 import { useEmulators } from './firebaseConfig';
-import type { GameSession, GmInstance, Player, Seat } from '@/types/game';
+import type { GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
 
 let firestore: Firestore | undefined;
 
@@ -42,6 +43,9 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     phase: data.phase as GameSession['phase'],
     capybaraEnabled: data.capybaraEnabled !== false,
     gmControlsLocked: data.gmControlsLocked === true,
+    confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
+      ? data.confettiUsedShipIds as string[]
+      : [],
     ownerUid: data.ownerUid as string,
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
@@ -122,6 +126,59 @@ export function subscribeGmInstances(
     query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
     (snapshot) => onInstances(snapshot.docs.map((instance) =>
       gmInstanceFrom(sessionId, instance.id, instance.data()))),
+    onError,
+  );
+}
+
+export function subscribeShipConfetti(
+  sessionId: string,
+  shipId: string,
+  onPop: () => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  let initial = true;
+  let lastSignal: string | null = null;
+  return onSnapshot(
+    doc(db(), `sessions/${sessionId}/shipConfetti/${shipId}`),
+    (snapshot) => {
+      const signal = snapshot.exists() ? iso(snapshot.get('createdAt')) : null;
+      if (initial) {
+        initial = false;
+        lastSignal = signal;
+        if (signal && Date.now() - Date.parse(signal) < 5_000) onPop();
+        return;
+      }
+      if (signal && signal !== lastSignal) onPop();
+      lastSignal = signal;
+    },
+    onError,
+  );
+}
+
+export function subscribeSessionEvents(
+  sessionId: string,
+  onEvents: (events: readonly SessionEvent[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/events`),
+      orderBy('createdAt', 'desc'),
+      limit(30),
+    ),
+    (snapshot) => onEvents(snapshot.docs.flatMap((event) => {
+      const data = event.data();
+      if (data.type !== 'ship-confetti') return [];
+      return [{
+        id: event.id,
+        sessionId,
+        type: 'ship-confetti' as const,
+        shipId: data.shipId as string,
+        shipName: data.shipName as string,
+        actorName: data.actorName as string,
+        createdAt: iso(data.createdAt),
+      }];
+    })),
     onError,
   );
 }

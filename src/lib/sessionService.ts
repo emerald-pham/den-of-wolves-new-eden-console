@@ -106,6 +106,15 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
         : command.payload.locked;
     store.setSession({ ...store.session, gmControlsLocked: locked });
   }
+  if (command.kind === 'popShipConfetti' && store.session?.id === command.payload.sessionId) {
+    const used = store.session.confettiUsedShipIds ?? [];
+    if (!used.includes(command.payload.shipId)) {
+      store.setSession({
+        ...store.session,
+        confettiUsedShipIds: [...used, command.payload.shipId],
+      });
+    }
+  }
 }
 
 async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition> {
@@ -357,6 +366,17 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
       instanceId: store.gmInstance.id,
       locked,
     },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function popShipConfetti(shipId: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before using the dispenser.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'popShipConfetti',
+    payload: { sessionId: store.session.id, shipId },
     createdAt: new Date().toISOString(),
   });
 }

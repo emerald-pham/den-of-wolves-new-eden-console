@@ -116,6 +116,16 @@ export function requireGmControlsLockRequest(data: {
   };
 }
 
+export function requireShipConfettiRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+}): { sessionId: string; shipId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;

@@ -52,6 +52,15 @@ export type PendingCommand =
         readonly locked: boolean;
       };
       readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'popShipConfetti';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly shipId: string;
+      };
+      readonly createdAt: string;
     };
 
 export interface CommunicationError {
