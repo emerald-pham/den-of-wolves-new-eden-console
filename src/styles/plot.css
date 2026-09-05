@@ -211,10 +211,6 @@
   );
 }
 
-.contact-plot[data-scanning='false'] .contact-plot__contact {
-  transition: transform var(--contact-transition, 0ms) ease-in-out;
-}
-
 /* Where the contact is and how badly it is shaking are two different things,
    so they are two different layers. The fault keyframes below only ever say
    how far it has jumped from station; they never restate the station itself. */
@@ -239,10 +235,6 @@
 }
 
 .contact-plot__apparent[data-acquired='true'] { opacity: 1; }
-
-/* A moving perspective exposes the known formation while acquisition is
-   suspended; the destination return must remain visible as it reaches origin. */
-.contact-plot[data-scanning='false'] .contact-plot__apparent { opacity: 1; }
 
 .contact-plot__blip {
   position: absolute;
