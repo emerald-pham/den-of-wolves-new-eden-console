@@ -147,7 +147,12 @@ describe('the launcher manifest', () => {
     const label = arrival.match(/\.arrival-readout__label\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(grid).toContain('grid-template-rows: minmax(0, 1fr) auto');
-    expect(readout).toContain('display: contents');
+    expect(readout).toContain('display: grid');
+    expect(readout).toContain('grid-row: span 2');
+    expect(readout).toContain('grid-template-rows: subgrid');
+    expect(value).toContain('align-self: last baseline');
+    expect(value).not.toContain('min-height:');
+    expect(arrival).toContain('.arrival-readout + .arrival-readout { border-left: 1px solid var(--cic-rule); }');
     expect(value).toContain('grid-row: 1');
     expect(label).toContain('grid-row: 2');
   });
