@@ -166,6 +166,7 @@ export default function ContactPlot({
   centerLabel,
   orientation,
   scanning = true,
+  contactTransitionMs,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
@@ -178,6 +179,8 @@ export default function ContactPlot({
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
   /** Suspends both sweep motion and return acquisition while the instrument moves. */
   scanning?: boolean;
+  /** Duration for a coherent perspective translation of canonical contacts. */
+  contactTransitionMs?: number | undefined;
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(
@@ -270,7 +273,12 @@ export default function ContactPlot({
               data-spoof={String(spoof)}
               data-departing={String(spoof && exposed)}
               data-label-anchor={labelAnchor(track, index)}
-              style={'x' in track ? placeCartesian(track) : place(track)}
+              style={{
+                ...('x' in track ? placeCartesian(track) : place(track)),
+                ...(contactTransitionMs === undefined
+                  ? {}
+                  : { '--contact-transition': `${contactTransitionMs}ms` }),
+              } as PlotStyle}
             >
               <div className="contact-plot__apparent">
                 <div className="contact-plot__jitter">

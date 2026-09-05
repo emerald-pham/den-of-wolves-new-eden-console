@@ -1069,6 +1069,7 @@ body {
 
 .ship-console__identity {
   position: absolute;
+  z-index: 21;
   left: clamp(1rem, 5vw, 4rem);
   right: clamp(1rem, 5vw, 4rem);
   bottom: max(2rem, env(safe-area-inset-bottom));

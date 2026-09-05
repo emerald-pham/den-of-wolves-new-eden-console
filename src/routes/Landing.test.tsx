@@ -130,7 +130,7 @@ describe('Landing', () => {
     await user.click(screen.getByRole('button', { name: /join a session/i }));
 
     expect(joinSession).toHaveBeenCalledWith('4821');
-    expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles');
+    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
   });
 
   it('creates a session when asked', async () => {
@@ -141,7 +141,7 @@ describe('Landing', () => {
     await user.click(screen.getByRole('button', { name: /create a session/i }));
 
     expect(createSession).toHaveBeenCalledOnce();
-    expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles');
+    await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
   });
 
   it('stands down an active intrusion as soon as session entry begins', () => {

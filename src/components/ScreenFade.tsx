@@ -46,6 +46,7 @@ export default function ScreenFade({
   const [displayed, setDisplayed] = useState(location);
   const [phase, setPhase] = useState<'in' | 'out'>('in');
   const pendingFlag = useRef<FlagMove | null>(null);
+  const fadeRoot = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const move = pendingFlag.current;
@@ -83,7 +84,7 @@ export default function ScreenFade({
     clone.alt = '';
     clone.setAttribute('aria-hidden', 'true');
     destination.style.visibility = 'hidden';
-    document.body.append(clone);
+    fadeRoot.current?.append(clone);
 
     let finish = 0;
     const frame = window.requestAnimationFrame(() => {
@@ -131,7 +132,7 @@ export default function ScreenFade({
   }, [location, displayed]);
 
   return (
-    <div className="screen-fade" data-phase={phase}>
+    <div ref={fadeRoot} className="screen-fade" data-phase={phase}>
       {children(displayed)}
     </div>
   );

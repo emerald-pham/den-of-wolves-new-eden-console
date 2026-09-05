@@ -32,7 +32,7 @@ it('shows the last-player warning inside settings', async () => {
 
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
-  expect(screen.getByText(/build 0\.1\.24/i)).toBeInTheDocument();
+  expect(screen.getByText(/build 0\.1\.27/i)).toBeInTheDocument();
 });
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {

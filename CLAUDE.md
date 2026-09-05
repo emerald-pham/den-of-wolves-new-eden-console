@@ -93,7 +93,12 @@ same +10 offset; never take a port that is already listening.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the
   end of the week, not once three other things are also finished.
 - Green means: `npm run lint`, `npm run test:all`, `npm run build`, and
-  `npm run build --prefix functions` all pass locally, and CI passes.
+  `npm run build --prefix functions` all pass locally. Merge and push as soon
+  as those checks are green; CI validates the pushed commit and any failure is
+  fixed immediately.
+- The agent token does not include GitHub Actions read access. Do not poll,
+  wait for, or block a merge on CI visibility; the local green checks are the
+  actionable merge gate.
 - Do not stack unfinished work. Do not leave a branch open "for later." If it is
   not going to land, delete it.
 - Never force-push `main`. Never commit directly to `main` for anything that

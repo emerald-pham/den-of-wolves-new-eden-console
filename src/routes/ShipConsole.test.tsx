@@ -191,6 +191,7 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
   expect(popShipConfetti).toHaveBeenCalledWith('aegis');
   expect(screen.getByRole('button', { name: /emergency bridge confetti dispenser spent/i }))
     .toBeDisabled();
+  expect(screen.getByText(/one use.*empty/i)).toBeInTheDocument();
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
 });
 

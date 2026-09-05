@@ -234,9 +234,9 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /close dradis/i }));
     expect(screen.getByRole('button', { name: /zoom into dradis panel/i })).toBeInTheDocument();
     expect(container.querySelector('.ship-plot')).toHaveAttribute('data-expanded', 'false');
-    expect(SHIP_PLOT_RESIZE_MS).toBe(200);
+    expect(SHIP_PLOT_RESIZE_MS).toBe(1_000);
     expect(container.querySelector('.ship-plot')).toHaveStyle({
-      '--ship-plot-resize': '200ms',
+      '--ship-plot-resize': '1000ms',
     });
   });
 
@@ -296,7 +296,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /^captain$/i }));
     expect(await screen.findByRole('heading', { name: 'Quellon' })).toBeInTheDocument();
-    expect(center()).toBe('QUELLON');
+    await waitFor(() => expect(center()).toBe('QUELLON'), { timeout: 1_500 });
     expect(contacts()).toContain('AEGIS');
     expect(contacts()).not.toContain('QUELLON');
 
@@ -307,7 +307,7 @@ describe('App', () => {
     await waitFor(() => expect(center()).toBe('AEGIS'));
   });
 
-  it('finishes each 200ms ship movement before rebasing and starting DRADIS', async () => {
+  it('finishes each one-second ship movement before rebasing and starting DRADIS', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     window.location.hash = '#/console';
     useSessionStore.getState().setIdentity(session, player);
@@ -319,10 +319,19 @@ describe('App', () => {
 
     const plot = () => container.querySelector('.contact-plot');
     const center = () => container.querySelector('.contact-plot__origin')?.textContent;
+    const contact = (name: string) => Array.from(
+      container.querySelectorAll<HTMLElement>('.contact-plot__contact'),
+    ).find((element) => element.textContent === name);
+
+    expect(contact('QUELLON')?.style.getPropertyValue('--x')).toBe('-0.28');
 
     fireEvent.click(screen.getByRole('link', { name: /join quellon/i }));
     expect(center()).toBe('AEGIS');
     expect(plot()).toHaveAttribute('data-scanning', 'false');
+    expect(contact('QUELLON')?.style.getPropertyValue('--x')).toBe('0');
+    expect(contact('QUELLON')).toHaveStyle({
+      '--contact-transition': '1000ms',
+    });
 
     act(() => vi.advanceTimersByTime(SHIP_PLOT_RESIZE_MS - 1));
     expect(center()).toBe('AEGIS');
