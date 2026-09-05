@@ -104,6 +104,30 @@ it('stills a running plot when the reduced-motion preference arrives late', () =
   expect(plotIn(container)).toHaveAttribute('data-still', 'true');
 });
 
+it('sweeps the volume with one ring whose plane precesses, not with a pair of discs', () => {
+  const { container } = render(<ContactPlot />);
+  const rings = container.querySelectorAll('.contact-plot__sweep');
+
+  expect(rings).toHaveLength(1);
+  // One element cannot animate two rotations at different rates, so the ring
+  // turns on one axis inside a gimbal that turns on the other.
+  expect(rings[0]?.parentElement).toHaveClass('contact-plot__gimbal');
+});
+
+it('runs full-bleed by default but lets a route inset it instead', () => {
+  // The board is never absent from a screen -- a route chooses how prominent it
+  // is, never whether it is there.
+  const { container, rerender } = render(<ContactPlot />);
+
+  expect(plotIn(container)).toHaveAttribute('data-placement', 'field');
+  expect(plotIn(container)?.style.getPropertyValue('--plot-size')).toBe('');
+
+  rerender(<ContactPlot placement="inset" size="18rem" />);
+
+  expect(plotIn(container)).toHaveAttribute('data-placement', 'inset');
+  expect(plotIn(container)?.style.getPropertyValue('--plot-size')).toBe('18rem');
+});
+
 it('carries no franchise-specific terminology', () => {
   const { container } = render(<ContactPlot hostile />);
 

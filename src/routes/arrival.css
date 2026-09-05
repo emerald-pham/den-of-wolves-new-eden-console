@@ -5,16 +5,11 @@
   place-content: initial;
   gap: clamp(1.5rem, 4vh, 3rem);
   padding: max(5rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(2rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
-  background: linear-gradient(#e8892b06 1px, transparent 1px), radial-gradient(ellipse at 50% 35%, #0a151c 0%, #04070a 78%);
-  background-size: 100% 4px, auto;
+  z-index: 1;
   text-align: left;
 }
-/* Everything except the two fullscreen layers is a column of console panels. */
-.landing > :not(.intrusion, .contact-plot) { width: min(1100px, 100%); margin-inline: auto; }
-/* The contact plot is fixed at z-index 0, so the in-flow panels have to be
-   positioned to sit in front of it. The action panel and the intrusion keep
-   their own higher layers. */
-.arrival-topline, .landing__title, .arrival-manifest, .arrival-bottomline, .landing__link { position: relative; z-index: 1; }
+/* Everything except the intrusion overlay is a column of console panels. */
+.landing > :not(.intrusion) { width: min(1100px, 100%); margin-inline: auto; }
 .arrival-topline { display: flex; justify-content: space-between; border-bottom: 1px solid var(--cic-rule); padding-bottom: 0.75rem; }
 .arrival-topline::after { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 4px; background: repeating-linear-gradient(90deg, var(--cic-amber) 0 3px, transparent 3px 8px); opacity: 0.45; }
 .landing__title { gap: 0.65rem; }

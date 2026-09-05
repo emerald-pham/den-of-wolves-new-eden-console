@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -6,6 +6,7 @@ import NotFound from '@/routes/NotFound';
 import SessionMode from '@/routes/SessionMode';
 import { connect } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
+import ContactPlot from '@/components/ContactPlot';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
@@ -17,6 +18,10 @@ function AppRoutes() {
   const me = useSessionStore((state) => state.me);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
+  // The threat board lives above the router so it survives every navigation:
+  // one continuous scan from the launcher through to a connected console,
+  // rather than a fresh one that restarts its sweep on each route.
+  const [intrusion, setIntrusion] = useState(false);
 
   useEffect(() => {
     if (session && SESSION_ROUTES.has(location.pathname)) {
@@ -26,10 +31,16 @@ function AppRoutes() {
 
   const restoreRoute =
     lastRoute && SESSION_ROUTES.has(lastRoute) ? lastRoute : '/roles';
-  const home = session && me ? <Navigate to={restoreRoute} replace /> : <Landing />;
+  const home =
+    session && me ? (
+      <Navigate to={restoreRoute} replace />
+    ) : (
+      <Landing onTransmission={setIntrusion} />
+    );
 
   return (
     <>
+      <ContactPlot hostile={intrusion} />
       <AppHeader />
       <Routes>
         <Route path="/" element={home} />

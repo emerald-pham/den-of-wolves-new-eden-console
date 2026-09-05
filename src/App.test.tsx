@@ -103,6 +103,22 @@ describe('App', () => {
     expect(window.location.hash).toBe('#/roles');
   });
 
+  it.each([
+    ['/roles', /connect this device/i],
+    ['/console', /console connected/i],
+  ])('keeps the contact plot behind %s, not just the launcher', async (route, heading) => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute(route);
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    // A decorative background layer has no role, name or text to query by.
+    expect(container.querySelector('.contact-plot')).toHaveAttribute('aria-hidden', 'true');
+  });
+
   it('disconnects robustly from settings and returns home', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/console';

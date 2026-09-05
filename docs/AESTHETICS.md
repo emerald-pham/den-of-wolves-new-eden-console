@@ -46,7 +46,7 @@ Shared utilities, all in src/styles/cic.css:
 - `.cic-text-button` — borderless cyan control, 44px minimum.
 
 Arrival readouts show a changing value with its descriptive label underneath:
-SHIPS IN CONVOY, CREW, and WOLF AMONG US, in that order. Keep these labels
+SHIPS IN CONVOY, CREW, and WOLVES AMONG US, in that order. Keep these labels
 visible at every viewport size. Hide the sequences of possible numbers; do not
 confuse those sequences with the descriptive labels. Do not show a SCENARIO
 SIGNAL footer. Avoid franchise-specific terminology such as DRADIS and
@@ -57,11 +57,32 @@ keyboard focus, error announcements, and at least 44px touch targets.
 
 ## Contact plot / threat board
 
-`<ContactPlot hostile={boolean} />` — src/components/ContactPlot.tsx with
-src/styles/plot.css. Currently behind the launcher and the not-found screen.
-Reusable on any route: it is a fixed, `pointer-events: none`, `aria-hidden`
-background layer at `z-index: 0` and nothing else on the page needs to know
-about it.
+`<ContactPlot hostile={boolean} placement="field | inset" size="<css length>" />`
+— src/components/ContactPlot.tsx with src/styles/plot.css. `pointer-events:
+none`, `aria-hidden`, and nothing else on the page needs to know about it.
+
+**Assume the board is on screen at all times.** A screen decides how prominent
+it is, never whether it is there. `placement="field"` (the default) is the
+full-bleed fixed layer at `z-index: 0`; `placement="inset"` fills a positioned
+parent instead, for a board sitting inside a panel, and `size` overrides the
+diameter with any CSS length. Both keep identical geometry — only the diameter
+and the framing change. Do not add a route that switches it off.
+
+Today every route runs `field`: full-bleed, behind all of the interface. Keep
+the launcher and the role picker that way. `inset` is there for screens that
+have not been built yet, where the board becomes one instrument among several
+rather than the room the interface sits in.
+
+**It is rendered once in `App`, above the router.** One continuous scan runs
+from the launcher through the role picker to a connected console, rather than a
+fresh board that restarts its sweep on every navigation. `Landing` no longer
+owns it; it only reports intrusions upward through `onTransmission`, and `App`
+holds that flag.
+
+Because the board sits above the canvas and below the routes, **the ground
+lives on `body` and no route container may be opaque.** A route with its own
+background paints straight over the board. `.landing`, `.role-select` and
+`.session-mode` are transparent, `position: relative; z-index: 1`.
 
 **It is a sphere, not a floor.** A spherical scan is a two-dimensional circle
 turning through a three-dimensional volume. Contacts hang anywhere inside that
@@ -86,10 +107,14 @@ that is a different, flatter instrument.
    - Parallels: `rotateX(90deg) translateZ(lift × radius) scale(girth)` where a
      ring at latitude *p* has `girth = cos(p)` and `lift = sin(p)`; use ±60, ±30, 0.
    - Limb: one untransformed circle at higher contrast — the silhouette.
-5. **Sweep.** A disc — `border-radius: 50%`, faint radial fill, bright rim —
-   animated `rotateY(0 → 360deg)` over `--plot-turn`. A second disc animates
-   `rotateX` at 1.7× the period so the scan is spherical rather than a spinning
-   floor. Edge-on it compresses to a bright line, which is correct.
+5. **Sweep.** One ring — `border-radius: 50%`, 2px rim, barely any fill —
+   sweeping as widely as a single circle can. It animates `rotateX` over
+   `--plot-turn` inside a gimbal animating `rotateY` over `2 × --plot-turn`, so
+   the vertical turn runs at half the rate of the horizontal one and the ring's
+   plane precesses instead of retracing the same pass. One element cannot carry
+   two rotations at two rates, which is why the gimbal is a wrapper rather than
+   a second transform. Edge-on the ring compresses to a bright line, which is
+   correct.
 6. **Contacts.** The component converts spherical coordinates to unitless
    custom properties, and the stylesheet only ever multiplies by the radius:
 
@@ -116,9 +141,20 @@ that is a different, flatter instrument.
 ### Threat state
 
 `data-hostile="true"` swaps `--plot-ink`/`--plot-hot` to the threat tokens,
-drops `--plot-turn` from 14s to 3.4s, raises `--plot-glow` to 1, and adds the
-INBOUND tracks, which close from the skin of the sphere to its centre over 5s —
-matching the intrusion. The centre of the sphere is where we are.
+raises `--plot-glow` to 1, and adds the INBOUND tracks, which close from the
+skin of the sphere to its centre over 5s — matching the intrusion. The centre
+of the sphere is where we are.
+
+**Never speed the ring up by changing `--plot-turn`.** Changing
+`animation-duration` mid-turn recomputes progress as `elapsed / duration`, so
+the ring snaps to a new angle the instant the rate changes, and snaps again on
+the way back. The base rotations keep one rate forever. The urgency comes from
+`.contact-plot__boost`, a separate wrapper that is inert until the threat
+state, then eases up from rest and back down onto 1440° — four whole turns,
+which is the orientation it started from, so removing the animation moves
+nothing. Same principle everywhere else: the palette turnover transitions over
+700ms, and contacts carry a 1400ms transform transition so the inbound tracks
+glide back out to station rather than being dropped there.
 
 ### Motion
 
@@ -165,8 +201,9 @@ EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU. `ArrivalDisplay`
 reports the intrusion up through an optional `onTransmission` callback, held in
 a ref so a parent handing over a fresh closure cannot restart the timers.
 
-Manifest values cycle in listed order every 10 seconds, with first changes at
-10/13/16 seconds: 6,7,5,0,1,3,4; 20,18,8,6,0,21; and 1,?,2.
+Manifest values cycle in listed order every 7.5 seconds (`CYCLE_MS`), staggered
+by 0.3 and 0.6 of a cycle so the three readouts never turn over together —
+first changes at 7.5/9.75/12 seconds: 6,7,5,0,1,3,4; 20,18,8,6,0,21; and 1,?,2.
 Resolve digits once over 1.1 seconds; never rapidly flicker.
 Reduced motion starts paused and a new reduced-motion preference pauses ongoing
 effects. Do not add a manual motion control. Clean up timers on exit.

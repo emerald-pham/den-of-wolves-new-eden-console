@@ -38,6 +38,20 @@
   mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
 }
 
+/* Placement -----------------------------------------------------------------
+   The board is never absent from a screen. `field` is the full-bleed layer
+   behind everything; `inset` fills a positioned parent instead, for a board
+   that sits inside a panel at whatever size that panel wants. Both keep the
+   same geometry -- only the diameter and the framing change. */
+
+.contact-plot[data-placement='inset'] {
+  position: absolute;
+  --plot-size: 20rem;
+  --plot-glow: 0.75;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 .contact-plot__rig {
   position: relative;
   width: var(--plot-size);
@@ -60,6 +74,7 @@
   inset: 0;
   border: 1px solid color-mix(in srgb, var(--plot-ink) 40%, transparent);
   border-radius: 50%;
+  transition: border-color 700ms ease;
 }
 
 .contact-plot__meridian {
@@ -80,38 +95,48 @@
 }
 
 /* The sweep -----------------------------------------------------------------
-   A two-dimensional circle turning through the volume. Rotating about the
-   vertical axis covers every bearing; the second disc turns about the
-   horizontal one so the scan is spherical rather than a spinning floor. */
+   One ring, sweeping as widely as a single circle can. It turns about the
+   horizontal axis inside a gimbal turning about the vertical one at half the
+   rate, so its plane precesses and never retraces the same pass. A single
+   element cannot carry two rotations at two rates, which is why the gimbal and
+   the boost stage exist as wrappers. */
+
+.contact-plot__boost,
+.contact-plot__gimbal {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+
+.contact-plot__gimbal {
+  animation: plot-precess calc(var(--plot-turn) * 2) linear infinite;
+}
 
 .contact-plot__sweep {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--plot-hot) 70%, transparent);
+  border: 2px solid color-mix(in srgb, var(--plot-hot) 85%, transparent);
   background: radial-gradient(
     circle at 50% 50%,
-    color-mix(in srgb, var(--plot-hot) 3%, transparent) 0 34%,
-    color-mix(in srgb, var(--plot-hot) 22%, transparent) 100%
+    transparent 0 62%,
+    color-mix(in srgb, var(--plot-hot) 12%, transparent) 100%
   );
-  box-shadow: 0 0 50px color-mix(in srgb, var(--plot-hot) 14%, transparent);
+  box-shadow:
+    0 0 44px color-mix(in srgb, var(--plot-hot) 20%, transparent),
+    inset 0 0 44px color-mix(in srgb, var(--plot-hot) 10%, transparent);
   animation: plot-sweep var(--plot-turn) linear infinite;
-}
-
-.contact-plot__sweep--polar {
-  opacity: 0.45;
-  animation-name: plot-sweep-polar;
-  animation-duration: calc(var(--plot-turn) * 1.7);
+  transition: border-color 700ms ease;
 }
 
 @keyframes plot-sweep {
   to {
-    transform: rotateY(360deg);
+    transform: rotateX(360deg);
   }
 }
-@keyframes plot-sweep-polar {
+@keyframes plot-precess {
   to {
-    transform: rotateX(360deg);
+    transform: rotateY(360deg);
   }
 }
 
@@ -132,6 +157,9 @@
     calc(var(--y) * var(--plot-radius)),
     calc(var(--z) * var(--plot-radius))
   );
+  /* Carries the inbound tracks back out to station when the threat clears,
+     instead of dropping them there. */
+  transition: transform 1400ms ease-out;
 }
 
 .contact-plot__blip {
@@ -196,8 +224,27 @@
 .contact-plot[data-hostile='true'] {
   --plot-ink: var(--cic-hostile);
   --plot-hot: var(--cic-ember);
-  --plot-turn: 3.4s;
   --plot-glow: 1;
+}
+
+/* The ring picks up speed rather than jumping to it. Changing
+   `animation-duration` mid-turn recomputes progress as elapsed/duration, so the
+   ring snaps to a new angle the instant the rate changes -- and snaps back when
+   it returns. So the base rotations keep one rate forever, and the urgency
+   comes from a separate stage that eases up from rest and eases back down onto
+   a whole number of turns, which is the orientation it started from. Nothing
+   moves discontinuously at either end. */
+.contact-plot[data-hostile='true'] .contact-plot__boost {
+  animation: plot-boost 5s cubic-bezier(0.45, 0, 0.35, 1) both;
+}
+
+@keyframes plot-boost {
+  from {
+    transform: rotate3d(1, 1.6, 0.2, 0deg);
+  }
+  to {
+    transform: rotate3d(1, 1.6, 0.2, 1440deg);
+  }
 }
 
 .contact-plot[data-hostile='true'] .contact-plot__contact[data-inbound='true'] {
@@ -225,11 +272,18 @@
    A reduced-motion preference stops the board dead rather than slowing it. The
    selectors are written to outrank the threat-state rules above. */
 
-.contact-plot[data-still='true'] {
+.contact-plot[data-still='true'],
+.contact-plot[data-still='true'] .contact-plot__contact,
+.contact-plot[data-still='true'] .contact-plot__meridian,
+.contact-plot[data-still='true'] .contact-plot__parallel,
+.contact-plot[data-still='true'] .contact-plot__limb,
+.contact-plot[data-still='true'] .contact-plot__sweep {
   transition: none;
 }
 .contact-plot[data-still='true'] .contact-plot__sweep,
+.contact-plot[data-still='true'] .contact-plot__gimbal,
 .contact-plot[data-still='true'] .contact-plot__blip,
+.contact-plot[data-still='true'] .contact-plot__boost,
 .contact-plot[data-still='true'] .contact-plot__contact[data-inbound='true'] {
   animation: none;
 }
@@ -237,8 +291,13 @@
 @media (prefers-reduced-motion: reduce) {
   .contact-plot,
   .contact-plot__sweep,
+  .contact-plot__gimbal,
+  .contact-plot__boost,
   .contact-plot__blip,
-  .contact-plot__contact {
+  .contact-plot__contact,
+  .contact-plot__meridian,
+  .contact-plot__parallel,
+  .contact-plot__limb {
     animation: none;
     transition: none;
   }

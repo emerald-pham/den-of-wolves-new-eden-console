@@ -5,13 +5,23 @@ import { useEffect, useState, type CSSProperties } from 'react';
  *
  * A spherical scan is not a flat sweep on a floor: it is a two-dimensional
  * circle turning through a three-dimensional volume. So the board is a
- * wireframe sphere -- meridians and parallels -- with a flat disc rotating
+ * wireframe sphere -- meridians and parallels -- with a single ring turning
  * through it, and contacts hung anywhere inside that volume rather than pinned
  * to one plane. Perspective does the depth work: a contact behind the centre
  * is genuinely further from the camera and paints smaller.
  *
+ * The ring sweeps as widely as it can because its two rotations run at
+ * different rates -- it turns about one axis inside a gimbal turning about
+ * another at half the speed -- so its plane never repeats the same pass twice
+ * in a row. One element cannot animate two rotations at two rates, which is
+ * why the gimbal exists.
+ *
+ * Assume the board is on screen at all times. A route chooses how prominent it
+ * is -- full-bleed behind everything, or inset at whatever size suits the
+ * screen -- never whether it is there at all.
+ *
  * Every moving part is a CSS animation. There is no render loop, no canvas and
- * no timer, so an idle launcher costs nothing on the main thread and a
+ * no timer, so an idle console costs nothing on the main thread and a
  * reduced-motion preference stops the whole board by flipping one attribute.
  */
 
@@ -88,7 +98,18 @@ function ring(latitude: number): PlotStyle {
   return { '--girth': round(Math.cos(e)), '--lift': round(Math.sin(e)) };
 }
 
-export default function ContactPlot({ hostile = false }: { hostile?: boolean }) {
+export default function ContactPlot({
+  hostile = false,
+  placement = 'field',
+  size,
+}: {
+  hostile?: boolean;
+  /** `field` fills the viewport behind everything; `inset` fills a positioned
+   *  parent instead, for a board that sits inside a panel. */
+  placement?: 'field' | 'inset';
+  /** Any CSS length. Overrides the placement's default diameter. */
+  size?: string | undefined;
+}) {
   const [still, setStill] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false,
   );
@@ -109,7 +130,9 @@ export default function ContactPlot({ hostile = false }: { hostile?: boolean }) 
       className="contact-plot"
       aria-hidden="true"
       data-hostile={String(hostile)}
+      data-placement={placement}
       data-still={String(still)}
+      style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >
       <div className="contact-plot__rig">
         {MERIDIANS.map((turn) => (
@@ -127,8 +150,11 @@ export default function ContactPlot({ hostile = false }: { hostile?: boolean }) 
           />
         ))}
         <span className="contact-plot__limb" />
-        <div className="contact-plot__sweep" />
-        <div className="contact-plot__sweep contact-plot__sweep--polar" />
+        <div className="contact-plot__boost">
+          <div className="contact-plot__gimbal">
+            <div className="contact-plot__sweep" />
+          </div>
+        </div>
         {tracks.map((track, index) => (
           <div
             className="contact-plot__contact"

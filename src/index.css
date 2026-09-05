@@ -20,10 +20,14 @@ body {
   margin: 0;
   /* A dim scan texture over a cold horizon glow: the screen should look like a
      surface that is switched on, not like a page. */
+  /* The ground lives here rather than on any route container, because the
+     contact plot is a fixed layer above the canvas and below the routes: a
+     route with its own opaque background would paint straight over it. */
   background:
-    repeating-linear-gradient(0deg, #ffffff05 0 1px, transparent 1px 4px),
-    radial-gradient(120% 80% at 50% 0%, var(--bg-glow) 0%, var(--bg) 62%),
-    var(--bg);
+    repeating-linear-gradient(0deg, #e8892b08 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse 120% 90% at 50% 30%, #0a151c 0%, var(--cic-void) 76%),
+    var(--cic-void);
+  background-attachment: fixed;
   color: var(--fg);
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
@@ -327,6 +331,8 @@ body {
 /* Role selection ----------------------------------------------------- */
 
 .role-select {
+  position: relative;
+  z-index: 1;
   min-height: 100dvh;
   display: grid;
   align-content: center;
@@ -444,6 +450,8 @@ body {
 }
 
 .session-mode {
+  position: relative;
+  z-index: 1;
   min-height: 100dvh;
   display: grid;
   align-content: center;
