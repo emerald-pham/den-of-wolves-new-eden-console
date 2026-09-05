@@ -32,6 +32,7 @@ export default function ShipConsole() {
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
+  const [burstSource, setBurstSource] = useState<string | null>(null);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
     (command) => command.kind === 'popShipConfetti' &&
@@ -48,7 +49,10 @@ export default function ShipConsole() {
       unsubscribe = subscribeShipConfetti(
         session.id,
         ship.id,
-        () => setBurst((current) => current + 1),
+        (sourceShipId) => {
+          setBurstSource(sourceShipId);
+          setBurst((current) => current + 1);
+        },
         () => useSessionStore.getState().setCommunicationError({
           code: 'confetti-signal-link',
           message: 'The Emergency Bridge Confetti Dispenser signal link was lost.',
@@ -168,7 +172,13 @@ export default function ShipConsole() {
       {burst > 0 && (
         <div className="confetti-burst" key={burst} aria-hidden="true">
           {CONFETTI_PIECES.map((piece) => (
-            <i className="confetti-burst__piece" key={piece.index} style={piece.style} />
+            <i
+              className={`confetti-burst__piece${
+                burstSource === 'snn-press-shuttle' ? ' confetti-burst__piece--newspaper' : ''
+              }`}
+              key={piece.index}
+              style={piece.style}
+            />
           ))}
         </div>
       )}

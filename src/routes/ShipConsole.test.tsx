@@ -163,7 +163,7 @@ it('leaves the ship through the visible return control', async () => {
 
 it('opens a digital cover before activating the one-shot Emergency Bridge Confetti Dispenser', async () => {
   const user = userEvent.setup();
-  let signal: (() => void) | undefined;
+  let signal: ((sourceShipId: string) => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
     signal = onPop;
     return vi.fn();
@@ -186,12 +186,30 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
   await user.click(screen.getByRole('button', {
     name: /activate emergency bridge confetti dispenser/i,
   }));
-  act(() => signal?.());
+  act(() => signal?.('aegis'));
 
   expect(popShipConfetti).toHaveBeenCalledWith('aegis');
   expect(screen.getByRole('button', { name: /emergency bridge confetti dispenser spent/i }))
     .toBeDisabled();
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
+});
+
+it('fires newspapers on the bridge when the docked SNN shuttle holds the presses', async () => {
+  let signal: ((sourceShipId: string) => void) | undefined;
+  vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
+    signal = onPop;
+    return vi.fn();
+  });
+  const { container } = render(
+    <MemoryRouter initialEntries={['/ships/aegis']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  await waitFor(() => expect(signal).toBeDefined());
+  act(() => signal?.('snn-press-shuttle'));
+
+  expect(container.querySelectorAll('.confetti-burst__piece--newspaper')).toHaveLength(48);
 });
 
 it('locks the trigger while the one-shot activation is in flight', async () => {
@@ -240,7 +258,7 @@ it('keeps an offline one-shot activation locked while it is queued', () => {
 
 it('removes the bounded burst and ship listener when they are no longer needed', async () => {
   vi.useFakeTimers();
-  let signal: (() => void) | undefined;
+  let signal: ((sourceShipId: string) => void) | undefined;
   const unsubscribe = vi.fn();
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
     signal = onPop;
@@ -253,7 +271,7 @@ it('removes the bounded burst and ship listener when they are no longer needed',
   );
   await act(async () => Promise.resolve());
 
-  act(() => signal?.());
+  act(() => signal?.('shepherd'));
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
 
   act(() => vi.advanceTimersByTime(3_500));

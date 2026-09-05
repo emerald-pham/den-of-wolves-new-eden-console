@@ -21,7 +21,7 @@ beforeEach(() => {
 
 it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
   const user = userEvent.setup();
-  let signal: (() => void) | undefined;
+  let signal: ((sourceShipId: string) => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
     signal = onPop;
     return vi.fn();
@@ -34,7 +34,7 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
     's1', 'snn-press-shuttle', expect.any(Function), expect.any(Function),
   ));
-  act(() => signal?.());
+  act(() => signal?.('snn-press-shuttle'));
   expect(container.querySelectorAll('.confetti-burst__piece--newspaper').length).toBeGreaterThan(0);
   await user.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));
   await user.click(screen.getByRole('button', { name: /activate newspaper confetti/i }));
