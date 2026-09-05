@@ -54,7 +54,7 @@ Commit messages: imperative subject under 72 characters, and a body that says
 
 ## Stack, and what not to swap
 
-Vite 5 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v10 modular
+Vite 5 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12 modular
 · Cloud Functions 2nd gen (Node 22) · React Router `HashRouter` · Vitest + RTL +
 `@firebase/rules-unit-testing` · GitHub Actions → Firebase.
 
@@ -81,8 +81,8 @@ If you find yourself adding a client write path to `seats`, `secrets` or
 
 The Firebase web config in `src/lib/firebaseConfig.ts` is a set of **public
 identifiers**, not credentials. A service-account key must never be committed,
-never appear under `src/`, and never be pasted into a config file. CI reads one
-from the `FIREBASE_SERVICE_ACCOUNT` secret at deploy time.
+never appear under `src/`, and never be pasted into a config file. CI uses
+short-lived Workload Identity Federation credentials; there is no JSON key.
 
 ## State
 
@@ -90,6 +90,32 @@ from the `FIREBASE_SERVICE_ACCOUNT` secret at deploy time.
 - **Firestore** holds authoritative shared state.
 - A component should never have to work out which is which. Snapshots land in
   the store; mutations go out through callables.
+
+## Session lifecycle and audit guardrails
+
+- `useSessionStore` persists only the last server snapshot (`session`, `me`),
+  the local device mode, and the last allow-listed in-session route. Never
+  persist connection status or treat the local snapshot as fresh authority.
+- On startup, render the persisted snapshot immediately, then call
+  `resumeSession`. Transient network failures keep the snapshot and mark the
+  connection offline; `not-found`, `permission-denied`, and
+  `failed-precondition` mean the snapshot is stale and must be cleared.
+- GM and Console are **device modes**, not freely selectable Firestore roles.
+  Only a player whose server record already has role `gm` may enter GM mode.
+  Console is available to any session member. Do not re-add Observer until its
+  server semantics and UI are implemented.
+- Disconnect is intentionally local and idempotent: clear the persisted session,
+  player, seats, mode, and route, then replace navigation with `/`. It does not
+  delete the server player record or session.
+- Session headers are readable only by members and may never be listed. Joining
+  and resuming happen through callable functions. Preserve both denial tests.
+- A player may hold at most one seat. Keep the claim and release pointer checks
+  inside the transaction and keep their policy tests.
+- Keep Firestore wiring in `src/lib/firestore.ts`; importing it from the landing
+  path adds hundreds of kilobytes. `npm run test:bundle` enforces the per-chunk
+  ceiling, and both production dependency trees must continue to audit clean.
+- Never add a visible button without a verified action, or an in-session route
+  that can render without `session` and `me` guards.
 
 ## Layout
 

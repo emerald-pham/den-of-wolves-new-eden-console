@@ -7,6 +7,7 @@ import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import {
   requireDiceRequest,
   requireElevationRequest,
+  requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
 } from './requestGuards';
@@ -188,6 +189,46 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     };
   },
 );
+
+/** Refresh a locally remembered session after a browser reload or reopen. */
+export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const { sessionId } = requireSessionRequest(request.data ?? {});
+  const [sessionSnap, playerSnap] = await Promise.all([
+    db.doc(`sessions/${sessionId}`).get(),
+    db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+  ]);
+
+  if (!sessionSnap.exists) {
+    throw new HttpsError('not-found', 'That session no longer exists.');
+  }
+  if (!playerSnap.exists) {
+    throw new HttpsError('permission-denied', 'You are no longer in that session.');
+  }
+  if (sessionSnap.get('phase') === 'closed') {
+    throw new HttpsError('failed-precondition', 'That session has closed.');
+  }
+
+  return {
+    session: {
+      id: sessionId,
+      name: sessionSnap.get('name') as string,
+      joinCode: sessionSnap.get('joinCode') as string,
+      phase: sessionSnap.get('phase') as string,
+      ownerUid: sessionSnap.get('ownerUid') as string,
+      createdAt: isoOf(sessionSnap.get('createdAt')),
+      updatedAt: isoOf(sessionSnap.get('updatedAt')),
+    },
+    player: {
+      uid,
+      sessionId,
+      displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
+      role: playerSnap.get('role') as string,
+      seatId: (playerSnap.get('seatId') as string | null) ?? null,
+      joinedAt: isoOf(playerSnap.get('joinedAt')),
+    },
+  };
+});
 
 /** Claim an open seat. First transaction wins; losers get a clean error. */
 export const claimSeat = onCall<{ sessionId: string; seatId: string }>(

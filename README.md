@@ -14,7 +14,7 @@ the landing page deliberately shows nothing but the project name.
 | Language | TypeScript, `strict` (plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
 | UI | React 18 |
 | Local state | Zustand |
-| Shared state | Firestore, Web SDK v10 modular, offline persistence on |
+| Shared state | Firestore, Web SDK v12 modular, offline persistence on |
 | Server logic | Cloud Functions for Firebase, 2nd gen, Node 22 |
 | Routing | React Router, `HashRouter` |
 | Tests | Vitest + React Testing Library + `@firebase/rules-unit-testing` |
@@ -48,8 +48,8 @@ transaction. `tests/rules/firestore.rules.test.ts` asserts each of those denials
 
 The Firebase web config in `src/lib/firebaseConfig.ts` is a set of **public
 identifiers**, not credentials; it ships in every client bundle by design. No
-service-account key belongs anywhere in this repo — CI reads one from the
-`FIREBASE_SERVICE_ACCOUNT` GitHub secret at deploy time.
+service-account key belongs anywhere in this repo — CI uses short-lived
+Workload Identity Federation credentials.
 
 ## Local development
 

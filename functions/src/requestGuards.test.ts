@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   requireDiceRequest,
   requireElevationRequest,
+  requireSessionRequest,
   requireSessionSeatRequest,
   requireUid,
 } from './requestGuards';
@@ -27,6 +28,11 @@ describe('callable request guards', () => {
       sessionId: 's1',
       seatId: 'seat1',
     });
+  });
+
+  it('requires a session id when resuming', () => {
+    expectHttpsError(() => requireSessionRequest({ sessionId: '' }), 'invalid-argument');
+    expect(requireSessionRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
   });
 
   it('requires both session and target ids for elevation', () => {

@@ -1,13 +1,46 @@
 import { useEffect } from 'react';
-import { HashRouter, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
+import SessionMode from '@/routes/SessionMode';
 import { connect } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
+const SESSION_ROUTES = new Set(['/roles', '/gm', '/console']);
+
+function AppRoutes() {
+  const location = useLocation();
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
+  const lastRoute = useSessionStore((state) => state.lastRoute);
+  const setLastRoute = useSessionStore((state) => state.setLastRoute);
+
+  useEffect(() => {
+    if (session && SESSION_ROUTES.has(location.pathname)) {
+      setLastRoute(location.pathname);
+    }
+  }, [location.pathname, session, setLastRoute]);
+
+  const restoreRoute =
+    lastRoute && SESSION_ROUTES.has(lastRoute) ? lastRoute : '/roles';
+  const home = session && me ? <Navigate to={restoreRoute} replace /> : <Landing />;
+
+  return (
+    <>
+      <AppHeader />
+      <Routes>
+        <Route path="/" element={home} />
+        <Route path="/roles" element={<RoleSelect />} />
+        <Route path="/gm" element={<SessionMode mode="gm" />} />
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
+  );
+}
 
 /**
  * HashRouter, not BrowserRouter: deep links keep working on any purely static
@@ -44,12 +77,7 @@ export default function App() {
 
   return (
     <HashRouter>
-      <AppHeader />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/roles" element={<RoleSelect />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <AppRoutes />
     </HashRouter>
   );
 }

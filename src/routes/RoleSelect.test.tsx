@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -30,6 +31,8 @@ function renderRoute() {
       <Routes>
         <Route path="/" element={<p>Landing route</p>} />
         <Route path="/roles" element={<RoleSelect />} />
+        <Route path="/gm" element={<p>GM route</p>} />
+        <Route path="/console" element={<p>Console route</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -45,13 +48,39 @@ describe('RoleSelect', () => {
     expect(screen.getByText('Landing route')).toBeInTheDocument();
   });
 
-  it('shows the role assigned by the server without fake selection controls', () => {
+  it('offers GM and Console modes but no observer mode', () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     renderRoute();
 
-    expect(screen.getByRole('heading', { name: /session ready/i })).toBeInTheDocument();
-    expect(screen.getByText('Game Master')).toBeInTheDocument();
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /game master/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /console/i })).toBeInTheDocument();
+    expect(screen.queryByText(/observer/i)).not.toBeInTheDocument();
+  });
+
+  it('connects a GM-authorized player to the GM route', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(gm);
+    renderRoute();
+
+    await user.click(screen.getByRole('button', { name: /game master/i }));
+
+    expect(screen.getByText('GM route')).toBeInTheDocument();
+    expect(useSessionStore.getState().mode).toBe('gm');
+  });
+
+  it('connects any session member to the Console route', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    renderRoute();
+
+    expect(screen.getByRole('button', { name: /game master/i })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /console/i }));
+
+    expect(screen.getByText('Console route')).toBeInTheDocument();
+    expect(useSessionStore.getState().mode).toBe('console');
   });
 });

@@ -7,6 +7,16 @@ export function requireUid(auth: { uid: string } | undefined): string {
   return auth.uid;
 }
 
+export function requireSessionRequest(data: {
+  sessionId?: unknown;
+}): { sessionId: string } {
+  const { sessionId } = data;
+  if (typeof sessionId !== 'string' || !sessionId) {
+    throw new HttpsError('invalid-argument', 'sessionId required.');
+  }
+  return { sessionId };
+}
+
 export function requireSessionSeatRequest(data: {
   sessionId?: unknown;
   seatId?: unknown;

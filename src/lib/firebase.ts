@@ -10,9 +10,9 @@ import { firebaseConfig, firebaseConfigured, useEmulators } from './firebaseConf
 /**
  * Lazy, single-instance Firebase wiring.
  *
- * Nothing here runs at import time. The landing page renders with no Firebase
- * connection at all; the first feature that needs shared state calls `db()`.
- * That keeps the app buildable and testable before the project is provisioned.
+ * Nothing here runs at import time. The landing page renders before the first
+ * feature asks for an Auth or Functions instance, which keeps configuration
+ * errors observable and the module straightforward to test.
  */
 
 export function app() {
