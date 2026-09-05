@@ -1350,6 +1350,10 @@ body {
   mask-image: radial-gradient(ellipse 78% 82% at 50% 46%, #000 46%, transparent 97%);
 }
 
+.ship-plot .contact-plot[data-scanning='false'] .contact-plot__sweep {
+  animation-play-state: paused;
+}
+
 .ship-plot[data-aboard='true'] {
   top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
   right: max(0.75rem, env(safe-area-inset-right));

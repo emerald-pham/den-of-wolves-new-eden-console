@@ -165,6 +165,7 @@ export default function ContactPlot({
   contacts,
   centerLabel,
   orientation,
+  scanning = true,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
@@ -175,6 +176,8 @@ export default function ContactPlot({
   contacts?: readonly PlotContact[] | undefined;
   centerLabel?: string | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
+  /** Suspends both sweep motion and return acquisition while the instrument moves. */
+  scanning?: boolean;
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const [still, setStill] = useState(
@@ -191,9 +194,9 @@ export default function ContactPlot({
   }, []);
 
   useEffect(() => {
-    if (still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
+    if (!scanning || still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
     return followSweeps(plot.current);
-  }, [still]);
+  }, [scanning, still]);
 
   // The hostile tracks outlive the intrusion by exactly as long as it takes
   // them to break up. Unmounting them the instant the threat clears would cut
@@ -230,6 +233,7 @@ export default function ContactPlot({
       aria-hidden="true"
       data-hostile={String(hostile)}
       data-placement={placement}
+      data-scanning={String(scanning)}
       data-still={String(still)}
       style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >

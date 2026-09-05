@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -304,7 +304,41 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: /select command role/i })).toBeInTheDocument();
     await user.click(await screen.findByRole('link', { name: /back to fleet/i }));
     expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    await waitFor(() => expect(center()).toBe('AEGIS'));
+  });
+
+  it('finishes each 200ms ship movement before rebasing and starting DRADIS', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    window.location.hash = '#/console';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/console');
+
+    const { container } = render(<App />);
+    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+
+    const plot = () => container.querySelector('.contact-plot');
+    const center = () => container.querySelector('.contact-plot__origin')?.textContent;
+
+    fireEvent.click(screen.getByRole('link', { name: /join quellon/i }));
     expect(center()).toBe('AEGIS');
+    expect(plot()).toHaveAttribute('data-scanning', 'false');
+
+    act(() => vi.advanceTimersByTime(SHIP_PLOT_RESIZE_MS - 1));
+    expect(center()).toBe('AEGIS');
+    expect(plot()).toHaveAttribute('data-scanning', 'false');
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(center()).toBe('QUELLON');
+    expect(plot()).toHaveAttribute('data-scanning', 'true');
+
+    fireEvent.click(screen.getByRole('link', { name: /back to fleet/i }));
+    expect(center()).toBe('QUELLON');
+    expect(plot()).toHaveAttribute('data-scanning', 'false');
+
+    act(() => vi.advanceTimersByTime(SHIP_PLOT_RESIZE_MS));
+    expect(center()).toBe('AEGIS');
+    expect(plot()).toHaveAttribute('data-scanning', 'true');
   });
 
   it('disconnects robustly from settings and returns home', async () => {

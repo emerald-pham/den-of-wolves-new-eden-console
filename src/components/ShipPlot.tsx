@@ -1,5 +1,5 @@
 import {
-  useEffect,
+  useEffect, useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -42,7 +42,30 @@ export default function ShipPlot({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
+  const [displayedViewerId, setDisplayedViewerId] = useState(viewerId);
+  const [scanning, setScanning] = useState(true);
+  const previousDestination = useRef({ aboard, viewerId });
   const drag = useRef<Drag | null>(null);
+
+  useLayoutEffect(() => {
+    const previous = previousDestination.current;
+    previousDestination.current = { aboard, viewerId };
+    if (previous.aboard === aboard && previous.viewerId === viewerId) return;
+
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (reducedMotion) {
+      setDisplayedViewerId(viewerId);
+      setScanning(true);
+      return;
+    }
+
+    setScanning(false);
+    const arrived = window.setTimeout(() => {
+      setDisplayedViewerId(viewerId);
+      setScanning(true);
+    }, SHIP_PLOT_RESIZE_MS);
+    return () => window.clearTimeout(arrived);
+  }, [aboard, viewerId]);
 
   useEffect(() => {
     if (!aboard) setExpanded(false);
@@ -98,7 +121,7 @@ export default function ShipPlot({
     }));
   }
 
-  const viewer = findShip(viewerId) ?? findShip('aegis');
+  const viewer = findShip(displayedViewerId) ?? findShip('aegis');
   const contacts = fleetViewFrom(viewer?.id ?? 'aegis', capybaraEnabled).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
@@ -123,6 +146,7 @@ export default function ShipPlot({
         contacts={contacts}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
+        scanning={scanning}
       />
       {aboard ? (
         <>
