@@ -32,9 +32,10 @@ service cloud.firestore {
     }
 
     match /sessions/{sessionId} {
-      // Anyone signed in may read the session header in order to find and join
-      // it by code. Everything interesting lives in subcollections.
-      allow get, list: if signedIn();
+      // Joining by code goes through the callable function, so session headers
+      // never need to be exposed to strangers or enumerable from the client.
+      allow get: if isMember(sessionId);
+      allow list: if false;
       // Created, phased and closed only by callable functions.
       allow create, update, delete: if false;
 

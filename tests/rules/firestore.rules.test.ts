@@ -4,7 +4,15 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 
@@ -75,8 +83,16 @@ beforeEach(async () => {
 const as = (uid: string) => env.authenticatedContext(uid).firestore();
 
 describe('session header', () => {
-  it('is readable by any signed-in user (so they can find it by code)', async () => {
-    await assertSucceeds(getDoc(doc(as('stranger'), SESSION)));
+  it('is readable by a session member', async () => {
+    await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+  });
+
+  it('is unreadable by a signed-in stranger', async () => {
+    await assertFails(getDoc(doc(as('stranger'), SESSION)));
+  });
+
+  it('cannot be listed to enumerate join codes', async () => {
+    await assertFails(getDocs(collection(as('stranger'), 'sessions')));
   });
 
   it('is unreadable when signed out', async () => {
