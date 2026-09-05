@@ -2,11 +2,26 @@
 
 Handoff notes. Everything needed is here; no prior conversation required.
 
-## The problem
+## Contents
 
-`.github/workflows/deploy.yml` authenticates to Google Cloud via Workload
-Identity Federation and then runs `firebase deploy`. Every run on `main` fails
-at the authentication step with:
+- [The recorded problem](#the-recorded-problem)
+- [Decision already made](#decision-already-made)
+- [0. Inventory](#0-inventory-before-you-build-anything)
+- [Facts you will need](#facts-you-will-need)
+- [1. Prerequisites](#1-prerequisites)
+- [2. Create the deploy service account](#2-create-the-deploy-service-account)
+- [3. Grant deployment roles](#3-grant-it-the-roles-the-deploy-actually-uses)
+- [4. Create the pool and provider](#4-create-the-pool-and-the-github-oidc-provider)
+- [5. Permit service-account impersonation](#5-let-this-repo-impersonate-the-service-account)
+- [6. Set GitHub variables](#6-set-the-three-github-repository-variables)
+- [7. Verify](#7-verify)
+- [Notes](#notes)
+
+## The recorded problem
+
+On 2026-09-04, `.github/workflows/deploy.yml` authenticated to Google Cloud via
+Workload Identity Federation and then ran `firebase deploy`. Every observed run
+on `main` failed at the authentication step with:
 
 ```
 google-github-actions/auth failed with: failed to generate Google Cloud
@@ -16,7 +31,8 @@ workloadIdentityPools/github-pool/providers/github-provider:
 rejected by the attribute condition."}
 ```
 
-Two things are wrong, and the second is the immediate cause:
+Two things were identified, and the second was the immediate cause. Confirm the
+current repository variables and provider before assuming they remain wrong:
 
 1. **The pool is in the wrong project.** `989373044067` is the project number of
    `downe-companion`. This repo deploys to `dow-new-eden-console`, which is
@@ -188,10 +204,9 @@ gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
 
 The workflow reads `vars.*`, so these are **variables**, not secrets.
 
-> The PAT currently on this machine returns HTTP 403 for Actions endpoints, so
-> `gh variable set` will fail until a token with repo admin rights is used, or
-> until they are set by hand at
-> Settings → Secrets and variables → Actions → Variables.
+> If `gh variable set` returns HTTP 403, authenticate with a token that has repo
+> admin rights or set the values by hand at Settings → Secrets and variables →
+> Actions → Variables.
 
 ```bash
 gh variable set FIREBASE_PROJECT_ID \

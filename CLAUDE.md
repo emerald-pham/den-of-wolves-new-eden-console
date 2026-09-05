@@ -3,9 +3,24 @@
 Working agreement for this repository. Applies to every agent and contributor.
 `AGENTS.md` exists only to point here.
 
-## The two rules
+## Contents
 
-### 1. Test first for code
+- [Test first for code](#1-test-first-for-code)
+- [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
+- [Worktree branch bootstrap](#worktree-branch-bootstrap)
+- [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
+- [Merge once done](#2-merge-once-done)
+- [Version references](#version-references)
+- [Stack](#stack-and-what-not-to-swap)
+- [Security model](#security-model--the-load-bearing-rule)
+- [State](#state)
+- [Navigability](#navigability--no-dead-ends)
+- [Session lifecycle and audit guardrails](#session-lifecycle-and-audit-guardrails)
+- [Layout](#layout)
+- [Definition of done](#definition-of-done)
+- [Aesthetic profiles and responsive UI](#aesthetic-profiles-and-responsive-ui)
+
+## 1. Test first for code
 
 Order of operations for *any* code change — a new function, a component, a
 callable function, a bug fix, a refactor, a one-line change:
@@ -102,7 +117,7 @@ developer's port-only config. When a task ends, stop its emulators so the slot
 becomes available. If all rows are occupied, add another row by continuing the
 same +10 offset; never take a port that is already listening.
 
-### 2. Merge once done
+## 2. Merge once done
 
 - Branch from `main`. Short-lived, one concern per branch.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the

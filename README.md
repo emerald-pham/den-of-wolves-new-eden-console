@@ -7,6 +7,15 @@ state backed by Firebase.
 
 > Unofficial and unaffiliated. Fan project.
 
+## Contents
+
+- [Stack](#stack)
+- [Layout](#layout)
+- [Security model](#security-model)
+- [Local development](#local-development)
+- [Tests](#tests)
+- [Deploying](#deploying)
+
 ## Stack
 
 | Layer | Choice |
@@ -15,7 +24,7 @@ state backed by Firebase.
 | Language | TypeScript, `strict` (plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`) |
 | UI | React 18 |
 | Local state | Zustand |
-| Shared state | Firestore, Web SDK v12 modular, offline persistence on |
+| Shared state | Firestore Web SDK v12 modular, with live snapshots and persisted Zustand recovery |
 | Server logic | Cloud Functions for Firebase, 2nd gen, Node 22 |
 | Routing | React Router, `HashRouter` |
 | Tests | Vitest + React Testing Library + `@firebase/rules-unit-testing` |

@@ -5,6 +5,15 @@ src/styles/cic.css and the existing components before inventing a new pattern.
 The reference implementations are src/components/ContactPlot.tsx,
 src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 
+## Contents
+
+- [Philosophy](#the-philosophy-and-what-it-rules-out)
+- [CIC / default interface](#cic--default-interface)
+- [Contact plot / threat board](#contact-plot--threat-board)
+- [Screen crossings](#screen-crossings)
+- [Intrusion / hostile takeover](#intrusion--hostile-takeover)
+- [Every viewport](#every-viewport)
+
 ## The philosophy, and what it rules out
 
 The reference is the Colonial fleet's displays in *Battlestar Galactica* (2003):
@@ -374,8 +383,10 @@ observer reads both rendered disc matrices and detects crossings of the full pro
 it does not advance an independent scan clock or cause React renders per frame.
 Each hit updates the apparent fix and starts a one-shot Web Animation for the
 blip decay. Cleanup cancels the observer and its blip animations.
-`data-still="true"` (set from `prefers-reduced-motion`, and it only ever escalates
-to still) stops the board and displays all contacts. Tuning knobs are
+`data-still="true"` (set from the effective motion preference) stops the board
+and displays all contacts. The effective preference follows
+`prefers-reduced-motion` unless the player chooses Reduce motion or Full motion
+in Settings; that local override persists on the device. Tuning knobs are
 `--plot-size`, `--plot-turn`, `--plot-glow`, `--plot-ink` and `--plot-hot`.
 
 ## Screen crossings
@@ -466,7 +477,9 @@ is already showing: a readout that "changes" to what it already reads looks like
 a panel that has stopped working.
 Resolve digits once over 1.1 seconds; never rapidly flicker.
 Reduced motion starts paused and a new reduced-motion preference pauses ongoing
-effects. Do not add a manual motion control. Clean up timers on exit.
+effects. The Settings control may override the system preference in either
+direction; all motion-bearing components must consume the shared effective
+preference from `src/lib/motionPreference.ts`. Clean up timers on exit.
 These are conservative motion choices, not a medical guarantee.
 
 ## Every viewport
