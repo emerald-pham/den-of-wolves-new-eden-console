@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 
 /**
  * Server-side authority for the companion console.
@@ -188,6 +189,12 @@ export const claimSeat = onCall<{ sessionId: string; seatId: string }>(
       if (!player.exists) {
         throw new HttpsError('permission-denied', 'Join the session first.');
       }
+      if (!canClaimSeat(player.get('seatId'))) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Release your current seat before claiming another.',
+        );
+      }
       if (!seat.exists) {
         throw new HttpsError('not-found', 'No such seat.');
       }
@@ -222,13 +229,21 @@ export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
       if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
 
       const holderUid = seat.get('holderUid') as string | null;
+      const holderRef = holderUid
+        ? db.doc(`sessions/${sessionId}/players/${holderUid}`)
+        : null;
+      const holder = holderRef ? await tx.get(holderRef) : null;
       if (holderUid !== uid) {
         await requireGm(sessionId, uid);
       }
 
       tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
-      if (holderUid) {
-        tx.update(db.doc(`sessions/${sessionId}/players/${holderUid}`), {
+      if (
+        holderRef &&
+        holder?.exists &&
+        shouldClearSeatPointer(holder.get('seatId'), seatId)
+      ) {
+        tx.update(holderRef, {
           seatId: null,
         });
       }

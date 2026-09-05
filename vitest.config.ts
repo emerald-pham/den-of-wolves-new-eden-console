@@ -28,6 +28,14 @@ export default defineConfig({
           testTimeout: 20_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'functions',
+          environment: 'node',
+          include: ['functions/src/**/*.test.ts'],
+        },
+      },
     ],
   },
 });

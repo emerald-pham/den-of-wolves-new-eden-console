@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false || tsc -b",
     "lint": "eslint . --ext .ts,.tsx",
-    "test": "vitest run --project unit",
+    "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --project rules\"",
     "test:all": "npm run test && npm run test:rules",
