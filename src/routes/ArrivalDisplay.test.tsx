@@ -30,6 +30,21 @@ it('turns each readout over every five seconds on proportionally staggered beats
   expect(readout(3)).toHaveTextContent('?');
 });
 
+it('draws one fixed estimated survivor population with no trailing zero or five', () => {
+  vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.5);
+  render(<ArrivalDisplay />);
+
+  expect(readout(4)).toHaveTextContent('222,501');
+  expect(screen.getByText('ESTIMATED SURVIVOR POPULATION')).toBeVisible();
+
+  const population = shown(4);
+  advance(60_000);
+  expect(shown(4)).toBe(population);
+  expect(Number(population.replaceAll(',', ''))).toBeGreaterThanOrEqual(222_500);
+  expect(Number(population.replaceAll(',', ''))).toBeLessThanOrEqual(242_500);
+  expect(population).not.toMatch(/[05]$/);
+});
+
 it('walks the wolves readout through its listed order', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0.5);
   render(<ArrivalDisplay />);
