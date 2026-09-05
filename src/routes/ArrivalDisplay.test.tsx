@@ -35,7 +35,7 @@ it('draws one fixed estimated survivor population with no trailing zero or five'
   render(<ArrivalDisplay />);
 
   expect(readout(4)).toHaveTextContent('222,501');
-  expect(screen.getByText('ESTIMATED SURVIVOR POPULATION')).toBeVisible();
+  expect(screen.getByText('SURVIVORS')).toBeVisible();
 
   const population = shown(4);
   advance(60_000);

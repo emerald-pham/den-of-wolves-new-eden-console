@@ -156,7 +156,7 @@ export default function ArrivalDisplay({
             <div className="arrival-readout__value" aria-label="Arrival readout 4">
               <span>{survivorPopulation}</span>
             </div>
-            <div className="arrival-readout__label">ESTIMATED SURVIVOR POPULATION</div>
+            <div className="arrival-readout__label">SURVIVORS</div>
           </div>
         </div>
       </section>
