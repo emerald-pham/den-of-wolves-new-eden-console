@@ -20,11 +20,9 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   return (
     <main className="session-mode">
       <div className="session-mode__panel cic-frame">
-        {mode === 'setup' && (
-          <Link className="session-mode__back cic-text-button" to="/roles">
-            Back to roles
-          </Link>
-        )}
+        <Link className="session-mode__back cic-text-button" to="/roles">
+          Back to roles
+        </Link>
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">{MODE_LABELS[mode]} connected</h1>
         <p className="role-select__lede">

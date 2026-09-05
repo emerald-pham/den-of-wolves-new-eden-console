@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -6,11 +6,15 @@ import { useSessionStore } from '@/store/useSessionStore';
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
-  listGmInstances: vi.fn(),
   kickGmInstance: vi.fn(),
 }));
 
-const { kickGmInstance, listGmInstances } = await import('@/lib/sessionService');
+vi.mock('@/lib/firestore', () => ({
+  subscribeGmInstances: vi.fn(),
+}));
+
+const { kickGmInstance } = await import('@/lib/sessionService');
+const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const local = {
   id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
@@ -48,6 +52,13 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
+function streamInstances(instances: readonly typeof local[]) {
+  vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
+    onInstances(instances);
+    return vi.fn();
+  });
+}
+
 it('redirects browsers without a local GM claim', () => {
   renderConsole();
   expect(screen.getByText('Roles route')).toBeInTheDocument();
@@ -55,7 +66,7 @@ it('redirects browsers without a local GM claim', () => {
 
 it('lists every GM instance and only offers to kick other instances', async () => {
   useSessionStore.getState().setGmInstance(local);
-  vi.mocked(listGmInstances).mockResolvedValue([local, other]);
+  streamInstances([local, other]);
   renderConsole();
 
   expect(await screen.findByText('Bridge laptop')).toBeInTheDocument();
@@ -67,7 +78,7 @@ it('lists every GM instance and only offers to kick other instances', async () =
 it('returns to the roles screen', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
-  vi.mocked(listGmInstances).mockResolvedValue([local]);
+  streamInstances([local]);
   renderConsole();
 
   await screen.findByText('Bridge laptop');
@@ -79,7 +90,7 @@ it('returns to the roles screen', async () => {
 it('kicks another instance and removes it from the list', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
-  vi.mocked(listGmInstances).mockResolvedValue([local, other]);
+  streamInstances([local, other]);
   vi.mocked(kickGmInstance).mockResolvedValue('applied');
   renderConsole();
 
@@ -87,4 +98,20 @@ it('kicks another instance and removes it from the list', async () => {
 
   expect(kickGmInstance).toHaveBeenCalledWith('other-1');
   await waitFor(() => expect(screen.queryByText('Tablet')).not.toBeInTheDocument());
+});
+
+it('updates when the live GM instance stream changes', async () => {
+  let publish: ((instances: readonly typeof local[]) => void) | undefined;
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
+    publish = onInstances;
+    onInstances([local]);
+    return vi.fn();
+  });
+  renderConsole();
+  await screen.findByText('Bridge laptop');
+
+  act(() => publish?.([local, other]));
+
+  expect(await screen.findByText('Tablet')).toBeInTheDocument();
 });

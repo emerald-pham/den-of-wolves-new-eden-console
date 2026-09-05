@@ -5,22 +5,24 @@ import RoleSelect from '@/routes/RoleSelect';
 import NotFound from '@/routes/NotFound';
 import SessionMode from '@/routes/SessionMode';
 import GmConsole from '@/routes/GmConsole';
-import { connect, reconcileGmAuthority } from '@/lib/sessionService';
+import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ContactPlot from '@/components/ContactPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
-import LastPlayerWarning from '@/components/LastPlayerWarning';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
+const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
 const SESSION_ROUTES = new Set(['/roles', '/gm', '/setup', '/console']);
 
 function AppRoutes() {
   const location = useLocation();
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
+  const sessionId = session?.id;
+  const playerUid = me?.uid;
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
   // The threat board lives above the router so it survives every navigation:
@@ -33,6 +35,25 @@ function AppRoutes() {
       setLastRoute(location.pathname);
     }
   }, [location.pathname, session, setLastRoute]);
+
+  useEffect(() => {
+    if (!sessionId || !playerUid) return;
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeSessionState }) => {
+      if (!active) return;
+      unsubscribe = subscribeSessionState(sessionId, playerUid, {
+        onSession: (next) => useSessionStore.getState().setSession(next),
+        onPlayer: (next) => useSessionStore.getState().setMe(next),
+        onSeats: (next) => useSessionStore.getState().setSeats(next),
+        onError: () => useSessionStore.getState().setConnection('offline'),
+      });
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [playerUid, sessionId]);
 
   const restoreRoute =
     lastRoute && SESSION_ROUTES.has(lastRoute) ? lastRoute : '/roles';
@@ -47,7 +68,6 @@ function AppRoutes() {
     <>
       <ContactPlot hostile={intrusion} />
       <AppHeader />
-      <LastPlayerWarning />
       <CommunicationError />
       <ScreenFade>
         {(screen) => (
@@ -86,6 +106,12 @@ export default function App() {
         void reconcileGmAuthority().catch(() => undefined);
       }
     }, GM_RECONCILE_INTERVAL_MS);
+    const heartbeat = window.setInterval(() => {
+      const state = useSessionStore.getState();
+      if (state.connection === 'live' && state.session && state.me) {
+        void refreshPresence().catch(() => state.setConnection('offline'));
+      }
+    }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
     const markOffline = () => {
       useSessionStore.getState().setConnection('offline');
@@ -100,6 +126,7 @@ export default function App() {
     return () => {
       window.clearInterval(retry);
       window.clearInterval(reconcileGm);
+      window.clearInterval(heartbeat);
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
     };

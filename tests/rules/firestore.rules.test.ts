@@ -56,12 +56,14 @@ beforeEach(async () => {
       role: 'player',
       displayName: 'Alice',
       seatId: null,
+      connected: true,
     });
     await setDoc(doc(db, `${SESSION}/players/gm1`), {
       uid: 'gm1',
       role: 'gm',
       displayName: 'GM',
       seatId: null,
+      connected: true,
     });
     await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
       uid: 'gm1',
@@ -94,6 +96,13 @@ describe('session header', () => {
 
   it('is unreadable by a signed-in stranger', async () => {
     await assertFails(getDoc(doc(as('stranger'), SESSION)));
+  });
+
+  it('is unreadable by a player who disconnected', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { connected: false });
+    });
+    await assertFails(getDoc(doc(as('alice'), SESSION)));
   });
 
   it('cannot be listed to enumerate join codes', async () => {
@@ -186,13 +195,14 @@ describe('seats', () => {
 });
 
 describe('players', () => {
-  it('a user may register their own presence as a player', async () => {
-    await assertSucceeds(
+  it('cannot self-register without redeeming a join code through the callable', async () => {
+    await assertFails(
       setDoc(doc(as('bob'), `${SESSION}/players/bob`), {
         uid: 'bob',
         role: 'player',
         displayName: 'Bob',
         seatId: null,
+        connected: true,
       }),
     );
   });

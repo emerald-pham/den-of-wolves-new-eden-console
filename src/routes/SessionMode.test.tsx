@@ -24,13 +24,17 @@ beforeEach(() => {
   useSessionStore.getState().setMode('setup');
 });
 
-it('returns from setup to the roles screen', async () => {
+it.each([
+  ['setup', 'setup'],
+  ['console', 'console'],
+] as const)('returns from %s to the roles screen', async (_label, mode) => {
   const user = userEvent.setup();
+  useSessionStore.getState().setMode(mode);
   render(
-    <MemoryRouter initialEntries={['/setup']}>
+    <MemoryRouter initialEntries={[`/${mode}`]}>
       <Routes>
         <Route path="/roles" element={<p>Roles route</p>} />
-        <Route path="/setup" element={<SessionMode mode="setup" />} />
+        <Route path={`/${mode}`} element={<SessionMode mode={mode} />} />
       </Routes>
     </MemoryRouter>,
   );

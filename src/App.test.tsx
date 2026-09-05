@@ -14,10 +14,17 @@ vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
   listGmInstances: vi.fn().mockResolvedValue([]),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
+  refreshPresence: vi.fn().mockResolvedValue(undefined),
   releaseGmInstance: vi.fn(),
 }));
 
-const { connect, disconnectFromSession, reconcileGmAuthority } = await import('@/lib/sessionService');
+vi.mock('@/lib/firestore', () => ({
+  subscribeSessionState: vi.fn(() => vi.fn()),
+}));
+
+const { connect, disconnectFromSession, reconcileGmAuthority, refreshPresence } =
+  await import('@/lib/sessionService');
+const { subscribeSessionState } = await import('@/lib/firestore');
 
 describe('App', () => {
   const session: GameSession = {
@@ -94,6 +101,19 @@ describe('App', () => {
     expect(reconcileGmAuthority).toHaveBeenCalled();
   });
 
+  it('renews live presence every ten seconds', async () => {
+    vi.useFakeTimers();
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setConnection('live');
+    render(<App />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(refreshPresence).toHaveBeenCalled();
+  });
+
   it('shows the active session code in the top-level header', () => {
     useSessionStore.getState().setSession(session);
 
@@ -115,6 +135,16 @@ describe('App', () => {
       await screen.findByRole('heading', { name: /roles connected/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
+  });
+
+  it('subscribes to authoritative session state while a player is connected', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+
+    render(<App />);
+
+    await waitFor(() => expect(subscribeSessionState).toHaveBeenCalledWith(
+      's1', 'u1', expect.any(Object),
+    ));
   });
 
   it('never follows an unrecognized route restored from local storage', async () => {

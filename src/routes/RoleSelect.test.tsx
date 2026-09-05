@@ -81,6 +81,7 @@ describe('RoleSelect', () => {
         id: 'instance-1', sessionId: 's1', uid: 'gm1', name,
         deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
       });
+      useSessionStore.getState().setMe(gm);
       return 'applied';
     });
     renderRoute();

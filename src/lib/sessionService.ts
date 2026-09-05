@@ -77,6 +77,7 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
       typeof result.instance === 'object' && result.instance !== null
     ) {
       store.setGmInstance(result.instance as GmInstance);
+      if (store.me) store.setMe({ ...store.me, role: 'gm' });
     }
     return;
   }
@@ -99,6 +100,7 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
     return 'queued';
   }
   try {
+    await ensureSignedIn();
     applyCommandResult(command, await executeCommand(command));
     return 'applied';
   } catch (cause) {
@@ -218,7 +220,6 @@ export async function resumeSession(sessionId: string): Promise<void> {
 }
 
 export async function claimGmInstance(name: string): Promise<CommandDisposition> {
-  await ensureSignedIn();
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Join a session before claiming GM.');
   return sendOrQueue({
@@ -256,6 +257,17 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
   return (await call({ sessionId: session.id })).data;
 }
 
+export async function refreshPresence(): Promise<void> {
+  await ensureSignedIn();
+  const session = useSessionStore.getState().session;
+  if (!session) return;
+  const call = httpsCallable<{ sessionId: string }, { sessionId: string }>(
+    functions(),
+    'refreshPresence',
+  );
+  await call({ sessionId: session.id });
+}
+
 export async function reconcileGmAuthority(): Promise<void> {
   const remembered = useSessionStore.getState().gmInstance;
   if (!remembered) return;
@@ -268,7 +280,6 @@ export async function reconcileGmAuthority(): Promise<void> {
 }
 
 export async function kickGmInstance(targetInstanceId: string): Promise<CommandDisposition> {
-  await ensureSignedIn();
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before kicking an instance.');
   return sendOrQueue({
@@ -284,7 +295,6 @@ export async function kickGmInstance(targetInstanceId: string): Promise<CommandD
 }
 
 export async function releaseGmInstance(): Promise<CommandDisposition> {
-  await ensureSignedIn();
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) return 'applied';
   return sendOrQueue({
@@ -300,16 +310,22 @@ export async function releaseGmInstance(): Promise<CommandDisposition> {
 }
 
 export async function disconnectFromSession(): Promise<CommandDisposition> {
-  await ensureSignedIn();
   const store = useSessionStore.getState();
+  store.setCommunicationError(null);
   if (!store.session) {
     store.disconnect();
     return 'applied';
   }
-  return sendOrQueue({
-    id: commandId(),
-    kind: 'disconnectFromSession',
-    payload: { sessionId: store.session.id },
-    createdAt: new Date().toISOString(),
-  });
+  try {
+    return await sendOrQueue({
+      id: commandId(),
+      kind: 'disconnectFromSession',
+      payload: { sessionId: store.session.id },
+      createdAt: new Date().toISOString(),
+    });
+  } finally {
+    // Leaving is immediate from this browser's perspective. If the network is
+    // down, store.disconnect preserves this one command for replay.
+    store.disconnect();
+  }
 }

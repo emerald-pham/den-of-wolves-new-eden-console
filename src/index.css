@@ -539,8 +539,7 @@ body {
   font: 0.68rem/1.5 var(--cic-mono);
 }
 
-.last-player-warning {
-  margin: 0.75rem;
+.settings-dialog__warning {
   border-left: 2px solid var(--cic-amber);
   padding: 0.75rem;
   background: color-mix(in srgb, var(--cic-amber) 10%, var(--cic-panel));

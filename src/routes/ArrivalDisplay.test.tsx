@@ -98,6 +98,13 @@ it('transmits at twenty seconds for five seconds, then a different message each 
   advance(55000);
   expect(screen.getByText('BE AFRAID')).toBeInTheDocument();
 });
+
+it('never uses the removed children threat', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.45);
+  render(<ArrivalDisplay />);
+  advance(20_000);
+  expect(document.body.textContent).not.toMatch(/your children will suffer/i);
+});
 it('draws from every hostile message, the newer threats included', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0.99);
   render(<ArrivalDisplay />);

@@ -119,6 +119,11 @@ route guard, or disconnecting as the only way out of a screen.
   `resumeSession`. Transient network failures keep the snapshot and mark the
   connection offline; `not-found`, `permission-denied`, and
   `failed-precondition` mean the snapshot is stale and must be cleared.
+- While connected, refresh the server presence lease every 10 seconds. The
+  server expires a device after 45 seconds without a heartbeat and reconciles
+  its membership lock, GM instances, and renewable session-retention deadline.
+  Shared session, player, seat, and GM-instance views use live snapshots so a
+  reconnect replaces cached state with server authority.
 - GM and Console are **device modes**, not freely selectable Firestore roles.
   Only a player whose server record already has role `gm` may enter GM mode.
   Console is available to any session member. Do not re-add Observer until its

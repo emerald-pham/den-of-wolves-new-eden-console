@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { kickGmInstance, listGmInstances } from '@/lib/sessionService';
+import { kickGmInstance } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance } from '@/types/game';
 
 export default function GmConsole() {
   const session = useSessionStore((state) => state.session);
+  const sessionId = session?.id;
   const me = useSessionStore((state) => state.me);
   const local = useSessionStore((state) => state.gmInstance);
   const isGm = useSessionStore(selectIsGm);
@@ -18,14 +19,31 @@ export default function GmConsole() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isGm) return;
-    let current = true;
-    void listGmInstances()
-      .then((next) => { if (current) setInstances(next); })
-      .catch(() => undefined)
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, [isGm]);
+    if (!isGm || !sessionId) return;
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeGmInstances }) => {
+      if (!active) return;
+      unsubscribe = subscribeGmInstances(
+        sessionId,
+        (next) => {
+          setInstances(next);
+          setLoading(false);
+        },
+        () => {
+          setLoading(false);
+          useSessionStore.getState().setCommunicationError({
+            code: 'gm-manifest-link',
+            message: 'The live GM instance manifest could not be refreshed.',
+          });
+        },
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [isGm, sessionId]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/roles" replace />;

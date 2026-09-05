@@ -154,6 +154,9 @@ describe('useSessionStore', () => {
     expect(selectIsGm(useSessionStore.getState())).toBe(false);
     useSessionStore.getState().setGmInstance(gmInstance);
     expect(selectIsGm(useSessionStore.getState())).toBe(true);
+    useSessionStore.getState().setMe(player);
+    expect(selectIsGm(useSessionStore.getState())).toBe(false);
+    useSessionStore.getState().setMe({ ...player, role: 'gm' });
     useSessionStore.getState().setSession({ ...session, id: 's2' });
     expect(selectIsGm(useSessionStore.getState())).toBe(false);
   });

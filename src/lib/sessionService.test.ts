@@ -153,6 +153,7 @@ describe('GM instance commands', () => {
       deviceLabel: expect.any(String),
     }));
     expect(useSessionStore.getState().gmInstance).toEqual(instance);
+    expect(useSessionStore.getState().me?.role).toBe('gm');
   });
 
   it('queues a GM command while offline without contacting Firebase', async () => {
@@ -273,18 +274,54 @@ describe('session lifecycle commands', () => {
     expect(httpsCallable).not.toHaveBeenCalled();
   });
 
-  it('queues an offline disconnect without pretending the server accepted it', async () => {
+  it('queues an offline disconnect and immediately clears the local session', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     useSessionStore.getState().setIdentity(session, player);
 
     await disconnectFromSession();
 
-    expect(useSessionStore.getState().session).toEqual(session);
+    expect(useSessionStore.getState().session).toBeNull();
     expect(useSessionStore.getState().pendingCommands).toEqual([
       expect.objectContaining({
         kind: 'disconnectFromSession',
         payload: { sessionId: 's1' },
       }),
     ]);
+  });
+
+  it('drops unrelated queued actions when disconnecting locally', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().enqueueCommand({
+      id: 'old-command', kind: 'claimGmInstance',
+      payload: {
+        sessionId: 's1', instanceId: 'instance-1', name: 'Bridge', deviceLabel: 'Browser',
+      },
+      createdAt: new Date().toISOString(),
+    });
+
+    await disconnectFromSession();
+
+    expect(useSessionStore.getState().pendingCommands).toEqual([
+      expect.objectContaining({ kind: 'disconnectFromSession' }),
+    ]);
+  });
+
+  it('clears local session state even when the server says it was already gone', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/permission-denied',
+      message: 'You are no longer in that session.',
+    }));
+
+    await expect(disconnectFromSession()).rejects.toMatchObject({
+      code: 'functions/permission-denied',
+    });
+
+    expect(useSessionStore.getState().session).toBeNull();
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'permission-denied',
+      message: 'You are no longer in that session.',
+    });
   });
 });

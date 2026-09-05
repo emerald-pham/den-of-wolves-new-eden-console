@@ -108,15 +108,19 @@ export const useSessionStore = create<SessionState>()(
       setLastRoute: (lastRoute) => set({ lastRoute }),
       setConnection: (connection) => set({ connection }),
       disconnect: () =>
-        set({
+        set((state) => ({
           session: null,
           seats: [],
           me: null,
           gmInstance: null,
-          communicationError: null,
           mode: null,
           lastRoute: null,
-        }),
+          // A queued disconnect must survive local teardown so it can tell the
+          // server that this device left. No other action remains meaningful.
+          pendingCommands: state.pendingCommands.filter(
+            (command) => command.kind === 'disconnectFromSession',
+          ),
+        })),
       reset: () => set({ ...initial }),
     }),
     {
@@ -136,7 +140,8 @@ export const useSessionStore = create<SessionState>()(
 );
 
 export const selectIsGm = (state: SessionState): boolean =>
-  state.gmInstance !== null && state.gmInstance.sessionId === state.session?.id;
+  state.me?.role === 'gm' && state.gmInstance !== null &&
+  state.gmInstance.sessionId === state.session?.id;
 
 /**
  * What the status light in the header shows.

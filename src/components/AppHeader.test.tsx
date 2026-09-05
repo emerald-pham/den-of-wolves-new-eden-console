@@ -6,10 +6,12 @@ import { useSessionStore } from '@/store/useSessionStore';
 import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
+  getSessionPresence: vi.fn(),
   releaseGmInstance: vi.fn(),
   disconnectFromSession: vi.fn(),
 }));
-const { releaseGmInstance, disconnectFromSession } = await import('@/lib/sessionService');
+const { getSessionPresence, releaseGmInstance } =
+  await import('@/lib/sessionService');
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -21,16 +23,30 @@ beforeEach(() => {
 
 afterEach(() => vi.restoreAllMocks());
 
-it('disconnects without showing a warning dialog', async () => {
+it('shows the last-player warning inside settings', async () => {
   const user = userEvent.setup();
-  vi.mocked(disconnectFromSession).mockResolvedValue('applied');
+  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 1 });
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
-  await user.click(screen.getByRole('button', { name: /disconnect/i }));
 
-  expect(disconnectFromSession).toHaveBeenCalledOnce();
-  expect(screen.queryByText(/you.re the last player to leave the server/i)).not.toBeInTheDocument();
+  expect(await screen.findByText(/you.re the last player to leave the server/i))
+    .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
+});
+
+it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {
+  const user = userEvent.setup();
+  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 2 });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  const settings = screen.getByRole('button', { name: /settings/i });
+  await user.click(settings);
+  expect(screen.getByRole('button', { name: /close settings/i })).toHaveFocus();
+
+  await user.keyboard('{Escape}');
+
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(settings).toHaveFocus();
 });
 
 it('releases this browser GM role from settings', async () => {

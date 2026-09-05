@@ -20,13 +20,14 @@ service cloud.firestore {
     }
 
     function isMember(sessionId) {
-      return signedIn() && exists(
-        /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
-      );
+      return signedIn()
+        && get(
+          /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
+        ).data.connected == true;
     }
 
     function isGm(sessionId) {
-      return signedIn() && get(
+      return isMember(sessionId) && get(
         /databases/$(database)/documents/sessions/$(sessionId)/players/$(uid())
       ).data.role == 'gm';
     }
@@ -42,16 +43,15 @@ service cloud.firestore {
       match /players/{playerUid} {
         allow get, list: if isMember(sessionId);
 
-        // A player registers their own presence, as a player, once.
-        allow create: if signedIn()
-          && playerUid == uid()
-          && request.resource.data.uid == uid()
-          && request.resource.data.role == 'player'
-          && request.resource.data.seatId == null;
+        // Join and resume are server-authoritative: knowing a session document
+        // id must never be enough to register yourself as a member.
+        allow create: if false;
 
         // They may change their display name and nothing else.
         allow update: if signedIn()
           && playerUid == uid()
+          && resource.data.connected == true
+          && request.resource.data.connected == true
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['displayName']);
 
