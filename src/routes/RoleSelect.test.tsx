@@ -122,7 +122,10 @@ describe('RoleSelect', () => {
 
     const claim = screen.getByRole('button', { name: /^join as gm/i });
     expect(claim).toBeDisabled();
-    await user.type(screen.getByRole('textbox', { name: /input name/i }), 'Bridge laptop');
+    const nameInput = screen.getByRole('textbox', { name: /^input gm name$/i });
+    await user.type(nameInput, 'Bridge laptop');
+
+    expect(nameInput).toHaveAccessibleName('Name inputted');
     await user.click(claim);
 
     expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop');
@@ -185,7 +188,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     expect(await screen.findByText(/failsafe.*no active gm/i)).toBeInTheDocument();
-    await user.type(screen.getByRole('textbox', { name: /input name/i }), 'Recovery');
+    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Recovery');
     const claim = await screen.findByRole('button', { name: /^join as gm/i });
     await waitFor(() => expect(claim).toBeEnabled());
     await user.click(claim);
