@@ -1,30 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { crossedPlane, apparentFix } from './sweep';
+import { apparentFix, rimDistance } from './sweep';
 
 const normalY = (degrees: number) => ({
   x: Math.sin(degrees * Math.PI / 180), y: 0, z: Math.cos(degrees * Math.PI / 180),
 });
 
-describe('rendered sweep intersections', () => {
-  it('does not refresh a forward contact at its bearing timer; waits for the disc at 90 degrees', () => {
-    const point = { x: 0, y: 0.2, z: 0.8 };
-    expect(crossedPlane(point, normalY(-1), normalY(1))).toBe(false);
-    expect(crossedPlane(point, normalY(89), normalY(91))).toBe(true);
-    expect(crossedPlane(point, normalY(269), normalY(271))).toBe(true);
-  });
-
-  it('detects polar planes using all three coordinates', () => {
-    const point = { x: 0.2, y: 0.6, z: 0.4 };
-    expect(crossedPlane(point, { x: 0, y: -0.5, z: 0.866 }, { x: 0, y: -0.866, z: 0.5 })).toBe(true);
-  });
-
-  it('does not repeatedly refresh a contact lying in a stationary plane', () => {
-    const point = { x: 0.4, y: 0.2, z: 0 };
-    expect(crossedPlane(point, null, normalY(0))).toBe(true);
-    expect(crossedPlane(point, normalY(0), normalY(0))).toBe(false);
-    expect(crossedPlane(point, normalY(0), normalY(1))).toBe(false);
-  });
-
+describe('apparent contact fixes', () => {
   it('keeps the display bearing within one degree of the immutable formation', () => {
     const point = Object.freeze({ x: 0, y: 0.2, z: 0.8 });
     const fixes = Array.from({ length: 20 }, (_, i) => apparentFix(point, i));
@@ -34,5 +15,25 @@ describe('rendered sweep intersections', () => {
       expect(Math.hypot(fix.x, fix.y, fix.z)).toBeCloseTo(Math.hypot(point.x, point.y, point.z));
     }
     expect(new Set(fixes.map(({ x }) => x)).size).toBeGreaterThan(1);
+  });
+});
+
+describe('visible sweep circumference', () => {
+  const camera = { x: 0, y: 0, z: 3 };
+  it.each([-1, 1])('crosses the visible rim on horizontal side %s', (side) => {
+    const point = { x: side * 0.5, y: 0, z: 0 };
+    expect(rimDistance(point, normalY(0), camera)).toBeLessThan(0);
+    expect(rimDistance(point, normalY(side * 80), camera)).toBeGreaterThan(0);
+  });
+  it.each([-1, 1])('includes the polar circumference on vertical side %s', (side) => {
+    const point = { x: 0, y: side * 0.5, z: 0 };
+    expect(rimDistance(point, { x: 0, y: 0, z: 1 }, camera)).toBeLessThan(0);
+    expect(rimDistance(point, { x: 0, y: side * 0.98, z: 0.17 }, camera)).toBeGreaterThan(0);
+  });
+  it('accounts for perspective and contact depth at the visible rim', () => {
+    // All three points project to the same location on the face-on rim.
+    for (const z of [-0.6, 0, 0.6]) {
+      expect(rimDistance({ x: 1 - z / 3, y: 0, z }, normalY(0), camera)).toBeCloseTo(0);
+    }
   });
 });

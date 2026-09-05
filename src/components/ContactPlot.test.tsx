@@ -238,33 +238,42 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   let normal = { x: 0, y: 0, z: 1 };
   vi.stubGlobal('DOMMatrixReadOnly', class {
     constructor(private value: string) {}
+    inverse() { return this; }
     transformPoint(point: DOMPointInit) {
       return this.value === 'sweep' ? normal : point;
     }
   });
   vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
     transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
+    width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
   }) as CSSStyleDeclaration);
-  const contact = { tag: 'AHEAD', x: 0, y: 0.2, z: 0.8, color: 'white' };
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    return (this.classList.contains('contact-plot__apparent')
+      ? { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 }
+      : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
+  });
+  // The displayed position can differ from a full 3D projection because the
+  // foreground return layer is flattened by CSS. Follow the actual anchor.
+  const contact = { tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' };
   const { container, rerender, unmount } = render(<ContactPlot contacts={[contact]} />);
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
   act(() => frame(0));
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
-  normal = { x: 1, y: 0, z: 0.01 };
+  normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
-  normal = { x: 1, y: 0, z: -0.01 };
+  normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
   expect(painted.map((e) => e.className)).toEqual(['contact-plot__blip', 'contact-plot__drop']);
   const fix = apparent()?.style.cssText;
-  normal = { x: 0.8, y: 0, z: -0.6 };
+  normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(48));
   expect(apparent()?.style.cssText).toBe(fix);
   rerender(<ContactPlot placement="widget" contacts={[contact, { ...contact, tag: 'NEW' }]} />);
   act(() => frame(64));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(1);
-  normal = { x: -1, y: 0, z: 0.1 };
+  normal = { x: 0, y: 0, z: 1 };
   act(() => frame(80));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
   expect(apparent()?.style.cssText).not.toBe(fix);

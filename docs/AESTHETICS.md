@@ -330,8 +330,9 @@ that is a different, flatter instrument.
    `|y|` and `--flip` = ±1 for the altitude line down to the equatorial plane,
    and `--phase` = `(bearing mod 180) / 180`.
 8. **Paint flare.** A frame observer reads each disc's rendered CSS transform.
-   A contact acquires and refreshes when its signed distance to either plane
-   crosses zero. Acquisition, a one-shot blip/altitude-line fade, and the display bearing
+   A contact acquires and refreshes when any part of either bright circumference
+   crosses its rendered screen position. The observer casts a viewing ray
+   through the actual contact anchor, accounting for CSS perspective and rig tilt. Acquisition, a one-shot blip/altitude-line fade, and the display bearing
    step share that event; there are no independent repeating contact timers.
    The bearing walk spans -1 to +1 degrees around the vertical axis, retaining
    canonical formation coordinates. Names remain solid after acquisition.
@@ -366,7 +367,7 @@ colour and introduces spoofed returns; it does not accelerate the sweep.
 ### Motion
 
 CSS owns the disc rotations and spoofed-return breakup. A requestAnimationFrame
-observer reads both rendered disc matrices and detects plane intersections;
+observer reads both rendered disc matrices and detects crossings of the full projected circumference, accounting for the rig tilt and CSS perspective;
 it does not advance an independent scan clock or cause React renders per frame.
 Each hit updates the apparent fix and starts a one-shot Web Animation for the
 blip decay. Cleanup cancels the observer and its blip animations.

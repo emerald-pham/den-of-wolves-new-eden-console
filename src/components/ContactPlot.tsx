@@ -17,7 +17,7 @@ import { followSweeps } from './sweep';
  * screen -- never whether it is there at all.
  *
  * CSS owns the sweep rotations. A frame observer reads those rendered planes
- * to acquire and refresh returns at their actual intersections. Reduced motion
+ * to acquire and refresh returns when their visible circumferences pass them. Reduced motion
  * stops both the CSS motion and the observer.
  */
 
