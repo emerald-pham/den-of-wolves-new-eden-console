@@ -1,0 +1,23 @@
+/* Shared aesthetic profiles. See docs/AESTHETICS.md before extending. */
+:root {
+  --cic-void: #080e12;
+  --cic-panel: #101c23;
+  --cic-ink: #d4e3e5;
+  --cic-muted: #91a9b2;
+  --cic-cyan: #83bbc5;
+  --cic-amber: #caa56b;
+  --cic-danger: #d18c7c;
+  --cic-rule: #344950;
+  --cic-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --cic-display: "Arial Narrow", Impact, sans-serif;
+  --cic-radius: 2px;
+  --cic-space: clamp(1rem, 3vw, 2.5rem);
+  --bg: var(--cic-void);
+  --bg-glow: var(--cic-panel);
+  --fg: var(--cic-ink);
+  --muted: var(--cic-muted);
+  --accent: var(--cic-amber);
+}
+.cic-overline { font: 0.65rem/1.6 var(--cic-mono); letter-spacing: 0.14em; color: var(--cic-muted); }
+.cic-text-button { color: var(--cic-cyan); background: none; border: 0; padding: 0.65rem; min-height: 44px; font: inherit; text-transform: uppercase; cursor: pointer; }
+.cic-text-button:focus-visible { outline: 2px solid var(--cic-amber); outline-offset: 2px; }
