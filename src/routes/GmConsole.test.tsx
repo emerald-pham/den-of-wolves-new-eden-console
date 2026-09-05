@@ -137,6 +137,8 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
 
   expect(await screen.findByRole('region', { name: /fleet dradis/i })).toBeInTheDocument();
   expect(screen.getByText(/dradis perspective.*aegis/i)).toBeInTheDocument();
+  expect(screen.getByText('DRADIS perspective // AEGIS // GALACTIC COORDINATES // 0000'))
+    .toBeInTheDocument();
   const aegisScan = container.querySelector('.gm-dradis .contact-plot__rig');
 
   await user.click(screen.getByRole('button', { name: /view dradis from shepherd/i }));

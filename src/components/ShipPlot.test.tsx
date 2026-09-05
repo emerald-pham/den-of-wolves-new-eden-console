@@ -43,10 +43,10 @@ it('shows the current galactic coordinate beside Zoom and in the expanded displa
   );
 
   const zoom = screen.getByRole('button', { name: /zoom into dradis/i });
-  expect(zoom.previousElementSibling).toHaveTextContent('0042');
+  expect(zoom.previousElementSibling).toHaveTextContent('GALACTIC COORDINATES // 0042');
 
   await user.click(zoom);
-  expect(screen.getByText(/galactic coordinates \/\/ 0042/i)).toBeInTheDocument();
+  expect(screen.getByText('GALACTIC COORDINATES // 0042')).toBeInTheDocument();
 });
 
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {

@@ -175,7 +175,7 @@ export default function ShipPlot({
           {expanded ? (
             <>
               <span className="ship-plot__galactic-coordinate">
-                Galactic coordinates // {galacticCoordinate}
+                GALACTIC COORDINATES // {galacticCoordinate}
               </span>
               <div
                 className="ship-plot__viewport"
@@ -219,7 +219,9 @@ export default function ShipPlot({
             </>
           ) : (
             <div className="ship-plot__compact-controls">
-              <span className="ship-plot__galactic-coordinate">{galacticCoordinate}</span>
+              <span className="ship-plot__galactic-coordinate">
+                GALACTIC COORDINATES // {galacticCoordinate}
+              </span>
               <button
                 className="ship-plot__toggle"
                 type="button"

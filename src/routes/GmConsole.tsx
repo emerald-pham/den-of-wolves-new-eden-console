@@ -280,7 +280,7 @@ export default function GmConsole() {
             </div>
             <div className="gm-dradis__controls">
               <p className="gm-dradis__perspective">
-                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // Galactic coordinates // {viewerCoordinate}
+                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
               </p>
               <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
                 {availableShips.map((ship) => (
