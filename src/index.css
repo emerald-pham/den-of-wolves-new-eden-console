@@ -589,6 +589,21 @@ body {
   padding: clamp(1.25rem, 4vw, 2.25rem);
 }
 
+.session-mode__back {
+  display: inline-flex;
+  align-items: center;
+  margin: -0.65rem 0 0.75rem -0.65rem;
+  font: 0.72rem/1 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-decoration: none;
+}
+
+.session-mode__back::before {
+  content: "←";
+  margin-right: 0.55rem;
+  color: var(--cic-amber);
+}
+
 @media (max-width: 42rem) {
   .app-header {
     align-items: stretch;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { kickGmInstance, listGmInstances } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import type { GmInstance } from '@/types/game';
@@ -44,6 +44,9 @@ export default function GmConsole() {
   return (
     <main className="session-mode gm-console">
       <section className="session-mode__panel cic-frame">
+        <Link className="session-mode__back cic-text-button" to="/roles">
+          Back to roles
+        </Link>
         <p className="eyebrow">{session.name}</p>
         <h1 className="role-select__title">GM Console</h1>
         <p className="role-select__lede">Active GM instances for session {session.joinCode}.</p>

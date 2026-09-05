@@ -64,6 +64,18 @@ it('lists every GM instance and only offers to kick other instances', async () =
   expect(screen.getAllByRole('button', { name: /kick/i })).toHaveLength(1);
 });
 
+it('returns to the roles screen', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  vi.mocked(listGmInstances).mockResolvedValue([local]);
+  renderConsole();
+
+  await screen.findByText('Bridge laptop');
+  await user.click(screen.getByRole('link', { name: /back to roles/i }));
+
+  expect(screen.getByText('Roles route')).toBeInTheDocument();
+});
+
 it('kicks another instance and removes it from the list', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
