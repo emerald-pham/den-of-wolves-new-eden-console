@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Intrusion from '@/components/Intrusion';
 
+/** Readouts turn over every CYCLE_MS, staggered so the three never move at
+ *  once. The stagger is a third of the cycle, and both scale together. */
+const CYCLE_MS = 7500;
 const manifests = [
   { label: 'SHIPS IN CONVOY', values: ['6', '7', '5', '0', '1', '3', '4'], offset: 0 },
-  { label: 'CREW', values: ['20', '18', '8', '6', '0', '21'], offset: 3000 },
-  { label: 'WOLF AMONG US', values: ['1', '?', '2'], offset: 6000 },
+  { label: 'CREW', values: ['20', '18', '8', '6', '0', '21'], offset: CYCLE_MS * 0.3 },
+  { label: 'WOLVES AMONG US', values: ['1', '?', '2'], offset: CYCLE_MS * 0.6 },
 ];
 const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'];
 
@@ -17,7 +20,7 @@ const messages = ['EARTH IS NOT FOR YOU', 'BE AFRAID', 'A COLD GRAVE AWAITS YOU'
 export default function ArrivalDisplay({
   onTransmission,
 }: {
-  onTransmission?: (active: boolean) => void;
+  onTransmission?: ((active: boolean) => void) | undefined;
 }) {
   const [paused, setPaused] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
   const [indices, setIndices] = useState([0, 0, 0]);
@@ -49,9 +52,9 @@ export default function ArrivalDisplay({
     manifests.forEach((manifest, index) => {
       const tick = () => {
         setIndices((previous) => previous.map((value, i) => i === index ? (value + 1) % manifest.values.length : value));
-        timers.push(window.setTimeout(tick, 10000));
+        timers.push(window.setTimeout(tick, CYCLE_MS));
       };
-      timers.push(window.setTimeout(tick, 10000 + manifest.offset));
+      timers.push(window.setTimeout(tick, CYCLE_MS + manifest.offset));
     });
     let lastMessage = -1;
     const transmit = () => {

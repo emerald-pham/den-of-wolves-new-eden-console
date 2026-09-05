@@ -52,25 +52,27 @@ describe('Landing', () => {
     expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   });
 
-  it('runs the contact plot behind the console and sends it hostile during an intrusion', () => {
+  it('reports an intrusion upward so the board behind every route can go hostile', () => {
     vi.useFakeTimers();
     try {
-      // A decorative background layer has no role, name or text to query by.
-      const { container } = renderLanding();
-      const plot = container.querySelector('.contact-plot');
+      const onTransmission = vi.fn();
+      render(
+        <MemoryRouter>
+          <Landing onTransmission={onTransmission} />
+        </MemoryRouter>,
+      );
 
-      expect(plot).toHaveAttribute('aria-hidden', 'true');
-      expect(plot).toHaveAttribute('data-hostile', 'false');
+      expect(onTransmission).toHaveBeenLastCalledWith(false);
 
       act(() => {
         vi.advanceTimersByTime(20_000);
       });
-      expect(plot).toHaveAttribute('data-hostile', 'true');
+      expect(onTransmission).toHaveBeenLastCalledWith(true);
 
       act(() => {
         vi.advanceTimersByTime(5_000);
       });
-      expect(plot).toHaveAttribute('data-hostile', 'false');
+      expect(onTransmission).toHaveBeenLastCalledWith(false);
     } finally {
       vi.useRealTimers();
     }

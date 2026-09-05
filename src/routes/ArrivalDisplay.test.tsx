@@ -11,23 +11,23 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 
-it('cycles the exact manifests every ten seconds with staggered starts and wraparound', () => {
+it('cycles the exact manifests every seven and a half seconds with staggered starts and wraparound', () => {
   render(<ArrivalDisplay />);
   expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('20');
   expect(screen.getByLabelText('Arrival readout 3')).toHaveTextContent('1');
-  advance(10000);
+  advance(7500);
   expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('7');
   expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('20');
-  advance(3000);
+  advance(2250);
   expect(screen.getByLabelText('Arrival readout 2')).toHaveTextContent('18');
-  advance(3000);
+  advance(2250);
   expect(screen.getByLabelText('Arrival readout 3')).toHaveTextContent('?');
   const ships = ['5', '0', '1', '3', '4', '6'];
   const crew = ['8', '6', '0', '21', '20', '18'];
   const wolves = ['2', '1', '?', '2', '1', '?'];
   ships.forEach((value, i) => {
-    advance(10000);
+    advance(7500);
     expect(screen.getByLabelText('Arrival readout 1').textContent).toBe(value);
     expect(screen.getByLabelText('Arrival readout 2').textContent).toBe(crew[i]);
     expect(screen.getByLabelText('Arrival readout 3').textContent).toBe(wolves[i]);
@@ -67,7 +67,7 @@ it('keeps descriptive labels visible while hiding sequences and franchise-specif
 
   expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   expect(screen.queryByText('DRADIS', { exact: false })).not.toBeInTheDocument();
-  for (const label of ['SHIPS IN CONVOY', 'CREW', 'WOLF AMONG US']) {
+  for (const label of ['SHIPS IN CONVOY', 'CREW', 'WOLVES AMONG US']) {
     expect(screen.getByText(label)).toBeVisible();
   }
   expect(screen.queryByText('6 — 7 — 5 — 0 — 1 — 3 — 4')).not.toBeInTheDocument();
