@@ -88,6 +88,9 @@ export default function PressConfetti() {
             onClick={() => setCoverOpen((open) => !open)}
           >{coverOpen ? 'EDITION READY' : 'HOLD THE PRESSES'}</button>
         </div>
+        <p className="confetti-dispenser__notice">
+          WARNING // WARNING // THIS WILL CAUSE SHREDDED PAPER TO ENTER THE BRIDGE OF ANY DOCKED SHIP
+        </p>
       </section>
       {burst > 0 && <div className="confetti-burst" key={burst} aria-hidden="true">
         {PAPER.map((piece) => <i
