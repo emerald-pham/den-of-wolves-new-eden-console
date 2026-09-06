@@ -941,6 +941,37 @@ export const assignWolfRoles = onCall<{
   return { roleIds: assignment.roleIds };
 });
 
+/** Remove the current wolf assignment so Setup can choose again. */
+export const resetWolves = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireGmInstanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
+  );
+  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.delete(secretRef);
+  });
+
+  return { reset: true as const };
+});
+
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
 export const popShipConfetti = onCall<{
   sessionId?: string; shipId?: string; roleId?: string;

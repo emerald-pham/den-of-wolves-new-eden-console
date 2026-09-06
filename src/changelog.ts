@@ -10,6 +10,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Wolf assignments now lock their checked roles in Setup and can be reset when the table needs a new selection.',
       'Maintenance cycle commands now use the same clear, framed controls as the rest of the ship console.',
     ],
   },

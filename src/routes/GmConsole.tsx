@@ -13,6 +13,7 @@ import { MAX_PLAYER_PRESET, MIN_PLAYER_PRESET, recommendedRoleIds } from '@/data
 import {
   assignWolves,
   assignWolfRoles,
+  resetWolves,
   kickGmInstance,
   setCapybaraEnabled,
   setDioneEnabled,
@@ -383,6 +384,19 @@ export default function GmConsole() {
     }
   }
 
+  async function resetWolfAssignment(): Promise<void> {
+    setAssigningWolves(true);
+    try {
+      await resetWolves();
+      setAssignedWolfRoleIds([]);
+      setManualWolfRoleIds([]);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setAssigningWolves(false);
+    }
+  }
+
   async function applyPreset(nextCount: number): Promise<void> {
     setApplyingPreset(true);
     try {
@@ -666,7 +680,7 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assigningWolves || activeRoleIds.length < 1}
+                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || activeRoleIds.length < 1}
                       onClick={() => void randomizeWolves(1)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 1 wolf'}
@@ -674,7 +688,7 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assigningWolves || activeRoleIds.length < 2}
+                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || activeRoleIds.length < 2}
                       onClick={() => void randomizeWolves(2)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 2 wolves'}
@@ -690,8 +704,11 @@ export default function GmConsole() {
                         <input
                           type="checkbox"
                           aria-label={`${role.name} manual wolf assignment`}
-                          checked={manualWolfRoleIds.includes(role.id)}
-                          disabled={assigningWolves || (!manualWolfRoleIds.includes(role.id) && manualWolfRoleIds.length === 2)}
+                          checked={(assignedWolfRoleIds.length > 0
+                            ? assignedWolfRoleIds
+                            : manualWolfRoleIds).includes(role.id)}
+                          disabled={assignedWolfRoleIds.length > 0 || assigningWolves ||
+                            (!manualWolfRoleIds.includes(role.id) && manualWolfRoleIds.length === 2)}
                           onChange={() => setManualWolfRoleIds((selected) =>
                             selected.includes(role.id)
                               ? selected.filter((id) => id !== role.id)
@@ -703,17 +720,27 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assigningWolves || manualWolfRoleIds.length === 0}
+                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || manualWolfRoleIds.length === 0}
                       onClick={() => void assignSelectedWolves()}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Assign selected wolves'}
                     </button>
                   </fieldset>
                   {assignedWolfRoleIds.length > 0 && (
-                    <p className="gm-wolf-result" role="status">
-                      Assigned // {assignedWolfRoleIds.map((roleId) =>
-                        CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId).join(', ')}
-                    </p>
+                    <>
+                      <p className="gm-wolf-result" role="status">
+                        Assigned // {assignedWolfRoleIds.map((roleId) =>
+                          CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId).join(', ')}
+                      </p>
+                      <button
+                        className="gm-controls-lock"
+                        type="button"
+                        disabled={assigningWolves}
+                        onClick={() => void resetWolfAssignment()}
+                      >
+                        {assigningWolves ? 'Resetting wolves…' : 'Reset wolves'}
+                      </button>
+                    </>
                   )}
                 </fieldset>
               </div>

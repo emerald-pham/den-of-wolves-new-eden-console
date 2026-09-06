@@ -26,6 +26,7 @@ const {
   reconcileGmAuthority,
   assignWolves,
   assignWolfRoles,
+  resetWolves,
   setCapybaraEnabled,
   setDioneEnabled,
   setGmControlsLocked,
@@ -364,6 +365,21 @@ describe('GM instance commands', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolfRoles');
     expect(callable).toHaveBeenCalledWith({
       sessionId: 's1', instanceId: 'instance-1', roleIds: ['press-officer'],
+    });
+  });
+
+  it('asks the server to reset the wolf assignment', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { reset: true } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(resetWolves()).resolves.toBeUndefined();
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetWolves');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1',
     });
   });
 
