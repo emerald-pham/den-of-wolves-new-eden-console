@@ -261,11 +261,14 @@ export async function createSession(name?: string): Promise<void> {
     throw new Error('Disconnect from the current session first.');
   }
   await ensureSignedIn();
-  const call = httpsCallable<{ name?: string }, SessionReply>(
+  const call = httpsCallable<{ name?: string; joinCodeVersion: 2 }, SessionReply>(
     functions(),
     'createSession',
   );
-  const reply = await call(name === undefined ? {} : { name });
+  const reply = await call({
+    ...(name === undefined ? {} : { name }),
+    joinCodeVersion: 2,
+  });
   applySession(reply.data);
 }
 

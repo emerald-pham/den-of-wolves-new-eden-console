@@ -352,7 +352,7 @@ body {
 }
 
 .landing__code {
-  width: 7.5rem;
+  width: 9rem;
   padding: 0.6rem 0.55rem 0.6rem 1.15rem;
   border: 1px solid var(--cic-rule);
   border-radius: var(--cic-radius);

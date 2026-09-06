@@ -156,6 +156,14 @@ describe('the launcher manifest', () => {
     expect(motionControl).not.toContain('text-transform:');
   });
 
+  it('reserves enough inline room for every current session-code digit', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const code = index.match(/\.landing__code\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(code).toContain('width: 9rem');
+    expect(code).toContain('letter-spacing: 0.4rem');
+  });
+
   it('uses shared value and label rows so every readout aligns', () => {
     const arrival = SHEETS.find(({ name }) => name === 'src/routes/arrival.css')?.css ?? '';
     const grid = arrival.match(/\.arrival-manifest__grid\s*\{([^}]*)\}/)?.[1] ?? '';

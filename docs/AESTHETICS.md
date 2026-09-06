@@ -199,6 +199,10 @@ can come from the existing type and border treatment without shrinking the
 touch target. This does not require unrelated instruments, icon controls, or
 multiline panels elsewhere to have identical dimensions.
 
+The six-digit Session code readout reserves 9rem of inline width, keeping all
+six monospaced digits and their tracking visible rather than making the input
+scroll its entered value out of sight.
+
 Keep spacing consistent within a group and labels close to their inputs. When
 space runs out, wrap in reading order with clear gaps; allow controls to grow
 for wrapped text rather than clipping it or shrinking text to force a row.

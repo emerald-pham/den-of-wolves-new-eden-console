@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Newer consoles create six-digit session codes while existing four-digit session codes remain valid.',
+      'After six code guesses in ten minutes, a console pauses briefly while other players sharing the venue network keep working normally.',
+    ],
+  },
+  {
+    version: '0.2.38',
+    changes: [
       'Session connections now verify that each console comes from the companion app, helping keep shared games responsive during abusive traffic spikes.',
       'When service capacity is briefly full, console commands now wait safely for a reconnect instead of disappearing.',
     ],
