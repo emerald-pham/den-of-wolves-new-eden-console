@@ -45,7 +45,10 @@ export default function AppHeader() {
   const disconnectQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
   const { reducedMotion, systemReducedMotion } = useMotionPreference();
-  const rank = findConsoleRole(activeConsoleRoleId ?? undefined)?.name ?? (gmInstance ? 'GM' : null);
+  const secondaryRole = findConsoleRole(activeConsoleRoleId ?? undefined)?.name;
+  const rank = gmInstance
+    ? ['GM', secondaryRole].filter(Boolean).join(' / ')
+    : (secondaryRole ?? null);
 
   function openSettings(): void {
     setSettingsOpen(true);

@@ -75,6 +75,22 @@ it('shows the player command rank in the top-right header', async () => {
   expect(await screen.findByText('1 connected to CIC')).toBeVisible();
 });
 
+it('shows GM followed by the secondary role when both are active', async () => {
+  useSessionStore.getState().setGmInstance({
+    id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'macOS / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setMe({
+    ...connectedPlayer('u1'),
+    activeConsoleRoleId: 'admiral',
+  });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  expect(screen.getByText('Rank: GM / Admiral')).toBeVisible();
+  expect(await screen.findByText('2 connected to CIC')).toBeVisible();
+});
+
 it('shows the last-player warning inside settings', async () => {
   const user = userEvent.setup();
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
