@@ -329,16 +329,21 @@ describe('friendly DRADIS returns', () => {
     expect(jitter).not.toContain('--contact-ink:');
   });
 
-  it('moves the distant ambient contact on its sampled vector and stills it for reduced motion', () => {
+  it('moves only spatial truth continuously and holds the visible return between sweeps', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
     const transit = plot.match(
-      /\.contact-plot__contact\[data-ambient='true'\]\s*\{([^}]*)\}/,
+      /\.contact-plot__contact\[data-moving='true'\][^{]*\.contact-plot__actual\s*\{([^}]*)\}/,
     )?.[1] ?? '';
+    const apparent = plot.match(/\.contact-plot__apparent\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(transit).toContain('animation: ambient-contact-transit');
+    expect(apparent).not.toContain('animation: ambient-contact-transit');
+    expect(apparent).toContain('var(--fix-x, var(--x))');
+    expect(apparent).toContain('var(--fix-y, var(--y))');
+    expect(apparent).toContain('var(--fix-z, var(--z))');
     expect(plot).toContain('@keyframes ambient-contact-transit');
     expect(plot).toMatch(
-      /\.contact-plot\[data-still='true'\][^{]*\.contact-plot__contact[^{]*\{[^}]*animation:\s*none/,
+      /\.contact-plot\[data-still='true'\][^{]*\.contact-plot__actual[^{]*\{[^}]*animation:\s*none/,
     );
     expect(plot).toMatch(
       /data-ambient='true'[^{}]*:not\(\[data-acquired='true'\]\)[^{}]*\{[^}]*opacity:\s*0/,
@@ -394,10 +399,10 @@ describe('friendly DRADIS returns', () => {
     expect(drop).not.toContain('animation');
   });
 
-  it('gives apparent returns a two-degree bearing drift without changing formation coordinates', () => {
+  it('keeps stationary apparent drift separate from formation coordinates', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
-    expect(plot).toContain('var(--fix-x, 0)');
-    expect(plot).toContain('var(--fix-z, 0)');
+    expect(plot).toContain('var(--fix-x, var(--x))');
+    expect(plot).toContain('var(--fix-z, var(--z))');
     expect(plot).not.toContain('@keyframes plot-drift');
   });
 

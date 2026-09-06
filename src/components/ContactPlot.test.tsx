@@ -213,11 +213,101 @@ it('keeps both sweep discs on the rig without an intrusion speed boost', () => {
 it('separates a contact from the fault that shakes it', () => {
   const { container } = render(<ContactPlot />);
 
-  // Canonical station, apparent scan drift, and break-up jitter are separate
-  // layers, so neither display effect can rewrite the true coordinate.
-  const apparent = contactsIn(container)[0]?.firstElementChild;
-  expect(apparent).toHaveClass('contact-plot__apparent');
-  expect(apparent?.firstElementChild).toHaveClass('contact-plot__jitter');
+  // Canonical position, apparent scan fix, and break-up jitter are separate
+  // layers, so neither display effect can rewrite spatial truth.
+  const actual = contactsIn(container)[0]?.firstElementChild;
+  expect(actual).toHaveClass('contact-plot__actual');
+  expect(actual?.nextElementSibling).toHaveClass('contact-plot__apparent');
+  expect(actual?.nextElementSibling?.firstElementChild).toHaveClass('contact-plot__jitter');
+});
+
+it('separates a moving contact true position from its sampled visible fix', () => {
+  const moving = {
+    tag: 'MOVING', x: -0.8, y: 0.1, z: 0.2, color: 'white',
+    transit: {
+      destination: { x: 0.7, y: -0.2, z: -0.3 },
+      durationMs: 120_000,
+      elapsedMs: 30_000,
+    },
+  };
+  const { container } = render(<ContactPlot contacts={[moving]} />);
+  const contact = contactsIn(container)[0];
+  const actual = contact?.querySelector('.contact-plot__actual');
+  const apparent = contact?.querySelector('.contact-plot__apparent');
+
+  expect(actual).toBeInTheDocument();
+  expect(apparent).toBeInTheDocument();
+  expect(actual?.parentElement).toBe(contact);
+  expect(apparent?.parentElement).toBe(contact);
+  expect(actual).not.toContainElement(apparent as HTMLElement);
+});
+
+it('holds a moving return at its sampled fix until another sweep crosses its true position', () => {
+  vi.useFakeTimers();
+  let frame: FrameRequestCallback = () => undefined;
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  Object.defineProperty(Element.prototype, 'animate', {
+    configurable: true,
+    writable: true,
+    value: vi.fn(() => ({ cancel: vi.fn() }) as unknown as Animation),
+  });
+  let normal = { x: 0, y: 0, z: 1 };
+  let actualPosition = { x: 80, y: 10, z: 20 };
+  vi.stubGlobal('DOMMatrixReadOnly', class {
+    constructor(private value: string) {}
+    inverse() { return this; }
+    transformPoint(point: DOMPointInit) {
+      if (this.value === 'sweep') return normal;
+      if (this.value === 'actual') return actualPosition;
+      return point;
+    }
+  });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
+    transform: element.classList.contains('contact-plot__sweep')
+      ? 'sweep'
+      : element.classList.contains('contact-plot__actual') ? 'actual' : 'none',
+    width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
+  }) as CSSStyleDeclaration);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    return (this.classList.contains('contact-plot__actual')
+      ? { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 }
+      : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
+  });
+  const moving = {
+    tag: 'MOVING', x: -0.8, y: 0.1, z: 0.2, color: 'white',
+    transit: {
+      destination: { x: 0.7, y: -0.2, z: -0.3 },
+      durationMs: 120_000,
+      elapsedMs: 30_000,
+    },
+  };
+  const { container, unmount } = render(<ContactPlot contacts={[moving]} />);
+  const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
+
+  act(() => frame(0));
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(16));
+  const firstFix = apparent?.style.cssText;
+  expect(firstFix).toContain('--fix-x: 0.8');
+  expect(firstFix).toContain('--fix-y: 0.1');
+  expect(firstFix).toContain('--fix-z: 0.2');
+
+  actualPosition = { x: 40, y: -30, z: 60 };
+  act(() => frame(32));
+  expect(apparent?.style.cssText).toBe(firstFix);
+
+  normal = { x: 0, y: 0, z: 1 };
+  act(() => frame(48));
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(64));
+  expect(apparent?.style.cssText).toContain('--fix-x: 0.4');
+  expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
+  expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
+  unmount();
 });
 
 it('groups every return above the three-dimensional scan planes', () => {
@@ -342,7 +432,7 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
   }) as CSSStyleDeclaration);
   vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-    return (this.classList.contains('contact-plot__apparent')
+    return (this.classList.contains('contact-plot__actual')
       ? { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 }
       : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
   });

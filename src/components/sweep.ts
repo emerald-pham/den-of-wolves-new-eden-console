@@ -46,6 +46,7 @@ export function followSweeps(plot: HTMLElement): () => void {
   // Live collection includes new/removed tracks without a new NodeList per frame.
   const contacts = plot.getElementsByClassName('contact-plot__contact');
   const returns = new Map<HTMLElement, {
+    actual: HTMLElement;
     apparent: HTMLElement;
     blip: HTMLElement;
     drop: HTMLElement | null;
@@ -92,15 +93,17 @@ export function followSweeps(plot: HTMLElement): () => void {
       const element = contacts[index];
       if (!(element instanceof HTMLElement)) continue;
       const existing = returns.get(element);
+      const actual = existing?.actual ?? element.querySelector<HTMLElement>('.contact-plot__actual');
       const apparent = existing?.apparent ?? element.querySelector<HTMLElement>('.contact-plot__apparent');
       const blip = existing?.blip ?? element.querySelector<HTMLElement>('.contact-plot__blip');
-      if (!apparent || !blip) continue;
+      if (!actual || !apparent || !blip) continue;
       const canonical = {
         x: Number(element.style.getPropertyValue('--x')),
         y: Number(element.style.getPropertyValue('--y')),
         z: Number(element.style.getPropertyValue('--z')),
       };
       const state = existing ?? {
+        actual,
         apparent,
         blip,
         drop: element.querySelector<HTMLElement>('.contact-plot__drop'),
@@ -111,7 +114,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         freshTimer: undefined,
       };
       returns.set(element, state);
-      const anchor = apparent.getBoundingClientRect();
+      const anchor = actual.getBoundingClientRect();
       const displayed = inverseRig.transformPoint({
         x: (anchor.x - bounds.x - bounds.width / 2) / radius,
         y: (anchor.y - bounds.y - bounds.height / 2) / radius,
@@ -130,12 +133,22 @@ export function followSweeps(plot: HTMLElement): () => void {
       // Both rims can cross within a few frames. Confirm the existing fix
       // while its paint is fresh; only a later crossing of a dimmed return
       // may choose another bearing, before starting its new flash.
-      if (firstAcquisition || now - state.scannedAt >= SCAN_FRESH_MS) {
-        // A transit already has real motion. Adding the stationary-contact
-        // bearing walk would make its scan fix jump away from that vector.
-        state.fix = element.dataset.moving === 'true'
-          ? canonical
-          : apparentFix(canonical, state.scans);
+      const moving = element.dataset.moving === 'true';
+      if (firstAcquisition || moving || now - state.scannedAt >= SCAN_FRESH_MS) {
+        if (moving) {
+          // The true-position marker follows the CSS trajectory continuously.
+          // Sample its current 3D translation only when a sweep reaches it;
+          // the separate visible return then holds this fix until another hit.
+          const actualTransform = new DOMMatrixReadOnly(getComputedStyle(actual).transform);
+          const sampled = actualTransform.transformPoint({ x: 0, y: 0, z: 0, w: 1 });
+          state.fix = {
+            x: sampled.x / radius,
+            y: sampled.y / radius,
+            z: sampled.z / radius,
+          };
+        } else {
+          state.fix = apparentFix(canonical, state.scans);
+        }
         state.scans += 1;
       }
       state.scannedAt = now;
@@ -146,8 +159,11 @@ export function followSweeps(plot: HTMLElement): () => void {
         element.dataset.scanFresh = 'false';
         state.freshTimer = undefined;
       }, SCAN_FRESH_MS);
-      apparent.style.setProperty('--fix-x', String(state.fix.x - canonical.x));
-      apparent.style.setProperty('--fix-z', String(state.fix.z - canonical.z));
+      apparent.style.setProperty('--fix-x', String(state.fix.x));
+      apparent.style.setProperty('--fix-y', String(state.fix.y));
+      apparent.style.setProperty('--fix-z', String(state.fix.z));
+      apparent.style.setProperty('--drop', String(Math.abs(state.fix.y)));
+      apparent.style.setProperty('--flip', state.fix.y < 0 ? '1' : '-1');
       state.paint.forEach((animation) => animation.cancel());
       const fade = [
         { opacity: 1, offset: 0 },

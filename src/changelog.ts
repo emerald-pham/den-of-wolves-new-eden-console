@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Moving DRADIS contacts now hold their last detected position until a sweep reveals their next position.',
+    ],
+  },
+  {
+    version: '0.2.19',
+    changes: [
       'Maintenance is now limited to one cycle per ship each turn, with the turn shown on every maintenance start control.',
       'The GM console now shows the current turn and provides the authoritative control for advancing it.',
     ],
