@@ -71,6 +71,36 @@
   outline-offset: 2px;
 }
 
+.cic-action-button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: transparent;
+  color: var(--cic-cyan);
+  font: 0.72rem/1.2 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.cic-action-button:hover:not(:disabled) {
+  border-color: var(--cic-amber);
+  background: color-mix(in srgb, var(--cic-cyan-dim) 18%, transparent);
+  color: var(--cic-cyan-hot);
+}
+
+.cic-action-button:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.cic-action-button:disabled {
+  color: var(--cic-muted);
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 /* Bracketed frame -- the CIC's one container.
    Corner brackets are painted with gradients rather than extra elements, so a
    frame never adds DOM, never joins the accessibility tree and never leaks

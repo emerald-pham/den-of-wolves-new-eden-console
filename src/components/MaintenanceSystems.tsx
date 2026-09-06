@@ -56,14 +56,14 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
-      <button className="cic-text-button" disabled={disabled(0)} onClick={() => void execute('begin')}>Begin maintenance cycle</button>
+      <button className="cic-action-button" disabled={disabled(0)} onClick={() => void execute('begin')}>Begin maintenance cycle</button>
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {
           const step = index + 1;
           return <li key={step} aria-current={cycle?.step === step ? 'step' : undefined}>
             <div className="maintenance-systems__step"><span>{step}</span><strong>{label}</strong></div>
-            {step === 1 && <button className="cic-text-button" disabled={disabled(1)} onClick={() => void execute('storage')}>Check storage</button>}
+            {step === 1 && <button className="cic-action-button" disabled={disabled(1)} onClick={() => void execute('storage')}>Check storage</button>}
             {step === 2 && <><p>Select food and water rations separately. Add both bonuses to the roll in step 3.</p>{rations}
               <fieldset disabled={disabled(2)} className="maintenance-controls"><legend>Choose rations</legend>
                 {(['Food', 'Water'] as const).map(resource => <label key={resource}>{resource} ration level
@@ -74,13 +74,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                     </option>)}
                   </select>
                 </label>)}
-                <button className="cic-text-button" onClick={() => void execute('rations', { foodLevel, waterLevel })}>Proceed with rations</button>
+                <button className="cic-action-button" onClick={() => void execute('rations', { foodLevel, waterLevel })}>Proceed with rations</button>
               </fieldset>
             </>}
             {step === 3 && <p>Roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1 unrest.</p>}
-            {step === 3 && <button className="cic-text-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
+            {step === 3 && <button className="cic-action-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
             {step === 4 && <p>Roll 1d6. Below current unrest deals 1 damage from rioting.</p>}
-            {step === 4 && <button className="cic-text-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
+            {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
             {step === 5 && <p>Charge consoles with the reactor, then resolve the consoles marked 5 when charged.</p>}
             <div className="aegis-system-grid">{systems.filter(system => system.timing === step || (step === 6 && system.timing === 7)).map(renderSystem)}</div>
             {step === 5 && <>
@@ -92,7 +92,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                     onChange={event => setConsoles(previous => event.target.checked ? [...previous, system.id] : previous.filter(id => id !== system.id))} />
                   {system.name}{cycle?.charges.includes(system.id) ? ' // Charged' : ''}
                 </label>)}
-                <button className="cic-text-button" onClick={() => void execute('reactor', { consoles })}>Power up reactor</button>
+                <button className="cic-action-button" onClick={() => void execute('reactor', { consoles })}>Power up reactor</button>
               </fieldset>
             </>}
             {step === 6 && <fieldset disabled={disabled(6)} className="maintenance-controls"><legend>Refuel docked shuttles // 1 fuel each</legend>
@@ -106,13 +106,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 </select>
               </label>)}
               {!docked.length && <p>No shuttles docked.</p>}
-              <button className="cic-text-button" onClick={() => void execute('bays', { refuels })}>Proceed with refuelling</button>
+              <button className="cic-action-button" onClick={() => void execute('bays', { refuels })}>Proceed with refuelling</button>
             </fieldset>}
             {cycle?.results[String(step)] && <p role="status">{cycle.results[String(step)]}</p>}
           </li>;
         })}
       </ol>
-      <button className="cic-text-button" disabled={disabled(7)} onClick={() => void execute('end')}>End maintenance cycle</button>
+      <button className="cic-action-button" disabled={disabled(7)} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
     </section>
     <div className="maintenance-systems__other">

@@ -21,6 +21,14 @@ it.each(['aegis', 'capybara'])('keeps %s controls visible and only unlocks the c
   expect(screen.getByRole('button', { name: 'Begin maintenance cycle' })).toBeDisabled();
   expect(screen.getByRole('combobox', { name: 'Food ration level' })).toBeDisabled();
 });
+it('presents every maintenance command as a boxed CIC action', () => {
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+
+  for (const button of screen.getAllByRole('button')) {
+    expect(button).toHaveClass('cic-action-button');
+    expect(button).not.toHaveClass('cic-text-button');
+  }
+});
 it('sends separate ration choices and displays server results across remounts', async () => {
   useSessionStore.setState({ session: { ...session, maintenanceCycles: { aegis: { step: 2, revision: 2, results: { '1': 'Storage intact. No resources lost.' }, charges: [], refuelled: [] } } } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);

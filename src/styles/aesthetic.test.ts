@@ -448,3 +448,16 @@ it('keeps maintenance choices touch-sized and disabled controls visibly muted', 
   expect(css).toContain('.maintenance-controls');
   expect(css).toMatch(/\.maintenance-systems button:disabled[^}]+color: var\(--cic-muted\)/s);
 });
+
+it('gives CIC actions the same square ruled control treatment as the console', () => {
+  const css = readFileSync('src/styles/cic.css', 'utf8');
+  const action = css.match(/\.cic-action-button\s*\{([^}]*)\}/)?.[1] ?? '';
+
+  expect(action).toContain('min-height: 44px');
+  expect(action).toContain('border: 1px solid var(--cic-amber-dim)');
+  expect(action).toContain('border-radius: var(--cic-radius)');
+  expect(action).toContain('background: transparent');
+  expect(action).toContain('color: var(--cic-cyan)');
+  expect(action).toContain('font: 0.72rem/1.2 var(--cic-mono)');
+  expect(action).toContain('text-transform: uppercase');
+});

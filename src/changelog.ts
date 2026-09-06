@@ -10,6 +10,18 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Maintenance cycle commands now use the same clear, framed controls as the rest of the ship console.',
+    ],
+  },
+  {
+    version: '0.2.10',
+    changes: [
+      'Fleet DRADIS displays now receive sparse, shared ambient contacts that travel on precise vectors and identify only after a qualifying scan.',
+    ],
+  },
+  {
+    version: '0.2.9',
+    changes: [
       'Maintenance cycle starts and completions now appear in the GM event log.',
       'The GM console flags any maintenance cycle still incomplete after five minutes.',
     ],

@@ -149,6 +149,10 @@ Shared utilities, all in src/styles/cic.css:
   Also available inline as an `::after` on `.arrival-topline` and `.eyebrow`.
 - `.cic-overline` — small amber uppercase mono caption.
 - `.cic-text-button` — borderless cyan control, 44px minimum.
+- `.cic-action-button` — the square, ruled command control for actions inside
+  an instrument. It uses an amber edge around cyan text, a transparent ground,
+  and a 44px minimum target; use `.cic-text-button` for link-like navigation
+  and low-emphasis controls instead.
 
 Arrival readouts show a value with its descriptive label underneath: SHIPS IN
 CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, WOLVES AMONG US, and POPULATION
@@ -184,6 +188,8 @@ and actual versus hypothetical damage states.
 Treat related controls as one composition. Boxed buttons and inputs in the same
 action row should share a height and align their top and bottom edges. Use a
 shared sizing rule so a later edit cannot quietly resize just one control.
+Maintenance-cycle commands use `.cic-action-button` at every step so disabled
+future actions retain the same control silhouette as the active command.
 The launcher uses a 48px minimum for Create, Session code, Join, and the motion
 button. The motion button follows Join in both visual and keyboard order;
 both Reduce motion and Restore motion use the same height. Secondary emphasis
