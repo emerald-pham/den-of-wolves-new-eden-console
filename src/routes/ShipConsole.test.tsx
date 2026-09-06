@@ -34,7 +34,13 @@ beforeEach(() => {
   vi.mocked(adjustShipUnrest).mockReset();
   vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
   vi.mocked(selectConsoleRole).mockReset();
-  vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
+  vi.mocked(selectConsoleRole).mockImplementation(async (roleId) => {
+    const current = useSessionStore.getState().me;
+    if (current) useSessionStore.getState().setMe({
+      ...current,
+      activeConsoleRoleId: roleId,
+    });
+  });
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   vi.mocked(subscribeDamageDraws).mockReset();
@@ -574,6 +580,44 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
     .toHaveTextContent(/1.*Storage.*2.*Rations.*3.*Unrest check.*4.*Riot check.*5.*Reactor.*6.*Shuttle Bay Zeta.*7.*Shuttle Bay Omega/i);
   expect(within(workspace).getByRole('table', { name: 'AEGIS ration schedule' }))
     .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
+});
+
+it('keeps ship controls read-only until the requested role is confirmed', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active' });
+  useSessionStore.getState().setConnection('live');
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(
+    new Error('That console role is already taken.'),
+  );
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+  expect(begin).toBeDisabled();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('admiral'));
+  expect(begin).toBeDisabled();
+});
+
+it('does not claim a role from a malformed cross-ship console route', async () => {
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role route is invalid.'));
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/admiral']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });
 
 it('shows authoritative AEGIS damage and its drawn card without exposing a damage control', async () => {

@@ -308,6 +308,7 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
 it('lets the active GM trigger a fleetwide contact only from expanded DRADIS', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setConnection('live');
   streamInstances([local]);
   vi.mocked(triggerDradisContact).mockResolvedValue(undefined);
   renderConsole();

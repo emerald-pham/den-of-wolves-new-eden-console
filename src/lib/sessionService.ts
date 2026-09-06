@@ -170,7 +170,7 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
   }
 }
 
-async function flushPendingCommands(): Promise<void> {
+async function flushPendingCommands(): Promise<boolean> {
   const store = useSessionStore.getState();
   for (const command of [...store.pendingCommands]) {
     if (Date.now() - Date.parse(command.createdAt) > COMMAND_RECONNECT_WINDOW_MS) {
@@ -185,20 +185,24 @@ async function flushPendingCommands(): Promise<void> {
       applyCommandResult(command, await executeCommand(command));
       store.removeCommand(command.id);
     } catch (cause) {
-      if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return;
+      if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;
       store.removeCommand(command.id);
       store.setCommunicationError(interception(cause));
     }
   }
+  return true;
 }
 
-function applySession(reply: SessionReply): void {
-  useSessionStore.getState().setIdentity({
+function applySession(reply: SessionReply, expectedSessionId?: string): boolean {
+  const store = useSessionStore.getState();
+  if (expectedSessionId !== undefined && store.session?.id !== expectedSessionId) return false;
+  store.setIdentity({
     ...reply.session,
     ...(reply.session.pressDispatch === undefined
       ? {}
       : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
   }, reply.player);
+  return true;
 }
 
 /**
@@ -234,7 +238,10 @@ export async function connect(): Promise<void> {
         store.disconnect();
       }
     }
-    await flushPendingCommands();
+    if (!await flushPendingCommands()) {
+      store.setConnection('offline');
+      return;
+    }
     if (useSessionStore.getState().gmInstance) {
       try {
         await reconcileGmAuthority();
@@ -351,13 +358,13 @@ export async function joinSession(joinCode: string): Promise<void> {
   applySession(reply.data);
 }
 
-export async function resumeSession(sessionId: string): Promise<void> {
+export async function resumeSession(sessionId: string): Promise<boolean> {
   const call = httpsCallable<{ sessionId: string }, SessionReply>(
     functions(),
     'resumeSession',
   );
   const reply = await call({ sessionId });
-  applySession(reply.data);
+  return applySession(reply.data, sessionId);
 }
 
 export async function claimGmInstance(name: string): Promise<CommandDisposition> {

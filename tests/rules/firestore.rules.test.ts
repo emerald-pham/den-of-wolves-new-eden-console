@@ -350,6 +350,19 @@ describe('players', () => {
     );
   });
 
+  it('rejects malformed or oversized player names', async () => {
+    await assertFails(
+      updateDoc(doc(as('alice'), `${SESSION}/players/alice`), {
+        displayName: { text: 'Alice' },
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(as('alice'), `${SESSION}/players/alice`), {
+        displayName: 'A'.repeat(41),
+      }),
+    );
+  });
+
   it('a user may not write another player document', async () => {
     await assertFails(
       updateDoc(doc(as('alice'), `${SESSION}/players/gm1`), {

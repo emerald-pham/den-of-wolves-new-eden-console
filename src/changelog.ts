@@ -10,6 +10,15 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Console controls now remain read-only until the station assignment is confirmed, including ship, joint-engineering, and Press controls.',
+      'Invalid console links now return safely without changing a player’s assigned role.',
+      'Leaving during a reconnect now stays disconnected, and unavailable connections visibly disable DRADIS effects until service returns.',
+      'GM rosters now stay readable if an older player record has a malformed name.',
+    ],
+  },
+  {
+    version: '0.2.33',
+    changes: [
       'Crew now see the exact damage card and outcome wherever damage resolves, including armour absorption, failed riots, and destruction when no card remains.',
     ],
   },
