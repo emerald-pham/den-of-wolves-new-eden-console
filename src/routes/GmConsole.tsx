@@ -4,6 +4,7 @@ import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
 import DradisRangeBands from '@/components/DradisRangeBands';
+import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -1015,6 +1016,7 @@ export default function GmConsole() {
                 ambientSession={session}
                 centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
               />
+              <DradisAirspaceTimer phase={currentPhase} />
               {dradisExpanded ? <DradisRangeBands className="gm-dradis__range-bands" /> : null}
               <button
                 className="gm-dradis__toggle"

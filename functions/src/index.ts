@@ -2201,7 +2201,16 @@ export const setFleetRedAlert = onCall<{
     };
     if (data.active && !current?.active) fleetRedAlert.raisedAt = new Date(now).toISOString();
     else if (lastRaisedAt !== undefined) fleetRedAlert.raisedAt = new Date(lastRaisedAt).toISOString();
-    tx.update(ref, { fleetRedAlert, updatedAt: FieldValue.serverTimestamp() });
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const turnPhase = phase?.turn === sessionTurn(session.get('currentTurn')) &&
+      phase.airspace.tickerActive
+      ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
+      : undefined;
+    tx.update(ref, {
+      fleetRedAlert,
+      ...(turnPhase ? { turnPhase } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
     return fleetRedAlert;
   });
 });

@@ -179,20 +179,37 @@ it('reserves space above the bottom-left warning for the expanded DRADIS compass
   expect(css).toMatch(/\.ship-plot:has\(\.contact-plot__red-alert\) \.ship-plot__compass\s*\{[^}]*bottom:\s*calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 2\.75rem\)/);
 });
 
-it('shows the blue airspace-restricted countdown at the bottom-left of DRADIS', () => {
+it('keeps both airspace-window countdowns at the lower left of compact and expanded DRADIS', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
-  const turnPhase = {
+  const restrictedPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
     openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
     airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
   };
 
-  render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={turnPhase} />);
+  const view = render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={restrictedPhase} />);
 
-  const countdown = screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' });
-  expect(countdown).toHaveAttribute('data-tone', 'blue');
+  expect(screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' }))
+    .toHaveAttribute('data-tone', 'blue');
+  fireEvent.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+  expect(screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' }))
+    .toHaveAttribute('data-tone', 'blue');
+
+  view.unmount();
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={{
+    ...restrictedPhase,
+    teamPhaseEndsAt: '2026-09-06T11:50:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  }} />);
+
+  expect(screen.getByRole('status', { name: 'Airspace open // 30:00 remaining' }))
+    .toHaveAttribute('data-tone', 'blue');
+  fireEvent.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+  expect(screen.getByRole('status', { name: 'Airspace open // 30:00 remaining' }))
+    .toHaveAttribute('data-tone', 'blue');
+
   const css = readFileSync('src/index.css', 'utf8');
   expect(css).toMatch(/\.turn-phase-timer\[data-tone=['"]blue['"]\][^}]*color:\s*var\(--cic-cyan-hot\)/);
 });

@@ -78,7 +78,7 @@ export interface TurnPhase {
   readonly openAirspaceEndsAt: Timestamp;
   readonly airspace: {
     readonly state: 'restricted' | 'lifted';
-    /** Stays true until Press publishes one new dispatch after this directive starts. */
+    /** Stays true until AEGIS or Press publishes newer fleet-broadcast copy. */
     readonly tickerActive: boolean;
     /** AEGIS may grant this exception to non-affiliated SNN vessels during restriction. */
     readonly pressAccess: boolean;

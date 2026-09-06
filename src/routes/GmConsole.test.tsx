@@ -316,6 +316,46 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
     .toHaveTextContent('COMBAT RANGES // LONG // MEDIUM // SHORT');
 });
 
+it('keeps each airspace-window countdown in compact and expanded fleet DRADIS', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  expect(await screen.findByRole('status', {
+    name: /Airspace restricted \/\/ \d{2}:\d{2} remaining/i,
+  })).toHaveAttribute('data-tone', 'blue');
+  fireEvent.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  expect(screen.getByRole('status', {
+    name: /Airspace restricted \/\/ \d{2}:\d{2} remaining/i,
+  })).toHaveAttribute('data-tone', 'blue');
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: new Date(Date.now() - 10 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  }));
+
+  expect(screen.getByRole('status', {
+    name: /Airspace open \/\/ \d{2}:\d{2} remaining/i,
+  })).toHaveAttribute('data-tone', 'blue');
+});
+
 it('lets the active GM trigger a fleetwide contact only from expanded DRADIS', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);

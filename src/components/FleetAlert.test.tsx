@@ -60,7 +60,7 @@ it('shows the latest press dispatch while no alert is active', () => {
   expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
-it('repeats the current airspace directive with substantial open space until Press transmits', () => {
+it('posts the current airspace window as a compact looping Airspace Control bulletin', () => {
   act(() => {
     const state = useSessionStore.getState();
     const now = new Date(Date.now());
@@ -77,10 +77,31 @@ it('repeats the current airspace directive with substantial open space until Pre
   });
   const { container } = render(<FleetBroadcast />);
 
-  expect(screen.getByRole('status', { name: 'AEGIS // AIRSPACE RESTRICTED' })).toBeVisible();
-  expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'airspace');
+  expect(screen.getByRole('status', {
+    name: 'AIRSPACE CONTROL // AIRSPACE RESTRICTED',
+  })).toBeVisible();
+  expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!,
+      pressDispatch: {
+        dispatches: [{ id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' }],
+        revision: 1,
+      },
+      turnPhase: {
+        ...state.session!.turnPhase!,
+        airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+      },
+    } as never);
+  });
+
+  expect(screen.getByRole('status', {
+    name: 'SNN // Convoy arrival confirmed',
+  })).toBeVisible();
 });
-it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
+
+it('names the lifted window as an Airspace Control bulletin', () => {
   act(() => {
     const state = useSessionStore.getState();
     const now = new Date(Date.now());
@@ -89,8 +110,8 @@ it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
       currentTurn: 1,
       turnPhase: {
         turn: 1,
-        teamPhaseEndsAt: new Date(now.getTime() - 5 * 60_000).toISOString(),
-        openAirspaceEndsAt: new Date(now.getTime() + 15 * 60_000).toISOString(),
+        teamPhaseEndsAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
         airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
       },
     } as never);
@@ -98,7 +119,9 @@ it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
 
   render(<FleetBroadcast />);
 
-  expect(screen.getByRole('status', { name: 'AEGIS // AIRSPACE OPEN' })).toBeVisible();
+  expect(screen.getByRole('status', {
+    name: 'AIRSPACE CONTROL // AIRSPACE OPEN',
+  })).toBeVisible();
 });
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();

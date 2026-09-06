@@ -9,7 +9,7 @@ import {
 import ContactPlot from './ContactPlot';
 import DradisEffectControls from './DradisEffectControls';
 import DradisRangeBands from './DradisRangeBands';
-import { DradisTeamPhaseTimer } from './TurnPhaseTimer';
+import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
@@ -150,7 +150,7 @@ export default function ShipPlot({
       />
       {aboard ? (
         <>
-          <DradisTeamPhaseTimer phase={turnPhase} />
+          <DradisAirspaceTimer phase={turnPhase} />
           <span className="ship-plot__label" aria-hidden="true">
             {expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
           </span>

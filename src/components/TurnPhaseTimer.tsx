@@ -20,30 +20,20 @@ function useTurnPhaseReadout(phase: TurnPhase | undefined): TurnPhaseReadout | u
   return turnPhaseReadout(phase, now);
 }
 
-/** The restricted-airspace clock remains an instrument inside the DRADIS frame. */
-export function DradisTeamPhaseTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
+/** Each live airspace window remains a non-interactive instrument inside DRADIS. */
+export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
   const readout = useTurnPhaseReadout(phase);
-  if (!readout || readout.kind !== 'team') return null;
+  const restricted = readout?.kind === 'team';
+  const open = readout?.kind === 'open' && phase?.airspace.state === 'lifted';
+  if (!restricted && !open) return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
+  const label = restricted ? 'Airspace restricted' : 'Airspace open';
   return (
     <div className="turn-phase-timer" role="status" aria-live="off"
-      aria-label={`Airspace restricted // ${time} remaining`} data-tone="blue">
-      <span>Airspace restricted</span>
+      aria-label={`${label} // ${time} remaining`} data-tone="blue">
+      <span>{label}</span>
       <strong>{time}</strong>
     </div>
-  );
-}
-
-/** The open-airspace clock occupies the lower edge of the fleet ticker. */
-export function TickerOpenAirspaceTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
-  const readout = useTurnPhaseReadout(phase);
-  if (!readout || readout.kind !== 'open' || phase?.airspace.state !== 'lifted') return null;
-  const time = formatTurnPhaseCountdown(readout.remainingMs);
-  return (
-    <span className="fleet-ticker__phase-timer" role="status" aria-live="off"
-      aria-label={`Airspace open // ${time} remaining`}>
-      Airspace open // {time}
-    </span>
   );
 }
 

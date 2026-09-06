@@ -75,7 +75,7 @@ it('uses revision zero when the session has no earlier dispatch', async () => {
   });
 });
 
-it('stops an airspace bulletin only when Press publishes new copy', async () => {
+it('stops an airspace bulletin when Press publishes new copy', async () => {
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',

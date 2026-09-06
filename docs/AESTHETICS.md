@@ -885,14 +885,15 @@ turn advance. Turn 1 has 10 minutes of restricted airspace followed by 20
 minutes of open airspace. Every later turn has 5 minutes of restricted airspace
 followed by 15 minutes of open airspace. Every console label says `AIRSPACE
 RESTRICTED` for the first window and `AIRSPACE OPEN` for the second. The
-restricted-airspace countdown is a blue, non-interactive instrument at DRADIS’s
-lower left. Once the server lifts
-the restriction, the airspace-open countdown sits at the lower left of the
-fleet ticker. The ticker automatically repeats `AIRSPACE RESTRICTED`, then
-`AIRSPACE OPEN`, with a deliberately much larger dead space than Press
-dispatches; each automatic bulletin remains until Press publishes new copy after
-it is queued. The ticker must not announce `AIRSPACE OPEN` until the shared
-server state has actually lifted the restriction.
+current airspace-window countdown is a blue, non-interactive instrument at
+DRADIS’s lower left in both compact and expanded shipboard and fleet views.
+At the same transition, Airspace Control posts a normal, long-gap ticker
+bulletin (`AIRSPACE CONTROL // AIRSPACE RESTRICTED` or `AIRSPACE CONTROL //
+AIRSPACE OPEN`) that loops until AEGIS or the Press sends newer broadcast copy.
+It never carries the countdown or adds a second ticker row, so the ticker keeps
+its compact measured height. The DRADIS instrument and Airspace Control
+bulletin must not say `AIRSPACE OPEN` until the shared server state has actually
+lifted the restriction.
 
 The GM’s first early-advance attempt during either live timer turns the same
 control into a danger-red `ARE YOU SURE?` confirmation. The confirmed advance

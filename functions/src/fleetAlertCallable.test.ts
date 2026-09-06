@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined as string | undefined }));
+const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined as string | undefined, turnPhase: undefined as unknown }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
@@ -11,13 +11,13 @@ import { setFleetRedAlert } from './index';
 const data = { sessionId: 's1', active: true, expectedRevision: 0 };
 const request = (input = data) => ({ data: input, auth: { uid: 'u1' } }) as CallableRequest<typeof data>;
 beforeEach(() => {
-  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined });
+  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined, turnPhase: undefined });
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.endsWith('/players')) return { docs: ['admiral', 'executive-officer', 'wing-commander'].map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, currentTurn: mock.currentTurn, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) } };
+      : { phase: mock.phase, currentTurn: mock.currentTurn, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) }, turnPhase: mock.turnPhase };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
 });
@@ -27,6 +27,25 @@ it('lets the active Admiral raise and cancel the shared warning', async () => {
   mock.active = true; mock.revision = 1;
   await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
   expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: false, revision: 2 }) }));
+});
+it('stops an airspace bulletin when AEGIS sends a new fleet alert', async () => {
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await setFleetRedAlert.run(request());
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+    },
+  }));
 });
 it('holds the player Admiral command at Turn 0 but lets an active GM intervene', async () => {
   mock.currentTurn = 0;

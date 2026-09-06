@@ -72,37 +72,6 @@ it('shows readable stationary copy in reduced motion and clears finite messages'
   act(() => vi.advanceTimersByTime(60000));
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
-it('keeps the airspace-open clock at the ticker edge even when Press has cleared the lane', () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
-  render(<FleetTicker turnPhase={{
-    turn: 2,
-    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
-    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
-    airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
-  }} />);
-
-  expect(screen.getByLabelText('Fleet broadcasts')).toBeVisible();
-  expect(screen.getByRole('status', {
-    name: 'Airspace open // 15:00 remaining',
-  })).toBeVisible();
-});
-it('waits for the server airspace handoff before declaring airspace open on the ticker', () => {
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
-  render(<FleetTicker message={{
-    id: 'airspace-restricted', text: 'AIRSPACE RESTRICTED', tone: 'normal', gap: 'airspace',
-  }} turnPhase={{
-    turn: 2,
-    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
-    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
-    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-  }} />);
-
-  expect(screen.queryByRole('status', {
-    name: 'Airspace open // 15:00 remaining',
-  })).not.toBeInTheDocument();
-});
 it('duplicates every moving broadcast into two seamless, screen-filling groups', () => {
   const { container } = render(<FleetTicker message={alert} />);
   const groups = container.querySelectorAll('.fleet-ticker__group');
@@ -128,6 +97,8 @@ it('reserves a vertically centred line box so SNN ticker text cannot clip at the
   expect(windowRule).toContain('min-block-size: 1.5rem');
   expect(groupRule).toContain('inset-block: 0');
   expect(groupRule).toContain('align-items: center');
+  expect(css).not.toContain('fleet-ticker__phase-timer');
+  expect(css).not.toMatch(/min-height:\s*3\.5rem/);
 });
 it('leaves a long gap between repeated press dispatches', async () => {
   const { container } = render(<FleetTicker message={{

@@ -4,7 +4,7 @@ import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
-type BulletinSource = 'AEGIS' | 'SNN';
+type BulletinSource = 'AEGIS' | 'AIRSPACE CONTROL' | 'SNN';
 
 function sourceBulletin(source: BulletinSource, text: string): string {
   const prefix = `${source} // `;
@@ -35,21 +35,20 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
-  const airspaceDirective = session && phase?.airspace.tickerActive
+  const airspaceBulletin = session && phase?.airspace.tickerActive
     ? {
         id: `${session.id}:airspace:${phase.turn}:${phase.airspace.state}`,
-        text: sourceBulletin('AEGIS', phase.airspace.state === 'restricted'
+        text: sourceBulletin('AIRSPACE CONTROL', phase.airspace.state === 'restricted'
           ? 'AIRSPACE RESTRICTED'
           : 'AIRSPACE OPEN'),
         tone: 'normal' as const,
-        gap: 'airspace' as const,
+        gap: 'long' as const,
       }
     : undefined;
-  const standingMessage = airspaceDirective ?? pressDispatch;
+  const standingMessage = airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
   if (!alert || alert.revision === 0) {
-    return <FleetTicker {...(standingMessage ? { message: standingMessage } : {})}
-      {...(phase === undefined ? {} : { turnPhase: phase })} />;
+    return <FleetTicker {...(standingMessage ? { message: standingMessage } : {})} />;
   }
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
@@ -60,6 +59,5 @@ export default function FleetBroadcast() {
     ...(alert.active
       ? (dispatchText ? { pressText: dispatchText } : {})
       : { passes: 2 }),
-  }} {...(standingMessage ? { fallback: standingMessage } : {})}
-    {...(phase === undefined ? {} : { turnPhase: phase })} />;
+  }} {...(standingMessage ? { fallback: standingMessage } : {})} />;
 }

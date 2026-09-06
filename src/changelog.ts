@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Airspace countdowns now stay at the lower left of compact and expanded DRADIS, while the compact ticker loops an Airspace Control bulletin until AEGIS or SNN sends newer copy.',
+    ],
+  },
+  {
+    version: '0.2.50',
+    changes: [
       'Fleet red alerts now remain in all-capital lettering as they scroll across the console.',
       'Every active Admiral alert now begins with an ICSN ADMIRAL source prefix, including edited warnings.',
     ],
