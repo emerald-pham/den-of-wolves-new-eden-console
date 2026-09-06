@@ -98,14 +98,16 @@ describe('Landing', () => {
 
   it('shows the status light as red before Firebase connects', () => {
     renderLanding();
-    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+    expect(screen.getByRole('status', { name: 'No connection to Firebase' }))
+      .toHaveAttribute('data-status', 'red');
   });
 
   it('shows the status light as yellow once Firebase is live but no session is joined', async () => {
     useSessionStore.getState().setConnection('live');
     renderLanding();
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveAttribute('data-status', 'yellow');
+      expect(screen.getByRole('status', { name: 'Connected to Firebase, not in a session' }))
+        .toHaveAttribute('data-status', 'yellow');
     });
   });
 

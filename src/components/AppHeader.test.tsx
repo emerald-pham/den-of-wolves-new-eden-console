@@ -76,6 +76,16 @@ it('keeps fleet broadcasts in the same measured header row as the session code',
   expect(await screen.findByText('2 connected to CIC')).toBeVisible();
 });
 
+it('keeps the press ticker in the top header before any fleet event', async () => {
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  const header = screen.getByRole('banner');
+  expect(header).toContainElement(screen.getByRole('status', {
+    name: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+  }));
+  expect(await screen.findByText('2 connected to CIC')).toBeVisible();
+});
+
 it('shows the player command rank in the top-right header', async () => {
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([connectedPlayer('u1')]);

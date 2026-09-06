@@ -15,6 +15,9 @@ beforeEach(() => {
 });
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
+  expect(screen.getByRole('status', {
+    name: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+  })).toBeVisible();
   expect(screen.getByRole('region', { name: 'Fleetwide red alert' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Raise fleetwide red alert' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Open red alert command cover' }));
@@ -26,9 +29,9 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
     const state = useSessionStore.getState();
     state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1 } });
   });
-  expect(screen.getByRole('status', { name: /wolf attack imminent/ })).toBeVisible();
-  expect(screen.getByRole('status', { name: /wolf attack imminent/ }))
-    .toHaveAccessibleName(/non-crew civilians must shelter in place until alert lifted/i);
+  expect(screen.getByRole('status', {
+    name: 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
+  })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Open red alert command cover' }));
   fireEvent.click(screen.getByRole('button', { name: 'Stand down' }));
   await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(false));
@@ -37,7 +40,9 @@ it('does not offer the command to other roles and shows fleet messages to them',
   act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
   render(<><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></>);
   expect(screen.queryByRole('button', { name: 'Fleetwide red alert' })).not.toBeInTheDocument();
-  expect(screen.getByRole('status', { name: /red alert cancelled by AEGIS/ })).toBeVisible();
+  expect(screen.getByRole('status', {
+    name: 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
+  })).toBeVisible();
 });
 it('disables offline commands and reports server failures', async () => {
   vi.mocked(setFleetRedAlert).mockRejectedValueOnce(new Error('Command rejected'));

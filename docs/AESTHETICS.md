@@ -212,9 +212,11 @@ instrument. They use the same ruled border, near-black ground, compact height,
 and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
-it. Moving broadcasts contain two identical groups, with enough copies in each
-group to span the available readout before the track loops between them.
-Reduced motion shows one stationary, wrapping message in the same instrument.
+it. The SNN ticker remains present before the first fleet event and between
+finite broadcasts, showing a neutral no-active-bulletins message while idle.
+Moving broadcasts contain two identical groups, with enough copies in each
+group to span the available readout before the track loops between them. Reduced
+motion shows one stationary, wrapping message in the same instrument.
 
 The AEGIS fleet-alert command occupies the guarded bridge-control housing that
 other ships use for the emergency confetti dispenser. Its closed command cover,
@@ -734,11 +736,12 @@ so nested workspace frames never reduce a resource name to an ellipsis.
 
 ### Fleet broadcast scroller
 
-Fleet broadcasts use one persistent viewport-bottom instrument, outside route
-transitions. Active AEGIS red alerts use hostile red type; stand-down copy uses
-normal bone-white type because the threat has ended. A ruled black ground keeps
-messages legible over every vessel's console. The Admiral command uses the
-shared framed action button, with a live status alongside it and inline errors.
+Fleet broadcasts use one persistent instrument in the measured top header,
+outside route transitions. Active AEGIS red alerts use hostile red type;
+stand-down and idle copy use normal bone-white type because no threat is active.
+A ruled black ground keeps messages legible over every vessel's console. The
+Admiral command uses the shared framed action button, with a live status
+alongside it and inline errors.
 
 Each full right-to-left pass takes 30 seconds. Alert copy repeats until replaced;
 stand-down copy makes two complete passes. Playback identity includes the session
@@ -747,9 +750,9 @@ A new alert immediately replaces a cancellation still playing. The shared
 FleetTicker accepts message copy, tone and optional pass count so press missives
 can use the same instrument when their publishing workflow is added.
 
-Broadcast lettering is uppercase and there is no pause control. The shared
-reduced-motion preference replaces motion
+Broadcast copy is authored in uppercase and there is no pause control. The
+shared reduced-motion preference replaces motion
 with wrapped, scrollable text and two 30-second reading periods for cancellation.
-Reserve page-bottom space, including the device safe area, so the instrument does
-not prevent access to the final console controls. Review at 320px phone, wide
-1440px desktop and short 844×390 landscape dimensions, including return navigation.
+The measured header height reserves the required page-top space as the ticker
+wraps. Review at 320px phone, wide 1440px desktop and short 844×390 landscape
+dimensions, including return navigation.

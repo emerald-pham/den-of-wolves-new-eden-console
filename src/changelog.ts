@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The top press ticker now remains visible between fleet events, with clearer all-capital red-alert shelter instructions for non-crew.',
+    ],
+  },
+  {
+    version: '0.2.20',
+    changes: [
       'Moving DRADIS contacts now hold their last detected position until a sweep reveals their next position.',
     ],
   },

@@ -10,7 +10,10 @@ export interface FleetMessage {
   readonly passes?: number;
 }
 
-function Message({ message }: { readonly message: FleetMessage }) {
+function Message({ message, fallback }: {
+  readonly message: FleetMessage;
+  readonly fallback?: FleetMessage;
+}) {
   const { reducedMotion } = useMotionPreference();
   const windowRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLSpanElement>(null);
@@ -49,7 +52,7 @@ function Message({ message }: { readonly message: FleetMessage }) {
       window.removeEventListener('resize', measure);
     };
   }, [message.text, reducedMotion]);
-  if (done) return null;
+  if (done) return fallback ? <Message key={fallback.id} message={fallback} /> : null;
   return <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone={message.tone} data-reduced={reducedMotion}>
     <div ref={windowRef} className="fleet-ticker__window" role="status" aria-label={message.text}
       aria-live="polite" aria-atomic="true">
@@ -76,6 +79,10 @@ function Message({ message }: { readonly message: FleetMessage }) {
 }
 
 /** Shared viewport surface for alert and press messages; identity owns playback. */
-export default function FleetTicker({ message }: { readonly message: FleetMessage }) {
-  return <Message key={message.id} message={message} />;
+export default function FleetTicker({ message, fallback }: {
+  readonly message: FleetMessage;
+  readonly fallback?: FleetMessage;
+}) {
+  return <Message key={message.id} message={message}
+    {...(fallback === undefined ? {} : { fallback })} />;
 }

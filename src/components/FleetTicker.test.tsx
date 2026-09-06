@@ -21,6 +21,18 @@ it('repeats the alert indefinitely and replaces it with exactly two cancellation
   view.unmount(); render(<FleetTicker message={cancelled} />);
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
+it('returns to a standing press bulletin after a finite broadcast completes', () => {
+  const standby = {
+    id: 'press-standby',
+    text: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+    tone: 'normal' as const,
+  };
+  render(<FleetTicker message={cancelled} fallback={standby} />);
+  const cancellationStatus = screen.getByRole('status', { name: cancelled.text });
+  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  expect(screen.getByRole('status', { name: standby.text })).toBeVisible();
+});
 it('runs press copy on the same surface without pause controls', () => {
   render(<FleetTicker message={{ id: 'press-1', text: 'Press missive', tone: 'normal' }} />);
   expect(screen.getByRole('status', { name: 'Press missive' })).toBeVisible();
