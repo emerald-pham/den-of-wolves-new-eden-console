@@ -181,6 +181,14 @@ describe('the GM console', () => {
     expect(grid).toContain('grid-template-columns: minmax(0, 1fr)');
   });
 
+  it('keeps nested GM headings compact and perspective buttons wide enough to wrap', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const heading = index.match(/\.gm-console \.gm-console__section-title\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(heading).toContain('font: 0.875rem/1.4 var(--cic-mono)');
+    expect(index).toMatch(/@container \(max-width: 20rem\)\s*\{\s*\.gm-fleet-resource-ship li\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+    expect(index).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr))');
+  });
+
   it('puts the GM instrument rail in document flow on phones and short screens', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     expect(index).toMatch(/@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{[^]*?\.gm-console__instruments\s*\{[^}]*position: static/);

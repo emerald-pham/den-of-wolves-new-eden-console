@@ -626,6 +626,27 @@ export async function assignWolfRoles(roleIds: readonly string[]): Promise<reado
   }
 }
 
+export async function resetWolves(): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before resetting wolves.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string },
+    { reset: true }
+  >(functions(), 'resetWolves');
+  try {
+    await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+    });
+  } catch (cause) {
+    store.setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function popShipConfetti(shipId: string, roleId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before using the dispenser.');

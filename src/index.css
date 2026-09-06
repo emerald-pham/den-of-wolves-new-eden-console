@@ -3075,3 +3075,15 @@ body {
     justify-self: end;
   }
 }
+
+.gm-fleet-resource-ship { container-type: inline-size; }
+@container (max-width: 20rem) {
+  .gm-fleet-resource-ship li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gm-fleet-resource-ship li > span,
+  .gm-fleet-resource-ship .resource-label > span {
+    overflow: visible;
+    white-space: normal;
+  }
+}

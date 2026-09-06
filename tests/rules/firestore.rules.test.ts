@@ -411,3 +411,14 @@ it('denies player and GM client writes to maintenance, charges, cargo and shuttl
     }
   }
 });
+
+describe('fleet red alert authority', () => {
+  it('allows member reads but denies player and GM direct alert writes', async () => {
+    await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), { fleetRedAlert: { active: true, revision: 1 } }));
+      await assertFails(updateDoc(doc(as(uid), SESSION), { fleetRedAlert: { active: false, revision: 2 } }));
+    }
+    await assertFails(getDoc(doc(as('outsider'), SESSION)));
+  });
+});

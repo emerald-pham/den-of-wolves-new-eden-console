@@ -57,6 +57,7 @@ export interface MaintenanceCycle {
 }
 
 export interface GameSession {
+  readonly fleetRedAlert?: { readonly active: boolean; readonly revision: number };
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;

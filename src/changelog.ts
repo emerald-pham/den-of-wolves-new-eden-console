@@ -14,6 +14,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.13',
+    changes: [
+      'The AEGIS Admiral can raise a fleetwide red alert that scrolls across every console until stood down.',
+      'Standing down replaces the warning with two passes of the cancellation broadcast.',
+    ],
+  },
+  {
+    version: '0.2.12',
+    changes: [
+      'Wolf assignments now lock their checked roles in Setup and can be reset when the table needs a new selection.',
+    ],
+  },
+  {
     version: '0.2.11',
     changes: [
       'Maintenance cycle commands now use the same clear, framed controls as the rest of the ship console.',

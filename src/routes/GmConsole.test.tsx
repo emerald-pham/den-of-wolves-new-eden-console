@@ -9,6 +9,7 @@ import GmConsole from './GmConsole';
 vi.mock('@/lib/sessionService', () => ({
   assignWolves: vi.fn(),
   assignWolfRoles: vi.fn(),
+  resetWolves: vi.fn(),
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
   setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
@@ -455,6 +456,7 @@ it('offers random or manual wolf assignments from the active roles', async () =>
   streamInstances([local]);
   vi.mocked(assignWolves).mockResolvedValue(['press-officer']);
   vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
+  vi.mocked(resetWolves).mockResolvedValue(undefined);
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
@@ -467,10 +469,38 @@ it('offers random or manual wolf assignments from the active roles', async () =>
   expect(assignWolves).toHaveBeenCalledWith(1);
   expect(await screen.findByText(/assigned.*press officer/i)).toBeInTheDocument();
 
+  await user.click(screen.getByRole('button', { name: /reset wolves/i }));
+
   await user.click(screen.getByRole('checkbox', { name: /press officer manual wolf assignment/i }));
   await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
   expect(assignWolfRoles).toHaveBeenCalledWith(['press-officer']);
 
+});
+
+it('locks assigned wolf checkmarks until the GM resets them', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
+  vi.mocked(resetWolves).mockResolvedValue(undefined);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const pressOfficer = screen.getByRole('checkbox', {
+    name: /press officer manual wolf assignment/i,
+  });
+  await user.click(pressOfficer);
+  await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
+
+  expect(pressOfficer).toBeChecked();
+  expect(pressOfficer).toBeDisabled();
+  expect(screen.getByRole('button', { name: /assign selected wolves/i })).toBeDisabled();
+
+  await user.click(screen.getByRole('button', { name: /reset wolves/i }));
+
+  expect(resetWolves).toHaveBeenCalledOnce();
+  expect(pressOfficer).not.toBeChecked();
+  expect(pressOfficer).toBeEnabled();
 });
 
 it('toggles Capybara off for the session and removes its perspective', async () => {

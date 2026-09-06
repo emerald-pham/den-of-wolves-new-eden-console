@@ -941,6 +941,37 @@ export const assignWolfRoles = onCall<{
   return { roleIds: assignment.roleIds };
 });
 
+/** Remove the current wolf assignment so Setup can choose again. */
+export const resetWolves = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireGmInstanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
+  );
+  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.delete(secretRef);
+  });
+
+  return { reset: true as const };
+});
+
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
 export const popShipConfetti = onCall<{
   sessionId?: string; shipId?: string; roleId?: string;
@@ -1746,5 +1777,37 @@ export const runMaintenance = onCall<{
       });
     }
     return result.cycle;
+  });
+});
+
+/** Admiral commands are serialized with the fleet's live alert revision. */
+export const setFleetRedAlert = onCall<{
+  sessionId: string; active: boolean; expectedRevision: number;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = request.data;
+  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision'].includes(key)) ||
+      typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+      typeof data.active !== 'boolean' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) {
+    throw new HttpsError('invalid-argument', 'Invalid fleet alert command.');
+  }
+  const ref = db.doc(`sessions/${data.sessionId}`);
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
+        player.get('activeConsoleRoleId') !== 'admiral') {
+      throw new HttpsError('permission-denied', 'Only the active AEGIS Admiral may command a fleet red alert.');
+    }
+    const session = await tx.get(ref);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
+    const current = session.get('fleetRedAlert') as { active: boolean; revision: number } | undefined;
+    if ((current?.revision ?? 0) !== data.expectedRevision) {
+      throw new HttpsError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.');
+    }
+    if ((current?.active ?? false) === data.active) return { revision: current?.revision ?? 0 };
+    const fleetRedAlert = { active: data.active, revision: data.expectedRevision + 1 };
+    tx.update(ref, { fleetRedAlert, updatedAt: FieldValue.serverTimestamp() });
+    return fleetRedAlert;
   });
 });
