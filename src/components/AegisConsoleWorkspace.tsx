@@ -1,3 +1,4 @@
+import FleetAlertControl from './FleetAlertControl';
 import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
@@ -57,6 +58,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
       jumpCosts={[console.jumpCosts.short, console.jumpCosts.medium, console.jumpCosts.long]}
       damage={damage}
     >
+      <FleetAlertControl />
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         renderSystem={system => <SystemCard key={system.id} system={system}
           damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}

@@ -681,3 +681,25 @@ readouts. An active cycle that reaches five minutes becomes a hostile-red alert
 within that same instrument; each overdue ship gets one compact line with its
 elapsed whole minutes. Multiple overdue ships stack without introducing a modal
 or covering the GM's controls.
+
+### Fleet broadcast scroller
+
+Fleet broadcasts use one persistent viewport-bottom instrument, outside route
+transitions. Active AEGIS red alerts use hostile red type; stand-down copy uses
+normal bone-white type because the threat has ended. A ruled black ground keeps
+messages legible over every vessel's console. The Admiral command uses the
+shared framed action button, with a live status alongside it and inline errors.
+
+Each full right-to-left pass takes 30 seconds. Alert copy repeats until replaced;
+stand-down copy makes two complete passes. Playback identity includes the session
+and alert revision, and completed passes survive navigation and tab reloads.
+A new alert immediately replaces a cancellation still playing. The shared
+FleetTicker accepts message copy, tone and optional pass count so press missives
+can use the same instrument when their publishing workflow is added.
+
+Broadcast lettering is uppercase and there is no pause control. The shared
+reduced-motion preference replaces motion
+with wrapped, scrollable text and two 30-second reading periods for cancellation.
+Reserve page-bottom space, including the device safe area, so the instrument does
+not prevent access to the final console controls. Review at 320px phone, wide
+1440px desktop and short 844×390 landscape dimensions, including return navigation.

@@ -54,6 +54,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
+    fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
     maintenanceCycles: data.maintenanceCycles ?? {},
     shuttleCargo: data.shuttleCargo ?? {},
     shuttleFuelled: data.shuttleFuelled ?? {},
