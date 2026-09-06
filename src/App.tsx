@@ -78,7 +78,7 @@ function AppRoutes() {
     );
 
   return (
-    <div data-motion={reducedMotion ? 'reduce' : 'full'}>
+    <div data-console-chrome={hasConsoleDradis(location.pathname)} data-motion={reducedMotion ? 'reduce' : 'full'}>
       <ShipPlot
         hostile={false}
         aboard={hasConsoleDradis(location.pathname)}

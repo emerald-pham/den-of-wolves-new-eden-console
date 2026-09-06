@@ -303,6 +303,13 @@ shuttlecraft or historical visits can never grow underneath or overlap DRADIS.
 On narrow screens the identity/workspace and rail enter document flow and the
 whole console scrolls; controls must never be compressed out of reach.
 
+On phones and short landscape screens, ship and shuttle consoles share frozen
+identity rows: the vessel name sticks to the safe top edge while its panel
+scrolls. Session controls and compact DRADIS scroll away with the opening
+document area. DRADIS begins below the measured session-header height, including
+wrapped rows and rotation; never put it behind those controls. The shared
+connection readout is “X connected to CIC”.
+
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several. Every
 connected role console, including independent roles, uses the compact shipboard

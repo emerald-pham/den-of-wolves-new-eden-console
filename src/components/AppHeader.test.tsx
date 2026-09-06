@@ -52,11 +52,11 @@ it('shows the current session personnel count in the top-right header', async ()
   });
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
-  expect(await screen.findByText('3 personnel connected to CIC')).toBeVisible();
+  expect(await screen.findByText('3 connected to CIC')).toBeVisible();
   act(() => publish?.([
     connectedPlayer('u1'), connectedPlayer('u2'), connectedPlayer('u3'), connectedPlayer('u4'),
   ]));
-  expect(screen.getByText('4 personnel connected to CIC')).toBeVisible();
+  expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
 it('shows the last-player warning inside settings', async () => {
@@ -137,4 +137,24 @@ it('releases a command role through settings and returns to role selection', asy
   await user.click(screen.getByRole('button', { name: /release role/i }));
 
   expect(releaseConsoleRole).toHaveBeenCalledOnce();
+});
+
+it('measures wrapped header rows and updates the shared instrument offset', () => {
+  let resize: ResizeObserverCallback = () => undefined;
+  const disconnect = vi.fn();
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: ResizeObserverCallback) { resize = callback; }
+    observe() {}
+    disconnect = disconnect;
+  });
+  const height = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    .mockReturnValue({ height: 92 } as DOMRect);
+  const { unmount } = render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('92px');
+  height.mockReturnValue({ height: 48 } as DOMRect);
+  act(() => resize([], {} as ResizeObserver));
+  expect(document.documentElement.style.getPropertyValue('--app-header-height')).toBe('48px');
+  unmount();
+  expect(disconnect).toHaveBeenCalled();
+  vi.unstubAllGlobals();
 });

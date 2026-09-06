@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConnectionIndicator from './ConnectionIndicator';
 import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
@@ -12,6 +12,22 @@ import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
 export default function AppHeader() {
   const navigate = useNavigate();
+  const header = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    const measure = () => document.documentElement.style.setProperty(
+      '--app-header-height', `${element.getBoundingClientRect().height}px`,
+    );
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => {
+      observer?.disconnect();
+      document.documentElement.style.removeProperty('--app-header-height');
+    };
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
@@ -119,7 +135,7 @@ export default function AppHeader() {
   }
 
   return (
-    <header className="app-header">
+    <header ref={header} className="app-header">
       {joinCode !== undefined && (
         <div className="session-badge" aria-label={`Session code ${joinCode}`}>
           <span className="session-badge__label">Session code</span>
@@ -128,7 +144,7 @@ export default function AppHeader() {
       )}
       {connectedPlayers !== null && (
         <div className="personnel-count" aria-live="polite">
-          {connectedPlayers} personnel connected to CIC
+          {connectedPlayers} connected to CIC
         </div>
       )}
       <ConnectionIndicator status={status} />
