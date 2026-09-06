@@ -10,7 +10,9 @@ const FLEET_ALERT_COOLDOWN_MS = FLEET_ALERT_COOLDOWN_MINUTES * 60 * 1000;
 
 export default function FleetAlertControl() {
   const access = useConsoleAccess();
-  const { session, me, connection } = useSessionStore();
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
+  const connection = useSessionStore((state) => state.connection);
   const isGm = useSessionStore(selectIsGm);
   const defaultMessage = DEFAULT_FLEET_ALERT_MESSAGE.toUpperCase();
   const [text, setText] = useState((session?.fleetRedAlert?.text ?? defaultMessage).toUpperCase());

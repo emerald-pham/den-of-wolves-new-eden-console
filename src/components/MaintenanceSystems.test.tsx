@@ -63,6 +63,29 @@ it('presents every maintenance command as a boxed CIC action', () => {
     expect(button).not.toHaveClass('cic-text-button');
   }
 });
+
+it('does not rebuild maintenance modules for seat-only snapshots', () => {
+  const renderSystem = vi.fn(() => <span key="reactor">Reactor module</span>);
+  render(
+    <MaintenanceSystems
+      name="AEGIS"
+      shipId="aegis"
+      systems={[{ id: 'reactor', name: 'Reactor', timing: 5 }]}
+      renderSystem={renderSystem}
+      rations={null}
+    />,
+  );
+  expect(renderSystem).toHaveBeenCalled();
+  renderSystem.mockClear();
+
+  act(() => useSessionStore.getState().setSeats([{
+    id: 'seat-1', sessionId: 's1', label: 'Bridge', factionId: null,
+    status: 'open', holderUid: null, claimedAt: null,
+  }]));
+
+  expect(renderSystem).not.toHaveBeenCalled();
+});
+
 it('sends separate ration choices and displays server results across remounts', async () => {
   useSessionStore.setState({ session: { ...session, maintenanceCycles: { aegis: { step: 2, revision: 2, results: { '1': 'Storage intact. No resources lost.' }, charges: [], refuelled: [] } } } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);

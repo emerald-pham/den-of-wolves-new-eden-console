@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'DRADIS and live console instruments now stay more responsive during busy sessions while keeping the same scan behavior and visual effects.',
+      'GM maintenance alerts still appear at their exact deadlines while the command console does less unnecessary redrawing.',
+    ],
+  },
+  {
+    version: '0.2.44',
+    changes: [
       'DRADIS returns now identify their combat range, with every fleet ship reporting SHORT RANGE without changing its plotted position.',
       'Live-turn instruments and shuttle procedures now say AIRSPACE RESTRICTED and AIRSPACE OPEN.',
       'SNN ticker lettering now has clear vertical room instead of clipping along its lower edge.',

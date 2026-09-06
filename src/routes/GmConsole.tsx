@@ -8,6 +8,7 @@ import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
 import { fleetViewFrom } from '@/data/fleetFormation';
+import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
@@ -191,6 +192,7 @@ export default function GmConsole() {
     combatRange: ship.combatRange,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
+  const nextClockUpdate = nextGmClockUpdate(session, clock);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
     const startedAt = cycle.startedAt ? Date.parse(cycle.startedAt) : Number.NaN;
     const elapsed = clock - startedAt;
@@ -307,9 +309,13 @@ export default function GmConsole() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
-    return () => window.clearInterval(timer);
-  }, []);
+    if (nextClockUpdate === undefined) return;
+    const timer = window.setTimeout(
+      () => setClock(Date.now()),
+      Math.max(1, nextClockUpdate - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [nextClockUpdate]);
 
   useEffect(() => {
     setConfirmTurnOverride(false);

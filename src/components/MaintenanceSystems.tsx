@@ -27,7 +27,9 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   readonly rations: ReactNode;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
 }) {
-  const { session, me, connection } = useSessionStore();
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
+  const connection = useSessionStore((state) => state.connection);
   const isGm = useSessionStore(selectIsGm);
   const access = useConsoleAccess();
   const cycle = session?.maintenanceCycles?.[shipId];

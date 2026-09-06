@@ -522,6 +522,65 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(cancel).toHaveBeenCalled();
 });
 
+it('reuses stationary return projections until DRADIS geometry changes', () => {
+  let frame: FrameRequestCallback = () => undefined;
+  let notifyResize: (() => void) | undefined;
+  let normal = { x: 0, y: 0, z: 1 };
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: ResizeObserverCallback) {
+      notifyResize = () => callback([], this as unknown as ResizeObserver);
+    }
+
+    observe() {}
+    disconnect() {}
+  });
+  vi.stubGlobal('DOMMatrixReadOnly', class {
+    constructor(private value: string) {}
+    inverse() { return this; }
+    transformPoint(point: DOMPointInit) {
+      return this.value === 'sweep' ? normal : point;
+    }
+  });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
+    transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
+    width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
+  }) as CSSStyleDeclaration);
+  const actualBounds = vi.fn();
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot__actual')) {
+      actualBounds();
+      return { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 } as DOMRect;
+    }
+    return { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 } as DOMRect;
+  });
+
+  const { container } = render(
+    <ContactPlot contacts={[{ tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' }]} />,
+  );
+
+  act(() => frame(0));
+  normal = { x: 0.5, y: 0, z: 0.866 };
+  act(() => frame(16));
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(32));
+  // The sweep itself is still sampled on each animation frame. A stationary
+  // return's screen projection only changes when the plot's geometry changes.
+  expect(actualBounds).toHaveBeenCalledTimes(1);
+  expect(container.querySelector('.contact-plot__apparent')).toHaveAttribute(
+    'data-acquired',
+    'true',
+  );
+
+  act(() => notifyResize?.());
+  act(() => frame(48));
+  expect(actualBounds).toHaveBeenCalledTimes(2);
+});
+
 it('shows a bottom-left warning for active fleet alerts and clears it on stand-down', () => {
   useSessionStore.setState({ session: { id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '', fleetRedAlert: { active: true, revision: 1 } } });
   const { container } = render(<ContactPlot placement="widget" />);

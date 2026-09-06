@@ -5,7 +5,8 @@ import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
 export default function FleetBroadcast() {
-  const { session, me } = useSessionStore();
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
   const alert = session?.fleetRedAlert;
   const phase = phaseForSession(session);
   const dispatchState = normalizePressDispatch(session?.pressDispatch);
