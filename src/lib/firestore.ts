@@ -13,12 +13,13 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { app } from './firebase';
-import { useEmulators } from './firebaseConfig';
+import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type { GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
 import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
 import { shipResources, shipUnrest } from '@/data/resources';
+import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 
 let firestore: Firestore | undefined;
 
@@ -27,7 +28,7 @@ export function db(): Firestore {
     // The persisted Zustand snapshot and short-lived outbox own offline state;
     // Firestore's listener reconnect supplies fresh server authority.
     firestore = getFirestore(app());
-    if (useEmulators) connectFirestoreEmulator(firestore, '127.0.0.1', 8080);
+    if (useEmulators) connectFirestoreEmulator(firestore, '127.0.0.1', emulatorPorts.firestore);
   }
   return firestore;
 }
@@ -55,7 +56,8 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     shipResources: shipResources(data.shipResources),
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: typeof data.shipSurvivors === 'object' && data.shipSurvivors !== null
-      ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']> : { capybara: 20000 },
+      ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']>
+      : INITIAL_SHIP_SURVIVORS,
     populationAlerts: typeof data.populationAlerts === 'object' && data.populationAlerts !== null
       ? data.populationAlerts as NonNullable<GameSession['populationAlerts']> : {},
     unrestAlerts:

@@ -501,6 +501,91 @@ it('marks who fired ship confetti on every receiving console', async () => {
   expect(screen.getByRole('status')).toHaveTextContent(/discharged by.*admiral.*alice/i);
 });
 
+it('gives the Admiral a pageable AEGIS ship-systems console', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const workspace = screen.getByRole('region', { name: 'AEGIS Admiral console' });
+  expect(workspace).toHaveTextContent(/galactic coordinates.*0000/i);
+  expect(workspace).toHaveTextContent(/reactor capacity.*5 consoles/i);
+  for (const consoleName of [
+    'Armoured Hull I', 'Armoured Hull II', 'Storage', 'Reactor',
+    'Shuttle Bay Zeta', 'Shuttle Bay Omega', 'Jump Drive', 'Construction Bay',
+  ]) {
+    expect(within(workspace).getByRole('heading', { name: consoleName })).toBeInTheDocument();
+  }
+  expect(within(workspace).getAllByText(/short.*2.*medium.*3.*long.*6/i)).toHaveLength(2);
+
+  await user.click(within(workspace).getByRole('button', { name: 'Maintenance cycle' }));
+  expect(within(workspace).getByRole('list', { name: 'AEGIS maintenance sequence' }))
+    .toHaveTextContent(/1.*Storage.*2.*Rations.*3.*Unrest check.*4.*Riot check.*5.*Reactor.*6.*Shuttle Bay Zeta.*7.*Shuttle Bay Omega/i);
+  expect(within(workspace).getByRole('table', { name: 'AEGIS ration schedule' }))
+    .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
+});
+
+it('gives the Wing Commander Starlight and fighter-wing operations without XO systems', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const workspace = screen.getByRole('region', { name: 'AEGIS Wing Commander console' });
+  expect(within(workspace).getByRole('heading', { name: 'I.C.S.S. Starlight' })).toBeInTheDocument();
+  expect(within(workspace).getByText(/within 2 jumps/i)).toBeInTheDocument();
+  expect(within(workspace).getByText(/explore.*\+3.*salvage.*\+1/i)).toBeInTheDocument();
+  expect(within(workspace).getByRole('heading', { name: 'Fighter Wing Alpha' })).toBeInTheDocument();
+  expect(within(workspace).getByRole('heading', { name: 'Fighter Wing Bravo' })).toBeInTheDocument();
+  for (const fighterName of ['Fighter Wing Alpha', 'Fighter Wing Bravo']) {
+    expect(within(workspace).getByRole('heading', { name: fighterName }).closest('article'))
+      .toHaveTextContent(/capacity.*4 fighters.*6 upgraded/i);
+  }
+
+  await user.click(within(workspace).getByRole('button', { name: 'Combat doctrine' }));
+  expect(within(workspace).getByText(/medium range/i)).toBeInTheDocument();
+  expect(within(workspace).getByText(/damage on 5\+/i)).toBeInTheDocument();
+  expect(within(workspace).getByText(/short range/i)).toBeInTheDocument();
+  expect(within(workspace).getByText(/damage on 3\+.*fighter is destroyed.*1 or 2/i)).toBeInTheDocument();
+  expect(within(workspace).queryByText(/command and control|missile launchers|point defence|pallas/i))
+    .not.toBeInTheDocument();
+});
+
+it('does not add an AEGIS gameplay workspace to the Executive Officer console', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('region', { name: /AEGIS Executive Officer console/i }))
+    .not.toBeInTheDocument();
+  expect(screen.queryByText(/command and control|missile launchers|point defence|pallas/i))
+    .not.toBeInTheDocument();
+});
+
+it('applies the capital-ship identity and survivor instruments to AEGIS', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const specs = screen.getByRole('region', { name: 'AEGIS specifications' });
+  expect(specs).toHaveTextContent(/Length250m.*Tonnage80,000.*Crew Capacity3,000.*Passengers Capacity100/);
+  expect(within(specs).queryByRole('img', { name: /survivors exceed combined/i }))
+    .not.toBeInTheDocument();
+  const track = within(screen.getByRole('region', { name: 'AEGIS census' }))
+    .getByRole('list', { name: 'Survivor Population steps' });
+  expect(within(track).getAllByRole('listitem')).toHaveLength(9);
+  expect(within(track).getByText('2,500').closest('li')).toHaveAttribute('aria-current', 'step');
+  expect(within(track).getByLabelText('0 — GM alert threshold')).toBeInTheDocument();
+});
+
 it('locks the trigger while the one-shot activation is in flight', async () => {
   const user = userEvent.setup();
   let finish: (() => void) | undefined;

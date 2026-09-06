@@ -5,7 +5,12 @@ import {
   getFunctions,
   type Functions,
 } from 'firebase/functions';
-import { firebaseConfig, firebaseConfigured, useEmulators } from './firebaseConfig';
+import {
+  emulatorPorts,
+  firebaseConfig,
+  firebaseConfigured,
+  useEmulators,
+} from './firebaseConfig';
 
 /**
  * Lazy, single-instance Firebase wiring.
@@ -32,7 +37,7 @@ export function auth(): Auth {
   if (!authInstance) {
     authInstance = getAuth(app());
     if (useEmulators) {
-      connectAuthEmulator(authInstance, 'http://127.0.0.1:9099', {
+      connectAuthEmulator(authInstance, `http://127.0.0.1:${emulatorPorts.auth}`, {
         disableWarnings: true,
       });
     }
@@ -44,7 +49,7 @@ export function functions(): Functions {
   if (!functionsInstance) {
     functionsInstance = getFunctions(app());
     if (useEmulators) {
-      connectFunctionsEmulator(functionsInstance, '127.0.0.1', 5001);
+      connectFunctionsEmulator(functionsInstance, '127.0.0.1', emulatorPorts.functions);
     }
   }
   return functionsInstance;
