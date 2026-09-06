@@ -303,6 +303,29 @@ export function requireActiveRoleSettingRequest(data: {
   };
 }
 
+/** A GM sends the whole roster only after locally reviewing its draft. */
+export function requireRoleConfigurationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  activeRoleIds?: unknown;
+}): { sessionId: string; instanceId: string; activeRoleIds: string[] } {
+  if (!Array.isArray(data.activeRoleIds) || data.activeRoleIds.length > ROLE_IDS.length) {
+    throw new HttpsError('invalid-argument', 'activeRoleIds must be a bounded role list.');
+  }
+  const activeRoleIds = data.activeRoleIds.map((roleId) => requiredId(roleId, 'activeRoleId'));
+  if (
+    new Set(activeRoleIds).size !== activeRoleIds.length ||
+    activeRoleIds.some((roleId) => !(ROLE_IDS as readonly string[]).includes(roleId))
+  ) {
+    throw new HttpsError('invalid-argument', 'Unknown or duplicate active role.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    activeRoleIds,
+  };
+}
+
 export function requireRolePresetRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

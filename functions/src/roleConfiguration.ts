@@ -25,6 +25,28 @@ const W = 'wing-commander';
 const QR = 'joint-engineering-quellon-refinery';
 const SI = 'joint-engineering-shepherd-icebreaker';
 
+export const JOINT_ENGINEERING_ROLE_IDS = [QR, SI] as const;
+export type JointEngineeringRoleId = typeof JOINT_ENGINEERING_ROLE_IDS[number];
+
+export const JOINT_ENGINEERING_REPLACEMENTS: Readonly<
+  Record<JointEngineeringRoleId, readonly string[]>
+> = {
+  [QR]: ['quellon-engineer', 'refinery-124-engineer'],
+  [SI]: ['shepherd-engineer', 'icebreaker-engineer'],
+};
+
+export const JOINT_ENGINEERING_SHIPS: Readonly<Record<JointEngineeringRoleId, readonly string[]>> = {
+  [QR]: ['quellon', 'refinery-124'],
+  [SI]: ['shepherd', 'icebreaker'],
+};
+
+export const JOINT_ENGINEERING_PLAYER_COUNTS: Readonly<
+  Record<JointEngineeringRoleId, readonly number[]>
+> = {
+  [QR]: [8, 9, 14, 15],
+  [SI]: [8, 14, 15],
+};
+
 const PRESETS: Readonly<Record<number, readonly string[]>> = {
   8: [A, 'icebreaker-miner', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR, SI],
   9: [A, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR],
@@ -44,4 +66,35 @@ const PRESETS: Readonly<Record<number, readonly string[]>> = {
 
 export function recommendedRoleIds(playerCount: number): readonly string[] {
   return PRESETS[playerCount] ?? PRESETS[21] ?? [];
+}
+
+export function isJointEngineeringRoleId(roleId: string): roleId is JointEngineeringRoleId {
+  return (JOINT_ENGINEERING_ROLE_IDS as readonly string[]).includes(roleId);
+}
+
+export function isJointEngineeringRoleAvailable(
+  activeRoleIds: readonly string[],
+  roleId: string,
+): boolean {
+  if (!isJointEngineeringRoleId(roleId) || !activeRoleIds.includes(roleId)) return false;
+  const matchesPrintedRoster = JOINT_ENGINEERING_PLAYER_COUNTS[roleId].some((playerCount) => {
+    const printedRoleIds = recommendedRoleIds(playerCount);
+    return activeRoleIds.length === printedRoleIds.length &&
+      printedRoleIds.every((printedRoleId) => activeRoleIds.includes(printedRoleId));
+  });
+  return matchesPrintedRoster && JOINT_ENGINEERING_REPLACEMENTS[roleId].every(
+    (replacementRoleId) => !activeRoleIds.includes(replacementRoleId),
+  );
+}
+
+export function jointEngineeringShipsForRole(roleId: string): readonly string[] {
+  return isJointEngineeringRoleId(roleId) ? JOINT_ENGINEERING_SHIPS[roleId] : [];
+}
+
+/** Keep the server’s roster authority aligned with the printed replacement matrix. */
+export function isValidRoleConfiguration(activeRoleIds: readonly string[]): boolean {
+  if (new Set(activeRoleIds).size !== activeRoleIds.length) return false;
+  if (activeRoleIds.some((roleId) => !(ROLE_IDS as readonly string[]).includes(roleId))) return false;
+  return JOINT_ENGINEERING_ROLE_IDS.every((roleId) =>
+    !activeRoleIds.includes(roleId) || isJointEngineeringRoleAvailable(activeRoleIds, roleId));
 }

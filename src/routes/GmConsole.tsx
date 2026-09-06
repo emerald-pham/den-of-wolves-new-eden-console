@@ -13,7 +13,16 @@ import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
-import { MAX_PLAYER_PRESET, MIN_PLAYER_PRESET, recommendedRoleIds } from '@/data/rolePresets';
+import {
+  canOfferJointEngineeringRole,
+  isJointEngineeringRoleId,
+  isValidRoleConfiguration,
+  JOINT_ENGINEERING_ROLE_IDS,
+  MAX_PLAYER_PRESET,
+  MIN_PLAYER_PRESET,
+  recommendedPlayerCountForRoleIds,
+  recommendedRoleIds,
+} from '@/data/rolePresets';
 import {
   assignWolves,
   assignWolfRoles,
@@ -22,8 +31,7 @@ import {
   setCapybaraEnabled,
   setDioneEnabled,
   setGmControlsLocked,
-  setActiveRoleEnabled,
-  applyRolePreset,
+  setActiveRoleConfiguration,
   adjustShipResource,
   adjustShipUnrest,
   adjustShipPopulation,
@@ -44,6 +52,8 @@ interface ShipRoleGroupsProps {
   readonly roles: typeof CONSOLE_ROLES;
   readonly renderRole: (role: typeof CONSOLE_ROLES[number]) => ReactNode;
 }
+
+const KNOWN_CONSOLE_ROLE_IDS = new Set(CONSOLE_ROLES.map((role) => role.id));
 
 function ShipRoleGroups({ roles, renderRole }: ShipRoleGroupsProps) {
   const shipRoleIds = new Set<string>(SHIPS.map((ship) => ship.id));
@@ -112,10 +122,38 @@ function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleG
     }));
 }
 
+function knownRoleIds(roleIds: readonly string[]): readonly string[] {
+  return roleIds.filter((roleId) => KNOWN_CONSOLE_ROLE_IDS.has(roleId));
+}
+
+function normalizeRoleDraft(roleIds: readonly string[]): readonly string[] {
+  const selected = new Set(roleIds);
+  const knownRoleIds = CONSOLE_ROLES.filter((role) => selected.has(role.id)).map((role) => role.id);
+  return knownRoleIds.filter((roleId) =>
+    !isJointEngineeringRoleId(roleId) ||
+    canOfferJointEngineeringRole(knownRoleIds, roleId));
+}
+
+function sameRoleConfiguration(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const counts = new Map<string, number>();
+  for (const roleId of left) counts.set(roleId, (counts.get(roleId) ?? 0) + 1);
+  for (const roleId of right) {
+    const count = counts.get(roleId);
+    if (!count) return false;
+    if (count === 1) counts.delete(roleId);
+    else counts.set(roleId, count - 1);
+  }
+  return counts.size === 0;
+}
+
 export default function GmConsole() {
   const { reducedMotion } = useMotionPreference();
   const session = useSessionStore((state) => state.session);
   const sessionId = session?.id;
+  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const serverRoleIds = knownRoleIds(activeRoleIds);
+  const normalizedServerRoleIds = normalizeRoleDraft(serverRoleIds);
   const me = useSessionStore((state) => state.me);
   const local = useSessionStore((state) => state.gmInstance);
   const isGm = useSessionStore(selectIsGm);
@@ -147,10 +185,9 @@ export default function GmConsole() {
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
-  const [playerCount, setPlayerCount] = useState(21);
-  const [changingActiveRole, setChangingActiveRole] = useState<string | null>(null);
-  const [applyingPreset, setApplyingPreset] = useState(false);
-  const presetTimer = useRef<number | null>(null);
+  const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
+  const [confirmingRoster, setConfirmingRoster] = useState(false);
+  const previousServerRoleIds = useRef<readonly string[]>(serverRoleIds);
   const capybaraEnabled = session?.capybaraEnabled !== false;
   const capybaraQueued = pendingCommands.some(
     (command) => command.kind === 'setCapybaraEnabled',
@@ -166,10 +203,17 @@ export default function GmConsole() {
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
-  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
-  const recommendedIds = recommendedRoleIds(playerCount);
-  const isCustom = activeRoleIds.length !== recommendedIds.length ||
-    activeRoleIds.some((roleId) => !recommendedIds.includes(roleId));
+  const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
+  const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
+  const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
+  const rosterQueued = pendingCommands.some(
+    (command) => command.kind === 'setActiveRoleConfiguration',
+  );
+  const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
+    const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
+    return role && canOfferJointEngineeringRole(draftRoleIds, roleId) ? [role] : [];
+  });
+  const wolvesLockedByRoster = hasUnconfirmedRosterChanges || confirmingRoster || rosterQueued;
   const availableShips = SHIPS.filter(
     (ship) =>
       (capybaraEnabled || ship.id !== 'capybara') &&
@@ -304,9 +348,15 @@ export default function GmConsole() {
     if (!dioneEnabled && viewerId === 'dione') setViewerId('aegis');
   }, [dioneEnabled, viewerId]);
 
-  useEffect(() => () => {
-    if (presetTimer.current !== null) window.clearTimeout(presetTimer.current);
-  }, []);
+  useEffect(() => {
+    const nextServerRoleIds = knownRoleIds(activeRoleIds);
+    const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
+    setDraftRoleIds((current) =>
+      sameRoleConfiguration(current, previousServerRoleIds.current)
+        ? nextDraftRoleIds
+        : current);
+    previousServerRoleIds.current = nextServerRoleIds;
+  }, [activeRoleIds]);
 
   useEffect(() => {
     if (nextClockUpdate === undefined) return;
@@ -428,34 +478,31 @@ export default function GmConsole() {
     }
   }
 
-  async function applyPreset(nextCount: number): Promise<void> {
-    setApplyingPreset(true);
+  function chooseRecommendedRoster(playerCount: number): void {
+    setDraftRoleIds(normalizeRoleDraft(recommendedRoleIds(playerCount)));
+  }
+
+  function toggleDraftRole(roleId: string, enabled: boolean): void {
+    setDraftRoleIds((current) => {
+      if (isJointEngineeringRoleId(roleId) && enabled && !canOfferJointEngineeringRole(current, roleId)) {
+        return current;
+      }
+      const next = enabled
+        ? [...current, roleId]
+        : current.filter((activeRoleId) => activeRoleId !== roleId);
+      return normalizeRoleDraft(next);
+    });
+  }
+
+  async function confirmRoster(): Promise<void> {
+    if (!hasUnconfirmedRosterChanges || !rosterConfigurationValid) return;
+    setConfirmingRoster(true);
     try {
-      await applyRolePreset(nextCount);
+      await setActiveRoleConfiguration(draftRoleIds);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
-      setApplyingPreset(false);
-    }
-  }
-
-  function changePreset(nextCount: number): void {
-    setPlayerCount(nextCount);
-    if (presetTimer.current !== null) window.clearTimeout(presetTimer.current);
-    presetTimer.current = window.setTimeout(() => {
-      presetTimer.current = null;
-      void applyPreset(nextCount);
-    }, 250);
-  }
-
-  async function toggleActiveRole(roleId: string, enabled: boolean): Promise<void> {
-    setChangingActiveRole(roleId);
-    try {
-      await setActiveRoleEnabled(roleId, enabled);
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setChangingActiveRole(null);
+      setConfirmingRoster(false);
     }
   }
 
@@ -646,34 +693,61 @@ export default function GmConsole() {
                   <legend>Active roles</legend>
                   <label className="gm-role-preset">
                     <span>Recommended player count</span>
-                    <input
-                      type="range"
-                      aria-label="Player count"
-                      min={MIN_PLAYER_PRESET}
-                      max={MAX_PLAYER_PRESET}
-                      value={playerCount}
-                      disabled={applyingPreset}
-                      onChange={(event) => changePreset(Number(event.target.value))}
-                    />
-                    <output>{playerCount} players</output>
+                    <select
+                      aria-label="Recommended player count"
+                      value={draftRecommendedPlayerCount?.toString() ?? 'custom'}
+                      disabled={confirmingRoster || rosterQueued}
+                      onChange={(event) => chooseRecommendedRoster(Number(event.target.value))}
+                    >
+                      <option value="custom" disabled>Custom roster</option>
+                      {Array.from(
+                        { length: MAX_PLAYER_PRESET - MIN_PLAYER_PRESET + 1 },
+                        (_, offset) => MIN_PLAYER_PRESET + offset,
+                      ).map((playerCount) => (
+                        <option value={playerCount} key={playerCount}>{playerCount} players</option>
+                      ))}
+                    </select>
+                    <output>{draftRoleIds.length} roles staged</output>
                   </label>
                   <p className="gm-role-template-status" aria-live="polite">
-                    {isCustom ? 'Custom' : 'Recommended'}
+                    {draftRecommendedPlayerCount === undefined ? 'Custom' : 'Recommended'}
                   </p>
                   <p className="gm-role-setup__note">
-                    Joint Engineering Union is recommended with fewer than 18 active roles,
-                    but may be enabled manually at any time.
+                    Edit the roster locally, then confirm it once. Nothing is sent while you are choosing roles.
                   </p>
                   <p className="gm-role-setup__note">
-                    Wobbly (Quellon / Refinery Engineer) and Ally (Shepherd / Icebreaker
-                    Engineer) are GM-controlled shuttlecraft and stay off in the 20/21-player
-                    roster. Enable their paired Joint Engineering Union role here before its
-                    shuttle console becomes available.
+                    Union replacements are available only in their printed low-count roster rows, after both
+                    paired Engineer roles are disabled.
                   </p>
+                  <div className="gm-roster-draft" aria-live="polite">
+                    <p>
+                      {confirmingRoster
+                        ? 'Confirming roster…'
+                        : rosterQueued
+                          ? 'Roster command queued // awaiting server'
+                          : hasUnconfirmedRosterChanges
+                            ? `Unconfirmed changes // ${draftRoleIds.length} roles staged`
+                            : `Roster synchronized // ${normalizedServerRoleIds.length} roles active`}
+                    </p>
+                    {!rosterConfigurationValid && (
+                      <p role="alert">Roster must use valid Union replacement pairs before confirmation.</p>
+                    )}
+                    <button
+                      className="cic-action-button"
+                      type="button"
+                      disabled={
+                        !hasUnconfirmedRosterChanges || !rosterConfigurationValid ||
+                        confirmingRoster || rosterQueued
+                      }
+                      onClick={() => void confirmRoster()}
+                    >
+                      {confirmingRoster ? 'Confirming roster…' : 'Confirm roster'}
+                    </button>
+                  </div>
                   <ShipRoleGroups
-                    roles={CONSOLE_ROLES}
+                    roles={CONSOLE_ROLES.filter((role) => !isJointEngineeringRoleId(role.id))}
                     renderRole={(role) => {
-                      const enabled = activeRoleIds.includes(role.id);
+                      const enabled = draftRoleIds.includes(role.id);
                       return (
                         <label className="gm-wolf-role" key={role.id}>
                           <span>{role.name}</span>
@@ -682,21 +756,58 @@ export default function GmConsole() {
                             role="switch"
                             aria-label={`${role.name} role availability`}
                             checked={enabled}
-                            disabled={changingActiveRole === role.id}
-                            onChange={() => void toggleActiveRole(role.id, !enabled)}
+                            disabled={confirmingRoster || rosterQueued}
+                            onChange={() => toggleDraftRole(role.id, !enabled)}
                           />
                         </label>
                       );
                     }}
                   />
+                  {conditionalUnionRoles.length > 0 && (
+                    <section className="gm-role-group gm-role-group--independent" aria-label="Conditional Union replacements">
+                      <header className="gm-role-group__header"><span>Conditional Union replacements</span></header>
+                      <div className="gm-role-group__roles">
+                        {conditionalUnionRoles.map((role) => {
+                          const enabled = draftRoleIds.includes(role.id);
+                          return (
+                            <label className="gm-wolf-role gm-union-role" key={role.id}>
+                              <span>
+                                {role.name.replace(/ Engineer$/, '')}
+                                <span className="gm-union-role__station"> // Engineer</span>
+                              </span>
+                              <input
+                                type="checkbox"
+                                role="switch"
+                                aria-label={`${role.name} role availability`}
+                                checked={enabled}
+                                disabled={confirmingRoster || rosterQueued}
+                                onChange={() => toggleDraftRole(role.id, !enabled)}
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
+                  <p className="gm-role-setup__note">
+                    Wobbly and Ally are available only with their confirmed Union replacement station.
+                  </p>
                 </fieldset>
                 <fieldset className="gm-wolf-setup">
                   <legend>Wolf assignment</legend>
+                  {wolvesLockedByRoster && (
+                    <p className="gm-role-setup__note" role="status">
+                      Confirm the roster before assigning wolves.
+                    </p>
+                  )}
                   <div className="gm-wolf-actions" aria-label="Random wolf assignment">
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || activeRoleIds.length < 1}
+                      disabled={
+                        assignedWolfRoleIds.length > 0 || assigningWolves ||
+                        activeRoleIds.length < 1 || wolvesLockedByRoster
+                      }
                       onClick={() => void randomizeWolves(1)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 1 wolf'}
@@ -704,7 +815,10 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || activeRoleIds.length < 2}
+                      disabled={
+                        assignedWolfRoleIds.length > 0 || assigningWolves ||
+                        activeRoleIds.length < 2 || wolvesLockedByRoster
+                      }
                       onClick={() => void randomizeWolves(2)}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 2 wolves'}
@@ -713,7 +827,7 @@ export default function GmConsole() {
                   <fieldset className="gm-wolf-manual">
                     <legend>Manual wolf assignment</legend>
                     <ShipRoleGroups
-                      roles={CONSOLE_ROLES.filter((role) => activeRoleIds.includes(role.id))}
+                      roles={CONSOLE_ROLES.filter((role) => normalizedServerRoleIds.includes(role.id))}
                       renderRole={(role) => (
                       <label className="gm-wolf-role" key={role.id}>
                         <span>{role.name}</span>
@@ -723,7 +837,7 @@ export default function GmConsole() {
                           checked={(assignedWolfRoleIds.length > 0
                             ? assignedWolfRoleIds
                             : manualWolfRoleIds).includes(role.id)}
-                          disabled={assignedWolfRoleIds.length > 0 || assigningWolves ||
+                          disabled={assignedWolfRoleIds.length > 0 || assigningWolves || wolvesLockedByRoster ||
                             (!manualWolfRoleIds.includes(role.id) && manualWolfRoleIds.length === 2)}
                           onChange={() => setManualWolfRoleIds((selected) =>
                             selected.includes(role.id)
@@ -736,7 +850,10 @@ export default function GmConsole() {
                     <button
                       className="gm-controls-lock"
                       type="button"
-                      disabled={assignedWolfRoleIds.length > 0 || assigningWolves || manualWolfRoleIds.length === 0}
+                      disabled={
+                        assignedWolfRoleIds.length > 0 || assigningWolves || wolvesLockedByRoster ||
+                        manualWolfRoleIds.length === 0
+                      }
                       onClick={() => void assignSelectedWolves()}
                     >
                       {assigningWolves ? 'Assigning wolves…' : 'Assign selected wolves'}

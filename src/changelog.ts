@@ -10,6 +10,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GM roster setup now stages player-count and role changes locally, then sends one confirmed roster when you are ready.',
+      'Joint Engineering Union stations now appear only in their printed low-count roster configurations and replace their paired Engineers instead of supplementing them.',
+      'Union Engineers can run maintenance for either assigned ship and open only their own Wobbly or Ally shuttle, with a clear route back to the Union console.',
+    ],
+  },
+  {
+    version: '0.2.46',
+    changes: [
       'The Turn 0 connection light now reads “Connected, Awaiting Iris Authentication,” and the live Turn 1 briefing opens with “Iris Authentication Confirmed.”',
     ],
   },

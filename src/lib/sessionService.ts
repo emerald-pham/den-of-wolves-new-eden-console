@@ -119,7 +119,11 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     store.setSession({ ...store.session, gmControlsLocked: locked });
   }
   if (
-    (command.kind === 'setActiveRoleEnabled' || command.kind === 'applyRolePreset') &&
+    (
+      command.kind === 'setActiveRoleEnabled' ||
+      command.kind === 'applyRolePreset' ||
+      command.kind === 'setActiveRoleConfiguration'
+    ) &&
     store.session?.id === command.payload.sessionId
   ) {
     const roleIds =
@@ -675,6 +679,26 @@ export async function applyRolePreset(playerCount: number): Promise<CommandDispo
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       playerCount,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Send the GM-reviewed roster as one atomic server command. */
+export async function setActiveRoleConfiguration(
+  activeRoleIds: readonly string[],
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before confirming a role configuration.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setActiveRoleConfiguration',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      activeRoleIds,
     },
     createdAt: new Date().toISOString(),
   });

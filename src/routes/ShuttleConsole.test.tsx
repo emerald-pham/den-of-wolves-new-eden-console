@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { recommendedRoleIds } from '@/data/rolePresets';
 import ShuttleConsole from './ShuttleConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -74,6 +75,32 @@ it('does not claim the Press role while another console is held', async () => {
   expect(screen.getByText('Admiral console')).toBeInTheDocument();
   await act(async () => { await Promise.resolve(); });
   expect(selectConsoleRole).not.toHaveBeenCalled();
+});
+
+it('returns a Union engineer from Wobbly to the paired engineering console', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: recommendedRoleIds(14),
+  });
+  state.setMe({
+    ...state.me!,
+    activeConsoleRoleId: 'joint-engineering-quellon-refinery',
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/wobbly']}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/union/roles/:roleId" element={<p>Joint Engineering console</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: /u\.s\. wobbly/i })).toBeInTheDocument();
+  await user.click(screen.getByRole('link', { name: /back to joint engineering union/i }));
+  expect(screen.getByText('Joint Engineering console')).toBeInTheDocument();
 });
 
 it('gives the Press Officer a dispatch desk that publishes to the fleet ticker', async () => {

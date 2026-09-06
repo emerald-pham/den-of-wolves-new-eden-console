@@ -3,6 +3,7 @@ import FleetSystemsWorkspace from './FleetSystemsWorkspace';
 import AssignedShuttlecraft from './AssignedShuttlecraft';
 import { SHIPS } from '@/data/ships';
 import { resourcesForShip } from '@/data/resources';
+import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 import { useSessionStore } from '@/store/useSessionStore';
 
 export default function JointEngineeringWorkspace({ roleId }: { readonly roleId: string }) {
@@ -14,8 +15,17 @@ export default function JointEngineeringWorkspace({ roleId }: { readonly roleId:
   const role = ship.roles.find(item => item.id.endsWith('-engineer'));
   if (!role) return null;
   return <>
-    <AssignedShuttlecraft roleId={roleId} />
+    {isJointEngineeringRoleAvailable(session.activeRoleIds ?? [], roleId) && (
+      <AssignedShuttlecraft roleId={roleId} />
+    )}
     <nav className="console-workspace__nav" aria-label="Engineering ship selection">{ids.map(id => <button type="button" key={id} aria-pressed={ship.id === id} onClick={() => setSelected(id)}>{SHIPS.find(item => item.id === id)?.name}</button>)}</nav>
-    <FleetSystemsWorkspace key={ship.id} ship={ship} role={role} fuel={resourcesForShip(ship.id, session.shipResources)?.fuel ?? 0} galacticCoordinate="Refer to ship console" />
+    <FleetSystemsWorkspace
+      key={ship.id}
+      ship={ship}
+      role={role}
+      fuel={resourcesForShip(ship.id, session.shipResources)?.fuel ?? 0}
+      galacticCoordinate="Refer to ship console"
+      includeAssignedShuttlecraft={false}
+    />
   </>;
 }

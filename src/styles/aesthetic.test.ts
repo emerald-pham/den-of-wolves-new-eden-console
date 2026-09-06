@@ -213,6 +213,16 @@ describe('the GM console', () => {
     expect(index).toMatch(/@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{[^]*?\.gm-console__instruments\s*\{[^}]*position: static/);
   });
 
+  it('keeps staged roster confirmation and Union labels readable on a narrow screen', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const roleLabel = index.match(/\.gm-wolf-role > span\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(roleLabel).toContain('min-width: 0');
+    expect(roleLabel).toContain('overflow-wrap: anywhere');
+    expect(index).toContain('.gm-union-role__station { display: block; padding-top: 0.1rem; }');
+    expect(index).toMatch(/@media \(max-width: 720px\)\s*\{[^]*?\.gm-roster-draft \{ grid-template-columns: 1fr; \}/);
+  });
+
 });
 
 describe('the shuttlecraft console template', () => {

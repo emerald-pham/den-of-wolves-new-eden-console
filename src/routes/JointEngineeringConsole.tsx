@@ -2,6 +2,7 @@ import JointEngineeringWorkspace from '@/components/JointEngineeringWorkspace';
 import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
+import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { selectConsoleRole } from '@/lib/sessionService';
@@ -14,8 +15,8 @@ export default function JointEngineeringConsole() {
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const role = findConsoleRole(roleId);
-  const roleEnabled = Boolean(role &&
-    (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(role.id));
+  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const roleEnabled = Boolean(role && isJointEngineeringRoleAvailable(activeRoleIds, role.id));
   const canClaimRole = Boolean(
     session && me && mode === 'console' && role && role.shipId === 'joint-engineering-union' &&
     roleEnabled && (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === role.id),
@@ -38,7 +39,7 @@ export default function JointEngineeringConsole() {
 
   return (
     <ConsoleAccessContext.Provider value={{
-      writable: me.activeConsoleRoleId === role.id,
+      writable: roleEnabled && me.activeConsoleRoleId === role.id,
       roleId: role.id,
     }}>
       <main className="session-mode">

@@ -1,5 +1,6 @@
 import { SHIPS } from './ships';
 import { DEFAULT_ACTIVE_ROLE_IDS } from './roles';
+import { isJointEngineeringRoleAvailable, isJointEngineeringRoleId } from './rolePresets';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
 import snnPressShuttle from './vessels/snn-press-shuttle';
 import starlight from './vessels/starlight';
@@ -51,6 +52,9 @@ export function isShuttleEnabled(
   shuttle: Shuttlecraft,
   activeRoleIds: readonly string[],
 ): boolean {
+  if (isJointEngineeringRoleId(shuttle.captainRoleId)) {
+    return isJointEngineeringRoleAvailable(activeRoleIds, shuttle.captainRoleId);
+  }
   return activeRoleIds.includes(shuttle.captainRoleId);
 }
 

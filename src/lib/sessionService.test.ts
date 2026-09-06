@@ -33,6 +33,7 @@ const {
   advanceTurn,
   beginOpenAirspacePhase,
   setActiveRoleEnabled,
+  setActiveRoleConfiguration,
   selectConsoleRole,
   applyRolePreset,
   triggerDradisContact,
@@ -541,7 +542,7 @@ describe('GM instance commands', () => {
     });
   });
 
-  it('changes role availability and applies player-count presets through the active GM', async () => {
+  it('sends one confirmed role configuration through the active GM', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
@@ -549,15 +550,15 @@ describe('GM instance commands', () => {
     const callable = callableReturning({ data: { activeRoleIds: ['admiral'] } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await setActiveRoleEnabled('press-officer', false);
+    await setActiveRoleConfiguration(['admiral']);
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setActiveRoleConfiguration');
     expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', roleId: 'press-officer', enabled: false,
-    });
-    await applyRolePreset(8);
-    expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', playerCount: 8,
+      sessionId: 's1', instanceId: 'instance-1', activeRoleIds: ['admiral'],
     });
     expect(useSessionStore.getState().session?.activeRoleIds).toEqual(['admiral']);
+
+    await setActiveRoleEnabled('press-officer', false);
+    await applyRolePreset(8);
   });
 
   it('activates a ship confetti dispenser and records its spent state', async () => {

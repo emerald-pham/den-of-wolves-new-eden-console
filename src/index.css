@@ -978,6 +978,14 @@ body {
   text-transform: uppercase;
 }
 
+.gm-wolf-role > span {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.gm-union-role__station { color: var(--cic-cyan); }
+
 .gm-wolf-role input { width: 1.25rem; height: 1.25rem; accent-color: var(--cic-amber); }
 .gm-wolf-count select { min-height: 44px; }
 .gm-wolf-result { margin: 0; }
@@ -1758,11 +1766,40 @@ body {
 .ship-shuttlebay__log li { grid-template-columns: 1fr auto; border-top: 1px solid var(--cic-rule); padding: 0.45rem 0; }
 .ship-shuttlebay__log time { grid-column: 1 / -1; }
 
-.gm-role-setup { margin: 1rem 0; border: 1px solid var(--cic-rule); padding: 0.8rem; }
-.gm-role-preset { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; color: var(--cic-muted); font: 0.65rem/1.4 var(--cic-mono); text-transform: uppercase; }
-.gm-role-preset input { grid-column: 1 / -1; width: 100%; accent-color: var(--cic-cyan); }
+.gm-role-setup { display: grid; gap: 0.8rem; margin: 1rem 0; border: 1px solid var(--cic-rule); padding: 0.8rem; }
+.gm-role-preset { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; color: var(--cic-muted); font: 0.65rem/1.4 var(--cic-mono); text-transform: uppercase; }
+.gm-role-preset select {
+  grid-column: 1 / -1;
+  min-height: 44px;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gm-role-preset output { color: var(--cic-cyan); white-space: nowrap; }
 .gm-role-template-status { color: var(--cic-amber); font: 0.7rem/1.4 var(--cic-mono); text-transform: uppercase; }
 .gm-role-setup__note { color: var(--cic-muted); font: 0.6rem/1.5 var(--cic-mono); }
+.gm-roster-draft {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  border-top: 1px solid var(--cic-rule);
+  border-bottom: 1px solid var(--cic-rule);
+  padding: 0.7rem 0;
+}
+.gm-roster-draft p {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 0.66rem/1.45 var(--cic-mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.gm-roster-draft p[role='alert'] { grid-column: 1 / -1; color: var(--cic-hostile); }
+.gm-roster-draft .cic-action-button { min-width: 10.5rem; }
 .gm-role-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1798,8 +1835,13 @@ body {
 .gm-role-group--independent { grid-column: 1 / -1; }
 
 @media (max-width: 720px) {
+  .gm-role-preset,
+  .gm-roster-draft { grid-template-columns: 1fr; }
+  .gm-roster-draft .cic-action-button { width: 100%; }
   .gm-role-groups { grid-template-columns: 1fr; }
   .gm-role-group--independent { grid-column: auto; }
+  .gm-wolf-role { gap: 0.65rem; }
+  .gm-union-role__station { display: block; padding-top: 0.1rem; }
   .ship-console__counters { grid-template-columns: 1fr; }
   .ship-resources ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

@@ -22,13 +22,22 @@ function systemEffectRows(effect: string) {
   return { baseline, rules };
 }
 
-export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordinate, damage, damageDraws }: {
+export default function FleetSystemsWorkspace({
+  ship,
+  role,
+  fuel,
+  galacticCoordinate,
+  damage,
+  damageDraws,
+  includeAssignedShuttlecraft = true,
+}: {
   readonly ship: Ship;
   readonly role: ConsoleRole;
   readonly fuel: number;
   readonly galacticCoordinate: string;
   readonly damage?: ShipDamageState | undefined;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
+  readonly includeAssignedShuttlecraft?: boolean;
 }) {
   const maintenance = ship.maintenance;
   const commandMetrics = maintenance ?? {
@@ -81,6 +90,6 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
         <h3>{procedure.name}</h3><p>{procedure.effect}</p>
       </article>)}</div>
     </section>}
-    <AssignedShuttlecraft roleId={role.id} />
+    {includeAssignedShuttlecraft && <AssignedShuttlecraft roleId={role.id} />}
   </FleetRoleConsoleTemplate>;
 }

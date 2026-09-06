@@ -5,6 +5,7 @@ import { findConsoleRole, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 
 const MODE_LABELS: Record<ConsoleMode, string> = {
   gm: 'GM',
@@ -82,7 +83,8 @@ function FleetRoster({
 }) {
   const active = new Set(activeRoleIds);
   const unionRoles = CONSOLE_ROLES.filter(
-    (role) => role.shipId === 'joint-engineering-union' && active.has(role.id),
+    (role) => role.shipId === 'joint-engineering-union' &&
+      isJointEngineeringRoleAvailable(activeRoleIds, role.id),
   );
   return (
     <main className="fleet-roster">

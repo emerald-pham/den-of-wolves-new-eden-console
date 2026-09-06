@@ -56,12 +56,21 @@ import {
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
+  requireRoleConfigurationRequest,
   requireRolePresetRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
 } from './requestGuards';
 import { chooseWolfRoles } from './wolfAssignment';
-import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
+import {
+  DEFAULT_ACTIVE_ROLE_IDS,
+  isJointEngineeringRoleAvailable,
+  isJointEngineeringRoleId,
+  isValidRoleConfiguration,
+  jointEngineeringShipsForRole,
+  ROLE_IDS,
+  recommendedRoleIds,
+} from './roleConfiguration';
 import {
   INITIAL_SHIP_RESOURCES,
   INITIAL_SHIP_UNREST,
@@ -1077,8 +1086,50 @@ export const setActiveRoleEnabled = onCall<{
     if (setting.enabled) current.add(setting.roleId);
     else current.delete(setting.roleId);
     const next = ROLE_IDS.filter((roleId) => current.has(roleId));
+    if (!isValidRoleConfiguration(next)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
+      );
+    }
     tx.update(sessionRef, { activeRoleIds: next, updatedAt: FieldValue.serverTimestamp() });
     return next;
+  });
+
+  return { activeRoleIds };
+});
+
+/** Apply the GM-reviewed roster atomically; individual draft edits never reach the server. */
+export const setActiveRoleConfiguration = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  activeRoleIds?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const configuration = requireRoleConfigurationRequest(request.data ?? {});
+  if (!isValidRoleConfiguration(configuration.activeRoleIds)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
+    );
+  }
+  const sessionRef = db.doc(`sessions/${configuration.sessionId}`);
+  const playerRef = db.doc(`sessions/${configuration.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${configuration.sessionId}/gmInstances/${configuration.instanceId}`);
+  const activeRoleIds = ROLE_IDS.filter((roleId) => configuration.activeRoleIds.includes(roleId));
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
   });
 
   return { activeRoleIds };
@@ -1096,6 +1147,9 @@ export const applyRolePreset = onCall<{
   const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
   const activeRoleIds = [...recommendedRoleIds(setting.playerCount)];
+  if (!isValidRoleConfiguration(activeRoleIds)) {
+    throw new HttpsError('internal', 'The recommended roster is invalid.');
+  }
 
   await db.runTransaction(async (tx) => {
     const [session, player, instance] = await Promise.all([
@@ -1372,7 +1426,12 @@ export const refreshPresence = onCall<{
     if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
       const activeRoleIds = session.get('activeRoleIds') as string[] | undefined;
-      if (!(activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(request.data.activeConsoleRoleId)) {
+      const configuredRoleIds = activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+      if (
+        !configuredRoleIds.includes(request.data.activeConsoleRoleId) ||
+        (isJointEngineeringRoleId(request.data.activeConsoleRoleId) &&
+          !isJointEngineeringRoleAvailable(configuredRoleIds, request.data.activeConsoleRoleId))
+      ) {
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
       const heldByAnotherPlayer = holders?.docs.some(
@@ -1971,7 +2030,11 @@ export const runMaintenance = onCall<{
   if (!data || Object.keys(data).some(key => !allowed.includes(key)) ||
     typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
     typeof data.shipId !== 'string' || !MAINTENANCE_RULES[data.shipId] ||
-    (data.consoleRoleId !== undefined && (typeof data.consoleRoleId !== 'string' || shipForRole(data.consoleRoleId) !== data.shipId)) ||
+    (data.consoleRoleId !== undefined && (
+      typeof data.consoleRoleId !== 'string' ||
+      (shipForRole(data.consoleRoleId) !== data.shipId &&
+        !jointEngineeringShipsForRole(data.consoleRoleId).includes(data.shipId))
+    )) ||
     typeof data.action !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 ||
     (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
@@ -1985,23 +2048,32 @@ export const runMaintenance = onCall<{
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
     // Joint engineering authority is scoped to the two ships on its assigned station.
-    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const [player, snapshot] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(ref),
+    ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
       throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
     }
-    const jointShips: Record<string, string[]> = {
-      'joint-engineering-quellon-refinery': ['quellon', 'refinery-124'],
-      'joint-engineering-shepherd-icebreaker': ['shepherd', 'icebreaker'],
-    };
-    const joint = jointShips[String(player.get('activeConsoleRoleId'))]?.includes(data.shipId);
-    if (!(isActivePlayer(player) && player.get('role') === 'player' && joint)) {
+    if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
+    const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
+      DEFAULT_ACTIVE_ROLE_IDS;
+    const joint = player.get('role') === 'player' &&
+      isJointEngineeringRoleAvailable(activeRoleIds, ownRoleId) &&
+      jointEngineeringShipsForRole(ownRoleId).includes(data.shipId);
+    if (!joint) {
       await requireShipCounterAuthority(tx, data.sessionId, uid, data.shipId, data.instanceId);
     }
     if (data.consoleRoleId && player.get('role') !== 'gm') {
-      await requireConsoleAuthority(tx, data.sessionId, player, data.consoleRoleId);
+      if (joint) {
+        if (data.consoleRoleId !== ownRoleId) {
+          throw new HttpsError('permission-denied', 'Joint Engineering may only use its assigned console.');
+        }
+      } else {
+        await requireConsoleAuthority(tx, data.sessionId, player, data.consoleRoleId);
+      }
     }
-    const snapshot = await tx.get(ref);
-    if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
     requireTurnOneForPlayer(snapshot, player);
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||

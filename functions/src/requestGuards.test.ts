@@ -13,6 +13,7 @@ import {
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
+  requireRoleConfigurationRequest,
   requireRolePresetRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
@@ -215,7 +216,16 @@ describe('callable request guards', () => {
     })).toEqual({ sessionId: 's1', instanceId: 'i1', roleIds: ['press-officer'] });
   });
 
-  it('validates role availability and player-count presets', () => {
+  it('validates complete role configurations, individual availability, and player-count presets', () => {
+    expectHttpsError(() => requireRoleConfigurationRequest({
+      sessionId: 's1', instanceId: 'i1', activeRoleIds: ['admiral', 'admiral'],
+    }), 'invalid-argument');
+    expectHttpsError(() => requireRoleConfigurationRequest({
+      sessionId: 's1', instanceId: 'i1', activeRoleIds: ['unknown-role'],
+    }), 'invalid-argument');
+    expect(requireRoleConfigurationRequest({
+      sessionId: 's1', instanceId: 'i1', activeRoleIds: ['admiral'],
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', activeRoleIds: ['admiral'] });
     expectHttpsError(() => requireActiveRoleSettingRequest({
       sessionId: 's1', instanceId: 'i1', roleId: 'unknown', enabled: true,
     }), 'invalid-argument');

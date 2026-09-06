@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { recommendedRoleIds } from '@/data/rolePresets';
 import SessionMode from './SessionMode';
 
 beforeEach(() => {
@@ -201,7 +202,7 @@ it('hides disabled roles and offers enabled Joint Engineering Union stations', (
   useSessionStore.getState().setMe({ ...me, role: 'player' });
   useSessionStore.getState().setSession({
     ...session,
-    activeRoleIds: ['admiral', 'joint-engineering-quellon-refinery'],
+    activeRoleIds: recommendedRoleIds(9),
   });
 
   render(
@@ -214,6 +215,28 @@ it('hides disabled roles and offers enabled Joint Engineering Union stations', (
   expect(screen.queryByRole('link', { name: /join dione/i })).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: /quellon.*refinery engineer/i }))
     .toHaveAttribute('href', '/union/roles/joint-engineering-quellon-refinery');
+});
+
+it('does not advertise a Union station when its paired engineers are also active', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    activeRoleIds: [
+      'admiral',
+      'quellon-engineer',
+      'refinery-124-engineer',
+      'joint-engineering-quellon-refinery',
+    ],
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /quellon.*refinery engineer/i })).not.toBeInTheDocument();
 });
 
 it('returns a non-GM directly to their active command role', () => {

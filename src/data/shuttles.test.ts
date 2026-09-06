@@ -80,6 +80,10 @@ describe('fleet shuttlebays', () => {
     }
     expect(gmControlled.every((shuttle) =>
       isShuttleEnabled(shuttle, recommendedRoleIds(8)))).toBe(true);
+    expect(isShuttleEnabled(
+      SHUTTLECRAFT.find((shuttle) => shuttle.id === 'wobbly')!,
+      ['joint-engineering-quellon-refinery', 'quellon-engineer', 'refinery-124-engineer'],
+    )).toBe(false);
   });
 
   it('reports the docked craft and visit history independently for every ship', () => {

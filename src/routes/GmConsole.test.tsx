@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
+import { recommendedRoleIds } from '@/data/rolePresets';
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -16,8 +17,7 @@ vi.mock('@/lib/sessionService', () => ({
   setDioneEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
-  setActiveRoleEnabled: vi.fn(),
-  applyRolePreset: vi.fn(),
+  setActiveRoleConfiguration: vi.fn(),
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
   adjustShipPopulation: vi.fn(),
@@ -32,7 +32,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
-  advanceTurn, setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
+  advanceTurn, setActiveRoleConfiguration, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -380,51 +380,82 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
   expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
 });
 
-it('uses a player-count slider for roles and marks manual changes custom', async () => {
+it('keeps roster edits local until the GM confirms one complete configuration', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(applyRolePreset).mockImplementation(async (playerCount) => {
+  vi.mocked(setActiveRoleConfiguration).mockImplementation(async (activeRoleIds) => {
     const activeSession = useSessionStore.getState().session;
     if (activeSession) useSessionStore.getState().setSession({
       ...activeSession,
-      activeRoleIds: playerCount === 20
-        ? ['admiral', 'capybara-captain', 'capybara-recycler']
-        : ['admiral'],
-    });
-    return 'applied';
-  });
-  vi.mocked(setActiveRoleEnabled).mockImplementation(async (roleId, enabled) => {
-    const activeSession = useSessionStore.getState().session;
-    if (activeSession) useSessionStore.getState().setSession({
-      ...activeSession,
-      activeRoleIds: enabled ? [...(activeSession.activeRoleIds ?? []), roleId] : [],
+      activeRoleIds,
     });
     return 'applied';
   });
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const slider = screen.getByRole('slider', { name: /^player count$/i });
-  expect(slider).toHaveAttribute('min', '8');
-  expect(slider).toHaveAttribute('max', '21');
-  expect(screen.getByText(/joint engineering union.*fewer than 18.*manually/i)).toBeInTheDocument();
-  expect(screen.getByText(/wobbly.*ally.*gm-controlled.*20\/21-player roster/i)).toBeInTheDocument();
+  const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
+  expect(screen.getByText(/edit the roster locally, then confirm it once/i)).toBeInTheDocument();
+  expect(screen.getByText(/union replacements are available only in their printed low-count roster rows/i)).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: /press officer role availability/i })).toBeChecked();
-
-  fireEvent.change(slider, { target: { value: '20' } });
-  await waitFor(() => expect(applyRolePreset).toHaveBeenLastCalledWith(20));
-
-  const wobblyRole = screen.getByRole('switch', {
+  expect(screen.queryByRole('switch', {
     name: /quellon \/ refinery engineer role availability/i,
-  });
-  expect(wobblyRole).not.toBeChecked();
-  await user.click(wobblyRole);
-  expect(setActiveRoleEnabled).toHaveBeenCalledWith('joint-engineering-quellon-refinery', true);
+  })).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole('switch', { name: /press officer role availability/i }));
-  expect(setActiveRoleEnabled).toHaveBeenCalledWith('press-officer', true);
+  await user.selectOptions(playerCount, '14');
+  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(screen.getByText(/unconfirmed changes/i)).toBeInTheDocument();
+  expect(screen.getByRole('switch', {
+    name: /quellon \/ refinery engineer role availability/i,
+  })).toBeChecked();
+  for (const switchControl of screen.getAllByRole('switch', {
+    name: /^engineer role availability$/i,
+  })) {
+    expect(switchControl).not.toBeChecked();
+  }
+
+  await user.selectOptions(playerCount, '20');
+  expect(screen.queryByRole('switch', {
+    name: /quellon \/ refinery engineer role availability/i,
+  })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('switch', { name: /executive officer role availability/i }));
+  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
   expect(screen.getByText(/^custom$/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /confirm roster/i }));
+  expect(setActiveRoleConfiguration).toHaveBeenCalledOnce();
+  const confirmedRoleIds = vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0] ?? [];
+  expect(confirmedRoleIds).toEqual(expect.arrayContaining(
+    recommendedRoleIds(20).filter((roleId) => roleId !== 'executive-officer'),
+  ));
+  expect(confirmedRoleIds).toHaveLength(19);
+  expect(confirmedRoleIds).not.toContain('executive-officer');
+  await waitFor(() => expect(screen.getByText(/roster synchronized/i)).toBeInTheDocument());
+});
+
+it('stages a correction when an older roster has an invalid Union replacement', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    activeRoleIds: [...recommendedRoleIds(20), 'joint-engineering-quellon-refinery'],
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+
+  expect(screen.getByText(/unconfirmed changes/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /confirm roster/i })).toBeEnabled();
+  await user.click(screen.getByRole('button', { name: /confirm roster/i }));
+
+  const correctedRoleIds = vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0] ?? [];
+  expect(correctedRoleIds).toEqual(expect.arrayContaining([...recommendedRoleIds(20)]));
+  expect(correctedRoleIds).toHaveLength(recommendedRoleIds(20).length);
 });
 
 it('groups setup roles by ship and labels every ship with its flag', async () => {
@@ -452,19 +483,21 @@ it('groups setup roles by ship and labels every ship with its flag', async () =>
   expect(screen.queryByRole('group', { name: /^wolf eligibility$/i })).not.toBeInTheDocument();
 });
 
-it('applies only the final player count after a short slider pause', async () => {
+it('sends only the final draft after a GM confirms it', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   renderConsole();
 
   await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
-  const slider = screen.getByRole('slider', { name: /^player count$/i });
-  fireEvent.change(slider, { target: { value: '18' } });
-  fireEvent.change(slider, { target: { value: '20' } });
+  const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
+  fireEvent.change(playerCount, { target: { value: '18' } });
+  fireEvent.change(playerCount, { target: { value: '20' } });
 
-  expect(applyRolePreset).not.toHaveBeenCalled();
-  await waitFor(() => expect(applyRolePreset).toHaveBeenCalledOnce());
-  expect(applyRolePreset).toHaveBeenCalledWith(20);
+  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  await userEvent.setup().click(screen.getByRole('button', { name: /confirm roster/i }));
+  expect(setActiveRoleConfiguration).toHaveBeenCalledOnce();
+  expect(vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0])
+    .toEqual(expect.arrayContaining([...recommendedRoleIds(20)]));
 });
 
 it('offers random or manual wolf assignments from the active roles', async () => {

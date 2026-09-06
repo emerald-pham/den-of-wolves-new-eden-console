@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
   activeConsoleRoleId: undefined as string | undefined,
+  activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
@@ -25,7 +26,15 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { advanceTurn, beginOpenAirspacePhase, runMaintenance, unlockPressAirspace } from './index';
+import {
+  advanceTurn,
+  beginOpenAirspacePhase,
+  runMaintenance,
+  setActiveRoleEnabled,
+  setActiveRoleConfiguration,
+  unlockPressAirspace,
+} from './index';
+import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{
@@ -46,6 +55,7 @@ beforeEach(() => {
   mock.turnPhase = undefined;
   mock.pressDispatch = undefined;
   mock.activeConsoleRoleId = undefined;
+  mock.activeRoleIds = undefined;
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -70,6 +80,7 @@ beforeEach(() => {
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
           pressDispatch: mock.pressDispatch,
+          activeRoleIds: mock.activeRoleIds,
         };
     return { exists: true, get: (key: string) => fields[key] };
   });
@@ -114,9 +125,71 @@ it('rejects observer authority even if a prior console role remains stored', asy
   expect(mock.update).not.toHaveBeenCalled();
 });
 it('allows a ship officer and assigned joint engineer, but denies another ship', async () => {
-  mock.get.mockImplementation(async (path: string) => ({ exists: true, get: (key: string) => path.includes('/players/') ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key] : undefined }));
+  mock.activeRoleIds = recommendedRoleIds(14);
+  mock.get.mockImplementation(async (path: string) => ({
+    exists: true,
+    get: (key: string) => path.includes('/players/')
+      ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
+      : ({ activeRoleIds: mock.activeRoleIds } as Record<string, unknown>)[key],
+  }));
   await expect(runMaintenance.run(request({ ...data, shipId: 'quellon' }))).resolves.toMatchObject({ step: 1 });
   await expect(runMaintenance.run(request({ ...data, shipId: 'shepherd' }))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('accepts the paired Joint Engineering console identity for its maintenance workspace', async () => {
+  mock.activeRoleIds = recommendedRoleIds(14);
+  mock.get.mockImplementation(async (path: string) => ({
+    exists: true,
+    get: (key: string) => path.includes('/players/')
+      ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
+      : ({ activeRoleIds: mock.activeRoleIds } as Record<string, unknown>)[key],
+  }));
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    shipId: 'quellon',
+    consoleRoleId: 'joint-engineering-quellon-refinery',
+  }))).resolves.toMatchObject({ step: 1 });
+  await expect(runMaintenance.run(request({
+    ...data,
+    shipId: 'shepherd',
+    consoleRoleId: 'joint-engineering-quellon-refinery',
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+});
+
+it('does not let a GM add a Union role alongside the engineers it replaces', async () => {
+  await expect(setActiveRoleEnabled.run(request({
+    sessionId: 's1',
+    instanceId: 'bridge',
+    roleId: 'joint-engineering-quellon-refinery',
+    enabled: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('accepts one confirmed Union roster and rejects an invalid replacement combination', async () => {
+  const validRoleIds = recommendedRoleIds(14);
+  const expectedRoleIds = ROLE_IDS.filter((roleId) => validRoleIds.includes(roleId));
+  await expect(setActiveRoleConfiguration.run(request({
+    sessionId: 's1',
+    instanceId: 'bridge',
+    activeRoleIds: validRoleIds,
+  }))).resolves.toEqual({ activeRoleIds: expectedRoleIds });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    activeRoleIds: expectedRoleIds,
+  }));
+
+  mock.update.mockClear();
+  await expect(setActiveRoleConfiguration.run(request({
+    sessionId: 's1',
+    instanceId: 'bridge',
+    activeRoleIds: [
+      'admiral',
+      'joint-engineering-quellon-refinery',
+      'quellon-engineer',
+    ],
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('starts Turn 1 with a ten-minute team phase and later turns with the shorter real-time schedule', async () => {

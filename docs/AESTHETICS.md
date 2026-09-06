@@ -760,6 +760,30 @@ Expanded DRADIS retains its full-screen view and existing perspective controls.
 Resource rows stack their label above the counter when the ship panel is narrow,
 so nested workspace frames never reduce a resource name to an ellipsis.
 
+### GM roster confirmation
+
+The Active Roles instrument is a local roster draft, not a live switchboard.
+Recommended player-count selection and individual role switches change only the
+visible draft. A cyan status line states either `ROSTER SYNCHRONIZED` or
+`UNCONFIRMED CHANGES`, and one square `CONFIRM ROSTER` command is the only
+control that transmits the complete roster to the server. Keep that command in
+the same ruled status strip as its confirmation state; do not reintroduce a
+debounced slider, per-role network spinners, or an automatic send on input.
+
+Joint Engineering Union roles live in a conditional replacement section rather
+than the ordinary ship-role checklist. It appears only in its printed low-count
+roster rows (8/9/14/15 as applicable) after both paired Engineer roles are
+absent, and it disappears again when the replacement condition no longer
+holds. Wobbly and Ally are reported as part of that confirmed Union station,
+never as ordinary 20/21-player craft. While a draft is unconfirmed,
+wolf-assignment controls remain visibly unavailable so a GM cannot assign
+against a roster that has not yet reached the server.
+
+The native player-count select, staged-role readout, and confirmation button
+share the same minimum 44px control height and wrap into one readable column on
+narrow or short screens. Review the synchronized, staged, confirmation-pending,
+and invalid-replacement states at 1440×900, 320×844, and 844×390.
+
 ### Fleet broadcast scroller
 
 Fleet broadcasts use one persistent instrument in the measured top header,

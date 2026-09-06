@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { recommendedRoleIds } from '@/data/rolePresets';
 import JointEngineeringConsole from './JointEngineeringConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -16,7 +17,7 @@ beforeEach(() => {
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
-    activeRoleIds: ['joint-engineering-quellon-refinery'],
+    activeRoleIds: recommendedRoleIds(14),
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
   }, {
     uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player', seatId: null,
@@ -141,12 +142,16 @@ it('keeps an engineer at a held station if the GM disables it', () => {
   );
 
   expect(screen.getByRole('heading', { name: /joint engineering union/i })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /open wobbly shuttle console/i })).not.toBeInTheDocument();
 });
 
 it('switches between the assigned ships’ engineering reference systems', async () => {
   render(<MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
     <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>
   </MemoryRouter>);
+  expect(screen.getByRole('link', { name: /open wobbly shuttle console/i }))
+    .toHaveAttribute('href', '/shuttles/wobbly');
+  expect(screen.queryByRole('link', { name: /open condor shuttle console/i })).not.toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Water Production' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Refinery 124' }));
   expect(screen.getByRole('heading', { name: 'Fuel Refinery' })).toBeInTheDocument();

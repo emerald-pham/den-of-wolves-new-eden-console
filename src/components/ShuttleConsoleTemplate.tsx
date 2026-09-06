@@ -25,10 +25,18 @@ interface Props {
   readonly canLeave: boolean;
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled?: boolean;
+  readonly returnTo?: { readonly to: string; readonly label: string } | undefined;
 }
 
 /** Every shuttle uses this layout; vessel files supply identity and opt-in equipment. */
-export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave, docking, fuelled = false }: Props) {
+export default function ShuttleConsoleTemplate({
+  shuttle,
+  captainName,
+  canLeave,
+  docking,
+  fuelled = false,
+  returnTo,
+}: Props) {
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
   const location = docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit';
   const workspaceCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
@@ -44,6 +52,9 @@ export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave,
     >
       {shuttle.mark && <div className="shuttle-console__mark" aria-hidden="true">{shuttle.mark}</div>}
       <section className="ship-console__identity" aria-labelledby="shuttle-name">
+        {returnTo && (
+          <Link className="ship-console__back cic-text-button" to={returnTo.to}>{returnTo.label}</Link>
+        )}
         {canLeave && (
           <Link className="ship-console__back cic-text-button" to="/console">Leave shuttle</Link>
         )}
