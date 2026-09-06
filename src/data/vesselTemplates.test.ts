@@ -37,6 +37,28 @@ describe('shared vessel templates', () => {
     }
   });
 
+  it('puts the complete AEGIS damage deck on the shared ship template', () => {
+    const aegis = SHIPS.find((ship) => ship.id === 'aegis');
+    expect(aegis?.damageDeck.map(({ card, systemId }) => [card, systemId])).toEqual([
+      ['A♥', 'fighter-bay-alpha'],
+      ['2♥', 'fighter-bay-bravo'],
+      ['3♥', 'command-and-control'],
+      ['4♥', 'missile-launchers'],
+      ['5♥', 'point-defence-lasers'],
+      ['6♥', 'armoured-hull-i'],
+      ['7♥', 'armoured-hull-ii'],
+      ['8♥', 'storage'],
+      ['9♥', 'jump-drive'],
+      ['10♥', 'reactor'],
+      ['J♥', 'construction-bay'],
+      ['Q♥', 'shuttle-bay-zeta'],
+      ['K♥', 'shuttle-bay-omega'],
+    ]);
+    expect(aegis?.damageDeck.filter((card) => card.recycleAfterResolution)
+      .map((card) => card.systemId)).toEqual(['armoured-hull-i', 'armoured-hull-ii']);
+    expect(SHIPS.find((ship) => ship.id === 'dione')?.damageDeck).toEqual([]);
+  });
+
   it('does not inherit press equipment or initial docking into another shuttle', () => {
     const shuttle = defineShuttle({
       id: 'test-shuttle', name: 'Test Shuttle', shortName: 'Test', consoleName: 'Test Console',

@@ -5,16 +5,25 @@ import {
   isImplementedAegisRole,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
+import type { ShipDamageState } from '@/types/game';
 
 interface Props {
   readonly roleId: string | undefined;
   readonly galacticCoordinate: string;
   readonly fuel: number;
+  readonly damage?: ShipDamageState | undefined;
 }
 
-function SystemCard({ system }: { readonly system: AegisShipSystem }) {
+function SystemCard({ system, damaged }: {
+  readonly system: AegisShipSystem;
+  readonly damaged: boolean;
+}) {
   return (
-    <article className="aegis-system cic-frame">
+    <article
+      className="aegis-system cic-frame"
+      aria-label={`${system.name} system // ${damaged ? 'damaged' : 'operational'}`}
+      data-damaged={String(damaged)}
+    >
       <header>
         <span>{system.card}</span>
         <p>{system.station}</p>
@@ -22,6 +31,9 @@ function SystemCard({ system }: { readonly system: AegisShipSystem }) {
       <h3>{system.name}</h3>
       <p>{system.baseline}</p>
       <dl>
+        <div className="aegis-system__condition">
+          <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
+        </div>
         {system.upgraded && <div><dt>Upgraded</dt><dd>{system.upgraded}</dd></div>}
         <div><dt>Damaged</dt><dd>{system.damaged}</dd></div>
       </dl>
@@ -29,7 +41,7 @@ function SystemCard({ system }: { readonly system: AegisShipSystem }) {
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
+function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleId'>) {
   const [page, setPage] = useState<'systems' | 'maintenance'>('systems');
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
@@ -39,6 +51,12 @@ function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
           <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Fuel in stores</dt><dd>{fuel}</dd></div>
           <div><dt>Reactor capacity</dt><dd>{console.reactorCapacity} consoles</dd></div>
+          <div>
+            <dt>Damage state</dt>
+            <dd>{damage?.destroyed
+              ? 'Destroyed'
+              : `${damage?.damagedSystemIds.length ?? 0} systems`}</dd>
+          </div>
       </>}
       pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'maintenance', label: 'Maintenance cycle' }]} activePage={page} onPageChange={setPage}>
       {page === 'systems' ? (
@@ -46,7 +64,13 @@ function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
           <p className="aegis-jump-costs">
             Jump requirement // Short {console.jumpCosts.short} // Medium {console.jumpCosts.medium} // Long {console.jumpCosts.long}
           </p>
-          {console.systems.map((system) => <SystemCard key={system.id} system={system} />)}
+          {console.systems.map((system) => (
+            <SystemCard
+              key={system.id}
+              system={system}
+              damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
+            />
+          ))}
         </div>
       ) : (
         <div className="aegis-maintenance">
@@ -135,9 +159,9 @@ function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fu
   );
 }
 
-export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel }: Props) {
+export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage }: Props) {
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
-    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} />
+    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />
     : <WingCommanderConsole galacticCoordinate={galacticCoordinate} />;
 }

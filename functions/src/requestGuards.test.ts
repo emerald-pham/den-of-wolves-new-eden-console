@@ -8,6 +8,7 @@ import {
   requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
+  requireShipDamageRequest,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
@@ -154,6 +155,16 @@ describe('callable request guards', () => {
     );
     expect(requireShipConfettiRequest({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' }))
       .toEqual({ sessionId: 's1', shipId: 'aegis', roleId: 'admiral' });
+  });
+
+  it('requires a named GM instance for a damage draw', () => {
+    expectHttpsError(
+      () => requireShipDamageRequest({ sessionId: 's1', shipId: 'aegis', instanceId: '' }),
+      'invalid-argument',
+    );
+    expect(requireShipDamageRequest({
+      sessionId: 's1', shipId: 'aegis', instanceId: 'bridge',
+    })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' });
   });
 
   it('requires a known resource and a one-step counter change', () => {

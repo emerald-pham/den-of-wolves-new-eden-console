@@ -8,7 +8,7 @@ copy it. This applies to future consoles as well as the current fleet.
 
 | Concern | Single shared owner |
 | --- | --- |
-| Ship identity and colors, roles, initial resources, approved census track and specifications | One definition per ship in `src/data/vessels/<ship-id>.ts` |
+| Ship identity and colors, roles, initial resources, damage deck, approved census track and specifications | One definition per ship in `src/data/vessels/<ship-id>.ts` |
 | Shuttle identity, branding, initial docking and optional equipment | `src/data/vessels/<shuttle-id>.ts` |
 | Definition types and common defaults | `src/data/vessels/templates.ts` |
 | Fleet registration and lookups | `src/data/ships.ts` and `src/data/shuttles.ts` |
@@ -21,6 +21,14 @@ copy it. This applies to future consoles as well as the current fleet.
 The existing resources, population and role catalogs are derived views of the
 vessel definitions. Consumers keep importing those public catalogs; editing a
 ship's values no longer requires updating each catalog separately.
+
+Damage decks use the same shared ship definition. Each card identifies its
+matching system, and may declare the printed recycle-after-resolution rule.
+The Cloud Functions catalog remains an independent authority boundary: a
+server-side draw records the damaged system in shared session state and writes
+an audit event. Clients may display that state but never choose a card, mark a
+system damaged, clear damage, or declare a ship destroyed directly. Repair is
+a later server-authoritative mechanic and has no control in the current UI.
 
 ## Adding a ship or role
 

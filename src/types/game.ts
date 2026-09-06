@@ -27,6 +27,13 @@ export interface ShipResourceValues {
 }
 export type ShipResources = Readonly<Record<string, ShipResourceValues>>;
 
+export interface ShipDamageState {
+  readonly damagedSystemIds: readonly string[];
+  readonly destroyed: boolean;
+}
+
+export type ShipDamage = Readonly<Record<string, ShipDamageState>>;
+
 export interface UnrestAlert {
   readonly shipId: string;
   readonly shipName: string;
@@ -53,6 +60,8 @@ export interface GameSession {
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
   readonly shipResources?: ShipResources;
+  /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */
+  readonly shipDamage?: ShipDamage;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */

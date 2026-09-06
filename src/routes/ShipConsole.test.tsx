@@ -527,6 +527,29 @@ it('gives the Admiral a pageable AEGIS ship-systems console', async () => {
     .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
 });
 
+it('shows authoritative AEGIS damage without exposing a damage control', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    shipDamage: {
+      aegis: { damagedSystemIds: ['reactor'], destroyed: false },
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('article', { name: 'Reactor system // damaged' }))
+    .toHaveTextContent(/condition.*damaged/i);
+  expect(screen.getByRole('article', { name: 'Storage system // operational' }))
+    .toHaveTextContent(/condition.*operational/i);
+  expect(screen.queryByRole('button', { name: /damage/i })).not.toBeInTheDocument();
+});
+
 it('gives the Wing Commander Starlight and fighter-wing operations without XO systems', async () => {
   const user = userEvent.setup();
   render(
@@ -564,6 +587,28 @@ it('adds the Executive Officer battle reference workspace', () => {
 
   expect(screen.getByRole('region', { name: /AEGIS Executive Officer console/i })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Command and Control' })).toBeInTheDocument();
+});
+
+it('shows AEGIS battle-sheet damage through the shared fleet systems workspace', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    shipDamage: {
+      aegis: { damagedSystemIds: ['command-and-control'], destroyed: false },
+    },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('article', { name: 'Command and Control system // damaged' }))
+    .toHaveTextContent(/condition.*damaged/i);
+  expect(screen.getByRole('article', { name: 'Fighter Bay Alpha system // operational' }))
+    .toHaveTextContent(/condition.*operational/i);
 });
 
 it.each([

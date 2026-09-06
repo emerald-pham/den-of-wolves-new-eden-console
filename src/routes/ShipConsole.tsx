@@ -176,6 +176,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             role={consoleRole}
             galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
             fuel={resources?.fuel ?? 0}
+            damage={session.shipDamage?.[ship.id]}
           />
         )}
         <div className="ship-console__counters">

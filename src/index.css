@@ -2611,6 +2611,13 @@ body {
 .aegis-system dd,
 .aegis-craft dd { margin: 0.2rem 0 0; }
 .aegis-system dt + dd { color: var(--cic-ink); }
+.aegis-system__condition dd { color: var(--cic-cyan-hot); text-transform: uppercase; }
+.aegis-system[data-damaged='true'] {
+  border-color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 10%, var(--cic-panel));
+}
+.aegis-system[data-damaged='true'] .aegis-system__condition dt,
+.aegis-system[data-damaged='true'] .aegis-system__condition dd { color: var(--cic-danger); }
 .aegis-system dt:first-child { color: var(--cic-amber); }
 .aegis-system dl div:last-child dt { color: var(--cic-danger); }
 .aegis-craft--starlight { grid-column: 1 / -1; }

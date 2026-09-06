@@ -135,6 +135,18 @@ export function requireShipConfettiRequest(data: {
   };
 }
 
+export function requireShipDamageRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; shipId: string; instanceId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+  };
+}
+
 export function requireShipCounterRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;

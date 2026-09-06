@@ -54,6 +54,9 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     shipResources: shipResources(data.shipResources),
+    shipDamage: typeof data.shipDamage === 'object' && data.shipDamage !== null
+      ? data.shipDamage as NonNullable<GameSession['shipDamage']>
+      : {},
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: typeof data.shipSurvivors === 'object' && data.shipSurvivors !== null
       ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']>

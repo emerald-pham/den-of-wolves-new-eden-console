@@ -41,6 +41,7 @@ import {
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipCounterRequest,
+  requireShipDamageRequest,
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
@@ -70,6 +71,7 @@ import {
   isPresenceStale,
 } from './sessionLifecycle';
 import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
+import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 
 /**
  * Server-side authority for the companion console.
@@ -233,6 +235,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           dioneEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipResources: INITIAL_SHIP_RESOURCES,
+          shipDamage: {},
           shipUnrest: INITIAL_SHIP_UNREST,
           unrestAlerts: {},
           shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
@@ -277,6 +280,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             dioneEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
             shipResources: INITIAL_SHIP_RESOURCES,
+            shipDamage: {},
             shipUnrest: INITIAL_SHIP_UNREST,
             unrestAlerts: {},
             shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
@@ -385,6 +389,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         shipResources: shipResources(sessionSnap.get('shipResources')),
+        shipDamage: shipDamage(sessionSnap.get('shipDamage')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
         shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
@@ -475,6 +480,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       shipResources: shipResources(sessionSnap.get('shipResources')),
+      shipDamage: shipDamage(sessionSnap.get('shipDamage')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
       shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
@@ -1404,6 +1410,65 @@ export const dismissUnrestAlert = onCall<{
     else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
     tx.update(sessionRef, { unrestAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
     return { dismissed: true };
+  });
+});
+
+/**
+ * Draw one card from a ship's remaining damage deck. The source mechanic has
+ * no player-facing control yet, so only a named active GM instance may invoke
+ * this authoritative seam until that mechanic can call it server-side.
+ */
+export const addShipDamage = onCall<{
+  sessionId: string; shipId: string; instanceId: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipDamageRequest(request.data ?? {});
+  if (!SHIP_DAMAGE_DECKS[change.shipId]) {
+    throw new HttpsError('invalid-argument', 'This ship has no implemented damage deck.');
+  }
+  // Transactions may retry. Fix both random inputs before entering the callback
+  // so contention cannot quietly reroll the card or fork the audit identity.
+  const entropyRange = 0x1_0000_0000;
+  const drawEntropy = randomInt(0, entropyRange);
+  const eventId = randomUUID();
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const storedDamage = shipDamage(session.get('shipDamage'));
+    const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
+    const result = drawShipDamage(
+      change.shipId,
+      current,
+      (upperBound) => Math.floor((drawEntropy / entropyRange) * upperBound),
+    );
+    const eventRef = db.doc(`sessions/${change.sessionId}/events/${eventId}`);
+
+    tx.update(sessionRef, {
+      [`shipDamage.${change.shipId}`]: result.state,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (result.destroyed) {
+      tx.set(eventRef, {
+        type: 'ship-destroyed',
+        shipId: change.shipId,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return { destroyed: true };
+    }
+    tx.set(eventRef, {
+      type: 'ship-damage',
+      shipId: change.shipId,
+      card: result.card.card,
+      systemId: result.card.systemId,
+      systemName: result.card.systemName,
+      recycled: result.recycled,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { card: result.card, recycled: result.recycled, destroyed: false };
   });
 });
 

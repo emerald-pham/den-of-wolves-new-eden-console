@@ -167,6 +167,21 @@ describe('session header', () => {
     }
   });
 
+  it('denies direct damage draws, repairs, and destruction changes', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const session = doc(as(uid), SESSION);
+      await assertFails(updateDoc(session, {
+        'shipDamage.aegis': { damagedSystemIds: ['reactor'], destroyed: false },
+      }));
+      await assertFails(updateDoc(session, {
+        'shipDamage.aegis': { damagedSystemIds: [], destroyed: false },
+      }));
+      await assertFails(updateDoc(session, {
+        'shipDamage.aegis.destroyed': true,
+      }));
+    }
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.
