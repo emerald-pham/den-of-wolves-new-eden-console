@@ -105,7 +105,7 @@ body {
 /* Shared app chrome -------------------------------------------------- */
 
 .app-header {
-  position: fixed;
+  position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
   z-index: 10;
@@ -148,12 +148,14 @@ body {
   z-index: 20;
   display: grid;
   place-items: center;
+  overflow-y: auto;
   padding: 1rem;
   background: #010305e0;
 }
 
 .settings-dialog {
   width: min(26rem, 100%);
+  margin-block: auto;
   padding: 1.25rem;
   box-shadow: 0 1.5rem 4rem #000000a0;
 }
@@ -208,6 +210,21 @@ body {
 
 .settings-dialog__disconnect:hover {
   background: #e0392a33;
+}
+
+.session-readouts {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+.settings-dialog > .session-readouts {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.settings-dialog > .session-readouts > * {
+  flex: 1 1 0;
 }
 
 .session-badge {
@@ -2410,12 +2427,11 @@ body {
   }
 }
 
-/* Scrollable consoles share frozen workspace rows on phones and short displays.
-   The session chrome and DRADIS belong to the opening document area; the
-   workspace displaces them as it reaches the safe top edge. */
+/* On phones and short displays, session chrome and DRADIS belong to the
+   opening document area. The complete console scrolls past them without
+   leaving controls or identity labels over the active workspace. */
 @media (max-width: 42rem), (max-height: 42rem) {
-  [data-console-chrome="true"] .app-header,
-  [data-console-chrome="true"] .ship-plot[data-aboard='true'][data-expanded='false'] {
+  .ship-plot[data-aboard='true'][data-expanded='false'] {
     position: absolute;
   }
 
@@ -2446,15 +2462,5 @@ body {
     inset: auto;
     width: 100%;
     min-height: min(32rem, 75dvh);
-  }
-}
-
-@media (max-width: 42rem), (max-height: 42rem) {
-  .ship-console .ship-console__name {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    padding-block: max(0.75rem, env(safe-area-inset-top)) 0.5rem;
-    background: var(--cic-void);
   }
 }

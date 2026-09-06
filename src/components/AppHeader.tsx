@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConnectionIndicator from './ConnectionIndicator';
+import SessionReadouts from './SessionReadouts';
 import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
 import {
   disconnectFromSession,
@@ -137,15 +138,11 @@ export default function AppHeader() {
   return (
     <header ref={header} className="app-header">
       {joinCode !== undefined && (
-        <div className="session-badge" aria-label={`Session code ${joinCode}`}>
-          <span className="session-badge__label">Session code</span>
-          <strong className="session-badge__code">{joinCode}</strong>
-        </div>
-      )}
-      {connectedPlayers !== null && (
-        <div className="personnel-count" aria-live="polite">
-          {connectedPlayers} connected to CIC
-        </div>
+        <SessionReadouts
+          joinCode={joinCode}
+          connectedPlayers={connectedPlayers}
+          label="Current session"
+        />
       )}
       <ConnectionIndicator status={status} />
       {joinCode !== undefined && (
@@ -181,6 +178,13 @@ export default function AppHeader() {
                 ×
               </button>
             </div>
+            {joinCode !== undefined && (
+              <SessionReadouts
+                joinCode={joinCode}
+                connectedPlayers={connectedPlayers}
+                label="Session status"
+              />
+            )}
             <p>Disconnect this device from session {joinCode}.</p>
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
             <section className="settings-dialog__motion" aria-labelledby="motion-settings-title">

@@ -303,12 +303,21 @@ shuttlecraft or historical visits can never grow underneath or overlap DRADIS.
 On narrow screens the identity/workspace and rail enter document flow and the
 whole console scrolls; controls must never be compressed out of reach.
 
-On phones and short landscape screens, ship and shuttle consoles share frozen
-identity rows: the vessel name sticks to the safe top edge while its panel
-scrolls. Session controls and compact DRADIS scroll away with the opening
-document area. DRADIS begins below the measured session-header height, including
-wrapped rows and rotation; never put it behind those controls. The shared
-connection readout is “X connected to CIC”.
+On phones and short landscape screens, session controls, compact DRADIS, vessel
+identity and instruments all remain in document flow and scroll fully out of
+view. Nothing sticks over the active console workspace. DRADIS begins below the
+measured session-header height, including wrapped rows and rotation; never put
+it behind those controls.
+
+Every in-session page uses the shared `SessionReadouts` composition for session
+code and “X connected to CIC”. The global header and Settings render that same
+component, so their type, spacing, borders and wording stay identical. Future
+pages must keep `AppHeader` as shared app chrome and reuse `SessionReadouts`
+where session identity is repeated rather than creating route-specific badges.
+The complete header is absolute app-wide: session code, connected count,
+connection state and Settings scroll out with the page and are never fixed or
+sticky. Session readouts inside the scrollable Settings dialog move with its
+content as well.
 
 The launcher and role picker run `field`: full-bleed behind the interface. The
 GM console uses `inset`, where the board is one instrument among several. Every

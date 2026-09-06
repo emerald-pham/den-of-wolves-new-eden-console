@@ -69,6 +69,8 @@ it('shows the last-player warning inside settings', async () => {
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
 
+  expect(screen.getAllByLabelText('Session code 4821')).toHaveLength(2);
+  expect(screen.getAllByText('1 connected to CIC')).toHaveLength(2);
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();

@@ -6,7 +6,10 @@ it('reserves the measured header row above compact DRADIS', () => {
   expect(css).toContain('--console-plot-top: calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 0.75rem)');
   expect(css).not.toMatch(/\.ship-plot\[data-aboard='true'\]\[data-expanded='false'\]\s*\{\s*top: max/);
 });
-it('lets ship and shuttle workspaces displace chrome and freeze their console rows', () => {
-  expect(css).toContain('[data-console-chrome="true"] .app-header');
-  expect(css).toMatch(/\.ship-console \.ship-console__name\s*\{[^}]*position: sticky/s);
+it('lets app-wide session chrome scroll away without freezing ship names', () => {
+  const header = css.match(/\.app-header\s*\{([^}]*)\}/)?.[1] ?? '';
+
+  expect(header).toContain('position: absolute');
+  expect(header).not.toContain('position: fixed');
+  expect(css).not.toMatch(/\.ship-console \.ship-console__name\s*\{[^}]*position: sticky/s);
 });
