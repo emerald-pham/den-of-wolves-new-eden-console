@@ -31,13 +31,13 @@ function SystemCard({ system, damaged }: {
       </header>
       <h3>{system.name}</h3>
       <p>{system.baseline}</p>
+      {system.id === 'jump-drive' && <JumpFailureReadout />}
       <dl>
         <div className="aegis-system__condition">
           <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
         </div>
         {system.upgraded && <div><dt>If Upgraded (By Shepherd)</dt><dd>{system.upgraded}</dd></div>}
         <div className="aegis-system__damaged-rule"><dt>If Damaged</dt><dd>{system.damaged}</dd></div>
-        {system.id === 'jump-drive' && <JumpFailureReadout />}
       </dl>
     </article>
   );

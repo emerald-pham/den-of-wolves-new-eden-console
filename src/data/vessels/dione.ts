@@ -59,7 +59,7 @@ export default defineShip({
       name: "Jump Drive",
       timing: 'ftl',
       id: "jump-drive",
-      effect: "Charged: jump for 2 / 4 / 8 fuel at short / medium / long range. Upgraded: 1 fewer fuel; damaged jumps fail only on 1. Damaged: jumps fail on 1–3.",
+      effect: "Charged: Jump for 2 / 4 / 8 fuel at short / medium / long range. Upgraded: 1 fewer fuel; damaged jumps fail only on 1. Damaged: jumps fail on 1–3.",
     },
   ],
   maintenance: {reactor: 4, jump: [2, 4, 8], food: [0, 6, 12, 18], water: [0, 6, 11, 14]},

@@ -48,11 +48,12 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       data-damaged={String(damaged)}
     >
       <h3>{system.name}</h3>{baseline && <p>{baseline}</p>}
+      {system.id === 'jump-drive' && <JumpFailureReadout />}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
       </div>{rules.map(rule => <div className={rule.label === 'If Damaged' ? 'aegis-system__damaged-rule' : undefined}
         key={rule.label}><dt>{rule.label}</dt><dd>{rule.effect}</dd></div>)}
-      {system.id === 'jump-drive' && <JumpFailureReadout />}</dl>
+      </dl>
     </article>;
   };
   const procedures = proceduresForRole(role.id);

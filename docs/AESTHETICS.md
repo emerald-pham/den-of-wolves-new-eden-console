@@ -162,9 +162,11 @@ visible keyboard focus, error announcements, and at least 44px touch targets.
 System rules are operational reading material: use at least 0.875rem bone-white
 body text and 0.75rem amber labels. Present “If Upgraded (By Shepherd)” and
 “If Damaged” in separate definition-list rows, never buried in a muted paragraph.
+For Jump Drives, place the unlabeled normal failure sentence immediately after
+the charged-use baseline and before the condition rows.
 The “Condition” label is always amber; its value is cyan when operational and
-red when damaged. Hypothetical damage rules and normal failure-roll labels stay
-amber. Never infer meaning from a row's position (`:last-child`), and keep status
+red when damaged. Hypothetical damage-rule labels stay amber. Never infer meaning
+from a row's position (`:last-child`), and keep status
 value selectors specific enough to override the ordinary definition text.
 
 Regression coverage lives in `FleetSystemsWorkspace.test.tsx`, the ship route

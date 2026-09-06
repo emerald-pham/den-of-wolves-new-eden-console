@@ -2703,7 +2703,6 @@ body {
 .aegis-system[data-damaged='true'] .aegis-system__condition dd { color: var(--cic-danger); }
 .aegis-system dt:first-child { color: var(--cic-amber); }
 .aegis-system .aegis-system__damaged-rule dt { color: var(--cic-danger); }
-.aegis-system .jump-failure-readout dd { color: var(--cic-ink); }
 .aegis-craft--starlight { grid-column: 1 / -1; }
 
 .aegis-maintenance { padding: 0.75rem; }

@@ -72,8 +72,14 @@ it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and mainten
 it.each(SHIPS.filter(ship => ship.maintenance))('reads out the normal jump-drive failure roll for $name', (ship) => {
   render(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
 
-  expect(screen.getByRole('article', { name: 'Jump Drive system // operational' }))
-    .toHaveTextContent(/normal.*jump fails on a roll of 1–2/i);
+  const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
+  const baseline = jump.getByText(/charged:|coordination phase|short \/\//i, { selector: 'p' });
+  const normalFailure = jump.getByText('A jump fails on a roll of 1–2.', { selector: 'p' });
+  const condition = jump.getByText('Condition', { selector: 'dt' });
+
+  expect(jump.queryByText('Normal', { selector: 'dt' })).not.toBeInTheDocument();
+  expect(baseline.compareDocumentPosition(normalFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(normalFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards inside the printed maintenance steps', (ship) => {
