@@ -20,7 +20,7 @@ Tonnage: 800,000
 Crew Capacity: 5,000                         ⚠
 Passengers Capacity: 500                    ⚠
 
-Your Role: Capybara Captain
+Role Assignment // Capybara Captain
 ```
 
 The warning symbols above represent red outlined triangles containing an

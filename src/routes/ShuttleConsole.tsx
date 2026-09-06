@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import PressConfetti from '@/components/PressConfetti';
+import RoleAssignment from '@/components/RoleAssignment';
 import { SHIPS } from '@/data/ships';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
@@ -53,7 +54,7 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
         <h1 className="ship-console__name" id="shuttle-name">{shuttle.consoleName}</h1>
         <p className="ship-console__type">{shuttle.vesselType}</p>
         <p className="ship-console__description">{shuttle.description}</p>
-        <p className="ship-console__role">Your Title: {captainRole?.name ?? 'Captain'} // Captain</p>
+        <RoleAssignment value={`${captainRole?.name ?? 'Captain'} // Captain`} />
       </section>
 
       <aside className="ship-console__instruments" aria-label={`${shuttle.consoleName} instruments`}>

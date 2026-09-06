@@ -1319,6 +1319,31 @@ body {
   font: 0.78rem/1.7 var(--cic-mono);
 }
 
+.ship-console__role {
+  margin: 0.9rem 0 0;
+  font: 700 0.68rem/1.5 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ship-console__role div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.65rem;
+}
+
+.ship-console__role dt { color: var(--cic-amber); }
+
+.ship-console__role dt::after {
+  content: " //";
+  color: var(--cic-amber-dim);
+}
+
+.ship-console__role dd {
+  margin: 0;
+  color: var(--cic-cyan);
+}
+
 .observer-access {
   flex: 0 0 auto;
   display: grid;

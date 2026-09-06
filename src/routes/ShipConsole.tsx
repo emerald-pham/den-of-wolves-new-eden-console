@@ -5,6 +5,7 @@ import PopulationTrack from '@/components/PopulationTrack';
 import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
+import RoleAssignment from '@/components/RoleAssignment';
 import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
@@ -157,7 +158,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <p className="ship-console__description">{ship.description}</p>
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={population} />
         {(consoleRole || observer) && (
-          <p className="ship-console__role">{ship.id === 'capybara' ? 'Your Role' : 'Your Title'}: {observer ? 'Observer' : consoleRole?.name}</p>
+          <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
         )}
         <div className="ship-console__counters">
           {resources && (

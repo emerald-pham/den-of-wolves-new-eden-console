@@ -42,7 +42,10 @@ it('uses the shared full-screen shuttlecraft console template for SNN', () => {
   );
   expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
   const description = screen.getByText(/carries the system news network/i);
-  const captain = screen.getByText(/your title: press officer.*captain/i);
+  const assignment = screen.getByText('Role assignment');
+  const captain = screen.getByText('Press Officer // Captain');
+  expect(assignment.tagName).toBe('DT');
+  expect(captain.tagName).toBe('DD');
   expect(description.compareDocumentPosition(captain))
     .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(

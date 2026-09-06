@@ -200,7 +200,10 @@ it.each([
   expect(screen.getByRole('heading', { name: 'AEGIS' })).toBeInTheDocument();
   const vesselType = screen.getByText('Battleship / carrier');
   const description = screen.getByText(/main protector of the survivor fleet/i);
-  const renderedRole = screen.getByText(`Your Title: ${roleName}`);
+  const roleLabel = screen.getByText('Role assignment');
+  const renderedRole = screen.getByText(roleName);
+  expect(roleLabel.tagName).toBe('DT');
+  expect(renderedRole.tagName).toBe('DD');
   expect(vesselType.compareDocumentPosition(description))
     .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(description.compareDocumentPosition(renderedRole))
@@ -315,7 +318,8 @@ it('gives a GM observer read-only access by default and resets it after leaving'
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('Your Title: Observer')).toBeInTheDocument();
+  expect(screen.getByText('Role assignment')).toBeInTheDocument();
+  expect(screen.getByText('Observer').tagName).toBe('DD');
   const writeMode = screen.getByRole('button', { name: /observer write mode/i });
   expect(writeMode).toHaveAttribute('aria-pressed', 'false');
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-observer-mode', 'read');
@@ -571,7 +575,9 @@ it('places Capybara specifications before the role and shows a read-only survivo
   </MemoryRouter>);
   const specs = screen.getByRole('region', { name: 'Capybara specifications' });
   expect(specs).toHaveTextContent(/Length600m.*Tonnage800,000.*Crew Capacity5,000.*Passengers Capacity500/);
-  const role = screen.getByText('Your Role: Capybara Captain');
+  const role = screen.getByText('Capybara Captain');
+  expect(screen.getByText('Role assignment').tagName).toBe('DT');
+  expect(role.tagName).toBe('DD');
   expect(specs.compareDocumentPosition(role) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(within(specs).getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
   const census = screen.getByRole('region', { name: 'Capybara census' });
