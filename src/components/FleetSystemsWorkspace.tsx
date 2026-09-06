@@ -12,19 +12,19 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
   readonly galacticCoordinate: string;
   readonly damage?: ShipDamageState | undefined;
 }) {
-  const [page, setPage] = useState<'systems' | 'procedures' | 'maintenance'>('systems');
+  const [page, setPage] = useState<'systems' | 'procedures'>('systems');
   const maintenance = ship.maintenance;
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
   const damagedCards = new Set(ship.damageDeck
     .filter(({ systemId }) => damage?.damagedSystemIds.includes(systemId))
     .map(({ card }) => card));
   return <RoleConsoleTemplate label={`${ship.name} ${role.name} console`}
-    eyebrow={`${ship.name} // ${role.name}`} title={page === 'systems' ? 'Ship systems' : page === 'procedures' ? 'Role procedures' : 'Maintenance cycle'}
+    eyebrow={`${ship.name} // ${role.name}`} title={page === 'systems' ? 'Ship systems' : 'Role procedures'}
     telemetry={<><div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div><div><dt>Fuel in stores</dt><dd>{fuel}</dd></div></>}
-    pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'procedures', label: 'Role procedures' }, ...(maintenance ? [{ id: 'maintenance' as const, label: 'Maintenance cycle' }] : [])]}
+    pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'procedures', label: 'Role procedures' }]}
     activePage={page} onPageChange={setPage}>
     <p>Charges, upgrades and procedure outcomes are tracked at the table. Damage condition is shared when available.</p>
-    {page === 'systems' && <div className="aegis-system-grid">{systems.map(system => {
+    {page === 'systems' && <div className="systems-maintenance-layout"><div className="aegis-system-grid">{systems.map(system => {
       const damaged = damagedCards.has(system.card);
       return <article
         className="aegis-system cic-frame"
@@ -37,11 +37,9 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
           <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
         </div></dl>
       </article>;
-    })}</div>}
-    {page === 'procedures' && <div className="aegis-system-grid">{proceduresForRole(role.id).map(procedure => <article className="aegis-system cic-frame" key={procedure.name}>
-      <h3>{procedure.name}</h3><p>{procedure.effect}</p>
-    </article>)}</div>}
-    {page === 'maintenance' && maintenance && <div className="aegis-maintenance">
+    })}</div>
+    {maintenance && <div className="aegis-maintenance">
+      <h3>Maintenance cycle</h3>
       <p>Reactor capacity // {maintenance.reactor} consoles. Jump fuel // {maintenance.jump.join(' / ')} (short / medium / long).</p>
       <ol aria-label={`${ship.name} maintenance sequence`}>{['Storage', 'Rations', 'Unrest check', 'Riot check', 'Reactor', 'Shuttle Bay'].map((step, index) => <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>)}</ol>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
@@ -53,5 +51,9 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>
       <p>Unrest check: roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1. Riot check: roll 1d6; below current unrest deals 1 damage.</p>
     </div>}
+    </div>}
+    {page === 'procedures' && <div className="aegis-system-grid">{proceduresForRole(role.id).map(procedure => <article className="aegis-system cic-frame" key={procedure.name}>
+      <h3>{procedure.name}</h3><p>{procedure.effect}</p>
+    </article>)}</div>}
   </RoleConsoleTemplate>;
 }

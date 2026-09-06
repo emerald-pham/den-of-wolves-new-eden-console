@@ -42,12 +42,11 @@ function SystemCard({ system, damaged }: {
 }
 
 function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleId'>) {
-  const [page, setPage] = useState<'systems' | 'maintenance'>('systems');
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
   return (
     <RoleConsoleTemplate label="AEGIS Admiral console" eyebrow="AEGIS command console // Admiral"
-      title={page === 'systems' ? 'Ship systems' : 'Maintenance cycle'} telemetry={<>
+      title="Ship systems" telemetry={<>
           <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Fuel in stores</dt><dd>{fuel}</dd></div>
           <div><dt>Reactor capacity</dt><dd>{console.reactorCapacity} consoles</dd></div>
@@ -58,8 +57,8 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
               : `${damage?.damagedSystemIds.length ?? 0} systems`}</dd>
           </div>
       </>}
-      pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'maintenance', label: 'Maintenance cycle' }]} activePage={page} onPageChange={setPage}>
-      {page === 'systems' ? (
+      >
+      <div className="systems-maintenance-layout">
         <div className="aegis-system-grid">
           <p className="aegis-jump-costs">
             Jump requirement // Short {console.jumpCosts.short} // Medium {console.jumpCosts.medium} // Long {console.jumpCosts.long}
@@ -72,8 +71,8 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
             />
           ))}
         </div>
-      ) : (
         <div className="aegis-maintenance">
+          <h3>Maintenance cycle</h3>
           <ol aria-label="AEGIS maintenance sequence">
             {console.maintenanceSteps.map((step, index) => (
               <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>
@@ -96,7 +95,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
             <p><strong>Riot check</strong> // Roll 1d6. A result below current unrest deals 1 damage.</p>
           </div>
         </div>
-      )}
+      </div>
     </RoleConsoleTemplate>
   );
 }

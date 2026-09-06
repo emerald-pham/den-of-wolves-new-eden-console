@@ -501,8 +501,7 @@ it('marks who fired ship confetti on every receiving console', async () => {
   expect(screen.getByRole('status')).toHaveTextContent(/discharged by.*admiral.*alice/i);
 });
 
-it('gives the Admiral a pageable AEGIS ship-systems console', async () => {
-  const user = userEvent.setup();
+it('shows Admiral ship systems alongside the maintenance cycle', () => {
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
@@ -520,7 +519,7 @@ it('gives the Admiral a pageable AEGIS ship-systems console', async () => {
   }
   expect(within(workspace).getAllByText(/short.*2.*medium.*3.*long.*6/i)).toHaveLength(2);
 
-  await user.click(within(workspace).getByRole('button', { name: 'Maintenance cycle' }));
+  expect(within(workspace).getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
   expect(within(workspace).getByRole('list', { name: 'AEGIS maintenance sequence' }))
     .toHaveTextContent(/1.*Storage.*2.*Rations.*3.*Unrest check.*4.*Riot check.*5.*Reactor.*6.*Shuttle Bay Zeta.*7.*Shuttle Bay Omega/i);
   expect(within(workspace).getByRole('table', { name: 'AEGIS ration schedule' }))

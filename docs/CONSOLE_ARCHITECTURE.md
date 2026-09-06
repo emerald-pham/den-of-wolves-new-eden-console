@@ -44,6 +44,17 @@ modules; the Executive Officer has a battle-sheet reference. Other roles use
 `FleetSystemsWorkspace`, with ship systems and initial maintenance schedules
 in each vessel definition and role procedures in `roleProcedures.ts`. Joint
 Engineering switches between its two assigned ships using the same workspace.
+Ship systems and maintenance appear together in the workspace, side by side
+on wide screens and stacked on smaller screens. Role procedures retain their
+own page.
+
+All fleet ships display their current survivor count, falling back to the
+reference starting population for legacy sessions. Only AEGIS and Capybara
+have complete approved tracks. The reference ship summary lists starting
+counts and starred thresholds for Dione, Icebreaker, Shepherd, Quellon and
+Refinery 124, but omits their complete ladders; do not infer their missing
+steps from another ship or enable GM movement without them.
+
 Charges, damage, research and procedure outcomes remain table-resolved until
 their individual gameplay implementation passes.
 

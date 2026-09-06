@@ -2778,3 +2778,22 @@ body {
     min-height: min(32rem, 75dvh);
   }
 }
+
+/* Keep the system cards and their maintenance reference visible together. */
+.systems-maintenance-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.systems-maintenance-layout > * { min-width: 0; }
+.systems-maintenance-layout .aegis-maintenance > h3 {
+  margin: 0 0 0.75rem;
+  color: var(--cic-amber);
+  font: 400 1rem var(--cic-display);
+  text-transform: uppercase;
+}
+@media (min-width: 1400px) {
+  .systems-maintenance-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  .systems-maintenance-layout .aegis-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .systems-maintenance-layout .aegis-maintenance > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

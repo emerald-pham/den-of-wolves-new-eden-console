@@ -176,3 +176,15 @@ it('measures wrapped header rows and updates the shared instrument offset', () =
   expect(disconnect).toHaveBeenCalled();
   vi.unstubAllGlobals();
 });
+
+it('hides rank until a role is selected and hides it again after release', async () => {
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await screen.findByText('2 connected to CIC');
+  expect(screen.queryByText(/^Rank:/)).not.toBeInTheDocument();
+  act(() => useSessionStore.getState().setMe({ ...connectedPlayer('u1'), activeConsoleRoleId: 'admiral' }));
+  expect(screen.getByText('Rank: Admiral')).toBeVisible();
+  act(() => useSessionStore.getState().setMe(connectedPlayer('u1')));
+  await screen.findByText('2 connected to CIC');
+  expect(screen.queryByText(/^Rank:/)).not.toBeInTheDocument();
+});

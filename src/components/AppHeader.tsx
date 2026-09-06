@@ -12,12 +12,6 @@ import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 
-const ROLE_RANKS = {
-  gm: 'GM',
-  observer: 'Observer',
-  player: 'Player',
-} as const;
-
 export default function AppHeader() {
   const navigate = useNavigate();
   const header = useRef<HTMLElement>(null);
@@ -44,7 +38,6 @@ export default function AppHeader() {
   const status = useSessionStore(selectConnectionStatus);
   const sessionId = useSessionStore((state) => state.session?.id);
   const joinCode = useSessionStore((state) => state.session?.joinCode);
-  const me = useSessionStore((state) => state.me);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
   const releaseQueued = useSessionStore((state) =>
@@ -52,9 +45,7 @@ export default function AppHeader() {
   const disconnectQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
   const { override, reducedMotion, systemReducedMotion } = useMotionPreference();
-  const rank = me
-    ? findConsoleRole(me.activeConsoleRoleId ?? undefined)?.name ?? ROLE_RANKS[me.role]
-    : null;
+  const rank = findConsoleRole(activeConsoleRoleId ?? undefined)?.name ?? (gmInstance ? 'GM' : null);
 
   function openSettings(): void {
     setSettingsOpen(true);
