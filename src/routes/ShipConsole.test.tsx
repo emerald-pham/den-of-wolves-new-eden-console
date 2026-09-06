@@ -14,12 +14,14 @@ vi.mock('@/lib/sessionService', () => ({
 
 vi.mock('@/lib/firestore', () => ({
   subscribeShipConfetti: vi.fn(),
+  subscribeDamageDraws: vi.fn(),
 }));
 
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
 const { subscribeShipConfetti } = await import('@/lib/firestore');
+const { subscribeDamageDraws } = await import('@/lib/firestore');
 
 beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset();
@@ -31,6 +33,8 @@ beforeEach(() => {
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
+  vi.mocked(subscribeDamageDraws).mockReset();
+  vi.mocked(subscribeDamageDraws).mockReturnValue(vi.fn());
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity(
     {
@@ -568,6 +572,43 @@ it('shows authoritative AEGIS damage without exposing a damage control', () => {
     .toHaveTextContent(/condition.*operational/i);
   expect(screen.queryByRole('button', { name: /damage/i })).not.toBeInTheDocument();
   expect(screen.queryByText(/[♥♦♣♠]/)).not.toBeInTheDocument();
+});
+
+it.each([
+  ['/ships/aegis/roles/admiral', false],
+  ['/ships/aegis/observer', true],
+] as const)('shows GM damage cards in ship systems at %s', async (route, observer) => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, role: 'gm' });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test',
+    claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
+    onDraws([{
+      id: 'draw-1', sessionId: 's1', type: 'ship-damage', shipId: 'aegis', card: '2♥',
+      systemId: 'fighter-bay-bravo', systemName: 'Fighter Bay Bravo', recycled: false,
+      createdAt: '2026-01-01T00:02:00.000Z',
+    }]);
+    return vi.fn();
+  });
+
+  render(
+    <MemoryRouter initialEntries={[route]}>
+      <Routes>
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+        <Route path="/ships/:shipId/observer" element={<ShipConsole observer={observer} />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const card = await screen.findByText('2♥');
+  expect(card).toHaveClass('ship-damage-card');
+  expect(card).toHaveAttribute('tabindex', '0');
+  expect(screen.getByRole('region', { name: /aegis ship systems/i })).toHaveTextContent(
+    /fighter bay bravo.*2♥/i,
+  );
 });
 
 it('gives the Wing Commander Starlight and fighter-wing operations without XO systems', async () => {
