@@ -82,9 +82,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit tests
-        run: npm test
-
+      # The required local pre-push gate and branch/PR CI already run the unit
+      # suite. Keep the emulator-backed rules test here as a deployment guard.
       - name: Firestore security-rule tests
         run: npm run test:rules
 

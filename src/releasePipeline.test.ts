@@ -16,6 +16,11 @@ it('tests Firestore rules before a main-branch deployment', () => {
   expect(deployment).toBeGreaterThan(rulesTest);
 });
 
+it('does not repeat unit tests during deployment after the pre-push gate', () => {
+  expect(ci).toMatch(/^\s*run:\s+npm test\s*$/m);
+  expect(deploy).not.toMatch(/^\s*run:\s+npm test\s*$/m);
+});
+
 it('deploys only the Firebase surfaces affected by a push', () => {
   expect(deploy).toContain('Determine deployment targets');
   expect(deploy).toContain("package.json|package-lock.json|index.html|public/*|src/*|tsconfig*.json|vite.config.*");

@@ -102,12 +102,14 @@ See [`CLAUDE.md`](CLAUDE.md) for the exact boundary and contributor rules.
 
 ## Deploying
 
-Non-documentation pushes to `main` run lint, unit tests, rule tests and both
-builds, then deploy only the affected Firebase surfaces. Completed product edits
-change the visible application version and therefore deploy Hosting. Firestore
-rules and Cloud Functions deploy only when their files or shared Firebase
-configuration changed. A manually dispatched deployment deploys all surfaces.
-Documentation-only pushes do not start the workflow.
+Non-documentation pushes to `main` run lint, rule tests and both builds, then
+deploy only the affected Firebase surfaces. The unit suite is not repeated
+during deployment because it is required locally before push and runs in branch
+or pull-request CI. Completed product edits change the visible application
+version and therefore deploy Hosting. Firestore rules and Cloud Functions deploy
+only when their files or shared Firebase configuration changed. A manually
+dispatched deployment deploys all surfaces. Documentation-only pushes do not
+start the workflow.
 
 Auth is **Workload Identity Federation** — GitHub mints a short-lived Google
 credential per run, so no service-account key exists to leak, rotate or commit.

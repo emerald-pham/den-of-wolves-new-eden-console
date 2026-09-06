@@ -167,6 +167,9 @@ same +10 offset; never take a port that is already listening.
 - The agent token does not include GitHub Actions read access. Do not poll,
   wait for, or block a merge on CI visibility; local validation is the
   actionable merge gate.
+- The main-branch deployment workflow does not repeat `npm test`; it relies on
+  the required local pre-push gate and the branch or pull-request CI run. It
+  continues to run lint, Firestore rule tests, and both production builds.
 - Do not stack unfinished work. Do not leave a branch open "for later." If it is
   not going to land, delete it.
 - Never force-push `main`. Never commit directly to `main` for anything that
