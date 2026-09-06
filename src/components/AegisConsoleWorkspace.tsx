@@ -33,19 +33,19 @@ function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
   return (
-    <section className="aegis-workspace cic-frame" aria-label="AEGIS Admiral console">
-      <header className="aegis-workspace__header">
+    <section className="console-workspace cic-frame" aria-label="AEGIS Admiral console">
+      <header className="console-workspace__header">
         <div>
-          <p className="aegis-workspace__eyebrow">AEGIS command console // Admiral</p>
+          <p className="console-workspace__eyebrow">AEGIS command console // Admiral</p>
           <h2>{page === 'systems' ? 'Ship systems' : 'Maintenance cycle'}</h2>
         </div>
-        <dl className="aegis-workspace__telemetry">
+        <dl className="console-workspace__telemetry">
           <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Fuel in stores</dt><dd>{fuel}</dd></div>
           <div><dt>Reactor capacity</dt><dd>{console.reactorCapacity} consoles</dd></div>
         </dl>
       </header>
-      <nav className="aegis-workspace__nav" aria-label="AEGIS Admiral console pages">
+      <nav className="console-workspace__nav" aria-label="AEGIS Admiral console pages">
         <button type="button" aria-pressed={page === 'systems'} onClick={() => setPage('systems')}>
           Ship systems
         </button>
@@ -96,18 +96,18 @@ function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fu
   if (!starlight) return null;
 
   return (
-    <section className="aegis-workspace cic-frame" aria-label="AEGIS Wing Commander console">
-      <header className="aegis-workspace__header">
+    <section className="console-workspace cic-frame" aria-label="AEGIS Wing Commander console">
+      <header className="console-workspace__header">
         <div>
-          <p className="aegis-workspace__eyebrow">AEGIS flight operations // Wing Commander</p>
+          <p className="console-workspace__eyebrow">AEGIS flight operations // Wing Commander</p>
           <h2>{page === 'flight' ? 'Flight group' : 'Combat doctrine'}</h2>
         </div>
-        <dl className="aegis-workspace__telemetry">
+        <dl className="console-workspace__telemetry">
           <div><dt>AEGIS coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>
         </dl>
       </header>
-      <nav className="aegis-workspace__nav" aria-label="AEGIS Wing Commander console pages">
+      <nav className="console-workspace__nav" aria-label="AEGIS Wing Commander console pages">
         <button type="button" aria-pressed={page === 'flight'} onClick={() => setPage('flight')}>
           Flight group
         </button>

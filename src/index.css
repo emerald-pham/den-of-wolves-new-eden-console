@@ -2430,9 +2430,8 @@ body {
 .population-track li[aria-current="step"] { color: var(--cic-cyan); font-weight: bold; }
 .population-track__key { color: var(--cic-danger); font-size: 0.55rem; }
 
-/* AEGIS is the first data-driven capital-ship gameplay workspace. The role
-   data changes between ships; this frame, paging and instrument grid do not. */
-.aegis-workspace {
+/* Role data changes between ships; this frame, paging and instrument grid do not. */
+.console-workspace {
   margin-top: 1rem;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
@@ -2440,7 +2439,7 @@ body {
   font-family: var(--cic-mono);
 }
 
-.aegis-workspace__header {
+.console-workspace__header {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) minmax(20rem, 1.4fr);
   align-items: end;
@@ -2448,7 +2447,7 @@ body {
   padding: 1rem;
 }
 
-.aegis-workspace__eyebrow,
+.console-workspace__eyebrow,
 .aegis-system header p,
 .aegis-craft > p,
 .aegis-doctrine > p:first-child {
@@ -2459,7 +2458,7 @@ body {
   text-transform: uppercase;
 }
 
-.aegis-workspace h2 {
+.console-workspace h2 {
   margin: 0.35rem 0 0;
   color: var(--cic-ink);
   font: 400 clamp(1.6rem, 4vw, 2.75rem)/0.95 var(--cic-display);
@@ -2467,7 +2466,7 @@ body {
   text-transform: uppercase;
 }
 
-.aegis-workspace__telemetry {
+.console-workspace__telemetry {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
   gap: 1px;
@@ -2475,13 +2474,13 @@ body {
   background: var(--cic-rule);
 }
 
-.aegis-workspace__telemetry div {
+.console-workspace__telemetry div {
   min-width: 0;
   padding: 0.65rem;
   background: var(--cic-void);
 }
 
-.aegis-workspace__telemetry dt,
+.console-workspace__telemetry dt,
 .aegis-system dt,
 .aegis-craft dt {
   color: var(--cic-amber);
@@ -2490,7 +2489,7 @@ body {
   text-transform: uppercase;
 }
 
-.aegis-workspace__telemetry dd {
+.console-workspace__telemetry dd {
   margin: 0.25rem 0 0;
   overflow: hidden;
   color: var(--cic-cyan-hot);
@@ -2500,13 +2499,13 @@ body {
   white-space: nowrap;
 }
 
-.aegis-workspace__nav {
+.console-workspace__nav {
   display: flex;
   border-top: 1px solid var(--cic-rule);
   border-bottom: 1px solid var(--cic-rule);
 }
 
-.aegis-workspace__nav button {
+.console-workspace__nav button {
   min-height: 44px;
   flex: 1 1 0;
   border: 0;
@@ -2520,12 +2519,12 @@ body {
   cursor: pointer;
 }
 
-.aegis-workspace__nav button:last-child { border-right: 0; }
-.aegis-workspace__nav button[aria-pressed='true'] {
+.console-workspace__nav button:last-child { border-right: 0; }
+.console-workspace__nav button[aria-pressed='true'] {
   background: color-mix(in srgb, var(--cic-cyan-dim) 28%, transparent);
   color: var(--cic-cyan-hot);
 }
-.aegis-workspace__nav button:focus-visible {
+.console-workspace__nav button:focus-visible {
   position: relative;
   z-index: 1;
   outline: 2px solid var(--cic-amber);
@@ -2672,8 +2671,44 @@ body {
 }
 .aegis-maintenance__checks strong { color: var(--cic-ink); text-transform: uppercase; }
 
+.console-scaffold__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.console-scaffold__module {
+  min-width: 0;
+  padding: 0.8rem;
+  border-color: var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-panel) 76%, transparent);
+}
+
+.console-scaffold__module p { margin: 0; }
+.console-scaffold__module > p:first-child {
+  color: var(--cic-amber);
+  font-size: 0.56rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.console-scaffold__module h3 {
+  margin: 0.65rem 0 0;
+  color: var(--cic-ink);
+  font: 400 1.15rem/1.05 var(--cic-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.console-scaffold__module h3 + p {
+  margin-top: 0.5rem;
+  color: var(--cic-muted);
+  font-size: 0.6rem;
+  line-height: 1.55;
+}
+
 @media (max-width: 60rem) {
-  .aegis-workspace__header { grid-template-columns: 1fr; }
+  .console-workspace__header { grid-template-columns: 1fr; }
   .aegis-system-grid,
   .aegis-craft-grid,
   .aegis-combat-grid { grid-template-columns: 1fr; }
@@ -2681,6 +2716,7 @@ body {
   .aegis-jump-costs,
   .aegis-doctrine__notice { grid-column: auto; }
   .aegis-maintenance > ol { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .console-scaffold__grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 42rem) {
@@ -2688,7 +2724,7 @@ body {
     max-height: none;
     overflow-y: visible;
   }
-  .aegis-workspace__telemetry { grid-template-columns: 1fr; }
+  .console-workspace__telemetry { grid-template-columns: 1fr; }
   .aegis-maintenance > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .aegis-maintenance__checks { grid-template-columns: 1fr; }
 }

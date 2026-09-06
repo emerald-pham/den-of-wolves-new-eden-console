@@ -2,16 +2,17 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
+import FleetConsoleWorkspace from '@/components/FleetConsoleWorkspace';
 import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
-import AegisConsoleWorkspace from '@/components/AegisConsoleWorkspace';
 import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { isImplementedAegisRole } from '@/data/aegisConsoles';
+import { isScaffoldedConsoleRole } from '@/data/shipConsoleWorkspaces';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
   popShipConfetti,
@@ -62,6 +63,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
   const population = ship ? populationForShip(ship.id, session?.shipSurvivors) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
+  const hasConsoleWorkspace = Boolean(
+    ship && consoleRole && (
+      (ship.id === 'aegis' && isImplementedAegisRole(consoleRole.id)) ||
+      isScaffoldedConsoleRole(ship.id, consoleRole.id)
+    ),
+  );
 
   useEffect(() => {
     if (!consoleRole || observer) return;
@@ -134,7 +141,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   return (
     <main
       className={`ship-console ship-console--${ship.id}${
-        ship.id === 'aegis' && isImplementedAegisRole(consoleRole?.id)
+        hasConsoleWorkspace
           ? ' ship-console--gameplay'
           : ''
       }`}
@@ -166,10 +173,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
         )}
-        {ship.id === 'aegis' && !observer && (
-          <AegisConsoleWorkspace
-            roleId={consoleRole?.id}
-            galacticCoordinate={session.shipGalacticCoordinates?.aegis ?? '0000'}
+        {!observer && (
+          <FleetConsoleWorkspace
+            ship={ship}
+            role={consoleRole}
+            galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
             fuel={resources?.fuel ?? 0}
           />
         )}
