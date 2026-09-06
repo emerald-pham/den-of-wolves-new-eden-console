@@ -17,6 +17,8 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
+vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
+
 const { popShipConfetti } = await import('@/lib/sessionService');
 const { selectConsoleRole } = await import('@/lib/sessionService');
 const { adjustShipResource, adjustShipUnrest } = await import('@/lib/sessionService');
@@ -93,6 +95,28 @@ it.each([
   );
 
   expect(screen.getByText(nationLine)).toBeInTheDocument();
+});
+
+it('replaces the AEGIS confetti launcher with the Admiral red-alert command instrument', () => {
+  const session = useSessionStore.getState().session!;
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setSession({ ...session, phase: 'active' });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'admiral' });
+  useSessionStore.getState().setConnection('live');
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const instruments = screen.getByRole('complementary', { name: 'AEGIS instruments' });
+  expect(within(instruments).getByRole('region', { name: 'Fleetwide red alert' }))
+    .toBeInTheDocument();
+  expect(within(instruments).getByRole('button', { name: 'Open red alert command cover' }))
+    .toHaveTextContent('Command lock');
+  expect(within(instruments).queryByRole('region', {
+    name: /emergency bridge confetti dispenser/i,
+  })).not.toBeInTheDocument();
 });
 
 it.each([
@@ -429,7 +453,7 @@ it('leaves the ship through the visible return control', async () => {
   expect(screen.getByText('Fleet roster')).toBeInTheDocument();
 });
 
-it('opens a digital cover before activating the one-shot Emergency Bridge Confetti Dispenser', async () => {
+it('opens a digital cover before activating a non-AEGIS one-shot Emergency Bridge Confetti Dispenser', async () => {
   const user = userEvent.setup();
   let signal: ((sourceShipId: string) => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
@@ -445,7 +469,7 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
     return 'applied';
   });
   const { container } = render(
-    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
@@ -456,7 +480,7 @@ it('opens a digital cover before activating the one-shot Emergency Bridge Confet
   }));
   act(() => signal?.('aegis'));
 
-  expect(popShipConfetti).toHaveBeenCalledWith('aegis', 'admiral');
+  expect(popShipConfetti).toHaveBeenCalledWith('dione', 'dione-captain');
   expect(screen.getByRole('button', { name: /emergency bridge confetti dispenser spent/i }))
     .toBeDisabled();
   expect(screen.getByText(/one use.*empty/i)).toBeInTheDocument();
@@ -500,14 +524,14 @@ it('fires newspapers on the bridge when the docked SNN shuttle holds the presses
   expect(screen.queryByText(/scoop mcgee/i)).not.toBeInTheDocument();
 });
 
-it('marks who fired ship confetti on every receiving console', async () => {
+it('marks who fired ship confetti on receiving non-AEGIS consoles', async () => {
   let signal: ((sourceShipId: string, actorRoleName: string, actorName: string) => void) | undefined;
   vi.mocked(subscribeShipConfetti).mockImplementation((_sessionId, _shipId, onPop) => {
     signal = onPop;
     return vi.fn();
   });
   render(
-    <MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );

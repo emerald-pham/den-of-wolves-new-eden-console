@@ -51,8 +51,14 @@ describe('Emergency Bridge Confetti Dispenser policy', () => {
   });
 
   it('permits exactly one activation per ship', () => {
-    expect(canPopShipConfetti([], 'aegis')).toBe(true);
-    expect(canPopShipConfetti(['aegis'], 'aegis')).toBe(false);
+    expect(canPopShipConfetti([], 'dione')).toBe(true);
+    expect(canPopShipConfetti(['dione'], 'dione')).toBe(false);
+  });
+
+  it('disables the AEGIS bridge dispenser now that red alert occupies its housing', () => {
+    expect(canPopShipConfetti([], 'aegis')).toBe(false);
+    expect(() => confettiActivationDecision('aegis', 'admiral', 'u1', []))
+      .toThrow(/disabled/i);
   });
 
   it('allows the SNN evidence shredder to fire repeatedly', () => {

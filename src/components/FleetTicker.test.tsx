@@ -8,31 +8,46 @@ beforeEach(() => { sessionStorage.clear(); setMotionOverride('full'); });
 afterEach(() => { vi.useRealTimers(); act(() => setMotionOverride('system')); });
 it('repeats the alert indefinitely and replaces it with exactly two cancellation passes', () => {
   const view = render(<FleetTicker message={alert} />);
-  fireEvent.animationIteration(screen.getByText(alert.text));
-  expect(screen.getByText(alert.text)).toBeVisible();
+  const alertStatus = screen.getByRole('status', { name: alert.text });
+  fireEvent.animationIteration(alertStatus.querySelector('.fleet-ticker__track')!);
+  expect(alertStatus).toBeVisible();
   view.rerender(<FleetTicker message={cancelled} />);
-  expect(screen.queryByText(alert.text)).not.toBeInTheDocument();
-  fireEvent.animationIteration(screen.getByText(cancelled.text));
-  expect(screen.getByText(cancelled.text)).toBeVisible();
-  fireEvent.animationIteration(screen.getByText(cancelled.text));
-  expect(screen.queryByText(cancelled.text)).not.toBeInTheDocument();
+  expect(screen.queryByRole('status', { name: alert.text })).not.toBeInTheDocument();
+  const cancellationStatus = screen.getByRole('status', { name: cancelled.text });
+  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  expect(cancellationStatus).toBeVisible();
+  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
   view.unmount(); render(<FleetTicker message={cancelled} />);
-  expect(screen.queryByText(cancelled.text)).not.toBeInTheDocument();
+  expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
 it('runs press copy on the same surface without pause controls', () => {
   render(<FleetTicker message={{ id: 'press-1', text: 'Press missive', tone: 'normal' }} />);
-  expect(screen.getByText('Press missive')).toBeVisible();
+  expect(screen.getByRole('status', { name: 'Press missive' })).toBeVisible();
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
 });
 it('shows readable stationary copy in reduced motion and clears finite messages', () => {
   vi.useFakeTimers(); setMotionOverride('reduce');
   render(<FleetTicker message={cancelled} />);
-  expect(screen.getByText(cancelled.text)).toHaveStyle({ animation: 'none' });
+  expect(screen.getByRole('status', { name: cancelled.text })).toHaveTextContent(cancelled.text);
   act(() => vi.advanceTimersByTime(60000));
-  expect(screen.queryByText(cancelled.text)).not.toBeInTheDocument();
+  expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
+});
+it('duplicates every moving broadcast into two seamless, screen-filling groups', () => {
+  const { container } = render(<FleetTicker message={alert} />);
+  const groups = container.querySelectorAll('.fleet-ticker__group');
+  expect(groups).toHaveLength(2);
+  expect(groups[0]?.querySelectorAll('.fleet-ticker__copy').length).toBeGreaterThanOrEqual(2);
+  expect(groups[1]?.querySelectorAll('.fleet-ticker__copy').length)
+    .toBe(groups[0]?.querySelectorAll('.fleet-ticker__copy').length);
 });
 it('uses all-capital lettering for fleet broadcasts', async () => {
   const { readFileSync } = await import('node:fs');
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
-  expect(css).toMatch(/\.fleet-ticker__message\s*\{[^}]*text-transform:\s*uppercase/);
+  expect(css).toMatch(/\.fleet-ticker__message[^}]*text-transform:\s*uppercase/);
+  expect(css).toMatch(/@keyframes fleet-broadcast-pass[^]*translateX\(-50%\)/);
+  const tickerRule = css.match(/\.fleet-ticker\s*\{([^}]*)\}/)?.[1];
+  expect(tickerRule).not.toMatch(/position:\s*fixed/);
+  expect(tickerRule).not.toMatch(/bottom:/);
+  expect(tickerRule).toMatch(/border:\s*1px solid var\(--cic-rule\)/);
 });

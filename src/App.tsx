@@ -9,7 +9,6 @@ import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
-import FleetBroadcast from '@/components/FleetBroadcast';
 import AppHeader from '@/components/AppHeader';
 import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
@@ -90,7 +89,6 @@ function AppRoutes() {
         ambientSession={session ?? undefined}
       />
       <AppHeader />
-      <FleetBroadcast />
       <CommunicationError />
       <UnrestAlert />
       <PopulationAlert />

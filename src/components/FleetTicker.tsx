@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useMotionPreference } from '@/lib/motionPreference';
 import './fleetTicker.css';
 
@@ -12,6 +12,9 @@ export interface FleetMessage {
 
 function Message({ message }: { readonly message: FleetMessage }) {
   const { reducedMotion } = useMotionPreference();
+  const windowRef = useRef<HTMLDivElement>(null);
+  const copyRef = useRef<HTMLSpanElement>(null);
+  const [copyCount, setCopyCount] = useState(2);
   const key = `fleet-ticker:${message.id}`;
   const [completed, setCompleted] = useState(() => {
     try { return Number(sessionStorage.getItem(key)) || 0; } catch { return 0; }
@@ -27,13 +30,47 @@ function Message({ message }: { readonly message: FleetMessage }) {
     const timer = window.setInterval(finishPass, 30_000);
     return () => window.clearInterval(timer);
   }, [reducedMotion, done, message.passes]);
+  useLayoutEffect(() => {
+    if (reducedMotion) return;
+    const windowElement = windowRef.current;
+    const copyElement = copyRef.current;
+    if (!windowElement || !copyElement) return;
+    const measure = () => {
+      const copyWidth = copyElement.scrollWidth || copyElement.getBoundingClientRect().width;
+      if (copyWidth <= 0) return;
+      setCopyCount(Math.max(2, Math.ceil(windowElement.clientWidth / copyWidth) + 1));
+    };
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(windowElement);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [message.text, reducedMotion]);
   if (done) return null;
   return <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone={message.tone} data-reduced={reducedMotion}>
-    <div className="fleet-ticker__window" role="status" aria-live="polite" aria-atomic="true">
-      <p className="fleet-ticker__message"
-        style={reducedMotion ? { animation: 'none' } : undefined}
-        onAnimationIteration={message.passes === undefined ? undefined : finishPass}
-        onAnimationEnd={message.passes === undefined ? undefined : finishPass}>{message.text}</p>
+    <div ref={windowRef} className="fleet-ticker__window" role="status" aria-label={message.text}
+      aria-live="polite" aria-atomic="true">
+      {reducedMotion ? (
+        <p className="fleet-ticker__message">{message.text}</p>
+      ) : (
+        <div className="fleet-ticker__track" aria-hidden="true"
+          onAnimationIteration={message.passes === undefined ? undefined : finishPass}
+          onAnimationEnd={message.passes === undefined ? undefined : finishPass}>
+          {[0, 1].map((group) => (
+            <span className="fleet-ticker__group" key={group}>
+              {Array.from({ length: copyCount }, (_, index) => (
+                <span className="fleet-ticker__copy" key={index}
+                  ref={group === 0 && index === 0 ? copyRef : undefined}>
+                  {message.text}<span className="fleet-ticker__separator"> // </span>
+                </span>
+              ))}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   </aside>;
 }

@@ -1,11 +1,14 @@
-.fleet-alert-command { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-block: 1rem; }
-.fleet-alert-command span { color: var(--cic-cyan); font: 0.875rem var(--cic-mono); }
-.fleet-ticker { position: fixed; inset: auto 0 0; z-index: 25; display: flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1rem calc(0.625rem + env(safe-area-inset-bottom)); background: var(--cic-void); border-top: 1px solid var(--cic-rule); color: var(--cic-ink); }
+.fleet-ticker { flex: 1 1 20rem; min-width: 8rem; min-height: 2.5rem; display: flex; align-items: center; padding: 0.35rem 0.7rem; background: color-mix(in srgb, var(--cic-void) 88%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--cic-rule); color: var(--cic-ink); }
 .fleet-ticker[data-tone="danger"] { color: var(--cic-hostile); }
 .fleet-ticker__window { flex: 1; min-width: 0; overflow: hidden; }
-.fleet-ticker__message { text-transform: uppercase; width: max-content; margin: 0; padding-left: 100%; white-space: nowrap; font: 1rem/1.5 var(--cic-mono); animation: fleet-broadcast-pass 30s linear infinite; }
-@keyframes fleet-broadcast-pass { from { transform: translateX(0); } to { transform: translateX(-100%); } }
-.fleet-ticker[data-reduced="true"] .fleet-ticker__window { max-height: 22vh; overflow: auto; }
-.fleet-ticker[data-reduced="true"] .fleet-ticker__message { text-transform: uppercase; width: auto; padding: 0.5rem 0; white-space: normal; }
-body:has(.fleet-ticker) { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
-body:has(.fleet-ticker[data-reduced="true"]) { padding-bottom: calc(22vh + 24px + env(safe-area-inset-bottom)); }
+.fleet-ticker__message { margin: 0; color: inherit; font: 0.72rem/1.35 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.fleet-ticker__track { display: flex; width: max-content; animation: fleet-broadcast-pass 30s linear infinite; }
+.fleet-ticker__group { display: flex; flex: none; }
+.fleet-ticker__copy { display: block; flex: none; white-space: nowrap; font: 0.72rem/1.35 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.fleet-ticker__separator { padding-inline: 1.4rem; color: var(--cic-amber); }
+@keyframes fleet-broadcast-pass { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.fleet-ticker[data-reduced="true"] { align-items: flex-start; max-height: min(7rem, 20vh); overflow-y: auto; }
+
+@media (max-width: 48rem) {
+  .fleet-ticker { order: 5; flex-basis: 100%; }
+}

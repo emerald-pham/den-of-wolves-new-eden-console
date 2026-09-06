@@ -14,7 +14,9 @@ export function isFleetShipId(shipId: string): shipId is keyof typeof FLEET_SHIP
 }
 
 export function canPopShipConfetti(usedShipIds: readonly string[], shipId: string): boolean {
-  return shipId === 'snn-press-shuttle' || !usedShipIds.includes(shipId);
+  return shipId !== 'aegis' && (
+    shipId === 'snn-press-shuttle' || !usedShipIds.includes(shipId)
+  );
 }
 
 export const isReusableConfettiSource = (shipId: string): boolean =>
@@ -66,6 +68,7 @@ export function confettiActivationDecision(
   approvals: readonly ConfettiApproval[],
   connectedOfficerUids: readonly string[] = [],
 ): ConfettiActivationDecision {
+  if (shipId === 'aegis') throw new Error('The AEGIS bridge dispenser is disabled.');
   const role = CONFETTI_ROLES[roleId as keyof typeof CONFETTI_ROLES];
   if (!role || role.shipId !== shipId) throw new Error('That role does not belong to this ship.');
   if (role.authority === 'captain' || shipId === 'capybara' || shipId === 'snn-press-shuttle') {

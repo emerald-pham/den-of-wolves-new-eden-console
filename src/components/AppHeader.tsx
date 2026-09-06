@@ -12,6 +12,7 @@ import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
+import FleetBroadcast from './FleetBroadcast';
 
 export default function AppHeader() {
   const navigate = useNavigate();
@@ -153,6 +154,7 @@ export default function AppHeader() {
           label="Current session"
         />
       )}
+      <FleetBroadcast />
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
       <ConnectionIndicator status={status} />
       {joinCode !== undefined && (

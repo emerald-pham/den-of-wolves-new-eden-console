@@ -8,7 +8,7 @@ export default function FleetBroadcast() {
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
     text: alert.active
-      ? 'red alert from AEGIS Admiral - wolf attack imminent, all hands to battle stations'
+      ? 'red alert from AEGIS Admiral - wolf attack imminent, all hands to battle stations. Non-Crew Civilians must shelter in place until alert lifted.'
       : 'red alert cancelled by AEGIS, stand down, stand down all battlestations. repeat, stand down, stand down all battlestations. red alert cancelled by AEGIS.',
     tone: alert.active ? 'danger' : 'normal',
     ...(alert.active ? {} : { passes: 2 }),

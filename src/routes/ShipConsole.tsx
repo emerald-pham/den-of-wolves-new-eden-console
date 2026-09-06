@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
 import FleetConsoleWorkspace from '@/components/FleetConsoleWorkspace';
+import FleetAlertControl from '@/components/FleetAlertControl';
 import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
@@ -303,51 +304,55 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             </ol>
           ) : <p>No recorded shuttle dockings</p>}
         </section>
-        <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
-        <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>
-        <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
-          <button
-            className="confetti-dispenser__trigger"
-            type="button"
-            aria-label={spent
-              ? 'Emergency Bridge Confetti Dispenser spent'
-              : queued
-                ? 'Emergency Bridge Confetti Dispenser activation queued'
-                : 'Activate Emergency Bridge Confetti Dispenser'}
-            disabled={!coverOpen || !consoleRole || observer || spent || queued || activating}
-            onClick={() => void activate()}
-          >
-            {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
-          </button>
-          <button
-            className="confetti-dispenser__cover"
-            type="button"
-            aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
-            aria-pressed={coverOpen}
-            disabled={observer || spent || queued}
-            onClick={() => setCoverOpen((current) => !current)}
-          >
-            {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
-          </button>
-        </div>
-        <p className="confetti-dispenser__status">
-          ONE USE // {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
-        </p>
-        {confettiActor && (
-          <p className="confetti-dispenser__notice" role="status">
-            DISCHARGED BY // {confettiActor.roleName} // {confettiActor.name}
-          </p>
-        )}
-        {!spent && !queued && !confettiActor && (
-          <p className="confetti-dispenser__notice" role="status">
-            {awaitingSecondOfficer
-              ? 'AUTHORIZATION HELD // SECOND PERSON MUST PRESS TO FIRE THE CANNON'
-              : consoleRole
-                ? 'COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE'
-                : 'SELECT A COMMAND ROLE TO OPERATE THE CANNON'}
-          </p>
-        )}
-        </section>
+        {!observer && ship.id === 'aegis' && consoleRole?.id === 'admiral' ? (
+          <FleetAlertControl />
+        ) : ship.id !== 'aegis' ? (
+          <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
+            <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>
+            <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
+              <button
+                className="confetti-dispenser__trigger"
+                type="button"
+                aria-label={spent
+                  ? 'Emergency Bridge Confetti Dispenser spent'
+                  : queued
+                    ? 'Emergency Bridge Confetti Dispenser activation queued'
+                    : 'Activate Emergency Bridge Confetti Dispenser'}
+                disabled={!coverOpen || !consoleRole || observer || spent || queued || activating}
+                onClick={() => void activate()}
+              >
+                {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
+              </button>
+              <button
+                className="confetti-dispenser__cover"
+                type="button"
+                aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
+                aria-pressed={coverOpen}
+                disabled={observer || spent || queued}
+                onClick={() => setCoverOpen((current) => !current)}
+              >
+                {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
+              </button>
+            </div>
+            <p className="confetti-dispenser__status">
+              ONE USE // {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+            </p>
+            {confettiActor && (
+              <p className="confetti-dispenser__notice" role="status">
+                DISCHARGED BY // {confettiActor.roleName} // {confettiActor.name}
+              </p>
+            )}
+            {!spent && !queued && !confettiActor && (
+              <p className="confetti-dispenser__notice" role="status">
+                {awaitingSecondOfficer
+                  ? 'AUTHORIZATION HELD // SECOND PERSON MUST PRESS TO FIRE THE CANNON'
+                  : consoleRole
+                    ? 'COMMAND CODES // CAPTAIN AUTHORITY REQUIRED // TWO OFFICERS MAY OVERRIDE'
+                    : 'SELECT A COMMAND ROLE TO OPERATE THE CANNON'}
+              </p>
+            )}
+          </section>
+        ) : null}
       </aside>
       {burst > 0 && (
         <div className="confetti-burst" key={burst} aria-hidden="true">

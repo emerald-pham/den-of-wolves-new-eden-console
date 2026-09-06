@@ -60,6 +60,22 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
+it('keeps fleet broadcasts in the same measured header row as the session code', async () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setSession({
+    ...session,
+    fleetRedAlert: { active: true, revision: 1 },
+  });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  const header = screen.getByRole('banner');
+  expect(header).toContainElement(screen.getByLabelText('Session code 4821'));
+  expect(header).toContainElement(screen.getByRole('status', { name: /red alert from aegis/i }));
+  expect(await screen.findByText('2 connected to CIC')).toBeVisible();
+});
+
 it('shows the player command rank in the top-right header', async () => {
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([connectedPlayer('u1')]);

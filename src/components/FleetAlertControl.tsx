@@ -4,6 +4,7 @@ import { setFleetRedAlert } from '@/lib/fleetAlertService';
 
 export default function FleetAlertControl() {
   const { session, me, connection } = useSessionStore();
+  const [coverOpen, setCoverOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
@@ -12,15 +13,38 @@ export default function FleetAlertControl() {
   const execute = async () => {
     if (busy.current) return;
     busy.current = true; setPending(true); setError('');
-    try { await setFleetRedAlert(!active); }
+    try {
+      await setFleetRedAlert(!active);
+      setCoverOpen(false);
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Fleet alert command failed. Try again.'); }
     finally { busy.current = false; setPending(false); }
   };
-  return <section aria-label="Fleet alert command" className="fleet-alert-command">
-    <button className="cic-action-button" disabled={pending || connection !== 'live' || session?.phase === 'closed'} onClick={() => void execute()}>
-      {active ? 'Stand down' : 'Fleetwide red alert'}
-    </button>
-    <span>{pending ? 'Transmitting command…' : active ? 'Red alert active // Fleetwide' : 'Fleet alert // Standing by'}</span>
-    {error && <p role="alert">{error}</p>}
+  const unavailable = connection !== 'live' || session?.phase === 'closed';
+  return <section aria-label="Fleetwide red alert"
+    className="confetti-dispenser confetti-dispenser--fleet-alert">
+    <p className="confetti-dispenser__label">Fleetwide Red Alert</p>
+    <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
+      <button className="confetti-dispenser__trigger" type="button"
+        aria-label={active ? 'Stand down' : 'Raise fleetwide red alert'}
+        disabled={!coverOpen || pending || unavailable}
+        onClick={() => void execute()}>
+        {pending ? 'Transmitting' : active ? 'Stand down' : 'Stand up'}
+      </button>
+      <button className="confetti-dispenser__cover" type="button"
+        aria-label={`${coverOpen ? 'Close' : 'Open'} red alert command cover`}
+        aria-pressed={coverOpen}
+        disabled={pending}
+        onClick={() => setCoverOpen((current) => !current)}>
+        {coverOpen ? 'Cover open' : 'Command lock'}
+      </button>
+    </div>
+    <p className="confetti-dispenser__status">
+      Fleet command // {pending ? 'Transmitting' : active ? 'Alert active' : 'Standing by'}
+    </p>
+    <p className="confetti-dispenser__notice">
+      Admiral authority required // Fleetwide transmission
+    </p>
+    {error && <p className="confetti-dispenser__notice" role="alert">{error}</p>}
   </section>;
 }

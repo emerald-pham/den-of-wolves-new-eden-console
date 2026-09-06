@@ -205,6 +205,21 @@ Check both states of toggles, disabled controls, and longer labels on narrow,
 wide, and short landscape screens. Inspect the rendered boxes: correct DOM
 order alone does not establish equal heights or visual alignment.
 
+Fleet broadcasts share the measured top chrome row with the session-code
+instrument. They use the same ruled border, near-black ground, compact height,
+and monospaced readout scale; they never attach to the viewport bottom or cover
+the console. On constrained widths the broadcast occupies its own full-width
+row inside that same measured header, so the console offset still accounts for
+it. Moving broadcasts contain two identical groups, with enough copies in each
+group to span the available readout before the track loops between them.
+Reduced motion shows one stationary, wrapping message in the same instrument.
+
+The AEGIS fleet-alert command occupies the guarded bridge-control housing that
+other ships use for the emergency confetti dispenser. Its closed command cover,
+threat-coloured trigger, status line, and authority caption are one instrument;
+the trigger reads STAND UP or STAND DOWN according to fleet state. AEGIS does
+not also show a confetti launcher in that rail.
+
 ### Settings changelog
 
 Keep release history collapsed behind a clear text control until requested.
