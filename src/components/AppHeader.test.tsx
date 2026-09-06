@@ -92,7 +92,7 @@ it('shows the last-player warning inside settings', async () => {
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
 });
 
-it('shows the system motion setting and lets a player override it', async () => {
+it('offers reduce motion as a simple on-off setting', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
@@ -102,7 +102,10 @@ it('shows the system motion setting and lets a player override it', async () => 
   const reduceMotion = screen.getByRole('checkbox', { name: /reduce motion/i });
   await user.click(reduceMotion);
   expect(reduceMotion).toBeChecked();
-  expect(screen.getByText(/overriding your system setting/i)).toBeInTheDocument();
+  expect(screen.queryByText(/overriding your system setting/i)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /use system setting/i })).not.toBeInTheDocument();
+  await user.click(reduceMotion);
+  expect(reduceMotion).not.toBeChecked();
 });
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {

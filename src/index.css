@@ -2369,19 +2369,6 @@ body {
   cursor: pointer;
 }
 
-.settings-dialog__system {
-  min-height: 2.5rem;
-  margin-top: 0.75rem;
-  border: 1px solid var(--cic-rule);
-  border-radius: var(--cic-radius);
-  background: transparent;
-  color: var(--cic-cyan);
-  font: 0.7rem/1 var(--cic-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
 .landing__motion-control {
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--cic-rule);

@@ -44,7 +44,7 @@ export default function AppHeader() {
     state.pendingCommands.some((command) => command.kind === 'releaseGmInstance'));
   const disconnectQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
-  const { override, reducedMotion, systemReducedMotion } = useMotionPreference();
+  const { reducedMotion, systemReducedMotion } = useMotionPreference();
   const rank = findConsoleRole(activeConsoleRoleId ?? undefined)?.name ?? (gmInstance ? 'GM' : null);
 
   function openSettings(): void {
@@ -201,16 +201,6 @@ export default function AppHeader() {
                 />
                 Reduce motion
               </label>
-              <p>
-                {override === 'system'
-                  ? 'Following your system setting.'
-                  : 'Overriding your system setting for this console.'}
-              </p>
-              {override !== 'system' && (
-                <button type="button" className="settings-dialog__system" onClick={() => setMotionOverride('system')}>
-                  Use system setting
-                </button>
-              )}
             </section>
             {connectedPlayers === 1 && (
               <p className="settings-dialog__warning">
