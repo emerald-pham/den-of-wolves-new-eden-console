@@ -31,7 +31,7 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   expect(plot).toHaveAttribute('data-expanded', 'false');
 });
 
-it('shows the current galactic coordinate beside Zoom and in the expanded display', async () => {
+it('shows the current galactic coordinate only in the expanded display', async () => {
   const user = userEvent.setup();
   render(
     <ShipPlot
@@ -43,7 +43,8 @@ it('shows the current galactic coordinate beside Zoom and in the expanded displa
   );
 
   const zoom = screen.getByRole('button', { name: /zoom into dradis/i });
-  expect(zoom.previousElementSibling).toHaveTextContent('GALACTIC COORDINATES // 0042');
+  expect(screen.queryByText('GALACTIC COORDINATES')).not.toBeInTheDocument();
+  expect(screen.queryByText('0042')).not.toBeInTheDocument();
 
   await user.click(zoom);
   expect(screen.getByText('GALACTIC COORDINATES').parentElement)

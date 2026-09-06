@@ -20,7 +20,7 @@ Supplies the fleet with essential food, water, and materials through salvage and
 Length: 600m
 Tonnage: 800,000
 Crew Capacity: 5,000                         ⚠
-Passengers Capacity: 500                    ⚠
+Passenger Capacity: 500                     ⚠
 
 Role Assignment // Capybara Captain
 ```
@@ -100,7 +100,7 @@ separate so acknowledging one cannot clear the other.
 
 ## Capacity warnings
 
-Combined capacity is crew capacity plus passengers capacity: Capybara has
+Combined capacity is crew capacity plus passenger capacity: Capybara has
 **5,500** places. Compare that total with the authoritative survivor count,
 not each capacity separately. Both statistics show the same red exclamation
 triangle when survivors exceed the total. Provide accessible explanatory text,

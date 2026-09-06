@@ -18,6 +18,7 @@ import {
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
+import type { DamageDraw } from '@/types/game';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -52,6 +53,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
   const [observerWrite, setObserverWrite] = useState(false);
+  const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
     (command) => command.kind === 'popShipConfetti' &&
@@ -69,6 +71,30 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }, [consoleRole, observer]);
 
   useEffect(() => setObserverWrite(false), [ship?.id, observer]);
+
+  useEffect(() => {
+    if (!isGm || !session?.id) {
+      setDamageDraws([]);
+      return;
+    }
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeDamageDraws }) => {
+      if (!active) return;
+      unsubscribe = subscribeDamageDraws(
+        session.id,
+        setDamageDraws,
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-damage-log-link',
+          message: 'The private damage draw log could not be refreshed.',
+        }),
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [isGm, session?.id]);
 
   useEffect(() => {
     if (!session?.id || !ship) return;
@@ -180,6 +206,26 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             fuel={resources?.fuel ?? 0}
             damage={session.shipDamage?.[ship.id]}
           />
+        )}
+        {isGm && damageDraws.some(
+          (draw) => draw.shipId === ship.id && draw.type === 'ship-damage',
+        ) && (
+          <section className="ship-damage-cards cic-frame" aria-label={`${ship.name} ship systems`}>
+            <p className="ship-resources__eyebrow">Ship systems // damage cards</p>
+            <ul>
+              {damageDraws.flatMap((draw) =>
+                draw.shipId === ship.id && draw.type === 'ship-damage' ? [(
+                  <li key={draw.id}>
+                    <span>{draw.systemName}</span>
+                    <strong
+                      className="ship-damage-card"
+                      tabIndex={0}
+                      aria-label={`${draw.card}, ${draw.systemName} damage card`}
+                    >{draw.card}</strong>
+                  </li>
+                )] : [])}
+            </ul>
+          </section>
         )}
         <div className="ship-console__counters">
           {resources && (
