@@ -1684,7 +1684,6 @@ body {
 }
 
 .ship-shuttlebay h2,
-.ship-shuttlebay h3,
 .ship-shuttlebay p { margin: 0; }
 
 .ship-shuttlebay h2 {
@@ -1694,7 +1693,6 @@ body {
   text-transform: uppercase;
 }
 
-.ship-shuttlebay h3,
 .ship-shuttlebay__eyebrow {
   margin-top: 1rem;
   color: var(--ship-accent);
@@ -1709,7 +1707,6 @@ body {
   font-size: 0.68rem;
 }
 
-.ship-shuttlebay ul,
 .ship-shuttlebay ol { margin: 0.65rem 0 0; padding: 0; list-style: none; }
 .ship-shuttlebay li { display: grid; gap: 0.2rem; color: var(--cic-muted); font-size: 0.62rem; }
 .ship-shuttlebay li strong { color: var(--ship-accent); }

@@ -320,8 +320,11 @@ do not add placeholder tabs until their destination mechanics exist.
 The right status rail is persistent across those pages. Compact DRADIS owns the
 top-right square. Directly beneath it, the rail uses the remaining viewport for
 the shuttlebay manifest and compact command controls. The manifest is the only
-flexible-height item and scrolls internally, so an unbounded number of docked
-shuttlecraft or historical visits can never grow underneath or overlap DRADIS.
+flexible-height item and scrolls internally, so an unbounded docking history
+can never grow underneath or overlap DRADIS. It is a plain ledger: each row
+names the shuttlecraft and the shuttleport where it docked. Do not mix current
+occupancy, maintenance rules, or departure events into this panel. The Press
+shuttle's port is the civilian access hatch.
 On narrow screens the identity/workspace and rail enter document flow and the
 whole console scrolls; controls must never be compressed out of reach.
 

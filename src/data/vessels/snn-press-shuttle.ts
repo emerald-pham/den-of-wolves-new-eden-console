@@ -14,6 +14,7 @@ export default defineShuttle({
   consoleClass: 'shuttle-console--snn',
   mark: 'SNN',
   dockingEntrance: 'press',
+  dockingPort: 'Civilian access hatch',
   capabilities: ['newspaper-confetti'],
   initialDocking: { shipId: 'aegis', dockedAt: 'SESSION START' },
   initialVisit: {

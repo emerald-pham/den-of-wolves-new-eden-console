@@ -76,6 +76,7 @@ export interface Shuttlecraft {
   readonly mark?: string;
   readonly capabilities: readonly ShuttleCapability[];
   readonly dockingEntrance?: 'press';
+  readonly dockingPort?: string;
   readonly initialDocking?: Omit<ShuttleDocking, 'shuttleId'>;
   readonly initialVisit?: Omit<ShuttleVisit, 'shuttleId'>;
 }

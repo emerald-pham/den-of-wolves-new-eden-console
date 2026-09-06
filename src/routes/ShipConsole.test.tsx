@@ -75,8 +75,7 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(within(instruments).getByRole('region', {
     name: /emergency bridge confetti dispenser/i,
   })).toBeInTheDocument();
-  expect(screen.getByText(/no shuttle docked/i)).toBeInTheDocument();
-  expect(screen.getByText(/no recorded shuttle visits/i)).toBeInTheDocument();
+  expect(screen.getByText(/no recorded shuttle dockings/i)).toBeInTheDocument();
 });
 
 it.each([
@@ -170,18 +169,19 @@ it('breaks the unrest dial when the authoritative value is above seven', () => {
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-unrest-critical', 'true');
 });
 
-it('shows the SNN shuttle docked at AEGIS and records its initial visit', () => {
+it('shows the AEGIS docking history with each shuttlecraft and its shuttleport', () => {
   render(
     <MemoryRouter initialEntries={['/ships/aegis']}>
       <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.getByText('SNN Independent Press Shuttle')).toBeInTheDocument();
-  expect(screen.getByText(/currently docked/i)).toBeInTheDocument();
-  expect(screen.getByRole('list', { name: /shuttle visit log/i })).toHaveTextContent(
-    /SNN.*docked/i,
-  );
+  const manifest = screen.getByRole('list', { name: /shuttle docking history/i });
+  expect(screen.getByRole('heading', { name: 'Shuttle docking history' })).toBeInTheDocument();
+  expect(manifest).toHaveTextContent(/SNN Independent Press Shuttle.*Civilian access hatch/i);
+  expect(screen.queryByText(/currently docked/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/mechanical dock occupancy/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/linked mechanical bays/i)).not.toBeInTheDocument();
 });
 
 it.each([

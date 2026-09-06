@@ -33,7 +33,7 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
     pressDockedShuttles: dockedShuttles.filter(shuttle => shuttle.dockingEntrance === 'press'),
     visits: visits.filter((item) => item.shipId === shipId).flatMap((visit) => {
       const shuttle = SHUTTLECRAFT.find((item) => item.id === visit.shuttleId);
-      return shuttle ? [{ ...visit, shuttle }] : [];
+      return shuttle ? [{ ...visit, shuttle, shuttleport: shuttle.dockingPort ?? 'Shuttle bay' }] : [];
     }),
   };
 }

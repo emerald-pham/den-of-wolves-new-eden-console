@@ -65,11 +65,12 @@ and per-GM acknowledgement flow. Do not interpolate missing population values.
 Charges, damage, research and procedure outcomes remain table-resolved until
 their individual gameplay implementation passes.
 
-Each ship has one shared docking manifest. Its mechanical bay entries derive
-from the vessel systems, retaining each bay’s refuelling allowance. A shuttle
-with `dockingEntrance: 'press'` remains in the visible manifest and visit log
-but is excluded from mechanical dock occupancy. This adds no shuttle craft or
-travel/refuelling mutations.
+Each ship has one shared docking manifest: an immutable history whose rows name
+the shuttlecraft and the shuttleport where it docked. Current occupancy,
+maintenance rules and departure events stay out of this panel. The Press
+shuttle declares the civilian access hatch as its port and remains excluded
+from mechanical dock occupancy. This adds no shuttle craft or travel/refuelling
+mutations.
 
 A new workspace kind belongs in the template's typed workspace selection and
 the central renderer. Keep workspace availability checks in sync. Never copy

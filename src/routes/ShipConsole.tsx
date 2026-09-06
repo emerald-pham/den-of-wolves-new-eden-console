@@ -242,32 +242,18 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           </section>
         )}
         <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
-          <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
-          <h2>Docked shuttlecraft</h2>
-          <p>Linked mechanical bays // {shuttlebay?.mechanicalBays.map(bay => bay.name).join(' + ')}</p>
-          <p>One shared ship manifest. Each undamaged bay may refuel one shuttle for 1 fuel during its maintenance step.</p>
-          <p>Mechanical dock occupancy // {shuttlebay?.mechanicalDockedShuttles.length ?? 0}</p>
-          {shuttlebay?.dockedShuttles.length ? (
-            <ul className="ship-shuttlebay__docked">
-              {shuttlebay.dockedShuttles.map((shuttle) => (
-                <li key={`${shuttle.id}-${shuttle.dockedAt}`}>
-                  <strong>{shuttle.name}</strong><span>{shuttle.dockingEntrance === 'press' ? 'Currently docked // Separate press entrance · no mechanical bay use' : 'Currently docked // Linked mechanical bays'}</span>
-                </li>
-              ))}
-            </ul>
-          ) : <p>No shuttle docked</p>}
-          <h3>Visit log</h3>
-          {shuttlebay?.visits.length ? (
-            <ol className="ship-shuttlebay__log" aria-label="Shuttle visit log">
-              {shuttlebay.visits.map((visit) => (
+          <p className="ship-shuttlebay__eyebrow">Shuttlebay // docking manifest</p>
+          <h2>Shuttle docking history</h2>
+          {shuttlebay?.visits.some((visit) => visit.action === 'docked') ? (
+            <ol className="ship-shuttlebay__log" aria-label="Shuttle docking history">
+              {shuttlebay.visits.filter((visit) => visit.action === 'docked').map((visit) => (
                 <li key={visit.id}>
-                  <span>{visit.shuttle.shortName}</span>
-                  <strong>{visit.action.toUpperCase()}</strong>
-                  <time>{visit.occurredAt}</time>
+                  <strong>{visit.shuttle.name}</strong>
+                  <span>{visit.shuttleport}</span>
                 </li>
               ))}
             </ol>
-          ) : <p>No recorded shuttle visits</p>}
+          ) : <p>No recorded shuttle dockings</p>}
         </section>
         <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
         <p className="confetti-dispenser__label">Emergency Bridge Confetti Dispenser</p>

@@ -7,7 +7,9 @@ defines the shared worldspace and travel behavior behind that interface.
 ## Current baseline
 
 - The SNN Independent Press Shuttle starts docked to AEGIS.
-- Every fleet ship has a shuttlebay manifest and its own immutable visit log.
+- Every fleet ship has an immutable docking history listing each shuttlecraft
+  and the shuttleport where it docked. The Press shuttle always uses the
+  civilian access hatch.
 - The Press console remains relative to the shuttle, while its DRADIS center is
   the host ship whenever it is docked. A docked shuttle is not a separate
   DRADIS contact.
