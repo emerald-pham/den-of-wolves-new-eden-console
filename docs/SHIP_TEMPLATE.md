@@ -1,5 +1,7 @@
 # Capybara ship console template
 
+Implementation and future extensions must use the [shared console architecture](CONSOLE_ARCHITECTURE.md).
+
 Status: implemented for Capybara. Capybara is the reference
 for the remaining fleet ships. This template extends the shared ship console
 in [AESTHETICS.md](AESTHETICS.md#ship-console-layout-and-growth); actual

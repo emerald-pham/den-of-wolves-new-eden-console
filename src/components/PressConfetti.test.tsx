@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import PressConfetti from './PressConfetti';
+import snnPressShuttle from '@/data/vessels/snn-press-shuttle';
 
 vi.mock('@/lib/sessionService', () => ({ popShipConfetti: vi.fn() }));
 vi.mock('@/lib/firestore', () => ({ subscribeShipConfetti: vi.fn() }));
@@ -26,7 +27,7 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
     signal = onPop;
     return vi.fn();
   });
-  const { container } = render(<PressConfetti />);
+  const { container } = render(<PressConfetti shuttle={snnPressShuttle} />);
   expect(screen.getByText(/reusable evidence shredder/i)).toBeInTheDocument();
   expect(screen.getByText(
     /warning.*warning.*this will cause shredded paper to enter the bridge of any docked ship/i,
@@ -42,4 +43,16 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
   await user.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));
   await user.click(screen.getByRole('button', { name: /activate newspaper confetti/i }));
   expect(popShipConfetti).toHaveBeenCalledTimes(2);
+});
+
+it('binds reusable equipment to the configured craft and captain', async () => {
+  const shuttle = { id: 'survey-shuttle', captainRoleId: 'survey-captain', operatorShort: 'SURVEY' };
+  render(<PressConfetti shuttle={shuttle} />);
+  expect(screen.getByRole('region', { name: 'SURVEY Newspaper Confetti Dispenser' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));
+  await userEvent.click(screen.getByRole('button', { name: /activate newspaper confetti/i }));
+  expect(popShipConfetti).toHaveBeenCalledWith('survey-shuttle', 'survey-captain');
+  expect(subscribeShipConfetti).toHaveBeenCalledWith(
+    's1', 'survey-shuttle', expect.any(Function), expect.any(Function),
+  );
 });

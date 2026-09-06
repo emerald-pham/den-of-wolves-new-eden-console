@@ -1231,17 +1231,6 @@ body {
   padding: clamp(6rem, 13vh, 9rem) clamp(1rem, 5vw, 4rem) 2rem;
 }
 
-.ship-console--aegis { --ship-accent: var(--cic-faction-icn); }
-.ship-console--dione { --ship-accent: var(--cic-faction-fas); }
-.ship-console--icebreaker { --ship-accent: var(--cic-faction-cpa); }
-.ship-console--capybara { --ship-accent: var(--cic-faction-san); }
-.ship-console--shepherd { --ship-accent: var(--cic-faction-rosal); }
-.ship-console--quellon { --ship-accent: var(--cic-faction-proxima); }
-.ship-console--refinery-124 {
-  --ship-accent: var(--cic-faction-gliese);
-  --ship-secondary: var(--cic-faction-gliese-secondary);
-}
-
 .shuttle-console--snn {
   --ship-accent: var(--cic-cyan);
   --ship-secondary: var(--cic-ink);
@@ -1324,6 +1313,7 @@ body {
 }
 
 .ship-console__name {
+  overflow-wrap: anywhere;
   margin: 0;
   color: var(--cic-ink);
   font: 400 clamp(3.3rem, 12vw, 8.5rem)/0.82 var(--cic-display);

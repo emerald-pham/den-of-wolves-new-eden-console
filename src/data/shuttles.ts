@@ -1,41 +1,17 @@
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
+import snnPressShuttle from './vessels/snn-press-shuttle';
+import type { Shuttlecraft } from './vessels/templates';
+export type { Shuttlecraft } from './vessels/templates';
 
-export interface Shuttlecraft {
-  readonly id: string;
-  readonly name: string;
-  readonly shortName: string;
-  readonly consoleName: string;
-  readonly operator: string;
-  readonly operatorShort: string;
-  readonly vesselType: string;
-  readonly description: string;
-  readonly captainRoleId: string;
-}
+export const SHUTTLECRAFT: readonly Shuttlecraft[] = [snnPressShuttle];
 
-export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
-  {
-    id: 'snn-press-shuttle',
-    name: 'SNN Independent Press Shuttle',
-    shortName: 'SNN Press Shuttle',
-    consoleName: 'SNN — System News Network',
-    operator: 'Unaffiliated Independent Press',
-    operatorShort: 'SNN',
-    vesselType: 'Unaffiliated Independent Press Shuttlecraft',
-    description: 'Carries the System News Network press officer between ships of the survivor fleet.',
-    captainRoleId: 'press-officer',
-  },
-];
+export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = SHUTTLECRAFT.flatMap(
+  (shuttle) => shuttle.initialDocking ? [{ ...shuttle.initialDocking, shuttleId: shuttle.id }] : [],
+);
 
-export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = [
-  { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
-];
-
-export const INITIAL_SHUTTLE_VISITS: readonly ShuttleVisit[] = [
-  {
-    id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
-    action: 'docked', occurredAt: 'SESSION START',
-  },
-];
+export const INITIAL_SHUTTLE_VISITS: readonly ShuttleVisit[] = SHUTTLECRAFT.flatMap(
+  (shuttle) => shuttle.initialVisit ? [{ ...shuttle.initialVisit, shuttleId: shuttle.id }] : [],
+);
 
 interface ShuttleSessionState {
   readonly shuttleDockings?: readonly ShuttleDocking[];
@@ -55,4 +31,9 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
       return shuttle ? [{ ...visit, shuttle }] : [];
     }),
   };
+}
+
+export function dockingForShuttle(session: ShuttleSessionState, shuttleId: string): ShuttleDocking | undefined {
+  return (session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS)
+    .find((docking) => docking.shuttleId === shuttleId);
 }

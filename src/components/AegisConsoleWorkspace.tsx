@@ -1,3 +1,4 @@
+import RoleConsoleTemplate from './RoleConsoleTemplate';
 import { useState } from 'react';
 import {
   AEGIS_ROLE_CONSOLES,
@@ -33,26 +34,13 @@ function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
   return (
-    <section className="console-workspace cic-frame" aria-label="AEGIS Admiral console">
-      <header className="console-workspace__header">
-        <div>
-          <p className="console-workspace__eyebrow">AEGIS command console // Admiral</p>
-          <h2>{page === 'systems' ? 'Ship systems' : 'Maintenance cycle'}</h2>
-        </div>
-        <dl className="console-workspace__telemetry">
+    <RoleConsoleTemplate label="AEGIS Admiral console" eyebrow="AEGIS command console // Admiral"
+      title={page === 'systems' ? 'Ship systems' : 'Maintenance cycle'} telemetry={<>
           <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Fuel in stores</dt><dd>{fuel}</dd></div>
           <div><dt>Reactor capacity</dt><dd>{console.reactorCapacity} consoles</dd></div>
-        </dl>
-      </header>
-      <nav className="console-workspace__nav" aria-label="AEGIS Admiral console pages">
-        <button type="button" aria-pressed={page === 'systems'} onClick={() => setPage('systems')}>
-          Ship systems
-        </button>
-        <button type="button" aria-pressed={page === 'maintenance'} onClick={() => setPage('maintenance')}>
-          Maintenance cycle
-        </button>
-      </nav>
+      </>}
+      pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'maintenance', label: 'Maintenance cycle' }]} activePage={page} onPageChange={setPage}>
       {page === 'systems' ? (
         <div className="aegis-system-grid">
           <p className="aegis-jump-costs">
@@ -85,7 +73,7 @@ function AdmiralConsole({ galacticCoordinate, fuel }: Omit<Props, 'roleId'>) {
           </div>
         </div>
       )}
-    </section>
+    </RoleConsoleTemplate>
   );
 }
 
@@ -96,25 +84,12 @@ function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fu
   if (!starlight) return null;
 
   return (
-    <section className="console-workspace cic-frame" aria-label="AEGIS Wing Commander console">
-      <header className="console-workspace__header">
-        <div>
-          <p className="console-workspace__eyebrow">AEGIS flight operations // Wing Commander</p>
-          <h2>{page === 'flight' ? 'Flight group' : 'Combat doctrine'}</h2>
-        </div>
-        <dl className="console-workspace__telemetry">
+    <RoleConsoleTemplate label="AEGIS Wing Commander console" eyebrow="AEGIS flight operations // Wing Commander"
+      title={page === 'flight' ? 'Flight group' : 'Combat doctrine'} telemetry={<>
           <div><dt>AEGIS coordinates</dt><dd>{galacticCoordinate}</dd></div>
           <div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>
-        </dl>
-      </header>
-      <nav className="console-workspace__nav" aria-label="AEGIS Wing Commander console pages">
-        <button type="button" aria-pressed={page === 'flight'} onClick={() => setPage('flight')}>
-          Flight group
-        </button>
-        <button type="button" aria-pressed={page === 'combat'} onClick={() => setPage('combat')}>
-          Combat doctrine
-        </button>
-      </nav>
+      </>}
+      pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }]} activePage={page} onPageChange={setPage}>
       {page === 'flight' ? (
         <div className="aegis-craft-grid">
           <article className="aegis-craft aegis-craft--starlight cic-frame">
@@ -156,7 +131,7 @@ function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fu
           </p>
         </div>
       )}
-    </section>
+    </RoleConsoleTemplate>
   );
 }
 

@@ -1,3 +1,5 @@
+import { SHIPS } from './ships';
+
 export type ResourceId =
   | 'ore'
   | 'fuel'
@@ -34,23 +36,8 @@ export const RESOURCE_DEFINITIONS: readonly ResourceDefinition[] = [
   { id: 'scrap', label: 'Scrap', notes: 'Capybara expansion only' },
 ];
 
-export const INITIAL_SHIP_RESOURCES: ShipResourceInventories = {
-  aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
-  dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 },
-  icebreaker: { ore: 0, fuel: 4, food: 11, water: 9, materials: 3, securityTeams: 2 },
-  shepherd: { ore: 0, fuel: 4, food: 10, water: 8, materials: 0, securityTeams: 2 },
-  quellon: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
-  'refinery-124': { ore: 12, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 },
-  capybara: {
-    ore: 0,
-    fuel: 3,
-    food: 9,
-    water: 4,
-    materials: 0,
-    securityTeams: 2,
-    scrap: 3,
-  },
-};
+export const INITIAL_SHIP_RESOURCES: ShipResourceInventories =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, ship.resources]));
 
 export const INITIAL_SHIP_UNREST: Readonly<Record<string, number>> =
   Object.fromEntries(Object.keys(INITIAL_SHIP_RESOURCES).map((shipId) => [shipId, 0]));

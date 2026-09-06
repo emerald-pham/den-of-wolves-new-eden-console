@@ -1,5 +1,7 @@
 # SNN shuttle console template
 
+Implementation and future extensions must use the [shared console architecture](CONSOLE_ARCHITECTURE.md).
+
 Status: design specification for implementation. The SNN Independent Press
 Shuttle is the reference for later shuttlecraft. This template extends the
 shared console language in

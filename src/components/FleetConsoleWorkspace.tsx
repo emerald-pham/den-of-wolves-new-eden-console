@@ -1,3 +1,4 @@
+import RoleConsoleTemplate from './RoleConsoleTemplate';
 import AegisConsoleWorkspace from '@/components/AegisConsoleWorkspace';
 import type { ConsoleRole } from '@/data/roles';
 import type { Ship } from '@/data/ships';
@@ -11,7 +12,7 @@ interface Props {
 }
 
 export default function FleetConsoleWorkspace({ ship, role, galacticCoordinate, fuel }: Props) {
-  if (ship.id === 'aegis') {
+  if (ship.workspace === 'aegis') {
     return (
       <AegisConsoleWorkspace
         roleId={role?.id}
@@ -24,20 +25,13 @@ export default function FleetConsoleWorkspace({ ship, role, galacticCoordinate, 
   if (!role || !isScaffoldedConsoleRole(ship.id, role.id)) return null;
 
   return (
-    <section
-      className="console-workspace console-scaffold cic-frame"
-      aria-label={`${ship.name} ${role.name} console scaffold`}
-    >
-      <header className="console-workspace__header">
-        <div>
-          <p className="console-workspace__eyebrow">Fleet console scaffold // {ship.name}</p>
-          <h2>{role.name} console</h2>
-        </div>
-        <dl className="console-workspace__telemetry">
-          <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
-          <div><dt>Build state</dt><dd>Scaffold ready</dd></div>
-        </dl>
-      </header>
+    <RoleConsoleTemplate className="console-scaffold"
+      label={`${ship.name} ${role.name} console scaffold`}
+      eyebrow={`Fleet console scaffold // ${ship.name}`} title={`${role.name} console`}
+      telemetry={<>
+        <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
+        <div><dt>Build state</dt><dd>Scaffold ready</dd></div>
+      </>}>
       <div className="console-scaffold__grid">
         <article className="console-scaffold__module cic-frame">
           <p>Implementation boundary</p>
@@ -50,6 +44,6 @@ export default function FleetConsoleWorkspace({ ship, role, galacticCoordinate, 
           <p>Position, stores, census, shuttlebay, navigation, and session authority remain shared.</p>
         </article>
       </div>
-    </section>
+    </RoleConsoleTemplate>
   );
 }

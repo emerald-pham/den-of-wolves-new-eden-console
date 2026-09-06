@@ -39,7 +39,7 @@ interface ShipRoleGroupsProps {
 }
 
 function ShipRoleGroups({ roles, renderRole }: ShipRoleGroupsProps) {
-  const shipRoleIds = new Set(SHIPS.map((ship) => ship.id));
+  const shipRoleIds = new Set<string>(SHIPS.map((ship) => ship.id));
   const independentRoles = roles.filter((role) => !shipRoleIds.has(role.shipId));
 
   return (

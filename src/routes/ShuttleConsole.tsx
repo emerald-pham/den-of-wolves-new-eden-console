@@ -1,10 +1,8 @@
 import { useEffect } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import PressConfetti from '@/components/PressConfetti';
-import RoleAssignment from '@/components/RoleAssignment';
-import { SHIPS } from '@/data/ships';
+import { Navigate } from 'react-router-dom';
+import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { SHUTTLECRAFT } from '@/data/shuttles';
+import { SHUTTLECRAFT, dockingForShuttle } from '@/data/shuttles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
@@ -17,11 +15,7 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
   const shuttle = SHUTTLECRAFT.find((item) => item.id === shuttleId);
   const activeRoles = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const captainRole = findConsoleRole(shuttle?.captainRoleId);
-  const docking = session?.shuttleDockings?.find((item) => item.shuttleId === shuttleId) ??
-    (shuttleId === 'snn-press-shuttle'
-      ? { shuttleId, shipId: 'aegis', dockedAt: 'SESSION START' }
-      : undefined);
-  const host = SHIPS.find((ship) => ship.id === docking?.shipId);
+  const docking = dockingForShuttle(session ?? {}, shuttleId);
 
   useEffect(() => {
     if (!shuttle) return;
@@ -40,34 +34,6 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
     return <Navigate to="/console" replace />;
   }
 
-  return (
-    <main
-      className="ship-console shuttle-console shuttle-console--snn"
-      data-console-kind="shuttlecraft"
-    >
-      <div className="shuttle-console__mark" aria-hidden="true">SNN</div>
-      <section className="ship-console__identity" aria-labelledby="shuttle-name">
-        {isGm && (
-          <Link className="ship-console__back cic-text-button" to="/console">Leave shuttle</Link>
-        )}
-        <p className="ship-console__nation">{shuttle.operator} // {shuttle.operatorShort}</p>
-        <h1 className="ship-console__name" id="shuttle-name">{shuttle.consoleName}</h1>
-        <p className="ship-console__type">{shuttle.vesselType}</p>
-        <p className="ship-console__description">{shuttle.description}</p>
-        <RoleAssignment value={`${captainRole?.name ?? 'Captain'} // Captain`} />
-      </section>
-
-      <aside className="ship-console__instruments" aria-label={`${shuttle.consoleName} instruments`}>
-        <section className="ship-shuttlebay shuttle-console__systems cic-frame" aria-label="Shuttle systems">
-          <p className="ship-shuttlebay__eyebrow">Navigation // live position</p>
-          <h2>Shuttle status</h2>
-          <p className="shuttle-console__position">
-            Shuttle location // {docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit'}
-          </p>
-        </section>
-
-        {shuttle.id === 'snn-press-shuttle' && <PressConfetti />}
-      </aside>
-    </main>
-  );
+  return <ShuttleConsoleTemplate shuttle={shuttle} captainName={captainRole?.name ?? 'Captain'}
+    canLeave={isGm} docking={docking} />;
 }

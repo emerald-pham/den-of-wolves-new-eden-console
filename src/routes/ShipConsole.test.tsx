@@ -721,3 +721,14 @@ it('clears both capacity warnings when live survivors drop below combined capaci
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5000 } }));
   expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
 });
+
+it.each([
+  ['capybara', 'var(--cic-faction-san)', 'var(--cic-ink)'],
+  ['refinery-124', 'var(--cic-faction-gliese)', 'var(--cic-faction-gliese-secondary)'],
+])('applies %s branding from its vessel definition through the shared base', (shipId, accent, secondary) => {
+  render(<MemoryRouter initialEntries={[`/ships/${shipId}`]}>
+    <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  expect(screen.getByRole('main').style.getPropertyValue('--ship-accent')).toBe(accent);
+  expect(screen.getByRole('main').style.getPropertyValue('--ship-secondary')).toBe(secondary);
+});

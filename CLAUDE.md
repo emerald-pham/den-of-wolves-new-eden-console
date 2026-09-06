@@ -327,3 +327,30 @@ portrait, including screen rotation while open. Use responsive layout, safe-area
 padding, accessible controls, and scrolling on short screens. Verify narrow,
 wide, and short landscape viewports. Honor reduced motion and preserve access
 to underlying controls during decorative effects.
+
+## Shared vessel and role console architecture
+
+All future ship role consoles and shuttle consoles must extend the shared
+architecture in [docs/CONSOLE_ARCHITECTURE.md](docs/CONSOLE_ARCHITECTURE.md).
+This is a standing product requirement, including roles whose gameplay differs
+from other stations.
+
+- Store each ship or shuttle's identity and configuration in its own file in
+  `src/data/vessels/`, using `defineShip` or `defineShuttle`. Register it once in
+  the corresponding fleet catalog. Derive catalogs from those definitions;
+  do not maintain duplicate per-vessel values in each consumer.
+- Every ship role uses `ShipConsole` for the outer console and
+  `RoleConsoleTemplate` for its workspace header, telemetry and real page
+  controls. Add role-specific content as modules inside these shared surfaces.
+  Do not clone a route, shared layout, navigation, census, stores or shuttlebay
+  to implement a new role. Joint non-ship stations keep their station shell;
+  future gameplay workspaces there also use `RoleConsoleTemplate`.
+- Every shuttle uses `ShuttleConsole` and `ShuttleConsoleTemplate`. Branding,
+  initial location and equipment are configuration; capabilities are opt-in.
+  Never inherit SNN's equipment, identity or docking by default.
+- Put improvements that apply to all variants in the base. Add a narrowly
+  typed configuration field or module slot for a real exception; do not add
+  vessel-ID branches throughout shared components.
+- Write and run a failing test before implementation. Exercise the shared base
+  with another configuration as well as the reference vessel, and preserve
+  route guards, role ownership, return navigation and server authority.

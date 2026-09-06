@@ -1,13 +1,8 @@
-import { CONSOLE_ROLES, rolesForShip, type ConsoleShipId } from '@/data/roles';
+import { SHIPS } from './ships';
+import { CONSOLE_ROLES, rolesForShip } from '@/data/roles';
 
-export const SCAFFOLDED_CONSOLE_SHIP_IDS = [
-  'dione',
-  'icebreaker',
-  'capybara',
-  'shepherd',
-  'quellon',
-  'refinery-124',
-] as const satisfies readonly ConsoleShipId[];
+export const SCAFFOLDED_CONSOLE_SHIP_IDS = SHIPS.filter((ship) => ship.workspace === 'scaffold')
+  .map((ship) => ship.id);
 
 const scaffoldedShipIds = new Set<string>(SCAFFOLDED_CONSOLE_SHIP_IDS);
 

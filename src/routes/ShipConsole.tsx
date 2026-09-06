@@ -65,7 +65,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
   const hasConsoleWorkspace = Boolean(
     ship && consoleRole && (
-      (ship.id === 'aegis' && isImplementedAegisRole(consoleRole.id)) ||
+      (ship.workspace === 'aegis' && isImplementedAegisRole(consoleRole.id)) ||
       isScaffoldedConsoleRole(ship.id, consoleRole.id)
     ),
   );
@@ -145,6 +145,10 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           ? ' ship-console--gameplay'
           : ''
       }`}
+      style={{
+        '--ship-accent': ship.color,
+        '--ship-secondary': ship.secondaryColor ?? 'var(--cic-ink)',
+      } as CSSProperties}
       data-observer-mode={observer ? (observerWrite ? 'write' : 'read') : undefined}
       data-unrest-critical={unrest > 7 ? 'true' : undefined}
     >
