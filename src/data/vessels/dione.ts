@@ -18,4 +18,6 @@ export default defineShip({
     { id: 'dione-president', name: 'President', commandAuthority: 'officer' },
   ],
   resources: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 },
+  initialSurvivors: 100000,
+  specifications: { length: '550m', tonnage: 500000, crewCapacity: 4000, passengerCapacity: 12000 },
 });

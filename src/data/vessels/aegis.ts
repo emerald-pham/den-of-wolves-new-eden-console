@@ -18,6 +18,7 @@ export default defineShip({
     { id: 'wing-commander', name: 'Wing Commander', commandAuthority: 'officer' },
   ],
   resources: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
+  initialSurvivors: 2500,
   workspace: 'aegis',
   populationTrack: {
     steps: [2500, 2000, 1500, 1250, 1000, 750, 500, 250, 0],

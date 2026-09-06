@@ -232,6 +232,11 @@ it('shows live resource stock for every flagged ship', async () => {
   expect(within(dione).getByRole('img', { name: 'Strytium Fuel icon' })).toBeInTheDocument();
   expect(within(dione).getByLabelText('Civil Unrest: 4')).toBeInTheDocument();
   expect(within(dione).getByRole('img', { name: 'Civil Unrest icon' })).toBeInTheDocument();
+  expect(within(dione).getByLabelText('Survivor Population: 100000')).toBeInTheDocument();
+  expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
+    .toBeDisabled();
+  expect(within(dione).getByRole('button', { name: /increase survivor population/i }))
+    .toBeDisabled();
   expect(within(dione).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
   await user.click(within(dione).getByRole('button', { name: /increase civil unrest/i }));
   expect(adjustShipUnrest).toHaveBeenCalledWith('dione', 1);

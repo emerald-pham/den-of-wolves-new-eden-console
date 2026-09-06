@@ -106,11 +106,11 @@ not each capacity separately. Both statistics show the same red exclamation
 triangle when survivors exceed the total. Provide accessible explanatory text,
 for example: “Survivors exceed combined crew and passenger capacity.”
 
-The request says triangles remove when combined capacity is **higher than**
-survivors. For an exact tie, retain the warnings pending an explicit rule
-change; thus the specified removal condition is strictly `capacity > survivors`.
-Capybara's track has no 5,500 step, so this distinction does not affect its
-current states. At 6,000 both warnings show; at 5,000 both disappear. The GM
+The triangles appear only when survivors are **higher than** combined capacity.
+For an exact tie, remove the warnings; thus the overload condition is strictly
+`survivors > capacity`. Capybara's printed track has no 5,500 step, but live
+population values still observe this boundary. At 6,000 both warnings show;
+at 5,500 and 5,000 both disappear. The GM
 alert at 5,000 still fires independently of capacity warnings.
 
 ## Reuse and acceptance checks

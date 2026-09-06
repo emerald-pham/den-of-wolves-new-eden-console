@@ -18,4 +18,6 @@ export default defineShip({
     { id: 'quellon-explorer', name: 'Explorer', commandAuthority: 'officer' },
   ],
   resources: { ore: 0, fuel: 3, food: 10, water: 8, materials: 0, securityTeams: 2 },
+  initialSurvivors: 30000,
+  specifications: { length: '600m', tonnage: 700000, crewCapacity: 6500, passengerCapacity: 10 },
 });

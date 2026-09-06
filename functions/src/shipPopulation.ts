@@ -18,11 +18,15 @@ export const SHIP_POPULATION_TRACKS: Readonly<Record<string, ShipPopulationTrack
   },
 };
 
-export const INITIAL_SHIP_SURVIVORS: Readonly<Record<string, number>> =
-  Object.fromEntries(Object.entries(SHIP_POPULATION_TRACKS).map(([shipId, track]) => [
-    shipId,
-    track.steps[0] ?? 0,
-  ]));
+export const INITIAL_SHIP_SURVIVORS: Readonly<Record<string, number>> = {
+  aegis: 2500,
+  dione: 100000,
+  icebreaker: 40000,
+  capybara: 20000,
+  shepherd: 30000,
+  quellon: 30000,
+  'refinery-124': 20000,
+};
 
 export function populationTrackForShip(shipId: string): ShipPopulationTrack | undefined {
   return SHIP_POPULATION_TRACKS[shipId];

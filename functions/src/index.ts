@@ -3,6 +3,7 @@ import {
   acknowledgePopulationAlert,
   populationChange,
   populationForShip,
+  populationTrackForShip,
 } from './shipPopulation';
 import { randomInt, randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
@@ -1445,7 +1446,7 @@ export const adjustShipPopulation = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
-  if (populationForShip(change.shipId) === undefined) {
+  if (!populationTrackForShip(change.shipId)) {
     throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
   }
   const sessionRef = db.doc(`sessions/${change.sessionId}`);

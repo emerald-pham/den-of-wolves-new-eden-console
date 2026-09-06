@@ -19,4 +19,6 @@ export default defineShip({
     { id: 'shepherd-scientist', name: 'Scientist', commandAuthority: 'officer' },
   ],
   resources: { ore: 0, fuel: 4, food: 10, water: 8, materials: 0, securityTeams: 2 },
+  initialSurvivors: 30000,
+  specifications: { length: '700m', tonnage: 750000, crewCapacity: 4000, passengerCapacity: 4000 },
 });

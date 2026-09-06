@@ -19,4 +19,6 @@ export default defineShip({
     { id: 'refinery-124-pdf-colonel', name: 'P.D.F. Colonel', commandAuthority: 'officer' },
   ],
   resources: { ore: 12, fuel: 5, food: 9, water: 4, materials: 0, securityTeams: 6 },
+  initialSurvivors: 20000,
+  specifications: { length: '500km', tonnage: 450000, crewCapacity: 5000, passengerCapacity: 0 },
 });

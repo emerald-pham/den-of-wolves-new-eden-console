@@ -3,7 +3,7 @@ import { defineShip, defineShuttle } from './vessels/templates';
 import { rolesForShip } from './roles';
 import { SHIPS } from './ships';
 import { INITIAL_SHIP_RESOURCES } from './resources';
-import { SHIP_POPULATION_TRACKS, SHIP_SPECIFICATIONS } from './shipPopulation';
+import { INITIAL_SHIP_SURVIVORS, SHIP_POPULATION_TRACKS, SHIP_SPECIFICATIONS } from './shipPopulation';
 import { SHUTTLECRAFT, dockingForShuttle } from './shuttles';
 
 describe('shared vessel templates', () => {
@@ -21,6 +21,19 @@ describe('shared vessel templates', () => {
       expect(ship.roles).toEqual(rolesForShip(ship.id));
       expect(SHIP_POPULATION_TRACKS[ship.id]).toEqual(ship.populationTrack);
       expect(SHIP_SPECIFICATIONS[ship.id]).toEqual(ship.specifications);
+      expect(INITIAL_SHIP_SURVIVORS[ship.id]).toBe(ship.initialSurvivors);
+    }
+  });
+
+  it('defines dimensions, capacities, and current survivors for every fleet ship', () => {
+    for (const ship of SHIPS) {
+      expect(ship.specifications).toEqual({
+        length: expect.any(String),
+        tonnage: expect.any(Number),
+        crewCapacity: expect.any(Number),
+        passengerCapacity: expect.any(Number),
+      });
+      expect(ship.initialSurvivors).toEqual(expect.any(Number));
     }
   });
 

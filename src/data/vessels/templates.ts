@@ -24,8 +24,9 @@ export interface Ship extends ShipIdentity {
   readonly roles: readonly ConsoleRole[];
   readonly workspace: 'scaffold' | 'aegis';
   readonly resources: ShipResourceInventory;
+  readonly initialSurvivors: number;
   readonly populationTrack?: ShipPopulationTrack;
-  readonly specifications?: {
+  readonly specifications: {
     readonly length: string;
     readonly tonnage: number;
     readonly crewCapacity: number;
