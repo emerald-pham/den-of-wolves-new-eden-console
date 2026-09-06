@@ -48,15 +48,17 @@ This diagram defines regions and reading order, not exact pixel dimensions:
 │ Factual description             ├─ NAVIGATION ──────┤
 │                                 │ live location or │
 │ Your Title: Role // Captain     │ transit state     │
-│                                 ├─ CAPABILITY ──────┤
-│                                 │ optional, craft- │
+│ ROLE CONSOLE WORKSPACE          ├─ INSTRUMENT ──────┤
+│ Dispatch desk / role actions    │ optional, craft- │
 │                                 │ specific module  │
 └─────────────────────────────────┴──────────────────┘
 ```
 
 At phone widths, leave absolute positioning and stack the same regions in DOM
-order: compact DRADIS, identity and navigation, followed by optional capability
-modules. The whole workspace may scroll. Every status and control must remain
+order: compact DRADIS, identity and role workspace, then navigation and optional
+instrument modules. Role capabilities sit below the captain assignment in the wide ship
+gameplay pane, using RoleConsoleTemplate. Instrument capabilities stay in the
+side rail. The whole workspace may scroll. Every status and control must remain
 reachable at 320px width, in short landscape viewports and after rotation.
 
 ## Required modules

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import { defineShuttle } from '@/data/vessels/templates';
@@ -29,4 +29,22 @@ it('renders a second craft through the base with its own identity and opt-in equ
   /></MemoryRouter>);
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent('Docked // Dione');
   expect(screen.getByRole('region', { name: 'Newspaper confetti dispenser' })).toBeInTheDocument();
+});
+
+it.each(['snn-press-shuttle', 'survey-shuttle'])('places %s role capabilities in the main ship gameplay workspace', id => {
+  const shuttle = defineShuttle({
+    id, name: 'Test Shuttle', shortName: 'Test', consoleName: 'Test Console',
+    operator: 'Test Fleet', operatorShort: 'TEST', vesselType: 'Shuttle',
+    description: 'Test craft.', captainRoleId: 'test-captain',
+    capabilities: ['press-dispatches', 'newspaper-confetti'],
+  });
+  render(<MemoryRouter><ShuttleConsoleTemplate shuttle={shuttle} captainName="Test Captain" canLeave={true} /></MemoryRouter>);
+  expect(screen.getByRole('main')).toHaveClass('ship-console--gameplay');
+  const identity = screen.getByRole('region', { name: 'Test Console' });
+  const workspace = within(identity).getByRole('region', { name: 'Test Captain console' });
+  expect(within(workspace).getByRole('region', { name: 'Press dispatch desk' })).toBeInTheDocument();
+  const instruments = screen.getByRole('complementary', { name: 'Test Console instruments' });
+  expect(within(instruments).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+  expect(within(instruments).getByRole('region', { name: 'Newspaper confetti dispenser' })).toBeInTheDocument();
+  expect(within(instruments).getByRole('region', { name: 'Shuttle systems' })).toBeInTheDocument();
 });

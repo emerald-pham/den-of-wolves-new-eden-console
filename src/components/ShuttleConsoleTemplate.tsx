@@ -3,13 +3,14 @@ import type { ComponentType } from 'react';
 import PressConfetti from './PressConfetti';
 import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
+import RoleConsoleTemplate from './RoleConsoleTemplate';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
 
-const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, ComponentType<{ shuttle: Shuttlecraft }>> = {
-  'newspaper-confetti': PressConfetti,
-  'press-dispatches': PressDispatch,
+const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
+  'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
+  'press-dispatches': { component: PressDispatch, placement: 'workspace' },
 };
 
 interface Props {
@@ -22,9 +23,15 @@ interface Props {
 /** Every shuttle uses this layout; vessel files supply identity and opt-in equipment. */
 export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave, docking }: Props) {
   const host = SHIPS.find((ship) => ship.id === docking?.shipId);
+  const workspaceCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'workspace');
+  const instrumentCapabilities = shuttle.capabilities.filter(capability => SHUTTLE_CAPABILITIES[capability].placement === 'instruments');
+  const renderCapability = (capability: ShuttleCapability) => {
+    const Capability = SHUTTLE_CAPABILITIES[capability].component;
+    return <Capability key={capability} shuttle={shuttle} />;
+  };
   return (
     <main
-      className={`ship-console shuttle-console ${shuttle.consoleClass ?? ''}`}
+      className={`ship-console ship-console--gameplay shuttle-console ${shuttle.consoleClass ?? ''}`}
       data-console-kind="shuttlecraft"
     >
       {shuttle.mark && <div className="shuttle-console__mark" aria-hidden="true">{shuttle.mark}</div>}
@@ -37,6 +44,14 @@ export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave,
         <p className="ship-console__type">{shuttle.vesselType}</p>
         <p className="ship-console__description">{shuttle.description}</p>
         <RoleAssignment value={`${captainName} // Captain`} />
+        {workspaceCapabilities.length > 0 && (
+          <RoleConsoleTemplate label={`${captainName} console`}
+            eyebrow={`${shuttle.shortName} // ${captainName}`}
+            title={`${captainName} console`}
+            telemetry={<div><dt>Shuttle location</dt><dd>{docking ? `Docked // ${host?.name ?? docking.shipId}` : 'In transit'}</dd></div>}>
+            {workspaceCapabilities.map(renderCapability)}
+          </RoleConsoleTemplate>
+        )}
       </section>
 
       <aside className="ship-console__instruments" aria-label={`${shuttle.consoleName} instruments`}>
@@ -48,10 +63,7 @@ export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave,
           </p>
         </section>
 
-        {shuttle.capabilities.map((capability) => {
-          const Capability = SHUTTLE_CAPABILITIES[capability];
-          return <Capability key={capability} shuttle={shuttle} />;
-        })}
+        {instrumentCapabilities.map(renderCapability)}
       </aside>
     </main>
   );

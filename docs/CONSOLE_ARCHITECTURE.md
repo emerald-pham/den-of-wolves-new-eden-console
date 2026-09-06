@@ -89,7 +89,10 @@ Create a vessel file using `defineShuttle` and register it in `SHUTTLECRAFT`.
 Provide its actual captain role and route through `ShuttleConsole`. A shuttle
 starts with no optional capabilities and no assumed dock. Declare equipment
 explicitly and register any new capability implementation in the typed
-capability map in `ShuttleConsoleTemplate`.
+capability map in `ShuttleConsoleTemplate`. Each capability declares workspace
+or instrument placement there. Role actions use `RoleConsoleTemplate` beneath
+the captain assignment in the shared ship gameplay pane; status and auxiliary
+instruments remain in the DRADIS rail.
 
 The initial manifest and visits are derived from the vessel definition. A
 missing server docking field uses that initial manifest for legacy sessions;

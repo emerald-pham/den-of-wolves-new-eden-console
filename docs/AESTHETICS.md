@@ -769,3 +769,9 @@ with wrapped, scrollable text and two 30-second reading periods for cancellation
 The measured header height reserves the required page-top space as the ticker
 wraps. Review at 320px phone, wide 1440px desktop and short 844×390 landscape
 dimensions, including return navigation.
+
+Shuttle role capabilities use the same wide gameplay identity pane and
+RoleConsoleTemplate as ship role consoles. The dispatch desk sits directly
+below the captain role assignment; status and the evidence shredder stay in
+the DRADIS instrument rail. Capability placement is owned by the shared shuttle
+template, including future craft.
