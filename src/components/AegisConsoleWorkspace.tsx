@@ -1,4 +1,5 @@
 import MaintenanceSystems from './MaintenanceSystems';
+import JumpFailureReadout from './JumpFailureReadout';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import { useState } from 'react';
 import {
@@ -36,6 +37,7 @@ function SystemCard({ system, damaged }: {
         </div>
         {system.upgraded && <div><dt>If Upgraded (By Shepherd)</dt><dd>{system.upgraded}</dd></div>}
         <div><dt>If Damaged</dt><dd>{system.damaged}</dd></div>
+        {system.id === 'jump-drive' && <JumpFailureReadout />}
       </dl>
     </article>
   );

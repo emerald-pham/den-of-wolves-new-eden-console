@@ -518,6 +518,8 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
     expect(within(workspace).getByRole('heading', { name: consoleName })).toBeInTheDocument();
   }
   expect(within(workspace).getAllByText(/short.*2.*medium.*3.*long.*6/i)).toHaveLength(2);
+  expect(within(workspace).getByRole('article', { name: 'Jump Drive system // operational' }))
+    .toHaveTextContent(/normal jump failure.*contact facilitator for resolution/i);
 
   expect(within(workspace).getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
   expect(within(workspace).getByRole('list', { name: 'AEGIS maintenance sequence' }))

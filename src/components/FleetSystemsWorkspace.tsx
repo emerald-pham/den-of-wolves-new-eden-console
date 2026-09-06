@@ -1,4 +1,5 @@
 import MaintenanceSystems from './MaintenanceSystems';
+import JumpFailureReadout from './JumpFailureReadout';
 import { useState } from 'react';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import type { Ship } from '@/data/ships';
@@ -34,7 +35,7 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       <h3>{system.name}</h3><p>{systemEffectLabel(system.effect)}</p>
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
-      </div></dl>
+      </div>{system.id === 'jump-drive' && <JumpFailureReadout />}</dl>
     </article>;
   };
   return <RoleConsoleTemplate label={`${ship.name} ${role.name} console`}
