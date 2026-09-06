@@ -8,6 +8,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Test first for code](#1-test-first-for-code)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
 - [Worktree branch bootstrap](#worktree-branch-bootstrap)
+- [Routine task delegation](#routine-task-delegation)
 - [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
 - [Merge once done](#2-merge-once-done)
 - [Version references](#version-references)
@@ -85,6 +86,33 @@ nothing, the worktree has a detached `HEAD`; immediately create a uniquely
 named, short-lived task branch at the current `HEAD` and do all work there.
 Never make changes or commits while detached. Confirm the branch is based on
 the intended starting point (normally current `origin/main`) before proceeding.
+
+## Routine task delegation
+
+The product owner gives standing authorization to delegate small, routine tasks
+to GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) when doing so is expected to save
+tokens after accounting for setup, context transfer, and review. No separate
+confirmation is needed for each suitable task.
+
+- Give each delegated task its own worktree and short-lived branch. Never have
+  delegated agents edit the primary agent's checkout or another agent's files.
+- Keep assignments narrow, low risk, and easy to verify, with explicit file
+  scope and acceptance criteria. Suitable examples include documentation edits
+  and straightforward mechanical changes with clear expected results.
+- No code change has zero risk. Keep security, authentication, authorization,
+  authoritative state mutations, complex gameplay, and architectural decisions
+  with the primary agent. Keep work local when delegation would cost more tokens
+  than it saves.
+- Use Spark only when the available interface supports that exact model. The
+  authorization includes creating separate visible Codex tasks in worktrees
+  when Spark is unavailable through the internal subagent interface. Do not
+  silently substitute another model or claim that Spark ran when it did not.
+- Every delegated agent must read this file and follow the applicable test-first,
+  dependency, emulator isolation, and version policies. Small task size does not
+  exempt code changes from those requirements.
+- The primary agent reviews the diff and verification evidence and coordinates
+  integration, versioning, merge, and push. Delegated agents must return their
+  work for that review before merging or pushing to `main`.
 
 ## Concurrent worktrees and emulator ports
 

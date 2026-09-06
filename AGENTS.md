@@ -4,7 +4,7 @@
 of truth for how work is done in this repository, and it applies to every agent
 and every tool — Claude Code, Codex, Cursor, Copilot, anything else.
 
-Two rules from it are non-negotiable, repeated here so no agent can claim it
+Key rules from it are repeated here so no agent can claim it
 only read this file:
 
 1. **Test first for code.** A failing test exists and has been *run* before any
@@ -20,6 +20,11 @@ only read this file:
    release-candidate maturity, and never call a build `1.0.0` until the complete
    20-player set has full, complex gameplay across interacting systems and a
    clear game end. See `CLAUDE.md` for the full policy.
+
+4. **Delegate suitable routine tasks to Spark.** Standing authorization covers
+   GPT-5.3 Codex Spark tasks in separate worktrees when delegation saves tokens.
+   Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
+   scope, model availability, review, and integration requirements.
 
 Everything else — stack, layout, the security model, what may and may not be
 written from a client, commit conventions — is in `CLAUDE.md`. Go read it.
