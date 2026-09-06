@@ -1,2 +1,2 @@
-export const DEFAULT_FLEET_ALERT_MESSAGE = 'red alert from aegis admiral - wolf attack imminent, all hands to battle stations. non-crew must shelter in place until alert lifted';
+export const DEFAULT_FLEET_ALERT_MESSAGE = 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED';
 export const MAX_FLEET_ALERT_LENGTH = 500;

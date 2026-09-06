@@ -70,7 +70,13 @@ export interface PressDispatchState {
 export interface GameSession {
   /** Shared game turn advanced by an active GM; legacy sessions begin at Turn 1. */
   readonly currentTurn?: number;
-  readonly fleetRedAlert?: { readonly active: boolean; readonly revision: number; readonly text?: string };
+  readonly fleetRedAlert?: {
+    readonly active: boolean;
+    readonly revision: number;
+    readonly text?: string;
+    /** ISO-8601 instant for the last raised alert, used to enforce cooldown policy. */
+    readonly raisedAt?: string;
+  };
   readonly pressDispatch?: PressDispatchState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;

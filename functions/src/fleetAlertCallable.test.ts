@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false }));
+const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false, raisedAt: undefined as string | undefined }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
@@ -11,13 +11,13 @@ import { setFleetRedAlert } from './index';
 const data = { sessionId: 's1', active: true, expectedRevision: 0 };
 const request = (input = data) => ({ data: input, auth: { uid: 'u1' } }) as CallableRequest<typeof data>;
 beforeEach(() => {
-  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false });
+  Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false, raisedAt: undefined });
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.endsWith('/players')) return { docs: ['admiral', 'executive-officer', 'wing-commander'].map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, fleetRedAlert: { revision: mock.revision, active: mock.active } };
+      : { phase: mock.phase, fleetRedAlert: { revision: mock.revision, active: mock.active, ...(mock.raisedAt ? { raisedAt: mock.raisedAt } : {}) } };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
 });
@@ -74,9 +74,9 @@ it('lets a verified GM observer command the Admiral console without claiming it'
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
 });
 
-it('stores custom warning text in lowercase under Admiral authority', async () => {
+it('stores custom warning text in uppercase under Admiral authority', async () => {
   await setFleetRedAlert.run({ data: { ...data, text: '  HOLD POSITION  ' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: string }>);
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: { active: true, revision: 1, text: 'hold position' } }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: true, revision: 1, text: 'HOLD POSITION' }) }));
 });
 it.each(['', '   ', 'x'.repeat(501), 42])('rejects invalid warning copy: %s', async text => {
   await expect(setFleetRedAlert.run({ data: { ...data, text }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: unknown }>)).rejects.toMatchObject({ code: 'invalid-argument' });
@@ -86,5 +86,24 @@ it.each(['', '   ', 'x'.repeat(501), 42])('rejects invalid warning copy: %s', as
 it('revises an active warning without standing the fleet down', async () => {
   mock.active = true;
   await setFleetRedAlert.run({ data: { ...data, text: 'New orders' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: string }>);
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: { active: true, revision: 1, text: 'new orders' } }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: true, revision: 1, text: 'NEW ORDERS' }) }));
+});
+
+it('blocks a new red alert until ten minutes after the previous raise', async () => {
+  mock.raisedAt = new Date(Date.now() - (10 * 60 * 1000) + 1000).toISOString();
+  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.raisedAt = new Date(Date.now() - (10 * 60 * 1000)).toISOString();
+  await expect(setFleetRedAlert.run(request())).resolves.toMatchObject({ active: true });
+});
+
+it('preserves the last raise time when standing down so the cooldown survives', async () => {
+  mock.active = true;
+  mock.revision = 1;
+  mock.raisedAt = '2026-09-06T12:00:00.000Z';
+  await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    fleetRedAlert: expect.objectContaining({ active: false, raisedAt: mock.raisedAt }),
+  }));
 });

@@ -1866,6 +1866,17 @@ export const runMaintenance = onCall<{
 });
 
 /** Admiral commands are serialized with the fleet's live alert revision. */
+const FLEET_ALERT_COOLDOWN_MINUTES = 10;
+const FLEET_ALERT_COOLDOWN_MS = FLEET_ALERT_COOLDOWN_MINUTES * 60 * 1000;
+
+function toTimestampMillis(value: unknown): number | undefined {
+  if (value && typeof value === 'object' && 'toMillis' in value && typeof value.toMillis === 'function') return value.toMillis();
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  const time = typeof value === 'string' ? Date.parse(value) : NaN;
+  return Number.isNaN(time) ? undefined : time;
+}
+
 export const setFleetRedAlert = onCall<{
   sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown;
 }>(async request => {
@@ -1890,13 +1901,25 @@ export const setFleetRedAlert = onCall<{
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
-    const current = session.get('fleetRedAlert') as { active: boolean; revision: number; text?: string } | undefined;
+    const current = session.get('fleetRedAlert') as
+      { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
     if ((current?.revision ?? 0) !== data.expectedRevision) {
       throw new HttpsError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.');
     }
-    const text = typeof data.text === 'string' ? data.text.trim().toLowerCase() : current?.text;
+    const lastRaisedAt = toTimestampMillis(current?.raisedAt);
+    const now = Date.now();
+    if (data.active && !current?.active && lastRaisedAt !== undefined && now - lastRaisedAt < FLEET_ALERT_COOLDOWN_MS) {
+      throw new HttpsError('failed-precondition', 'Fleet red alert may be raised once every 10 minutes.');
+    }
+    const text = typeof data.text === 'string' ? data.text.trim().toUpperCase() : current?.text;
     if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) return { revision: current?.revision ?? 0 };
-    const fleetRedAlert = { active: data.active, revision: data.expectedRevision + 1, ...(text === undefined ? {} : { text }) };
+    const fleetRedAlert: { active: boolean; revision: number; text?: string; raisedAt?: string } = {
+      active: data.active,
+      revision: data.expectedRevision + 1,
+      ...(text === undefined ? {} : { text }),
+    };
+    if (data.active && !current?.active) fleetRedAlert.raisedAt = new Date(now).toISOString();
+    else if (lastRaisedAt !== undefined) fleetRedAlert.raisedAt = new Date(lastRaisedAt).toISOString();
     tx.update(ref, { fleetRedAlert, updatedAt: FieldValue.serverTimestamp() });
     return fleetRedAlert;
   });

@@ -10,6 +10,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The fleetwide red alert can only be raised once every 10 minutes, while standing down and updating an active alert remain available.',
+      'Red-alert messages convert to uppercase as the Admiral types, including the restored default warning.',
+      'Standing down lets the current alert finish its ticker pass, then runs the cancellation twice before all red-alert copy clears.',
+    ],
+  },
+  {
+    version: '0.2.31',
+    changes: [
       'The Press console now keeps every active dispatch visible, adds new dispatches without replacing earlier reports, and lets the Press Officer dismiss each report separately.',
     ],
   },
