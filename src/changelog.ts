@@ -10,6 +10,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Red alerts gradually enter the ticker from the right, with a persistent RED ALERT indicator at the bottom left of DRADIS.',
+      'Press dispatches continue scrolling alongside active red alerts.',
+      'The Admiral can write and update a lowercase alert message, or restore the default warning.',
+    ],
+  },
+  {
+    version: '0.2.25',
+    changes: [
       'The top press ticker now stays clear until the Press Officer releases the first fleet dispatch.',
     ],
   },

@@ -6,6 +6,7 @@ export interface FleetMessage {
   readonly id: string;
   readonly text: string;
   readonly tone: 'danger' | 'normal';
+  readonly pressText?: string | undefined;
   readonly gap?: 'standard' | 'long';
   /** Omit to repeat until replaced. */
   readonly passes?: number;
@@ -52,16 +53,16 @@ function Message({ message, fallback }: {
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [message.text, reducedMotion]);
+  }, [message.text, message.pressText, reducedMotion]);
   if (done) return fallback ? <Message key={fallback.id} message={fallback} /> : null;
   return <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone={message.tone}
     data-gap={message.gap ?? 'standard'} data-reduced={reducedMotion}>
-    <div ref={windowRef} className="fleet-ticker__window" role="status" aria-label={message.text}
+    <div ref={windowRef} className="fleet-ticker__window" role="status" aria-label={[message.text, message.pressText].filter(Boolean).join(' // ')}
       aria-live="polite" aria-atomic="true">
       {reducedMotion ? (
-        <p className="fleet-ticker__message">{message.text}</p>
+        <p className="fleet-ticker__message">{message.text}{message.pressText && <span className="fleet-ticker__press"> // {message.pressText}</span>}</p>
       ) : (
-        <div className="fleet-ticker__track" aria-hidden="true"
+        <div className="fleet-ticker__entrance"><div className="fleet-ticker__track" aria-hidden="true"
           onAnimationIteration={message.passes === undefined ? undefined : finishPass}
           onAnimationEnd={message.passes === undefined ? undefined : finishPass}>
           {[0, 1].map((group) => (
@@ -70,11 +71,12 @@ function Message({ message, fallback }: {
                 <span className="fleet-ticker__copy" key={index}
                   ref={group === 0 && index === 0 ? copyRef : undefined}>
                   {message.text}<span className="fleet-ticker__separator"> // </span>
+                  {message.pressText && <span className="fleet-ticker__press">{message.pressText}<span className="fleet-ticker__separator"> // </span></span>}
                 </span>
               ))}
             </span>
           ))}
-        </div>
+        </div></div>
       )}
     </div>
   </aside>;

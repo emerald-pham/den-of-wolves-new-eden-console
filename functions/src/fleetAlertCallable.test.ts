@@ -73,3 +73,18 @@ it('lets a verified GM observer command the Admiral console without claiming it'
   mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/') ? { exists: true, get: (key: string) => key === 'uid' ? 'u1' : undefined } : previous(path));
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
 });
+
+it('stores custom warning text in lowercase under Admiral authority', async () => {
+  await setFleetRedAlert.run({ data: { ...data, text: '  HOLD POSITION  ' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: string }>);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: { active: true, revision: 1, text: 'hold position' } }));
+});
+it.each(['', '   ', 'x'.repeat(501), 42])('rejects invalid warning copy: %s', async text => {
+  await expect(setFleetRedAlert.run({ data: { ...data, text }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: unknown }>)).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('revises an active warning without standing the fleet down', async () => {
+  mock.active = true;
+  await setFleetRedAlert.run({ data: { ...data, text: 'New orders' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { text: string }>);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: { active: true, revision: 1, text: 'new orders' } }));
+});

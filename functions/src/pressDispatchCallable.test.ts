@@ -33,12 +33,12 @@ beforeEach(() => {
   mock.get.mockImplementation(async (path: string) => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, pressDispatch: mock.pressDispatch };
+      : { phase: mock.phase, fleetRedAlert: { active: true, revision: 1 }, pressDispatch: mock.pressDispatch };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
 });
 
-it('lets the active Press Officer publish a serialized dispatch', async () => {
+it('lets the active Press Officer publish a serialized dispatch during red alert', async () => {
   mock.pressDispatch = { text: 'Old news', revision: 0 };
   await publishPressDispatch.run(request());
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', {

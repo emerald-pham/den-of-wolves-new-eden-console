@@ -16,20 +16,19 @@ beforeEach(() => {
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
   expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
-  const command = screen.getByRole('region', { name: 'FLEETWIDE RED ALERT' });
-  expect(command.textContent).toBe(command.textContent?.toUpperCase());
+  expect(screen.getByRole('region', { name: 'FLEETWIDE RED ALERT' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toHaveTextContent('STAND UP');
   fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
-  await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(true));
-  expect(screen.queryByText(/wolf attack imminent/)).not.toBeInTheDocument();
+  await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(true, expect.stringContaining('wolf attack imminent')));
+  expect(screen.queryByRole('status', { name: /wolf attack imminent/ })).not.toBeInTheDocument();
   act(() => {
     const state = useSessionStore.getState();
     state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1 } });
   });
   expect(screen.getByRole('status', {
-    name: 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
+    name: 'red alert from aegis admiral - wolf attack imminent, all hands to battle stations. non-crew must shelter in place until alert lifted',
   })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
@@ -64,4 +63,26 @@ it('disables offline commands and reports server failures', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('COMMAND REJECTED');
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
+});
+
+it('keeps new press dispatches in the active warning sequence', () => {
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { text: 'SNN // First report', revision: 1 } });
+  render(<FleetBroadcast />);
+  expect(screen.getByRole('status', { name: /hold position.*SNN \/\/ First report/ })).toBeVisible();
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { text: 'SNN // Updated report', revision: 2 } }));
+  expect(screen.getByRole('status', { name: /hold position.*Updated report/ })).toBeVisible();
+});
+it('lets the Admiral edit, restore and transmit the default warning in lowercase', async () => {
+  render(<FleetAlertControl />);
+  const input = screen.getByRole('textbox', { name: 'ALERT MESSAGE' });
+  const original = (input as HTMLTextAreaElement).value;
+  expect(original).toContain('wolf attack imminent');
+  fireEvent.change(input, { target: { value: 'HOLD POSITION' } });
+  fireEvent.click(screen.getByRole('button', { name: 'RESTORE DEFAULT' }));
+  expect(input).toHaveValue(original);
+  fireEvent.change(input, { target: { value: 'HOLD POSITION' } });
+  fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
+  fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
+  await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(true, 'hold position'));
 });

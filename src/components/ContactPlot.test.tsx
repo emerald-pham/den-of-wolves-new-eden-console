@@ -1,3 +1,4 @@
+import { useSessionStore } from '@/store/useSessionStore';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import ContactPlot, {
@@ -500,4 +501,12 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
   expect(cancel).toHaveBeenCalled();
+});
+
+it('shows a bottom-left warning for active fleet alerts and clears it on stand-down', () => {
+  useSessionStore.setState({ session: { id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '', fleetRedAlert: { active: true, revision: 1 } } });
+  const { container } = render(<ContactPlot placement="widget" />);
+  expect(container.querySelector('.contact-plot__red-alert')).toHaveTextContent('RED ALERT');
+  act(() => useSessionStore.setState({ session: null }));
+  expect(container.querySelector('.contact-plot__red-alert')).toBeNull();
 });

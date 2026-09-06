@@ -1,3 +1,4 @@
+import { DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
@@ -19,9 +20,9 @@ export default function FleetBroadcast() {
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
     text: alert.active
-      ? 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED'
+      ? (alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE)
       : 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
     tone: alert.active ? 'danger' : 'normal',
-    ...(alert.active ? {} : { passes: 2 }),
+    ...(alert.active ? { pressText: dispatch?.text } : { passes: 2 }),
   }} {...(pressDispatch ? { fallback: pressDispatch } : {})} />;
 }

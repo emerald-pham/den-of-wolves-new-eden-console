@@ -3175,3 +3175,10 @@ body {
     white-space: normal;
   }
 }
+
+.fleet-alert-editor { display: grid; gap: 0.5rem; width: 100%; color: var(--cic-amber); font: 0.65rem/1.4 var(--cic-mono); }
+.fleet-alert-editor textarea { box-sizing: border-box; width: 100%; min-width: 0; resize: vertical; min-height: 6rem; background: var(--cic-void); color: var(--cic-ink); border: 1px solid var(--cic-rule); padding: 0.5rem; font: 0.75rem/1.5 var(--cic-mono); text-transform: none; }
+
+.ship-plot:has(.contact-plot__red-alert) .ship-plot__compass {
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 2.75rem);
+}

@@ -1869,13 +1869,14 @@ export const runMaintenance = onCall<{
 
 /** Admiral commands are serialized with the fleet's live alert revision. */
 export const setFleetRedAlert = onCall<{
-  sessionId: string; active: boolean; expectedRevision: number; instanceId?: string;
+  sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId'].includes(key)) ||
+  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId', 'text'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
       (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
+      (data.text !== undefined && (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 500)) ||
       typeof data.active !== 'boolean' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) {
     throw new HttpsError('invalid-argument', 'Invalid fleet alert command.');
   }
@@ -1891,12 +1892,13 @@ export const setFleetRedAlert = onCall<{
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
-    const current = session.get('fleetRedAlert') as { active: boolean; revision: number } | undefined;
+    const current = session.get('fleetRedAlert') as { active: boolean; revision: number; text?: string } | undefined;
     if ((current?.revision ?? 0) !== data.expectedRevision) {
       throw new HttpsError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.');
     }
-    if ((current?.active ?? false) === data.active) return { revision: current?.revision ?? 0 };
-    const fleetRedAlert = { active: data.active, revision: data.expectedRevision + 1 };
+    const text = typeof data.text === 'string' ? data.text.trim().toLowerCase() : current?.text;
+    if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) return { revision: current?.revision ?? 0 };
+    const fleetRedAlert = { active: data.active, revision: data.expectedRevision + 1, ...(text === undefined ? {} : { text }) };
     tx.update(ref, { fleetRedAlert, updatedAt: FieldValue.serverTimestamp() });
     return fleetRedAlert;
   });

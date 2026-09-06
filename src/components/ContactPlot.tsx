@@ -1,3 +1,4 @@
+import { useSessionStore } from '@/store/useSessionStore';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { CONTACT_SCAN_EVENT, followSweeps, type Vector } from './sweep';
 import {
@@ -201,6 +202,7 @@ export default function ContactPlot({
   centerLabel?: string | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
 }) {
+  const redAlert = useSessionStore(state => state.session?.fleetRedAlert?.active === true);
   const plot = useRef<HTMLDivElement>(null);
   const { reducedMotion: still } = useMotionPreference();
   const [clock, setClock] = useState(Date.now);
@@ -299,6 +301,7 @@ export default function ContactPlot({
       data-still={String(still)}
       style={size ? ({ '--plot-size': size } as PlotStyle) : undefined}
     >
+      {redAlert && <span className="contact-plot__red-alert">RED ALERT</span>}
       <div
         className="contact-plot__rig"
         style={orientation ? {

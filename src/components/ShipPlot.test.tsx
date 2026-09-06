@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -132,4 +133,8 @@ it('keeps contacts, names, and altitude indicators inside the oriented 3D rig', 
   expect(rig).toContainElement(container.querySelector('.contact-plot__blip'));
   expect(rig).toContainElement(container.querySelector('.contact-plot__tag'));
   expect(rig).toContainElement(container.querySelector('.contact-plot__drop'));
+});
+it('reserves space above the bottom-left warning for the expanded DRADIS compass', () => {
+  const css = readFileSync('src/index.css', 'utf8');
+  expect(css).toMatch(/\.ship-plot:has\(\.contact-plot__red-alert\) \.ship-plot__compass\s*\{[^}]*bottom:\s*calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 2\.75rem\)/);
 });

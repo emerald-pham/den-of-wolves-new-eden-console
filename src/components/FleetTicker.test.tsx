@@ -72,3 +72,11 @@ it('leaves a long gap between repeated press dispatches', async () => {
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
   expect(css).toMatch(/\.fleet-ticker\[data-gap=["']long["']\][^}]*\.fleet-ticker__separator/);
 });
+
+it('brings danger copy in from the right before its repeating passes', () => {
+  const { container } = render(<FleetTicker message={alert} />);
+  expect(container.querySelector('.fleet-ticker__entrance')).not.toBeNull();
+  const css = readFileSync('src/components/fleetTicker.css', 'utf8');
+  expect(css).toMatch(/@keyframes fleet-broadcast-enter[^]*translateX\(100%\)/);
+  expect(css).toMatch(/text-transform:\s*lowercase/);
+});

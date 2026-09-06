@@ -27,3 +27,8 @@ it('includes the GM instance for observer write mode', async () => {
   await setFleetRedAlert(false);
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: false, expectedRevision: 3, instanceId: 'gm1' });
 });
+
+it('transmits custom alert copy with the authoritative revision', async () => {
+  await setFleetRedAlert(true, 'hold position');
+  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: true, expectedRevision: 3, text: 'hold position' });
+});

@@ -750,6 +750,11 @@ Admiral command uses the shared framed action button, with a live status
 alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
+Active warnings enter from the right over four seconds, fading to full intensity
+during the first second, before beginning their repeating 30-second passes.
+The entrance is separate from the looping track so it never counts as a completed
+pass. Reduced motion shows stationary wrapped copy immediately.
+
 Each full right-to-left pass takes 30 seconds. Alert copy repeats until replaced;
 stand-down copy makes two complete passes. Playback identity includes the session
 and alert revision, and completed passes survive navigation and tab reloads.
@@ -763,7 +768,17 @@ and publishes through server authority with revision checks. The current copy
 remains visible on the desk; other shuttle viewers may see the instrument but
 cannot transmit from it.
 
-Broadcast copy is authored in uppercase and there is no pause control. The
+Press and stand-down copy remain uppercase; the Admiral’s active warning is
+normalized to lowercase and displayed without the usual uppercase treatment.
+The Admiral can edit up to 500 characters, restore the provided default, and
+transmit an update through the guarded command while red alert remains active.
+Press dispatches follow the warning within each repeating sequence in normal
+bone-white type, even while the alert remains active.
+DRADIS shows a stationary hostile-red `RED ALERT` readout at its bottom left,
+in both compact and expanded views. It clears on authoritative stand-down,
+does not intercept pointer input, and leaves the zoom control unobstructed.
+The expanded compass moves above the warning while an alert is active.
+There is no pause control. The
 shared reduced-motion preference replaces motion
 with wrapped, scrollable text and two 30-second reading periods for cancellation.
 The measured header height reserves the required page-top space as the ticker
@@ -792,3 +807,6 @@ read-only or incomplete-crew write status and keep View ship consoles navigation
 Page navigation remains usable in read-only mode. Reviewed at 320×844, 1440×900,
 and 844×390 with operational and damaged systems, the shared command group,
 observer access toggling, and return navigation.
+
+Alert editor, ticker entrance, lowercase warning and DRADIS warning reviewed at
+1440×900, 320×844 and 844×390, including reduced motion and return navigation.

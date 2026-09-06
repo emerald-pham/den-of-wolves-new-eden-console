@@ -13,3 +13,14 @@
 @media (max-width: 48rem) {
   .fleet-ticker { order: 5; flex-basis: 100%; }
 }
+
+.fleet-ticker[data-tone="danger"] .fleet-ticker__copy,
+.fleet-ticker[data-tone="danger"] .fleet-ticker__message { text-transform: lowercase; }
+.fleet-ticker__press { color: var(--cic-ink); text-transform: uppercase; }
+.fleet-ticker[data-tone="danger"] .fleet-ticker__entrance { animation: fleet-broadcast-enter 4s linear both; }
+.fleet-ticker[data-tone="danger"] .fleet-ticker__track { animation-delay: 4s; }
+@keyframes fleet-broadcast-enter {
+  from { transform: translateX(100%); opacity: 0; }
+  25% { opacity: 1; }
+  to { transform: translateX(0); opacity: 1; }
+}

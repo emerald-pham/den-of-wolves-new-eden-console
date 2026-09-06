@@ -1,3 +1,4 @@
+import { DEFAULT_FLEET_ALERT_MESSAGE, MAX_FLEET_ALERT_LENGTH } from '@/lib/fleetAlertMessage';
 import { useRef, useState } from 'react';
 import { useConsoleAccess } from '@/lib/consoleAccess';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -6,17 +7,19 @@ import { setFleetRedAlert } from '@/lib/fleetAlertService';
 export default function FleetAlertControl() {
   const access = useConsoleAccess();
   const { session, me, connection } = useSessionStore();
+  const [text, setText] = useState(session?.fleetRedAlert?.text ?? DEFAULT_FLEET_ALERT_MESSAGE);
   const [coverOpen, setCoverOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
   if ((access.roleId ?? me?.activeConsoleRoleId) !== 'admiral') return null;
   const active = session?.fleetRedAlert?.active === true;
-  const execute = async () => {
+  const execute = async (nextActive = !active) => {
     if (busy.current) return;
     busy.current = true; setPending(true); setError('');
     try {
-      await setFleetRedAlert(!active);
+      if (nextActive) await setFleetRedAlert(true, text.trim().toLowerCase());
+      else await setFleetRedAlert(false);
       setCoverOpen(false);
     }
     catch (cause) {
@@ -30,10 +33,20 @@ export default function FleetAlertControl() {
   return <section aria-label="FLEETWIDE RED ALERT"
     className="confetti-dispenser confetti-dispenser--fleet-alert">
     <p className="confetti-dispenser__label">FLEETWIDE RED ALERT</p>
+    <label className="fleet-alert-editor">ALERT MESSAGE
+      <textarea rows={4} maxLength={MAX_FLEET_ALERT_LENGTH} value={text}
+        disabled={pending || unavailable}
+        onChange={event => setText(event.target.value.toLowerCase())} />
+    </label>
+    <button className="cic-action-button" type="button" disabled={pending || unavailable}
+      onClick={() => setText(DEFAULT_FLEET_ALERT_MESSAGE)}>RESTORE DEFAULT</button>
+    {active && <button className="cic-action-button" type="button"
+      disabled={!coverOpen || pending || unavailable || !text.trim() || text.trim() === (session?.fleetRedAlert?.text ?? DEFAULT_FLEET_ALERT_MESSAGE)}
+      onClick={() => void execute(true)}>UPDATE ALERT MESSAGE</button>}
     <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
       <button className="confetti-dispenser__trigger" type="button"
         aria-label={active ? 'STAND DOWN' : 'RAISE FLEETWIDE RED ALERT'}
-        disabled={!coverOpen || pending || unavailable}
+        disabled={!coverOpen || pending || unavailable || (!active && !text.trim())}
         onClick={() => void execute()}>
         {pending ? 'TRANSMITTING' : active ? 'STAND DOWN' : 'STAND UP'}
       </button>
