@@ -69,11 +69,11 @@ it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and mainten
   expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
 });
 
-it.each(SHIPS.filter(ship => ship.maintenance))('reads out normal jump-drive failures for $name', (ship) => {
+it.each(SHIPS.filter(ship => ship.maintenance))('reads out the normal jump-drive failure roll for $name', (ship) => {
   render(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
 
   expect(screen.getByRole('article', { name: 'Jump Drive system // operational' }))
-    .toHaveTextContent(/normal jump failure.*contact facilitator for resolution/i);
+    .toHaveTextContent(/normal.*jump fails on a roll of 1–2/i);
 });
 
 it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards inside the printed maintenance steps', (ship) => {
