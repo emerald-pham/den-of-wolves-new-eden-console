@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Active GMs can trigger unknown DRADIS contacts without a communications error.',
+    ],
+  },
+  {
+    version: '0.2.16',
+    changes: [
       'Active GMs can trigger shared effects from any expanded DRADIS display, including ship and observer consoles.',
       'Automatic unknown contacts now arrive on a shared random cadence of 20 to 30 minutes.',
     ],
