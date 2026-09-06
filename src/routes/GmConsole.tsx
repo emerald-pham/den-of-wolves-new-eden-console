@@ -1,4 +1,4 @@
-import { populationForShip } from '@/data/shipPopulation';
+import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
@@ -452,6 +452,7 @@ export default function GmConsole() {
               {SHIPS.map((ship) => {
                 const resources = resourcesForShip(ship.id, session.shipResources);
                 const population = populationForShip(ship.id, session.shipSurvivors);
+                const populationTrack = populationTrackForShip(ship.id);
                 if (!resources) return null;
                 return (
                   <section
@@ -504,7 +505,7 @@ export default function GmConsole() {
                               onClick={() => void adjustShipPopulation(ship.id, -1)}>−</button>
                             <strong>{population.toLocaleString('en-US')}</strong>
                             <button type="button" aria-label="Increase Survivor Population"
-                              disabled={population === 20000 || Boolean(session.populationAlerts?.[ship.id])}
+                              disabled={population === populationTrack?.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
                               onClick={() => void adjustShipPopulation(ship.id, 1)}>+</button>
                           </div>
                         </li>

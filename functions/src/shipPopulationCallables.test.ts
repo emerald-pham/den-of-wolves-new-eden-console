@@ -43,7 +43,23 @@ it('denies a GM using another persons instance', async () => {
 it('denies unsigned requests, invalid steps and ships without a track', async () => {
   await expect(adjustShipPopulation.run({ data } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'unauthenticated' });
   await expect(adjustShipPopulation.run(request({ ...data, delta: 500 }))).rejects.toMatchObject({ code: 'invalid-argument' });
-  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'aegis' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'dione' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+});
+it('moves AEGIS through its own printed track', async () => {
+  mock.population = 2500;
+  mock.get.mockImplementation(async (path: string) => {
+    if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }] };
+    const fields: Record<string, unknown> = path.includes('/players/')
+      ? { role: mock.role, connected: mock.connected }
+      : path.includes('/gmInstances/') ? { uid: mock.owner }
+      : { shipSurvivors: { aegis: mock.population }, populationAlerts: mock.alerts };
+    return { exists: true, get: (key: string) => fields[key] };
+  });
+  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'aegis' })))
+    .resolves.toMatchObject({ amount: 2000, alertRaised: false });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipSurvivors.aegis': 2000,
+  }));
 });
 it('preserves the other GM acknowledgement and does not alter unrest', async () => {
   mock.alerts = { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm1','gm2'] } };

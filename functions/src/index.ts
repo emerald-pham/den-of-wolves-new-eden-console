@@ -1,4 +1,9 @@
-import { populationForShip, populationChange, acknowledgePopulationAlert } from './shipPopulation';
+import {
+  INITIAL_SHIP_SURVIVORS,
+  acknowledgePopulationAlert,
+  populationChange,
+  populationForShip,
+} from './shipPopulation';
 import { randomInt, randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import {
@@ -229,7 +234,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           shipResources: INITIAL_SHIP_RESOURCES,
           shipUnrest: INITIAL_SHIP_UNREST,
           unrestAlerts: {},
-          shipSurvivors: { capybara: 20000 },
+          shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
           populationAlerts: {},
           gmControlsLocked: false,
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -273,7 +278,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             shipResources: INITIAL_SHIP_RESOURCES,
             shipUnrest: INITIAL_SHIP_UNREST,
             unrestAlerts: {},
-            shipSurvivors: { capybara: 20000 },
+            shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
             populationAlerts: {},
             gmControlsLocked: false,
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -381,7 +386,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipResources: shipResources(sessionSnap.get('shipResources')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
-        shipSurvivors: sessionSnap.get('shipSurvivors') ?? { capybara: 20000 },
+        shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         activeRoleIds:
@@ -471,7 +476,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipResources: shipResources(sessionSnap.get('shipResources')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
-      shipSurvivors: sessionSnap.get('shipSurvivors') ?? { capybara: 20000 },
+      shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       activeRoleIds:
@@ -1453,7 +1458,12 @@ export const adjustShipPopulation = onCall<{
     if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
     let result: ReturnType<typeof populationChange>;
     try {
-      result = populationChange(population, change.delta, Boolean(alerts[change.shipId]));
+      result = populationChange(
+        change.shipId,
+        population,
+        change.delta,
+        Boolean(alerts[change.shipId]),
+      );
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.');
     }

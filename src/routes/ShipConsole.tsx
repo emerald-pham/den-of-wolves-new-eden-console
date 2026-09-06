@@ -6,10 +6,12 @@ import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
+import AegisConsoleWorkspace from '@/components/AegisConsoleWorkspace';
 import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { isImplementedAegisRole } from '@/data/aegisConsoles';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
   popShipConfetti,
@@ -131,7 +133,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   return (
     <main
-      className={`ship-console ship-console--${ship.id}`}
+      className={`ship-console ship-console--${ship.id}${
+        ship.id === 'aegis' && isImplementedAegisRole(consoleRole?.id)
+          ? ' ship-console--gameplay'
+          : ''
+      }`}
       data-observer-mode={observer ? (observerWrite ? 'write' : 'read') : undefined}
       data-unrest-critical={unrest > 7 ? 'true' : undefined}
     >
@@ -159,6 +165,13 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={population} />
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
+        )}
+        {ship.id === 'aegis' && !observer && (
+          <AegisConsoleWorkspace
+            roleId={consoleRole?.id}
+            galacticCoordinate={session.shipGalacticCoordinates?.aegis ?? '0000'}
+            fuel={resources?.fuel ?? 0}
+          />
         )}
         <div className="ship-console__counters">
           {resources && (
@@ -189,7 +202,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             data-critical={unrest > 7 ? 'true' : 'false'}
           >
             <p className="ship-resources__eyebrow">Census // tracked conditions</p>
-            {population !== undefined && <PopulationTrack population={population} />}
+            {population !== undefined && <PopulationTrack shipId={ship.id} population={population} />}
             <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
               <span className="resource-label">
                 <ResourceIcon id="unrest" label="Civil Unrest" />

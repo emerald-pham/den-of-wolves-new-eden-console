@@ -1,4 +1,5 @@
 import type { FirebaseOptions } from 'firebase/app';
+import { resolveEmulatorPorts } from './emulatorPorts';
 
 /**
  * Firebase web config.
@@ -39,3 +40,4 @@ export const firebaseConfigured =
   !firebaseConfig.projectId.startsWith('__');
 
 export const useEmulators = env.VITE_USE_EMULATORS === '1';
+export const emulatorPorts = resolveEmulatorPorts(env);
