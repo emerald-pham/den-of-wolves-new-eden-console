@@ -6,7 +6,6 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
-/** Four-digit legacy codes still work; current clients can enter six-digit codes. */
 const LEGACY_CODE_LENGTH = 4;
 const CODE_LENGTH = 6;
 
@@ -84,7 +83,7 @@ export default function Landing() {
 
         <form className="landing__join" onSubmit={onJoin}>
           <label className="landing__label" htmlFor="join-code">
-            Session code (4 or 6 digits)
+            Session code
           </label>
           <input
             id="join-code"
@@ -95,8 +94,7 @@ export default function Landing() {
             maxLength={CODE_LENGTH}
             placeholder="000000"
             value={code}
-            // Digits only, six at most: it accepts legacy four-digit sessions
-            // and the current six-digit format, with no invalid characters.
+            // Digits only, with no invalid characters or more than six entered.
             onChange={(event) =>
               setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
             }

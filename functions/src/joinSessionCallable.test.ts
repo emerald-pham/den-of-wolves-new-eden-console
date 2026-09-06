@@ -102,6 +102,7 @@ it('does not reveal another code after the identity bucket is exhausted', async 
 it('rejects an unsupported code shape without spending a limiter attempt', async () => {
   await expect(joinSession.run(request('48210'))).rejects.toMatchObject({
     code: 'invalid-argument',
+    message: 'Enter a complete session code.',
   });
 
   expect(mock.get).not.toHaveBeenCalled();

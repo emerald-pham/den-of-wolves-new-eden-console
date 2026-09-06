@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The session join prompt now stays focused on entering your code.',
+    ],
+  },
+  {
+    version: '0.2.40',
+    changes: [
       'New games now begin at Turn 0: players can choose and inspect stations while gameplay waits for the GM to start Turn 1.',
       'Every live turn start now opens with a fleet transmission, including the current survivor count and a longer Turn 1 briefing.',
       'Turn 1 runs a 10-minute team phase and 20-minute coordination phase; later turns run 5 and 15 minutes. Airspace bulletins yield to the Press’s next dispatch.',
@@ -19,7 +25,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: '0.2.39',
     changes: [
-      'Newer consoles create six-digit session codes while existing four-digit session codes remain valid.',
+      'Newer consoles create six-digit session codes.',
       'After six code guesses in ten minutes, a console pauses briefly while other players sharing the venue network keep working normally.',
     ],
   },

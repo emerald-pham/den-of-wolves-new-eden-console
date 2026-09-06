@@ -80,6 +80,13 @@ describe('Landing', () => {
     expect(screen.getByRole('button', { name: /join a session/i })).toBeInTheDocument();
   });
 
+  it('uses a plain label for the session-code field', () => {
+    renderLanding();
+
+    expect(screen.getByLabelText('Session code')).toBeInTheDocument();
+    expect(screen.queryByText(/4 or 6 digits/i)).not.toBeInTheDocument();
+  });
+
   it('lets a player reduce motion from the launcher', async () => {
     const user = userEvent.setup();
     renderLanding();
@@ -111,7 +118,7 @@ describe('Landing', () => {
     });
   });
 
-  it('keeps join disabled until a full four-digit code is entered', async () => {
+  it('keeps join disabled until a complete code is entered', async () => {
     const user = userEvent.setup();
     renderLanding();
     const join = screen.getByRole('button', { name: /join a session/i });
@@ -134,7 +141,7 @@ describe('Landing', () => {
     expect(code).toHaveValue('123456');
   });
 
-  it('accepts legacy four-digit codes or current six-digit codes, but not an incomplete new code', async () => {
+  it('accepts a complete code, but not an incomplete one', async () => {
     const user = userEvent.setup();
     renderLanding();
     const code = screen.getByRole('textbox', { name: /code/i });

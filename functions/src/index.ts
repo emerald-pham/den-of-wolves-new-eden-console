@@ -435,7 +435,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const uid = requireUid(request.auth);
     const joinCode = request.data?.joinCode ?? '';
     if (!isJoinCode(joinCode)) {
-      throw new HttpsError('invalid-argument', 'A session code is four or six digits.');
+      throw new HttpsError('invalid-argument', 'Enter a complete session code.');
     }
     const displayName = cleanName(request.data?.displayName, 'Player', 40);
 
