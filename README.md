@@ -50,7 +50,9 @@ firestore.rules           read model + "clients cannot write what they'd lie abo
 tests/rules/              security-rule assertions against the emulator
 ```
 
-Design references live in [`docs/AESTHETICS.md`](docs/AESTHETICS.md). Use the
+Design references live in [`docs/AESTHETICS.md`](docs/AESTHETICS.md), and
+future gameplay interpretation is supported by the
+[`reference library`](docs/reference/README.md). Use the
 [`Capybara ship template`](docs/SHIP_TEMPLATE.md) for capital-ship consoles and
 the [`SNN shuttle template`](docs/SHUTTLE_TEMPLATE.md) for shuttlecraft.
 
