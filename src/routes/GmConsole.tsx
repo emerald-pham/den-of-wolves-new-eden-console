@@ -501,11 +501,11 @@ export default function GmConsole() {
                           <span className="resource-label">Survivor Population</span>
                           <div className="ship-counter__controls">
                             <button type="button" aria-label="Decrease Survivor Population"
-                              disabled={population === 0 || Boolean(session.populationAlerts?.[ship.id])}
+                              disabled={!populationTrack || population === 0 || Boolean(session.populationAlerts?.[ship.id])}
                               onClick={() => void adjustShipPopulation(ship.id, -1)}>−</button>
                             <strong>{population.toLocaleString('en-US')}</strong>
                             <button type="button" aria-label="Increase Survivor Population"
-                              disabled={population === populationTrack?.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
+                              disabled={!populationTrack || population === populationTrack.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
                               onClick={() => void adjustShipPopulation(ship.id, 1)}>+</button>
                           </div>
                         </li>

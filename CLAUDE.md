@@ -345,6 +345,13 @@ from other stations.
   Do not clone a route, shared layout, navigation, census, stores or shuttlebay
   to implement a new role. Joint non-ship stations keep their station shell;
   future gameplay workspaces there also use `RoleConsoleTemplate`.
+- Treat those shared components and the other single owners listed in
+  `docs/CONSOLE_ARCHITECTURE.md` as the underlying base system, not merely as
+  examples or starting templates. A fleet-wide ship-console change must be made
+  once in that base and must reach every current and future ship console
+  automatically through composition and configuration. Never satisfy a shared
+  requirement with per-ship copies, patches or a checklist of console-specific
+  edits.
 - Every shuttle uses `ShuttleConsole` and `ShuttleConsoleTemplate`. Branding,
   initial location and equipment are configuration; capabilities are opt-in.
   Never inherit SNN's equipment, identity or docking by default.
@@ -352,5 +359,7 @@ from other stations.
   typed configuration field or module slot for a real exception; do not add
   vessel-ID branches throughout shared components.
 - Write and run a failing test before implementation. Exercise the shared base
-  with another configuration as well as the reference vessel, and preserve
-  route guards, role ownership, return navigation and server authority.
+  with the reference vessel and at least one materially different configuration
+  to prove inheritance; do not require repeated manual inspection or bespoke
+  assertions for every ship in the fleet. Preserve route guards, role ownership,
+  return navigation and server authority.

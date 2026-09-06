@@ -9,10 +9,7 @@ export const SHIP_POPULATION_TRACKS: Readonly<Record<string, ShipPopulationTrack
   Object.fromEntries(SHIPS.flatMap((ship) => ship.populationTrack ? [[ship.id, ship.populationTrack]] : []));
 
 export const INITIAL_SHIP_SURVIVORS: Readonly<Record<string, number>> =
-  Object.fromEntries(Object.entries(SHIP_POPULATION_TRACKS).map(([shipId, track]) => [
-    shipId,
-    track.steps[0] ?? 0,
-  ]));
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, ship.initialSurvivors]));
 
 export const SHIP_SPECIFICATIONS: Readonly<Record<string, {
   length: string; tonnage: number; crewCapacity: number; passengerCapacity: number;

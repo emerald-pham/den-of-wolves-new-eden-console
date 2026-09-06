@@ -19,6 +19,7 @@ export default defineShip({
     { id: 'wing-commander', name: 'Wing Commander', commandAuthority: 'officer' },
   ],
   resources: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
+  initialSurvivors: 2500,
   workspace: 'aegis',
   systems: AEGIS_ROLE_CONSOLES.admiral.systems.map(system => ({ name: system.name, card: system.card, effect: system.baseline })),
   populationTrack: {

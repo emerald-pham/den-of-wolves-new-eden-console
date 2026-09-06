@@ -1,10 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
   acknowledgePopulationAlert,
+  INITIAL_SHIP_SURVIVORS,
   populationChange,
   populationForShip,
   populationTrackForShip,
 } from './shipPopulation';
+
+it('initializes the current survivor count for every fleet ship', () => {
+  expect(INITIAL_SHIP_SURVIVORS).toEqual({
+    aegis: 2500,
+    dione: 100000,
+    icebreaker: 40000,
+    capybara: 20000,
+    shepherd: 30000,
+    quellon: 30000,
+    'refinery-124': 20000,
+  });
+});
 
 describe('Capybara survivor track', () => {
   it('preserves every printed step and the initial population', () => {

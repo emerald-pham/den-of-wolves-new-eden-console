@@ -63,6 +63,7 @@ export default defineShip({
     securityTeams: 2,
     scrap: 3,
   },
+  initialSurvivors: 20000,
   populationTrack: {
     steps: [
       20000, 18500, 17000, 16000, 15000, 14000, 13000, 12000, 11000, 10000,

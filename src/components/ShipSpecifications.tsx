@@ -5,7 +5,7 @@ export default function ShipSpecifications({ shipId, shipName, population }: {
 }) {
   const specs = SHIP_SPECIFICATIONS[shipId];
   if (!specs) return null;
-  const overloaded = population !== undefined && population >= specs.crewCapacity + specs.passengerCapacity;
+  const overloaded = population !== undefined && population > specs.crewCapacity + specs.passengerCapacity;
   return (
     <section aria-label={`${shipName} specifications`}>
       <dl className="ship-specifications">
@@ -20,6 +20,7 @@ export default function ShipSpecifications({ shipId, shipName, population }: {
               <svg className="ship-capacity-warning" role="img"
                 aria-label="Survivors exceed combined crew and passenger capacity"
                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <title>Vessel exceeds capacity</title>
                 <path d="M12 3 22 21H2Z M12 9v6 M12 17v2" />
               </svg>
             )}</dd>

@@ -621,6 +621,30 @@ it('applies the capital-ship identity and survivor instruments to AEGIS', () => 
   expect(within(track).getByLabelText('0 — GM alert threshold')).toBeInTheDocument();
 });
 
+it.each([
+  ['dione', 'Dione', /Length550m.*Tonnage500,000.*Crew Capacity4,000.*Passengers Capacity12,000/],
+  ['icebreaker', 'Icebreaker', /Length800m.*Tonnage1,200,000.*Crew Capacity10,000.*Passengers Capacity100/],
+  ['shepherd', 'Shepherd', /Length700m.*Tonnage750,000.*Crew Capacity4,000.*Passengers Capacity4,000/],
+  ['quellon', 'Quellon', /Length600m.*Tonnage700,000.*Crew Capacity6,500.*Passengers Capacity10/],
+  ['refinery-124', 'Refinery 124', /Length500km.*Tonnage450,000.*Crew Capacity5,000.*Passengers Capacity0/],
+] as const)('shows %s specifications and overload warnings from its survivor count', (
+  shipId,
+  shipName,
+  expectedSpecifications,
+) => {
+  render(
+    <MemoryRouter initialEntries={[`/ships/${shipId}`]}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const specs = screen.getByRole('region', { name: `${shipName} specifications` });
+  expect(specs).toHaveTextContent(expectedSpecifications);
+  expect(within(specs).getAllByRole('img', { name: /survivors exceed combined/i }))
+    .toHaveLength(2);
+  expect(within(specs).getAllByTitle('Vessel exceeds capacity')).toHaveLength(2);
+});
+
 it('locks the trigger while the one-shot activation is in flight', async () => {
   const user = userEvent.setup();
   let finish: (() => void) | undefined;
@@ -707,13 +731,15 @@ it('places Capybara specifications before the role and shows a read-only survivo
   expect(within(census).queryByRole('button')).not.toBeInTheDocument();
 });
 
-it('clears both capacity warnings when live survivors drop below combined capacity', () => {
+it('clears both capacity warnings when live survivors equal or drop below combined capacity', () => {
   render(<MemoryRouter initialEntries={['/ships/capybara']}>
     <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
   const session = useSessionStore.getState().session!;
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 6000 } }));
   expect(screen.getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
+  act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5500 } }));
+  expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5000 } }));
   expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
 });
