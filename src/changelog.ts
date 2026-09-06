@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GM fleet store, census, and unrest counters now answer immediately while rapid taps are sent together as one safe update.',
+      'Crossing an unrest or population threshold still pauses the counter at that exact game event before any later tap can apply.',
+    ],
+  },
+  {
+    version: '0.2.51',
+    changes: [
       'Airspace countdowns now stay at the lower left of compact and expanded DRADIS, while the compact ticker loops an Airspace Control bulletin until AEGIS or SNN sends newer copy.',
     ],
   },

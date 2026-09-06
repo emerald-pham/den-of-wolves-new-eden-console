@@ -918,6 +918,24 @@ template, including future craft.
 
 ### Console access and GM maintenance corrections
 
+### GM counter burst feedback
+
+Fleet store, census, and unrest counters remain compact CIC readouts when a GM
+enters Write mode. A valid tap changes the cyan number immediately; a short
+250 ms quiet window then sends the ordered tap run as one transmission. During
+that window, retain the existing plus/minus silhouette and expose `aria-busy`
+with a “pending transmission” label rather than adding a spinner, toast, or
+new panel. The number stays the dominant instrument value, and the paired
+counter only becomes inactive while its transmission is actually in flight,
+unless it has reached a game threshold and is awaiting the authoritative alert
+snapshot.
+
+Unrest and survivor thresholds are game events, not arithmetic totals. As soon
+as the local readout reaches one, hold that counter at the threshold and disable
+further local taps until the authoritative alert state arrives; never let a
+quick reversal visually erase a threshold crossing. This pattern keeps rapid
+GM input responsive without making the transport state look like game state.
+
 The shared maintenance column ends with a ruled GM-only command group beneath
 End maintenance cycle: Assign damage, Repair all damage, and Roll back maintenance
 step. Use the existing cyan `.cic-action-button` treatment and wrapping

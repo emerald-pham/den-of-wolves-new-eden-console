@@ -130,6 +130,26 @@ See [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md),
 [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) and [AESTHETICS.md](AESTHETICS.md) for
 visual and gameplay requirements.
 
+## Brief command coalescing
+
+The GM fleet-store, census, and unrest controls may collect a rapid run of
+clicks for a **250 ms** quiet window. This is a narrowly scoped transport
+optimization, not a general client-side write policy: show the local, reversible
+counter preview immediately, then submit one ordered callable command in a
+transaction. The server remains the only shared-state authority; its response
+and live snapshot replace the preview.
+
+Only coalesce repeated input for the same counter. Keep every `-1` / `+1` step
+in order, bound the batch, and never replace it with a net total: unrest and
+population thresholds are game events that can make later clicks illegal. Stop
+the local preview at a threshold and wait for the authoritative GM alert.
+
+Do not defer a command merely to make the UI feel faster when it chooses
+randomness, consumes a one-shot action, advances a phase, relies on a revision,
+or has an irreversible gameplay consequence. Those controls should give
+immediate local feedback about their pending state, while their result remains
+server-confirmed.
+
 
 Fleet damage decks live exclusively in `functions/src/shipDamage.ts` so clients
 never receive unrevealed cards. AEGIS armour retains its recycling and casualty

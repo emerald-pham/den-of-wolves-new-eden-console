@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import type { ResourceId } from '@/data/resources';
+import type { CounterStep } from './counterPreview';
 import { normalizePressDispatch } from './pressDispatchState';
 import { turnPhaseState } from './turnPhase';
 
@@ -301,6 +302,83 @@ async function sendCounterChange(
     await call(payload);
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
+  }
+}
+
+export type ShipCounterBatchTarget =
+  | { readonly counter: 'resource'; readonly resourceId: ResourceId }
+  | { readonly counter: 'unrest' | 'population' };
+
+export interface ShipCounterBatchResult {
+  readonly amount: number;
+  readonly alertRaised: boolean;
+}
+
+function counterBatchReply(value: unknown): ShipCounterBatchResult | null {
+  if (typeof value !== 'object' || value === null || !('amount' in value)) return null;
+  return typeof value.amount === 'number' && Number.isFinite(value.amount) &&
+    'alertRaised' in value && typeof value.alertRaised === 'boolean'
+    ? { amount: value.amount, alertRaised: value.alertRaised }
+    : null;
+}
+
+/**
+ * Send a short, ordered GM counter run. This only patches local view state
+ * after the callable confirms the authoritative amount.
+ */
+export async function applyShipCounterSteps(
+  shipId: string,
+  target: ShipCounterBatchTarget,
+  steps: readonly CounterStep[],
+): Promise<ShipCounterBatchResult | null> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('An active GM instance is required.');
+  }
+  const sessionId = store.session.id;
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    shipId,
+    counter: target.counter,
+    steps: [...steps],
+    ...(target.counter === 'resource' ? { resourceId: target.resourceId } : {}),
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'applyShipCounterSteps');
+    const reply = counterBatchReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid counter amount.');
+
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== sessionId) return reply;
+    if (target.counter === 'resource') {
+      const inventory = current.shipResources?.[shipId];
+      if (!inventory) return reply;
+      useSessionStore.getState().setSession({
+        ...current,
+        shipResources: {
+          ...current.shipResources,
+          [shipId]: { ...inventory, [target.resourceId]: reply.amount },
+        },
+      });
+      return reply;
+    }
+    if (target.counter === 'unrest') {
+      useSessionStore.getState().setSession({
+        ...current,
+        shipUnrest: { ...current.shipUnrest, [shipId]: reply.amount },
+      });
+      return reply;
+    }
+    useSessionStore.getState().setSession({
+      ...current,
+      shipSurvivors: { ...current.shipSurvivors, [shipId]: reply.amount },
+    });
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    return null;
   }
 }
 

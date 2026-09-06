@@ -36,6 +36,7 @@ const {
   setActiveRoleConfiguration,
   selectConsoleRole,
   applyRolePreset,
+  applyShipCounterSteps,
   triggerDradisContact,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
@@ -726,4 +727,28 @@ it('sends population changes and acknowledgement with the GM instance', async ()
   await dismissPopulationAlert('capybara');
   expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'dismissPopulationAlert');
   expect(call).toHaveBeenLastCalledWith({ sessionId: 's1', shipId: 'capybara', instanceId: 'gm1' });
+});
+
+it('sends one ordered counter batch and applies only the server-confirmed amount', async () => {
+  useSessionStore.getState().setIdentity({
+    ...session,
+    shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+  }, player);
+  useSessionStore.getState().setGmInstance({
+    id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
+  });
+  const call = callableReturning({ data: { amount: 8, appliedSteps: [1, 1], alertRaised: false } });
+  vi.mocked(httpsCallable).mockReturnValue(call);
+
+  const result = await applyShipCounterSteps(
+    'dione', { counter: 'resource', resourceId: 'fuel' }, [1, 1],
+  );
+
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'applyShipCounterSteps');
+  expect(call).toHaveBeenLastCalledWith({
+    sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
+    resourceId: 'fuel', steps: [1, 1],
+  });
+  expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
+  expect(result).toEqual({ amount: 8, alertRaised: false });
 });

@@ -18,9 +18,7 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   setActiveRoleConfiguration: vi.fn(),
-  adjustShipResource: vi.fn(),
-  adjustShipUnrest: vi.fn(),
-  adjustShipPopulation: vi.fn(),
+  applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
 
@@ -32,7 +30,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
-  advanceTurn, setActiveRoleConfiguration, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
+  advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -260,8 +258,6 @@ it('shows live resource stock for every flagged ship', async () => {
   expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
     .toBeEnabled();
   expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeEnabled();
-  await user.click(within(dione).getByRole('button', { name: /increase civil unrest/i }));
-  expect(adjustShipUnrest).toHaveBeenCalledWith('dione', 1);
 });
 
 it('keeps resource stores read-only until enabled and resets after leaving', async () => {
@@ -284,9 +280,6 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
   expect(within(fleet).getByText(/ship number access.*write mode/i)).toBeInTheDocument();
   expect(increaseFuel).toBeEnabled();
 
-  await user.click(increaseFuel);
-  expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
-
   await user.click(screen.getByRole('link', { name: /back to role selection/i }));
   await user.click(screen.getByRole('link', { name: /return to gm console/i }));
 
@@ -296,6 +289,84 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
   expect(within(
     within(returnedFleet).getByRole('group', { name: 'Dione resource controls' }),
   ).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
+});
+
+it('updates a GM counter immediately and sends rapid changes in one ordered batch', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    shipResources: {
+      ...INITIAL_SHIP_RESOURCES,
+      dione: { ...INITIAL_SHIP_RESOURCES.dione!, fuel: 6 },
+    },
+  });
+  renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+
+  vi.useFakeTimers();
+  try {
+    const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+    const increaseFuel = within(dione).getByRole('button', { name: /increase strytium fuel/i });
+    fireEvent.click(increaseFuel);
+    fireEvent.click(increaseFuel);
+    fireEvent.click(increaseFuel);
+
+    expect(within(dione).getByLabelText('Strytium Fuel: 9, pending transmission')).toBeInTheDocument();
+    expect(applyShipCounterSteps).not.toHaveBeenCalled();
+
+    await act(async () => { vi.advanceTimersByTime(250); });
+
+    expect(applyShipCounterSteps).toHaveBeenCalledTimes(1);
+    expect(applyShipCounterSteps).toHaveBeenCalledWith(
+      'dione', { counter: 'resource', resourceId: 'fuel' }, [1, 1, 1],
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('keeps a locally crossed threshold locked until its alert reaches the session snapshot', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    shipUnrest: { dione: 7 },
+  });
+  vi.mocked(applyShipCounterSteps).mockImplementation(async () => {
+    const current = useSessionStore.getState().session;
+    if (current) useSessionStore.getState().setSession({
+      ...current,
+      shipUnrest: { ...current.shipUnrest, dione: 8 },
+    });
+    return { amount: 8, alertRaised: true } as never;
+  });
+  renderConsole();
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+
+  vi.useFakeTimers();
+  try {
+    const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
+    fireEvent.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+    const increaseUnrest = within(dione).getByRole('button', { name: /increase civil unrest/i });
+    fireEvent.click(increaseUnrest);
+
+    expect(within(dione).getByLabelText('Civil Unrest: 8, pending transmission')).toBeInTheDocument();
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(within(dione).getByLabelText('Civil Unrest: 8')).toBeInTheDocument();
+    expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeDisabled();
+    expect(within(dione).getByRole('button', { name: /decrease civil unrest/i })).toBeDisabled();
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('starts with a compact DRADIS and expands it on demand', async () => {
@@ -849,9 +920,14 @@ it('moves survivors by printed steps through GM controls and locks pending thres
   const controls = screen.getByRole('group', { name: 'Capybara resource controls' });
   expect(within(controls).getByRole('button', { name: 'Increase Survivor Population' })).toBeDisabled();
   await userEvent.click(screen.getByRole('button', { name: /ship numbers write mode/i }));
-  await userEvent.click(within(controls).getByRole('button', { name: 'Decrease Survivor Population' }));
-  const { adjustShipPopulation } = await import('@/lib/sessionService');
-  expect(adjustShipPopulation).toHaveBeenCalledWith('capybara', -1);
+  const decreasePopulation = within(controls).getByRole('button', { name: 'Decrease Survivor Population' });
+  fireEvent.click(decreasePopulation);
+  fireEvent.click(decreasePopulation);
+  fireEvent.click(decreasePopulation);
+  fireEvent.click(decreasePopulation);
+  expect(within(controls).getByLabelText('Survivor Population: 15000, pending transmission'))
+    .toBeInTheDocument();
+  expect(within(controls).getByRole('button', { name: 'Decrease Survivor Population' })).toBeDisabled();
   act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!,
     shipSurvivors: { capybara: 15000 },
     populationAlerts: { capybara: { shipId: 'capybara', shipName: 'Capybara', population: 15000, targetGmInstanceIds: [local.id], createdAt: 'now' } },

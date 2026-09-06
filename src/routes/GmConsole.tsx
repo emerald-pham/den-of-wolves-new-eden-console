@@ -11,7 +11,7 @@ import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { nextGmClockUpdate } from '@/lib/gmClock';
-import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
+import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -34,15 +34,22 @@ import {
   setDioneEnabled,
   setGmControlsLocked,
   setActiveRoleConfiguration,
-  adjustShipResource,
-  adjustShipUnrest,
-  adjustShipPopulation,
+  applyShipCounterSteps,
   advanceTurn,
+  type ShipCounterBatchResult,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession } from '@/lib/turnPhase';
-import type { DamageDraw, GmInstance, Player, SessionEvent } from '@/types/game';
+import {
+  COUNTER_COMMAND_COALESCE_MS,
+  previewPopulationChange,
+  previewResourceChange,
+  previewUnrestChange,
+  type CounterPreview,
+  type CounterStep,
+} from '@/lib/counterPreview';
+import type { DamageDraw, GameSession, GmInstance, Player, SessionEvent } from '@/types/game';
 
 interface PlayerRoleGroup {
   readonly id: string;
@@ -56,6 +63,51 @@ interface ShipRoleGroupsProps {
 }
 
 const KNOWN_CONSOLE_ROLE_IDS = new Set(CONSOLE_ROLES.map((role) => role.id));
+
+type CounterTarget =
+  | { readonly counter: 'resource'; readonly shipId: string; readonly resourceId: ResourceId }
+  | { readonly counter: 'unrest' | 'population'; readonly shipId: string };
+
+interface StagedCounter {
+  readonly target: CounterTarget;
+  /** The authoritative number shown when this local run began. */
+  readonly baseAmount: number;
+  readonly steps: readonly CounterStep[];
+  readonly sending: boolean;
+}
+
+function counterKey(target: CounterTarget): string {
+  return target.counter === 'resource'
+    ? `${target.counter}:${target.shipId}:${target.resourceId}`
+    : `${target.counter}:${target.shipId}`;
+}
+
+function previewCounter(target: CounterTarget, amount: number, steps: readonly CounterStep[]): CounterPreview {
+  if (target.counter === 'resource') return previewResourceChange(amount, steps);
+  if (target.counter === 'unrest') return previewUnrestChange(amount, steps);
+  return previewPopulationChange(target.shipId, amount, steps);
+}
+
+function hasAuthoritativeCounterAlert(
+  session: GameSession | null | undefined,
+  target: CounterTarget,
+): boolean {
+  if (target.counter === 'unrest') return Boolean(session?.unrestAlerts?.[target.shipId]);
+  if (target.counter === 'population') return Boolean(session?.populationAlerts?.[target.shipId]);
+  return false;
+}
+
+function sendStagedCounter(staged: StagedCounter): Promise<ShipCounterBatchResult | null> {
+  const { target, steps } = staged;
+  if (target.counter === 'resource') {
+    return applyShipCounterSteps(
+      target.shipId,
+      { counter: 'resource', resourceId: target.resourceId },
+      steps,
+    );
+  }
+  return applyShipCounterSteps(target.shipId, { counter: target.counter }, steps);
+}
 
 function ShipRoleGroups({ roles, renderRole }: ShipRoleGroupsProps) {
   const shipRoleIds = new Set<string>(SHIPS.map((ship) => ship.id));
@@ -171,6 +223,10 @@ export default function GmConsole() {
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
+  const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>({});
+  const stagedCountersRef = useRef<Readonly<Record<string, StagedCounter>>>({});
+  const counterTimers = useRef(new Map<string, number>());
+  const [thresholdHolds, setThresholdHolds] = useState<Readonly<Record<string, CounterTarget>>>({});
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
@@ -361,6 +417,25 @@ export default function GmConsole() {
   }, [activeRoleIds]);
 
   useEffect(() => {
+    setThresholdHolds((holds) => {
+      const remaining = Object.entries(holds).filter(([, target]) =>
+        !hasAuthoritativeCounterAlert(session, target));
+      return remaining.length === Object.keys(holds).length
+        ? holds
+        : Object.fromEntries(remaining);
+    });
+  }, [session, thresholdHolds]);
+
+  useEffect(() => () => {
+    for (const timer of counterTimers.current.values()) window.clearTimeout(timer);
+    counterTimers.current.clear();
+    const outstanding = Object.values(stagedCountersRef.current)
+      .filter((staged) => !staged.sending);
+    stagedCountersRef.current = {};
+    for (const staged of outstanding) void sendStagedCounter(staged);
+  }, []);
+
+  useEffect(() => {
     if (nextClockUpdate === undefined) return;
     const timer = window.setTimeout(
       () => setClock(Date.now()),
@@ -375,6 +450,75 @@ export default function GmConsole() {
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/console" replace />;
+
+  function replaceStagedCounters(next: Readonly<Record<string, StagedCounter>>): void {
+    stagedCountersRef.current = next;
+    setStagedCounters(next);
+  }
+
+  function flushStagedCounter(key: string): void {
+    const queued = stagedCountersRef.current[key];
+    if (!queued || queued.sending) return;
+    const timer = counterTimers.current.get(key);
+    if (timer !== undefined) window.clearTimeout(timer);
+    counterTimers.current.delete(key);
+    const sending = { ...queued, sending: true };
+    replaceStagedCounters({ ...stagedCountersRef.current, [key]: sending });
+    void (async () => {
+      try {
+        const result = await sendStagedCounter(sending);
+        if (result?.alertRaised) {
+          setThresholdHolds((holds) => ({ ...holds, [key]: sending.target }));
+        }
+      } catch {
+        // The shared interception notice reports the server rejection.
+      } finally {
+        if (stagedCountersRef.current[key] === sending) {
+          const remaining = { ...stagedCountersRef.current };
+          delete remaining[key];
+          replaceStagedCounters(remaining);
+        }
+      }
+    })();
+  }
+
+  function stageCounterChange(target: CounterTarget, amount: number, step: CounterStep): void {
+    const key = counterKey(target);
+    const existing = stagedCountersRef.current[key];
+    if (thresholdHolds[key] || existing?.sending || existing?.steps.length === 12) return;
+    const baseAmount = existing?.baseAmount ?? amount;
+    const previous = previewCounter(target, baseAmount, existing?.steps ?? []);
+    if (previous.alertRaised) return;
+    const steps = [...(existing?.steps ?? []), step];
+    const next = previewCounter(target, baseAmount, steps);
+    if (next.amount === previous.amount || next.appliedSteps.length !== steps.length) return;
+    const staged: StagedCounter = {
+      target,
+      baseAmount,
+      steps: next.appliedSteps,
+      sending: false,
+    };
+    replaceStagedCounters({ ...stagedCountersRef.current, [key]: staged });
+    const timer = counterTimers.current.get(key);
+    if (timer !== undefined) window.clearTimeout(timer);
+    counterTimers.current.set(key, window.setTimeout(
+      () => flushStagedCounter(key),
+      COUNTER_COMMAND_COALESCE_MS,
+    ));
+  }
+
+  function stagedCounterPreview(target: CounterTarget, amount: number): {
+    readonly staged: StagedCounter | undefined;
+    readonly preview: CounterPreview;
+  } {
+    const staged = stagedCounters[counterKey(target)];
+    return {
+      staged,
+      preview: staged
+        ? previewCounter(target, staged.baseAmount, staged.steps)
+        : { amount, appliedSteps: [], alertRaised: false },
+    };
+  }
 
   async function kick(instance: GmInstance): Promise<void> {
     try {
@@ -575,6 +719,22 @@ export default function GmConsole() {
                 const resources = resourcesForShip(ship.id, session.shipResources);
                 const population = populationForShip(ship.id, session.shipSurvivors);
                 const populationTrack = populationTrackForShip(ship.id);
+                const populationTarget: CounterTarget = { counter: 'population', shipId: ship.id };
+                const populationCounter = population === undefined
+                  ? undefined
+                  : stagedCounterPreview(populationTarget, population);
+                const visiblePopulation = populationCounter?.preview.amount ?? population ?? 0;
+                const populationBlocked = Boolean(session.populationAlerts?.[ship.id]) ||
+                  Boolean(thresholdHolds[counterKey(populationTarget)]) ||
+                  populationCounter?.preview.alertRaised === true ||
+                  populationCounter?.staged?.sending === true;
+                const unrestAmount = session.shipUnrest?.[ship.id] ?? 0;
+                const unrestTarget: CounterTarget = { counter: 'unrest', shipId: ship.id };
+                const unrestCounter = stagedCounterPreview(unrestTarget, unrestAmount);
+                const visibleUnrest = unrestCounter.preview.amount;
+                const unrestBlocked = Boolean(session.unrestAlerts?.[ship.id]) ||
+                  Boolean(thresholdHolds[counterKey(unrestTarget)]) ||
+                  unrestCounter.preview.alertRaised || unrestCounter.staged?.sending === true;
                 if (!resources) return null;
                 return (
                   <section
@@ -591,25 +751,33 @@ export default function GmConsole() {
                     <ul>
                       {RESOURCE_DEFINITIONS.map((resource) => {
                         const amount = resources[resource.id];
+                        const target: CounterTarget = {
+                          counter: 'resource', shipId: ship.id, resourceId: resource.id,
+                        };
+                        const counter = stagedCounterPreview(target, amount ?? 0);
+                        const visibleAmount = counter.preview.amount;
                         return amount === undefined ? null : (
-                          <li key={resource.id} aria-label={`${resource.label}: ${amount}`}>
+                          <li
+                            key={resource.id}
+                            aria-label={`${resource.label}: ${visibleAmount}${counter.staged ? ', pending transmission' : ''}`}
+                          >
                             <span className="resource-label">
                               <ResourceIcon id={resource.id} label={resource.label} />
                               <span>{resource.label}</span>
                             </span>
-                            <div className="ship-counter__controls">
+                            <div className="ship-counter__controls" aria-busy={Boolean(counter.staged)}>
                               <button
                                 type="button"
                                 aria-label={`Decrease ${resource.label}`}
-                                disabled={!shipNumberWrite || amount === 0}
-                                onClick={() => void adjustShipResource(ship.id, resource.id, -1)}
+                                disabled={!shipNumberWrite || counter.staged?.sending === true || visibleAmount === 0}
+                                onClick={() => stageCounterChange(target, amount, -1)}
                               >−</button>
-                              <strong>{amount}</strong>
+                              <strong>{visibleAmount}</strong>
                               <button
                                 type="button"
                                 aria-label={`Increase ${resource.label}`}
-                                disabled={!shipNumberWrite}
-                                onClick={() => void adjustShipResource(ship.id, resource.id, 1)}
+                                disabled={!shipNumberWrite || counter.staged?.sending === true}
+                                onClick={() => stageCounterChange(target, amount, 1)}
                               >+</button>
                             </div>
                           </li>
@@ -619,37 +787,39 @@ export default function GmConsole() {
                     <h4 className="gm-fleet-resource-ship__category">Census</h4>
                     <ul>
                       {population !== undefined && (
-                        <li aria-label={`Survivor Population: ${population}`}>
+                        <li
+                          aria-label={`Survivor Population: ${visiblePopulation}${populationCounter?.staged ? ', pending transmission' : ''}`}
+                        >
                           <span className="resource-label">Survivor Population</span>
-                          <div className="ship-counter__controls">
+                          <div className="ship-counter__controls" aria-busy={Boolean(populationCounter?.staged)}>
                             <button type="button" aria-label="Decrease Survivor Population"
-                              disabled={!shipNumberWrite || !populationTrack || population === 0 || Boolean(session.populationAlerts?.[ship.id])}
-                              onClick={() => void adjustShipPopulation(ship.id, -1)}>−</button>
-                            <strong>{population.toLocaleString('en-US')}</strong>
+                              disabled={!shipNumberWrite || !populationTrack || visiblePopulation === 0 || populationBlocked}
+                              onClick={() => stageCounterChange(populationTarget, population, -1)}>−</button>
+                            <strong>{visiblePopulation.toLocaleString('en-US')}</strong>
                             <button type="button" aria-label="Increase Survivor Population"
-                              disabled={!shipNumberWrite || !populationTrack || population === populationTrack.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
-                              onClick={() => void adjustShipPopulation(ship.id, 1)}>+</button>
+                              disabled={!shipNumberWrite || !populationTrack || visiblePopulation === populationTrack.steps[0] || populationBlocked}
+                              onClick={() => stageCounterChange(populationTarget, population, 1)}>+</button>
                           </div>
                         </li>
                       )}
-                      <li aria-label={`Civil Unrest: ${session.shipUnrest?.[ship.id] ?? 0}`}>
+                      <li aria-label={`Civil Unrest: ${visibleUnrest}${unrestCounter.staged ? ', pending transmission' : ''}`}>
                         <span className="resource-label">
                           <ResourceIcon id="unrest" label="Civil Unrest" />
                           <span>Civil Unrest</span>
                         </span>
-                        <div className="ship-counter__controls">
+                        <div className="ship-counter__controls" aria-busy={Boolean(unrestCounter.staged)}>
                           <button
                             type="button"
                             aria-label="Decrease Civil Unrest"
-                            disabled={!shipNumberWrite || (session.shipUnrest?.[ship.id] ?? 0) === 0 || Boolean(session.unrestAlerts?.[ship.id])}
-                            onClick={() => void adjustShipUnrest(ship.id, -1)}
+                            disabled={!shipNumberWrite || visibleUnrest === 0 || unrestBlocked}
+                            onClick={() => stageCounterChange(unrestTarget, unrestAmount, -1)}
                           >−</button>
-                          <strong>{session.shipUnrest?.[ship.id] ?? 0}</strong>
+                          <strong>{visibleUnrest}</strong>
                           <button
                             type="button"
                             aria-label="Increase Civil Unrest"
-                            disabled={!shipNumberWrite || (session.shipUnrest?.[ship.id] ?? 0) === 10 || Boolean(session.unrestAlerts?.[ship.id])}
-                            onClick={() => void adjustShipUnrest(ship.id, 1)}
+                            disabled={!shipNumberWrite || visibleUnrest === 10 || unrestBlocked}
+                            onClick={() => stageCounterChange(unrestTarget, unrestAmount, 1)}
                           >+</button>
                         </div>
                       </li>

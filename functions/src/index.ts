@@ -46,6 +46,7 @@ import {
   requireTurnAdvanceRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
+  requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireShipDamageRequest,
   requireShipUnrestRequest,
@@ -89,6 +90,11 @@ import {
 } from './sessionLifecycle';
 import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import {
+  applyPopulationSteps,
+  applyResourceSteps,
+  applyUnrestSteps,
+} from './shipCounterBatch';
 import { pressDispatchState } from './pressDispatchState';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
@@ -1991,6 +1997,121 @@ export const adjustShipPopulation = onCall<{
     tx.update(sessionRef, {
       [`shipSurvivors.${change.shipId}`]: result.amount,
       populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/**
+ * GM counter inputs can arrive as a short ordered run. The transaction applies
+ * each click in sequence so threshold alerts cannot be lost by netting changes.
+ */
+export const applyShipCounterSteps = onCall<{
+  sessionId: string;
+  instanceId: string;
+  shipId: string;
+  counter: string;
+  resourceId?: string;
+  steps: number[];
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipCounterBatchRequest(request.data ?? {});
+  if (change.counter === 'population' && !populationTrackForShip(change.shipId)) {
+    throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
+  }
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+
+    if (change.counter === 'resource') {
+      const inventories = shipResources(session.get('shipResources'));
+      const inventory = inventories[change.shipId];
+      const current = inventory?.[change.resourceId];
+      if (current === undefined) {
+        throw new HttpsError('failed-precondition', 'That ship does not hold this resource.');
+      }
+      const result = applyResourceSteps(current, change.steps);
+      tx.update(sessionRef, {
+        [`shipResources.${change.shipId}.${change.resourceId}`]: result.amount,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return result;
+    }
+
+    if (change.counter === 'unrest') {
+      const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+      const current = shipUnrest(session.get('shipUnrest'))[change.shipId] ?? 0;
+      let result: ReturnType<typeof applyUnrestSteps>;
+      try {
+        result = applyUnrestSteps(current, change.steps, Boolean(alerts[change.shipId]));
+      } catch (cause) {
+        throw new HttpsError(
+          'failed-precondition',
+          cause instanceof Error ? cause.message : 'Invalid unrest change.',
+        );
+      }
+      const nextAlerts = { ...alerts };
+      if (result.alertRaised) {
+        const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
+        const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
+        if (targetGmInstanceIds.length > 0) {
+          nextAlerts[change.shipId] = {
+            shipId: change.shipId,
+            shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId]
+              ?? change.shipId,
+            targetGmInstanceIds,
+            createdAt: new Date().toISOString(),
+          };
+        }
+      }
+      tx.update(sessionRef, {
+        [`shipUnrest.${change.shipId}`]: result.amount,
+        unrestAlerts: nextAlerts,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return result;
+    }
+
+    const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const population = populationForShip(change.shipId, session.get('shipSurvivors'));
+    if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
+    let result: ReturnType<typeof applyPopulationSteps>;
+    try {
+      result = applyPopulationSteps(
+        change.shipId,
+        population,
+        change.steps,
+        Boolean(alerts[change.shipId]),
+      );
+    } catch (cause) {
+      throw new HttpsError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Invalid population change.',
+      );
+    }
+    const nextAlerts = { ...alerts };
+    if (result.alertRaised) {
+      const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
+      const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
+      if (targetGmInstanceIds.length > 0) {
+        nextAlerts[change.shipId] = {
+          shipId: change.shipId,
+          shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId]
+            ?? change.shipId,
+          population: result.amount,
+          targetGmInstanceIds,
+          createdAt: new Date().toISOString(),
+        };
+      }
+    }
+    tx.update(sessionRef, {
+      [`shipSurvivors.${change.shipId}`]: result.amount,
+      populationAlerts: nextAlerts,
+      updatedAt: FieldValue.serverTimestamp(),
     });
     return result;
   });

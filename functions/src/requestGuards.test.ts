@@ -18,6 +18,7 @@ import {
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
   requireSessionRequest,
+  requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireUnrestDismissalRequest,
   requireSessionSeatRequest,
@@ -190,6 +191,24 @@ describe('callable request guards', () => {
     expect(requireShipCounterRequest({
       sessionId: 's1', shipId: 'aegis', resourceId: 'fuel', delta: -1,
     })).toEqual({ sessionId: 's1', shipId: 'aegis', resourceId: 'fuel', delta: -1 });
+  });
+
+  it('requires a bounded, ordered GM counter batch', () => {
+    expectHttpsError(() => requireShipCounterBatchRequest({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'aegis', counter: 'resource',
+      resourceId: 'fuel', steps: [1, 0],
+    }), 'invalid-argument');
+    expectHttpsError(() => requireShipCounterBatchRequest({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'aegis', counter: 'unrest',
+      steps: Array.from({ length: 13 }, () => 1),
+    }), 'invalid-argument');
+    expect(requireShipCounterBatchRequest({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'aegis', counter: 'resource',
+      resourceId: 'fuel', steps: [1, -1, 1],
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm1', shipId: 'aegis', counter: 'resource',
+      resourceId: 'fuel', steps: [1, -1, 1],
+    });
   });
 
   it('requires a named GM instance to dismiss a ship unrest alert', () => {

@@ -215,6 +215,60 @@ export function requireShipCounterRequest(data: {
   return result;
 }
 
+export type ShipCounterStep = -1 | 1;
+
+export type ShipCounterBatchRequest = {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly shipId: string;
+  readonly counter: 'resource';
+  readonly resourceId: ResourceId;
+  readonly steps: readonly ShipCounterStep[];
+} | {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly shipId: string;
+  readonly counter: 'unrest' | 'population';
+  readonly steps: readonly ShipCounterStep[];
+};
+
+/** Validates a small, ordered command run from the GM counter controls. */
+export function requireShipCounterBatchRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  shipId?: unknown;
+  counter?: unknown;
+  resourceId?: unknown;
+  steps?: unknown;
+}): ShipCounterBatchRequest {
+  const rawCounter = requiredText(data.counter, 'counter', 16);
+  if (!(['resource', 'unrest', 'population'] as readonly string[]).includes(rawCounter)) {
+    throw new HttpsError('invalid-argument', 'Unknown counter.');
+  }
+  const counter = rawCounter as ShipCounterBatchRequest['counter'];
+  if (!Array.isArray(data.steps) || data.steps.length === 0 || data.steps.length > 12 ||
+    data.steps.some((step) => step !== -1 && step !== 1)) {
+    throw new HttpsError('invalid-argument', 'steps must contain one to twelve -1 or 1 values.');
+  }
+  const base = {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    steps: [...data.steps] as ShipCounterStep[],
+  };
+  if (counter === 'resource') {
+    const resourceId = requiredId(data.resourceId, 'resourceId');
+    if (!(RESOURCE_IDS as readonly string[]).includes(resourceId)) {
+      throw new HttpsError('invalid-argument', 'Unknown resource.');
+    }
+    return { ...base, counter, resourceId: resourceId as ResourceId };
+  }
+  if (data.resourceId !== undefined) {
+    throw new HttpsError('invalid-argument', 'Only resource batches may include resourceId.');
+  }
+  return { ...base, counter };
+}
+
 export function requireShipUnrestRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;
