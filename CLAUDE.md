@@ -110,10 +110,11 @@ confirmation is needed for each suitable task.
   authoritative state mutations, complex gameplay, and architectural decisions
   with the primary agent. Keep work local when delegation would cost more tokens
   than it saves.
-- Use Spark only when the available interface supports that exact model. The
-  authorization includes creating separate visible Codex tasks in worktrees
-  when Spark is unavailable through the internal subagent interface. Do not
-  silently substitute another model or claim that Spark ran when it did not.
+- Prefer Spark when the available interface supports that exact model. If Spark
+  is unavailable, delegate otherwise-suitable routine tasks to GPT-5.6 Luna
+  (`gpt-5.6-luna`) at `xhigh` reasoning instead. The authorization includes
+  internal subagents and separate visible Codex tasks in worktrees. Never claim
+  that Spark ran when the fallback model did the work.
 - Every delegated agent must read this file and follow the applicable test-first,
   dependency, emulator isolation, and version policies. Small task size does not
   exempt code changes from those requirements.

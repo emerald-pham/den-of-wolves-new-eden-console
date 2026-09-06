@@ -21,10 +21,11 @@ only read this file:
    20-player set has full, complex gameplay across interacting systems and a
    clear game end. See `CLAUDE.md` for the full policy.
 
-4. **Delegate suitable routine tasks to Spark.** Standing authorization covers
-   GPT-5.3 Codex Spark tasks when delegation saves tokens, including bounded
-   read-only reconnaissance on known surfaces. Use a separate worktree for any
-   task that will make a change.
+4. **Delegate suitable routine tasks to Spark, or Luna when unavailable.**
+   Standing authorization covers GPT-5.3 Codex Spark tasks when delegation saves
+   tokens, including bounded read-only reconnaissance on known surfaces. If
+   Spark is unavailable, use GPT-5.6 Luna at `xhigh` reasoning. Use a separate
+   worktree for any task that will make a change.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 
