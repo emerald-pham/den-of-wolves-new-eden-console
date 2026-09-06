@@ -14,7 +14,8 @@ copy it. This applies to future consoles as well as the current fleet.
 | Fleet registration and lookups | `src/data/ships.ts` and `src/data/shuttles.ts` |
 | Ship guards, identity layout, stores, census, shuttlebay and observer behavior | `src/routes/ShipConsole.tsx` |
 | Role workspace selection | `src/components/FleetConsoleWorkspace.tsx` |
-| Role header, telemetry layout and page controls | `src/components/RoleConsoleTemplate.tsx` |
+| Base role header, telemetry layout and page controls | `src/components/RoleConsoleTemplate.tsx` |
+| Fleet command wording, core telemetry and status strip | `src/components/FleetRoleConsoleTemplate.tsx` |
 | Shuttle guards and role selection | `src/routes/ShuttleConsole.tsx` |
 | Shuttle layout, position display and capability slots | `src/components/ShuttleConsoleTemplate.tsx` |
 
@@ -39,8 +40,11 @@ specifications and tracks remain absent. Add a new ship ID to the typed role
 catalog when introducing a new ship.
 
 Fleet role content plugs into `FleetConsoleWorkspace` and uses
-`RoleConsoleTemplate` for chrome. AEGIS retains its Admiral and Wing Commander
-modules; the Executive Officer has a battle-sheet reference. Other roles use
+`FleetRoleConsoleTemplate` for the Admiral-derived command header, core
+telemetry and console-status wording; that component extends
+`RoleConsoleTemplate` for the base chrome. AEGIS retains its Admiral and Wing
+Commander modules, but their fleet-wide presentation stays in the shared
+template; the Executive Officer has a battle-sheet reference. Other roles use
 `FleetSystemsWorkspace`, with ship systems and initial maintenance schedules
 in each vessel definition and role procedures in `roleProcedures.ts`. Joint
 Engineering switches between its two assigned ships using the same workspace.

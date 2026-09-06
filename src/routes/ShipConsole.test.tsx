@@ -644,7 +644,8 @@ it.each([
   const scaffold = screen.getByRole('region', {
     name: `${shipName} ${roleName} console`,
   });
-  expect(within(scaffold).getByRole('button', { name: 'Ship systems' })).toBeInTheDocument();
+  expect(within(scaffold).getByRole('heading', { name: 'Ship systems' })).toBeInTheDocument();
+  expect(within(scaffold).getByRole('heading', { name: 'Role procedures' })).toBeInTheDocument();
   expect(scaffold).toHaveTextContent(/tracked at the table/i);
 });
 

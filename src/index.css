@@ -2555,7 +2555,7 @@ body {
   padding: 0.75rem;
 }
 
-.aegis-jump-costs,
+.console-workspace__status,
 .aegis-doctrine__notice {
   grid-column: 1 / -1;
   margin: 0;
@@ -2566,6 +2566,29 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+.console-workspace__status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+}
+
+.console-workspace__status p { margin: 0; }
+
+.console-workspace__section {
+  padding: 0.75rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.console-workspace__section > h3 {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 400 1.1rem var(--cic-display);
+  text-transform: uppercase;
+}
+
+.console-workspace__section > .aegis-system-grid { padding-right: 0; padding-bottom: 0; padding-left: 0; }
 
 .aegis-system,
 .aegis-craft,
@@ -2735,7 +2758,7 @@ body {
   .aegis-craft-grid,
   .aegis-combat-grid { grid-template-columns: 1fr; }
   .aegis-craft--starlight,
-  .aegis-jump-costs,
+  .console-workspace__status,
   .aegis-doctrine__notice { grid-column: auto; }
   .aegis-maintenance > ol { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .console-scaffold__grid { grid-template-columns: 1fr; }
