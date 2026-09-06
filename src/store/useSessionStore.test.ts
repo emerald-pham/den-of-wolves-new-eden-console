@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SESSION_STORAGE_KEY,
   selectConnectionStatus,
@@ -204,4 +204,34 @@ describe('selectConnectionStatus', () => {
     useSessionStore.getState().setMe(player);
     expect(selectConnectionStatus(useSessionStore.getState())).toBe('green');
   });
+});
+
+
+it('avoids rewriting the session snapshot for unchanged heartbeat and route state', () => {
+  const store = useSessionStore.getState();
+  store.setIdentity(session, player);
+  store.setLastRoute('/console');
+  store.setConnection('live');
+  const writes = vi.spyOn(Storage.prototype, 'setItem');
+  const updates = vi.fn();
+  const unsubscribe = useSessionStore.subscribe(updates);
+  try {
+    for (let i = 0; i < 100; i += 1) {
+      store.setMe({ ...player });
+      store.setLastRoute('/console');
+      store.setConnection('live');
+    }
+    expect(writes).not.toHaveBeenCalled();
+    expect(updates).not.toHaveBeenCalled();
+    store.setMe({ ...player, activeConsoleRoleId: 'aegis-commander' });
+    store.setLastRoute('/roles');
+    store.setConnection('offline');
+    expect(updates).toHaveBeenCalledTimes(3);
+    const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
+    expect(saved.state.me.activeConsoleRoleId).toBe('aegis-commander');
+    expect(saved.state.lastRoute).toBe('/roles');
+  } finally {
+    unsubscribe();
+    writes.mockRestore();
+  }
 });

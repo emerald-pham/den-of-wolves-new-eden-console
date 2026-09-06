@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Long sessions use less browser memory, and slow mobile connections no longer pile up repeated connection checks.',
+      'DRADIS runs with less repeated work while preserving its full animation and effects.',
+    ],
+  },
+  {
+    version: '0.2.14',
+    changes: [
       'The GM console now uses the ship-role layout, with fleet oversight in the main workspace and DRADIS in a separate instrument rail.',
     ],
   },

@@ -87,9 +87,9 @@ export default function ArrivalDisplay({
         setValues((previous) =>
           previous.map((value, i) => (i === index ? manifest.draw(value) : value)),
         );
-        timers.push(window.setTimeout(tick, CYCLE_MS));
+        timers[index] = window.setTimeout(tick, CYCLE_MS);
       };
-      timers.push(window.setTimeout(tick, CYCLE_MS + manifest.offset));
+      timers[index] = window.setTimeout(tick, CYCLE_MS + manifest.offset);
     });
     return () => timers.forEach(window.clearTimeout);
   }, [reducedMotion, standDown]);

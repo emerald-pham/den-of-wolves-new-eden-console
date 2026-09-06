@@ -125,21 +125,32 @@ export default function App() {
   // misconfigured or unreachable Firebase shows as red rather than as a page
   // that looks fine and silently does nothing.
   useEffect(() => {
-    void connect();
+    // Slow mobile connections must not accumulate another request on every tick.
+    // Keep independent leases so a slow GM check cannot delay presence renewal.
+    const pending = new Set<() => Promise<void>>();
+    const run = (check: () => Promise<void>) => {
+      if (pending.has(check)) return;
+      pending.add(check);
+      void check().catch(() => undefined).finally(() => pending.delete(check));
+    };
+    const renewPresence = () => refreshPresence().catch(() => {
+      useSessionStore.getState().setConnection('offline');
+    });
+    run(connect);
 
     const retry = window.setInterval(() => {
-      if (useSessionStore.getState().connection !== 'live') void connect();
+      if (useSessionStore.getState().connection !== 'live') run(connect);
     }, RECONNECT_INTERVAL_MS);
     const reconcileGm = window.setInterval(() => {
       const state = useSessionStore.getState();
       if (state.connection === 'live' && state.gmInstance) {
-        void reconcileGmAuthority().catch(() => undefined);
+        run(reconcileGmAuthority);
       }
     }, GM_RECONCILE_INTERVAL_MS);
     const heartbeat = window.setInterval(() => {
       const state = useSessionStore.getState();
       if (state.connection === 'live' && state.session && state.me) {
-        void refreshPresence().catch(() => state.setConnection('offline'));
+        run(renewPresence);
       }
     }, PRESENCE_HEARTBEAT_INTERVAL_MS);
 
@@ -147,7 +158,7 @@ export default function App() {
       useSessionStore.getState().setConnection('offline');
     };
     const reconnectNow = () => {
-      void connect();
+      run(connect);
     };
 
     window.addEventListener('offline', markOffline);

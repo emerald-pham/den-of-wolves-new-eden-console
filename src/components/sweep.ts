@@ -43,7 +43,12 @@ export function followSweeps(plot: HTMLElement): () => void {
   const rig = plot.querySelector<HTMLElement>('.contact-plot__rig');
   if (!rig) return () => undefined;
   const discs = Array.from(plot.querySelectorAll<HTMLElement>('.contact-plot__sweep'));
+  // Live collection includes new/removed tracks without a new NodeList per frame.
+  const contacts = plot.getElementsByClassName('contact-plot__contact');
   const returns = new Map<HTMLElement, {
+    apparent: HTMLElement;
+    blip: HTMLElement;
+    drop: HTMLElement | null;
     fix: Vector;
     scans: number;
     scannedAt: number;
@@ -83,17 +88,22 @@ export function followSweeps(plot: HTMLElement): () => void {
         returns.delete(element);
       }
     }
-    plot.querySelectorAll<HTMLElement>('.contact-plot__contact').forEach((element, index) => {
-      const apparent = element.querySelector<HTMLElement>('.contact-plot__apparent');
-      const blip = element.querySelector<HTMLElement>('.contact-plot__blip');
-      if (!apparent || !blip) return;
+    for (let index = 0; index < contacts.length; index += 1) {
+      const element = contacts[index];
+      if (!(element instanceof HTMLElement)) continue;
+      const existing = returns.get(element);
+      const apparent = existing?.apparent ?? element.querySelector<HTMLElement>('.contact-plot__apparent');
+      const blip = existing?.blip ?? element.querySelector<HTMLElement>('.contact-plot__blip');
+      if (!apparent || !blip) continue;
       const canonical = {
         x: Number(element.style.getPropertyValue('--x')),
         y: Number(element.style.getPropertyValue('--y')),
         z: Number(element.style.getPropertyValue('--z')),
       };
-      const existing = returns.get(element);
       const state = existing ?? {
+        apparent,
+        blip,
+        drop: element.querySelector<HTMLElement>('.contact-plot__drop'),
         fix: canonical,
         scans: index,
         scannedAt: -Infinity,
@@ -113,7 +123,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         if (!beforeNormal) return Math.abs(next) < 1e-8;
         const before = rimDistance(displayed, beforeNormal, camera);
         return Math.abs(before) >= 1e-8 && (Math.abs(next) < 1e-8 || (before < 0) !== (next < 0));
-      })) return;
+      })) continue;
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.
       const firstAcquisition = apparent.dataset.acquired !== 'true';
@@ -144,7 +154,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         { opacity: 0.34 + (state.fix.z + 1) * 0.25, offset: 0.16 },
         { opacity: 0.03, offset: 1 },
       ];
-      const drop = element.querySelector<HTMLElement>('.contact-plot__drop');
+      const drop = state.drop;
       state.paint = [
         blip.animate?.(fade.map((keyframe, i) => ({
           ...keyframe, transform: firstAcquisition && i === 0 ? 'scale(2)' : 'scale(1)',
@@ -152,7 +162,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
       ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
-    });
+    }
     previous = normals;
     frame = requestAnimationFrame(tick);
   };
@@ -163,5 +173,6 @@ export function followSweeps(plot: HTMLElement): () => void {
       state.paint.forEach((animation) => animation.cancel());
       if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
     });
+    returns.clear();
   };
 }
