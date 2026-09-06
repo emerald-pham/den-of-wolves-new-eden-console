@@ -199,6 +199,15 @@ Check both states of toggles, disabled controls, and longer labels on narrow,
 wide, and short landscape screens. Inspect the rendered boxes: correct DOM
 order alone does not establish equal heights or visual alignment.
 
+### Settings changelog
+
+Keep release history collapsed behind a clear text control until requested.
+When expanded, changelog entries use amber build labels and bone-white body
+copy inside a ruled instrument panel. The history has its own viewport-bounded
+vertical scroll region, so a growing log never pushes session, motion, release,
+or disconnect controls beyond practical reach. The scroll region is keyboard
+focusable and remains bounded on short landscape displays.
+
 ## Contact plot / threat board
 
 `<ContactPlot hostile={boolean} placement="field | inset | widget" size="<css length>" />`

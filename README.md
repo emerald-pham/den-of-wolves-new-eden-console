@@ -38,6 +38,7 @@ rules — that covers GitHub Pages as well as the Firebase Hosting setup here.
 ```
 src/
   components/             shared controls and DRADIS instruments
+  changelog.ts            player-facing release notes shown in Settings
   data/                   fleet, role and shuttle definitions
   lib/firebase.ts         lazy Firebase app/auth/functions initialization
   lib/firestore.ts        lazy Firestore subscriptions

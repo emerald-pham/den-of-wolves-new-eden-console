@@ -169,7 +169,7 @@ body {
 }
 
 .settings-dialog {
-  width: min(26rem, 100%);
+  width: min(34rem, 100%);
   margin-block: auto;
   padding: 1.25rem;
   box-shadow: 0 1.5rem 4rem #000000a0;
@@ -2421,6 +2421,76 @@ body {
   margin-top: 0.65rem;
   color: var(--cic-ink);
   cursor: pointer;
+}
+
+.settings-changelog {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.settings-changelog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-changelog__header h3,
+.settings-changelog__entry h4 {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.75rem/1.3 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.settings-changelog__toggle {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: transparent;
+  color: var(--cic-cyan);
+  font: 0.68rem/1.3 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.settings-changelog__entries {
+  max-height: min(22rem, 45dvh);
+  margin-top: 0.75rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0 0.75rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+}
+
+.settings-changelog__entries:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.settings-changelog__entry {
+  padding: 0.9rem 0;
+}
+
+.settings-changelog__entry + .settings-changelog__entry {
+  border-top: 1px solid var(--cic-rule);
+}
+
+.settings-changelog__entry ul {
+  margin: 0.6rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--cic-ink);
+  font: 0.8rem/1.55 var(--cic-mono);
+}
+
+.settings-changelog__entry li + li {
+  margin-top: 0.45rem;
 }
 
 .landing__motion-control {

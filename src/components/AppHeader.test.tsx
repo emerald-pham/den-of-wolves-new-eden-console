@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
@@ -122,6 +123,32 @@ it('offers reduce motion as a simple on-off setting', async () => {
   expect(screen.queryByRole('button', { name: /use system setting/i })).not.toBeInTheDocument();
   await user.click(reduceMotion);
   expect(reduceMotion).not.toBeChecked();
+});
+
+it('opens a readable changelog in a bounded scroll region from settings', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  const toggle = screen.getByRole('button', { name: /view changelog/i });
+  expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  await user.click(toggle);
+
+  expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  expect(screen.getByRole('heading', { name: 'Changelog' })).toBeVisible();
+  expect(screen.getByRole('region', { name: /changelog entries/i })).toBeVisible();
+  expect(screen.getByRole('heading', { name: `Build ${APP_VERSION}` })).toBeVisible();
+  expect(screen.getByText(/read what changed without leaving your session/i)).toBeVisible();
+  expect(screen.queryByText(/component|refactor|typescript/i)).not.toBeInTheDocument();
+});
+
+it('keeps the long settings changelog independently scrollable', () => {
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  const changelogRule = stylesheet.match(/\.settings-changelog__entries\s*\{([^}]*)\}/)?.[1];
+
+  expect(changelogRule).toMatch(/max-height:/);
+  expect(changelogRule).toMatch(/overflow-y:\s*auto/);
 });
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {

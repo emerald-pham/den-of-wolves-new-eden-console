@@ -35,4 +35,14 @@ describe('repository guidance', () => {
       /auth,\s+Functions, Firestore, Hosting, Emulator UI, Hub, and Logging/,
     );
   });
+
+  it('requires every product release to update the player-facing changelog', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('Player-facing changelog');
+    expect(guidance).toContain('every completed product edit');
+    expect(guidance).toContain('user perspective');
+    expect(guidance).toContain('developer perspective');
+  });
 });

@@ -12,6 +12,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
 - [Merge once done](#2-merge-once-done)
 - [Version references](#version-references)
+- [Player-facing changelog](#player-facing-changelog)
 - [Stack](#stack-and-what-not-to-swap)
 - [Security model](#security-model--the-load-bearing-rule)
 - [State](#state)
@@ -199,6 +200,19 @@ Commit messages: imperative subject under 72 characters, and a body that says
 - Show the version in the in-app settings dialog.
 - After every successful merge and every successful push, state the exact version in the user-facing chat.
 
+## Player-facing changelog
+
+Update `src/changelog.ts` with every completed product edit. Put the newest
+version first and describe only changes a player or GM can see, use, or
+understand. Write from the user perspective, not the developer perspective:
+describe the improved experience or new capability, never internal components,
+refactors, implementation details, test changes, or deployment machinery.
+
+The newest changelog entry must use the version derived from `package.json` so
+the visible build reference and release notes stay aligned. Preserve the
+bounded, independently scrollable changelog region in Settings as the history
+grows. Documentation-only edits do not add a changelog entry.
+
 ## Stack, and what not to swap
 
 Vite 6 · TypeScript strict · React 18 · Zustand · Firestore Web SDK v12 modular
@@ -307,6 +321,7 @@ tests/rules/      assertions against the emulator
 ## Definition of done
 
 - [ ] For code changes, a test was written first and observed failing.
+- [ ] Every completed product edit updated the player-facing changelog in user terms.
 - [ ] For changes that are not documentation-only, local lint and tests were
   run before deployment; any known failure was reviewed against the
   deployment-safety rule above.

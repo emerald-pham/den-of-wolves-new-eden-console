@@ -11,6 +11,7 @@ import {
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
+import { CHANGELOG } from '@/changelog';
 
 export default function AppHeader() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export default function AppHeader() {
     };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -51,6 +53,7 @@ export default function AppHeader() {
     : (secondaryRole ?? null);
 
   function openSettings(): void {
+    setChangelogOpen(false);
     setSettingsOpen(true);
   }
 
@@ -77,6 +80,7 @@ export default function AppHeader() {
 
   function closeSettings(): void {
     setSettingsOpen(false);
+    setChangelogOpen(false);
     queueMicrotask(() => settingsButton.current?.focus());
   }
 
@@ -204,6 +208,38 @@ export default function AppHeader() {
                 />
                 Reduce motion
               </label>
+            </section>
+            <section className="settings-changelog" aria-labelledby="changelog-title">
+              <div className="settings-changelog__header">
+                <h3 id="changelog-title">Changelog</h3>
+                <button
+                  className="settings-changelog__toggle"
+                  type="button"
+                  aria-expanded={changelogOpen}
+                  aria-controls="settings-changelog-entries"
+                  onClick={() => setChangelogOpen((open) => !open)}
+                >
+                  {changelogOpen ? 'Hide changelog' : 'View changelog'}
+                </button>
+              </div>
+              {changelogOpen && (
+                <div
+                  id="settings-changelog-entries"
+                  className="settings-changelog__entries"
+                  role="region"
+                  aria-label="Changelog entries"
+                  tabIndex={0}
+                >
+                  {CHANGELOG.map((entry) => (
+                    <article className="settings-changelog__entry" key={entry.version}>
+                      <h4>Build {entry.version}</h4>
+                      <ul>
+                        {entry.changes.map((change) => <li key={change}>{change}</li>)}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
             {connectedPlayers === 1 && (
               <p className="settings-dialog__warning">
