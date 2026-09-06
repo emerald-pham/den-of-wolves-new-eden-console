@@ -170,7 +170,11 @@ same +10 offset; never take a port that is already listening.
   not going to land, delete it.
 - Never force-push `main`. Never commit directly to `main` for anything that
   changes behavior.
-- Push to `main` deploys. Treat every merge as a release.
+- Push to `main` deploys the affected Firebase surfaces. Every completed product
+  edit increments the visible application version, so Hosting is deployed for
+  product changes; Firestore rules and Cloud Functions deploy only when their
+  own files or shared Firebase configuration changed. Treat every merge as a
+  release without redeploying unrelated infrastructure.
 
 Commit messages: imperative subject under 72 characters, and a body that says
 *why* when the why is not obvious. Reference the behavior, not the file list.
@@ -316,7 +320,8 @@ tests/rules/      assertions against the emulator
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
-- [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys).
+- [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys
+  the affected Firebase surfaces, including Hosting for visible product edits).
 - [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.
 
 ## Aesthetic profiles and responsive UI

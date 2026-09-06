@@ -16,6 +16,20 @@ it('tests Firestore rules before a main-branch deployment', () => {
   expect(deployment).toBeGreaterThan(rulesTest);
 });
 
+it('deploys only the Firebase surfaces affected by a push', () => {
+  expect(deploy).toContain('Determine deployment targets');
+  expect(deploy).toContain("package.json|package-lock.json|index.html|public/*|src/*|tsconfig*.json|vite.config.*");
+  expect(deploy).toContain("functions/*");
+  expect(deploy).toContain("firestore.rules|firestore.indexes.json");
+  expect(deploy).toContain('--only "${{ steps.targets.outputs.targets }}"');
+  expect(deploy).not.toContain('--only hosting,firestore,functions');
+});
+
+it('deploys every Firebase surface when manually dispatched', () => {
+  expect(deploy).toContain('github.event_name == \'workflow_dispatch\'');
+  expect(deploy).toContain('targets=hosting,firestore,functions');
+});
+
 it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {
   expect(packageJson.scripts['test:rules']).toContain(FIREBASE_CLI);
   expect(ci).toContain('npm run test:rules');

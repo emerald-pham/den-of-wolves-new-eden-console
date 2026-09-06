@@ -23,6 +23,48 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine deployment targets
+        id: targets
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]]; then
+            echo "targets=hosting,firestore,functions" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          hosting=false
+          firestore=false
+          functions=false
+
+          while IFS= read -r file; do
+            case "$file" in
+              package.json|package-lock.json|index.html|public/*|src/*|tsconfig*.json|vite.config.*)
+                hosting=true
+                ;;
+              functions/*)
+                functions=true
+                ;;
+              firestore.rules|firestore.indexes.json)
+                firestore=true
+                ;;
+              firebase.json)
+                hosting=true
+                firestore=true
+                functions=true
+                ;;
+            esac
+          done < <(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
+
+          targets=""
+          for target in hosting firestore functions; do
+            if [[ "${!target}" == "true" ]]; then
+              targets="${targets:+$targets,}$target"
+            fi
+          done
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -53,16 +95,18 @@ jobs:
         run: npm run build --prefix functions
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: steps.targets.outputs.targets != ''
         uses: google-github-actions/auth@v2
         with:
           project_id: ${{ vars.FIREBASE_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
-      - name: Deploy hosting, Firestore rules and functions
+      - name: Deploy affected Firebase surfaces
+        if: steps.targets.outputs.targets != ''
         run: |
           npx --yes firebase-tools@15.29.0 deploy \
             --project "${{ vars.FIREBASE_PROJECT_ID }}" \
-            --only hosting,firestore,functions \
+            --only "${{ steps.targets.outputs.targets }}" \
             --non-interactive \
             --force
