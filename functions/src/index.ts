@@ -56,6 +56,7 @@ import {
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
+  requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
 } from './requestGuards';
 import { chooseWolfRoles } from './wolfAssignment';
@@ -78,6 +79,7 @@ import {
 } from './sessionLifecycle';
 import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import { pressDispatchState } from './pressDispatchState';
 
 /**
  * Server-side authority for the companion console.
@@ -421,9 +423,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
         shuttleVisitLog:
           (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
-        ...(sessionSnap.get('pressDispatch') === undefined
-          ? {}
-          : { pressDispatch: sessionSnap.get('pressDispatch') }),
+        pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
         ownerUid: sessionSnap.get('ownerUid') as string,
@@ -522,9 +522,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
       shuttleVisitLog:
         (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
-      ...(sessionSnap.get('pressDispatch') === undefined
-        ? {}
-        : { pressDispatch: sessionSnap.get('pressDispatch') }),
+      pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
       ownerUid: sessionSnap.get('ownerUid') as string,
@@ -1910,6 +1908,7 @@ export const publishPressDispatch = onCall<{
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchRequest(request.data ?? {});
+  const dispatchId = randomUUID();
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
@@ -1925,17 +1924,58 @@ export const publishPressDispatch = onCall<{
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
-    const current = session.get('pressDispatch') as {
-      text: string; revision: number;
-    } | undefined;
-    if ((current?.revision ?? 0) !== data.expectedRevision) {
+    const current = pressDispatchState(session.get('pressDispatch'));
+    if (current.revision !== data.expectedRevision) {
       throw new HttpsError(
         'failed-precondition',
         'Press dispatch changed. Wait for the live update and try again.',
       );
     }
     const pressDispatch = {
-      text: `SNN // ${data.text}`,
+      dispatches: [
+        ...current.dispatches,
+        { id: dispatchId, text: `SNN // ${data.text}` },
+      ],
+      revision: data.expectedRevision + 1,
+    };
+    tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });
+    return pressDispatch;
+  });
+});
+
+/** Only the active Press Officer may retire one fleet dispatch from the ticker. */
+export const dismissPressDispatch = onCall<{
+  sessionId?: unknown; dispatchId?: unknown; expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = requirePressDispatchDismissalRequest(request.data ?? {});
+  const ref = db.doc(`sessions/${data.sessionId}`);
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
+        player.get('activeConsoleRoleId') !== 'press-officer') {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the active Press Officer may dismiss a fleet dispatch.',
+      );
+    }
+    const session = await tx.get(ref);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const current = pressDispatchState(session.get('pressDispatch'));
+    if (current.revision !== data.expectedRevision) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Press dispatches changed. Wait for the live update and try again.',
+      );
+    }
+    if (!current.dispatches.some(dispatch => dispatch.id === data.dispatchId)) {
+      throw new HttpsError('failed-precondition', 'That press dispatch is no longer active.');
+    }
+    const pressDispatch = {
+      dispatches: current.dispatches.filter(dispatch => dispatch.id !== data.dispatchId),
       revision: data.expectedRevision + 1,
     };
     tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });

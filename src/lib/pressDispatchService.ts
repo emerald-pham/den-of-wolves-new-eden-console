@@ -1,15 +1,33 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { normalizePressDispatch } from './pressDispatchState';
 
-export async function publishPressDispatch(text: string): Promise<void> {
+function activeSession(): { sessionId: string; revision: number } {
   const { session, connection } = useSessionStore.getState();
   if (!session || connection !== 'live') {
-    throw new Error('Reconnect before publishing a press dispatch.');
+    throw new Error('Reconnect before changing a press dispatch.');
   }
-  await httpsCallable(functions(), 'publishPressDispatch')({
+  return {
     sessionId: session.id,
+    revision: normalizePressDispatch(session.pressDispatch).revision,
+  };
+}
+
+export async function publishPressDispatch(text: string): Promise<void> {
+  const { sessionId, revision } = activeSession();
+  await httpsCallable(functions(), 'publishPressDispatch')({
+    sessionId,
     text,
-    expectedRevision: session.pressDispatch?.revision ?? 0,
+    expectedRevision: revision,
+  });
+}
+
+export async function dismissPressDispatch(dispatchId: string): Promise<void> {
+  const { sessionId, revision } = activeSession();
+  await httpsCallable(functions(), 'dismissPressDispatch')({
+    sessionId,
+    dispatchId,
+    expectedRevision: revision,
   });
 }

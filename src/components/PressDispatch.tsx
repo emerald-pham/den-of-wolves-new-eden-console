@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { Shuttlecraft } from '@/data/shuttles';
-import { publishPressDispatch } from '@/lib/pressDispatchService';
+import { dismissPressDispatch, publishPressDispatch } from '@/lib/pressDispatchService';
+import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { useSessionStore } from '@/store/useSessionStore';
 
 const MAX_DISPATCH_LENGTH = 220;
@@ -10,9 +11,11 @@ export default function PressDispatch({ shuttle }: {
 }) {
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
-  const current = useSessionStore((state) => state.session?.pressDispatch?.text);
+  const dispatchState = useSessionStore((state) => state.session?.pressDispatch);
+  const current = normalizePressDispatch(dispatchState).dispatches;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [dismissing, setDismissing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
 
@@ -30,6 +33,20 @@ export default function PressDispatch({ shuttle }: {
       setNotice(cause instanceof Error ? cause.message : 'Dispatch transmission failed');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function dismiss(dispatchId: string): Promise<void> {
+    if (!authorized || connection !== 'live' || sending || dismissing !== null) return;
+    setDismissing(dispatchId);
+    setNotice('');
+    try {
+      await dismissPressDispatch(dispatchId);
+      setNotice('Dispatch dismissed');
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Dispatch dismissal failed');
+    } finally {
+      setDismissing(null);
     }
   }
 
@@ -54,12 +71,37 @@ export default function PressDispatch({ shuttle }: {
           />
         </div>
         <button className="cic-action-button" type="submit"
-          disabled={!authorized || connection !== 'live' || sending || !text.trim()}>
+          disabled={!authorized || connection !== 'live' || sending || dismissing !== null || !text.trim()}>
           {sending ? 'Transmitting' : 'Publish dispatch'}
         </button>
       </form>
+      <div className="press-dispatch__current">
+        <p className="press-dispatch__current-heading">
+          Current dispatches // {current.length}
+        </p>
+        {current.length > 0 ? (
+          <ul className="press-dispatch__current-list">
+            {current.map((dispatch) => (
+              <li className="press-dispatch__current-item" key={dispatch.id}>
+                <p className="press-dispatch__current-copy">{dispatch.text}</p>
+                <button
+                  aria-label={`Dismiss dispatch: ${dispatch.text}`}
+                  className="cic-action-button"
+                  type="button"
+                  disabled={
+                    !authorized || connection !== 'live' || sending || dismissing !== null
+                  }
+                  onClick={() => void dismiss(dispatch.id)}
+                >
+                  {dismissing === dispatch.id ? 'Dismissing' : 'Dismiss dispatch'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="press-dispatch__empty">No active dispatches</p>}
+      </div>
       <p className="press-dispatch__status" aria-live="polite">
-        {notice || (current ? `Current // ${current}` : 'Press Officer authority required')}
+        {notice || (!authorized ? 'Press Officer authority required' : '')}
       </p>
     </section>
   );

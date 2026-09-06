@@ -89,9 +89,11 @@ behavior before implementation.
 
 The SNN reference supplies a server-authoritative fleet dispatch desk and one
 reusable newspaper-confetti evidence shredder. Only the active Press Officer can
-publish dispatches; each one carries the fixed `SNN //` prefix and replaces the
-previous press copy across the fleet ticker. The evidence shredder may fire
-repeatedly, honors reduced motion and does not create GM activity
+publish or dismiss dispatches. Each dispatch carries the fixed `SNN //` prefix,
+joins the ordered set of active press copy across the fleet ticker, and remains
+active until the Press Officer dismisses it individually. The dispatch desk
+shows that complete active set even while it reports a publish or dismissal
+result. The evidence shredder may fire repeatedly, honors reduced motion and does not create GM activity
 log entries. It is deliberately different from the fleet ships' shared,
 server-authoritative, once-per-ship Emergency Bridge Confetti Dispenser.
 Ordinary shuttlecraft receive neither device unless their specification says

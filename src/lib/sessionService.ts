@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import type { ResourceId } from '@/data/resources';
+import { normalizePressDispatch } from './pressDispatchState';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -192,7 +193,12 @@ async function flushPendingCommands(): Promise<void> {
 }
 
 function applySession(reply: SessionReply): void {
-  useSessionStore.getState().setIdentity(reply.session, reply.player);
+  useSessionStore.getState().setIdentity({
+    ...reply.session,
+    ...(reply.session.pressDispatch === undefined
+      ? {}
+      : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
+  }, reply.player);
 }
 
 /**

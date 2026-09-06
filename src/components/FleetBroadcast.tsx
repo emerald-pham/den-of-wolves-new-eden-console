@@ -1,15 +1,17 @@
 import { DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
+import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
 export default function FleetBroadcast() {
   const { session, me } = useSessionStore();
   const alert = session?.fleetRedAlert;
-  const dispatch = session?.pressDispatch;
-  const pressDispatch = session && dispatch
+  const dispatchState = normalizePressDispatch(session?.pressDispatch);
+  const dispatchText = dispatchState.dispatches.map((dispatch) => dispatch.text).join(' // ');
+  const pressDispatch = session && dispatchText
     ? {
-        id: `${session.id}:press-dispatch:${dispatch.revision}`,
-        text: dispatch.text,
+        id: `${session.id}:press-dispatch:${dispatchState.revision}`,
+        text: dispatchText,
         tone: 'normal' as const,
         gap: 'long' as const,
       }
@@ -24,6 +26,8 @@ export default function FleetBroadcast() {
       ? (alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE)
       : 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
     tone: alert.active ? 'danger' : 'normal',
-    ...(alert.active ? { pressText: dispatch?.text } : { passes: 2 }),
+    ...(alert.active
+      ? (dispatchText ? { pressText: dispatchText } : {})
+      : { passes: 2 }),
   }} {...(pressDispatch ? { fallback: pressDispatch } : {})} />;
 }

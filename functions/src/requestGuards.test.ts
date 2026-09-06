@@ -14,6 +14,7 @@ import {
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
+  requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
   requireSessionRequest,
   requireShipCounterRequest,
@@ -241,6 +242,18 @@ describe('callable request guards', () => {
     }), 'invalid-argument');
     expectHttpsError(() => requirePressDispatchRequest({
       sessionId: 's1', text: 'News', expectedRevision: -1,
+    }), 'invalid-argument');
+  });
+
+  it('requires dispatch identity and revision for a dismissal', () => {
+    expect(requirePressDispatchDismissalRequest({
+      sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 3,
+    })).toEqual({ sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 3 });
+    expectHttpsError(() => requirePressDispatchDismissalRequest({
+      sessionId: 's1', dispatchId: '', expectedRevision: 3,
+    }), 'invalid-argument');
+    expectHttpsError(() => requirePressDispatchDismissalRequest({
+      sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: -1,
     }), 'invalid-argument');
   });
 

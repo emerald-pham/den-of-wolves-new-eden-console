@@ -39,7 +39,10 @@ it('shows the latest press dispatch while no alert is active', () => {
     const state = useSessionStore.getState();
     state.setSession({
       ...state.session!,
-      pressDispatch: { text: 'SNN // Convoy arrival confirmed', revision: 1 },
+      pressDispatch: {
+        dispatches: [{ id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' }],
+        revision: 1,
+      },
     });
   });
   render(<FleetBroadcast />);
@@ -51,15 +54,17 @@ it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!,
-    pressDispatch: { text: 'SNN // Convoy arrival confirmed', revision: 1 },
+    pressDispatch: {
+      dispatches: [{ id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' }],
+      revision: 1,
+    },
   });
   const view = render(<FleetBroadcast />);
 
-  act(() => {
-    const sessionWithoutDispatch = { ...useSessionStore.getState().session! };
-    delete sessionWithoutDispatch.pressDispatch;
-    useSessionStore.getState().setSession(sessionWithoutDispatch);
-  });
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    pressDispatch: { dispatches: [], revision: 2 },
+  }));
 
   expect(screen.getByLabelText('Fleet broadcasts'))
     .toHaveTextContent('SNN // Convoy arrival confirmed');
@@ -67,6 +72,26 @@ it('keeps the last press copy moving until it clears the ticker window', () => {
     '.fleet-ticker__group[data-message-id="s1:press-dispatch:1"]',
   ).forEach((group) => fireEvent.animationEnd(group));
   expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
+});
+
+it('shows every active press dispatch on the fleet ticker', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!,
+      pressDispatch: {
+        dispatches: [
+          { id: 'dispatch-1', text: 'SNN // First report' },
+          { id: 'dispatch-2', text: 'SNN // Second report' },
+        ],
+        revision: 2,
+      },
+    });
+  });
+  render(<FleetBroadcast />);
+  expect(screen.getByRole('status', {
+    name: 'SNN // First report // SNN // Second report',
+  })).toBeVisible();
 });
 it('does not offer the command to other roles and shows fleet messages to them', () => {
   act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
@@ -88,10 +113,10 @@ it('disables offline commands and reports server failures', async () => {
 
 it('keeps new press dispatches in the active warning sequence', () => {
   const state = useSessionStore.getState();
-  state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { text: 'SNN // First report', revision: 1 } });
+  state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1 } });
   render(<FleetBroadcast />);
   expect(screen.getByRole('status', { name: /hold position.*SNN \/\/ First report/ })).toBeVisible();
-  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { text: 'SNN // Updated report', revision: 2 } }));
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }, { id: 'dispatch-2', text: 'SNN // Updated report' }], revision: 2 } }));
   expect(screen.getByRole('status', { name: /hold position.*Updated report/ })).toBeVisible();
 });
 it('lets the Admiral edit, restore and transmit the default warning in lowercase', async () => {

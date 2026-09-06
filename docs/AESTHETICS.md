@@ -407,6 +407,10 @@ specialize the accent and modules but must not replace the shell.
   reusable newspaper-confetti evidence shredder; it is not subject to the
   fleet ships' one-shot rule and does not create GM activity-log entries.
   Ordinary shuttlecraft do not receive confetti.
+- The SNN dispatch desk keeps active reports visible as a compact ruled ledger.
+  Each row pairs the report copy with its own square dismissal action, stacks
+  the control beneath the copy on phones, and leaves server-confirmed reports
+  in place while a command is pending.
 - Wide screens place identity low-left, navigation high-right, optional craft
   modules low-right, and DRADIS above them. At phone widths these panels leave
   absolute positioning and stack in DOM order beneath the compact DRADIS so

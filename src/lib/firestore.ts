@@ -20,6 +20,7 @@ import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttle
 import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
 import { shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
+import { normalizePressDispatch } from './pressDispatchState';
 
 let firestore: Firestore | undefined;
 
@@ -56,7 +57,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
-    ...(data.pressDispatch === undefined ? {} : { pressDispatch: data.pressDispatch }),
+    pressDispatch: normalizePressDispatch(data.pressDispatch),
     maintenanceCycles: data.maintenanceCycles ?? {},
     shuttleCargo: data.shuttleCargo ?? {},
     shuttleFuelled: data.shuttleFuelled ?? {},

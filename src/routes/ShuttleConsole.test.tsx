@@ -9,12 +9,17 @@ vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@/lib/pressDispatchService', () => ({ publishPressDispatch: vi.fn() }));
-const { publishPressDispatch } = await import('@/lib/pressDispatchService');
+vi.mock('@/lib/pressDispatchService', () => ({
+  dismissPressDispatch: vi.fn(),
+  publishPressDispatch: vi.fn(),
+}));
+const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
 
 beforeEach(() => {
   vi.mocked(publishPressDispatch).mockReset();
   vi.mocked(publishPressDispatch).mockResolvedValue(undefined);
+  vi.mocked(dismissPressDispatch).mockReset();
+  vi.mocked(dismissPressDispatch).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -52,6 +57,41 @@ it('gives the Press Officer a dispatch desk that publishes to the fleet ticker',
   await user.click(publish);
   expect(publishPressDispatch).toHaveBeenCalledWith('Convoy arrival confirmed');
   expect(desk).toHaveTextContent('Dispatch transmitted');
+});
+
+it('shows every current dispatch and dismisses only the selected dispatch', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'press-officer' });
+  state.setSession({
+    ...state.session!,
+    pressDispatch: {
+      dispatches: [
+        { id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' },
+        { id: 'dispatch-2', text: 'SNN // Water rationing lifted' },
+      ],
+      revision: 2,
+    },
+  });
+  state.setConnection('live');
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const desk = screen.getByRole('region', { name: 'Press dispatch desk' });
+  expect(desk).toHaveTextContent('Current dispatches');
+  expect(desk).toHaveTextContent('SNN // Convoy arrival confirmed');
+  expect(desk).toHaveTextContent('SNN // Water rationing lifted');
+  await user.click(screen.getByRole('button', {
+    name: 'Dismiss dispatch: SNN // Convoy arrival confirmed',
+  }));
+
+  expect(dismissPressDispatch).toHaveBeenCalledWith('dispatch-1');
+  expect(desk).toHaveTextContent('Dispatch dismissed');
+  expect(desk).toHaveTextContent('SNN // Convoy arrival confirmed');
+  expect(desk).toHaveTextContent('SNN // Water rationing lifted');
 });
 
 it('uses the shared full-screen shuttlecraft console template for SNN', () => {

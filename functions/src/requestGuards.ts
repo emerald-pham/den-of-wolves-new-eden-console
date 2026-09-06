@@ -321,6 +321,21 @@ export function requirePressDispatchRequest(data: {
   };
 }
 
+export function requirePressDispatchDismissalRequest(data: {
+  sessionId?: unknown;
+  dispatchId?: unknown;
+  expectedRevision?: unknown;
+}): { sessionId: string; dispatchId: string; expectedRevision: number } {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    dispatchId: requiredId(data.dispatchId, 'dispatchId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;
