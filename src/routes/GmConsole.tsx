@@ -2,6 +2,7 @@ import { populationForShip, populationTrackForShip } from '@/data/shipPopulation
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
+import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
@@ -415,68 +416,27 @@ export default function GmConsole() {
   }
 
   return (
-    <main className="session-mode gm-console">
-      <section className="session-mode__panel cic-frame">
-        <Link className="session-mode__back cic-text-button" to="/roles">
+    <main className="ship-console ship-console--gameplay gm-console">
+      <section className="ship-console__identity" aria-label="GM command">
+        <Link className="ship-console__back cic-text-button" to="/roles">
           Back to roles
         </Link>
-        <p className="eyebrow">{session.name}</p>
-        <h1 className="role-select__title">GM Console</h1>
-        <p className="role-select__lede">Active GM instances for session {session.joinCode}.</p>
+        <p className="ship-console__nation">{session.name} // Game master</p>
+        <h1 className="ship-console__name">GM Console</h1>
+        <p className="ship-console__type">Fleet command oversight</p>
 
+        <RoleConsoleTemplate
+          label="GM operations console"
+          eyebrow="Game master // Session operations"
+          title="Fleet oversight"
+          telemetry={<>
+            <div><dt>Available ships</dt><dd>{availableShips.length}</dd></div>
+            <div><dt>Active roles</dt><dd>{activeRoleIds.length}</dd></div>
+            <div><dt>Connected players</dt><dd>{connectedPlayers.length}</dd></div>
+            <div><dt>GM registration</dt><dd>{controlsLocked ? 'Locked' : 'Unlocked'}</dd></div>
+          </>}
+        >
         <div className="gm-console__grid">
-          <section
-            ref={dradisRef}
-            className="gm-console__module gm-dradis cic-frame"
-            aria-label="Fleet DRADIS"
-            data-expanded={String(dradisExpanded)}
-          >
-            <div className="gm-dradis__viewport">
-              <ContactPlot
-                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
-                placement="inset"
-                size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
-                contacts={contacts}
-                ambientSession={session}
-                centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
-              />
-              <button
-                className="gm-dradis__toggle"
-                type="button"
-                aria-label={`${dradisExpanded ? 'Collapse' : 'Expand'} DRADIS display`}
-                aria-pressed={dradisExpanded}
-                onClick={toggleDradis}
-              />
-            </div>
-            <div className="gm-dradis__controls">
-              {dradisExpanded ? (
-                <button
-                  className="cic-text-button gm-dradis__trigger"
-                  type="button"
-                  disabled={triggeringDradis}
-                  onClick={() => void triggerUnknownContact()}
-                >
-                  {triggeringDradis ? 'Triggering contact…' : 'Trigger unknown contact'}
-                </button>
-              ) : null}
-              <p className="gm-dradis__perspective">
-                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
-              </p>
-              <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
-                {availableShips.map((ship) => (
-                  <button
-                    type="button"
-                    key={ship.id}
-                    aria-label={`View DRADIS from ${ship.name}`}
-                    aria-pressed={ship.id === viewer?.id}
-                    onClick={() => setViewerId(ship.id)}
-                  >
-                    {ship.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </section>
 
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
@@ -836,7 +796,63 @@ export default function GmConsole() {
             </ul>
           </section>
         </div>
+        </RoleConsoleTemplate>
       </section>
+      <aside className="gm-console__instruments" aria-label="GM instruments">
+          <section
+            ref={dradisRef}
+            className="gm-console__module gm-dradis cic-frame"
+            aria-label="Fleet DRADIS"
+            data-expanded={String(dradisExpanded)}
+          >
+            <div className="gm-dradis__viewport">
+              <ContactPlot
+                key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
+                placement="inset"
+                size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
+                contacts={contacts}
+                ambientSession={session}
+                centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
+              />
+              <button
+                className="gm-dradis__toggle"
+                type="button"
+                aria-label={`${dradisExpanded ? 'Collapse' : 'Expand'} DRADIS display`}
+                aria-pressed={dradisExpanded}
+                onClick={toggleDradis}
+              />
+            </div>
+            <div className="gm-dradis__controls">
+              {dradisExpanded ? (
+                <button
+                  className="cic-text-button gm-dradis__trigger"
+                  type="button"
+                  disabled={triggeringDradis}
+                  onClick={() => void triggerUnknownContact()}
+                >
+                  {triggeringDradis ? 'Triggering contact…' : 'Trigger unknown contact'}
+                </button>
+              ) : null}
+              <p className="gm-dradis__perspective">
+                DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
+              </p>
+              <div className="gm-dradis__ships" aria-label="DRADIS perspectives">
+                {availableShips.map((ship) => (
+                  <button
+                    type="button"
+                    key={ship.id}
+                    aria-label={`View DRADIS from ${ship.name}`}
+                    aria-pressed={ship.id === viewer?.id}
+                    onClick={() => setViewerId(ship.id)}
+                  >
+                    {ship.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
+      </aside>
       {pendingCapybaraEnabled !== null && (
         <div
           className="settings-backdrop"

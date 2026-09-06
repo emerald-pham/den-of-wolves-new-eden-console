@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The GM console now uses the ship-role layout, with fleet oversight in the main workspace and DRADIS in a separate instrument rail.',
+    ],
+  },
+  {
+    version: '0.2.11',
+    changes: [
       'Maintenance cycle commands now use the same clear, framed controls as the rest of the ship console.',
     ],
   },

@@ -681,3 +681,14 @@ readouts. An active cycle that reaches five minutes becomes a hostile-red alert
 within that same instrument; each overdue ship gets one compact line with its
 elapsed whole minutes. Multiple overdue ships stack without introducing a modal
 or covering the GM's controls.
+
+### GM command workspace
+
+The GM console reuses the ship console shell and identity surface, with
+`RoleConsoleTemplate` owning the fleet oversight header and live telemetry.
+GM modules occupy the scrollable left workspace; the event log leads it so
+urgent events remain near the top. Fleet DRADIS occupies the upper-right
+instrument rail, with perspective controls below its square viewport. The rail
+scrolls independently on tall desktop screens. On phones and short landscape
+screens it enters document flow before the workspace; both scroll with the page.
+Expanded DRADIS retains its full-screen view and existing perspective controls.

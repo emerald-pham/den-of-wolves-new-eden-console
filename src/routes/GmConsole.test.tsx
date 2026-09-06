@@ -706,3 +706,20 @@ it('moves survivors by printed steps through GM controls and locks pending thres
   }));
   expect(within(controls).getByRole('button', { name: 'Decrease Survivor Population' })).toBeDisabled();
 });
+
+
+it('uses the role workspace with a separate persistent GM instrument rail', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const workspace = screen.getByRole('region', { name: 'GM operations console' });
+  expect(within(workspace).getByRole('heading', { name: 'Fleet oversight' })).toBeVisible();
+  expect(within(workspace).getByText('Available ships')).toBeVisible();
+  expect(within(workspace).getByRole('region', { name: 'Fleet resource controls' })).toBeVisible();
+  const instruments = screen.getByRole('complementary', { name: 'GM instruments' });
+  expect(within(instruments).getByRole('region', { name: 'Fleet DRADIS' })).toBeVisible();
+  expect(within(workspace).queryByRole('region', { name: 'Fleet DRADIS' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('link', { name: 'Back to roles' }));
+  expect(screen.getByText('Roles route')).toBeVisible();
+});

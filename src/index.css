@@ -669,22 +669,21 @@ body {
   width: 100%;
   max-width: none;
   margin: 0;
-  align-content: start;
-  padding-inline: clamp(1rem, 3vw, 4rem);
 }
 
 .gm-console__grid {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: clamp(1rem, 2vw, 2rem);
-  margin-top: 2rem;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--cic-rule);
 }
 
 .gm-console__module {
   min-width: 0;
   padding: clamp(1rem, 2vw, 1.5rem);
-  grid-column: span 4;
+  grid-column: 1 / -1;
 }
 
 .gm-console__module--event-log {
@@ -2183,7 +2182,6 @@ body {
     transform-origin: top left;
   }
 
-  .gm-console__module { grid-column: span 6; }
 
   .gm-dradis[data-expanded='true'] { grid-template-columns: 1fr; }
 
@@ -2276,7 +2274,6 @@ body {
   .fleet-group__grid { grid-template-columns: 1fr; }
   .fleet-card { min-height: 14rem; }
   .fleet-card__content { width: min(82%, 24rem); }
-  .gm-console__module { grid-column: 1 / -1; }
   .gm-wolf-actions { grid-template-columns: 1fr; }
 
   .ship-console__flag {
@@ -3027,3 +3024,54 @@ body {
 .maintenance-systems__cycle > ol > li[aria-current='step'] { border-left-color: var(--cic-cyan); }
 .maintenance-systems__cycle > ol > li > p { font-size: 0.875rem; }
 .maintenance-systems__cycle > ol > li > p[role='status'] { color: var(--cic-cyan); }
+
+/* GM uses the same ship identity/workspace shell, with fleet DRADIS in its rail. */
+.gm-console .gm-console__section-title {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.875rem/1.4 var(--cic-mono);
+}
+.gm-console__instruments {
+  position: absolute;
+  top: var(--console-plot-top);
+  right: max(0.75rem, env(safe-area-inset-right));
+  width: var(--ship-plot-widget-size);
+  max-height: calc(100dvh - var(--console-plot-top) - 1rem);
+  overflow-y: auto;
+}
+.gm-console__instruments .gm-dradis { padding: 0; }
+.gm-console__instruments .gm-dradis[data-expanded='true'] { padding: 1rem; }
+.gm-console__instruments:has([data-expanded='true']) { overflow: visible; }
+.gm-console .console-workspace__header { grid-template-columns: 1fr; }
+@media (max-width: 42rem), (max-height: 42rem) {
+  .ship-console.gm-console {
+    padding-top: var(--console-plot-top);
+  }
+  .gm-console__instruments {
+    position: static;
+    order: -1;
+    justify-self: end;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 42rem), (max-height: 42rem) {
+  .gm-console__instruments .gm-dradis:not([data-expanded='true']) {
+    grid-template-columns: minmax(0, var(--ship-plot-widget-size)) minmax(0, 1fr);
+    align-items: start;
+  }
+  .gm-console__instruments .gm-dradis__ships {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  }
+}
+@media (max-width: 42rem) {
+  .gm-console__instruments .gm-dradis:not([data-expanded='true']) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gm-console__instruments .gm-dradis:not([data-expanded='true']) .gm-dradis__viewport {
+    width: var(--ship-plot-widget-size);
+    justify-self: end;
+  }
+}

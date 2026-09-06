@@ -174,22 +174,18 @@ describe('the GM console', () => {
     expect(console).toContain('margin: 0');
   });
 
-  it('organizes growing GM instruments on a roomy console grid', () => {
+  it('places GM modules in one column inside the role workspace', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const grid = index.match(/\.gm-console__grid\s*\{([^}]*)\}/)?.[1] ?? '';
-
     expect(grid).toContain('display: grid');
-    expect(grid).toContain('grid-template-columns: repeat(12, minmax(0, 1fr))');
+    expect(grid).toContain('grid-template-columns: minmax(0, 1fr)');
   });
 
-  it('collapses the GM instrument grid for tablet and phone widths', () => {
+  it('puts the GM instrument rail in document flow on phones and short screens', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
-    const tablet = index.match(/@media \(max-width: 60rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-    const phone = index.match(/@media \(max-width: 42rem\)\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
-
-    expect(tablet).toContain('.gm-console__module { grid-column: span 6; }');
-    expect(phone).toContain('.gm-console__module { grid-column: 1 / -1; }');
+    expect(index).toMatch(/@media \(max-width: 42rem\), \(max-height: 42rem\)\s*\{[^]*?\.gm-console__instruments\s*\{[^}]*position: static/);
   });
+
 });
 
 describe('the shuttlecraft console template', () => {
