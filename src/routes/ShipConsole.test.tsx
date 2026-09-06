@@ -646,7 +646,8 @@ it.each([
   const scaffold = screen.getByRole('region', {
     name: `${shipName} ${roleName} console`,
   });
-  expect(within(scaffold).getByRole('button', { name: 'Ship systems' })).toBeInTheDocument();
+  expect(within(scaffold).getByRole('heading', { name: 'Ship systems' })).toBeInTheDocument();
+  expect(within(scaffold).getByRole('heading', { name: 'Role procedures' })).toBeInTheDocument();
   expect(scaffold).toHaveTextContent(/tracked at the table/i);
 });
 
@@ -829,11 +830,11 @@ it('embeds AEGIS consoles in maintenance order and leaves armour and FTL outside
   expect(track).not.toContainElement(screen.getByRole('heading', { name: 'Armoured Hull I' }));
 });
 
-it('names the FTL maintenance group Faster Than Light Subsystem', () => {
+it('names the FTL maintenance group Faster Than Light', () => {
   render(<MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
     <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
 
-  expect(screen.getByRole('heading', { name: 'Faster Than Light Subsystem' })).toBeVisible();
-  expect(screen.queryByRole('heading', { name: 'FTL Jump' })).not.toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Faster Than Light' })).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Faster Than Light Subsystem' })).not.toBeInTheDocument();
 });

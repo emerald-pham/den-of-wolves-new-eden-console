@@ -7,7 +7,7 @@ import { SHIPS } from '@/data/ships';
 
 describe('fleet system reference workspaces', () => {
   it.each(SHIPS.flatMap(ship => ship.roles.map(role => ({ ship, role }))))(
-    'gives $role.id real reference pages without gameplay mutations', async ({ ship, role }) => {
+    'gives $role.id real references without gameplay mutations', async ({ ship, role }) => {
       render(<FleetConsoleWorkspace ship={ship} role={role} fuel={7} galacticCoordinate="0102" />);
       expect(screen.queryByText('Scaffold ready')).not.toBeInTheDocument();
       expect(screen.getByRole('region', { name: `${ship.name} ${role.name} console` })).toBeInTheDocument();
@@ -15,12 +15,14 @@ describe('fleet system reference workspaces', () => {
         expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
         return;
       }
-      const pages = screen.getAllByRole('button');
-      expect(pages.length).toBeGreaterThanOrEqual(2);
-      await userEvent.click(pages[1]!);
-      expect(pages[1]).toHaveAttribute('aria-pressed', 'true');
-      await userEvent.click(pages[0]!);
-      expect(pages[0]).toHaveAttribute('aria-pressed', 'true');
+      if (role.id === 'wing-commander') {
+        const pages = screen.getAllByRole('button');
+        expect(pages.length).toBeGreaterThanOrEqual(2);
+        await userEvent.click(pages[1]!);
+        expect(pages[1]).toHaveAttribute('aria-pressed', 'true');
+        return;
+      }
+      expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
     },
   );
   it('shows the expansion production rules for the recycler', () => {
@@ -30,18 +32,41 @@ describe('fleet system reference workspaces', () => {
     expect(screen.getByText(/1 scrap → 3 materials/)).toBeInTheDocument();
     expect(screen.queryByText(/Macaw|Boa/)).not.toBeInTheDocument();
   });
+
+  it.each(SHIPS.flatMap(ship => ship.roles.map(role => ({ ship, role }))))(
+    'keeps $ship.name $role.name aligned with the AEGIS Admiral command presentation',
+    ({ ship, role }) => {
+      render(<FleetConsoleWorkspace ship={ship} role={role} fuel={7} galacticCoordinate="0102" />);
+
+      const workspace = screen.getByRole('region', {
+        name: `${ship.name} ${role.name} console`,
+      });
+      expect(workspace).toHaveTextContent(`${ship.name} command console // ${role.name}`);
+      expect(workspace).toHaveTextContent(/galactic coordinates.*0102/i);
+      expect(workspace).toHaveTextContent(/fuel in stores.*7/i);
+      expect(workspace).toHaveTextContent(/reactor capacity.*consoles/i);
+      expect(workspace).toHaveTextContent(/damage state.*0 systems/i);
+      expect(workspace).toHaveTextContent(/jump requirement.*short.*medium.*long/i);
+      expect(workspace).toHaveTextContent(
+        /console reference.*charges, upgrades and procedure outcomes are tracked at the table.*damage state synchronized/i,
+      );
+      if (role.id !== 'admiral' && role.id !== 'wing-commander') {
+        expect(screen.queryByRole('navigation', {
+          name: `${ship.name} ${role.name} console pages`,
+        })).not.toBeInTheDocument();
+      }
+    },
+  );
 });
 
-it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and maintenance together', async (ship) => {
+it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and maintenance together', (ship) => {
   const role = ship.roles[0];
   if (!role) throw new Error('Expected a ship role');
   render(<FleetSystemsWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
   expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
   expect(screen.getByRole('list', { name: `${ship.name} maintenance sequence` })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Storage' })).toBeVisible();
-  await userEvent.click(screen.getByRole('button', { name: 'Role procedures' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Ship systems' }));
-  expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
 });
 
 it.each(SHIPS.filter(ship => ship.maintenance))('reads out normal jump-drive failures for $name', (ship) => {

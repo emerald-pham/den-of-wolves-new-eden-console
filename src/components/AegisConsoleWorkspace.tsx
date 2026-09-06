@@ -1,6 +1,6 @@
 import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
-import RoleConsoleTemplate from './RoleConsoleTemplate';
+import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import { useState } from 'react';
 import {
   AEGIS_ROLE_CONSOLES,
@@ -47,22 +47,16 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
   return (
-    <RoleConsoleTemplate label="AEGIS Admiral console" eyebrow="AEGIS command console // Admiral"
-      title="Ship systems" telemetry={<>
-          <div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div>
-          <div><dt>Fuel in stores</dt><dd>{fuel}</dd></div>
-          <div><dt>Reactor capacity</dt><dd>{console.reactorCapacity} consoles</dd></div>
-          <div>
-            <dt>Damage state</dt>
-            <dd>{damage?.destroyed
-              ? 'Destroyed'
-              : `${damage?.damagedSystemIds.length ?? 0} systems`}</dd>
-          </div>
-      </>}
-      >
-      <p className="aegis-jump-costs">
-        Jump requirement // Short {console.jumpCosts.short} // Medium {console.jumpCosts.medium} // Long {console.jumpCosts.long}
-      </p>
+    <FleetRoleConsoleTemplate
+      shipName="AEGIS"
+      roleName="Admiral"
+      title="Ship systems"
+      galacticCoordinate={galacticCoordinate}
+      fuel={fuel}
+      reactorCapacity={console.reactorCapacity}
+      jumpCosts={[console.jumpCosts.short, console.jumpCosts.medium, console.jumpCosts.long]}
+      damage={damage}
+    >
       <MaintenanceSystems name="AEGIS" systems={console.systems}
         renderSystem={system => <SystemCard key={system.id} system={system}
           damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}
@@ -80,22 +74,27 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
             </table>
           </div>
         </>} />
-    </RoleConsoleTemplate>
+    </FleetRoleConsoleTemplate>
   );
 }
 
-function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fuel'>) {
+function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleId'>) {
   const [page, setPage] = useState<'flight' | 'combat'>('flight');
   const console = AEGIS_ROLE_CONSOLES['wing-commander'];
   const starlight = console.craft[0];
   if (!starlight) return null;
 
   return (
-    <RoleConsoleTemplate label="AEGIS Wing Commander console" eyebrow="AEGIS flight operations // Wing Commander"
-      title={page === 'flight' ? 'Flight group' : 'Combat doctrine'} telemetry={<>
-          <div><dt>AEGIS coordinates</dt><dd>{galacticCoordinate}</dd></div>
-          <div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>
-      </>}
+    <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
+      title={page === 'flight' ? 'Flight group' : 'Combat doctrine'}
+      galacticCoordinate={galacticCoordinate} fuel={fuel}
+      reactorCapacity={AEGIS_ROLE_CONSOLES.admiral.reactorCapacity}
+      jumpCosts={[
+        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
+        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
+        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
+      ]} damage={damage}
+      telemetry={<div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>}
       pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }]} activePage={page} onPageChange={setPage}>
       {page === 'flight' ? (
         <div className="aegis-craft-grid">
@@ -138,7 +137,7 @@ function WingCommanderConsole({ galacticCoordinate }: Omit<Props, 'roleId' | 'fu
           </p>
         </div>
       )}
-    </RoleConsoleTemplate>
+    </FleetRoleConsoleTemplate>
   );
 }
 
@@ -146,5 +145,5 @@ export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
     ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />
-    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} />;
+    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />;
 }

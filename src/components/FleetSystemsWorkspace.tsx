@@ -1,10 +1,10 @@
 import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
-import { useState } from 'react';
-import RoleConsoleTemplate from './RoleConsoleTemplate';
+import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
+import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import type { ShipDamageState } from '@/types/game';
 
 function systemEffectLabel(effect: string): string {
@@ -21,8 +21,15 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
   readonly galacticCoordinate: string;
   readonly damage?: ShipDamageState | undefined;
 }) {
-  const [page, setPage] = useState<'systems' | 'procedures'>('systems');
   const maintenance = ship.maintenance;
+  const commandMetrics = maintenance ?? {
+    reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity,
+    jump: [
+      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
+      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
+      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
+    ],
+  };
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
   const renderSystem = (system: (typeof systems)[number]) => {
     const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
@@ -38,13 +45,12 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       </div>{system.id === 'jump-drive' && <JumpFailureReadout />}</dl>
     </article>;
   };
-  return <RoleConsoleTemplate label={`${ship.name} ${role.name} console`}
-    eyebrow={`${ship.name} // ${role.name}`} title={page === 'systems' ? 'Ship systems' : 'Role procedures'}
-    telemetry={<><div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div><div><dt>Fuel in stores</dt><dd>{fuel}</dd></div></>}
-    pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'procedures', label: 'Role procedures' }]}
-    activePage={page} onPageChange={setPage}>
-    <p>Charges, upgrades and procedure outcomes are tracked at the table. Damage condition is shared when available.</p>
-    {page === 'systems' && (maintenance
+  const procedures = proceduresForRole(role.id);
+  return <FleetRoleConsoleTemplate shipName={ship.name} roleName={role.name}
+    title="Ship systems"
+    galacticCoordinate={galacticCoordinate} fuel={fuel}
+    reactorCapacity={commandMetrics.reactor} jumpCosts={commandMetrics.jump} damage={damage}>
+    {maintenance
       ? <MaintenanceSystems name={ship.name} systems={systems} renderSystem={renderSystem} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
@@ -54,9 +60,13 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       </table></div>
       <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>
       </>} />
-      : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>)}
-    {page === 'procedures' && <div className="aegis-system-grid">{proceduresForRole(role.id).map(procedure => <article className="aegis-system cic-frame" key={procedure.name}>
-      <h3>{procedure.name}</h3><p>{procedure.effect}</p>
-    </article>)}</div>}
-  </RoleConsoleTemplate>;
+      : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
+    {procedures.length > 0 && <section className="console-workspace__section"
+      aria-label={`${ship.name} ${role.name} role procedures`}>
+      <h3>Role procedures</h3>
+      <div className="aegis-system-grid">{procedures.map(procedure => <article className="aegis-system cic-frame" key={procedure.name}>
+        <h3>{procedure.name}</h3><p>{procedure.effect}</p>
+      </article>)}</div>
+    </section>}
+  </FleetRoleConsoleTemplate>;
 }
