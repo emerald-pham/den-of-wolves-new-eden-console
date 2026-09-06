@@ -798,6 +798,11 @@ Admiral command uses the shared framed action button, with a live status
 alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
+Every fleet bulletin begins with its source: `AEGIS //` for automatic airspace
+and Admiral notices, and `SNN //` for Press dispatches. Keep that prefix first
+in the moving copy, reduced-motion readout, and assistive-technology status so
+the origin stays clear before a bulletin is read.
+
 All moving ticker copy enters from the right and travels left at one constant,
 linear rate. This is the fleetwide press/alert transition convention: when a
 message is replaced or dismissed, every group already visible keeps its exact

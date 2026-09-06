@@ -30,7 +30,7 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
     state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1 } });
   });
   expect(screen.getByRole('status', {
-    name: 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
+    name: 'AEGIS // RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
   })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
@@ -51,15 +51,13 @@ it('shows the latest press dispatch while no alert is active', () => {
     state.setSession({
       ...state.session!,
       pressDispatch: {
-        dispatches: [{ id: 'dispatch-1', text: 'SNN // Convoy arrival confirmed' }],
+        dispatches: [{ id: 'dispatch-1', text: 'Convoy arrival confirmed' }],
         revision: 1,
       },
     });
   });
   render(<FleetBroadcast />);
-  expect(screen.getByRole('status', {
-    name: 'SNN // Convoy arrival confirmed',
-  })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
 it('repeats the current airspace directive with substantial open space until Press transmits', () => {
@@ -79,7 +77,7 @@ it('repeats the current airspace directive with substantial open space until Pre
   });
   const { container } = render(<FleetBroadcast />);
 
-  expect(screen.getByRole('status', { name: 'AIRSPACE RESTRICTED' })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'AEGIS // AIRSPACE RESTRICTED' })).toBeVisible();
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'airspace');
 });
 it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
@@ -100,7 +98,7 @@ it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
 
   render(<FleetBroadcast />);
 
-  expect(screen.getByRole('status', { name: 'AIRSPACE OPEN' })).toBeVisible();
+  expect(screen.getByRole('status', { name: 'AEGIS // AIRSPACE OPEN' })).toBeVisible();
 });
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
@@ -150,7 +148,7 @@ it('does not offer the command to other roles and shows fleet messages to them',
   render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></MemoryRouter>);
   expect(screen.queryByRole('button', { name: 'Fleetwide red alert' })).not.toBeInTheDocument();
   expect(screen.getByRole('status', {
-    name: 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
+    name: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
   })).toBeVisible();
 });
 it('disables offline commands and reports server failures', async () => {
@@ -182,7 +180,7 @@ it('keeps new press dispatches in the active warning sequence', () => {
   const state = useSessionStore.getState();
   state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1 } });
   render(<FleetBroadcast />);
-  expect(screen.getByRole('status', { name: /hold position.*SNN \/\/ First report/ })).toBeVisible();
+  expect(screen.getByRole('status', { name: /AEGIS \/\/ hold position.*SNN \/\/ First report/ })).toBeVisible();
   act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }, { id: 'dispatch-2', text: 'SNN // Updated report' }], revision: 2 } }));
   expect(screen.getByRole('status', { name: /hold position.*Updated report/ })).toBeVisible();
 });

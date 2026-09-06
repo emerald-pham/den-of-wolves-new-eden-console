@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Every fleet bulletin now begins with its source, including AEGIS airspace and alert notices alongside SNN Press dispatches.',
+    ],
+  },
+  {
+    version: '0.2.48',
+    changes: [
       'Expanded DRADIS now keeps LONG, MEDIUM, and SHORT visible as a range key, while each return uses the same quick-read label.',
     ],
   },
