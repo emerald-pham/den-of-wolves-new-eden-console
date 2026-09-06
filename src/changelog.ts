@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Expanded DRADIS now keeps LONG, MEDIUM, and SHORT visible as a range key, while each return uses the same quick-read label.',
+    ],
+  },
+  {
+    version: '0.2.47',
+    changes: [
       'GM roster setup now stages player-count and role changes locally, then sends one confirmed roster when you are ready.',
       'Joint Engineering Union stations now appear only in their printed low-count roster configurations and replace their paired Engineers instead of supplementing them.',
       'Union Engineers can run maintenance for either assigned ship and open only their own Wobbly or Ally shuttle, with a clear route back to the Union console.',

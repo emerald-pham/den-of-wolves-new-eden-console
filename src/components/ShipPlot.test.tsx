@@ -99,6 +99,19 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   expect(plot).toHaveAttribute('data-expanded', 'false');
 });
 
+it('lists the three documented combat bands only in expanded DRADIS', async () => {
+  const user = userEvent.setup();
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" />);
+
+  expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
+    .not.toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+
+  const bands = screen.getByRole('complementary', { name: 'Combat range bands' });
+  expect(bands).toHaveTextContent('COMBAT RANGES // LONG // MEDIUM // SHORT');
+});
+
 it('shows the current galactic coordinate only in the expanded display', async () => {
   const user = userEvent.setup();
   render(

@@ -306,10 +306,14 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
 
   const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
   expect(dradis).toHaveAttribute('data-expanded', 'false');
+  expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
+    .not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
 
   expect(dradis).toHaveAttribute('data-expanded', 'true');
   expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
+  expect(screen.getByRole('complementary', { name: 'Combat range bands' }))
+    .toHaveTextContent('COMBAT RANGES // LONG // MEDIUM // SHORT');
 });
 
 it('lets the active GM trigger a fleetwide contact only from expanded DRADIS', async () => {

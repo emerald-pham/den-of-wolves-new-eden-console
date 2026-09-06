@@ -868,6 +868,38 @@ body {
 
 .gm-dradis[data-expanded='true'] .gm-dradis__toggle { cursor: zoom-out; }
 
+.dradis-range-bands {
+  position: absolute;
+  z-index: 5;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  width: max-content;
+  max-width: calc(100% - 1.5rem);
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--cic-amber-dim);
+  border-radius: var(--cic-radius);
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 600 0.5rem/1.2 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.dradis-range-bands__title { color: var(--cic-muted); }
+.dradis-range-bands__separator { color: var(--cic-amber-dim); }
+.dradis-range-bands__bands { display: flex; gap: 0.2rem; }
+
+.gm-dradis__range-bands,
+.ship-plot__range-bands {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .gm-dradis__controls {
   display: grid;
   align-content: start;
@@ -2275,6 +2307,19 @@ body {
   font-size: 0.52rem;
   pointer-events: none;
   perspective: 11rem;
+}
+
+@media (max-width: 520px) {
+  .ship-plot__range-bands {
+    right: max(0.75rem, env(safe-area-inset-right));
+    left: calc(max(0.75rem, env(safe-area-inset-left)) + 10.25rem);
+    max-width: calc(100vw - 11.75rem);
+    transform: none;
+  }
+
+  .ship-plot:has(.dradis-effect-controls) .ship-plot__range-bands {
+    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4.75rem);
+  }
 }
 
 .ship-plot__compass-title {

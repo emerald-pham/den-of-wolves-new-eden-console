@@ -280,13 +280,17 @@ report of that truth. Game state owns each contact's canonical coordinate or
 trajectory. The display may sample it, but must never rewrite it.
 
 Combat-range labels are separate gameplay state, never a reading of plot
-geometry. Each return prints the documented `LONG RANGE`, `MEDIUM RANGE`, or
-`SHORT RANGE` label supplied for that contact; do not infer it from canonical
-XYZ coordinates, bearing, elevation, CSS perspective, or a transit vector. The
-current fleet formation is gameplay range 1 and therefore prints `SHORT RANGE`
-for every fleet contact even when its real DRADIS coordinates place it elsewhere
-in the drawn volume. Adding or changing a combat-range label must not alter a
-contact's coordinate, trajectory, sampled fix, or scan-acquisition behavior.
+geometry. The reference has five Wolf Attack steps, but only three combat
+range bands: Long Range, Medium Range, and Short Range. Expanded DRADIS keeps
+those potential bands in a bottom-of-viewport key as `LONG // MEDIUM // SHORT`;
+individual DRADIS returns use the same compact one-word labels. Do not infer a
+label from canonical XYZ coordinates, bearing, elevation, CSS perspective, or a
+transit vector. The current fleet formation is gameplay range 1 and therefore
+prints `SHORT` for every fleet contact even when its real DRADIS coordinates
+place it elsewhere in the drawn volume. This compacting is exclusive to DRADIS:
+outside it, retain the documented full combat-category names. Adding or changing
+a combat-range label must not alter a contact's coordinate, trajectory, sampled
+fix, or scan-acquisition behavior.
 
 A contact does not exist on the instrument until a rendered sweep circumference
 crosses the contact's actual current position in space. Before that crossing,

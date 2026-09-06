@@ -371,7 +371,7 @@ describe('App', () => {
       'DIONE', 'ICEBREAKER', 'CAPYBARA', 'SHEPHERD', 'QUELLON', 'REFINERY 124',
     ]));
     expect(combatRanges()).toEqual(expect.arrayContaining([
-      'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE',
+      'SHORT', 'SHORT', 'SHORT', 'SHORT', 'SHORT', 'SHORT',
     ]));
     expect(contacts()).not.toContain('AEGIS');
 

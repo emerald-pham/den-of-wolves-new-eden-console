@@ -132,7 +132,7 @@ function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
 }
 
 function combatRangeLabel(track: Track | PlotContact): string {
-  return `${(track.combatRange ?? 'short').toUpperCase()} RANGE`;
+  return (track.combatRange ?? 'short').toUpperCase();
 }
 
 /** Spherical coordinates to the offsets CSS translates a contact by. */
