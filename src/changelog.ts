@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Crew now see the exact damage card and outcome wherever damage resolves, including armour absorption, failed riots, and destruction when no card remains.',
+    ],
+  },
+  {
+    version: '0.2.32',
+    changes: [
       'The fleetwide red alert can only be raised once every 10 minutes, while standing down and updating an active alert remain available.',
       'Red-alert messages convert to uppercase as the Admiral types, including the restored default warning.',
       'Standing down lets the current alert finish its ticker pass, then runs the cancellation twice before all red-alert copy clears.',

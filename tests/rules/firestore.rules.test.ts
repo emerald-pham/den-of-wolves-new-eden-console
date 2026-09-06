@@ -109,12 +109,15 @@ describe('app-wide arrival state', () => {
 });
 
 describe('session header', () => {
-  it('keeps damage card draws GM-only and denies every client write', async () => {
+  it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);
+    const strangerDraw = doc(as('stranger'), `${SESSION}/damageDraws/draw1`);
 
-    await assertFails(getDoc(playerDraw));
+    await assertSucceeds(getDoc(playerDraw));
     await assertSucceeds(getDoc(gmDraw));
+    await assertFails(getDoc(strangerDraw));
+    await assertFails(setDoc(playerDraw, { card: 'A♠' }));
     await assertFails(setDoc(gmDraw, { card: 'A♠' }));
   });
 

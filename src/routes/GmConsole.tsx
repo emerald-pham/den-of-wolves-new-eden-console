@@ -264,7 +264,7 @@ export default function GmConsole() {
         setDamageDraws,
         () => useSessionStore.getState().setCommunicationError({
           code: 'gm-damage-log-link',
-          message: 'The private damage draw log could not be refreshed.',
+          message: 'The damage draw log could not be refreshed.',
         }),
       );
       const stopPlayers = subscribeConnectedPlayers(

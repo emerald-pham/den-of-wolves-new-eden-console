@@ -809,6 +809,16 @@ The shared maintenance column ends with a ruled GM-only command group beneath
 End maintenance cycle: Assign damage, Repair all damage, and Roll back maintenance
 step. Use the existing cyan `.cic-action-button` treatment and wrapping
 `.maintenance-controls` layout, with muted disabled states and inline errors.
+An applied damage command reports its drawn card and affected system to the GM
+as a cyan status line inside this group; maintenance steps that apply damage
+include the same details at that numbered step for every connected crew member.
+The line must distinguish a damaged system, an armour card that absorbed damage
+and was recycled, and destruction when no card remained. A failed damage trigger,
+such as a riot roll that does not beat unrest, states that no damage occurred.
+Drawn cards in the ship-systems summary remain immediately legible without a
+hover, focus, or reveal gesture, and each row names whether the system was
+damaged, armour absorbed and recycled the card, or no card remained before
+destruction.
 The group is absent for players. Read-only observers retain visible disabled
 commands until they select Write.
 
@@ -822,3 +832,7 @@ observer access toggling, and return navigation.
 
 Alert editor, continuous ticker transition, lowercase warning and DRADIS warning reviewed at
 1440×900, 320×844 and 844×390, including reduced motion and return navigation.
+
+Damage-card outcomes at the maintenance riot step and the shared GM damage
+controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
+wraps without clipping or obscuring controls.

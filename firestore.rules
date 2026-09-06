@@ -84,7 +84,7 @@ service cloud.firestore {
       }
 
       match /damageDraws/{drawId} {
-        allow get, list: if isGm(sessionId);
+        allow get, list: if isMember(sessionId);
         allow write: if false;
       }
 

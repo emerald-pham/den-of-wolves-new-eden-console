@@ -408,3 +408,9 @@ from other stations.
   to prove inheritance; do not require repeated manual inspection or bespoke
   assertions for every ship in the fleet. Preserve route guards, role ownership,
   return navigation and server authority.
+- Whenever a gameplay step or control applies ship damage, name the drawn card
+  and affected system in the crew-visible outcome at that same point of resolution.
+  Also state when armour absorbed and recycled the card, when the triggering
+  check failed and caused no damage, or when the deck was empty and no card
+  remained. Undrawn deck order stays server-only; connected session members may
+  read completed draw records, but clients may never choose or write a draw.

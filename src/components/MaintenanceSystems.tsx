@@ -7,6 +7,7 @@ import { SHIPS } from '@/data/ships';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
 import { SHUTTLECRAFT } from '@/data/shuttles';
+import type { DamageDraw } from '@/types/game';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -17,12 +18,13 @@ interface TimedSystem {
 }
 
 /** The printed maintenance path owns system placement for every ship workspace. */
-export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId, systems, renderSystem, rations }: {
+export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId, systems, renderSystem, rations, damageDraws = [] }: {
   readonly name: string;
   readonly shipId: string;
   readonly systems: readonly T[];
   readonly renderSystem: (system: T) => ReactNode;
   readonly rations: ReactNode;
+  readonly damageDraws?: readonly DamageDraw[] | undefined;
 }) {
   const { session, me, connection } = useSessionStore();
   const access = useConsoleAccess();
@@ -35,12 +37,16 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
+  const [damageNotice, setDamageNotice] = useState('');
   const [foodLevel, setFoodLevel] = useState(0);
   const [waterLevel, setWaterLevel] = useState(0);
   const [consoles, setConsoles] = useState<string[]>([]);
   const [refuels, setRefuels] = useState<Record<string, string>>({});
-  useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); }, [shipId, step]);
+  useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotice(''); }, [shipId, step]);
   const damage = session?.shipDamage?.[shipId];
+  const maintenanceDamageDraw = cycle?.damageDrawId
+    ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
+    : undefined;
   const blocked = !access.writable || pending || !session || !me || connection !== 'live';
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
@@ -94,7 +100,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             </>}
             {step === 3 && <p>Roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1 unrest.</p>}
             {step === 3 && <button className="cic-action-button" disabled={disabled(3)} onClick={() => void execute('unrest')}>Run unrest check</button>}
-            {step === 4 && <p>Roll 1d6. Below current unrest deals 1 damage from rioting.</p>}
+            {step === 4 && <p>Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.</p>}
             {step === 4 && <button className="cic-action-button" disabled={disabled(4)} onClick={() => void execute('riot')}>Run riot check</button>}
             {step === 5 && <p>Charge consoles with the reactor, then resolve the consoles marked 5 when charged.</p>}
             <div className="aegis-system-grid">{systems.filter(system => system.timing === step || (step === 6 && system.timing === 7)).map(renderSystem)}</div>
@@ -124,6 +130,11 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
               <button className="cic-action-button" onClick={() => void execute('bays', { refuels })}>Proceed with refuelling</button>
             </fieldset>}
             {cycle?.results[String(step)] && <p role="status">{cycle.results[String(step)]}</p>}
+            {step === 4 && maintenanceDamageDraw && <p role="status">
+              {maintenanceDamageDraw.type === 'ship-destroyed'
+                ? 'No damage card remained // ship destroyed.'
+                : `Damage card ${maintenanceDamageDraw.card} // ${maintenanceDamageDraw.systemName}${maintenanceDamageDraw.recycled ? ' absorbed damage // card recycled' : ' damaged'}.`}
+            </p>}
           </li>;
         })}
       </ol>
@@ -135,11 +146,21 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             (label === 'Assign damage' ? damage?.destroyed === true : label === 'Repair all damage' ? !damage?.destroyed && !damage?.damagedSystemIds.length : revision === 0)}
           onClick={() => {
             if (busy.current) return;
-            busy.current = true; setPending(true); setError('');
-            void (label === 'Assign damage' ? assignShipDamage(shipId) : label === 'Repair all damage' ? repairAllShipDamage(shipId) : rollbackMaintenance(shipId, revision))
+            busy.current = true; setPending(true); setError(''); setDamageNotice('');
+            const command = label === 'Assign damage'
+              ? assignShipDamage(shipId).then(result => {
+                setDamageNotice(result.destroyed
+                  ? 'Damage applied // no card remained // ship destroyed.'
+                  : `Damage applied // card ${result.card.card} // ${result.card.systemName}${result.recycled ? ' absorbed damage // card recycled' : ' damaged'}.`);
+              })
+              : label === 'Repair all damage'
+                ? repairAllShipDamage(shipId)
+                : rollbackMaintenance(shipId, revision);
+            void command
               .catch(cause => setError(cause instanceof Error ? cause.message : 'Damage command failed.'))
               .finally(() => { busy.current = false; setPending(false); });
           }}>{label}</button>)}
+        {damageNotice && <p role="status">{damageNotice}</p>}
       </div>}
     </section>
     <div className="maintenance-systems__other">

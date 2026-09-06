@@ -81,38 +81,24 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   useEffect(() => setObserverWrite(false), [ship?.id, observer]);
 
   useEffect(() => {
-    if (!isGm || !session?.id) {
-      setDamageDraws([]);
-      return;
-    }
-    let active = true;
-    let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeDamageDraws }) => {
-      if (!active) return;
-      unsubscribe = subscribeDamageDraws(
-        session.id,
-        setDamageDraws,
-        () => useSessionStore.getState().setCommunicationError({
-          code: 'gm-damage-log-link',
-          message: 'The private damage draw log could not be refreshed.',
-        }),
-      );
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [isGm, session?.id]);
-
-  useEffect(() => {
     setCrew(null);
+    setDamageDraws([]);
     if (!session?.id || !ship) return;
     let unsubscribeCrew: (() => void) | undefined;
     let active = true;
     let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeShipConfetti, subscribeConnectedPlayers }) => {
+    let unsubscribeDamage: () => void = () => undefined;
+    void import('@/lib/firestore').then(({ subscribeShipConfetti, subscribeConnectedPlayers, subscribeDamageDraws }) => {
       if (!active) return;
       unsubscribeCrew = subscribeConnectedPlayers(session.id, setCrew, () => setCrew(null));
+      unsubscribeDamage = subscribeDamageDraws(
+        session.id,
+        setDamageDraws,
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-damage-log-link',
+          message: 'The damage draw log could not be refreshed.',
+        }),
+      );
       unsubscribe = subscribeShipConfetti(
         session.id,
         ship.id,
@@ -133,6 +119,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeDamage();
       unsubscribeCrew?.();
     };
   }, [session?.id, ship]);
@@ -224,23 +211,25 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
             fuel={resources?.fuel ?? 0}
             damage={session.shipDamage?.[ship.id]}
+            damageDraws={damageDraws}
           />
         )}
-        {isGm && damageDraws.some(
-          (draw) => draw.shipId === ship.id && draw.type === 'ship-damage',
-        ) && (
+        {damageDraws.some((draw) => draw.shipId === ship.id) && (
           <section className="ship-damage-cards cic-frame" aria-label={`${ship.name} ship systems`}>
             <p className="ship-resources__eyebrow">Ship systems // damage cards</p>
             <ul>
               {damageDraws.flatMap((draw) =>
-                draw.shipId === ship.id && draw.type === 'ship-damage' ? [(
+                draw.shipId === ship.id ? [(
                   <li key={draw.id}>
-                    <span>{draw.systemName}</span>
-                    <strong
-                      className="ship-damage-card"
-                      tabIndex={0}
-                      aria-label={`${draw.card}, ${draw.systemName} damage card`}
-                    >{draw.card}</strong>
+                    {draw.type === 'ship-destroyed'
+                      ? <span>Ship destroyed // no damage card remained</span>
+                      : <>
+                        <span>{draw.systemName} // {draw.recycled ? 'damage absorbed // card recycled' : 'damaged'}</span>
+                        <strong
+                          className="ship-damage-card"
+                          aria-label={`${draw.card}, ${draw.systemName} damage card`}
+                        >{draw.card}</strong>
+                      </>}
                   </li>
                 )] : [])}
             </ul>

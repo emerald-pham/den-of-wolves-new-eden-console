@@ -7,13 +7,14 @@ import {
   isImplementedAegisRole,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
-import type { ShipDamageState } from '@/types/game';
+import type { DamageDraw, ShipDamageState } from '@/types/game';
 
 interface Props {
   readonly roleId: string | undefined;
   readonly galacticCoordinate: string;
   readonly fuel: number;
   readonly damage?: ShipDamageState | undefined;
+  readonly damageDraws?: readonly DamageDraw[] | undefined;
 }
 
 function SystemCard({ system, damaged }: {
@@ -43,7 +44,7 @@ function SystemCard({ system, damaged }: {
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleId'>) {
+function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
 
   return (
@@ -58,6 +59,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
       damage={damage}
     >
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
+        damageDraws={damageDraws}
         renderSystem={system => <SystemCard key={system.id} system={system}
           damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}
         rations={<>
@@ -141,9 +143,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 
   );
 }
 
-export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage }: Props) {
+export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws }: Props) {
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
-    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />
+    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} />
     : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />;
 }

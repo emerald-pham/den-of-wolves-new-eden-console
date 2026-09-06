@@ -65,6 +65,13 @@ Maintenance and damage are server-authoritative across all seven fleet ships.
 `runMaintenance` advances a per-ship revision inside a transaction: storage,
 rations, unrest, riot damage and casualties, charge replacement, refuelling,
 and explicit completion. Both AEGIS bays resolve in the final refuelling step.
+Whenever a gameplay step or control applies ship damage, its crew-visible outcome
+must name the damage card that was drawn and the affected system at that point
+of resolution. It must also state when armour absorbed and recycled the card,
+when a triggering check failed and caused no damage, or when destruction meant
+that no card remained instead of inventing a draw. Preserve the server-written
+damage-draw audit record and link gameplay results to it by ID. Connected session
+members may read completed draws; undrawn deck order remains server-only.
 Shared snapshots retain progress, results and charges across roles and reloads.
 Research and charged-console production/combat outcomes remain table-resolved.
 The current ration choices use the initial printed schedules; replacement

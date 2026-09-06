@@ -696,7 +696,7 @@ it('flags maintenance cycles that remain incomplete for five minutes', async () 
   vi.useRealTimers();
 });
 
-it('shows GM-only damage draws obscured until hover or keyboard focus', async () => {
+it('shows damage draws in the GM log obscured until hover or keyboard focus', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
