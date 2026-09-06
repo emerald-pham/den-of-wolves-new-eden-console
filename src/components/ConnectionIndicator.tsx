@@ -1,5 +1,7 @@
 import type { ConnectionStatus } from '@/store/useSessionStore';
 
+type IndicatorStatus = ConnectionStatus | 'blue';
+
 /**
  * The status light in the header.
  *
@@ -9,22 +11,24 @@ import type { ConnectionStatus } from '@/store/useSessionStore';
  * than interrupting whatever the player was doing.
  */
 
-const LABELS: Record<ConnectionStatus, string> = {
+const LABELS: Record<IndicatorStatus, string> = {
   red: 'Offline',
   yellow: 'Connected',
   green: 'In session',
+  blue: 'Connected, Awaiting Uplink',
 };
 
-const TITLES: Record<ConnectionStatus, string> = {
+const TITLES: Record<IndicatorStatus, string> = {
   red: 'No connection to Firebase',
   yellow: 'Connected to Firebase, not in a session',
   green: 'Connected to Firebase and in a session',
+  blue: 'Connected to Firebase and awaiting CIC full uplink at Turn 1',
 };
 
 export default function ConnectionIndicator({
   status,
 }: {
-  status: ConnectionStatus;
+  status: IndicatorStatus;
 }) {
   return (
     <span

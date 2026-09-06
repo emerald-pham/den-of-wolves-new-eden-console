@@ -60,6 +60,25 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
+it('shows a blue uplink status while Turn 0 systems are still booting', async () => {
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await screen.findByText('2 connected to CIC');
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveTextContent('Connected, Awaiting Uplink');
+  expect(indicator).toHaveAttribute('data-status', 'blue');
+
+  act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
+  expect(indicator).toHaveTextContent('In session');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+});
+
 it('keeps fleet broadcasts in the same measured header row as the session code', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setMe(connectedPlayer('u1'));

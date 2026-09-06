@@ -811,6 +811,12 @@ able to set up the table. The GM Console belongs in the Independent stations
 roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.
 
+During a live Turn 0 session, the top-right connection light uses cyan-blue
+instrumentation and says `CONNECTED, AWAITING UPLINK`; it makes the fleet's
+boot-up state clear without treating it as an offline connection. The first
+Turn 1 snapshot restores the usual green in-session light, marking CIC as fully
+uplinked and the fleet as ready to launch.
+
 Each live turn transition begins with `TURN N` before any other copy. The fleet
 transmission reuses the full-screen intrusion envelope with the neutral fleet
 variant: no hostile glitch treatment, amber structural overlines, bone-white

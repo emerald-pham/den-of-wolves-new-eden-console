@@ -10,7 +10,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
-      'The session join prompt now stays focused on entering your code.',
+      'The top-right connection light now shows blue “Connected, Awaiting Uplink” while Turn 0 systems boot, then returns to green when Turn 1 begins.',
     ],
   },
   {

@@ -319,6 +319,9 @@ body {
 .indicator[data-status='green'] {
   --dot: #5fbf7a;
 }
+.indicator[data-status='blue'] {
+  --dot: var(--cic-cyan-hot);
+}
 
 /* Join / create ------------------------------------------------------- */
 

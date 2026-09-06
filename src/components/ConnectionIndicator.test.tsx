@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import ConnectionIndicator from './ConnectionIndicator';
 
@@ -21,5 +22,13 @@ describe('ConnectionIndicator', () => {
   it('exposes the status for styling without relying on it for meaning', () => {
     render(<ConnectionIndicator status="green" />);
     expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  });
+
+  it('uses the CIC blue instrumentation token for the uplink indicator', () => {
+    const stylesheet = readFileSync('src/index.css', 'utf8');
+
+    expect(stylesheet).toMatch(
+      /\.indicator\[data-status=['"]blue['"]\]\s*\{[^}]*--dot:\s*var\(--cic-cyan-hot\)/,
+    );
   });
 });

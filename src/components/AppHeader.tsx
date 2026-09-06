@@ -41,6 +41,7 @@ export default function AppHeader() {
   const status = useSessionStore(selectConnectionStatus);
   const sessionId = useSessionStore((state) => state.session?.id);
   const joinCode = useSessionStore((state) => state.session?.joinCode);
+  const currentTurn = useSessionStore((state) => state.session?.currentTurn);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
   const releaseQueued = useSessionStore((state) =>
@@ -52,6 +53,7 @@ export default function AppHeader() {
   const rank = gmInstance
     ? ['GM', secondaryRole].filter(Boolean).join(' / ')
     : (secondaryRole ?? null);
+  const indicatorStatus = status === 'green' && currentTurn === 0 ? 'blue' : status;
 
   function openSettings(): void {
     setChangelogOpen(false);
@@ -156,7 +158,7 @@ export default function AppHeader() {
       )}
       <FleetBroadcast />
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
-      <ConnectionIndicator status={status} />
+      <ConnectionIndicator status={indicatorStatus} />
       {joinCode !== undefined && (
         <button
           className="settings-button"
