@@ -43,3 +43,18 @@ it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and mainten
   await userEvent.click(screen.getByRole('button', { name: 'Ship systems' }));
   expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
 });
+
+it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards inside the printed maintenance steps', (ship) => {
+  render(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
+  const steps = screen.getByRole('list', { name: `${ship.name} maintenance sequence` });
+  const entries = Array.from(steps.children);
+  expect(entries).toHaveLength(6);
+  expect(entries[0]).toContainElement(screen.getByRole('heading', { name: 'Storage' }));
+  expect(entries[1]).toContainElement(screen.getByRole('table', { name: `${ship.name} initial ration schedule` }));
+  expect(entries[4]).toContainElement(screen.getByRole('heading', { name: 'Reactor' }));
+  expect(entries[4]?.querySelector('h3')).toHaveTextContent('Reactor');
+  expect(entries[5]).toContainElement(screen.getByRole('heading', { name: 'Shuttle Bay' }));
+  expect(steps).not.toContainElement(screen.getByRole('heading', { name: 'Jump Drive' }));
+  const production = (ship.systems ?? []).filter(system => !['Storage', 'Reactor', 'Shuttle Bay', 'Jump Drive', 'Fighter Bay', 'Ram Scoop'].includes(system.name));
+  for (const system of production) expect(entries[4]).toContainElement(screen.getByRole('heading', { name: system.name }));
+});

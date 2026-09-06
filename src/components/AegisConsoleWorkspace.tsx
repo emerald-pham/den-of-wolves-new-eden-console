@@ -1,3 +1,4 @@
+import MaintenanceSystems from './MaintenanceSystems';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import { useState } from 'react';
 import {
@@ -58,26 +59,13 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
           </div>
       </>}
       >
-      <div className="systems-maintenance-layout">
-        <div className="aegis-system-grid">
-          <p className="aegis-jump-costs">
-            Jump requirement // Short {console.jumpCosts.short} // Medium {console.jumpCosts.medium} // Long {console.jumpCosts.long}
-          </p>
-          {console.systems.map((system) => (
-            <SystemCard
-              key={system.id}
-              system={system}
-              damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
-            />
-          ))}
-        </div>
-        <div className="aegis-maintenance">
-          <h3>Maintenance cycle</h3>
-          <ol aria-label="AEGIS maintenance sequence">
-            {console.maintenanceSteps.map((step, index) => (
-              <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>
-            ))}
-          </ol>
+      <p className="aegis-jump-costs">
+        Jump requirement // Short {console.jumpCosts.short} // Medium {console.jumpCosts.medium} // Long {console.jumpCosts.long}
+      </p>
+      <MaintenanceSystems name="AEGIS" systems={console.systems}
+        renderSystem={system => <SystemCard key={system.id} system={system}
+          damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}
+        rations={<>
           <div className="aegis-ration-table">
             <table aria-label="AEGIS ration schedule">
               <thead>
@@ -90,12 +78,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
               </tbody>
             </table>
           </div>
-          <div className="aegis-maintenance__checks">
-            <p><strong>Unrest check</strong> // Roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; under 20 adds 1.</p>
-            <p><strong>Riot check</strong> // Roll 1d6. A result below current unrest deals 1 damage.</p>
-          </div>
-        </div>
-      </div>
+        </>} />
     </RoleConsoleTemplate>
   );
 }

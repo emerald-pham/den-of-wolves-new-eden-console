@@ -43,7 +43,7 @@ it('denies a GM using another persons instance', async () => {
 it('denies unsigned requests, invalid steps and ships without a track', async () => {
   await expect(adjustShipPopulation.run({ data } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'unauthenticated' });
   await expect(adjustShipPopulation.run(request({ ...data, delta: 500 }))).rejects.toMatchObject({ code: 'invalid-argument' });
-  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'dione' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'unknown-ship' }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });
 it('moves AEGIS through its own printed track', async () => {
   mock.population = 2500;

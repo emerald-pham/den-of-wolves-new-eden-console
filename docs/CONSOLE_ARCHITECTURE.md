@@ -44,16 +44,19 @@ modules; the Executive Officer has a battle-sheet reference. Other roles use
 `FleetSystemsWorkspace`, with ship systems and initial maintenance schedules
 in each vessel definition and role procedures in `roleProcedures.ts`. Joint
 Engineering switches between its two assigned ships using the same workspace.
-Ship systems and maintenance appear together in the workspace, side by side
-on wide screens and stacked on smaller screens. Role procedures retain their
-own page.
+Ship systems are embedded in the numbered maintenance path through the shared
+`MaintenanceSystems` component: Storage at 1, rations at 2, unrest at 3,
+rioting at 4, Reactor and production at 5, shuttle bays at 6 (and AEGIS Omega
+at 7). Vessel definitions declare each system's timing. FTL, Wolf Attack and
+passive systems retain their own sections outside the numbered path. Preserve
+this order when stacking the layout on smaller screens. Role procedures retain
+their own page. See the [original ship-sheet layouts](reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_SHIP_LAYOUTS.md).
 
-All fleet ships display their current survivor count, falling back to the
-reference starting population for legacy sessions. Only AEGIS and Capybara
-have complete approved tracks. The reference ship summary lists starting
-counts and starred thresholds for Dione, Icebreaker, Shepherd, Quellon and
-Refinery 124, but omits their complete ladders; do not infer their missing
-steps from another ship or enable GM movement without them.
+All seven fleet ships have approved census tracks from the original A3 ship
+sheets (including the Capybara expansion). Each ship definition owns its client
+track; the independent server catalog enforces the same printed values and
+starred thresholds. GM movement uses the existing authoritative step controls
+and per-GM acknowledgement flow. Do not interpolate missing population values.
 
 Charges, damage, research and procedure outcomes remain table-resolved until
 their individual gameplay implementation passes.

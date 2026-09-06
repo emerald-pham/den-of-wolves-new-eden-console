@@ -2779,21 +2779,25 @@ body {
   }
 }
 
-/* Keep the system cards and their maintenance reference visible together. */
-.systems-maintenance-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+/* Printed ship-sheet flow: numbered maintenance with phase systems alongside. */
+.maintenance-systems { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding: 0.75rem; }
+.maintenance-systems section, .maintenance-systems__other { min-width: 0; }
+.maintenance-systems h3 { margin: 0 0 0.75rem; }
+.maintenance-systems__cycle > h3, .maintenance-systems__other > section > h3 {
+  color: var(--cic-amber); font: 400 1.2rem var(--cic-display); text-transform: uppercase;
 }
-.systems-maintenance-layout > * { min-width: 0; }
-.systems-maintenance-layout .aegis-maintenance > h3 {
-  margin: 0 0 0.75rem;
-  color: var(--cic-amber);
-  font: 400 1rem var(--cic-display);
-  text-transform: uppercase;
-}
+.maintenance-systems__cycle > ol { list-style: none; padding: 0; margin: 0; }
+.maintenance-systems__cycle > ol > li { padding: 0.75rem 0 0.75rem 0.75rem; border-left: 2px solid var(--cic-amber); }
+.maintenance-systems__step { display: flex; align-items: center; gap: 0.6rem; color: var(--cic-amber); }
+.maintenance-systems__step > span { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid var(--cic-amber); font: 1.5rem var(--cic-display); }
+.maintenance-systems__step > strong { font-size: 0.8rem; text-transform: uppercase; }
+.maintenance-systems__cycle > ol > li > p { color: var(--cic-muted); font-size: 0.7rem; line-height: 1.5; }
+.maintenance-systems .aegis-system-grid { padding: 0.75rem 0 0; grid-template-columns: minmax(0, 1fr); }
+.maintenance-systems .aegis-system-grid:empty { display: none; }
+.maintenance-systems__other > section { margin-bottom: 1rem; }
+.maintenance-systems .aegis-ration-table table { min-width: 0; }
+.maintenance-systems .aegis-ration-table th, .maintenance-systems .aegis-ration-table td { padding: 0.45rem 0.2rem; letter-spacing: 0; }
 @media (min-width: 1400px) {
-  .systems-maintenance-layout { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
-  .systems-maintenance-layout .aegis-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .systems-maintenance-layout .aegis-maintenance > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .maintenance-systems { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+  .maintenance-systems__cycle .aegis-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

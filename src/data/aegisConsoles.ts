@@ -3,6 +3,7 @@ export interface AegisShipSystem {
   readonly name: string;
   readonly card: string;
   readonly station: string;
+  readonly timing?: 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
   readonly baseline: string;
   readonly upgraded?: string;
   readonly damaged: string;
@@ -21,6 +22,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Armoured Hull I',
     card: '6♥',
     station: 'Damage control',
+    timing: 'passive',
     baseline: 'Passive armour section. No charge required.',
     damaged: 'Do not lose survivors for this damage. Recycle the damage card after resolution unless the deck is empty.',
   },
@@ -29,6 +31,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Armoured Hull II',
     card: '7♥',
     station: 'Damage control',
+    timing: 'passive',
     baseline: 'Passive armour section. No charge required.',
     damaged: 'Do not lose survivors for this damage. Recycle the damage card after resolution unless the deck is empty.',
   },
@@ -37,6 +40,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Storage',
     card: '8♥',
     station: 'Maintenance // 1',
+    timing: 1,
     baseline: 'Stored resources remain available to the ship and docked shuttlecraft.',
     damaged: 'Each maintenance cycle, discard half of every stored resource, including shuttle cargo. Round losses down.',
   },
@@ -45,6 +49,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Reactor',
     card: '10♥',
     station: 'Maintenance // 5',
+    timing: 5,
     baseline: 'Charge up to 5 consoles for this turn.',
     upgraded: 'Charge 6 consoles.',
     damaged: 'Charge 2 consoles.',
@@ -54,6 +59,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Shuttle Bay Zeta',
     card: 'Q♥',
     station: 'Maintenance // 6',
+    timing: 6,
     baseline: 'Spend 1 strytium fuel to refuel one docked shuttle.',
     damaged: 'Cannot refuel a shuttle.',
   },
@@ -62,6 +68,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Shuttle Bay Omega',
     card: 'K♥',
     station: 'Maintenance // 7',
+    timing: 7,
     baseline: 'Spend 1 strytium fuel to refuel one docked shuttle.',
     damaged: 'Cannot refuel a shuttle.',
   },
@@ -70,6 +77,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Jump Drive',
     card: '9♥',
     station: 'Coordination // FTL',
+    timing: 'ftl',
     baseline: 'Short // 2 fuel · Medium // 3 fuel · Long // 6 fuel.',
     upgraded: 'Each jump costs 1 fewer fuel. If damaged, fail only on a roll of 1.',
     damaged: 'A jump fails on a roll of 1–3.',
@@ -79,6 +87,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
     name: 'Construction Bay',
     card: 'J♥',
     station: 'Charged console',
+    timing: 5,
     baseline: 'When charged, spend 1 material per replacement fighter. Add fighters to one wing, up to 4.',
     upgraded: 'Each fighter wing may hold up to 6 fighters.',
     damaged: 'Cannot add fighters.',

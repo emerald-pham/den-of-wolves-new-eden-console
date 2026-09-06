@@ -1,3 +1,4 @@
+import MaintenanceSystems from './MaintenanceSystems';
 import { useState } from 'react';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import type { Ship } from '@/data/ships';
@@ -18,30 +19,28 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
   const damagedCards = new Set(ship.damageDeck
     .filter(({ systemId }) => damage?.damagedSystemIds.includes(systemId))
     .map(({ card }) => card));
+  const renderSystem = (system: (typeof systems)[number]) => {
+    const damaged = damagedCards.has(system.card);
+    return <article
+      className="aegis-system cic-frame"
+      key={system.card}
+      aria-label={`${system.name} system // ${damaged ? 'damaged' : 'operational'}`}
+      data-damaged={String(damaged)}
+    >
+      <header><span>{system.card}</span></header><h3>{system.name}</h3><p>{system.effect}</p>
+      <dl><div className="aegis-system__condition">
+        <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
+      </div></dl>
+    </article>;
+  };
   return <RoleConsoleTemplate label={`${ship.name} ${role.name} console`}
     eyebrow={`${ship.name} // ${role.name}`} title={page === 'systems' ? 'Ship systems' : 'Role procedures'}
     telemetry={<><div><dt>Galactic coordinates</dt><dd>{galacticCoordinate}</dd></div><div><dt>Fuel in stores</dt><dd>{fuel}</dd></div></>}
     pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'procedures', label: 'Role procedures' }]}
     activePage={page} onPageChange={setPage}>
     <p>Charges, upgrades and procedure outcomes are tracked at the table. Damage condition is shared when available.</p>
-    {page === 'systems' && <div className="systems-maintenance-layout"><div className="aegis-system-grid">{systems.map(system => {
-      const damaged = damagedCards.has(system.card);
-      return <article
-        className="aegis-system cic-frame"
-        key={system.card}
-        aria-label={`${system.name} system // ${damaged ? 'damaged' : 'operational'}`}
-        data-damaged={String(damaged)}
-      >
-        <header><span>{system.card}</span></header><h3>{system.name}</h3><p>{system.effect}</p>
-        <dl><div className="aegis-system__condition">
-          <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
-        </div></dl>
-      </article>;
-    })}</div>
-    {maintenance && <div className="aegis-maintenance">
-      <h3>Maintenance cycle</h3>
-      <p>Reactor capacity // {maintenance.reactor} consoles. Jump fuel // {maintenance.jump.join(' / ')} (short / medium / long).</p>
-      <ol aria-label={`${ship.name} maintenance sequence`}>{['Storage', 'Rations', 'Unrest check', 'Riot check', 'Reactor', 'Shuttle Bay'].map((step, index) => <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>)}</ol>
+    {page === 'systems' && (maintenance
+      ? <MaintenanceSystems name={ship.name} systems={systems} renderSystem={renderSystem} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
         <tbody><tr><th>Food</th>{maintenance.food.map((value, index) => <td key={index}>{value}</td>)}</tr>
@@ -49,9 +48,8 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
           <tr><th>Bonus</th>{[0, 3, 6, 9].map(value => <td key={value}>+{value}</td>)}</tr></tbody>
       </table></div>
       <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>
-      <p>Unrest check: roll 2d6 plus both ration bonuses. Under 12 adds 2 unrest; otherwise under 20 adds 1. Riot check: roll 1d6; below current unrest deals 1 damage.</p>
-    </div>}
-    </div>}
+      </>} />
+      : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>)}
     {page === 'procedures' && <div className="aegis-system-grid">{proceduresForRole(role.id).map(procedure => <article className="aegis-system cic-frame" key={procedure.name}>
       <h3>{procedure.name}</h3><p>{procedure.effect}</p>
     </article>)}</div>}

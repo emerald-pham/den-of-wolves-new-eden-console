@@ -798,3 +798,19 @@ it.each([
   expect(screen.getByRole('main').style.getPropertyValue('--ship-accent')).toBe(accent);
   expect(screen.getByRole('main').style.getPropertyValue('--ship-secondary')).toBe(secondary);
 });
+
+it('embeds AEGIS consoles in maintenance order and leaves armour and FTL outside the track', () => {
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  const track = screen.getByRole('list', { name: 'AEGIS maintenance sequence' });
+  const steps = Array.from(track.children);
+  expect(steps).toHaveLength(7);
+  expect(steps[0]).toContainElement(screen.getByRole('heading', { name: 'Storage' }));
+  expect(steps[4]).toContainElement(screen.getByRole('heading', { name: 'Reactor' }));
+  expect(steps[4]).toContainElement(screen.getByRole('heading', { name: 'Construction Bay' }));
+  expect(steps[5]).toContainElement(screen.getByRole('heading', { name: 'Shuttle Bay Zeta' }));
+  expect(steps[6]).toContainElement(screen.getByRole('heading', { name: 'Shuttle Bay Omega' }));
+  expect(track).not.toContainElement(screen.getByRole('heading', { name: 'Jump Drive' }));
+  expect(track).not.toContainElement(screen.getByRole('heading', { name: 'Armoured Hull I' }));
+});

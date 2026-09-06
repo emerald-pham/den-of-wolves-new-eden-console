@@ -23,6 +23,7 @@ export interface ShipSystem {
   readonly name: string;
   readonly card: string;
   readonly effect: string;
+  readonly timing?: 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 }
 
 export interface DamageCardDefinition {
