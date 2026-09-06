@@ -381,3 +381,46 @@ describe('friendly DRADIS returns', () => {
     );
   });
 });
+
+
+it('keeps system labels amber regardless of row order and makes reference copy readable', () => {
+  const css = readFileSync(join(SRC, 'index.css'), 'utf8');
+  expect(css).not.toContain('.aegis-system dl div:last-child dt');
+  expect(css).not.toContain(".aegis-system[data-damaged='true'] .aegis-system__condition dt");
+  expect(css).not.toContain('.aegis-system .jump-failure-readout dt { color: var(--cic-danger); }');
+  expect(css).toMatch(/\.aegis-system > p\s*\{[^}]*color: var\(--cic-ink\);[^}]*font-size: 0\.875rem;/);
+});
+
+it.each([false, true])('preserves semantic system colors with damage=%s and varying row order', (damaged) => {
+  const css = readFileSync(join(SRC, 'index.css'), 'utf8');
+  const style = document.createElement('style');
+  // Isolate the real system rules from unrelated responsive and decorative CSS.
+  style.textContent = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(match => match[1]?.includes('.aegis-system'))
+    .map(match => match[0]).join('\n');
+  document.head.append(style);
+  const article = document.createElement('article');
+  article.className = 'aegis-system';
+  article.dataset.damaged = String(damaged);
+  article.innerHTML = '<p>System reference</p><dl><div class="aegis-system__condition"><dt>Condition</dt><dd>State</dd></div><div><dt>If Damaged</dt><dd>Rule</dd></div></dl>';
+  document.body.append(article);
+  try {
+    const condition = article.querySelector('dl > div')!;
+    for (const last of [false, true]) {
+      if (last) article.querySelector('dl')!.append(condition);
+      for (const label of article.querySelectorAll('dt')) {
+        expect(getComputedStyle(label).color).toBe('var(--cic-amber)');
+        expect(getComputedStyle(label).fontSize).toBe('0.75rem');
+      }
+      for (const value of article.querySelectorAll('dd')) {
+        expect(getComputedStyle(value).fontSize).toBe('0.875rem');
+      }
+      expect(getComputedStyle(condition.querySelector('dd')!).color)
+        .toBe(damaged ? 'var(--cic-danger)' : 'var(--cic-cyan-hot)');
+      expect(getComputedStyle(article.querySelector('p')!).fontSize).toBe('0.875rem');
+    }
+  } finally {
+    article.remove();
+    style.remove();
+  }
+});

@@ -7,11 +7,18 @@ import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import type { ShipDamageState } from '@/types/game';
 
-function systemEffectLabel(effect: string): string {
-  return effect
-    .replaceAll('Upgraded:', 'If Upgraded (By Shepherd):')
-    .replaceAll('Upgraded +', 'If Upgraded (By Shepherd): +')
-    .replaceAll('Damaged:', 'If Damaged:');
+// Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
+function systemEffectRows(effect: string) {
+  const parts = effect.split(/(?:^|\s+)(?:If )?(Upgraded|Damaged)(?::\s*|(?= \+)|,\s*)/i);
+  const baseline = parts[0]?.trim() ?? '';
+  const rules: { label: string; effect: string }[] = [];
+  for (let index = 1; index < parts.length; index += 2) {
+    rules.push({
+      label: parts[index]?.toLowerCase() === 'upgraded' ? 'If Upgraded (By Shepherd)' : 'If Damaged',
+      effect: parts[index + 1]?.trim() ?? '',
+    });
+  }
+  return { baseline, rules };
 }
 
 export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordinate, damage }: {
@@ -32,6 +39,7 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
   };
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
   const renderSystem = (system: (typeof systems)[number]) => {
+    const { baseline, rules } = systemEffectRows(system.effect);
     const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
     return <article
       className="aegis-system cic-frame"
@@ -39,10 +47,11 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
       aria-label={`${system.name} system // ${damaged ? 'damaged' : 'operational'}`}
       data-damaged={String(damaged)}
     >
-      <h3>{system.name}</h3><p>{systemEffectLabel(system.effect)}</p>
+      <h3>{system.name}</h3>{baseline && <p>{baseline}</p>}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
-      </div>{system.id === 'jump-drive' && <JumpFailureReadout />}</dl>
+      </div>{rules.map(rule => <div key={rule.label}><dt>{rule.label}</dt><dd>{rule.effect}</dd></div>)}
+      {system.id === 'jump-drive' && <JumpFailureReadout />}</dl>
     </article>;
   };
   const procedures = proceduresForRole(role.id);

@@ -658,8 +658,11 @@ it('labels shared system outcomes as conditional damage and Shepherd upgrades', 
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('article', { name: 'Reactor system // operational' }))
-    .toHaveTextContent(/if upgraded \(by shepherd\): \+1 console.*if damaged: −3 consoles/i);
+  const reactor = within(screen.getByRole('article', { name: 'Reactor system // operational' }));
+  expect(reactor.getByText('If Upgraded (By Shepherd)', { selector: 'dt' })).toBeVisible();
+  expect(reactor.getByText('+1 console.', { selector: 'dd' })).toBeVisible();
+  expect(reactor.getByText('If Damaged', { selector: 'dt' })).toBeVisible();
+  expect(reactor.getByText('−3 consoles.', { selector: 'dd' })).toBeVisible();
 });
 
 it('applies the capital-ship identity and survivor instruments to AEGIS', () => {

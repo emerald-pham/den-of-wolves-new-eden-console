@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import FleetSystemsWorkspace from './FleetSystemsWorkspace';
@@ -89,4 +89,15 @@ it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards insid
   expect(steps).not.toContainElement(screen.getByRole('heading', { name: 'Jump Drive' }));
   const production = (ship.systems ?? []).filter(system => !['Storage', 'Reactor', 'Shuttle Bay', 'Jump Drive', 'Fighter Bay', 'Ram Scoop'].includes(system.name));
   for (const system of production) expect(entries[4]).toContainElement(screen.getByRole('heading', { name: system.name }));
+});
+
+
+it.each(['capybara', 'icebreaker'])('separates conditional rules for %s into readable labeled rows', (id) => {
+  const ship = SHIPS.find(ship => ship.id === id)!;
+  render(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
+  const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
+  expect(jump.getByText('If Upgraded (By Shepherd)', { selector: 'dt' })).toBeVisible();
+  expect(jump.getByText('If Damaged', { selector: 'dt' })).toBeVisible();
+  expect(jump.getByText('jumps fail on 1–3.', { selector: 'dd' })).toBeVisible();
+  expect(jump.getByText('Condition', { selector: 'dt' })).toBeVisible();
 });

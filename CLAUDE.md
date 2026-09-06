@@ -310,6 +310,9 @@ tests/rules/      assertions against the emulator
   `npm run build --prefix functions` succeed.
 - [ ] For documentation-only changes, rendered text, links, examples, and the
   final diff were reviewed without running the application test suite.
+- [ ] For UI changes, rendered aesthetics were reviewed at narrow, wide, and short
+  landscape sizes, relevant states were checked, and new aesthetic decisions
+  were recorded in `docs/AESTHETICS.md`.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
@@ -321,6 +324,20 @@ tests/rules/      assertions against the emulator
 Before changing UI, read [docs/AESTHETICS.md](docs/AESTHETICS.md). It stores the
 reusable CIC and interrupted-transmission profiles. Use the shared tokens in
 src/styles/cic.css and existing patterns to keep the entire website consistent.
+
+For every UI change, inspect the rendered result—not just source code or passing
+tests—at narrow phone, wide desktop, and short landscape sizes. Check text size
+and contrast, semantic color consistency, spacing, wrapping, overflow, controls,
+and forward/back navigation. Exercise relevant states such as operational and
+damaged, and honor reduced motion. Fix findings before calling the work complete;
+report any visual verification that could not be performed.
+
+Write new or revised aesthetic decisions and reusable patterns into
+`docs/AESTHETICS.md` in the same change. Reading it is only the starting point:
+keep it current with the product. For a pure restoration of an existing documented
+rule, reference that rule rather than duplicating it. Add regression coverage for
+checkable visual failures, including computed styles when selector ordering or
+specificity caused the bug; text-presence tests alone do not protect appearance.
 
 Every screen must work across mobile, laptop, and desktop, in landscape and
 portrait, including screen rotation while open. Use responsive layout, safe-area

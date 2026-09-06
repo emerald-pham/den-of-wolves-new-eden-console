@@ -157,6 +157,21 @@ plot. CIC and DRADIS are the deliberate exceptions. Use a compact grid on wide
 screens and stacked readouts on phones. Preserve native buttons, labels,
 visible keyboard focus, error announcements, and at least 44px touch targets.
 
+### System reference readability
+
+System rules are operational reading material: use at least 0.875rem bone-white
+body text and 0.75rem amber labels. Present “If Upgraded (By Shepherd)” and
+“If Damaged” in separate definition-list rows, never buried in a muted paragraph.
+The “Condition” label is always amber; its value is cyan when operational and
+red when damaged. Hypothetical damage rules and normal failure-roll labels stay
+amber. Never infer meaning from a row's position (`:last-child`), and keep status
+value selectors specific enough to override the ordinary definition text.
+
+Regression coverage lives in `FleetSystemsWorkspace.test.tsx`, the ship route
+tests, and `src/styles/aesthetic.test.ts`. Extend those shared checks when
+changing system presentation; retain distinct vessel configurations, row orders,
+and actual versus hypothetical damage states.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
