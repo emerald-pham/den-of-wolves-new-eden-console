@@ -520,6 +520,31 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
   });
 }
 
+export async function advanceTurn(): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
+  await ensureSignedIn();
+  const expectedTurn = store.session.currentTurn ?? 1;
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string; expectedTurn: number },
+    { currentTurn: number }
+  >(functions(), 'advanceTurn');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      expectedTurn,
+    });
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession?.id === store.session.id && Number.isSafeInteger(reply.data.currentTurn)) {
+      useSessionStore.getState().setSession({ ...activeSession, currentTurn: reply.data.currentTurn });
+    }
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function triggerDradisContact(): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {

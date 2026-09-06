@@ -14,12 +14,28 @@ it.each(['aegis', 'capybara'])('keeps %s controls visible and only unlocks the c
   expect(screen.getByRole('button', { name: 'Check storage' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Proceed with rations' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'End maintenance cycle' })).toBeDisabled();
-  await userEvent.click(screen.getByRole('button', { name: 'Begin maintenance cycle' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 1' }));
   expect(run).toHaveBeenCalledWith(shipId, 'begin', 0, {});
   act(() => useSessionStore.setState({ session: { ...session, maintenanceCycles: { [shipId]: { step: 1, revision: 1, results: {}, charges: [], refuelled: [] } } } }));
   expect(screen.getByRole('button', { name: 'Check storage' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Begin maintenance cycle' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 1' })).toBeDisabled();
   expect(screen.getByRole('combobox', { name: 'Food ration level' })).toBeDisabled();
+});
+it('keeps completed maintenance locked until the GM advances the turn', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    currentTurn: 4,
+    maintenanceCycles: { aegis: {
+      step: 0, revision: 8, turn: 4, results: { '7': 'Maintenance cycle complete.' },
+      charges: [], refuelled: [], completedAt: '2026-09-06T12:04:00.000Z',
+    } },
+  } });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 4' })).toBeDisabled();
+
+  act(() => useSessionStore.setState({ session: { ...useSessionStore.getState().session!, currentTurn: 5 } }));
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 5' })).toBeEnabled();
 });
 it('presents every maintenance command as a boxed CIC action', () => {
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);

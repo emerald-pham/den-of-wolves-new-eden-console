@@ -40,6 +40,7 @@ import {
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requireTurnAdvanceRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipCounterRequest,
@@ -239,6 +240,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           name,
           joinCode,
           phase: 'lobby',
+          currentTurn: 1,
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -284,6 +286,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             name,
             joinCode,
             phase: 'lobby',
+            currentTurn: 1,
             capybaraEnabled: true,
             dioneEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -393,6 +396,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         name: sessionSnap.get('name') as string,
         joinCode,
         phase: sessionSnap.get('phase') as string,
+        currentTurn: Number.isSafeInteger(sessionSnap.get('currentTurn')) && sessionSnap.get('currentTurn') >= 1
+          ? sessionSnap.get('currentTurn') as number : 1,
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
@@ -489,6 +494,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       name: sessionSnap.get('name') as string,
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
+      currentTurn: Number.isSafeInteger(sessionSnap.get('currentTurn')) && sessionSnap.get('currentTurn') >= 1
+        ? sessionSnap.get('currentTurn') as number : 1,
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
@@ -792,6 +799,42 @@ export const setGmControlsLocked = onCall<{
   });
 
   return { gmControlsLocked: setting.locked };
+});
+
+/** Advance the shared game turn from the value shown on an active GM instance. */
+export const advanceTurn = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  expectedTurn?: number;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const advance = requireTurnAdvanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${advance.sessionId}`);
+  const playerRef = db.doc(`sessions/${advance.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${advance.sessionId}/gmInstances/${advance.instanceId}`);
+
+  return db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player) || player.get('role') !== 'gm' ||
+        !instance.exists || instance.get('uid') !== uid) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const currentTurn = Number.isSafeInteger(session.get('currentTurn')) && session.get('currentTurn') >= 1
+      ? session.get('currentTurn') as number
+      : 1;
+    if (currentTurn !== advance.expectedTurn) {
+      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+    }
+    const nextTurn = currentTurn + 1;
+    tx.update(sessionRef, { currentTurn: nextTurn, updatedAt: FieldValue.serverTimestamp() });
+    return { currentTurn: nextTurn };
+  });
 });
 
 /** Enable or disable a playable role for this session. */
@@ -1721,6 +1764,9 @@ export const runMaintenance = onCall<{
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
         snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
     const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
+    const currentTurn = Number.isSafeInteger(snapshot.get('currentTurn')) && snapshot.get('currentTurn') >= 1
+      ? snapshot.get('currentTurn') as number
+      : 1;
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const unrestAlerts = (snapshot.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
@@ -1730,7 +1776,7 @@ export const runMaintenance = onCall<{
     const occurredAt = new Date().toISOString();
     try {
       result = advanceMaintenance({
-        ...data, cycle: current[data.shipId] ?? emptyMaintenanceCycle(),
+        ...data, cycle: current[data.shipId] ?? emptyMaintenanceCycle(), currentTurn,
         resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
         damage: shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? { damagedSystemIds: [], destroyed: false },
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],

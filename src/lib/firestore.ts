@@ -48,6 +48,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
+    currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 1 ? data.currentTurn as number : 1,
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     shipGalacticCoordinates:

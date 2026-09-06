@@ -30,6 +30,7 @@ const {
   setCapybaraEnabled,
   setDioneEnabled,
   setGmControlsLocked,
+  advanceTurn,
   setActiveRoleEnabled,
   selectConsoleRole,
   applyRolePreset,
@@ -320,6 +321,24 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', locked: true,
     });
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
+  });
+
+  it('advances the displayed turn through the active GM instance', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({ ...session, currentTurn: 3 });
+    const callable = callableReturning({ data: { currentTurn: 4 } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn();
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceTurn');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 3,
+    });
+    expect(useSessionStore.getState().session?.currentTurn).toBe(4);
   });
 
   it('triggers a fleetwide DRADIS contact through the active GM instance', async () => {

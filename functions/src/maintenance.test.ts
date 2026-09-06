@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { advanceMaintenance, type MaintenanceInput } from './maintenance';
 const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => ({
   shipId: 'aegis', cycle: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] },
-  expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
+  currentTurn: 1, expectedRevision: 0, action: 'begin', resources: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
   damage: { damagedSystemIds: [], destroyed: false }, unrest: 0, population: 2500,
   dockings: [], cargo: {}, fuelled: {}, rolls: [1, 1], entropy: 0.5,
   now: '2026-09-06T12:00:00.000Z', ...overrides,
@@ -10,10 +10,29 @@ const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => (
 it('starts once and rejects stale commands and out-of-order steps', () => {
   const started = advanceMaintenance(input());
   expect(started.cycle).toMatchObject({
-    step: 1, revision: 1, startedAt: '2026-09-06T12:00:00.000Z',
+    step: 1, revision: 1, turn: 1, startedAt: '2026-09-06T12:00:00.000Z',
   });
   expect(() => advanceMaintenance(input({ cycle: started.cycle }))).toThrow(/changed/);
   expect(() => advanceMaintenance(input({ action: 'riot' }))).toThrow(/step/);
+});
+
+it('allows only one maintenance cycle per turn', () => {
+  expect(() => advanceMaintenance(input({
+    cycle: {
+      step: 0, revision: 8, turn: 1, results: { '7': 'Maintenance cycle complete.' },
+      charges: [], refuelled: [], completedAt: '2026-09-06T12:04:00.000Z',
+    },
+    expectedRevision: 8,
+  }))).toThrow(/once per turn/i);
+
+  expect(advanceMaintenance(input({
+    currentTurn: 2,
+    cycle: {
+      step: 0, revision: 8, turn: 1, results: { '7': 'Maintenance cycle complete.' },
+      charges: [], refuelled: [], completedAt: '2026-09-06T12:04:00.000Z',
+    },
+    expectedRevision: 8,
+  }))).toMatchObject({ cycle: { step: 1, turn: 2 } });
 });
 
 it('retains the server-owned start time and records completion time', () => {

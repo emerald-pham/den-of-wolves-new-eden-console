@@ -26,6 +26,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const cycle = session?.maintenanceCycles?.[shipId];
   const step = cycle?.step ?? 0;
   const revision = cycle?.revision ?? 0;
+  const currentTurn = session?.currentTurn ?? 1;
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
@@ -36,7 +37,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); }, [shipId, step]);
   const damage = session?.shipDamage?.[shipId];
   const blocked = pending || !session || !me || connection !== 'live';
-  const disabled = (at: number) => blocked || step !== at || (damage?.destroyed === true && at !== 7);
+  const disabled = (at: number) => blocked || step !== at ||
+    (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
   const execute = async (action: string, choices: MaintenanceChoices = {}) => {
     if (busy.current) return;
     busy.current = true; setPending(true); setError('');
@@ -56,7 +58,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
-      <button className="cic-action-button" disabled={disabled(0)} onClick={() => void execute('begin')}>Begin maintenance cycle</button>
+      <button className="cic-action-button" disabled={disabled(0)} onClick={() => void execute('begin')}>Begin Maintenance Cycle: Turn {currentTurn}</button>
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

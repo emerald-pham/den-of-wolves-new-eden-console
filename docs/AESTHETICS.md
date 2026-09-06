@@ -190,6 +190,8 @@ action row should share a height and align their top and bottom edges. Use a
 shared sizing rule so a later edit cannot quietly resize just one control.
 Maintenance-cycle commands use `.cic-action-button` at every step so disabled
 future actions retain the same control silhouette as the active command.
+The GM turn control uses a regular ruled instrument module: show the current
+turn as a real status value and use `.cic-action-button` for the advance action.
 The launcher uses a 48px minimum for Create, Session code, Join, and the motion
 button. The motion button follows Join in both visual and keyboard order;
 both Reduce motion and Restore motion use the same height. Secondary emphasis

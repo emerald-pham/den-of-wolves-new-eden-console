@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Maintenance is now limited to one cycle per ship each turn, with the turn shown on every maintenance start control.',
+      'The GM console now shows the current turn and provides the authoritative control for advancing it.',
+    ],
+  },
+  {
+    version: '0.2.18',
+    changes: [
       'Fleet alerts and press messages now run beside the session code without covering console controls, repeating seamlessly across their full readout.',
       'The AEGIS Admiral now raises and stands down red alert through the guarded bridge command control, with civilian shelter instructions included in every active warning.',
     ],

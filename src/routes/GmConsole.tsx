@@ -25,6 +25,7 @@ import {
   adjustShipResource,
   adjustShipUnrest,
   adjustShipPopulation,
+  advanceTurn,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -138,6 +139,7 @@ export default function GmConsole() {
   const [changingDione, setChangingDione] = useState(false);
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
   const [changingLock, setChangingLock] = useState(false);
+  const [advancingTurn, setAdvancingTurn] = useState(false);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
@@ -154,6 +156,7 @@ export default function GmConsole() {
     (command) => command.kind === 'setDioneEnabled',
   );
   const controlsLocked = session?.gmControlsLocked === true;
+  const currentTurn = session?.currentTurn ?? 1;
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
@@ -351,6 +354,17 @@ export default function GmConsole() {
     }
   }
 
+  async function moveToNextTurn(): Promise<void> {
+    setAdvancingTurn(true);
+    try {
+      await advanceTurn();
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setAdvancingTurn(false);
+    }
+  }
+
   async function randomizeWolves(count: 1 | 2): Promise<void> {
     setAssigningWolves(true);
     setAssignedWolfRoleIds([]);
@@ -441,6 +455,18 @@ export default function GmConsole() {
           </>}
         >
         <div className="gm-console__grid">
+          <section className="gm-console__module cic-frame" aria-label="Turn controls">
+            <h2 className="gm-console__section-title">Turn control</h2>
+            <p className="gm-console__status">Turn {currentTurn}</p>
+            <button
+              className="cic-action-button"
+              type="button"
+              disabled={advancingTurn}
+              onClick={() => void moveToNextTurn()}
+            >
+              {advancingTurn ? 'Advancing turn…' : `Advance to Turn ${currentTurn + 1}`}
+            </button>
+          </section>
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"

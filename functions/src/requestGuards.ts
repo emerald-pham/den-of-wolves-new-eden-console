@@ -88,6 +88,20 @@ export function requireGmInstanceRequest(data: {
   };
 }
 
+export function requireTurnAdvanceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  expectedTurn?: unknown;
+}): { sessionId: string; instanceId: string; expectedTurn: number } {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    expectedTurn: data.expectedTurn as number,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

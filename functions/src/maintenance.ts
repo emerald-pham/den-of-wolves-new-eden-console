@@ -4,10 +4,10 @@ import { populationChange } from './shipPopulation';
 
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
-  refuelled: string[]; rationBonus?: number; startedAt?: string; completedAt?: string;
+  refuelled: string[]; turn?: number; rationBonus?: number; startedAt?: string; completedAt?: string;
 }
 export interface MaintenanceInput {
-  shipId: string; cycle: MaintenanceCycle; expectedRevision: number; action: string;
+  shipId: string; cycle: MaintenanceCycle; currentTurn: number; expectedRevision: number; action: string;
   resources: ShipResourceInventory; damage: ShipDamageState; unrest: number; population: number;
   dockings: readonly { shipId: string; shuttleId: string }[];
   cargo: Record<string, Record<string, number>>; fuelled: Record<string, boolean>;
@@ -33,6 +33,9 @@ export function advanceMaintenance(input: MaintenanceInput) {
   if (input.expectedRevision !== input.cycle.revision) throw new Error('Maintenance changed. Refresh before proceeding.');
   const steps: Record<string, number> = { begin: 0, storage: 1, rations: 2, unrest: 3, riot: 4, reactor: 5, bays: 6, end: 7 };
   if (steps[action] === undefined || steps[action] !== input.cycle.step) throw new Error('This action is not available at the current step.');
+  if (action === 'begin' && input.cycle.turn === input.currentTurn) {
+    throw new Error('Maintenance can only be done once per turn.');
+  }
   const cycle = { ...input.cycle, revision: input.cycle.revision + 1, results: { ...input.cycle.results } };
   let resources = { ...input.resources };
   let damage = input.damage;
@@ -42,6 +45,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
   const fuelled = { ...input.fuelled };
   let damageDraw: ReturnType<typeof drawShipDamage> | undefined;
   if (action === 'begin') {
+    cycle.turn = input.currentTurn;
     cycle.results = {};
     cycle.refuelled = [];
     cycle.rationBonus = 0;

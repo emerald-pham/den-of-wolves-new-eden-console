@@ -14,6 +14,7 @@ vi.mock('@/lib/sessionService', () => ({
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
   setGmControlsLocked: vi.fn(),
+  advanceTurn: vi.fn(),
   setActiveRoleEnabled: vi.fn(),
   applyRolePreset: vi.fn(),
   adjustShipResource: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
-  setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
+  advanceTurn, setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -604,6 +605,21 @@ it('locks and unlocks subsequent GM registration without locking Setup', async (
   expect(setup).toBeEnabled();
   await user.click(setup);
   expect(screen.getByRole('group', { name: /active roles/i })).toBeInTheDocument();
+});
+
+it('shows the current turn and lets the GM advance it', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 3 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(advanceTurn).mockResolvedValue(undefined);
+  renderConsole();
+
+  expect(screen.getByText('Turn 3')).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Advance to Turn 4' }));
+  expect(advanceTurn).toHaveBeenCalledOnce();
 });
 
 it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {

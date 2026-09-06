@@ -3,7 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
-  damage: {} as Record<string, unknown>, retry: false,
+  damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
@@ -22,7 +22,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { runMaintenance } from './index';
+import { advanceTurn, runMaintenance } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{
@@ -35,6 +35,8 @@ beforeEach(() => {
   mock.owner = 'u1';
   mock.connected = true;
   mock.damage = {};
+  mock.currentTurn = 1;
+  mock.maintenanceCycles = {};
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -47,9 +49,17 @@ beforeEach(() => {
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner }
-        : { shipDamage: mock.damage };
+        : { shipDamage: mock.damage, currentTurn: mock.currentTurn, maintenanceCycles: mock.maintenanceCycles };
     return { exists: true, get: (key: string) => fields[key] };
   });
+});
+it('rejects a second maintenance cycle in the same turn', async () => {
+  mock.maintenanceCycles = {
+    aegis: { step: 0, revision: 8, turn: 1, results: {}, charges: [], refuelled: [] },
+  };
+  await expect(runMaintenance.run(request({ ...data, expectedRevision: 8 })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/once per turn/i) });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', action: 'begin', expectedRevision: 0 };
@@ -85,4 +95,23 @@ it('allows a ship officer and assigned joint engineer, but denies another ship',
   mock.get.mockImplementation(async (path: string) => ({ exists: true, get: (key: string) => path.includes('/players/') ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key] : undefined }));
   await expect(runMaintenance.run(request({ ...data, shipId: 'quellon' }))).resolves.toMatchObject({ step: 1 });
   await expect(runMaintenance.run(request({ ...data, shipId: 'shepherd' }))).rejects.toMatchObject({ code: 'permission-denied' });
+});
+
+it('lets an active GM instance advance exactly the displayed turn', async () => {
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
+  }))).resolves.toEqual({ currentTurn: 2 });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 2 }));
+
+  mock.currentTurn = 2;
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('denies turn advancement without an active GM instance', async () => {
+  mock.role = 'player';
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
 });
