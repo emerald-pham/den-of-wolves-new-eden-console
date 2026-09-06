@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import FleetTicker from './FleetTicker';
 import { setMotionOverride } from '@/lib/motionPreference';
 const alert = { id: 'alert-1', text: 'red alert from AEGIS Admiral - wolf attack imminent, all hands to battle stations', tone: 'danger' as const };
@@ -24,8 +25,9 @@ it('repeats the alert indefinitely and replaces it with exactly two cancellation
 it('returns to a standing press bulletin after a finite broadcast completes', () => {
   const standby = {
     id: 'press-standby',
-    text: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+    text: 'SNN // Your Trusted Partner',
     tone: 'normal' as const,
+    gap: 'long' as const,
   };
   render(<FleetTicker message={cancelled} fallback={standby} />);
   const cancellationStatus = screen.getByRole('status', { name: cancelled.text });
@@ -54,7 +56,6 @@ it('duplicates every moving broadcast into two seamless, screen-filling groups',
     .toBe(groups[0]?.querySelectorAll('.fleet-ticker__copy').length);
 });
 it('uses all-capital lettering for fleet broadcasts', async () => {
-  const { readFileSync } = await import('node:fs');
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
   expect(css).toMatch(/\.fleet-ticker__message[^}]*text-transform:\s*uppercase/);
   expect(css).toMatch(/@keyframes fleet-broadcast-pass[^]*translateX\(-50%\)/);
@@ -62,4 +63,12 @@ it('uses all-capital lettering for fleet broadcasts', async () => {
   expect(tickerRule).not.toMatch(/position:\s*fixed/);
   expect(tickerRule).not.toMatch(/bottom:/);
   expect(tickerRule).toMatch(/border:\s*1px solid var\(--cic-rule\)/);
+});
+it('leaves a long gap between repeated press dispatches', async () => {
+  const { container } = render(<FleetTicker message={{
+    id: 'press-1', text: 'SNN // Your Trusted Partner', tone: 'normal', gap: 'long',
+  }} />);
+  expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
+  const css = readFileSync('src/components/fleetTicker.css', 'utf8');
+  expect(css).toMatch(/\.fleet-ticker\[data-gap=["']long["']\][^}]*\.fleet-ticker__separator/);
 });

@@ -6,6 +6,7 @@
 .fleet-ticker__group { display: flex; flex: none; }
 .fleet-ticker__copy { display: block; flex: none; white-space: nowrap; font: 0.72rem/1.35 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
 .fleet-ticker__separator { padding-inline: 1.4rem; color: var(--cic-amber); }
+.fleet-ticker[data-gap='long'] .fleet-ticker__separator { padding-inline: clamp(6rem, 24vw, 20rem); }
 @keyframes fleet-broadcast-pass { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .fleet-ticker[data-reduced="true"] { align-items: flex-start; max-height: min(7rem, 20vh); overflow-y: auto; }
 

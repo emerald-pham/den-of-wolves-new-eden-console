@@ -213,7 +213,9 @@ and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
 it. The SNN ticker remains present before the first fleet event and between
-finite broadcasts, showing a neutral no-active-bulletins message while idle.
+finite broadcasts. Its initial dispatch is “SNN // Your Trusted Partner.” Press
+dispatches leave a deliberately long field of empty track between repetitions,
+so each item reads as a discrete wire-service bulletin rather than a dense alert.
 Moving broadcasts contain two identical groups, with enough copies in each
 group to span the available readout before the track loops between them. Reduced
 motion shows one stationary, wrapping message in the same instrument.
@@ -741,14 +743,21 @@ outside route transitions. Active AEGIS red alerts use hostile red type;
 stand-down and idle copy use normal bone-white type because no threat is active.
 A ruled black ground keeps messages legible over every vessel's console. The
 Admiral command uses the shared framed action button, with a live status
-alongside it and inline errors.
+alongside it and inline errors. Every label, control state, status and error in
+this alert instrument is authored in uppercase.
 
 Each full right-to-left pass takes 30 seconds. Alert copy repeats until replaced;
 stand-down copy makes two complete passes. Playback identity includes the session
 and alert revision, and completed passes survive navigation and tab reloads.
 A new alert immediately replaces a cancellation still playing. The shared
-FleetTicker accepts message copy, tone and optional pass count so press missives
-can use the same instrument when their publishing workflow is added.
+FleetTicker accepts message copy, tone, spacing and optional pass count. Press
+dispatches use its long-gap mode on the same instrument.
+
+The SNN shuttle's dispatch desk is a real instrument available to the active
+Press Officer. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
+and publishes through server authority with revision checks. The current copy
+remains visible on the desk; other shuttle viewers may see the instrument but
+cannot transmit from it.
 
 Broadcast copy is authored in uppercase and there is no pause control. The
 shared reduced-motion preference replaces motion

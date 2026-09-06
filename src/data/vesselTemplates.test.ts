@@ -49,7 +49,7 @@ describe('shared vessel templates', () => {
     });
     expect(shuttle.capabilities).toEqual([]);
     expect(shuttle.initialDocking).toBeUndefined();
-    expect(SHUTTLECRAFT[0]?.capabilities).toEqual(['newspaper-confetti']);
+    expect(SHUTTLECRAFT[0]?.capabilities).toEqual(['press-dispatches', 'newspaper-confetti']);
   });
 
   it('uses initial docking only when the server has no docking snapshot', () => {

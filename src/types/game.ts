@@ -61,6 +61,7 @@ export interface GameSession {
   /** Shared game turn advanced by an active GM; legacy sessions begin at Turn 1. */
   readonly currentTurn?: number;
   readonly fleetRedAlert?: { readonly active: boolean; readonly revision: number };
+  readonly pressDispatch?: { readonly text: string; readonly revision: number };
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;

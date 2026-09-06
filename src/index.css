@@ -1900,6 +1900,59 @@ body {
   flex: 0 0 auto;
 }
 
+.press-dispatch {
+  padding: 0.8rem;
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.press-dispatch h2,
+.press-dispatch p { margin: 0; }
+.press-dispatch h2 {
+  margin-top: 0.4rem;
+  color: var(--cic-ink);
+  font: 400 1.25rem/1.1 var(--cic-display);
+  text-transform: uppercase;
+}
+.press-dispatch__eyebrow,
+.press-dispatch label {
+  color: var(--cic-amber);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.press-dispatch form { display: grid; gap: 0.55rem; margin-top: 0.7rem; }
+.press-dispatch__copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+  color: var(--cic-cyan);
+  font-size: 0.62rem;
+}
+.press-dispatch textarea {
+  min-width: 0;
+  resize: vertical;
+  border: 1px solid var(--cic-rule);
+  border-radius: var(--cic-radius);
+  padding: 0.55rem;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  font: 0.65rem/1.45 var(--cic-mono);
+}
+.press-dispatch textarea:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+.press-dispatch__status {
+  margin-top: 0.65rem !important;
+  overflow-wrap: anywhere;
+  color: var(--cic-cyan-dim);
+  font-size: 0.52rem;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
 .confetti-burst {
   position: fixed;
   inset: 0;

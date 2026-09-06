@@ -54,6 +54,7 @@ import {
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
+  requirePressDispatchRequest,
 } from './requestGuards';
 import { chooseWolfRoles } from './wolfAssignment';
 import { DEFAULT_ACTIVE_ROLE_IDS, ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
@@ -96,6 +97,7 @@ const INITIAL_SHUTTLE_VISITS = [{
   id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
   action: 'docked', occurredAt: 'SESSION START',
 }];
+const INITIAL_PRESS_DISPATCH = { text: 'SNN // Your Trusted Partner', revision: 0 };
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
   aegis: '0000',
   dione: '0000',
@@ -254,6 +256,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
           shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          pressDispatch: INITIAL_PRESS_DISPATCH,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -300,6 +303,7 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
             shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
             shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+            pressDispatch: INITIAL_PRESS_DISPATCH,
             confettiUsedShipIds: [],
             ownerUid: uid,
             createdAt: now,
@@ -418,6 +422,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
         shuttleVisitLog:
           (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+        pressDispatch: sessionSnap.get('pressDispatch') ?? INITIAL_PRESS_DISPATCH,
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
         ownerUid: sessionSnap.get('ownerUid') as string,
@@ -516,6 +521,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
       shuttleVisitLog:
         (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+      pressDispatch: sessionSnap.get('pressDispatch') ?? INITIAL_PRESS_DISPATCH,
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
       ownerUid: sessionSnap.get('ownerUid') as string,
@@ -1855,5 +1861,44 @@ export const setFleetRedAlert = onCall<{
     const fleetRedAlert = { active: data.active, revision: data.expectedRevision + 1 };
     tx.update(ref, { fleetRedAlert, updatedAt: FieldValue.serverTimestamp() });
     return fleetRedAlert;
+  });
+});
+
+/** Press dispatches are serialized so two open Press consoles cannot overwrite unseen copy. */
+export const publishPressDispatch = onCall<{
+  sessionId?: unknown; text?: unknown; expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = requirePressDispatchRequest(request.data ?? {});
+  const ref = db.doc(`sessions/${data.sessionId}`);
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
+        player.get('activeConsoleRoleId') !== 'press-officer') {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the active Press Officer may publish a fleet dispatch.',
+      );
+    }
+    const session = await tx.get(ref);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const current = session.get('pressDispatch') as {
+      text: string; revision: number;
+    } | undefined;
+    if ((current?.revision ?? 0) !== data.expectedRevision) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Press dispatch changed. Wait for the live update and try again.',
+      );
+    }
+    const pressDispatch = {
+      text: `SNN // ${data.text}`,
+      revision: data.expectedRevision + 1,
+    };
+    tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });
+    return pressDispatch;
   });
 });

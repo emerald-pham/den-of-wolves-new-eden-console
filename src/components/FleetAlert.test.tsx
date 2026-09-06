@@ -16,13 +16,14 @@ beforeEach(() => {
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
   expect(screen.getByRole('status', {
-    name: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+    name: 'SNN // Your Trusted Partner',
   })).toBeVisible();
-  expect(screen.getByRole('region', { name: 'Fleetwide red alert' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Raise fleetwide red alert' })).toBeDisabled();
-  fireEvent.click(screen.getByRole('button', { name: 'Open red alert command cover' }));
-  expect(screen.getByRole('button', { name: 'Raise fleetwide red alert' })).toHaveTextContent('Stand up');
-  fireEvent.click(screen.getByRole('button', { name: 'Raise fleetwide red alert' }));
+  const command = screen.getByRole('region', { name: 'FLEETWIDE RED ALERT' });
+  expect(command.textContent).toBe(command.textContent?.toUpperCase());
+  expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
+  expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toHaveTextContent('STAND UP');
+  fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
   await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(true));
   expect(screen.queryByText(/wolf attack imminent/)).not.toBeInTheDocument();
   act(() => {
@@ -32,9 +33,22 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
   expect(screen.getByRole('status', {
     name: 'RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
   })).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Open red alert command cover' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Stand down' }));
+  fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
+  fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
   await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(false));
+});
+it('shows the latest press dispatch while no alert is active', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!,
+      pressDispatch: { text: 'SNN // Convoy arrival confirmed', revision: 1 },
+    });
+  });
+  render(<FleetBroadcast />);
+  expect(screen.getByRole('status', {
+    name: 'SNN // Convoy arrival confirmed',
+  })).toBeVisible();
 });
 it('does not offer the command to other roles and shows fleet messages to them', () => {
   act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
@@ -47,9 +61,9 @@ it('does not offer the command to other roles and shows fleet messages to them',
 it('disables offline commands and reports server failures', async () => {
   vi.mocked(setFleetRedAlert).mockRejectedValueOnce(new Error('Command rejected'));
   render(<FleetAlertControl />);
-  fireEvent.click(screen.getByRole('button', { name: 'Open red alert command cover' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Raise fleetwide red alert' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Command rejected');
+  fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
+  fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('COMMAND REJECTED');
   act(() => useSessionStore.getState().setConnection('offline'));
-  expect(screen.getByRole('button', { name: 'Raise fleetwide red alert' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
 });

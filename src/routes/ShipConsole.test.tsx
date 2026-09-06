@@ -110,10 +110,10 @@ it('replaces the AEGIS confetti launcher with the Admiral red-alert command inst
   );
 
   const instruments = screen.getByRole('complementary', { name: 'AEGIS instruments' });
-  expect(within(instruments).getByRole('region', { name: 'Fleetwide red alert' }))
+  expect(within(instruments).getByRole('region', { name: 'FLEETWIDE RED ALERT' }))
     .toBeInTheDocument();
-  expect(within(instruments).getByRole('button', { name: 'Open red alert command cover' }))
-    .toHaveTextContent('Command lock');
+  expect(within(instruments).getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }))
+    .toHaveTextContent('COMMAND LOCK');
   expect(within(instruments).queryByRole('region', {
     name: /emergency bridge confetti dispenser/i,
   })).not.toBeInTheDocument();

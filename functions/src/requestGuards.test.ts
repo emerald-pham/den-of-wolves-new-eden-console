@@ -14,6 +14,7 @@ import {
   requireManualWolfAssignmentRequest,
   requireActiveRoleSettingRequest,
   requireRolePresetRequest,
+  requirePressDispatchRequest,
   requireSessionRequest,
   requireShipCounterRequest,
   requireUnrestDismissalRequest,
@@ -226,6 +227,21 @@ describe('callable request guards', () => {
     expect(requireRolePresetRequest({
       sessionId: 's1', instanceId: 'i1', playerCount: 14,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 14 });
+  });
+
+  it('requires a bounded press dispatch and a non-negative revision', () => {
+    expect(requirePressDispatchRequest({
+      sessionId: 's1', text: '  Convoy arrival confirmed  ', expectedRevision: 3,
+    })).toEqual({ sessionId: 's1', text: 'Convoy arrival confirmed', expectedRevision: 3 });
+    expectHttpsError(() => requirePressDispatchRequest({
+      sessionId: 's1', text: '', expectedRevision: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requirePressDispatchRequest({
+      sessionId: 's1', text: 'x'.repeat(241), expectedRevision: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requirePressDispatchRequest({
+      sessionId: 's1', text: 'News', expectedRevision: -1,
+    }), 'invalid-argument');
   });
 
 });

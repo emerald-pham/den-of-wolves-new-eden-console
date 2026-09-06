@@ -306,6 +306,21 @@ export function requireRolePresetRequest(data: {
   };
 }
 
+export function requirePressDispatchRequest(data: {
+  sessionId?: unknown;
+  text?: unknown;
+  expectedRevision?: unknown;
+}): { sessionId: string; text: string; expectedRevision: number } {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    text: requiredText(data.text, 'text', 220),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireDiceRequest(data: {
   sessionId?: unknown;
   sides?: unknown;

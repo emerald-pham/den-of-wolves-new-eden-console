@@ -85,8 +85,11 @@ Capabilities are opt-in equipment, never defaults inherited by every shuttle.
 Each must describe a real game action and its authority, persistence and audit
 behavior before implementation.
 
-The SNN reference supplies one reusable newspaper-confetti evidence shredder.
-It may fire repeatedly, honors reduced motion and does not create GM activity
+The SNN reference supplies a server-authoritative fleet dispatch desk and one
+reusable newspaper-confetti evidence shredder. Only the active Press Officer can
+publish dispatches; each one carries the fixed `SNN //` prefix and replaces the
+previous press copy across the fleet ticker. The evidence shredder may fire
+repeatedly, honors reduced motion and does not create GM activity
 log entries. It is deliberately different from the fleet ships' shared,
 server-authoritative, once-per-ship Emergency Bridge Confetti Dispenser.
 Ordinary shuttlecraft receive neither device unless their specification says

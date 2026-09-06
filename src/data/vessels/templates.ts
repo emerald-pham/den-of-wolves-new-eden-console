@@ -60,7 +60,7 @@ export function defineShip(
   };
 }
 
-export type ShuttleCapability = 'newspaper-confetti';
+export type ShuttleCapability = 'newspaper-confetti' | 'press-dispatches';
 
 export interface Shuttlecraft {
   readonly id: string;

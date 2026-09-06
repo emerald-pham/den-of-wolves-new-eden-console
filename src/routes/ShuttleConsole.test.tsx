@@ -9,8 +9,12 @@ vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/lib/pressDispatchService', () => ({ publishPressDispatch: vi.fn() }));
+const { publishPressDispatch } = await import('@/lib/pressDispatchService');
 
 beforeEach(() => {
+  vi.mocked(publishPressDispatch).mockReset();
+  vi.mocked(publishPressDispatch).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -28,6 +32,26 @@ beforeEach(() => {
     joinedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setMode('console');
+});
+
+it('gives the Press Officer a dispatch desk that publishes to the fleet ticker', async () => {
+  const user = userEvent.setup();
+  const me = useSessionStore.getState().me!;
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'press-officer' });
+  useSessionStore.getState().setConnection('live');
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const desk = screen.getByRole('region', { name: 'Press dispatch desk' });
+  const publish = screen.getByRole('button', { name: 'Publish dispatch' });
+  expect(publish).toBeDisabled();
+  await user.type(screen.getByRole('textbox', { name: 'Dispatch' }), 'Convoy arrival confirmed');
+  await user.click(publish);
+  expect(publishPressDispatch).toHaveBeenCalledWith('Convoy arrival confirmed');
+  expect(desk).toHaveTextContent('Dispatch transmitted');
 });
 
 it('uses the shared full-screen shuttlecraft console template for SNN', () => {

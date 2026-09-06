@@ -17,33 +17,37 @@ export default function FleetAlertControl() {
       await setFleetRedAlert(!active);
       setCoverOpen(false);
     }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Fleet alert command failed. Try again.'); }
+    catch (cause) {
+      setError((cause instanceof Error
+        ? cause.message
+        : 'FLEET ALERT COMMAND FAILED. TRY AGAIN.').toUpperCase());
+    }
     finally { busy.current = false; setPending(false); }
   };
   const unavailable = connection !== 'live' || session?.phase === 'closed';
-  return <section aria-label="Fleetwide red alert"
+  return <section aria-label="FLEETWIDE RED ALERT"
     className="confetti-dispenser confetti-dispenser--fleet-alert">
-    <p className="confetti-dispenser__label">Fleetwide Red Alert</p>
+    <p className="confetti-dispenser__label">FLEETWIDE RED ALERT</p>
     <div className="confetti-dispenser__housing" data-open={String(coverOpen)}>
       <button className="confetti-dispenser__trigger" type="button"
-        aria-label={active ? 'Stand down' : 'Raise fleetwide red alert'}
+        aria-label={active ? 'STAND DOWN' : 'RAISE FLEETWIDE RED ALERT'}
         disabled={!coverOpen || pending || unavailable}
         onClick={() => void execute()}>
-        {pending ? 'Transmitting' : active ? 'Stand down' : 'Stand up'}
+        {pending ? 'TRANSMITTING' : active ? 'STAND DOWN' : 'STAND UP'}
       </button>
       <button className="confetti-dispenser__cover" type="button"
-        aria-label={`${coverOpen ? 'Close' : 'Open'} red alert command cover`}
+        aria-label={`${coverOpen ? 'CLOSE' : 'OPEN'} RED ALERT COMMAND COVER`}
         aria-pressed={coverOpen}
         disabled={pending}
         onClick={() => setCoverOpen((current) => !current)}>
-        {coverOpen ? 'Cover open' : 'Command lock'}
+        {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      Fleet command // {pending ? 'Transmitting' : active ? 'Alert active' : 'Standing by'}
+      FLEET COMMAND // {pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
     </p>
     <p className="confetti-dispenser__notice">
-      Admiral authority required // Fleetwide transmission
+      ADMIRAL AUTHORITY REQUIRED // FLEETWIDE TRANSMISSION
     </p>
     {error && <p className="confetti-dispenser__notice" role="alert">{error}</p>}
   </section>;

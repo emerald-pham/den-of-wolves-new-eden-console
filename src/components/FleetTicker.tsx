@@ -6,6 +6,7 @@ export interface FleetMessage {
   readonly id: string;
   readonly text: string;
   readonly tone: 'danger' | 'normal';
+  readonly gap?: 'standard' | 'long';
   /** Omit to repeat until replaced. */
   readonly passes?: number;
 }
@@ -53,7 +54,8 @@ function Message({ message, fallback }: {
     };
   }, [message.text, reducedMotion]);
   if (done) return fallback ? <Message key={fallback.id} message={fallback} /> : null;
-  return <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone={message.tone} data-reduced={reducedMotion}>
+  return <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone={message.tone}
+    data-gap={message.gap ?? 'standard'} data-reduced={reducedMotion}>
     <div ref={windowRef} className="fleet-ticker__window" role="status" aria-label={message.text}
       aria-live="polite" aria-atomic="true">
       {reducedMotion ? (

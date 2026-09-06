@@ -5,6 +5,7 @@ import { defineShuttle } from '@/data/vessels/templates';
 import ShuttleConsoleTemplate from './ShuttleConsoleTemplate';
 
 vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspaper confetti dispenser" /> }));
+vi.mock('./PressDispatch', () => ({ default: () => <section aria-label="Press dispatch desk" /> }));
 
 it('renders a second craft through the base with its own identity and opt-in equipment', () => {
   const shuttle = defineShuttle({
@@ -21,6 +22,7 @@ it('renders a second craft through the base with its own identity and opt-in equ
   expect(screen.getByRole('link', { name: 'Leave shuttle' })).toHaveAttribute('href', '/console');
   expect(screen.queryByText('SNN')).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
   rerender(<MemoryRouter><ShuttleConsoleTemplate
     shuttle={{ ...shuttle, capabilities: ['newspaper-confetti'] }} captainName="Survey Officer"
     canLeave={true} docking={{ shuttleId: shuttle.id, shipId: 'dione', dockedAt: 'NOW' }}

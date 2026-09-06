@@ -3,15 +3,23 @@ import FleetTicker from './FleetTicker';
 
 const PRESS_STANDBY = {
   id: 'press-standby',
-  text: 'SYSTEM NEWS NETWORK // NO ACTIVE BULLETINS',
+  text: 'SNN // Your Trusted Partner',
   tone: 'normal' as const,
+  gap: 'long' as const,
 };
 
 export default function FleetBroadcast() {
   const { session, me } = useSessionStore();
   const alert = session?.fleetRedAlert;
+  const dispatch = session?.pressDispatch;
   const standby = session
-    ? { ...PRESS_STANDBY, id: `${session.id}:${PRESS_STANDBY.id}` }
+    ? {
+        ...PRESS_STANDBY,
+        id: dispatch
+          ? `${session.id}:press-dispatch:${dispatch.revision}`
+          : `${session.id}:${PRESS_STANDBY.id}`,
+        text: dispatch?.text ?? PRESS_STANDBY.text,
+      }
     : PRESS_STANDBY;
   if (!session || !me || !alert || alert.revision === 0) {
     return <FleetTicker message={standby} />;

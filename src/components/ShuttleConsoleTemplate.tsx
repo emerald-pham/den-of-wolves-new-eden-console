@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { ComponentType } from 'react';
 import PressConfetti from './PressConfetti';
+import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
 import { SHIPS } from '@/data/ships';
 import type { Shuttlecraft, ShuttleCapability } from '@/data/vessels/templates';
@@ -8,6 +9,7 @@ import type { ShuttleDocking } from '@/types/game';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, ComponentType<{ shuttle: Shuttlecraft }>> = {
   'newspaper-confetti': PressConfetti,
+  'press-dispatches': PressDispatch,
 };
 
 interface Props {
