@@ -305,6 +305,11 @@ ships. It specifies identity statistics, census survivor steps, capacity
 warnings and GM threshold alerts, implemented for Capybara and reusable as
 other ships receive their own specifications.
 
+Capacity-warning triangles are compact visual marks with 44px interaction
+targets. Hover, keyboard focus and tap reveal the same bordered CIC tooltip;
+crew-side copy opens inward from the left and passenger-side copy opens inward
+from the right so the message remains readable at narrow widths.
+
 Capital-ship consoles are built for multiple internal mechanics pages. The
 current identity view is the first page, not a mandate to place every later
 system on the same canvas. New mechanics belong in a pageable main workspace;

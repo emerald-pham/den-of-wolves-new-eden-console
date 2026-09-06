@@ -674,7 +674,7 @@ it('applies the capital-ship identity and survivor instruments to AEGIS', () => 
 
   const specs = screen.getByRole('region', { name: 'AEGIS specifications' });
   expect(specs).toHaveTextContent(/Length250m.*Tonnage80,000.*Crew Capacity3,000.*Passengers Capacity100/);
-  expect(within(specs).queryByRole('img', { name: /survivors exceed combined/i }))
+  expect(within(specs).queryByRole('button', { name: /crew and passenger capacity exceeded/i }))
     .not.toBeInTheDocument();
   const track = within(screen.getByRole('region', { name: 'AEGIS census' }))
     .getByRole('list', { name: 'Survivor Population steps' });
@@ -702,9 +702,33 @@ it.each([
 
   const specs = screen.getByRole('region', { name: `${shipName} specifications` });
   expect(specs).toHaveTextContent(expectedSpecifications);
-  expect(within(specs).getAllByRole('img', { name: /survivors exceed combined/i }))
+  expect(within(specs).getAllByRole('button', { name: /crew and passenger capacity exceeded/i }))
     .toHaveLength(2);
-  expect(within(specs).getAllByTitle('Vessel exceeds capacity')).toHaveLength(2);
+});
+
+it('explains an exceeded crew and passenger capacity warning on hover or tap', async () => {
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={['/ships/dione']}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const warnings = screen.getAllByRole('button', { name: /crew and passenger capacity exceeded/i });
+  expect(warnings).toHaveLength(2);
+  expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+  await user.hover(warnings[0]!);
+  expect(screen.getByRole('tooltip')).toHaveTextContent(
+    'Crew and passenger capacity exceeded. OVERRIDE: Within Operation New Eden parameters',
+  );
+  await user.unhover(warnings[0]!);
+  expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+
+  await user.click(warnings[1]!);
+  expect(screen.getByRole('tooltip')).toHaveTextContent(
+    'Crew and passenger capacity exceeded. OVERRIDE: Within Operation New Eden parameters',
+  );
 });
 
 it('locks the trigger while the one-shot activation is in flight', async () => {
@@ -785,7 +809,7 @@ it('places Capybara specifications before the role and shows a read-only survivo
   expect(screen.getByText('Role assignment').tagName).toBe('DT');
   expect(role.tagName).toBe('DD');
   expect(specs.compareDocumentPosition(role) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(within(specs).getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
+  expect(within(specs).getAllByRole('button', { name: /crew and passenger capacity exceeded/i })).toHaveLength(2);
   const census = screen.getByRole('region', { name: 'Capybara census' });
   const track = within(census).getByRole('list', { name: 'Survivor Population steps' });
   expect(within(track).getAllByRole('listitem')).toHaveLength(28);
@@ -799,11 +823,11 @@ it('clears both capacity warnings when live survivors equal or drop below combin
   </MemoryRouter>);
   const session = useSessionStore.getState().session!;
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 6000 } }));
-  expect(screen.getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
+  expect(screen.getAllByRole('button', { name: /crew and passenger capacity exceeded/i })).toHaveLength(2);
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5500 } }));
-  expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /crew and passenger capacity exceeded/i })).not.toBeInTheDocument();
   act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5000 } }));
-  expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /crew and passenger capacity exceeded/i })).not.toBeInTheDocument();
 });
 
 it.each([

@@ -2434,7 +2434,49 @@ body {
 }
 .ship-specifications dt { color: var(--cic-amber); font-size: 0.65rem; text-transform: uppercase; }
 .ship-specifications dd { display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0 0; color: var(--cic-cyan); }
-.ship-capacity-warning { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; color: var(--cic-danger); }
+.ship-capacity-warning {
+  position: relative;
+  display: inline-grid;
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  color: var(--cic-danger);
+}
+.ship-capacity-warning button {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.825rem;
+  transform: translate(-50%, -50%);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+}
+.ship-capacity-warning button:focus-visible {
+  outline: 1px solid var(--cic-danger);
+  outline-offset: -0.35rem;
+}
+.ship-capacity-warning svg { width: 1.1rem; height: 1.1rem; }
+.ship-capacity-warning__tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 1rem);
+  width: min(18rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--cic-danger);
+  background: var(--cic-void);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--cic-danger) 24%, transparent);
+  color: var(--cic-ink);
+  font: 0.65rem/1.45 var(--cic-mono);
+  text-transform: uppercase;
+}
+.ship-capacity-warning[data-align="start"] .ship-capacity-warning__tooltip { left: -0.825rem; }
+.ship-capacity-warning[data-align="end"] .ship-capacity-warning__tooltip { right: -0.825rem; }
 .population-track { min-width: 0; font-family: var(--cic-mono); }
 .population-track__reading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4rem; font-size: 0.7rem; color: var(--cic-amber); }
 .population-track__reading strong { color: var(--cic-cyan); }

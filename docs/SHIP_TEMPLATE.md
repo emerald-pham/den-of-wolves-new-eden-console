@@ -26,7 +26,7 @@ Role Assignment // Capybara Captain
 ```
 
 The warning symbols above represent red outlined triangles containing an
-exclamation mark. Render them next to both capacity values when the warning
+exclamation mark. Render them as 44px interactive targets next to both capacity values when the warning
 condition below applies. Do not rely on the platform's emoji color. Do not
 invent a unit for tonnage. The role line reflects the actual viewing role;
 Capybara Captain is the captain example, not a fixed label for every viewer.
@@ -104,7 +104,8 @@ Combined capacity is crew capacity plus passengers capacity: Capybara has
 **5,500** places. Compare that total with the authoritative survivor count,
 not each capacity separately. Both statistics show the same red exclamation
 triangle when survivors exceed the total. Provide accessible explanatory text,
-for example: “Survivors exceed combined crew and passenger capacity.”
+with the hover, focus and tap explanation: “Crew and passenger capacity
+exceeded. OVERRIDE: Within Operation New Eden parameters.”
 
 The triangles appear only when survivors are **higher than** combined capacity.
 For an exact tie, remove the warnings; thus the overload condition is strictly
