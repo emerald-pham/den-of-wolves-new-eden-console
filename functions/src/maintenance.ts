@@ -4,7 +4,7 @@ import { populationChange } from './shipPopulation';
 
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
-  refuelled: string[]; rationBonus?: number;
+  refuelled: string[]; rationBonus?: number; startedAt?: string; completedAt?: string;
 }
 export interface MaintenanceInput {
   shipId: string; cycle: MaintenanceCycle; expectedRevision: number; action: string;
@@ -12,7 +12,7 @@ export interface MaintenanceInput {
   dockings: readonly { shipId: string; shuttleId: string }[];
   cargo: Record<string, Record<string, number>>; fuelled: Record<string, boolean>;
   rolls: number[]; entropy: number; foodLevel?: number; waterLevel?: number;
-  consoles?: string[]; refuels?: Record<string, string>; upgraded?: readonly string[];
+  consoles?: string[]; refuels?: Record<string, string>; upgraded?: readonly string[]; now: string;
 }
 export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water: number[]; reactor: number; damagedPenalty: number }>> = {
   aegis: { food: [0,3,5,8], water: [0,2,3,6], reactor: 5, damagedPenalty: 3 },
@@ -45,6 +45,8 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.results = {};
     cycle.refuelled = [];
     cycle.rationBonus = 0;
+    cycle.startedAt = input.now;
+    delete cycle.completedAt;
   } else if (action === 'storage') {
     if (damage.damagedSystemIds.includes('storage')) {
       const losses: string[] = [];
@@ -115,6 +117,9 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.results['6'] = chosen.length ? `Refuelled: ${chosen.join(', ')}. Spent ${chosen.length} fuel.` : 'Shuttle bays powered up. No shuttles refuelled.';
   }
   cycle.step = action === 'end' ? 0 : damage.destroyed ? 7 : cycle.step + 1;
-  if (action === 'end') cycle.results['7'] = 'Maintenance cycle complete.';
+  if (action === 'end') {
+    cycle.completedAt = input.now;
+    cycle.results['7'] = 'Maintenance cycle complete.';
+  }
   return { cycle, resources, damage, unrest, population, cargo, fuelled, damageDraw };
 }

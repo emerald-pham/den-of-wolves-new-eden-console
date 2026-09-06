@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Maintenance cycle starts and completions now appear in the GM event log.',
+      'The GM console flags any maintenance cycle still incomplete after five minutes.',
+    ],
+  },
+  {
+    version: '0.2.8',
+    changes: [
       'You can now read what changed without leaving your session. Open Settings and choose View changelog.',
       'Release notes stay inside a compact scrolling panel, even as the history grows.',
     ],

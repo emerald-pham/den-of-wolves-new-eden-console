@@ -586,6 +586,53 @@ it('shows Emergency Bridge Confetti Dispenser activations in the console log', a
   );
 });
 
+it('relays maintenance cycle starts and completions to the GM event log', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
+    onEvents([
+      {
+        id: 'maintenance-complete', sessionId: 's1', type: 'maintenance',
+        shipId: 'aegis', shipName: 'AEGIS', action: 'end',
+        createdAt: '2026-01-01T00:04:00.000Z',
+      },
+      {
+        id: 'maintenance-start', sessionId: 's1', type: 'maintenance',
+        shipId: 'aegis', shipName: 'AEGIS', action: 'begin',
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const log = await screen.findByRole('list', { name: /gm event log/i });
+  expect(log).toHaveTextContent(/aegis.*maintenance cycle completed/i);
+  expect(log).toHaveTextContent(/aegis.*maintenance cycle started/i);
+});
+
+it('flags maintenance cycles that remain incomplete for five minutes', async () => {
+  vi.setSystemTime('2026-01-01T00:06:00.000Z');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    maintenanceCycles: {
+      aegis: {
+        step: 3, revision: 3, results: {}, charges: [], refuelled: [],
+        startedAt: '2026-01-01T00:00:00.000Z',
+      },
+    },
+  });
+
+  renderConsole();
+
+  const alert = await screen.findByRole('alert', { name: /overdue maintenance/i });
+  expect(alert).toHaveTextContent(/aegis.*incomplete for 6 minutes/i);
+  vi.useRealTimers();
+});
+
 it('shows GM-only damage draws obscured until hover or keyboard focus', async () => {
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);

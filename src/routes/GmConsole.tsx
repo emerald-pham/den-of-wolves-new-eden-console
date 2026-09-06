@@ -120,6 +120,7 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
+  const [clock, setClock] = useState(() => Date.now());
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
@@ -178,6 +179,16 @@ export default function GmConsole() {
     color: ship.color,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
+  const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
+    const startedAt = cycle.startedAt ? Date.parse(cycle.startedAt) : Number.NaN;
+    const elapsed = clock - startedAt;
+    if (cycle.step === 0 || !Number.isFinite(startedAt) || elapsed < 5 * 60_000) return [];
+    return [{
+      shipId,
+      shipName: SHIPS.find((ship) => ship.id === shipId)?.name ?? shipId,
+      minutes: Math.floor(elapsed / 60_000),
+    }];
+  });
   const connectedPlayerGroups = groupConnectedPlayers(connectedPlayers);
 
   useLayoutEffect(() => {
@@ -281,6 +292,11 @@ export default function GmConsole() {
 
   useEffect(() => () => {
     if (presetTimer.current !== null) window.clearTimeout(presetTimer.current);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   if (!session || !me) return <Navigate to="/" replace />;
@@ -753,6 +769,15 @@ export default function GmConsole() {
 
           <section className="gm-console__module gm-console__module--event-log cic-frame">
             <h2 className="gm-console__section-title">Event log</h2>
+            {overdueMaintenance.length > 0 && (
+              <div className="gm-event-alert gm-event-alert--critical" role="alert" aria-label="Overdue maintenance">
+                {overdueMaintenance.map((cycle) => (
+                  <p key={cycle.shipId}>
+                    {cycle.shipName} // Maintenance incomplete for {cycle.minutes} minutes
+                  </p>
+                ))}
+              </div>
+            )}
             {latestAlert?.type === 'fullscreen-alert' && (
               <div className="gm-event-alert gm-event-alert--critical" role="alert">
                 {latestAlert.sourceRoleName} // {latestAlert.message}
@@ -780,7 +805,9 @@ export default function GmConsole() {
                   <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
                   <span>{event.type === 'fullscreen-alert'
                     ? `${event.sourceRoleName} // FULLSCREEN ALERT // ${event.message}`
-                    : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
+                    : event.type === 'maintenance'
+                      ? `${event.shipName} // Maintenance cycle ${event.action === 'begin' ? 'started' : 'completed'}`
+                      : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
                   ))}
                 </>}

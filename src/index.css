@@ -809,6 +809,9 @@ body {
   text-transform: uppercase;
 }
 
+.gm-event-alert--critical p { margin: 0; }
+.gm-event-alert--critical p + p { margin-top: 0.4rem; }
+
 .gm-dradis {
   display: grid;
   grid-template-columns: 1fr;

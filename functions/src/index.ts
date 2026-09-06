@@ -1653,6 +1653,7 @@ export const runMaintenance = onCall<{
     const populationAlerts = (snapshot.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
     if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
     let result: ReturnType<typeof advanceMaintenance>;
+    const occurredAt = new Date().toISOString();
     try {
       result = advanceMaintenance({
         ...data, cycle: current[data.shipId] ?? emptyMaintenanceCycle(),
@@ -1661,6 +1662,7 @@ export const runMaintenance = onCall<{
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
         cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls, entropy,
+        now: occurredAt,
       });
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');
@@ -1685,7 +1687,9 @@ export const runMaintenance = onCall<{
       unrestAlerts, populationAlerts, updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), {
-      type: 'maintenance', shipId: data.shipId, byUid: uid, action: data.action,
+      type: 'maintenance', shipId: data.shipId,
+      shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
+      byUid: uid, action: data.action,
       revision: result.cycle.revision, results: result.cycle.results,
       createdAt: FieldValue.serverTimestamp(),
     });

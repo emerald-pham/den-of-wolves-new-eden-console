@@ -236,6 +236,15 @@ export function subscribeSessionEvents(
         message: data.message as string,
         createdAt: iso(data.createdAt),
       }];
+      if (data.type === 'maintenance' && (data.action === 'begin' || data.action === 'end')) return [{
+        id: event.id,
+        sessionId,
+        type: 'maintenance' as const,
+        shipId: data.shipId as string,
+        shipName: data.shipName as string,
+        action: data.action,
+        createdAt: iso(data.createdAt),
+      }];
       if (data.type !== 'ship-confetti') return [];
       return [{
         id: event.id,

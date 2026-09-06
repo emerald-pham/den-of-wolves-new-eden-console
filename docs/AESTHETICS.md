@@ -607,3 +607,9 @@ Ration and refuelling selects and checkbox labels have 44px minimum touch target
 wrap within the path, and use native fieldsets to disable future steps together.
 Both AEGIS bays share step 6; End follows the path and unlocks after refuelling.
 Reviewed at 1440×900, 390×844, and 844×390 with intact and damaged configurations.
+
+The GM event log treats maintenance start and completion as ordinary operational
+readouts. An active cycle that reaches five minutes becomes a hostile-red alert
+within that same instrument; each overdue ship gets one compact line with its
+elapsed whole minutes. Multiple overdue ships stack without introducing a modal
+or covering the GM's controls.

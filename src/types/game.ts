@@ -52,6 +52,8 @@ export interface MaintenanceCycle {
   readonly charges: readonly string[];
   readonly refuelled: readonly string[];
   readonly rationBonus?: number;
+  readonly startedAt?: Timestamp;
+  readonly completedAt?: Timestamp;
 }
 
 export interface GameSession {
@@ -163,7 +165,17 @@ export interface FullscreenAlertEvent {
   readonly createdAt: Timestamp;
 }
 
-export type SessionEvent = ShipConfettiEvent | FullscreenAlertEvent;
+export interface MaintenanceEvent {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly type: 'maintenance';
+  readonly shipId: Id;
+  readonly shipName: string;
+  readonly action: 'begin' | 'end';
+  readonly createdAt: Timestamp;
+}
+
+export type SessionEvent = ShipConfettiEvent | FullscreenAlertEvent | MaintenanceEvent;
 
 export type DamageDraw = {
   readonly id: Id;
