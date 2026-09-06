@@ -568,6 +568,45 @@ it('does not add an AEGIS gameplay workspace to the Executive Officer console', 
     .not.toBeInTheDocument();
 });
 
+it.each([
+  ['dione', 'Dione', 'dione-captain', 'Captain'],
+  ['dione', 'Dione', 'dione-engineer', 'Engineer'],
+  ['dione', 'Dione', 'dione-president', 'President'],
+  ['icebreaker', 'Icebreaker', 'icebreaker-captain', 'Captain'],
+  ['icebreaker', 'Icebreaker', 'icebreaker-engineer', 'Engineer'],
+  ['icebreaker', 'Icebreaker', 'icebreaker-miner', 'Miner'],
+  ['capybara', 'Capybara', 'capybara-captain', 'Capybara Captain'],
+  ['capybara', 'Capybara', 'capybara-recycler', 'Capybara Recycler'],
+  ['shepherd', 'Shepherd', 'shepherd-captain', 'Captain'],
+  ['shepherd', 'Shepherd', 'shepherd-engineer', 'Engineer'],
+  ['shepherd', 'Shepherd', 'shepherd-scientist', 'Scientist'],
+  ['quellon', 'Quellon', 'quellon-captain', 'Captain'],
+  ['quellon', 'Quellon', 'quellon-engineer', 'Engineer'],
+  ['quellon', 'Quellon', 'quellon-explorer', 'Explorer'],
+  ['refinery-124', 'Refinery 124', 'refinery-124-captain', 'Captain'],
+  ['refinery-124', 'Refinery 124', 'refinery-124-engineer', 'Engineer'],
+  ['refinery-124', 'Refinery 124', 'refinery-124-pdf-colonel', 'P.D.F. Colonel'],
+] as const)('scaffolds the %s %s console without activating gameplay', (
+  shipId,
+  shipName,
+  roleId,
+  roleName,
+) => {
+  render(
+    <MemoryRouter initialEntries={[`/ships/${shipId}/roles/${roleId}`]}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const scaffold = screen.getByRole('region', {
+    name: `${shipName} ${roleName} console scaffold`,
+  });
+  expect(within(scaffold).getByRole('heading', { name: `${roleName} console` }))
+    .toBeInTheDocument();
+  expect(scaffold).toHaveTextContent(/scaffold ready/i);
+  expect(scaffold).toHaveTextContent(/no gameplay controls active/i);
+});
+
 it('applies the capital-ship identity and survivor instruments to AEGIS', () => {
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
