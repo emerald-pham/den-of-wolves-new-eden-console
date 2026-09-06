@@ -38,7 +38,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, system
       {(['ftl', 'combat', 'passive'] as const).map(timing => {
         const group = systems.filter(system => (system.timing ?? 'passive') === timing);
         if (!group.length) return null;
-        const label = { ftl: 'Faster Than Light Subsystem', combat: 'Wolf Attack', passive: 'Damage control' }[timing];
+        const label = { ftl: 'Faster Than Light', combat: 'Wolf Attack', passive: 'Damage control' }[timing];
         return <section key={timing} aria-label={`${name} ${label} systems`}>
           <h3>{label}</h3><div className="aegis-system-grid">{group.map(renderSystem)}</div>
         </section>;
