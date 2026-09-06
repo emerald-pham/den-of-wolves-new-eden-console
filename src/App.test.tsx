@@ -45,6 +45,10 @@ vi.mock('@/lib/firestore', () => ({
   }),
 }));
 
+vi.mock('@/lib/versionUpgrade', () => ({
+  startVersionUpgradeMonitor: vi.fn(() => vi.fn()),
+}));
+
 const {
   connect,
   disconnectFromSession,
@@ -55,6 +59,7 @@ const {
 } =
   await import('@/lib/sessionService');
 const { subscribeSessionState } = await import('@/lib/firestore');
+const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
 
 describe('App', () => {
   const session: GameSession = {
@@ -79,6 +84,7 @@ describe('App', () => {
     window.location.hash = '#/';
     useSessionStore.getState().reset();
     localStorage.clear();
+    vi.mocked(startVersionUpgradeMonitor).mockClear();
     vi.mocked(disconnectFromSession).mockImplementation(async () => {
       useSessionStore.getState().disconnect();
       return 'applied';
@@ -102,6 +108,17 @@ describe('App', () => {
     await waitFor(() => {
       expect(connect).toHaveBeenCalledOnce();
     });
+  });
+
+  it('starts watching for a deployed version upgrade and stops on unmount', () => {
+    const stop = vi.fn();
+    vi.mocked(startVersionUpgradeMonitor).mockReturnValueOnce(stop);
+
+    const { unmount } = render(<App />);
+
+    expect(startVersionUpgradeMonitor).toHaveBeenCalledOnce();
+    unmount();
+    expect(stop).toHaveBeenCalledOnce();
   });
 
   it('retries the Firebase connection every two seconds while offline', async () => {

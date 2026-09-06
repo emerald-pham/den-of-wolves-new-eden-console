@@ -17,6 +17,7 @@ import PopulationAlert from '@/components/PopulationAlert';
 import UnrestAlert from '@/components/UnrestAlert';
 import { useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -119,6 +120,8 @@ function AppRoutes() {
  * config and GitHub Pages give you.
  */
 export default function App() {
+  useEffect(() => startVersionUpgradeMonitor(), []);
+
   // The status light starts red and only goes yellow once this resolves, so a
   // misconfigured or unreachable Firebase shows as red rather than as a page
   // that looks fine and silently does nothing.

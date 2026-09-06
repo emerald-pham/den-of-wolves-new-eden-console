@@ -16,6 +16,10 @@
       {
         "source": "/index.html",
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/build-version.json",
+        "headers": [{ "key": "Cache-Control", "value": "no-store" }]
       }
     ],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]

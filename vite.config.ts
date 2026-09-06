@@ -1,11 +1,23 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import packageJson from './package.json';
+
+const buildVersionMetadata: Plugin = {
+  name: 'build-version-metadata',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'build-version.json',
+      source: `${JSON.stringify({ version: packageJson.version })}\n`,
+    });
+  },
+};
 
 // Static output for Firebase Hosting. HashRouter is used in the app, so no
 // server-side rewrite is required for deep links on any static host.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), buildVersionMetadata],
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },

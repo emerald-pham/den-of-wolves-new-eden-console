@@ -9,6 +9,15 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
+it('emits uncached build metadata for live clients to discover upgrades', () => {
+  const viteConfig = readFileSync('vite.config.ts', 'utf8');
+  const firebaseConfig = readFileSync('firebase.json', 'utf8');
+
+  expect(viteConfig).toContain('build-version.json');
+  expect(firebaseConfig).toContain('/build-version.json');
+  expect(firebaseConfig).toContain('no-store');
+});
+
 it('documents the release-maturity gates for later version numbers', () => {
   const agreement = readFileSync('CLAUDE.md', 'utf8');
   const agentEntry = readFileSync('AGENTS.md', 'utf8');

@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'New console releases automatically reload connected players into the updated build and resume their previous session, page, role, and GM instance without announcing a dropout.',
+    ],
+  },
+  {
+    version: '0.2.26',
+    changes: [
       'Red alerts gradually enter the ticker from the right, with a persistent RED ALERT indicator at the bottom left of DRADIS.',
       'Press dispatches continue scrolling alongside active red alerts.',
       'The Admiral can write and update a lowercase alert message, or restore the default warning.',
