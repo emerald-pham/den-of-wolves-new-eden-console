@@ -1,4 +1,5 @@
-export const AMBIENT_CONTACT_INTERVAL_MS = 20 * 60 * 1000;
+export const AMBIENT_CONTACT_MIN_INTERVAL_MS = 20 * 60 * 1000;
+export const AMBIENT_CONTACT_MAX_INTERVAL_MS = 30 * 60 * 1000;
 export const AMBIENT_CONTACT_LIFETIME_MS = 2 * 60 * 1000;
 export const AMBIENT_CLASSIFICATION_MS = 90 * 1000;
 
@@ -59,6 +60,15 @@ function seededRandom(seed: string): () => number {
   };
 }
 
+/** A stable per-occurrence cadence keeps the random schedule identical fleetwide. */
+export function ambientContactIntervalMs(sessionId: string, occurrence: number): number {
+  const random = seededRandom(`${sessionId}:automatic-interval:${occurrence}`);
+  return Math.round(
+    AMBIENT_CONTACT_MIN_INTERVAL_MS +
+    random() * (AMBIENT_CONTACT_MAX_INTERVAL_MS - AMBIENT_CONTACT_MIN_INTERVAL_MS),
+  );
+}
+
 function randomUnitVector(random: () => number): AmbientVector {
   const longitude = random() * Math.PI * 2;
   const z = random() * 2 - 1;
@@ -111,6 +121,40 @@ function validInstant(value: string | undefined): number | null {
   return Number.isFinite(instant) ? instant : null;
 }
 
+const automaticTimes = new Map<string, number[]>();
+
+function automaticSchedule(sessionId: string, epoch: number, now: number): {
+  readonly cycle: number;
+  readonly appearedAt: number | null;
+  readonly nextAt: number;
+} {
+  const cacheKey = `${sessionId}:${epoch}`;
+  let times = automaticTimes.get(cacheKey);
+  if (!times) {
+    times = [epoch, epoch + ambientContactIntervalMs(sessionId, 1)];
+    automaticTimes.set(cacheKey, times);
+  }
+  while ((times[times.length - 1] ?? Infinity) <= now) {
+    const occurrence = times.length;
+    times.push((times[times.length - 1] ?? epoch) +
+      ambientContactIntervalMs(sessionId, occurrence));
+  }
+
+  let low = 1;
+  let high = times.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((times[middle] ?? Infinity) <= now) low = middle + 1;
+    else high = middle;
+  }
+  const cycle = low - 1;
+  return {
+    cycle,
+    appearedAt: cycle >= 1 ? times[cycle] ?? null : null,
+    nextAt: times[low] ?? epoch + ambientContactIntervalMs(sessionId, 1),
+  };
+}
+
 export function ambientDradisOccurrence(
   session: AmbientDradisSession,
   now: number,
@@ -119,20 +163,19 @@ export function ambientDradisOccurrence(
   if (epoch === null) return null;
   const manual = validInstant(session.dradisContactTriggeredAt);
   const manualActive = manual !== null && now >= manual && now < manual + AMBIENT_CONTACT_LIFETIME_MS;
-  const cycle = Math.floor((now - epoch) / AMBIENT_CONTACT_INTERVAL_MS);
-  const automatic = epoch + cycle * AMBIENT_CONTACT_INTERVAL_MS;
-  const automaticActive = cycle >= 1 && now >= automatic &&
-    now < automatic + AMBIENT_CONTACT_LIFETIME_MS;
+  const schedule = automaticSchedule(session.id, epoch, now);
+  const automatic = schedule.appearedAt;
+  const automaticActive = automatic !== null && now < automatic + AMBIENT_CONTACT_LIFETIME_MS;
   if (!manualActive && !automaticActive) return null;
 
-  const appearedAt = manualActive && (!automaticActive || (manual ?? -Infinity) >= automatic)
+  const appearedAt = manualActive && (!automaticActive || (manual ?? -Infinity) >= (automatic ?? -Infinity))
     ? manual as number
-    : automatic;
+    : automatic as number;
   const source = appearedAt === manual ? 'manual' : 'automatic';
   // Automatic contacts use their ordinal rather than the locally parsed
   // creation instant. That keeps their vector identical if two snapshots
   // represent the server timestamp a few milliseconds differently.
-  const occurrenceKey = source === 'manual' ? String(appearedAt) : String(cycle);
+  const occurrenceKey = source === 'manual' ? String(appearedAt) : String(schedule.cycle);
   const random = seededRandom(`${session.id}:${source}:${occurrenceKey}`);
   return {
     id: `${source}-${occurrenceKey}`,
@@ -148,8 +191,7 @@ export function nextAmbientDradisChange(session: AmbientDradisSession, now: numb
   if (epoch === null) return null;
   const occurrence = ambientDradisOccurrence(session, now);
   if (occurrence) return occurrence.appearedAt + AMBIENT_CONTACT_LIFETIME_MS;
-  const completedCycles = Math.max(0, Math.floor((now - epoch) / AMBIENT_CONTACT_INTERVAL_MS));
-  const automatic = epoch + (completedCycles + 1) * AMBIENT_CONTACT_INTERVAL_MS;
+  const automatic = automaticSchedule(session.id, epoch, now).nextAt;
   const manual = validInstant(session.dradisContactTriggeredAt);
   return manual !== null && manual > now ? Math.min(manual, automatic) : automatic;
 }

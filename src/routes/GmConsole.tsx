@@ -2,6 +2,7 @@ import { populationForShip, populationTrackForShip } from '@/data/shipPopulation
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
+import DradisEffectControls from '@/components/DradisEffectControls';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -24,7 +25,6 @@ import {
   adjustShipResource,
   adjustShipUnrest,
   adjustShipPopulation,
-  triggerDradisContact,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -129,7 +129,6 @@ export default function GmConsole() {
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
-  const [triggeringDradis, setTriggeringDradis] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
   const dradisPreviousBounds = useRef<DOMRect | null>(null);
   const dradisAnimation = useRef<Animation | null>(null);
@@ -222,15 +221,6 @@ export default function GmConsole() {
     dradisAnimation.current?.cancel();
     dradisAnimation.current = null;
     setDradisExpanded((expanded) => !expanded);
-  };
-
-  const triggerUnknownContact = async () => {
-    setTriggeringDradis(true);
-    try {
-      await triggerDradisContact();
-    } finally {
-      setTriggeringDradis(false);
-    }
   };
 
   useEffect(() => {
@@ -451,7 +441,6 @@ export default function GmConsole() {
           </>}
         >
         <div className="gm-console__grid">
-
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"
@@ -850,16 +839,7 @@ export default function GmConsole() {
               />
             </div>
             <div className="gm-dradis__controls">
-              {dradisExpanded ? (
-                <button
-                  className="cic-text-button gm-dradis__trigger"
-                  type="button"
-                  disabled={triggeringDradis}
-                  onClick={() => void triggerUnknownContact()}
-                >
-                  {triggeringDradis ? 'Triggering contact…' : 'Trigger unknown contact'}
-                </button>
-              ) : null}
+              <DradisEffectControls expanded={dradisExpanded} />
               <p className="gm-dradis__perspective">
                 DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
               </p>

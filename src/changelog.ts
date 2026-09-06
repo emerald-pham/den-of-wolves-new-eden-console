@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Active GMs can trigger shared effects from any expanded DRADIS display, including ship and observer consoles.',
+      'Automatic unknown contacts now arrive on a shared random cadence of 20 to 30 minutes.',
+    ],
+  },
+  {
+    version: '0.2.15',
+    changes: [
       'Long sessions use less browser memory, and slow mobile connections no longer pile up repeated connection checks.',
       'DRADIS runs with less repeated work while preserving its full animation and effects.',
     ],

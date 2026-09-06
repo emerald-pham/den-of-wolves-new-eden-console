@@ -352,6 +352,14 @@ describe('friendly DRADIS returns', () => {
     expect(shipPlot).toContain('container-type: size');
   });
 
+  it('keeps GM effect controls beside the compass on narrow expanded plots', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /@media \(max-width: 520px\)[\s\S]*?\.ship-plot > \.dradis-effect-controls\s*\{[^}]*left:\s*calc\([^}]*10\.25rem[^}]*right:/,
+    );
+  });
+
   it('acquires contacts on their first sweep and only then applies stepped display drift', () => {
     const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
     const apparent = plot.match(/\.contact-plot__apparent\s*\{([^}]*)\}/)?.[1] ?? '';

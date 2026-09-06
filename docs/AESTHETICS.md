@@ -279,9 +279,11 @@ contact, so a console cannot learn either the object or its name merely because
 another console has already swept it. Stopped sweeps must not auto-acquire a
 moving encounter contact.
 
-Ambient DRADIS traffic follows those rules and is sparse and measurable: every
-twenty minutes one distant return appears near the outer shell, crosses it on a
-sampled random vector for exactly two minutes, and then disappears. It reads
+Ambient DRADIS traffic follows those rules and is sparse and measurable. Each
+automatic contact follows the previous one after a fleetwide deterministic
+random interval from twenty to thirty minutes: twenty-five minutes plus or
+minus five. It appears near the outer shell, crosses it on a sampled random
+vector for exactly two minutes, and then disappears. It reads
 UNKNOWN CONTACT until a sweep crosses it at least ninety seconds into that
 transit; that scan selects the fleetwide classification Asteroid, Rock, Your
 Mom's Big Butt, Emerald Nebula Interference, or Metallic Asteroid without
@@ -319,6 +321,14 @@ instance. Turning either ship off removes it from the join roster and all
 DRADIS views. Every perspective begins empty. Changing the reference ship
 restarts contact acquisition, and returns appear only as that new view's sweep
 reaches them; resizing the same view does not restart its scan.
+
+Every expanded DRADIS surface uses the same active-GM effect registry. This
+includes the GM fleet display and the persistent shipboard display used by ship,
+observer, press, and joint-engineering routes. Keep effect triggers in
+`DradisEffectControls.tsx` so a new DRADIS effect appears everywhere instead of
+being coupled to one route. The controls remain absent while DRADIS is compact
+and for browsers without an active GM instance. Manual effects do not reset or
+otherwise perturb the automatic ambient-contact schedule.
 
 GM registration uses one server-authoritative lock. Show its open
 or closed padlock icon and text state on the role-selection screen; non-GMs see

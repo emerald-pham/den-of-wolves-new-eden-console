@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
 import {
-  AMBIENT_CONTACT_INTERVAL_MS,
+  AMBIENT_CONTACT_MAX_INTERVAL_MS,
+  AMBIENT_CONTACT_MIN_INTERVAL_MS,
+  ambientContactIntervalMs,
   ambientDradisOccurrence,
 } from './ambientDradisContact';
 
@@ -10,7 +12,7 @@ const session = {
 };
 
 it('derives the same automatic vector and classification everywhere in the fleet', () => {
-  const now = Date.parse(session.createdAt) + AMBIENT_CONTACT_INTERVAL_MS;
+  const now = Date.parse(session.createdAt) + ambientContactIntervalMs(session.id, 1);
 
   expect(ambientDradisOccurrence(session, now)).toEqual(
     ambientDradisOccurrence(session, now),
@@ -29,10 +31,11 @@ it('keeps an automatic vector stable across small creation-clock differences', (
     ...session,
     createdAt: new Date(epoch + 3_000).toISOString(),
   };
-  const first = ambientDradisOccurrence(session, epoch + AMBIENT_CONTACT_INTERVAL_MS + 3_000);
+  const firstAppearance = epoch + ambientContactIntervalMs(session.id, 1);
+  const first = ambientDradisOccurrence(session, firstAppearance + 3_000);
   const later = ambientDradisOccurrence(
     laterSnapshot,
-    epoch + AMBIENT_CONTACT_INTERVAL_MS + 3_000,
+    firstAppearance + 3_000,
   );
 
   expect(later).toMatchObject({
@@ -43,6 +46,18 @@ it('keeps an automatic vector stable across small creation-clock differences', (
   });
 });
 
+it('varies each fleetwide automatic interval between twenty and thirty minutes', () => {
+  const intervals = Array.from({ length: 12 }, (_, index) =>
+    ambientContactIntervalMs(session.id, index + 1));
+
+  expect(intervals.every((interval) =>
+    interval >= AMBIENT_CONTACT_MIN_INTERVAL_MS &&
+    interval <= AMBIENT_CONTACT_MAX_INTERVAL_MS)).toBe(true);
+  expect(new Set(intervals).size).toBeGreaterThan(1);
+  expect(intervals).toEqual(intervals.map((_, index) =>
+    ambientContactIntervalMs(session.id, index + 1)));
+});
+
 it('uses the shared manual trigger immediately and then returns to the automatic cadence', () => {
   const epoch = Date.parse(session.createdAt);
   const manualTriggeredAt = new Date(epoch + 5 * 60 * 1000).toISOString();
@@ -51,6 +66,9 @@ it('uses the shared manual trigger immediately and then returns to the automatic
   expect(ambientDradisOccurrence(manual, Date.parse(manualTriggeredAt)))
     .toMatchObject({ appearedAt: Date.parse(manualTriggeredAt), source: 'manual' });
   expect(ambientDradisOccurrence(manual, epoch + 7 * 60 * 1000)).toBeNull();
-  expect(ambientDradisOccurrence(manual, epoch + AMBIENT_CONTACT_INTERVAL_MS))
+  expect(ambientDradisOccurrence(
+    manual,
+    epoch + ambientContactIntervalMs(session.id, 1),
+  ))
     .toMatchObject({ source: 'automatic' });
 });

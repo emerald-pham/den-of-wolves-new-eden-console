@@ -7,6 +7,7 @@ import {
   type PointerEvent,
 } from 'react';
 import ContactPlot from './ContactPlot';
+import DradisEffectControls from './DradisEffectControls';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
@@ -177,6 +178,7 @@ export default function ShipPlot({
               >
                 Close DRADIS
               </button>
+              <DradisEffectControls expanded={expanded} />
               <div
                 className="ship-plot__compass"
                 role="img"

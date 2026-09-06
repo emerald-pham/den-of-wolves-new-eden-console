@@ -1,9 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
+import { useSessionStore } from '@/store/useSessionStore';
 import ShipPlot from './ShipPlot';
 
+vi.mock('@/lib/sessionService', () => ({ triggerDradisContact: vi.fn() }));
+
+const { triggerDradisContact } = await import('@/lib/sessionService');
+
 beforeEach(() => {
+  useSessionStore.getState().reset();
+  vi.clearAllMocks();
   vi.stubGlobal(
     'matchMedia',
     vi.fn(() => ({
@@ -12,6 +19,39 @@ beforeEach(() => {
       removeEventListener: vi.fn(),
     })),
   );
+});
+
+it('offers every registered DRADIS effect in any expanded console to an active GM', async () => {
+  const user = userEvent.setup();
+  const session = {
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby' as const, ownerUid: 'u1',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  useSessionStore.getState().setIdentity(session, {
+    uid: 'u1', sessionId: 's1', displayName: 'GM', role: 'gm', seatId: null,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  vi.mocked(triggerDradisContact).mockResolvedValue(undefined);
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" ambientSession={session} />);
+
+  expect(screen.queryByRole('region', { name: /gm dradis effects/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+  const effects = screen.getByRole('region', { name: /gm dradis effects/i });
+  await user.click(within(effects).getByRole('button', { name: /trigger unknown contact/i }));
+
+  expect(triggerDradisContact).toHaveBeenCalledOnce();
+});
+
+it('keeps expanded DRADIS effect controls hidden from non-GMs', async () => {
+  const user = userEvent.setup();
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" />);
+
+  await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+  expect(screen.queryByRole('region', { name: /gm dradis effects/i })).not.toBeInTheDocument();
 });
 
 it('opens the shipboard DRADIS with a discrete control and closes it explicitly', async () => {

@@ -21,6 +21,7 @@ vi.mock('@/lib/sessionService', () => ({
   releaseGmInstance: vi.fn(),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
   setGmControlsLocked: vi.fn(),
+  triggerDradisContact: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({

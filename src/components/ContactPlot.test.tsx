@@ -5,8 +5,8 @@ import ContactPlot, {
 } from './ContactPlot';
 import {
   AMBIENT_CLASSIFICATION_MS,
-  AMBIENT_CONTACT_INTERVAL_MS,
   AMBIENT_CONTACT_LIFETIME_MS,
+  ambientContactIntervalMs,
   ambientClassification,
   ambientDradisOccurrence,
 } from './ambientDradisContact';
@@ -98,14 +98,16 @@ it('holds station until an intrusion, then floods with spoofed contacts', () => 
   expect(contactsIn(container).length).toBeGreaterThan(quiet);
 });
 
-it('tracks a far-moving unknown every twenty minutes and drops it after two minutes', () => {
+it('tracks a far-moving unknown on the shared variable cadence and drops it after two minutes', () => {
   vi.useFakeTimers();
   vi.setSystemTime('2026-01-01T00:10:00.000Z');
   vi.spyOn(Math, 'random').mockReturnValue(0.25);
   const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+  const firstInterval = ambientContactIntervalMs(ambientSession.id, 1);
+  const secondInterval = ambientContactIntervalMs(ambientSession.id, 2);
 
   expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
-  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_INTERVAL_MS / 2));
+  act(() => vi.advanceTimersByTime(firstInterval - 10 * 60 * 1000));
 
   const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
   expect(contact).toHaveTextContent('UNKNOWN CONTACT');
@@ -127,7 +129,7 @@ it('tracks a far-moving unknown every twenty minutes and drops it after two minu
   expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(
-    AMBIENT_CONTACT_INTERVAL_MS - AMBIENT_CONTACT_LIFETIME_MS,
+    secondInterval - AMBIENT_CONTACT_LIFETIME_MS,
   ));
   expect(container.querySelector("[data-ambient='true']")).toBeInTheDocument();
 });
@@ -137,7 +139,9 @@ it('classifies the passing unknown only when scanned after ninety seconds', () =
   vi.setSystemTime('2026-01-01T00:10:00.000Z');
   vi.spyOn(Math, 'random').mockReturnValue(0);
   const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
-  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_INTERVAL_MS / 2));
+  act(() => vi.advanceTimersByTime(
+    ambientContactIntervalMs(ambientSession.id, 1) - 10 * 60 * 1000,
+  ));
   const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
   if (!contact) throw new Error('Expected the passing unknown contact.');
 
