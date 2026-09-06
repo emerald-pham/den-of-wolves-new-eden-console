@@ -38,6 +38,10 @@ vi.mock('@/lib/firestore', () => ({
     onEvents([]);
     return vi.fn();
   }),
+  subscribeDamageDraws: vi.fn((_sessionId: string, onDraws: (draws: never[]) => void) => {
+    onDraws([]);
+    return vi.fn();
+  }),
 }));
 
 const {

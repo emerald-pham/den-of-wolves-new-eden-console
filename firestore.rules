@@ -83,6 +83,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /damageDraws/{drawId} {
+        allow get, list: if isGm(sessionId);
+        allow write: if false;
+      }
+
       match /shipConfetti/{shipId} {
         allow get: if isMember(sessionId);
         allow list, write: if false;

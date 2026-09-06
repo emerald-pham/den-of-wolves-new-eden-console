@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { app } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
-import type { GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
+import type { DamageDraw, GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
 import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
@@ -241,6 +241,43 @@ export function subscribeSessionEvents(
         shipName: data.shipName as string,
         actorName: data.actorName as string,
         actorRoleName: data.actorRoleName as string,
+        createdAt: iso(data.createdAt),
+      }];
+    })),
+    onError,
+  );
+}
+
+export function subscribeDamageDraws(
+  sessionId: string,
+  onDraws: (draws: readonly DamageDraw[]) => void,
+  onError: () => void = () => undefined,
+): Unsubscribe {
+  return onSnapshot(
+    query(
+      collection(db(), `sessions/${sessionId}/damageDraws`),
+      orderBy('createdAt', 'desc'),
+      limit(30),
+    ),
+    (snapshot) => onDraws(snapshot.docs.flatMap<DamageDraw>((draw) => {
+      const data = draw.data();
+      if (data.type === 'ship-destroyed') return [{
+        id: draw.id,
+        sessionId,
+        type: 'ship-destroyed' as const,
+        shipId: data.shipId as string,
+        createdAt: iso(data.createdAt),
+      }];
+      if (data.type !== 'ship-damage') return [];
+      return [{
+        id: draw.id,
+        sessionId,
+        type: 'ship-damage' as const,
+        shipId: data.shipId as string,
+        card: data.card as string,
+        systemId: data.systemId as string,
+        systemName: data.systemName as string,
+        recycled: data.recycled === true,
         createdAt: iso(data.createdAt),
       }];
     })),

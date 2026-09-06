@@ -20,18 +20,10 @@ export interface ShipIdentity {
 }
 
 export interface ShipSystem {
+  readonly id: string;
   readonly name: string;
-  readonly card: string;
   readonly effect: string;
   readonly timing?: 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
-}
-
-export interface DamageCardDefinition {
-  readonly card: string;
-  readonly systemId: string;
-  readonly systemName: string;
-  /** Some armour cards return to the deck after absorbing damage while another card remains. */
-  readonly recycleAfterResolution?: boolean;
 }
 
 export interface Ship extends ShipIdentity {
@@ -45,7 +37,6 @@ export interface Ship extends ShipIdentity {
   readonly id: Exclude<ConsoleShipId, 'press' | 'joint-engineering-union'>;
   readonly roles: readonly ConsoleRole[];
   readonly workspace: 'scaffold' | 'aegis';
-  readonly damageDeck: readonly DamageCardDefinition[];
   readonly resources: ShipResourceInventory;
   readonly initialSurvivors: number;
   readonly populationTrack?: ShipPopulationTrack;
@@ -58,13 +49,13 @@ export interface Ship extends ShipIdentity {
 }
 
 export function defineShip(
-  definition: Omit<Ship, 'workspace' | 'roles' | 'damageDeck'> &
-    Partial<Pick<Ship, 'workspace' | 'damageDeck'>> & {
+  definition: Omit<Ship, 'workspace' | 'roles'> &
+    Partial<Pick<Ship, 'workspace'>> & {
     readonly roles: readonly Omit<ConsoleRole, 'shipId'>[];
   },
 ): Ship {
   return {
-    workspace: 'scaffold', damageDeck: [], ...definition,
+    workspace: 'scaffold', ...definition,
     roles: definition.roles.map((role) => ({ ...role, shipId: definition.id })),
   };
 }

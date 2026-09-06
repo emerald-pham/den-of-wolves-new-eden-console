@@ -24,12 +24,13 @@ vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeSessionEvents: vi.fn(),
+  subscribeDamageDraws: vi.fn(),
 }));
 
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
   setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents } =
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -69,6 +70,10 @@ beforeEach(() => {
   );
   vi.mocked(subscribeSessionEvents).mockImplementation((_sessionId, onEvents) => {
     onEvents([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
+    onDraws([]);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -572,6 +577,25 @@ it('shows Emergency Bridge Confetti Dispenser activations in the console log', a
   expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
     /quellon.*emergency bridge confetti dispenser.*explorer.*player/i,
   );
+});
+
+it('shows GM-only damage draws obscured until hover or keyboard focus', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
+    onDraws([{
+      id: 'draw-1', sessionId: 's1', type: 'ship-damage', shipId: 'aegis', card: '10♥',
+      systemId: 'reactor', systemName: 'Reactor', recycled: false,
+      createdAt: '2026-01-01T00:02:00.000Z',
+    }]);
+    return vi.fn();
+  });
+
+  renderConsole();
+
+  const concealed = await screen.findByText(/10♥.*reactor/i);
+  expect(concealed).toHaveClass('gm-damage-draw__secret');
+  expect(concealed).toHaveAttribute('tabindex', '0');
 });
 
 it('mirrors an in-game fullscreen alert as a red GM activity banner', async () => {

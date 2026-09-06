@@ -1,7 +1,6 @@
 export interface AegisShipSystem {
   readonly id: string;
   readonly name: string;
-  readonly card: string;
   readonly station: string;
   readonly timing?: 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
   readonly baseline: string;
@@ -20,7 +19,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'armoured-hull-i',
     name: 'Armoured Hull I',
-    card: '6♥',
     station: 'Damage control',
     timing: 'passive',
     baseline: 'Passive armour section. No charge required.',
@@ -29,7 +27,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'armoured-hull-ii',
     name: 'Armoured Hull II',
-    card: '7♥',
     station: 'Damage control',
     timing: 'passive',
     baseline: 'Passive armour section. No charge required.',
@@ -38,7 +35,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'storage',
     name: 'Storage',
-    card: '8♥',
     station: 'Maintenance // 1',
     timing: 1,
     baseline: 'Stored resources remain available to the ship and docked shuttlecraft.',
@@ -47,7 +43,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'reactor',
     name: 'Reactor',
-    card: '10♥',
     station: 'Maintenance // 5',
     timing: 5,
     baseline: 'Charge up to 5 consoles for this turn.',
@@ -57,7 +52,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'shuttle-bay-zeta',
     name: 'Shuttle Bay Zeta',
-    card: 'Q♥',
     station: 'Maintenance // 6',
     timing: 6,
     baseline: 'Spend 1 strytium fuel to refuel one docked shuttle.',
@@ -66,7 +60,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'shuttle-bay-omega',
     name: 'Shuttle Bay Omega',
-    card: 'K♥',
     station: 'Maintenance // 7',
     timing: 7,
     baseline: 'Spend 1 strytium fuel to refuel one docked shuttle.',
@@ -75,7 +68,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'jump-drive',
     name: 'Jump Drive',
-    card: '9♥',
     station: 'Coordination // FTL',
     timing: 'ftl',
     baseline: 'Short // 2 fuel · Medium // 3 fuel · Long // 6 fuel.',
@@ -85,7 +77,6 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'construction-bay',
     name: 'Construction Bay',
-    card: 'J♥',
     station: 'Charged console',
     timing: 5,
     baseline: 'When charged, spend 1 material per replacement fighter. Add fighters to one wing, up to 4.',

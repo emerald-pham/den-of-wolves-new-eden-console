@@ -6,6 +6,13 @@ import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
 import type { ShipDamageState } from '@/types/game';
 
+function systemEffectLabel(effect: string): string {
+  return effect
+    .replaceAll('Upgraded:', 'If Upgraded (By Shepherd):')
+    .replaceAll('Upgraded +', 'If Upgraded (By Shepherd): +')
+    .replaceAll('Damaged:', 'If Damaged:');
+}
+
 export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordinate, damage }: {
   readonly ship: Ship;
   readonly role: ConsoleRole;
@@ -16,18 +23,15 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
   const [page, setPage] = useState<'systems' | 'procedures'>('systems');
   const maintenance = ship.maintenance;
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
-  const damagedCards = new Set(ship.damageDeck
-    .filter(({ systemId }) => damage?.damagedSystemIds.includes(systemId))
-    .map(({ card }) => card));
   const renderSystem = (system: (typeof systems)[number]) => {
-    const damaged = damagedCards.has(system.card);
+    const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
     return <article
       className="aegis-system cic-frame"
-      key={system.card}
+      key={system.id}
       aria-label={`${system.name} system // ${damaged ? 'damaged' : 'operational'}`}
       data-damaged={String(damaged)}
     >
-      <header><span>{system.card}</span></header><h3>{system.name}</h3><p>{system.effect}</p>
+      <h3>{system.name}</h3><p>{systemEffectLabel(system.effect)}</p>
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
       </div></dl>

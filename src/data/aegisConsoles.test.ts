@@ -2,18 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { AEGIS_ROLE_CONSOLES } from './aegisConsoles';
 
 describe('AEGIS role console reference', () => {
-  it('assigns the ship sheet to the Admiral with every printed console and card', () => {
-    expect(AEGIS_ROLE_CONSOLES.admiral.systems.map(({ name, card }) => [name, card]))
-      .toEqual([
-        ['Armoured Hull I', '6♥'],
-        ['Armoured Hull II', '7♥'],
-        ['Storage', '8♥'],
-        ['Reactor', '10♥'],
-        ['Shuttle Bay Zeta', 'Q♥'],
-        ['Shuttle Bay Omega', 'K♥'],
-        ['Jump Drive', '9♥'],
-        ['Construction Bay', 'J♥'],
-      ]);
+  it('assigns every ship-sheet console to the Admiral without client-side cards', () => {
+    expect(AEGIS_ROLE_CONSOLES.admiral.systems.map(({ name }) => name)).toEqual([
+      'Armoured Hull I', 'Armoured Hull II', 'Storage', 'Reactor',
+      'Shuttle Bay Zeta', 'Shuttle Bay Omega', 'Jump Drive', 'Construction Bay',
+    ]);
+    expect(JSON.stringify(AEGIS_ROLE_CONSOLES.admiral.systems)).not.toMatch(/[♥♦♣♠]|"card"/);
     expect(AEGIS_ROLE_CONSOLES.admiral.jumpCosts).toEqual({ short: 2, medium: 3, long: 6 });
     expect(AEGIS_ROLE_CONSOLES.admiral.reactorCapacity).toBe(5);
     expect(AEGIS_ROLE_CONSOLES.admiral.maintenanceSteps).toHaveLength(7);

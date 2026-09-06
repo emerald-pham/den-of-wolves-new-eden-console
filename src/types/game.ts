@@ -152,6 +152,22 @@ export interface FullscreenAlertEvent {
 
 export type SessionEvent = ShipConfettiEvent | FullscreenAlertEvent;
 
+export type DamageDraw = {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly shipId: Id;
+  readonly createdAt: Timestamp;
+} & (
+  | {
+    readonly type: 'ship-damage';
+    readonly card: string;
+    readonly systemId: string;
+    readonly systemName: string;
+    readonly recycled: boolean;
+  }
+  | { readonly type: 'ship-destroyed' }
+);
+
 /** Anything the server generated and only some players may read. */
 export interface SecretRecord {
   readonly id: Id;

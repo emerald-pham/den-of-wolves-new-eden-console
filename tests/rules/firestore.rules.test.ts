@@ -87,6 +87,13 @@ beforeEach(async () => {
       visibleToUids: ['bob'],
       payload: { hand: ['king'] },
     });
+    await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
+      shipId: 'aegis',
+      card: '10♥',
+      systemId: 'reactor',
+      systemName: 'Reactor',
+      recycled: false,
+    });
   });
 });
 
@@ -102,6 +109,15 @@ describe('app-wide arrival state', () => {
 });
 
 describe('session header', () => {
+  it('keeps damage card draws GM-only and denies every client write', async () => {
+    const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
+    const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);
+
+    await assertFails(getDoc(playerDraw));
+    await assertSucceeds(getDoc(gmDraw));
+    await assertFails(setDoc(gmDraw, { card: 'A♠' }));
+  });
+
   it('is readable by a session member', async () => {
     await assertSucceeds(getDoc(doc(as('alice'), SESSION)));
   });

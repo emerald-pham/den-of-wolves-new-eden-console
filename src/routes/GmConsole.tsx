@@ -25,7 +25,7 @@ import {
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
-import type { GmInstance, Player, SessionEvent } from '@/types/game';
+import type { DamageDraw, GmInstance, Player, SessionEvent } from '@/types/game';
 
 interface PlayerRoleGroup {
   readonly id: string;
@@ -120,6 +120,7 @@ export default function GmConsole() {
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
+  const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [resourceWrite, setResourceWrite] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -214,6 +215,7 @@ export default function GmConsole() {
     let unsubscribe: () => void = () => undefined;
     void import('@/lib/firestore').then(({
       subscribeConnectedPlayers,
+      subscribeDamageDraws,
       subscribeGmInstances,
       subscribeSessionEvents,
     }) => {
@@ -240,6 +242,14 @@ export default function GmConsole() {
           message: 'The live GM event log could not be refreshed.',
         }),
       );
+      const stopDamageDraws = subscribeDamageDraws(
+        sessionId,
+        setDamageDraws,
+        () => useSessionStore.getState().setCommunicationError({
+          code: 'gm-damage-log-link',
+          message: 'The private damage draw log could not be refreshed.',
+        }),
+      );
       const stopPlayers = subscribeConnectedPlayers(
         sessionId,
         setConnectedPlayers,
@@ -251,6 +261,7 @@ export default function GmConsole() {
       unsubscribe = () => {
         stopInstances();
         stopEvents();
+        stopDamageDraws();
         stopPlayers();
       };
     });
@@ -748,14 +759,31 @@ export default function GmConsole() {
               </div>
             )}
             <ul className="gm-event-log" aria-label="GM event log">
-              {events.length === 0 ? <li>No logged events.</li> : events.map((event) => (
+              {events.length === 0 && damageDraws.length === 0
+                ? <li>No logged events.</li>
+                : <>
+                  {damageDraws.map((draw) => {
+                    const shipName = SHIPS.find((ship) => ship.id === draw.shipId)?.name ?? draw.shipId;
+                    return <li key={`damage-${draw.id}`}>
+                      <time dateTime={draw.createdAt}>{new Date(draw.createdAt).toLocaleTimeString()}</time>
+                      <span>{shipName} // {draw.type === 'ship-destroyed'
+                        ? 'Destroyed'
+                        : <>Damage draw // <span
+                          className="gm-damage-draw__secret"
+                          tabIndex={0}
+                          aria-label={`Concealed damage draw: ${draw.card}, ${draw.systemName}. Focus or hover to reveal.`}
+                        >{draw.card} // {draw.systemName}{draw.recycled ? ' // recycled' : ''}</span></>}</span>
+                    </li>;
+                  })}
+                  {events.map((event) => (
                 <li key={event.id}>
                   <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleTimeString()}</time>
                   <span>{event.type === 'fullscreen-alert'
                     ? `${event.sourceRoleName} // FULLSCREEN ALERT // ${event.message}`
                     : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
-              ))}
+                  ))}
+                </>}
             </ul>
           </section>
         </div>

@@ -543,10 +543,11 @@ it('shows authoritative AEGIS damage without exposing a damage control', () => {
   );
 
   expect(screen.getByRole('article', { name: 'Reactor system // damaged' }))
-    .toHaveTextContent(/condition.*damaged/i);
+    .toHaveTextContent(/condition.*damaged.*if upgraded \(by shepherd\).*charge 6 consoles.*if damaged.*charge 2 consoles/i);
   expect(screen.getByRole('article', { name: 'Storage system // operational' }))
     .toHaveTextContent(/condition.*operational/i);
   expect(screen.queryByRole('button', { name: /damage/i })).not.toBeInTheDocument();
+  expect(screen.queryByText(/[♥♦♣♠]/)).not.toBeInTheDocument();
 });
 
 it('gives the Wing Commander Starlight and fighter-wing operations without XO systems', async () => {
@@ -645,6 +646,17 @@ it.each([
   });
   expect(within(scaffold).getByRole('button', { name: 'Ship systems' })).toBeInTheDocument();
   expect(scaffold).toHaveTextContent(/tracked at the table/i);
+});
+
+it('labels shared system outcomes as conditional damage and Shepherd upgrades', () => {
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-engineer']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('article', { name: 'Reactor system // operational' }))
+    .toHaveTextContent(/if upgraded \(by shepherd\): \+1 console.*if damaged: −3 consoles/i);
 });
 
 it('applies the capital-ship identity and survivor instruments to AEGIS', () => {

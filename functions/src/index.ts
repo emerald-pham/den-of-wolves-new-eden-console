@@ -1445,7 +1445,7 @@ export const addShipDamage = onCall<{
       current,
       (upperBound) => Math.floor((drawEntropy / entropyRange) * upperBound),
     );
-    const eventRef = db.doc(`sessions/${change.sessionId}/events/${eventId}`);
+    const eventRef = db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`);
 
     tx.update(sessionRef, {
       [`shipDamage.${change.shipId}`]: result.state,

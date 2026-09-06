@@ -26,7 +26,6 @@ function SystemCard({ system, damaged }: {
       data-damaged={String(damaged)}
     >
       <header>
-        <span>{system.card}</span>
         <p>{system.station}</p>
       </header>
       <h3>{system.name}</h3>
@@ -35,8 +34,8 @@ function SystemCard({ system, damaged }: {
         <div className="aegis-system__condition">
           <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
         </div>
-        {system.upgraded && <div><dt>Upgraded</dt><dd>{system.upgraded}</dd></div>}
-        <div><dt>Damaged</dt><dd>{system.damaged}</dd></div>
+        {system.upgraded && <div><dt>If Upgraded (By Shepherd)</dt><dd>{system.upgraded}</dd></div>}
+        <div><dt>If Damaged</dt><dd>{system.damaged}</dd></div>
       </dl>
     </article>
   );

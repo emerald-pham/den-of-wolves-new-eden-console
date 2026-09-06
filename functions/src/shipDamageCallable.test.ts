@@ -54,7 +54,7 @@ beforeEach(() => {
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
 
-it('draws and persists one AEGIS damage card atomically with an audit event', async () => {
+it('draws and persists one AEGIS damage card atomically in the GM-only draw log', async () => {
   await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
     card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
     destroyed: false,
@@ -63,7 +63,7 @@ it('draws and persists one AEGIS damage card atomically with an audit event', as
     'shipDamage.aegis': { damagedSystemIds: ['reactor'], destroyed: false },
     updatedAt: 'server-time',
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/damage-event', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
     type: 'ship-damage', shipId: 'aegis', card: '10♥', systemId: 'reactor',
   }));
 });
@@ -78,9 +78,9 @@ it('does not reroll the card or event identity when Firestore retries the transa
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
   expect(mock.randomUUID).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledTimes(2);
-  expect(mock.set).toHaveBeenNthCalledWith(1, 'sessions/s1/events/first-event',
+  expect(mock.set).toHaveBeenNthCalledWith(1, 'sessions/s1/damageDraws/first-event',
     expect.objectContaining({ card: '10♥', systemId: 'reactor' }));
-  expect(mock.set).toHaveBeenNthCalledWith(2, 'sessions/s1/events/first-event',
+  expect(mock.set).toHaveBeenNthCalledWith(2, 'sessions/s1/damageDraws/first-event',
     expect.objectContaining({ card: '10♥', systemId: 'reactor' }));
 });
 
@@ -116,7 +116,7 @@ it('marks AEGIS destroyed without inventing a card when the deck is empty', asyn
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipDamage.aegis': expect.objectContaining({ destroyed: true }),
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/damage-event', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
     type: 'ship-destroyed', shipId: 'aegis',
   }));
 });
