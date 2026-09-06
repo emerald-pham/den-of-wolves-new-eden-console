@@ -10,6 +10,7 @@ src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 - [Philosophy](#the-philosophy-and-what-it-rules-out)
 - [CIC / default interface](#cic--default-interface)
 - [Contact plot / threat board](#contact-plot--threat-board)
+- [SNN shuttle template](SHUTTLE_TEMPLATE.md)
 - [Screen crossings](#screen-crossings)
 - [Intrusion / hostile takeover](#intrusion--hostile-takeover)
 - [Every viewport](#every-viewport)
@@ -244,6 +245,12 @@ log keeps only its 30 newest visible entries. These bounds are part of the
 feature, not tunable spectacle.
 
 ### Shuttlecraft console parameters
+
+Use the [SNN shuttle template](SHUTTLE_TEMPLATE.md) for later shuttlecraft. It
+specifies the reference identity, responsive console media, required modules,
+optional capability slots, authority boundaries and acceptance checks. This is
+the requested implementation specification; its presence does not mean every
+travel behavior in it is implemented.
 
 `ShuttleConsole` is the required visual and structural template for SNN and
 all later shuttlecraft. It shares the full-viewport `ship-console` shell so a

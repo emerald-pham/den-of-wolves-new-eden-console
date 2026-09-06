@@ -50,6 +50,10 @@ firestore.rules           read model + "clients cannot write what they'd lie abo
 tests/rules/              security-rule assertions against the emulator
 ```
 
+Design references live in [`docs/AESTHETICS.md`](docs/AESTHETICS.md). Use the
+[`Capybara ship template`](docs/SHIP_TEMPLATE.md) for capital-ship consoles and
+the [`SNN shuttle template`](docs/SHUTTLE_TEMPLATE.md) for shuttlecraft.
+
 ## Security model
 
 Firestore rules let a client **read** what it is entitled to see and **write

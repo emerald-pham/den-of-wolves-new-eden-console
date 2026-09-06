@@ -1,5 +1,9 @@
 # Shuttlecraft worldspace model
 
+For console composition, identity fields, capability slots and responsive
+media, use the [SNN shuttle console template](SHUTTLE_TEMPLATE.md). This page
+defines the shared worldspace and travel behavior behind that interface.
+
 ## Current baseline
 
 - The SNN Independent Press Shuttle starts docked to AEGIS.
