@@ -30,18 +30,21 @@ it('turns each readout over every five seconds on proportionally staggered beats
   expect(readout(3)).toHaveTextContent('?');
 });
 
-it('draws one fixed population estimate with no trailing zero or five', () => {
+it('turns the population estimate over on the fourth staggered beat', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.5);
   render(<ArrivalDisplay survivorPopulation={222_501} />);
 
   expect(readout(4)).toHaveTextContent('222,501');
   expect(screen.getByText('POPULATION ESTIMATE AFTER INITIAL STARVATION')).toBeVisible();
 
   const population = shown(4);
-  advance(60_000);
+  advance(9_499);
   expect(shown(4)).toBe(population);
-  expect(Number(population.replaceAll(',', ''))).toBeGreaterThanOrEqual(222_500);
-  expect(Number(population.replaceAll(',', ''))).toBeLessThanOrEqual(242_500);
-  expect(population).not.toMatch(/[05]$/);
+  advance(1);
+  expect(shown(4)).not.toBe(population);
+  expect(Number(shown(4).replaceAll(',', ''))).toBeGreaterThanOrEqual(222_501);
+  expect(Number(shown(4).replaceAll(',', ''))).toBeLessThanOrEqual(242_499);
+  expect(shown(4)).not.toMatch(/[05]$/);
 });
 
 it('walks the wolves readout through its listed order', () => {
