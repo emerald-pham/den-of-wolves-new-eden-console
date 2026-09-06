@@ -11,8 +11,6 @@
 .fleet-ticker__group[data-gap='airspace'] .fleet-ticker__separator,
 .fleet-ticker__probe[data-gap='airspace'] .fleet-ticker__separator { padding-inline: clamp(14rem, 42vw, 42rem); }
 .fleet-ticker__group[data-tone="danger"] { color: var(--cic-hostile); }
-.fleet-ticker__group[data-tone="danger"] .fleet-ticker__copy,
-.fleet-ticker[data-tone="danger"] .fleet-ticker__message { text-transform: lowercase; }
 .fleet-ticker__press { color: var(--cic-ink); text-transform: uppercase; }
 .fleet-ticker__probe { position: absolute; visibility: hidden; pointer-events: none; }
 .fleet-ticker:has(.fleet-ticker__phase-timer) { position: relative; min-height: 3.5rem; padding-bottom: 1.45rem; }

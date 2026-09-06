@@ -30,7 +30,7 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
     state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1 } });
   });
   expect(screen.getByRole('status', {
-    name: 'AEGIS // RED ALERT FROM AEGIS ADMIRAL - WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
+    name: 'ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED',
   })).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
@@ -176,19 +176,19 @@ it('shows the ten-minute cooldown and unlocks without requiring a session update
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeEnabled();
 });
 
-it('keeps new press dispatches in the active warning sequence', () => {
+it('prefixes and capitalizes custom Admiral alerts in the active warning sequence', () => {
   const state = useSessionStore.getState();
   state.setSession({ ...state.session!, fleetRedAlert: { active: true, revision: 1, text: 'hold position' }, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1 } });
   render(<FleetBroadcast />);
-  expect(screen.getByRole('status', { name: /AEGIS \/\/ hold position.*SNN \/\/ First report/ })).toBeVisible();
+  expect(screen.getByRole('status', { name: /ICSN ADMIRAL \/\/ HOLD POSITION.*SNN \/\/ First report/ })).toBeVisible();
   act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!, pressDispatch: { dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }, { id: 'dispatch-2', text: 'SNN // Updated report' }], revision: 2 } }));
-  expect(screen.getByRole('status', { name: /hold position.*Updated report/ })).toBeVisible();
+  expect(screen.getByRole('status', { name: /ICSN ADMIRAL \/\/ HOLD POSITION.*Updated report/ })).toBeVisible();
 });
 it('converts the Admiral warning and default message to uppercase as it is written', async () => {
   render(<FleetAlertControl />);
   const input = screen.getByRole('textbox', { name: 'ALERT MESSAGE' });
   const original = (input as HTMLTextAreaElement).value;
-  expect(original).toContain('WOLF ATTACK IMMINENT');
+  expect(original).toBe('ICSN ADMIRAL // RED ALERT // WOLF ATTACK IMMINENT ALL HANDS TO BATTLE STATIONS. NON-CREW MUST SHELTER IN PLACE UNTIL ALERT LIFTED');
   fireEvent.change(input, { target: { value: 'Hold position' } });
   expect(input).toHaveValue('HOLD POSITION');
   fireEvent.click(screen.getByRole('button', { name: 'RESTORE DEFAULT' }));

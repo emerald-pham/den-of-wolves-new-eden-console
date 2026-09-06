@@ -138,7 +138,7 @@ it('leaves a long gap between repeated press dispatches', async () => {
   expect(css).toMatch(/\.fleet-ticker__group\[data-gap=["']long["']\][^}]*\.fleet-ticker__separator/);
 });
 
-it('moves every incoming tone at the shared linear ticker rate', () => {
+it('moves every incoming tone at the shared linear ticker rate without downcasing alerts', () => {
   const { container } = render(<FleetTicker message={alert} />);
   expect(container.querySelector('.fleet-ticker__group')).toHaveAttribute(
     'data-tone', 'danger',
@@ -146,5 +146,13 @@ it('moves every incoming tone at the shared linear ticker rate', () => {
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
   expect(css).toMatch(/animation:\s*fleet-broadcast-pass var\(--fleet-ticker-duration\) linear forwards/);
   expect(css).not.toContain('fleet-broadcast-enter');
-  expect(css).toMatch(/text-transform:\s*lowercase/);
+  const stylesheet = document.createElement('style');
+  stylesheet.textContent = css;
+  document.head.append(stylesheet);
+  try {
+    expect(getComputedStyle(container.querySelector<HTMLElement>('.fleet-ticker__copy')!).textTransform)
+      .toBe('uppercase');
+  } finally {
+    stylesheet.remove();
+  }
 });

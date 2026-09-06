@@ -799,9 +799,10 @@ alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
 Every fleet bulletin begins with its source: `AEGIS //` for automatic airspace
-and Admiral notices, and `SNN //` for Press dispatches. Keep that prefix first
-in the moving copy, reduced-motion readout, and assistive-technology status so
-the origin stays clear before a bulletin is read.
+and stand-down notices, `ICSN ADMIRAL //` for active Admiral warnings, and
+`SNN //` for Press dispatches. Keep that prefix first in the moving copy,
+reduced-motion readout, and assistive-technology status so the origin stays
+clear before a bulletin is read.
 
 All moving ticker copy enters from the right and travels left at one constant,
 linear rate. This is the fleetwide press/alert transition convention: when a
@@ -831,8 +832,9 @@ and publishes through server authority with revision checks. The current copy
 remains visible on the desk; other shuttle viewers may see the instrument but
 cannot transmit from it.
 
-Press and stand-down copy remain uppercase; the Admiral’s active warning is
-normalized to lowercase and displayed without the usual uppercase treatment.
+Press, stand-down, and the Admiral’s active warning remain uppercase. Every
+active Admiral warning starts `ICSN ADMIRAL //`, including edited copy; the
+provided warning continues `RED ALERT //` before its Wolf-attack instructions.
 The Admiral can edit up to 500 characters, restore the provided default, and
 transmit an update through the guarded command while red alert remains active.
 Press dispatches follow the warning within each repeating sequence in normal
@@ -941,7 +943,7 @@ Page navigation remains usable in read-only mode. Reviewed at 320×844, 1440×90
 and 844×390 with operational and damaged systems, the shared command group,
 observer access toggling, and return navigation.
 
-Alert editor, continuous ticker transition, lowercase warning and DRADIS warning reviewed at
+Alert editor, continuous ticker transition, uppercase source-prefixed warning and DRADIS warning reviewed at
 1440×900, 320×844 and 844×390, including reduced motion and return navigation.
 
 Damage-card outcomes at the maintenance riot step and the shared GM damage

@@ -1,4 +1,4 @@
-import { DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
+import { ADMIRAL_ALERT_PREFIX, DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -9,6 +9,13 @@ type BulletinSource = 'AEGIS' | 'SNN';
 function sourceBulletin(source: BulletinSource, text: string): string {
   const prefix = `${source} // `;
   return text.startsWith(prefix) ? text : `${prefix}${text}`;
+}
+
+function formatAdmiralAlert(text: string): string {
+  const uppercaseText = text.toUpperCase();
+  return uppercaseText.startsWith(ADMIRAL_ALERT_PREFIX)
+    ? uppercaseText
+    : `${ADMIRAL_ALERT_PREFIX}${uppercaseText}`;
 }
 
 export default function FleetBroadcast() {
@@ -46,9 +53,9 @@ export default function FleetBroadcast() {
   }
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
-    text: sourceBulletin('AEGIS', alert.active
-      ? (alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE)
-      : 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.'),
+    text: alert.active
+      ? formatAdmiralAlert(alert.text ?? DEFAULT_FLEET_ALERT_MESSAGE)
+      : sourceBulletin('AEGIS', 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.'),
     tone: alert.active ? 'danger' : 'normal',
     ...(alert.active
       ? (dispatchText ? { pressText: dispatchText } : {})

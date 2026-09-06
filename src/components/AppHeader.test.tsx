@@ -91,7 +91,7 @@ it('keeps fleet broadcasts in the same measured header row as the session code',
 
   const header = screen.getByRole('banner');
   expect(header).toContainElement(screen.getByLabelText('Session code 4821'));
-  expect(header).toContainElement(screen.getByRole('status', { name: /red alert from aegis/i }));
+  expect(header).toContainElement(screen.getByRole('status', { name: /icsn admiral \/\/ red alert/i }));
   expect(await screen.findByText('2 connected to CIC')).toBeVisible();
 });
 

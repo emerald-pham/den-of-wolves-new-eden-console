@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Fleet red alerts now remain in all-capital lettering as they scroll across the console.',
+      'Every active Admiral alert now begins with an ICSN ADMIRAL source prefix, including edited warnings.',
+    ],
+  },
+  {
+    version: '0.2.49',
+    changes: [
       'Every fleet bulletin now begins with its source, including AEGIS airspace and alert notices alongside SNN Press dispatches.',
     ],
   },
