@@ -101,6 +101,10 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
+      - name: Set up Google Cloud CLI
+        if: contains(steps.targets.outputs.targets, 'functions')
+        uses: google-github-actions/setup-gcloud@v3
+
       - name: Deploy affected Firebase surfaces
         if: steps.targets.outputs.targets != ''
         run: |
@@ -109,3 +113,14 @@ jobs:
             --only "${{ steps.targets.outputs.targets }}" \
             --non-interactive \
             --force
+
+      # Firebase CLI creates callable services as public, but its update path
+      # does not repair a missing callable invoker policy after a failed create.
+      - name: Restore browser access to DRADIS contact trigger
+        if: contains(steps.targets.outputs.targets, 'functions')
+        run: |
+          gcloud functions add-invoker-policy-binding triggerDradisContact \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --member="allUsers" \
+            --quiet
