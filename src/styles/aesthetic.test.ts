@@ -426,3 +426,9 @@ it.each([false, true])('preserves semantic system colors with damage=%s and vary
     style.remove();
   }
 });
+
+it('keeps maintenance choices touch-sized and disabled controls visibly muted', () => {
+  const css = readFileSync('src/index.css', 'utf8');
+  expect(css).toContain('.maintenance-controls');
+  expect(css).toMatch(/\.maintenance-systems button:disabled[^}]+color: var\(--cic-muted\)/s);
+});

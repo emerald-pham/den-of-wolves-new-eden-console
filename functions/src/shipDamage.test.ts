@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AEGIS_DAMAGE_DECK, drawShipDamage, shipDamage } from './shipDamage';
+import { AEGIS_DAMAGE_DECK, SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 
 describe('authoritative ship damage deck', () => {
   it('draws one remaining card and damages its matching system', () => {
@@ -58,7 +58,17 @@ describe('authoritative ship damage deck', () => {
   });
 
   it('rejects ships without an implemented damage deck', () => {
-    expect(() => drawShipDamage('dione', { damagedSystemIds: [], destroyed: false }, () => 0))
+    expect(() => drawShipDamage('unknown', { damagedSystemIds: [], destroyed: false }, () => 0))
       .toThrow('damage deck');
   });
+});
+
+it.each([
+  ['dione', 8, '8♣'], ['icebreaker', 8, '8♠'], ['shepherd', 7, 'A♠'],
+  ['quellon', 7, 'A♣'], ['refinery-124', 9, 'A♦'], ['capybara', 7, 'A♠'],
+])('provides the printed %s deck with %s cards', (shipId, count, firstCard) => {
+  const deck = SHIP_DAMAGE_DECKS[shipId as string];
+  expect(deck).toHaveLength(count as number);
+  expect(drawShipDamage(shipId as string, { damagedSystemIds: [], destroyed: false }, () => 0))
+    .toMatchObject({ card: { card: firstCard, systemId: 'storage' } });
 });

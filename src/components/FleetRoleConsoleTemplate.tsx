@@ -59,7 +59,7 @@ export default function FleetRoleConsoleTemplate<Page extends string>({
     >
       <div className="console-workspace__status">
         <p>Jump requirement // Short {short} // Medium {medium} // Long {long}</p>
-        <p>Console reference // Charges, upgrades and procedure outcomes are tracked at the table // Damage state synchronized</p>
+        <p>Maintenance and damage synchronized // Upgrades and procedure outcomes are tracked at the table</p>
       </div>
       {children}
     </RoleConsoleTemplate>

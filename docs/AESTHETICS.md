@@ -586,3 +586,13 @@ height. Verify 320px phones, wide desktops, and short landscape viewports;
 check controls during an intrusion and with reduced motion. The contact plot is
 sized in `vmin`/`vw` so it reflows with the viewport and needs no breakpoint of
 its own.
+
+### Interactive maintenance
+
+The shared maintenance path keeps Begin immediately beneath the amber heading.
+All step controls remain present, with inactive buttons and choices in muted grey.
+The current step uses a cyan rail; server-confirmed outcomes use cyan readouts.
+Ration and refuelling selects and checkbox labels have 44px minimum touch targets,
+wrap within the path, and use native fieldsets to disable future steps together.
+Both AEGIS bays share step 6; End follows the path and unlocks after refuelling.
+Reviewed at 1440×900, 390×844, and 844×390 with intact and damaged configurations.

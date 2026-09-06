@@ -62,7 +62,7 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
     galacticCoordinate={galacticCoordinate} fuel={fuel}
     reactorCapacity={commandMetrics.reactor} jumpCosts={commandMetrics.jump} damage={damage}>
     {maintenance
-      ? <MaintenanceSystems name={ship.name} systems={systems} renderSystem={renderSystem} rations={<>
+      ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
         <tbody><tr><th>Food</th>{maintenance.food.map((value, index) => <td key={index}>{value}</td>)}</tr>

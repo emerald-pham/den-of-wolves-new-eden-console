@@ -34,6 +34,65 @@ export const AEGIS_DAMAGE_DECK: readonly DamageCard[] = [
 
 export const SHIP_DAMAGE_DECKS: Readonly<Record<string, readonly DamageCard[]>> = {
   aegis: AEGIS_DAMAGE_DECK,
+  'dione': [
+    { card: '8♣', systemId: 'storage', systemName: 'Storage' },
+    { card: '9♣', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '10♣', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: 'J♣', systemId: 'hydroponics', systemName: 'Hydroponics' },
+    { card: 'Q♣', systemId: 'water-reclamation', systemName: 'Water Reclamation' },
+    { card: 'K♣', systemId: 'vip-lounge', systemName: 'VIP Lounge' },
+    { card: '10♦', systemId: 'fighter-bay', systemName: 'Fighter Bay' },
+    { card: 'J♦', systemId: 'jump-drive', systemName: 'Jump Drive' },
+  ],
+  'icebreaker': [
+    { card: '8♠', systemId: 'storage', systemName: 'Storage' },
+    { card: '9♠', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '10♠', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: 'J♠', systemId: 'hydroponics', systemName: 'Hydroponics' },
+    { card: 'Q♠', systemId: 'water-reclamation', systemName: 'Water Reclamation' },
+    { card: 'K♠', systemId: 'mining-drone-control', systemName: 'Mining Drone Control' },
+    { card: 'Q♦', systemId: 'jump-drive', systemName: 'Jump Drive' },
+    { card: 'K♦', systemId: 'ram-scoop', systemName: 'Ram Scoop' },
+  ],
+  'shepherd': [
+    { card: 'A♠', systemId: 'storage', systemName: 'Storage' },
+    { card: '2♠', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '3♠', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: '4♠', systemId: 'water-reclamation', systemName: 'Water Reclamation' },
+    { card: '5♠', systemId: 'advanced-hydroponics', systemName: 'Advanced Hydroponics' },
+    { card: '6♠', systemId: 'advanced-hydroponics-ii', systemName: 'Advanced Hydroponics II' },
+    { card: '7♠', systemId: 'jump-drive', systemName: 'Jump Drive' },
+  ],
+  'quellon': [
+    { card: 'A♣', systemId: 'storage', systemName: 'Storage' },
+    { card: '2♣', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '3♣', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: '4♣', systemId: 'hydroponics', systemName: 'Hydroponics' },
+    { card: '5♣', systemId: 'water-production', systemName: 'Water Production' },
+    { card: '6♣', systemId: 'water-production-ii', systemName: 'Water Production II' },
+    { card: '7♣', systemId: 'jump-drive', systemName: 'Jump Drive' },
+  ],
+  'refinery-124': [
+    { card: 'A♦', systemId: 'storage', systemName: 'Storage' },
+    { card: '2♦', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '3♦', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: '4♦', systemId: 'hydroponics', systemName: 'Hydroponics' },
+    { card: '5♦', systemId: 'water-reclamation', systemName: 'Water Reclamation' },
+    { card: '6♦', systemId: 'fuel-refinery', systemName: 'Fuel Refinery' },
+    { card: '7♦', systemId: 'fuel-refinery-ii', systemName: 'Fuel Refinery II' },
+    { card: '8♦', systemId: 'fighter-bay', systemName: 'Fighter Bay' },
+    { card: '9♦', systemId: 'jump-drive', systemName: 'Jump Drive' },
+  ],
+  'capybara': [
+    { card: 'A♠', systemId: 'storage', systemName: 'Storage' },
+    { card: '2♠', systemId: 'advanced-hydroponics', systemName: 'Advanced Hydroponics' },
+    { card: '3♠', systemId: 'reactor', systemName: 'Reactor' },
+    { card: '4♠', systemId: 'water-production', systemName: 'Water Production' },
+    { card: '5♠', systemId: 'jump-drive', systemName: 'Jump Drive' },
+    { card: '6♠', systemId: 'shuttle-bay', systemName: 'Shuttle Bay' },
+    { card: '7♠', systemId: 'scrap-refinery', systemName: 'Scrap Refinery' },
+  ],
+
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {

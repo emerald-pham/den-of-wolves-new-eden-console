@@ -1,3 +1,4 @@
+import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import {
   INITIAL_SHIP_SURVIVORS,
   acknowledgePopulationAlert,
@@ -392,6 +393,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipDamage: shipDamage(sessionSnap.get('shipDamage')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
+      maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
+      shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
+      shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
+      shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
         shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
@@ -483,6 +488,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipDamage: shipDamage(sessionSnap.get('shipDamage')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
+      maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
+      shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
+      shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
+      shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
       shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
@@ -1447,8 +1456,28 @@ export const addShipDamage = onCall<{
     );
     const eventRef = db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`);
 
+    const currentPopulation = populationForShip(change.shipId, session.get('shipSurvivors'))!;
+    const takesCasualties = !result.destroyed && !result.card.systemId.startsWith('armoured-hull') && currentPopulation > 0;
+    const nextPopulation = takesCasualties
+      ? populationChange(change.shipId, currentPopulation, -1, false).amount : currentPopulation;
+    const populationAlerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const unrestAlerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+    const unrest = shipUnrest(session.get('shipUnrest'))[change.shipId]!;
+    const nextUnrest = takesCasualties && nextPopulation === 0 ? Math.min(10, unrest + 2) : unrest;
+    if (takesCasualties && populationTrackForShip(change.shipId)?.thresholds.includes(nextPopulation)) {
+      const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
+      const targetGmInstanceIds = instances.docs.map(instance => instance.id);
+      if (targetGmInstanceIds.length) {
+        const alert = { shipId: change.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId, targetGmInstanceIds, createdAt: new Date().toISOString() };
+        populationAlerts[change.shipId] = { ...alert, population: nextPopulation };
+        if (unrest < 8 && nextUnrest >= 8) unrestAlerts[change.shipId] = alert;
+      }
+    }
     tx.update(sessionRef, {
       [`shipDamage.${change.shipId}`]: result.state,
+      [`shipSurvivors.${change.shipId}`]: nextPopulation,
+      [`shipUnrest.${change.shipId}`]: nextUnrest,
+      populationAlerts, unrestAlerts,
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (result.destroyed) {
@@ -1572,5 +1601,103 @@ export const dismissPopulationAlert = onCall<{
     else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
     tx.update(sessionRef, { populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
     return { dismissed: true };
+  });
+});
+
+/** One atomic, revision-checked maintenance action. Dice are never supplied by a client. */
+export const runMaintenance = onCall<{
+  sessionId: string; shipId: string; action: string; expectedRevision: number;
+  instanceId?: string; foodLevel?: number; waterLevel?: number;
+  consoles?: string[]; refuels?: Record<string, string>;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const data = request.data;
+  const allowed = ['sessionId', 'shipId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels'];
+  if (!data || Object.keys(data).some(key => !allowed.includes(key)) ||
+    typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+    typeof data.shipId !== 'string' || !MAINTENANCE_RULES[data.shipId] ||
+    typeof data.action !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 ||
+    (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
+    [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
+    (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(id => typeof id !== 'string'))) ||
+    (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string')))) {
+    throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
+  }
+  const entropy = randomInt(0, 0x1_0000_0000) / 0x1_0000_0000;
+  const rolls = [randomInt(1, 7), randomInt(1, 7)];
+  const eventId = randomUUID();
+  const ref = db.doc(`sessions/${data.sessionId}`);
+  return db.runTransaction(async tx => {
+    // Joint engineering authority is scoped to the two ships on its assigned station.
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+      throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
+    }
+    const jointShips: Record<string, string[]> = {
+      'joint-engineering-quellon-refinery': ['quellon', 'refinery-124'],
+      'joint-engineering-shepherd-icebreaker': ['shepherd', 'icebreaker'],
+    };
+    const joint = jointShips[String(player.get('activeConsoleRoleId'))]?.includes(data.shipId);
+    if (!(isActivePlayer(player) && player.get('role') === 'player' && joint)) {
+      await requireShipCounterAuthority(tx, data.sessionId, uid, data.shipId, data.instanceId);
+    }
+    const snapshot = await tx.get(ref);
+    if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
+        (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
+        snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
+    const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
+    const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
+    const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
+    const unrestAlerts = (snapshot.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
+    const populationAlerts = (snapshot.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
+    let result: ReturnType<typeof advanceMaintenance>;
+    try {
+      result = advanceMaintenance({
+        ...data, cycle: current[data.shipId] ?? emptyMaintenanceCycle(),
+        resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
+        damage: shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? { damagedSystemIds: [], destroyed: false },
+        unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
+        cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
+        upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls, entropy,
+      });
+    } catch (cause) {
+      throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');
+    }
+    const populationThreshold = result.population !== population && populationTrackForShip(data.shipId)?.thresholds.includes(result.population);
+    if ((unrest < 8 && result.unrest >= 8) || populationThreshold) {
+      const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
+      const targetGmInstanceIds = instances.docs.map(instance => instance.id);
+      if (targetGmInstanceIds.length) {
+        const alert = { shipId: data.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId, targetGmInstanceIds, createdAt: new Date().toISOString() };
+        if (unrest < 8 && result.unrest >= 8) unrestAlerts[data.shipId] = alert;
+        if (populationThreshold) populationAlerts[data.shipId] = { ...alert, population: result.population };
+      }
+    }
+    tx.update(ref, {
+      [`maintenanceCycles.${data.shipId}`]: result.cycle,
+      [`shipResources.${data.shipId}`]: result.resources,
+      [`shipDamage.${data.shipId}`]: result.damage,
+      [`shipUnrest.${data.shipId}`]: result.unrest,
+      [`shipSurvivors.${data.shipId}`]: result.population,
+      shuttleCargo: result.cargo, shuttleFuelled: result.fuelled,
+      unrestAlerts, populationAlerts, updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), {
+      type: 'maintenance', shipId: data.shipId, byUid: uid, action: data.action,
+      revision: result.cycle.revision, results: result.cycle.results,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    if (result.damageDraw) {
+      const draw = result.damageDraw;
+      tx.set(db.doc(`sessions/${data.sessionId}/damageDraws/${eventId}`), {
+        shipId: data.shipId, createdAt: FieldValue.serverTimestamp(),
+        ...(draw.destroyed ? { type: 'ship-destroyed' } : {
+          type: 'ship-damage', ...draw.card, recycled: draw.recycled,
+        }),
+      });
+    }
+    return result.cycle;
   });
 });

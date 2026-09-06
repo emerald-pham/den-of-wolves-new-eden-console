@@ -50,8 +50,7 @@ in each vessel definition and role procedures in `roleProcedures.ts`. Joint
 Engineering switches between its two assigned ships using the same workspace.
 Ship systems are embedded in the numbered maintenance path through the shared
 `MaintenanceSystems` component: Storage at 1, rations at 2, unrest at 3,
-rioting at 4, Reactor and production at 5, shuttle bays at 6 (and AEGIS Omega
-at 7). Vessel definitions declare each system's timing. FTL, Wolf Attack and
+rioting at 4, Reactor and production at 5, both shuttle bays at 6. Vessel definitions declare each system's timing. FTL, Wolf Attack and
 passive systems retain their own sections outside the numbered path. Preserve
 this order when stacking the layout on smaller screens. Role procedures retain
 their own page. See the [original ship-sheet layouts](reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_SHIP_LAYOUTS.md).
@@ -62,15 +61,21 @@ track; the independent server catalog enforces the same printed values and
 starred thresholds. GM movement uses the existing authoritative step controls
 and per-GM acknowledgement flow. Do not interpolate missing population values.
 
-Charges, damage, research and procedure outcomes remain table-resolved until
-their individual gameplay implementation passes.
+Maintenance and damage are server-authoritative across all seven fleet ships.
+`runMaintenance` advances a per-ship revision inside a transaction: storage,
+rations, unrest, riot damage and casualties, charge replacement, refuelling,
+and explicit completion. Both AEGIS bays resolve in the final refuelling step.
+Shared snapshots retain progress, results and charges across roles and reloads.
+Research and charged-console production/combat outcomes remain table-resolved.
+The current ration choices use the initial printed schedules; replacement
+schedules at population thresholds still require facilitator adjudication.
 
 Each ship has one shared docking manifest: an immutable history whose rows name
 the shuttlecraft and the shuttleport where it docked. Current occupancy,
 maintenance rules and departure events stay out of this panel. The Press
 shuttle declares the civilian access hatch as its port and remains excluded
-from mechanical dock occupancy. This adds no shuttle craft or travel/refuelling
-mutations.
+from mechanical dock occupancy. Maintenance refuelling uses the authoritative docking list. No new shuttle
+craft or travel controls are added by the maintenance workflow.
 
 A new workspace kind belongs in the template's typed workspace selection and
 the central renderer. Keep workspace availability checks in sync. Never copy
@@ -108,3 +113,11 @@ can mutate it. Do not import UI definitions or React into Cloud Functions.
 See [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md),
 [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) and [AESTHETICS.md](AESTHETICS.md) for
 visual and gameplay requirements.
+
+
+Fleet damage decks live exclusively in `functions/src/shipDamage.ts` so clients
+never receive unrevealed cards. AEGIS armour retains its recycling and casualty
+exception. Ordinary damage advances the printed survivor track, with GM alerts
+at starred thresholds. An empty deck destroys the ship on the next draw.
+The reference errata are applied: Refinery 124 Water Reclamation is 5♦ by
+elimination; expansion Capybara Scrap Refinery uses 7♠, disregarding the stray 5♦.

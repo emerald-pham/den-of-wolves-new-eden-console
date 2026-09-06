@@ -53,6 +53,10 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
+    maintenanceCycles: data.maintenanceCycles ?? {},
+    shuttleCargo: data.shuttleCargo ?? {},
+    shuttleFuelled: data.shuttleFuelled ?? {},
+    shipUpgrades: data.shipUpgrades ?? {},
     shipResources: shipResources(data.shipResources),
     shipDamage: typeof data.shipDamage === 'object' && data.shipDamage !== null
       ? data.shipDamage as NonNullable<GameSession['shipDamage']>

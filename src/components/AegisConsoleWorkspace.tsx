@@ -57,7 +57,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleI
       jumpCosts={[console.jumpCosts.short, console.jumpCosts.medium, console.jumpCosts.long]}
       damage={damage}
     >
-      <MaintenanceSystems name="AEGIS" systems={console.systems}
+      <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         renderSystem={system => <SystemCard key={system.id} system={system}
           damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}
         rations={<>

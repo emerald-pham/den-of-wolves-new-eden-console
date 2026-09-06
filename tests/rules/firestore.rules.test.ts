@@ -395,3 +395,13 @@ describe('secrets', () => {
     );
   });
 });
+
+it('denies player and GM client writes to maintenance, charges, cargo and shuttle fuel', async () => {
+  for (const uid of ['alice', 'gm1']) {
+    const db = env.authenticatedContext(uid).firestore();
+    await assertSucceeds(getDoc(doc(db, SESSION)));
+    for (const field of ['maintenanceCycles', 'shuttleCargo', 'shuttleFuelled', 'shipUpgrades']) {
+      await assertFails(updateDoc(doc(db, SESSION), { [field]: { aegis: { step: 7 } } }));
+    }
+  }
+});

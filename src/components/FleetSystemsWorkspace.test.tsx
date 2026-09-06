@@ -48,7 +48,7 @@ describe('fleet system reference workspaces', () => {
       expect(workspace).toHaveTextContent(/damage state.*0 systems/i);
       expect(workspace).toHaveTextContent(/jump requirement.*short.*medium.*long/i);
       expect(workspace).toHaveTextContent(
-        /console reference.*charges, upgrades and procedure outcomes are tracked at the table.*damage state synchronized/i,
+        /maintenance and damage synchronized.*upgrades and procedure outcomes are tracked at the table/i,
       );
       if (role.id !== 'admiral' && role.id !== 'wing-commander') {
         expect(screen.queryByRole('navigation', {

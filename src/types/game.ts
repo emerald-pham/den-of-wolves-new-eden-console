@@ -45,7 +45,20 @@ export interface PopulationAlert extends UnrestAlert {
   readonly population: number;
 }
 
+export interface MaintenanceCycle {
+  readonly step: number;
+  readonly revision: number;
+  readonly results: Readonly<Record<string, string>>;
+  readonly charges: readonly string[];
+  readonly refuelled: readonly string[];
+  readonly rationBonus?: number;
+}
+
 export interface GameSession {
+  readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
+  readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
+  readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;
   readonly id: Id;

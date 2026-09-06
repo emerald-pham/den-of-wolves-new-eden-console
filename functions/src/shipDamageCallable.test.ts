@@ -95,7 +95,7 @@ it('denies another GM instance and ships without a damage deck', async () => {
   await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
 
   mock.owner = 'u1';
-  await expect(addShipDamage.run(request({ ...data, shipId: 'dione' })))
+  await expect(addShipDamage.run(request({ ...data, shipId: 'unknown' })))
     .rejects.toMatchObject({ code: 'invalid-argument' });
 });
 
@@ -120,3 +120,11 @@ it('marks AEGIS destroyed without inventing a card when the deck is empty', asyn
     type: 'ship-destroyed', shipId: 'aegis',
   }));
 });
+
+it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 28000], ['quellon', 28000], ['refinery-124', 18500], ['capybara', 18500]])(
+  'moves %s survivors down its printed track on ordinary damage', async (shipId, population) => {
+    mock.randomInt.mockReturnValue(0);
+    await addShipDamage.run(request({ ...data, shipId }));
+    expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ [`shipSurvivors.${shipId}`]: population }));
+  },
+);
