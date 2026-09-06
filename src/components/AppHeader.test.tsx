@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -76,13 +76,11 @@ it('keeps fleet broadcasts in the same measured header row as the session code',
   expect(await screen.findByText('2 connected to CIC')).toBeVisible();
 });
 
-it('keeps the press ticker in the top header before any fleet event', async () => {
+it('keeps the header clear before the Press Officer releases a dispatch', async () => {
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   const header = screen.getByRole('banner');
-  expect(header).toContainElement(screen.getByRole('status', {
-    name: 'SNN // Your Trusted Partner',
-  }));
+  expect(within(header).queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
   expect(await screen.findByText('2 connected to CIC')).toBeVisible();
 });
 

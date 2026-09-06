@@ -99,7 +99,6 @@ const INITIAL_SHUTTLE_VISITS = [{
   id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
   action: 'docked', occurredAt: 'SESSION START',
 }];
-const INITIAL_PRESS_DISPATCH = { text: 'SNN // Your Trusted Partner', revision: 0 };
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
   aegis: '0000',
   dione: '0000',
@@ -258,7 +257,6 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
           shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
-          pressDispatch: INITIAL_PRESS_DISPATCH,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -305,7 +303,6 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
             shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
             shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
-            pressDispatch: INITIAL_PRESS_DISPATCH,
             confettiUsedShipIds: [],
             ownerUid: uid,
             createdAt: now,
@@ -424,7 +421,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
         shuttleVisitLog:
           (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
-        pressDispatch: sessionSnap.get('pressDispatch') ?? INITIAL_PRESS_DISPATCH,
+        ...(sessionSnap.get('pressDispatch') === undefined
+          ? {}
+          : { pressDispatch: sessionSnap.get('pressDispatch') }),
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
         ownerUid: sessionSnap.get('ownerUid') as string,
@@ -523,7 +522,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
       shuttleVisitLog:
         (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
-      pressDispatch: sessionSnap.get('pressDispatch') ?? INITIAL_PRESS_DISPATCH,
+      ...(sessionSnap.get('pressDispatch') === undefined
+        ? {}
+        : { pressDispatch: sessionSnap.get('pressDispatch') }),
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
       ownerUid: sessionSnap.get('ownerUid') as string,

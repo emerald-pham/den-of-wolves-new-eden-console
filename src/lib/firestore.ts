@@ -56,7 +56,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
-    pressDispatch: data.pressDispatch ?? { text: 'SNN // Your Trusted Partner', revision: 0 },
+    ...(data.pressDispatch === undefined ? {} : { pressDispatch: data.pressDispatch }),
     maintenanceCycles: data.maintenanceCycles ?? {},
     shuttleCargo: data.shuttleCargo ?? {},
     shuttleFuelled: data.shuttleFuelled ?? {},

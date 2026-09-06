@@ -15,9 +15,7 @@ beforeEach(() => {
 });
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
-  expect(screen.getByRole('status', {
-    name: 'SNN // Your Trusted Partner',
-  })).toBeVisible();
+  expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
   const command = screen.getByRole('region', { name: 'FLEETWIDE RED ALERT' });
   expect(command.textContent).toBe(command.textContent?.toUpperCase());
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();

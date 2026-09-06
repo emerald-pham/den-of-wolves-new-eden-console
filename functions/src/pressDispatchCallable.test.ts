@@ -3,7 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'player', post: 'press-officer', connected: true,
-  exists: true, phase: 'active', revision: 0,
+  exists: true, phase: 'active', revision: 0, pressDispatch: undefined as unknown,
 }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
@@ -27,18 +27,27 @@ const request = (input = data) => ({
 beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
-    phase: 'active', revision: 0,
+    phase: 'active', revision: 0, pressDispatch: undefined,
   });
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, pressDispatch: { text: 'Old news', revision: mock.revision } };
+      : { phase: mock.phase, pressDispatch: mock.pressDispatch };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
 });
 
 it('lets the active Press Officer publish a serialized dispatch', async () => {
+  mock.pressDispatch = { text: 'Old news', revision: 0 };
+  await publishPressDispatch.run(request());
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+    pressDispatch: { text: `SNN // ${data.text}`, revision: 1 },
+    updatedAt: 'server-time',
+  });
+});
+
+it('uses revision zero when the session has no earlier dispatch', async () => {
   await publishPressDispatch.run(request());
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
     pressDispatch: { text: `SNN // ${data.text}`, revision: 1 },
@@ -65,6 +74,7 @@ it('rejects closed sessions and stale revisions without writing', async () => {
     .toMatchObject({ code: 'failed-precondition' });
   mock.phase = 'active';
   mock.revision = 2;
+  mock.pressDispatch = { text: 'Old news', revision: mock.revision };
   await expect(publishPressDispatch.run(request())).rejects
     .toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();

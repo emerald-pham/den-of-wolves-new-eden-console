@@ -212,9 +212,9 @@ instrument. They use the same ruled border, near-black ground, compact height,
 and monospaced readout scale; they never attach to the viewport bottom or cover
 the console. On constrained widths the broadcast occupies its own full-width
 row inside that same measured header, so the console offset still accounts for
-it. The SNN ticker remains present before the first fleet event and between
-finite broadcasts. Its initial dispatch is “SNN // Your Trusted Partner.” Press
-dispatches leave a deliberately long field of empty track between repetitions,
+it. The SNN ticker remains absent until the Press Officer publishes the first
+dispatch, then returns between finite broadcasts. Press dispatches leave a
+deliberately long field of empty track between repetitions,
 so each item reads as a discrete wire-service bulletin rather than a dense alert.
 Moving broadcasts contain two identical groups, with enough copies in each
 group to span the available readout before the track loops between them. Reduced

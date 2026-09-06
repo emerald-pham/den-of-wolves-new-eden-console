@@ -1,28 +1,20 @@
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
-const PRESS_STANDBY = {
-  id: 'press-standby',
-  text: 'SNN // Your Trusted Partner',
-  tone: 'normal' as const,
-  gap: 'long' as const,
-};
-
 export default function FleetBroadcast() {
   const { session, me } = useSessionStore();
   const alert = session?.fleetRedAlert;
   const dispatch = session?.pressDispatch;
-  const standby = session
+  const pressDispatch = session && dispatch
     ? {
-        ...PRESS_STANDBY,
-        id: dispatch
-          ? `${session.id}:press-dispatch:${dispatch.revision}`
-          : `${session.id}:${PRESS_STANDBY.id}`,
-        text: dispatch?.text ?? PRESS_STANDBY.text,
+        id: `${session.id}:press-dispatch:${dispatch.revision}`,
+        text: dispatch.text,
+        tone: 'normal' as const,
+        gap: 'long' as const,
       }
-    : PRESS_STANDBY;
+    : undefined;
   if (!session || !me || !alert || alert.revision === 0) {
-    return <FleetTicker message={standby} />;
+    return pressDispatch ? <FleetTicker message={pressDispatch} /> : null;
   }
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
@@ -31,5 +23,5 @@ export default function FleetBroadcast() {
       : 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
     tone: alert.active ? 'danger' : 'normal',
     ...(alert.active ? {} : { passes: 2 }),
-  }} fallback={standby} />;
+  }} {...(pressDispatch ? { fallback: pressDispatch } : {})} />;
 }
