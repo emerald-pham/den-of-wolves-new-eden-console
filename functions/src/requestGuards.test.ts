@@ -5,6 +5,7 @@ import {
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
+  requireGmInstanceRequest,
   requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
@@ -110,6 +111,15 @@ describe('callable request guards', () => {
     expect(requireGmInstanceActionRequest({
       sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2',
     })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2' });
+  });
+
+  it('requires a session and named GM instance for a DRADIS trigger', () => {
+    expectHttpsError(
+      () => requireGmInstanceRequest({ sessionId: 's1', instanceId: '' }),
+      'invalid-argument',
+    );
+    expect(requireGmInstanceRequest({ sessionId: 's1', instanceId: 'i1' }))
+      .toEqual({ sessionId: 's1', instanceId: 'i1' });
   });
 
   it('requires a boolean ship availability setting from a named GM instance', () => {

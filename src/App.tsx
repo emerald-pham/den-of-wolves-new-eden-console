@@ -86,6 +86,7 @@ function AppRoutes() {
         capybaraEnabled={session?.capybaraEnabled !== false}
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
+        ambientSession={session ?? undefined}
       />
       <AppHeader />
       <CommunicationError />

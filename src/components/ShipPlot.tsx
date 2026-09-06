@@ -11,6 +11,7 @@ import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
+import type { GameSession } from '@/types/game';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
 export const SHIP_PLOT_RESIZE_MS = DRADIS_RESIZE_MS;
@@ -37,6 +38,7 @@ export default function ShipPlot({
   capybaraEnabled = true,
   dioneEnabled = true,
   shipGalacticCoordinates = {},
+  ambientSession,
 }: {
   hostile: boolean;
   aboard: boolean;
@@ -44,6 +46,7 @@ export default function ShipPlot({
   capybaraEnabled?: boolean;
   dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
+  ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
@@ -135,6 +138,7 @@ export default function ShipPlot({
         placement={aboard ? 'widget' : 'inset'}
         size="min(92cqi, 92cqb)"
         contacts={contacts}
+        ambientSession={ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
       />

@@ -42,6 +42,7 @@ function iso(value: unknown): string {
 }
 
 function sessionFrom(id: string, data: DocumentData): GameSession {
+  const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   return {
     id,
     name: data.name as string,
@@ -84,6 +85,9 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
       ? data.confettiUsedShipIds as string[]
       : [],
+    ...(dradisContactTriggeredAt && typeof dradisContactTriggeredAt.toDate === 'function'
+      ? { dradisContactTriggeredAt: iso(dradisContactTriggeredAt) }
+      : {}),
     ownerUid: data.ownerUid as string,
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),

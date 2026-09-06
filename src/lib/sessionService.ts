@@ -520,6 +520,28 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
   });
 }
 
+export async function triggerDradisContact(): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before triggering a DRADIS contact.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string },
+    { triggeredAt: string }
+  >(functions(), 'triggerDradisContact');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+    });
+    store.setSession({ ...store.session, dradisContactTriggeredAt: reply.data.triggeredAt });
+  } catch (cause) {
+    store.setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function setActiveRoleEnabled(
   roleId: string,
   enabled: boolean,

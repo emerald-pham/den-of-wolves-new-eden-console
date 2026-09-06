@@ -1,6 +1,16 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import ContactPlot, { SPASM_MS } from './ContactPlot';
+import ContactPlot, {
+  SPASM_MS,
+} from './ContactPlot';
+import {
+  AMBIENT_CLASSIFICATION_MS,
+  AMBIENT_CONTACT_INTERVAL_MS,
+  AMBIENT_CONTACT_LIFETIME_MS,
+  ambientClassification,
+  ambientDradisOccurrence,
+} from './ambientDradisContact';
+import { CONTACT_SCAN_EVENT } from './sweep';
 import { SCAN_FRESH_MS } from './sweep';
 
 // The plot is a decorative background layer. It deliberately exposes no role,
@@ -10,6 +20,10 @@ const plotIn = (container: HTMLElement) =>
   container.querySelector<HTMLElement>('.contact-plot');
 const contactsIn = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>('.contact-plot__contact'));
+const ambientSession = {
+  id: 'fleet-session',
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
 
 let listeners: ((event: MediaQueryListEvent) => void)[] = [];
 
@@ -82,6 +96,80 @@ it('holds station until an intrusion, then floods with spoofed contacts', () => 
 
   expect(plotIn(container)).toHaveAttribute('data-hostile', 'true');
   expect(contactsIn(container).length).toBeGreaterThan(quiet);
+});
+
+it('tracks a far-moving unknown every twenty minutes and drops it after two minutes', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime('2026-01-01T00:10:00.000Z');
+  vi.spyOn(Math, 'random').mockReturnValue(0.25);
+  const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_INTERVAL_MS / 2));
+
+  const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
+  expect(contact).toHaveTextContent('UNKNOWN CONTACT');
+  const start = ['--x', '--y', '--z'].map((property) =>
+    Number(contact?.style.getPropertyValue(property)),
+  );
+  const end = ['--transit-x', '--transit-y', '--transit-z'].map((property) =>
+    Number(contact?.style.getPropertyValue(property)),
+  );
+  expect(Math.hypot(...start as [number, number, number])).toBeGreaterThanOrEqual(0.86);
+  expect(Math.hypot(...end as [number, number, number])).toBeGreaterThanOrEqual(0.86);
+  expect(end).not.toEqual(start);
+  expect(contact?.style.getPropertyValue('--transit-duration'))
+    .toBe(`${AMBIENT_CONTACT_LIFETIME_MS}ms`);
+
+  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_LIFETIME_MS - 1));
+  expect(container.querySelector("[data-ambient='true']")).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1));
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(
+    AMBIENT_CONTACT_INTERVAL_MS - AMBIENT_CONTACT_LIFETIME_MS,
+  ));
+  expect(container.querySelector("[data-ambient='true']")).toBeInTheDocument();
+});
+
+it('classifies the passing unknown only when scanned after ninety seconds', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime('2026-01-01T00:10:00.000Z');
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+  act(() => vi.advanceTimersByTime(AMBIENT_CONTACT_INTERVAL_MS / 2));
+  const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
+  if (!contact) throw new Error('Expected the passing unknown contact.');
+
+  act(() => {
+    vi.advanceTimersByTime(AMBIENT_CLASSIFICATION_MS - 1);
+    contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
+  });
+  expect(contact).toHaveTextContent('UNKNOWN CONTACT');
+
+  act(() => {
+    vi.advanceTimersByTime(1);
+    contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
+  });
+  const occurrence = ambientDradisOccurrence(ambientSession, Date.now());
+  expect(contact).toHaveTextContent(occurrence?.classification ?? '');
+
+  act(() => vi.advanceTimersByTime(
+    AMBIENT_CONTACT_LIFETIME_MS - AMBIENT_CLASSIFICATION_MS,
+  ));
+  expect(container.querySelector("[data-ambient='true']")).not.toBeInTheDocument();
+});
+
+it('samples every possible name when an ambient contact is classified', () => {
+  expect([0, 0.2, 0.4, 0.6, 0.8].map((sample) =>
+    ambientClassification(() => sample),
+  )).toEqual([
+    'Asteroid',
+    'Rock',
+    "Your Mom's Big Butt",
+    'Emerald Nebula Interference',
+    'Metallic Asteroid',
+  ]);
 });
 
 it('starts still when reduced motion is requested', () => {

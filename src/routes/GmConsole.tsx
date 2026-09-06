@@ -22,6 +22,7 @@ import {
   adjustShipResource,
   adjustShipUnrest,
   adjustShipPopulation,
+  triggerDradisContact,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -126,6 +127,7 @@ export default function GmConsole() {
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
+  const [triggeringDradis, setTriggeringDradis] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
   const dradisPreviousBounds = useRef<DOMRect | null>(null);
   const dradisAnimation = useRef<Animation | null>(null);
@@ -218,6 +220,15 @@ export default function GmConsole() {
     dradisAnimation.current?.cancel();
     dradisAnimation.current = null;
     setDradisExpanded((expanded) => !expanded);
+  };
+
+  const triggerUnknownContact = async () => {
+    setTriggeringDradis(true);
+    try {
+      await triggerDradisContact();
+    } finally {
+      setTriggeringDradis(false);
+    }
   };
 
   useEffect(() => {
@@ -426,6 +437,7 @@ export default function GmConsole() {
                 placement="inset"
                 size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
                 contacts={contacts}
+                ambientSession={session}
                 centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
               />
               <button
@@ -437,6 +449,16 @@ export default function GmConsole() {
               />
             </div>
             <div className="gm-dradis__controls">
+              {dradisExpanded ? (
+                <button
+                  className="cic-text-button gm-dradis__trigger"
+                  type="button"
+                  disabled={triggeringDradis}
+                  onClick={() => void triggerUnknownContact()}
+                >
+                  {triggeringDradis ? 'Triggering contact…' : 'Trigger unknown contact'}
+                </button>
+              ) : null}
               <p className="gm-dradis__perspective">
                 DRADIS perspective // {viewer?.name ?? 'AEGIS'} // GALACTIC COORDINATES // {viewerCoordinate}
               </p>

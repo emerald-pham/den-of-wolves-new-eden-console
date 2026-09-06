@@ -89,6 +89,8 @@ export interface GameSession {
   readonly shuttleVisitLog?: readonly ShuttleVisit[];
   /** Fleet ships whose one-shot bridge dispenser has already been fired. */
   readonly confettiUsedShipIds?: readonly string[];
+  /** Latest server-authorized manual DRADIS contact; automatic traffic derives from createdAt. */
+  readonly dradisContactTriggeredAt?: Timestamp;
   /** uid of the facilitator who may elevate others. */
   readonly ownerUid: Id;
   readonly createdAt: Timestamp;

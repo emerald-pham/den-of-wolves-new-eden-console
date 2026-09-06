@@ -18,6 +18,7 @@ vi.mock('@/lib/sessionService', () => ({
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
   adjustShipPopulation: vi.fn(),
+  triggerDradisContact: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
-  setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest } =
+  setActiveRoleEnabled, applyRolePreset, adjustShipResource, adjustShipUnrest, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -300,6 +301,22 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
 
   expect(dradis).toHaveAttribute('data-expanded', 'true');
   expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
+});
+
+it('lets the active GM trigger a fleetwide contact only from expanded DRADIS', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(triggerDradisContact).mockResolvedValue(undefined);
+  renderConsole();
+
+  await screen.findByRole('region', { name: /fleet dradis/i });
+  expect(screen.queryByRole('button', { name: /trigger unknown contact/i }))
+    .not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /expand dradis display/i }));
+  await user.click(screen.getByRole('button', { name: /trigger unknown contact/i }));
+
+  expect(triggerDradisContact).toHaveBeenCalledOnce();
 });
 
 it('eases the GM DRADIS through both expansion and collapse', async () => {

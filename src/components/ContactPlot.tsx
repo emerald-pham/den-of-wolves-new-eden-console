@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { followSweeps } from './sweep';
+import { CONTACT_SCAN_EVENT, followSweeps, type Vector } from './sweep';
+import {
+  AMBIENT_CLASSIFICATION_MS,
+  AMBIENT_CONTACT_LIFETIME_MS,
+  ambientDradisOccurrence,
+  nextAmbientDradisChange,
+  type AmbientDradisSession,
+} from './ambientDradisContact';
 import { useMotionPreference } from '@/lib/motionPreference';
 
 /**
@@ -34,11 +41,17 @@ type Track = {
 };
 
 export interface PlotContact {
+  readonly id?: string;
   readonly tag: string;
   readonly x: number;
   readonly y: number;
   readonly z: number;
   readonly color: string;
+  readonly transit?: {
+    readonly destination: Vector;
+    readonly durationMs: number;
+    readonly elapsedMs: number;
+  };
 }
 
 /** Hand-placed rather than random, so the board is composed and never flickers
@@ -136,10 +149,10 @@ function place({ bearing, elevation, range }: Track): PlotStyle {
   };
 }
 
-function placeCartesian({ x, y, z, color }: PlotContact): PlotStyle {
+function placeCartesian({ x, y, z, color, transit }: PlotContact): PlotStyle {
   const range = Math.hypot(x, y, z);
   const bearing = Math.atan2(x, z) * 180 / Math.PI;
-  return {
+  const style: PlotStyle = {
     '--bearing': `${round(bearing)}deg`,
     '--x': round(x),
     '--y': round(y),
@@ -151,6 +164,14 @@ function placeCartesian({ x, y, z, color }: PlotContact): PlotStyle {
     '--contact-ink': color,
     '--contact-range': round(range),
   };
+  if (transit) {
+    style['--transit-x'] = round(transit.destination.x);
+    style['--transit-y'] = round(transit.destination.y);
+    style['--transit-z'] = round(transit.destination.z);
+    style['--transit-duration'] = `${transit.durationMs}ms`;
+    style['--transit-delay'] = `${-transit.elapsedMs}ms`;
+  }
+  return style;
 }
 
 /** A parallel is a smaller circle lifted off the equator. */
@@ -164,6 +185,7 @@ export default function ContactPlot({
   placement = 'field',
   size,
   contacts,
+  ambientSession,
   centerLabel,
   orientation,
 }: {
@@ -174,11 +196,42 @@ export default function ContactPlot({
   /** Any CSS length. Overrides the placement's default diameter. */
   size?: string | undefined;
   contacts?: readonly PlotContact[] | undefined;
+  /** Session timing is the shared source for automatic and GM-triggered traffic. */
+  ambientSession?: AmbientDradisSession | undefined;
   centerLabel?: string | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
 }) {
   const plot = useRef<HTMLDivElement>(null);
   const { reducedMotion: still } = useMotionPreference();
+  const [clock, setClock] = useState(Date.now);
+  const [classifiedOccurrenceId, setClassifiedOccurrenceId] = useState<string | null>(null);
+  const ambient = ambientSession ? ambientDradisOccurrence(ambientSession, clock) : null;
+
+  useEffect(() => {
+    if (!ambientSession) return;
+    const now = Date.now();
+    if (now !== clock) setClock(now);
+    const next = nextAmbientDradisChange(ambientSession, now);
+    if (next === null) return;
+    const timer = window.setTimeout(() => setClock(Date.now()), Math.max(1, next - now));
+    return () => window.clearTimeout(timer);
+  }, [ambientSession, clock]);
+
+  useEffect(() => {
+    const node = plot.current;
+    if (!node) return;
+    const classify = (event: Event) => {
+      const contact = event.target instanceof HTMLElement
+        ? event.target.closest<HTMLElement>("[data-ambient='true']")
+        : null;
+      if (!contact) return;
+      if (ambient && Date.now() - ambient.appearedAt >= AMBIENT_CLASSIFICATION_MS) {
+        setClassifiedOccurrenceId(ambient.id);
+      }
+    };
+    node.addEventListener(CONTACT_SCAN_EVENT, classify);
+    return () => node.removeEventListener(CONTACT_SCAN_EVENT, classify);
+  }, [ambient]);
 
   useEffect(() => {
     if (still || !plot.current || typeof DOMMatrixReadOnly === 'undefined') return;
@@ -204,13 +257,36 @@ export default function ContactPlot({
   // to break up. Dropping them the instant the hack ends would cut the reveal
   // off at its first frame.
   const exposed = departing && !hostile;
-  const baseTracks: readonly { track: Track | PlotContact; spoof: boolean; cartesian: boolean }[] =
+  const baseTracks: readonly {
+    track: Track | PlotContact;
+    spoof: boolean;
+    cartesian: boolean;
+    ambient: boolean;
+  }[] =
     contacts
-      ? contacts.map((track) => ({ track, spoof: false, cartesian: true }))
-      : CONTACTS.map((track) => ({ track, spoof: false, cartesian: false }));
+      ? contacts.map((track) => ({ track, spoof: false, cartesian: true, ambient: false }))
+      : CONTACTS.map((track) => ({ track, spoof: false, cartesian: false, ambient: false }));
   const tracks = [
     ...baseTracks,
-    ...(hostile || departing ? SPOOFED.map((track) => ({ track, spoof: true })) : []),
+    ...(ambient ? [{
+      track: {
+        id: ambient.id,
+        tag: classifiedOccurrenceId === ambient.id ? ambient.classification : 'UNKNOWN CONTACT',
+        ...ambient.start,
+        color: 'var(--cic-cyan-hot)',
+        transit: {
+          destination: ambient.destination,
+          durationMs: AMBIENT_CONTACT_LIFETIME_MS,
+          elapsedMs: Math.max(0, clock - ambient.appearedAt),
+        },
+      },
+      spoof: false,
+      cartesian: true,
+      ambient: true,
+    }] : []),
+    ...(hostile || departing
+      ? SPOOFED.map((track) => ({ track, spoof: true, cartesian: false, ambient: false }))
+      : []),
   ];
 
   return (
@@ -249,11 +325,13 @@ export default function ContactPlot({
         <div className="contact-plot__sweep" />
         <div className="contact-plot__sweep contact-plot__sweep--polar" />
         <div className="contact-plot__returns">
-          {tracks.map(({ track, spoof }, index) => (
+          {tracks.map(({ track, spoof, ambient: isAmbient }, index) => (
             <div
               className="contact-plot__contact"
-              key={`${track.tag}-${index}`}
+              key={'id' in track && track.id ? track.id : `${track.tag}-${index}`}
               data-spoof={String(spoof)}
+              data-ambient={String(isAmbient)}
+              data-moving={String('transit' in track && Boolean(track.transit))}
               data-departing={String(spoof && exposed)}
               data-label-anchor={labelAnchor(track, index)}
               style={'x' in track ? placeCartesian(track) : place(track)}

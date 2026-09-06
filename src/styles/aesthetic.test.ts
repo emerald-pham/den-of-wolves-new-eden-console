@@ -325,6 +325,22 @@ describe('friendly DRADIS returns', () => {
     expect(jitter).not.toContain('--contact-ink:');
   });
 
+  it('moves the distant ambient contact on its sampled vector and stills it for reduced motion', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const transit = plot.match(
+      /\.contact-plot__contact\[data-ambient='true'\]\s*\{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(transit).toContain('animation: ambient-contact-transit');
+    expect(plot).toContain('@keyframes ambient-contact-transit');
+    expect(plot).toMatch(
+      /\.contact-plot\[data-still='true'\][^{]*\.contact-plot__contact[^{]*\{[^}]*animation:\s*none/,
+    );
+    expect(plot).toMatch(
+      /data-ambient='true'[^{}]*:not\(\[data-acquired='true'\]\)[^{}]*\{[^}]*opacity:\s*0/,
+    );
+  });
+
   it('scales the compact plot against its container instead of a zero-size contact', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const shipPlot = index.match(/\.ship-plot\s*\{([^}]*)\}/)?.[1] ?? '';

@@ -239,13 +239,71 @@ readable without moving between sweeps. Group the returns in an isolated
 foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
 
-Apparent contact drift is a slow display estimate, not ship movement. Each
-sweep advances a contact through a fixed bearing walk spanning no more than
-two degrees; the contact is stationary between sweeps. Crossings within 1.12
-seconds of the latest scan refresh brightness without advancing that walk.
-Only a crossing after partial fading may update the fix, before relighting it;
-expiry of the freshness window never moves a contact by itself. Never modify the
-canonical XYZ formation to produce this effect.
+### DRADIS contact rules
+
+DRADIS has one authoritative spatial truth and a deliberately imperfect visual
+report of that truth. Game state owns each contact's canonical coordinate or
+trajectory. The display may sample it, but must never rewrite it.
+
+A contact does not exist on the instrument until a rendered sweep circumference
+crosses the contact's actual current position in space. Before that crossing,
+both the return and its name are invisible. The crossing seen on screen is the
+same event that acquires the return, paints its flare and altitude line, and
+permits any scan-gated identification; do not use a parallel timer that can
+reveal or rename a contact before or after the visible sweep reaches it.
+
+Stationary spaceship returns retain the established display uncertainty. Each
+eligible sweep samples a new apparent bearing from the fixed walk spanning no
+more than two degrees. The displayed fix holds absolutely still between sweeps.
+A second rim crossing within 1.12 seconds refreshes the paint without changing
+the fix; only a later crossing may sample another fix. The freshness timer
+fading out never moves or jitters a return by itself, and the canonical XYZ
+coordinate is never modified.
+
+Genuinely moving contacts are the deliberate exception to fake spaceship drift.
+Their authoritative fleetwide vector remains exact, and once acquired their
+return follows that trajectory precisely and continuously with no bearing walk
+or jitter. Subsequent sweep crossings may refresh the return or satisfy a timed
+identification rule, but they do not perturb its vector. This preserves the
+threat of an object moving toward the fleet with visible precision.
+
+The spatial trajectory and eventual classification are fleetwide facts. Each
+DRADIS view still acquires them locally when its own rendered sweep reaches the
+contact, so a console cannot learn either the object or its name merely because
+another console has already swept it. Stopped sweeps must not auto-acquire a
+moving encounter contact.
+
+Ambient DRADIS traffic follows those rules and is sparse and measurable: every
+twenty minutes one distant return appears near the outer shell, crosses it on a
+sampled random vector for exactly two minutes, and then disappears. It reads
+UNKNOWN CONTACT until a sweep crosses it at least ninety seconds into that
+transit; that scan selects the fleetwide classification Asteroid, Rock, Your
+Mom's Big Butt, Emerald Nebula Interference, or Metallic Asteroid without
+extending or restarting its lifetime.
+Reduced motion leaves the return at its sampled starting coordinate while
+preserving the same arrival, classification, and disappearance clocks.
+DRADIS acquisition overrides every presentation mode: neither the moving
+object nor its label is visible before a real sweep crossing. Because reduced
+motion stops those sweeps, it does not reveal an otherwise unacquired contact.
+
+### Reusing DRADIS transits for wolf attacks
+
+The ambient contact is the reference path for future moving threats. Keep the
+generic pieces generic: `ambientDradisContact.ts` derives stable endpoints and a
+classification from a session id plus authoritative occurrence time;
+`ContactPlot` resumes the precise, jitter-free CSS transit with a negative delay
+when a view mounts mid-flight; and `CONTACT_SCAN_EVENT` reports a real rendered
+sweep crossing.
+This makes the vector, schedule, and reveal result agree fleetwide without
+streaming frame-by-frame coordinates through Firestore.
+
+Wolf attacks should reuse that deterministic transit and scan pipeline rather
+than add another animation clock or per-console randomizer. Their occurrence,
+targeting, damage, and player-visible outcome remain separate server-authoritative
+gameplay state and callables. Add a typed encounter definition or renderer slot
+for those differences; do not fold wolf-specific rules into the ambient label
+pool. Preserve the fixed disappearance deadline when a contact is scanned or
+renamed, and keep reduced-motion behavior on the same shared clock.
 
 The GM console contains an inset fleet DRADIS and a visible button for every
 available ship. Selecting a ship rebases only that GM device's view. Dione and
@@ -435,11 +493,14 @@ that is a different, flatter instrument.
    crosses its rendered screen position. The observer casts a viewing ray
    through the actual contact anchor, accounting for CSS perspective and rig tilt. Acquisition, a one-shot blip/altitude-line fade, and the display bearing
    step share that event; there are no independent repeating contact timers.
-   The bearing walk spans -1 to +1 degrees around the vertical axis, retaining
-   canonical formation coordinates. Names remain solid after acquisition.
+   Stationary returns use a bearing walk spanning -1 to +1 degrees around the
+   vertical axis while retaining canonical formation coordinates. Moving
+   returns retain their exact vector and do not receive this artificial drift.
+   Names remain solid after acquisition.
    New contacts wait for a crossing of the existing scan; resizing preserves it.
    After a suspended frame interval, resume sampling without replaying missed
-   contacts. Reduced motion reveals all contacts and stops the observer.
+   contacts. Reduced motion reveals static scenery and stops the observer;
+   unacquired moving encounter contacts remain hidden.
 9. **Contacts are hand-placed, never random.** A randomised board rearranges
    itself on re-render.
 
@@ -476,7 +537,8 @@ it does not advance an independent scan clock or cause React renders per frame.
 Each hit updates the apparent fix and starts a one-shot Web Animation for the
 blip decay. Cleanup cancels the observer and its blip animations.
 `data-still="true"` (set from the effective motion preference) stops the board
-and displays all contacts. The effective preference follows
+and displays static contacts. Moving encounter contacts still require a real
+sweep and therefore remain hidden if they were not already acquired. The effective preference follows
 `prefers-reduced-motion` unless the player chooses Reduce motion or Full motion
 in Settings; that local override persists on the device. Tuning knobs are
 `--plot-size`, `--plot-turn`, `--plot-glow`, `--plot-ink` and `--plot-hot`.

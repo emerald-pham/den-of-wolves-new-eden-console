@@ -4,6 +4,9 @@ export interface Vector {
   readonly z: number;
 }
 
+/** Fired by a return whenever a rendered DRADIS sweep crosses its position. */
+export const CONTACT_SCAN_EVENT = 'dradis-contact-scan';
+
 /** Signed screen-space rim test. Cast the viewing ray through the contact
  * onto the sweep disc, then compare its radius with the unit circumference.
  * Multiplying out the denominator keeps edge-on discs finite. Negative is
@@ -118,7 +121,12 @@ export function followSweeps(plot: HTMLElement): () => void {
       // while its paint is fresh; only a later crossing of a dimmed return
       // may choose another bearing, before starting its new flash.
       if (firstAcquisition || now - state.scannedAt >= SCAN_FRESH_MS) {
-        state.fix = apparentFix(canonical, state.scans++);
+        // A transit already has real motion. Adding the stationary-contact
+        // bearing walk would make its scan fix jump away from that vector.
+        state.fix = element.dataset.moving === 'true'
+          ? canonical
+          : apparentFix(canonical, state.scans);
+        state.scans += 1;
       }
       state.scannedAt = now;
       apparent.dataset.acquired = 'true';
@@ -143,6 +151,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         })), { duration: 7000, fill: 'forwards' }),
         drop?.animate?.(fade, { duration: 7000, fill: 'forwards' }),
       ].filter((animation): animation is Animation => animation !== undefined);
+      element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
     });
     previous = normals;
     frame = requestAnimationFrame(tick);

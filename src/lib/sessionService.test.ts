@@ -32,6 +32,7 @@ const {
   setActiveRoleEnabled,
   selectConsoleRole,
   applyRolePreset,
+  triggerDradisContact,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
 
@@ -318,6 +319,22 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', locked: true,
     });
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
+  });
+
+  it('triggers a fleetwide DRADIS contact through the active GM instance', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const triggeredAt = '2026-01-01T00:05:00.000Z';
+    const callable = callableReturning({ data: { triggeredAt } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await triggerDradisContact();
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'triggerDradisContact');
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'instance-1' });
+    expect(useSessionStore.getState().session?.dradisContactTriggeredAt).toBe(triggeredAt);
   });
 
   it('asks the server to randomly assign wolves and returns the secret result', async () => {

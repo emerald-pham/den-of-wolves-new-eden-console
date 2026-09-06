@@ -161,6 +161,12 @@ describe('session header', () => {
     await assertFails(updateDoc(session, { dioneEnabled: false }));
   });
 
+  it('cannot forge a fleetwide DRADIS contact trigger from the client', async () => {
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
+      dradisContactTriggeredAt: new Date().toISOString(),
+    }));
+  });
+
   it('cannot change authoritative ship stores, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));

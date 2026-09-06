@@ -211,6 +211,31 @@
   );
 }
 
+/* One distant, low-frequency return crosses the outer shell on its sampled
+   vector. The component owns its exact two-minute lifetime; this animation
+   only renders the travel between the two measured endpoints. */
+.contact-plot__contact[data-ambient='true'] {
+  animation: ambient-contact-transit var(--transit-duration) linear forwards;
+  animation-delay: var(--transit-delay);
+}
+
+@keyframes ambient-contact-transit {
+  from {
+    transform: translate3d(
+      calc(var(--x) * var(--plot-radius)),
+      calc(var(--y) * var(--plot-radius)),
+      calc(var(--z) * var(--plot-radius))
+    );
+  }
+  to {
+    transform: translate3d(
+      calc(var(--transit-x) * var(--plot-radius)),
+      calc(var(--transit-y) * var(--plot-radius)),
+      calc(var(--transit-z) * var(--plot-radius))
+    );
+  }
+}
+
 /* Where the contact is and how badly it is shaking are two different things,
    so they are two different layers. The fault keyframes below only ever say
    how far it has jumped from station; they never restate the station itself. */
@@ -390,6 +415,7 @@
 }
 .contact-plot[data-still='true'] .contact-plot__sweep,
 .contact-plot[data-still='true'] .contact-plot__blip,
+.contact-plot[data-still='true'] .contact-plot__contact,
 .contact-plot[data-still='true'] .contact-plot__apparent,
 .contact-plot[data-still='true'] .contact-plot__jitter {
   animation: none;
@@ -415,4 +441,11 @@
   .contact-plot__apparent { opacity: 1; }
   .contact-plot__blip,
   .contact-plot__drop { opacity: 1; }
+}
+
+/* Acquisition always wins: stopped sweeps do not reveal an unscanned moving
+   object or its name merely because the user reduced motion. */
+.contact-plot__contact[data-ambient='true']
+  .contact-plot__apparent:not([data-acquired='true']) {
+  opacity: 0;
 }

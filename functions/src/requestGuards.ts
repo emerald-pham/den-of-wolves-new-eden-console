@@ -78,6 +78,16 @@ export function requireGmInstanceActionRequest(data: {
   };
 }
 
+export function requireGmInstanceRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string; instanceId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

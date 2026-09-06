@@ -39,6 +39,7 @@ import {
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
+  requireGmInstanceRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipCounterRequest,
@@ -141,6 +142,12 @@ function isoOf(value: unknown): string {
   return value instanceof Timestamp
     ? value.toDate().toISOString()
     : new Date().toISOString();
+}
+
+function optionalIsoOf(value: unknown): { dradisContactTriggeredAt: string } | Record<string, never> {
+  return value instanceof Timestamp
+    ? { dradisContactTriggeredAt: value.toDate().toISOString() }
+    : {};
 }
 
 function cleanName(value: unknown, fallback: string, max: number): string {
@@ -407,6 +414,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shuttleVisitLog:
           (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
+        ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
         ownerUid: sessionSnap.get('ownerUid') as string,
         createdAt: isoOf(sessionSnap.get('createdAt')),
         updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -502,6 +510,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shuttleVisitLog:
         (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
+      ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
       ownerUid: sessionSnap.get('ownerUid') as string,
       createdAt: isoOf(sessionSnap.get('createdAt')),
       updatedAt: isoOf(sessionSnap.get('updatedAt')),
@@ -642,6 +651,40 @@ export const kickGmInstance = onCall(async (request) =>
 /** Release only the calling browser's own GM instance. */
 export const releaseGmInstance = onCall(async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, false));
+
+/** Start one shared DRADIS transit from an active, named GM browser. */
+export const triggerDradisContact = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const action = requireGmInstanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${action.sessionId}`);
+  const playerRef = db.doc(`sessions/${action.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
+  const triggeredAt = Timestamp.now();
+
+  await db.runTransaction(async (tx) => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    tx.update(sessionRef, {
+      dradisContactTriggeredAt: triggeredAt,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { triggeredAt: triggeredAt.toDate().toISOString() };
+});
 
 /** Include or remove the optional Capybara expansion ship for the whole session. */
 export const setCapybaraEnabled = onCall<{
