@@ -238,11 +238,18 @@ it('shows live resource stock for every flagged ship', async () => {
   expect(within(dione).getByLabelText('Civil Unrest: 4')).toBeInTheDocument();
   expect(within(dione).getByRole('img', { name: 'Civil Unrest icon' })).toBeInTheDocument();
   expect(within(dione).getByLabelText('Survivor Population: 100000')).toBeInTheDocument();
-  expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
-    .toBeEnabled();
   expect(within(dione).getByRole('button', { name: /increase survivor population/i }))
     .toBeDisabled();
   expect(within(dione).getByRole('button', { name: /increase strytium fuel/i })).toBeDisabled();
+  expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
+    .toBeDisabled();
+  expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeDisabled();
+
+  await user.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+
+  expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
+    .toBeEnabled();
+  expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeEnabled();
   await user.click(within(dione).getByRole('button', { name: /increase civil unrest/i }));
   expect(adjustShipUnrest).toHaveBeenCalledWith('dione', 1);
 });
@@ -255,16 +262,16 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
 
   const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
   const dione = within(fleet).getByRole('group', { name: 'Dione resource controls' });
-  const writeMode = within(fleet).getByRole('button', { name: /resource stores write mode/i });
+  const writeMode = within(fleet).getByRole('button', { name: /ship numbers write mode/i });
   const increaseFuel = within(dione).getByRole('button', { name: /increase strytium fuel/i });
 
   expect(writeMode).toHaveAttribute('aria-pressed', 'false');
-  expect(within(fleet).getByText(/resource access.*read only/i)).toBeInTheDocument();
+  expect(within(fleet).getByText(/ship number access.*read only/i)).toBeInTheDocument();
   expect(increaseFuel).toBeDisabled();
 
   await user.click(writeMode);
   expect(writeMode).toHaveAttribute('aria-pressed', 'true');
-  expect(within(fleet).getByText(/resource access.*write mode/i)).toBeInTheDocument();
+  expect(within(fleet).getByText(/ship number access.*write mode/i)).toBeInTheDocument();
   expect(increaseFuel).toBeEnabled();
 
   await user.click(increaseFuel);
@@ -274,7 +281,7 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
   await user.click(screen.getByRole('link', { name: /return to gm console/i }));
 
   const returnedFleet = await screen.findByRole('region', { name: /fleet resource controls/i });
-  expect(within(returnedFleet).getByRole('button', { name: /resource stores write mode/i }))
+  expect(within(returnedFleet).getByRole('button', { name: /ship numbers write mode/i }))
     .toHaveAttribute('aria-pressed', 'false');
   expect(within(
     within(returnedFleet).getByRole('group', { name: 'Dione resource controls' }),
@@ -625,6 +632,7 @@ it('moves survivors by printed steps through GM controls and locks pending thres
   renderConsole();
   const controls = screen.getByRole('group', { name: 'Capybara resource controls' });
   expect(within(controls).getByRole('button', { name: 'Increase Survivor Population' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: /ship numbers write mode/i }));
   await userEvent.click(within(controls).getByRole('button', { name: 'Decrease Survivor Population' }));
   const { adjustShipPopulation } = await import('@/lib/sessionService');
   expect(adjustShipPopulation).toHaveBeenCalledWith('capybara', -1);

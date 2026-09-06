@@ -122,7 +122,7 @@ export default function GmConsole() {
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
-  const [resourceWrite, setResourceWrite] = useState(false);
+  const [shipNumberWrite, setShipNumberWrite] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [dradisExpanded, setDradisExpanded] = useState(false);
   const dradisRef = useRef<HTMLElement>(null);
@@ -447,16 +447,16 @@ export default function GmConsole() {
             <h2 className="gm-console__section-title">Fleet resource stores</h2>
             <div className="gm-fleet-resources__access">
               <p className="gm-fleet-resources__status">
-                Resource access // {resourceWrite ? 'Write mode' : 'Read only'}
+                Ship number access // {shipNumberWrite ? 'Write mode' : 'Read only'}
               </p>
               <button
                 className="cic-text-button"
                 type="button"
-                aria-label="Resource stores write mode"
-                aria-pressed={resourceWrite}
-                onClick={() => setResourceWrite((enabled) => !enabled)}
+                aria-label="Ship numbers write mode"
+                aria-pressed={shipNumberWrite}
+                onClick={() => setShipNumberWrite((enabled) => !enabled)}
               >
-                Write mode // {resourceWrite ? 'On' : 'Off'}
+                Write mode // {shipNumberWrite ? 'On' : 'Off'}
               </button>
             </div>
             <div className="gm-fleet-resources__ships">
@@ -490,14 +490,14 @@ export default function GmConsole() {
                               <button
                                 type="button"
                                 aria-label={`Decrease ${resource.label}`}
-                                disabled={!resourceWrite || amount === 0}
+                                disabled={!shipNumberWrite || amount === 0}
                                 onClick={() => void adjustShipResource(ship.id, resource.id, -1)}
                               >−</button>
                               <strong>{amount}</strong>
                               <button
                                 type="button"
                                 aria-label={`Increase ${resource.label}`}
-                                disabled={!resourceWrite}
+                                disabled={!shipNumberWrite}
                                 onClick={() => void adjustShipResource(ship.id, resource.id, 1)}
                               >+</button>
                             </div>
@@ -512,11 +512,11 @@ export default function GmConsole() {
                           <span className="resource-label">Survivor Population</span>
                           <div className="ship-counter__controls">
                             <button type="button" aria-label="Decrease Survivor Population"
-                              disabled={!populationTrack || population === 0 || Boolean(session.populationAlerts?.[ship.id])}
+                              disabled={!shipNumberWrite || !populationTrack || population === 0 || Boolean(session.populationAlerts?.[ship.id])}
                               onClick={() => void adjustShipPopulation(ship.id, -1)}>−</button>
                             <strong>{population.toLocaleString('en-US')}</strong>
                             <button type="button" aria-label="Increase Survivor Population"
-                              disabled={!populationTrack || population === populationTrack.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
+                              disabled={!shipNumberWrite || !populationTrack || population === populationTrack.steps[0] || Boolean(session.populationAlerts?.[ship.id])}
                               onClick={() => void adjustShipPopulation(ship.id, 1)}>+</button>
                           </div>
                         </li>
@@ -530,14 +530,14 @@ export default function GmConsole() {
                           <button
                             type="button"
                             aria-label="Decrease Civil Unrest"
-                            disabled={(session.shipUnrest?.[ship.id] ?? 0) === 0 || Boolean(session.unrestAlerts?.[ship.id])}
+                            disabled={!shipNumberWrite || (session.shipUnrest?.[ship.id] ?? 0) === 0 || Boolean(session.unrestAlerts?.[ship.id])}
                             onClick={() => void adjustShipUnrest(ship.id, -1)}
                           >−</button>
                           <strong>{session.shipUnrest?.[ship.id] ?? 0}</strong>
                           <button
                             type="button"
                             aria-label="Increase Civil Unrest"
-                            disabled={(session.shipUnrest?.[ship.id] ?? 0) === 10 || Boolean(session.unrestAlerts?.[ship.id])}
+                            disabled={!shipNumberWrite || (session.shipUnrest?.[ship.id] ?? 0) === 10 || Boolean(session.unrestAlerts?.[ship.id])}
                             onClick={() => void adjustShipUnrest(ship.id, 1)}
                           >+</button>
                         </div>
