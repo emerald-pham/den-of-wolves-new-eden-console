@@ -17,6 +17,7 @@ vi.mock('@/lib/sessionService', () => ({
   applyRolePreset: vi.fn(),
   adjustShipResource: vi.fn(),
   adjustShipUnrest: vi.fn(),
+  adjustShipPopulation: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
@@ -587,4 +588,20 @@ it('mirrors an in-game fullscreen alert as a red GM activity banner', async () =
   expect(screen.getByRole('list', { name: /gm event log/i })).toHaveTextContent(
     /reactor containment failure/i,
   );
+});
+
+it('moves survivors by printed steps through GM controls and locks pending thresholds', async () => {
+  streamInstances([local]);
+  useSessionStore.getState().setGmInstance(local);
+  renderConsole();
+  const controls = screen.getByRole('group', { name: 'Capybara resource controls' });
+  expect(within(controls).getByRole('button', { name: 'Increase Survivor Population' })).toBeDisabled();
+  await userEvent.click(within(controls).getByRole('button', { name: 'Decrease Survivor Population' }));
+  const { adjustShipPopulation } = await import('@/lib/sessionService');
+  expect(adjustShipPopulation).toHaveBeenCalledWith('capybara', -1);
+  act(() => useSessionStore.getState().setSession({ ...useSessionStore.getState().session!,
+    shipSurvivors: { capybara: 15000 },
+    populationAlerts: { capybara: { shipId: 'capybara', shipName: 'Capybara', population: 15000, targetGmInstanceIds: [local.id], createdAt: 'now' } },
+  }));
+  expect(within(controls).getByRole('button', { name: 'Decrease Survivor Population' })).toBeDisabled();
 });

@@ -270,7 +270,7 @@ export async function getSurvivorPopulation(): Promise<number> {
 }
 
 async function sendCounterChange(
-  name: 'adjustShipResource' | 'adjustShipUnrest' | 'dismissUnrestAlert',
+  name: 'adjustShipResource' | 'adjustShipUnrest' | 'dismissUnrestAlert' | 'adjustShipPopulation' | 'dismissPopulationAlert',
   payload: Record<string, string | number | undefined>,
 ): Promise<void> {
   try {
@@ -316,6 +316,22 @@ export async function dismissUnrestAlert(shipId: string): Promise<void> {
     sessionId: store.session.id,
     shipId,
     instanceId: store.gmInstance.id,
+  });
+}
+
+export async function adjustShipPopulation(shipId: string, delta: -1 | 1): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('An active GM instance is required.');
+  await sendCounterChange('adjustShipPopulation', {
+    sessionId: store.session.id, shipId, delta, instanceId: store.gmInstance.id,
+  });
+}
+
+export async function dismissPopulationAlert(shipId: string): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) return;
+  await sendCounterChange('dismissPopulationAlert', {
+    sessionId: store.session.id, shipId, instanceId: store.gmInstance.id,
   });
 }
 

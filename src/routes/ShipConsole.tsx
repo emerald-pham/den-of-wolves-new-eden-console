@@ -1,5 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
+import ShipSpecifications from '@/components/ShipSpecifications';
+import PopulationTrack from '@/components/PopulationTrack';
+import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import { findShip } from '@/data/ships';
@@ -54,6 +57,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   ));
   const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
   const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
+  const population = ship ? populationForShip(ship.id, session?.shipSurvivors) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
 
   useEffect(() => {
@@ -151,8 +155,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
+        <ShipSpecifications shipId={ship.id} shipName={ship.name} population={population} />
         {(consoleRole || observer) && (
-          <p className="ship-console__role">Your Title: {observer ? 'Observer' : consoleRole?.name}</p>
+          <p className="ship-console__role">{ship.id === 'capybara' ? 'Your Role' : 'Your Title'}: {observer ? 'Observer' : consoleRole?.name}</p>
         )}
         <div className="ship-console__counters">
           {resources && (
@@ -183,6 +188,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             data-critical={unrest > 7 ? 'true' : 'false'}
           >
             <p className="ship-resources__eyebrow">Census // tracked conditions</p>
+            {population !== undefined && <PopulationTrack population={population} />}
             <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
               <span className="resource-label">
                 <ResourceIcon id="unrest" label="Civil Unrest" />

@@ -287,8 +287,8 @@ specialize the accent and modules but must not replace the shell.
 
 Use the [Capybara ship template](SHIP_TEMPLATE.md) for the remaining fleet
 ships. It specifies identity statistics, census survivor steps, capacity
-warnings and GM threshold alerts. This is the requested implementation
-specification; its presence does not mean these additions are implemented.
+warnings and GM threshold alerts, implemented for Capybara and reusable as
+other ships receive their own specifications.
 
 Capital-ship consoles are built for multiple internal mechanics pages. The
 current identity view is the first page, not a mandate to place every later

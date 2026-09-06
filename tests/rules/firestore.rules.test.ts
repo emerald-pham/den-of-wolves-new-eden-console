@@ -158,6 +158,15 @@ describe('session header', () => {
     }));
   });
 
+  it('allows members to read census but denies player and GM client mutations', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const session = doc(as(uid), SESSION);
+      await assertSucceeds(getDoc(session));
+      await assertFails(updateDoc(session, { 'shipSurvivors.capybara': 0 }));
+      await assertFails(updateDoc(session, { populationAlerts: {} }));
+    }
+  });
+
   // This denial is the whole reason createSession has to be a callable: a
   // client that could write its own session header could mint a join code
   // that collides with someone else's table, and name itself owner.

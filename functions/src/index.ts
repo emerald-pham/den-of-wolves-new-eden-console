@@ -1,3 +1,4 @@
+import { populationForShip, populationChange, acknowledgePopulationAlert } from './shipPopulation';
 import { randomInt, randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import {
@@ -228,6 +229,8 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
           shipResources: INITIAL_SHIP_RESOURCES,
           shipUnrest: INITIAL_SHIP_UNREST,
           unrestAlerts: {},
+          shipSurvivors: { capybara: 20000 },
+          populationAlerts: {},
           gmControlsLocked: false,
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
@@ -270,6 +273,8 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
             shipResources: INITIAL_SHIP_RESOURCES,
             shipUnrest: INITIAL_SHIP_UNREST,
             unrestAlerts: {},
+            shipSurvivors: { capybara: 20000 },
+            populationAlerts: {},
             gmControlsLocked: false,
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
             shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
@@ -376,6 +381,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipResources: shipResources(sessionSnap.get('shipResources')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
+        shipSurvivors: sessionSnap.get('shipSurvivors') ?? { capybara: 20000 },
+        populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         activeRoleIds:
           (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -464,6 +471,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipResources: shipResources(sessionSnap.get('shipResources')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
+      shipSurvivors: sessionSnap.get('shipSurvivors') ?? { capybara: 20000 },
+      populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       activeRoleIds:
         (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
@@ -1421,3 +1430,71 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
     return { id, rolls };
   },
 );
+
+
+type StoredPopulationAlert = StoredUnrestAlert & { population: number };
+
+/** GM-only, atomic movement through the ship's printed survivor track. */
+export const adjustShipPopulation = onCall<{
+  sessionId: string; shipId: string; delta: number; instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipUnrestRequest(request.data ?? {});
+  if (populationForShip(change.shipId) === undefined) {
+    throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
+  }
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const population = populationForShip(change.shipId, session.get('shipSurvivors'));
+    if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
+    let result: ReturnType<typeof populationChange>;
+    try {
+      result = populationChange(population, change.delta, Boolean(alerts[change.shipId]));
+    } catch (cause) {
+      throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.');
+    }
+    const nextAlerts = { ...alerts };
+    if (result.alertRaised) {
+      const instances = await tx.get(db.collection(`sessions/${change.sessionId}/gmInstances`));
+      const targetGmInstanceIds = instances.docs.map((instance) => instance.id);
+      if (targetGmInstanceIds.length > 0) {
+        nextAlerts[change.shipId] = {
+          shipId: change.shipId,
+          shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[change.shipId] ?? change.shipId,
+          population: result.amount, targetGmInstanceIds, createdAt: new Date().toISOString(),
+        };
+      }
+    }
+    tx.update(sessionRef, {
+      [`shipSurvivors.${change.shipId}`]: result.amount,
+      populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+export const dismissPopulationAlert = onCall<{
+  sessionId: string; shipId: string; instanceId: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const dismissal = requireUnrestDismissalRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${dismissal.sessionId}`);
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId, true);
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const alert = alerts[dismissal.shipId];
+    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) return { dismissed: true };
+    const remaining = acknowledgePopulationAlert(alert.targetGmInstanceIds, dismissal.instanceId);
+    const nextAlerts = { ...alerts };
+    if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
+    else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
+    tx.update(sessionRef, { populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
+    return { dismissed: true };
+  });
+});

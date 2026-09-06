@@ -1,3 +1,4 @@
+import { populationForShip } from '@/data/shipPopulation';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
@@ -20,6 +21,7 @@ import {
   applyRolePreset,
   adjustShipResource,
   adjustShipUnrest,
+  adjustShipPopulation,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -449,6 +451,7 @@ export default function GmConsole() {
             <div className="gm-fleet-resources__ships">
               {SHIPS.map((ship) => {
                 const resources = resourcesForShip(ship.id, session.shipResources);
+                const population = populationForShip(ship.id, session.shipSurvivors);
                 if (!resources) return null;
                 return (
                   <section
@@ -492,6 +495,20 @@ export default function GmConsole() {
                     </ul>
                     <h4 className="gm-fleet-resource-ship__category">Census</h4>
                     <ul>
+                      {population !== undefined && (
+                        <li aria-label={`Survivor Population: ${population}`}>
+                          <span className="resource-label">Survivor Population</span>
+                          <div className="ship-counter__controls">
+                            <button type="button" aria-label="Decrease Survivor Population"
+                              disabled={population === 0 || Boolean(session.populationAlerts?.[ship.id])}
+                              onClick={() => void adjustShipPopulation(ship.id, -1)}>−</button>
+                            <strong>{population.toLocaleString('en-US')}</strong>
+                            <button type="button" aria-label="Increase Survivor Population"
+                              disabled={population === 20000 || Boolean(session.populationAlerts?.[ship.id])}
+                              onClick={() => void adjustShipPopulation(ship.id, 1)}>+</button>
+                          </div>
+                        </li>
+                      )}
                       <li aria-label={`Civil Unrest: ${session.shipUnrest?.[ship.id] ?? 0}`}>
                         <span className="resource-label">
                           <ResourceIcon id="unrest" label="Civil Unrest" />

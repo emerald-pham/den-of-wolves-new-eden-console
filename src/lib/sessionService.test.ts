@@ -521,3 +521,17 @@ describe('session lifecycle commands', () => {
     });
   });
 });
+
+it('sends population changes and acknowledgement with the GM instance', async () => {
+  useSessionStore.getState().setIdentity(session, player);
+  useSessionStore.getState().setGmInstance({ id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now' });
+  const call = callableReturning({ data: {} });
+  vi.mocked(httpsCallable).mockReturnValue(call);
+  const { adjustShipPopulation, dismissPopulationAlert } = await import('./sessionService');
+  await adjustShipPopulation('capybara', -1);
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'adjustShipPopulation');
+  expect(call).toHaveBeenLastCalledWith({ sessionId: 's1', shipId: 'capybara', delta: -1, instanceId: 'gm1' });
+  await dismissPopulationAlert('capybara');
+  expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'dismissPopulationAlert');
+  expect(call).toHaveBeenLastCalledWith({ sessionId: 's1', shipId: 'capybara', instanceId: 'gm1' });
+});

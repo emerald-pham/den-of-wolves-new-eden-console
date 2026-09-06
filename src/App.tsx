@@ -13,6 +13,7 @@ import AppHeader from '@/components/AppHeader';
 import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
+import PopulationAlert from '@/components/PopulationAlert';
 import UnrestAlert from '@/components/UnrestAlert';
 import { useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -93,6 +94,7 @@ function AppRoutes() {
       <AppHeader />
       <CommunicationError />
       <UnrestAlert />
+      <PopulationAlert />
       <ScreenFade>
         {(screen) => (
           <Routes location={screen}>

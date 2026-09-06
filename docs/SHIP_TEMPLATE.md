@@ -1,6 +1,6 @@
 # Capybara ship console template
 
-Status: design specification for implementation. Capybara is the reference
+Status: implemented for Capybara. Capybara is the reference
 for the remaining fleet ships. This template extends the shared ship console
 in [AESTHETICS.md](AESTHETICS.md#ship-console-layout-and-growth); actual
 shuttlecraft retain that document's shuttlecraft console parameters.
@@ -74,8 +74,9 @@ must remain readable at 320px width and in short landscape viewports.
 
 ## Authority and GM alerts
 
-Population is server-authoritative shared session state. Authorized GM actions
-or implemented game effects advance through the enumerated steps. Reject
+Population is server-authoritative shared session state. The GM Census
+controls advance one enumerated step at a time. Future game effects must use
+the same server-side rules. Reject
 off-track values and steps beyond either endpoint. Never derive a ship's
 population from the changing arrival display or let a player write it directly.
 
@@ -84,6 +85,10 @@ per-GM acknowledgement pattern as Civil Unrest. Identify the ship, population
 and threshold reached. Each targeted GM dismisses their own notification;
 one GM's acknowledgement must not silently dismiss another's. A failed
 acknowledgement leaves the alert available to retry.
+
+As with unrest, further population movement pauses until all targeted GMs
+acknowledge the pending threshold. When unrest and population alerts coexist,
+show unrest first, then population, so modal dialogs do not overlap.
 
 For any future action spanning several steps, process intervening red steps
 so no threshold is silently skipped. Re-rendering or reconnecting at an
@@ -113,7 +118,7 @@ capacities and approved population track. Reuse the layout and behavior;
 do not copy Capybara's values into ships without supplied specifications.
 Preserve the persistent DRADIS, status rail and visible return navigation.
 
-Implementation must demonstrate:
+Acceptance checks:
 
 - Statistics appear after the description and before the actual role.
 - Capybara starts at 20,000 and can occupy only the 28 listed steps.

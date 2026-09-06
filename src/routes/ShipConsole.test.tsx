@@ -564,3 +564,30 @@ it('removes the bounded burst and ship listener when they are no longer needed',
   unmount();
   expect(unsubscribe).toHaveBeenCalledOnce();
 });
+
+it('places Capybara specifications before the role and shows a read-only survivor track', () => {
+  render(<MemoryRouter initialEntries={['/ships/capybara/roles/capybara-captain']}>
+    <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  const specs = screen.getByRole('region', { name: 'Capybara specifications' });
+  expect(specs).toHaveTextContent(/Length600m.*Tonnage800,000.*Crew Capacity5,000.*Passengers Capacity500/);
+  const role = screen.getByText('Your Role: Capybara Captain');
+  expect(specs.compareDocumentPosition(role) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(specs).getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
+  const census = screen.getByRole('region', { name: 'Capybara census' });
+  const track = within(census).getByRole('list', { name: 'Survivor Population steps' });
+  expect(within(track).getAllByRole('listitem')).toHaveLength(28);
+  expect(within(track).getByText('20,000').closest('li')).toHaveAttribute('aria-current', 'step');
+  expect(within(census).queryByRole('button')).not.toBeInTheDocument();
+});
+
+it('clears both capacity warnings when live survivors drop below combined capacity', () => {
+  render(<MemoryRouter initialEntries={['/ships/capybara']}>
+    <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+  </MemoryRouter>);
+  const session = useSessionStore.getState().session!;
+  act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 6000 } }));
+  expect(screen.getAllByRole('img', { name: /survivors exceed combined/i })).toHaveLength(2);
+  act(() => useSessionStore.getState().setSession({ ...session, shipSurvivors: { capybara: 5000 } }));
+  expect(screen.queryByRole('img', { name: /survivors exceed combined/i })).not.toBeInTheDocument();
+});

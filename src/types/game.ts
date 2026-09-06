@@ -34,7 +34,13 @@ export interface UnrestAlert {
   readonly createdAt: Timestamp;
 }
 
+export interface PopulationAlert extends UnrestAlert {
+  readonly population: number;
+}
+
 export interface GameSession {
+  readonly shipSurvivors?: Readonly<Record<string, number>>;
+  readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;
   readonly id: Id;
   readonly name: string;
   /** Short human-shareable code players type to join. */

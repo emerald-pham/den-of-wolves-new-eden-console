@@ -2335,3 +2335,31 @@ body {
   justify-content: center;
   gap: 0.7rem;
 }
+
+/* Shared ship identity measurements and discrete census instrument. */
+.ship-specifications {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 1rem 0;
+  font-family: var(--cic-mono);
+}
+.ship-specifications dt { color: var(--cic-amber); font-size: 0.65rem; text-transform: uppercase; }
+.ship-specifications dd { display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0 0; color: var(--cic-cyan); }
+.ship-capacity-warning { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; color: var(--cic-danger); }
+.population-track { min-width: 0; font-family: var(--cic-mono); }
+.population-track__reading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.4rem; font-size: 0.7rem; color: var(--cic-amber); }
+.population-track__reading strong { color: var(--cic-cyan); }
+.population-track ol { display: grid; grid-auto-flow: column; grid-template-rows: repeat(14, auto); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 1rem; list-style: none; padding: 0; }
+.population-track li { display: flex; align-items: center; justify-content: flex-end; gap: 0.4rem; color: var(--cic-muted); font-size: 0.65rem; }
+.population-track__mark { display: inline-grid; place-items: center; flex: 0 0 1rem; height: 1rem; border: 1px solid var(--cic-rule); line-height: 1; }
+.population-track li[data-threshold="true"] .population-track__mark { border-color: var(--cic-danger); }
+.population-track li[aria-current="step"] { color: var(--cic-cyan); font-weight: bold; }
+.population-track__key { color: var(--cic-danger); font-size: 0.55rem; }
+
+@media (max-width: 42rem) {
+  .ship-console:not(.shuttle-console) .ship-console__identity {
+    max-height: none;
+    overflow-y: visible;
+  }
+}

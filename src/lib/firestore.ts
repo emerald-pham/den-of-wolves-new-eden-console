@@ -54,6 +54,10 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     shipResources: shipResources(data.shipResources),
     shipUnrest: shipUnrest(data.shipUnrest),
+    shipSurvivors: typeof data.shipSurvivors === 'object' && data.shipSurvivors !== null
+      ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']> : { capybara: 20000 },
+    populationAlerts: typeof data.populationAlerts === 'object' && data.populationAlerts !== null
+      ? data.populationAlerts as NonNullable<GameSession['populationAlerts']> : {},
     unrestAlerts:
       typeof data.unrestAlerts === 'object' && data.unrestAlerts !== null
         ? data.unrestAlerts as NonNullable<GameSession['unrestAlerts']>
