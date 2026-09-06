@@ -171,3 +171,16 @@ it('omits the scenario signal footer', () => {
   expect(screen.queryByText(/SCENARIO SIGNAL/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/NOT LIVE SESSION DATA/i)).not.toBeInTheDocument();
 });
+
+
+it('retains only current timer handles after a long-running arrival display', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0.5);
+  const { unmount } = render(<ArrivalDisplay />);
+  advance(60 * 60 * 1000);
+  const pending = vi.getTimerCount();
+  const clear = vi.spyOn(window, 'clearTimeout');
+  unmount();
+  // Three manifest timers and one population timer; no expired handles retained.
+  expect(clear.mock.calls.length).toBeLessThanOrEqual(pending);
+  expect(vi.getTimerCount()).toBe(0);
+});

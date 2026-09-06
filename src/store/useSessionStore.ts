@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { GameSession, GmInstance, Player, Seat } from '@/types/game';
 
@@ -151,12 +152,14 @@ const initial = {
 
 export const useSessionStore = create<SessionState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...initial,
       setSession: (session) => set({ session }),
       setIdentity: (session, me) => set({ session, me }),
       setSeats: (seats) => set({ seats }),
-      setMe: (me) => set({ me }),
+      // Presence snapshots often carry the same player fields. Avoid notifying
+      // the entire UI and serializing the full persisted session in that case.
+      setMe: (me) => { if (!shallow(get().me, me)) set({ me }); },
       setGmInstance: (gmInstance) => set({ gmInstance }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -166,8 +169,8 @@ export const useSessionStore = create<SessionState>()(
         })),
       setCommunicationError: (communicationError) => set({ communicationError }),
       setMode: (mode) => set({ mode }),
-      setLastRoute: (lastRoute) => set({ lastRoute }),
-      setConnection: (connection) => set({ connection }),
+      setLastRoute: (lastRoute) => { if (get().lastRoute !== lastRoute) set({ lastRoute }); },
+      setConnection: (connection) => { if (get().connection !== connection) set({ connection }); },
       disconnect: () =>
         set((state) => ({
           session: null,

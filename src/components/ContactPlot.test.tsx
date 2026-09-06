@@ -347,10 +347,19 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   const contact = { tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' };
   const { container, rerender, unmount } = render(<ContactPlot contacts={[contact]} />);
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
+  const findMany = vi.spyOn(plotIn(container)!, 'querySelectorAll');
+  const firstContact = contactsIn(container)[0]!;
+  const findParts = vi.spyOn(firstContact, 'querySelector');
   act(() => frame(0));
+  findMany.mockClear();
+  findParts.mockClear();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
   normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
+  // Stable tracks reuse their DOM handles instead of allocating query results
+  // on every animation frame. Positions are still measured at full frame rate.
+  expect(findMany).not.toHaveBeenCalled();
+  expect(findParts).not.toHaveBeenCalled();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
@@ -385,6 +394,15 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(96 + SCAN_FRESH_MS));
   expect(apparent()?.style.cssText).not.toBe(fix);
+  // Removing tracks must also release their cached handles, animations and timers.
+  rerender(<ContactPlot contacts={[]} />);
+  cancel.mockClear();
+  act(() => frame(112 + SCAN_FRESH_MS));
+  expect(cancel).toHaveBeenCalledTimes(4);
+  expect(vi.getTimerCount()).toBe(0);
+  rerender(<ContactPlot contacts={[contact]} />);
+  act(() => frame(128 + SCAN_FRESH_MS));
+  expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
   unmount();
   expect(cancelAnimationFrame).toHaveBeenCalled();
   expect(cancel).toHaveBeenCalled();

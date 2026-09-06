@@ -143,6 +143,42 @@ describe('App', () => {
     expect(refreshPresence).toHaveBeenCalled();
   });
 
+  it.each(['connect', 'heartbeat', 'reconcile'] as const)(
+    'keeps slow %s checks to one pending request and resumes after settlement', async (kind) => {
+      vi.useFakeTimers();
+      const check = kind === 'connect' ? connect
+        : kind === 'heartbeat' ? refreshPresence : reconcileGmAuthority;
+      vi.mocked(check).mockClear();
+      let finish: () => void = () => undefined;
+      vi.mocked(check).mockImplementationOnce(() => new Promise<void>((resolve) => {
+        finish = resolve;
+      }));
+      if (kind !== 'connect') {
+        useSessionStore.getState().setIdentity(session, player);
+        useSessionStore.getState().setGmInstance({
+          id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge',
+          deviceLabel: 'Phone', claimedAt: session.createdAt,
+        });
+        useSessionStore.getState().setConnection('live');
+      }
+      const { unmount } = render(<App />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+        if (kind === 'connect') window.dispatchEvent(new Event('online'));
+      });
+      expect(check).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        finish();
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(vi.mocked(check).mock.calls.length).toBeGreaterThan(1);
+      unmount();
+      const calls = vi.mocked(check).mock.calls.length;
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(check).toHaveBeenCalledTimes(calls);
+    },
+  );
+
   it('shows the active session code in the top-level header', () => {
     useSessionStore.getState().setSession(session);
 
