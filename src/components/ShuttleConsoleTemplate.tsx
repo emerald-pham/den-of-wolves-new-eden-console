@@ -49,6 +49,7 @@ export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave,
         <RoleConsoleTemplate label={`${captainName} console`}
           eyebrow={`${shuttle.shortName} // ${captainName}`}
           title={`${shuttle.shortName} operations`}
+          className="shuttle-console__workspace"
           telemetry={<>
             <div><dt>Shuttle location</dt><dd>{location}</dd></div>
             <div><dt>Fuel state</dt><dd>{fuelled ? 'Fuelled this turn' : 'Unfuelled'}</dd></div>

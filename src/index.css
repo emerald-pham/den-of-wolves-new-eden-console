@@ -2758,6 +2758,14 @@ body {
   white-space: nowrap;
 }
 
+/* A printed shuttle cargo allowance is rule text, not disposable telemetry. */
+.shuttle-console__workspace .console-workspace__telemetry dd {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
 .console-workspace__nav {
   display: flex;
   border-top: 1px solid var(--cic-rule);

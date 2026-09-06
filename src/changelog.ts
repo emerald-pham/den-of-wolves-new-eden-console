@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Shuttle cargo rules now wrap in full at every console size instead of truncating the printed allowance.',
+    ],
+  },
+  {
+    version: '0.2.35',
+    changes: [
       'Every printed shuttlecraft now has its own console, including the Capybara and Joint Engineering Union craft.',
       'Open your assigned craft from its ship-role workspace to read its live docking and fuel state alongside its printed operations, cargo limits, and mission rules.',
       'New sessions begin with the fleet’s standard shipboard shuttlecraft docked at their home ships and ready for refuelling.',

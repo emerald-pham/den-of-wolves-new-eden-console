@@ -60,6 +60,7 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   /></MemoryRouter>);
 
   const workspace = screen.getByRole('region', { name: 'Explorer console' });
+  expect(workspace).toHaveClass('shuttle-console__workspace');
   expect(within(workspace).getByRole('heading', { name: /hummingbird operations/i })).toBeInTheDocument();
   expect(within(workspace).getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
   expect(within(workspace).getByText(/within 3 jumps of quellon/i)).toBeInTheDocument();
