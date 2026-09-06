@@ -22,7 +22,9 @@ only read this file:
    clear game end. See `CLAUDE.md` for the full policy.
 
 4. **Delegate suitable routine tasks to Spark.** Standing authorization covers
-   GPT-5.3 Codex Spark tasks in separate worktrees when delegation saves tokens.
+   GPT-5.3 Codex Spark tasks when delegation saves tokens, including bounded
+   read-only reconnaissance on known surfaces. Use a separate worktree for any
+   task that will make a change.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

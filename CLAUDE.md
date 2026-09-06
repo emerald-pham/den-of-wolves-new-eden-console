@@ -99,6 +99,12 @@ confirmation is needed for each suitable task.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
   scope and acceptance criteria. Suitable examples include documentation edits
   and straightforward mechanical changes with clear expected results.
+- Spark agents may also perform bounded read-only work on known surfaces as
+  needed: quick surface maps, candidate-file reconnaissance, targeted
+  consistency searches, and medium-grain checks of what changed or where a
+  relevant seam lies. These read-only tasks do not require a worktree, branch,
+  or a separate confirmation; use a dedicated worktree only if the agent will
+  make a change.
 - No code change has zero risk. Keep security, authentication, authorization,
   authoritative state mutations, complex gameplay, and architectural decisions
   with the primary agent. Keep work local when delegation would cost more tokens
