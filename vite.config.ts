@@ -32,6 +32,7 @@ export default defineConfig({
           'firebase-app': ['firebase/app'],
           'firebase-auth': ['firebase/auth'],
           'firebase-functions': ['firebase/functions'],
+          'firebase-app-check': ['firebase/app-check'],
         },
       },
     },

@@ -30,6 +30,7 @@ const TERMINAL_RESUME_ERRORS = new Set([
 const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/unavailable',
   'functions/deadline-exceeded',
+  'functions/resource-exhausted',
   'functions/internal',
   'functions/unknown',
 ]);

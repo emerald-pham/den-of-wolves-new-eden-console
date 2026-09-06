@@ -10,6 +10,7 @@ state backed by Firebase.
 ## Contents
 
 - [Stack](#stack)
+- [Operating profile](#operating-profile)
 - [Layout](#layout)
 - [Security model](#security-model)
 - [Local development](#local-development)
@@ -32,6 +33,18 @@ state backed by Firebase.
 
 `HashRouter` is used so deep links survive on any static host with no rewrite
 rules — that covers GitHub Pages as well as the Firebase Hosting setup here.
+
+## Operating profile
+
+The production target is one 20-player multiplayer game with up to **60
+concurrent browser clients**. Players may use multiple devices (for example,
+their role console, a shared GM display, and a general console), so capacity
+and abuse controls must support valid clients sharing the same table network.
+This is the intended operating envelope, not a claim that it has already been
+load-tested.
+
+For the implementation brief covering capacity validation and DDoS/abuse
+protection, see [the 60-client hardening handoff](docs/ABUSE_PROTECTION_HANDOFF.md).
 
 ## Layout
 
@@ -70,6 +83,12 @@ The Firebase web config in `src/lib/firebaseConfig.ts` is a set of **public
 identifiers**, not credentials; it ships in every client bundle by design. No
 service-account key belongs anywhere in this repo — CI uses short-lived
 Workload Identity Federation credentials.
+
+Firebase App Check uses reCAPTCHA Enterprise to attest the web app before it
+accesses Firebase services. Callable Functions enforce that attestation, while
+the public site key is restricted to this project's Firebase Hosting domains.
+Local emulator builds use Firebase's debug-provider path; never add
+`localhost` to the production reCAPTCHA key or commit a debug token.
 
 ## Local development
 

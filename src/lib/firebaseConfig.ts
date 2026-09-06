@@ -22,6 +22,11 @@ const committed = {
   appId: '1:299811605673:web:9edc254e6cd1cc0a10edb8',
 } satisfies FirebaseOptions;
 
+// This is a public reCAPTCHA Enterprise site key, not a secret. It is filled
+// after registering this web app in Firebase App Check. An environment override
+// keeps staging projects independent from the production attestation key.
+const committedAppCheckSiteKey = '6Lee_6stAAAAAFdM5TdnbuaDLYMmc9Rl2KTF1z6J';
+
 const env = import.meta.env;
 
 export const firebaseConfig: FirebaseOptions = {
@@ -33,6 +38,9 @@ export const firebaseConfig: FirebaseOptions = {
     env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? committed.messagingSenderId,
   appId: env.VITE_FIREBASE_APP_ID ?? committed.appId,
 };
+
+export const appCheckSiteKey =
+  env.VITE_APP_CHECK_SITE_KEY || committedAppCheckSiteKey;
 
 /** True once the placeholders above have been replaced with real values. */
 export const firebaseConfigured =

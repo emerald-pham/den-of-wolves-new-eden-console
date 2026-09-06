@@ -150,6 +150,20 @@ describe('connect', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
+  it('queues a command when callable capacity is temporarily exhausted', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableRejecting({ code: 'functions/resource-exhausted', message: 'Try again shortly.' }),
+    );
+
+    await expect(claimGmInstance('Bridge')).resolves.toBe('queued');
+
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().pendingCommands).toEqual([
+      expect.objectContaining({ kind: 'claimGmInstance' }),
+    ]);
+  });
+
   it('does not restore a session after a local disconnect races a resume reply', async () => {
     useSessionStore.getState().setIdentity(session, player);
     let markResumeStarted: () => void = () => undefined;

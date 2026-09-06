@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Session connections now verify that each console comes from the companion app, helping keep shared games responsive during abusive traffic spikes.',
+      'When service capacity is briefly full, console commands now wait safely for a reconnect instead of disappearing.',
+    ],
+  },
+  {
+    version: '0.2.37',
+    changes: [
       'GM damage controls now keep every applied damage-card outcome visible as new cards are assigned.',
     ],
   },

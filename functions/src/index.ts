@@ -81,6 +81,7 @@ import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './s
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { pressDispatchState } from './pressDispatchState';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
+import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 
 /**
  * Server-side authority for the companion console.
@@ -91,7 +92,7 @@ import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft
  */
 
 initializeApp();
-setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
+setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
 const ARRIVAL_STATE = db.doc('appState/arrival');
