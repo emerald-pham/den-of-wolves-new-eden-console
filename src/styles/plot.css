@@ -204,6 +204,15 @@
   width: 0;
   height: 0;
   transform-style: preserve-3d;
+}
+
+/* The actual marker is invisible spatial truth. Moving contacts animate this
+   marker continuously so sweep intersections use their current position. */
+.contact-plot__actual {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
   transform: translate3d(
     calc(var(--x) * var(--plot-radius)),
     calc(var(--y) * var(--plot-radius)),
@@ -211,10 +220,9 @@
   );
 }
 
-/* One distant, low-frequency return crosses the outer shell on its sampled
-   vector. The component owns its exact two-minute lifetime; this animation
-   only renders the travel between the two measured endpoints. */
-.contact-plot__contact[data-ambient='true'] {
+/* Moving spatial truth crosses the plot continuously. Its visible return is a
+   separate sampled fix and therefore does not inherit this animation. */
+.contact-plot__contact[data-moving='true'] > .contact-plot__actual {
   animation: ambient-contact-transit var(--transit-duration) linear forwards;
   animation-delay: var(--transit-delay);
 }
@@ -245,17 +253,16 @@
 }
 
 /* A return does not exist on the instrument until the sweep first acquires its
-   bearing. After that, its displayed fix changes by a subtle subpixel step only when
-   another sweep reaches it. This wrapper never owns --x/--y/--z: those remain
-   fixed on the parent contact as the canonical formation coordinate. */
+   position. Its complete displayed XYZ fix lives here and holds absolutely
+   still between sweeps, even while a moving actual marker continues in space. */
 .contact-plot__apparent {
   position: absolute;
   opacity: 0;
   transform-style: preserve-3d;
   transform: translate3d(
-    calc(var(--fix-x, 0) * var(--plot-radius)),
-    0,
-    calc(var(--fix-z, 0) * var(--plot-radius))
+    calc(var(--fix-x, var(--x)) * var(--plot-radius)),
+    calc(var(--fix-y, var(--y)) * var(--plot-radius)),
+    calc(var(--fix-z, var(--z)) * var(--plot-radius))
   );
 }
 
@@ -416,6 +423,7 @@
 .contact-plot[data-still='true'] .contact-plot__sweep,
 .contact-plot[data-still='true'] .contact-plot__blip,
 .contact-plot[data-still='true'] .contact-plot__contact,
+.contact-plot[data-still='true'] .contact-plot__actual,
 .contact-plot[data-still='true'] .contact-plot__apparent,
 .contact-plot[data-still='true'] .contact-plot__jitter {
   animation: none;
@@ -429,6 +437,7 @@
   .contact-plot__sweep,
   .contact-plot__blip,
   .contact-plot__contact,
+  .contact-plot__actual,
   .contact-plot__apparent,
   .contact-plot__jitter,
   .contact-plot__meridian,

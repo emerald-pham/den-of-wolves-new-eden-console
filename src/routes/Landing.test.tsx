@@ -70,8 +70,8 @@ describe('Landing', () => {
 
     await waitFor(() => {
       expect(getSurvivorPopulation).toHaveBeenCalledOnce();
+      expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('232,501');
     });
-    expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('232,501');
   });
 
   it('offers the two ways in', () => {

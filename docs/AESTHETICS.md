@@ -283,12 +283,17 @@ the fix; only a later crossing may sample another fix. The freshness timer
 fading out never moves or jitters a return by itself, and the canonical XYZ
 coordinate is never modified.
 
-Genuinely moving contacts are the deliberate exception to fake spaceship drift.
-Their authoritative fleetwide vector remains exact, and once acquired their
-return follows that trajectory precisely and continuously with no bearing walk
-or jitter. Subsequent sweep crossings may refresh the return or satisfy a timed
-identification rule, but they do not perturb its vector. This preserves the
-threat of an object moving toward the fleet with visible precision.
+Genuinely moving contacts are **not an exception to sample-and-hold**. Their
+authoritative fleetwide vector advances continuously and exactly, but that true
+position is not a continuously rendered return. An invisible actual-position
+marker follows the trajectory so sweep intersection remains spatially correct.
+When an eligible sweep crosses that marker, the display copies its current XYZ
+coordinate into a separate visible fix. The return, name and altitude line then
+hold absolutely still at that sampled coordinate until another sweep crosses
+the moving marker and supplies a newer fix. Never animate a visible DRADIS
+return continuously between sweeps, whether the underlying contact is moving
+or stationary. Moving returns receive no bearing walk or jitter; their stepped
+fixes are exact samples of the authoritative vector.
 
 The spatial trajectory and eventual classification are fleetwide facts. Each
 DRADIS view still acquires them locally when its own rendered sweep reaches the
@@ -316,9 +321,10 @@ motion stops those sweeps, it does not reveal an otherwise unacquired contact.
 The ambient contact is the reference path for future moving threats. Keep the
 generic pieces generic: `ambientDradisContact.ts` derives stable endpoints and a
 classification from a session id plus authoritative occurrence time;
-`ContactPlot` resumes the precise, jitter-free CSS transit with a negative delay
-when a view mounts mid-flight; and `CONTACT_SCAN_EVENT` reports a real rendered
-sweep crossing.
+`ContactPlot` resumes the precise CSS transit of the invisible actual-position
+marker with a negative delay when a view mounts mid-flight; the visible return
+remains sample-and-hold, and `CONTACT_SCAN_EVENT` reports a real rendered sweep
+crossing.
 This makes the vector, schedule, and reveal result agree fleetwide without
 streaming frame-by-frame coordinates through Firestore.
 
@@ -528,7 +534,9 @@ that is a different, flatter instrument.
    step share that event; there are no independent repeating contact timers.
    Stationary returns use a bearing walk spanning -1 to +1 degrees around the
    vertical axis while retaining canonical formation coordinates. Moving
-   returns retain their exact vector and do not receive this artificial drift.
+   contacts advance an invisible actual-position marker continuously, but copy
+   its exact XYZ into a stationary visible fix only when crossed by a sweep;
+   they do not receive the artificial bearing walk.
    Names remain solid after acquisition.
    New contacts wait for a crossing of the existing scan; resizing preserves it.
    After a suspended frame interval, resume sampling without replaying missed
@@ -564,11 +572,13 @@ colour and introduces spoofed returns; it does not accelerate the sweep.
 
 ### Motion
 
-CSS owns the disc rotations and spoofed-return breakup. A requestAnimationFrame
-observer reads both rendered disc matrices and detects crossings of the full projected circumference, accounting for the rig tilt and CSS perspective;
-it does not advance an independent scan clock or cause React renders per frame.
-Each hit updates the apparent fix and starts a one-shot Web Animation for the
-blip decay. Cleanup cancels the observer and its blip animations.
+CSS owns the disc rotations, invisible actual-position transits and
+spoofed-return breakup. A requestAnimationFrame observer reads both rendered
+disc matrices and detects crossings of the full projected circumference,
+accounting for the rig tilt and CSS perspective; it does not advance an
+independent scan clock or cause React renders per frame. Each hit samples the
+actual position into a held apparent fix and starts a one-shot Web Animation
+for the blip decay. Cleanup cancels the observer and its blip animations.
 `data-still="true"` (set from the effective motion preference) stops the board
 and displays static contacts. Moving encounter contacts still require a real
 sweep and therefore remain hidden if they were not already acquired. The effective preference follows

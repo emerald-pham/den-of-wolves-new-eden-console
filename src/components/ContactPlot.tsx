@@ -336,6 +336,7 @@ export default function ContactPlot({
               data-label-anchor={labelAnchor(track, index)}
               style={'x' in track ? placeCartesian(track) : place(track)}
             >
+              <span className="contact-plot__actual" />
               <div className="contact-plot__apparent">
                 <div className="contact-plot__jitter">
                   <span className="contact-plot__drop" />
