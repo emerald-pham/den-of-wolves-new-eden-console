@@ -265,10 +265,10 @@ describe('ship confetti signals', () => {
   });
 });
 
-// The join-code index is what makes a four-digit code redeemable. It is only
-// useful to the server: if a client could read it, ten thousand GETs would
-// enumerate every table in existence, and if it could write it, one client
-// could point an existing code at a session it controls.
+// The join-code index makes legacy four-digit and current six-digit codes
+// redeemable. It is only useful to the server: if a client could read it, it
+// could enumerate tables, and if it could write it, it could point an existing
+// code at a session it controls.
 describe('join codes', () => {
   it('cannot be read from the client', async () => {
     await assertFails(getDoc(doc(as('stranger'), 'joinCodes/1234')));
@@ -290,6 +290,14 @@ describe('active membership locks', () => {
     const lock = doc(as('alice'), 'activeMemberships/alice');
     await assertFails(getDoc(lock));
     await assertFails(setDoc(lock, { sessionId: 's1' }));
+  });
+});
+
+describe('join attempt limits', () => {
+  it('remain server-only so a player cannot clear their own cooldown', async () => {
+    const limit = doc(as('alice'), 'joinAttemptLimits/alice');
+    await assertFails(getDoc(limit));
+    await assertFails(setDoc(limit, { attempts: 0 }));
   });
 });
 

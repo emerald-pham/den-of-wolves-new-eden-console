@@ -79,6 +79,13 @@ generating a secret or a random result — is denied at the rules layer and
 implemented as a callable Cloud Function running with admin privileges inside a
 transaction. `tests/rules/firestore.rules.test.ts` asserts each of those denials.
 
+New consoles request six-digit session codes; four-digit codes from older
+consoles remain valid. Each valid-format join-code submission is rate-limited
+by Firebase Auth identity, not IP address, so a table sharing one venue network
+does not block itself. The server-only limiter records expire automatically.
+This slows guessing from a single anonymous identity; Firebase App Check adds
+an independent gate for automated or distributed traffic.
+
 The Firebase web config in `src/lib/firebaseConfig.ts` is a set of **public
 identifiers**, not credentials; it ships in every client bundle by design. No
 service-account key belongs anywhere in this repo — CI uses short-lived

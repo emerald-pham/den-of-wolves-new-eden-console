@@ -124,13 +124,30 @@ describe('Landing', () => {
     expect(join).toBeEnabled();
   });
 
-  it('ignores anything that is not a digit, and stops at four', async () => {
+  it('ignores anything that is not a digit, and stops at six', async () => {
     const user = userEvent.setup();
     renderLanding();
     const code = screen.getByRole('textbox', { name: /code/i });
 
-    await user.type(code, 'a1b2c3d4e5');
-    expect(code).toHaveValue('1234');
+    expect(code).toHaveAttribute('maxLength', '6');
+    await user.type(code, 'a1b2c3d4e5f6g7');
+    expect(code).toHaveValue('123456');
+  });
+
+  it('accepts legacy four-digit codes or current six-digit codes, but not an incomplete new code', async () => {
+    const user = userEvent.setup();
+    renderLanding();
+    const code = screen.getByRole('textbox', { name: /code/i });
+    const join = screen.getByRole('button', { name: /join a session/i });
+
+    await user.type(code, '4821');
+    expect(join).toBeEnabled();
+
+    await user.type(code, '0');
+    expect(join).toBeDisabled();
+
+    await user.type(code, '9');
+    expect(join).toBeEnabled();
   });
 
   it('joins with the code that was typed', async () => {

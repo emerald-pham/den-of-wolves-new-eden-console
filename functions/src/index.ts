@@ -82,6 +82,12 @@ import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { pressDispatchState } from './pressDispatchState';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
+import {
+  isJoinCode,
+  joinCodeLengthForCreateRequest,
+  takeJoinCodeAttempt,
+  type JoinCodeAttemptState,
+} from './joinCodeSecurity';
 
 /**
  * Server-side authority for the companion console.
@@ -156,9 +162,46 @@ function cleanName(value: unknown, fallback: string, max: number): string {
   return text.length > 0 ? text : fallback;
 }
 
-/** Four digits, because the code gets read aloud across a noisy table. */
-function makeJoinCode(): string {
-  return String(randomInt(0, 10_000)).padStart(4, '0');
+/** Keep codes short enough to read aloud while newer clients use a larger space. */
+function makeJoinCode(length: number): string {
+  return String(randomInt(0, 10 ** length)).padStart(length, '0');
+}
+
+function joinCodeAttemptState(snapshot: DocumentSnapshot): JoinCodeAttemptState | undefined {
+  const startedAt = snapshot.get('windowStartedAt');
+  const attempts = snapshot.get('attempts');
+  return startedAt instanceof Timestamp && typeof attempts === 'number'
+    ? { startedAt: startedAt.toDate(), attempts }
+    : undefined;
+}
+
+/**
+ * Meter code submissions by Firebase Auth identity, never by IP address: a
+ * single convention venue can legitimately put every player behind one NAT.
+ */
+async function consumeJoinCodeAttempt(uid: string): Promise<void> {
+  const rateRef = db.doc(`joinAttemptLimits/${uid}`);
+  const decision = await db.runTransaction(async (tx) => {
+    const rate = await tx.get(rateRef);
+    const next = takeJoinCodeAttempt(joinCodeAttemptState(rate), new Date());
+    if (next.allowed) {
+      tx.set(rateRef, {
+        windowStartedAt: Timestamp.fromDate(next.state.startedAt),
+        attempts: next.state.attempts,
+        expiresAt: Timestamp.fromDate(next.expiresAt),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return next;
+  });
+  if (decision.allowed) return;
+
+  const retryAt = decision.retryAt ?? new Date();
+  const minutes = Math.max(1, Math.ceil((retryAt.getTime() - Date.now()) / 60_000));
+  throw new HttpsError(
+    'resource-exhausted',
+    `Too many session-code attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+  );
 }
 
 /**
@@ -192,24 +235,29 @@ export const getSurvivorPopulation = onCall<Record<string, never>>(async (reques
 });
 
 /**
- * Only ten thousand codes exist, so collisions are a certainty rather than a
- * curiosity. `joinCodes/{code}` is a uniqueness lock: creating it inside the
- * same transaction as the session is what makes "pick a code" safe against two
- * tables being made at the same instant. It also lives outside `sessions`,
- * which the rules deny to clients entirely -- so a code can be redeemed but
- * never enumerated.
+ * Legacy four-digit codes share a ten-thousand-code space, while current
+ * six-digit codes use a million. `joinCodes/{code}` is a uniqueness lock:
+ * creating it inside the same transaction as the session is what makes "pick a
+ * code" safe against two tables being made at the same instant. It also lives
+ * outside `sessions`, which the rules deny to clients entirely -- so a code can
+ * be redeemed but never enumerated.
  */
 const CODE_ATTEMPTS = 12;
 
-export const createSession = onCall<{ name?: string; displayName?: string }>(
+export const createSession = onCall<{
+  name?: string;
+  displayName?: string;
+  joinCodeVersion?: unknown;
+}>(
   async (request) => {
     const uid = requireUid(request.auth);
     const name = cleanName(request.data?.name, 'New session', 80);
     const displayName = cleanName(request.data?.displayName, 'GM', 40);
+    const joinCodeLength = joinCodeLengthForCreateRequest(request.data?.joinCodeVersion);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
 
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
-      const joinCode = makeJoinCode();
+      const joinCode = makeJoinCode(joinCodeLength);
       const codeRef = db.doc(`joinCodes/${joinCode}`);
       const sessionRef = db.collection('sessions').doc();
 
@@ -325,16 +373,17 @@ export const createSession = onCall<{ name?: string; displayName?: string }>(
   },
 );
 
-/** Redeem a four-digit code and register presence in that session. */
+/** Redeem a legacy four-digit or current six-digit code and register presence. */
 export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
     const joinCode = request.data?.joinCode ?? '';
-    if (!/^\d{4}$/.test(joinCode)) {
-      throw new HttpsError('invalid-argument', 'A session code is four digits.');
+    if (!isJoinCode(joinCode)) {
+      throw new HttpsError('invalid-argument', 'A session code is four or six digits.');
     }
     const displayName = cleanName(request.data?.displayName, 'Player', 40);
 
+    await consumeJoinCodeAttempt(uid);
     const codeSnap = await db.doc(`joinCodes/${joinCode}`).get();
     if (!codeSnap.exists) {
       throw new HttpsError('not-found', 'No session with that code.');

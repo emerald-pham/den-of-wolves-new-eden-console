@@ -6,6 +6,14 @@ const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
+const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8')) as {
+  fieldOverrides: Array<{
+    collectionGroup: string;
+    fieldPath: string;
+    ttl?: boolean;
+    indexes: unknown[];
+  }>;
+};
 const FIREBASE_CLI = 'firebase-tools@15.29.0';
 
 it('tests Firestore rules before a main-branch deployment', () => {
@@ -50,6 +58,15 @@ it('removes retired Cloud Functions during non-interactive deployment', () => {
 
   expect(deployment).toContain('--non-interactive');
   expect(deployment).toContain('--force');
+});
+
+it('expires server-only join-attempt limiter records without indexing their timestamp', () => {
+  expect(firestoreIndexes.fieldOverrides).toContainEqual({
+    collectionGroup: 'joinAttemptLimits',
+    fieldPath: 'expiresAt',
+    ttl: true,
+    indexes: [],
+  });
 });
 
 it('skips CI and deployment for documentation-only changes', () => {

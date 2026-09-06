@@ -6,8 +6,13 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 
-/** Table codes are read aloud across a noisy room, so they stay short. */
-const CODE_LENGTH = 4;
+/** Four-digit legacy codes still work; current clients can enter six-digit codes. */
+const LEGACY_CODE_LENGTH = 4;
+const CODE_LENGTH = 6;
+
+function isCompleteCode(code: string): boolean {
+  return code.length === LEGACY_CODE_LENGTH || code.length === CODE_LENGTH;
+}
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -79,7 +84,7 @@ export default function Landing() {
 
         <form className="landing__join" onSubmit={onJoin}>
           <label className="landing__label" htmlFor="join-code">
-            Session code
+            Session code (4 or 6 digits)
           </label>
           <input
             id="join-code"
@@ -87,10 +92,11 @@ export default function Landing() {
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="0000"
+            maxLength={CODE_LENGTH}
+            placeholder="000000"
             value={code}
-            // Digits only, four at most: the field cannot hold anything the
-            // server would reject, so there is no invalid state to report.
+            // Digits only, six at most: it accepts legacy four-digit sessions
+            // and the current six-digit format, with no invalid characters.
             onChange={(event) =>
               setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
             }
@@ -98,7 +104,7 @@ export default function Landing() {
           <button
             type="submit"
             className="landing__button"
-            disabled={busy || code.length !== CODE_LENGTH}
+            disabled={busy || !isCompleteCode(code)}
           >
             Join a session
           </button>

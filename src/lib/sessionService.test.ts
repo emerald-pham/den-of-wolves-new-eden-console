@@ -216,6 +216,25 @@ describe('joinSession', () => {
   });
 });
 
+describe('createSession', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('declares support for the six-digit session-code format', async () => {
+    const callable = callableReturning({ data: { session, player } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await createSession();
+
+    expect(callable).toHaveBeenCalledWith({ joinCodeVersion: 2 });
+  });
+});
+
 describe('GM instance commands', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
