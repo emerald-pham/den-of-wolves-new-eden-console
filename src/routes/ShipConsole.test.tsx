@@ -83,7 +83,9 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(within(instruments).getByRole('region', {
     name: /emergency bridge confetti dispenser/i,
   })).toBeInTheDocument();
-  expect(screen.getByText(/no recorded shuttle dockings/i)).toBeInTheDocument();
+  const dockings = within(instruments).getByRole('list', { name: 'Shuttle docking history' });
+  expect(dockings).toHaveTextContent('S.A.N.S. Macaw');
+  expect(dockings).toHaveTextContent('S.A.N.S. Boa');
 });
 
 it.each([
@@ -641,14 +643,18 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
   const user = userEvent.setup();
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/wing-commander']}>
-      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+      <Routes>
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+        <Route path="/shuttles/starlight" element={<p>Starlight shuttle destination</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
   const workspace = screen.getByRole('region', { name: 'AEGIS Wing Commander console' });
-  expect(within(workspace).getByRole('heading', { name: 'I.C.S.S. Starlight' })).toBeInTheDocument();
-  expect(within(workspace).getByText(/within 2 jumps/i)).toBeInTheDocument();
-  expect(within(workspace).getByText(/explore.*\+3.*salvage.*\+1/i)).toBeInTheDocument();
+  const starlight = within(workspace).getAllByRole('heading', { name: 'I.C.S.S. Starlight' })[0]?.closest('article');
+  if (!starlight) throw new Error('Expected the Starlight flight card.');
+  expect(within(starlight).getByText(/within 2 jumps/i)).toBeInTheDocument();
+  expect(within(starlight).getByText(/explore.*\+3.*salvage.*\+1/i)).toBeInTheDocument();
   expect(within(workspace).getByRole('heading', { name: 'Fighter Wing Alpha' })).toBeInTheDocument();
   expect(within(workspace).getByRole('heading', { name: 'Fighter Wing Bravo' })).toBeInTheDocument();
   for (const fighterName of ['Fighter Wing Alpha', 'Fighter Wing Bravo']) {
@@ -663,6 +669,13 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
   expect(within(workspace).getByText(/damage on 3\+.*fighter is destroyed.*1 or 2/i)).toBeInTheDocument();
   expect(within(workspace).queryByText(/command and control|missile launchers|point defence|pallas/i))
     .not.toBeInTheDocument();
+
+  await user.click(within(workspace).getByRole('button', { name: 'Flight group' }));
+  const returnedStarlight = within(workspace)
+    .getAllByRole('heading', { name: 'I.C.S.S. Starlight' })[0]?.closest('article');
+  if (!returnedStarlight) throw new Error('Expected the returned Starlight flight card.');
+  await user.click(within(returnedStarlight).getByRole('link', { name: 'Open Starlight shuttle console' }));
+  expect(screen.getByText('Starlight shuttle destination')).toBeInTheDocument();
 });
 
 it('adds the Executive Officer battle reference workspace', () => {

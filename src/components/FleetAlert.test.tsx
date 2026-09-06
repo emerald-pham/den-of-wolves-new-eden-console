@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
 import FleetBroadcast from './FleetBroadcast';
@@ -96,7 +97,7 @@ it('shows every active press dispatch on the fleet ticker', () => {
 });
 it('does not offer the command to other roles and shows fleet messages to them', () => {
   act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
-  render(<><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></>);
+  render(<MemoryRouter><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></MemoryRouter>);
   expect(screen.queryByRole('button', { name: 'Fleetwide red alert' })).not.toBeInTheDocument();
   expect(screen.getByRole('status', {
     name: 'RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',

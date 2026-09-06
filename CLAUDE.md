@@ -13,6 +13,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Merge once done](#2-merge-once-done)
 - [Version references](#version-references)
 - [Player-facing changelog](#player-facing-changelog)
+- [Game-rule references](#game-rule-references)
 - [Stack](#stack-and-what-not-to-swap)
 - [Security model](#security-model--the-load-bearing-rule)
 - [State](#state)
@@ -220,6 +221,23 @@ The newest changelog entry must use the version derived from `package.json` so
 the visible build reference and release notes stay aligned. Preserve the
 bounded, independently scrollable changelog region in Settings as the history
 grows. Documentation-only edits do not add a changelog entry.
+
+## Game-rule references
+
+Before designing, testing, or implementing player-facing Den of Wolves: New
+Eden content, read
+[`docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md`](docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md)
+and every source it routes to for the affected mechanic. This is required for
+ships, shuttlecraft, fighter wings, roles, maintenance, combat, exploration,
+resources, player counts, and facilitator-facing rules; do not rely on memory
+or infer a missing rule from adjacent UI.
+
+The printed component sheet is authoritative for a specific ship, shuttle,
+fighter wing, console, card, value, or owner. When it conflicts with a generic
+guide, implement the printed sheet and record a genuine ambiguity or erratum
+instead of silently choosing a convenient interpretation. Do not expose a
+control for a rule the reference does not define and the server cannot
+authoritatively resolve.
 
 ## Stack, and what not to swap
 

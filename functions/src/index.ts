@@ -80,6 +80,7 @@ import {
 import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { pressDispatchState } from './pressDispatchState';
+import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
 
 /**
  * Server-side authority for the companion console.
@@ -94,13 +95,6 @@ setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 const db = getFirestore();
 const ARRIVAL_STATE = db.doc('appState/arrival');
-const INITIAL_SHUTTLE_DOCKINGS = [
-  { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
-];
-const INITIAL_SHUTTLE_VISITS = [{
-  id: 'snn-initial-aegis-docking', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
-  action: 'docked', occurredAt: 'SESSION START',
-}];
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
   aegis: '0000',
   dione: '0000',

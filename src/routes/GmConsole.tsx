@@ -629,6 +629,12 @@ export default function GmConsole() {
                     Joint Engineering Union is recommended with fewer than 18 active roles,
                     but may be enabled manually at any time.
                   </p>
+                  <p className="gm-role-setup__note">
+                    Wobbly (Quellon / Refinery Engineer) and Ally (Shepherd / Icebreaker
+                    Engineer) are GM-controlled shuttlecraft and stay off in the 20/21-player
+                    roster. Enable their paired Joint Engineering Union role here before its
+                    shuttle console becomes available.
+                  </p>
                   <ShipRoleGroups
                     roles={CONSOLE_ROLES}
                     renderRole={(role) => {

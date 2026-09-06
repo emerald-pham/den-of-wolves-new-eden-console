@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { expect, it, vi } from 'vitest';
 import { defineShuttle } from '@/data/vessels/templates';
+import { SHUTTLECRAFT } from '@/data/shuttles';
 import ShuttleConsoleTemplate from './ShuttleConsoleTemplate';
 
 vi.mock('./PressConfetti', () => ({ default: () => <section aria-label="Newspaper confetti dispenser" /> }));
@@ -47,4 +48,22 @@ it.each(['snn-press-shuttle', 'survey-shuttle'])('places %s role capabilities in
   expect(within(instruments).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
   expect(within(instruments).getByRole('region', { name: 'Newspaper confetti dispenser' })).toBeInTheDocument();
   expect(within(instruments).getByRole('region', { name: 'Shuttle systems' })).toBeInTheDocument();
+});
+
+it('renders a printed shuttle’s operational sheet through the shared ship workspace', () => {
+  const shuttle = SHUTTLECRAFT.find((craft) => craft.id === 'hummingbird')!;
+
+  render(<MemoryRouter><ShuttleConsoleTemplate
+    shuttle={shuttle} captainName="Explorer" canLeave={true}
+    docking={{ shuttleId: shuttle.id, shipId: 'quellon', dockedAt: 'SESSION START' }}
+    fuelled={true}
+  /></MemoryRouter>);
+
+  const workspace = screen.getByRole('region', { name: 'Explorer console' });
+  expect(within(workspace).getByRole('heading', { name: /hummingbird operations/i })).toBeInTheDocument();
+  expect(within(workspace).getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
+  expect(within(workspace).getByText(/within 3 jumps of quellon/i)).toBeInTheDocument();
+  expect(within(workspace).getByText(/resource harvesting/i)).toBeInTheDocument();
+  expect(within(workspace).getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
 });

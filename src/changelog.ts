@@ -10,6 +10,15 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Every printed shuttlecraft now has its own console, including the Capybara and Joint Engineering Union craft.',
+      'Open your assigned craft from its ship-role workspace to read its live docking and fuel state alongside its printed operations, cargo limits, and mission rules.',
+      'New sessions begin with the fleet’s standard shipboard shuttlecraft docked at their home ships and ready for refuelling.',
+      'Wobbly and Ally stay off in the default 20/21-player roster until a GM enables their paired Joint Engineering Union role.',
+    ],
+  },
+  {
+    version: '0.2.32',
+    changes: [
       'The fleetwide red alert can only be raised once every 10 minutes, while standing down and updating an active alert remain available.',
       'Red-alert messages convert to uppercase as the Admiral types, including the restored default warning.',
       'Standing down lets the current alert finish its ticker pass, then runs the cancellation twice before all red-alert copy clears.',

@@ -1,6 +1,7 @@
 import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
+import AssignedShuttlecraft from './AssignedShuttlecraft';
 import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
@@ -79,5 +80,6 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
         <h3>{procedure.name}</h3><p>{procedure.effect}</p>
       </article>)}</div>
     </section>}
+    <AssignedShuttlecraft roleId={role.id} />
   </FleetRoleConsoleTemplate>;
 }

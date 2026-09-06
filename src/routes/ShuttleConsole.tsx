@@ -1,13 +1,15 @@
 import { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
-import { SHUTTLECRAFT, dockingForShuttle } from '@/data/shuttles';
+import { SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 
-export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
+export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shuttleId?: string }) {
+  const { shuttleId: routeShuttleId } = useParams();
+  const shuttleId = providedShuttleId ?? routeShuttleId ?? '';
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
@@ -16,6 +18,7 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
   const activeRoles = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const captainRole = findConsoleRole(shuttle?.captainRoleId);
   const docking = dockingForShuttle(session ?? {}, shuttleId);
+  const shuttleEnabled = shuttle ? isShuttleEnabled(shuttle, activeRoles) : false;
 
   useEffect(() => {
     if (!shuttle) return;
@@ -28,12 +31,12 @@ export default function ShuttleConsole({ shuttleId }: { shuttleId: string }) {
   }
   if (
     !shuttle || (mode !== 'console' && mode !== 'press') ||
-    (!activeRoles.includes(shuttle.captainRoleId) &&
+    (!shuttleEnabled &&
       me.activeConsoleRoleId !== shuttle.captainRoleId)
   ) {
     return <Navigate to="/console" replace />;
   }
 
   return <ShuttleConsoleTemplate shuttle={shuttle} captainName={captainRole?.name ?? 'Captain'}
-    canLeave={isGm} docking={docking} />;
+    canLeave={isGm} docking={docking} fuelled={session.shuttleFuelled?.[shuttle.id] === true} />;
 }

@@ -2,6 +2,7 @@ import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AEGIS_ROLE_CONSOLES,
   isImplementedAegisRole,
@@ -107,6 +108,10 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 
               <div><dt>Away mission</dt><dd>Explore +{console.awayMissionBonus.explore} // Salvage +{console.awayMissionBonus.salvage}</dd></div>
               <div><dt>Fuel state</dt><dd>Tracked at the table</dd></div>
             </dl>
+            <Link className="cic-text-button" to={`/shuttles/${starlight.id}`}
+              aria-label="Open Starlight shuttle console">
+              Open shuttle console
+            </Link>
           </article>
           {console.craft.slice(1).map((craft) => (
             <article className="aegis-craft cic-frame" key={craft.id}>

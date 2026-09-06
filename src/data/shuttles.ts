@@ -1,16 +1,64 @@
 import { SHIPS } from './ships';
+import { DEFAULT_ACTIVE_ROLE_IDS } from './roles';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
 import snnPressShuttle from './vessels/snn-press-shuttle';
+import starlight from './vessels/starlight';
+import pallas from './vessels/pallas';
+import philia from './vessels/philia';
+import maliades from './vessels/maliades';
+import highwall from './vessels/highwall';
+import blacksmith from './vessels/blacksmith';
+import macaw from './vessels/macaw';
+import boa from './vessels/boa';
+import endeavour from './vessels/endeavour';
+import blackSheep from './vessels/black-sheep';
+import hummingbird from './vessels/hummingbird';
+import condor from './vessels/condor';
+import chacau from './vessels/chacau';
+import chepu from './vessels/chepu';
+import wobbly from './vessels/wobbly';
+import ally from './vessels/ally';
 import type { Shuttlecraft } from './vessels/templates';
 export type { Shuttlecraft } from './vessels/templates';
 
-export const SHUTTLECRAFT: readonly Shuttlecraft[] = [snnPressShuttle];
+export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
+  snnPressShuttle,
+  starlight,
+  pallas,
+  philia,
+  maliades,
+  highwall,
+  blacksmith,
+  macaw,
+  boa,
+  endeavour,
+  blackSheep,
+  hummingbird,
+  condor,
+  chacau,
+  chepu,
+  wobbly,
+  ally,
+];
 
-export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = SHUTTLECRAFT.flatMap(
+/** The standard 20/21-player fleet; optional Union craft stay GM-controlled. */
+export const DEFAULT_ENABLED_SHUTTLECRAFT = SHUTTLECRAFT.filter((shuttle) =>
+  shuttle.availability === 'standard' && DEFAULT_ACTIVE_ROLE_IDS.includes(shuttle.captainRoleId),
+);
+
+/** Active roles are server-authoritative and may only be changed from GM setup. */
+export function isShuttleEnabled(
+  shuttle: Shuttlecraft,
+  activeRoleIds: readonly string[],
+): boolean {
+  return activeRoleIds.includes(shuttle.captainRoleId);
+}
+
+export const INITIAL_SHUTTLE_DOCKINGS: readonly ShuttleDocking[] = DEFAULT_ENABLED_SHUTTLECRAFT.flatMap(
   (shuttle) => shuttle.initialDocking ? [{ ...shuttle.initialDocking, shuttleId: shuttle.id }] : [],
 );
 
-export const INITIAL_SHUTTLE_VISITS: readonly ShuttleVisit[] = SHUTTLECRAFT.flatMap(
+export const INITIAL_SHUTTLE_VISITS: readonly ShuttleVisit[] = DEFAULT_ENABLED_SHUTTLECRAFT.flatMap(
   (shuttle) => shuttle.initialVisit ? [{ ...shuttle.initialVisit, shuttleId: shuttle.id }] : [],
 );
 

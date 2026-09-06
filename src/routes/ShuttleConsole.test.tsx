@@ -174,3 +174,42 @@ it('keeps a press officer aboard if the GM disables the held role', () => {
 
   expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
 });
+
+it('opens a printed shipboard shuttle for its owning role without press-only equipment', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['quellon-explorer'],
+    shuttleDockings: [{ shuttleId: 'hummingbird', shipId: 'quellon', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'quellon-explorer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/hummingbird']}>
+      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'P.S. Hummingbird' })).toBeInTheDocument();
+  expect(screen.getByText('Explorer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*quellon/i,
+  );
+  expect(screen.getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
+});
+
+it('keeps a GM-controlled Union shuttle out of the default roster', () => {
+  render(
+    <MemoryRouter initialEntries={['/shuttles/wobbly']}>
+      <Routes>
+        <Route path="/console" element={<p>Role selection</p>} />
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'U.S. Wobbly' })).not.toBeInTheDocument();
+});

@@ -401,10 +401,18 @@ it('uses a player-count slider for roles and marks manual changes custom', async
   expect(slider).toHaveAttribute('min', '8');
   expect(slider).toHaveAttribute('max', '21');
   expect(screen.getByText(/joint engineering union.*fewer than 18.*manually/i)).toBeInTheDocument();
+  expect(screen.getByText(/wobbly.*ally.*gm-controlled.*20\/21-player roster/i)).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: /press officer role availability/i })).toBeChecked();
 
   fireEvent.change(slider, { target: { value: '20' } });
   await waitFor(() => expect(applyRolePreset).toHaveBeenLastCalledWith(20));
+
+  const wobblyRole = screen.getByRole('switch', {
+    name: /quellon \/ refinery engineer role availability/i,
+  });
+  expect(wobblyRole).not.toBeChecked();
+  await user.click(wobblyRole);
+  expect(setActiveRoleEnabled).toHaveBeenCalledWith('joint-engineering-quellon-refinery', true);
 
   await user.click(screen.getByRole('switch', { name: /press officer role availability/i }));
   expect(setActiveRoleEnabled).toHaveBeenCalledWith('press-officer', true);

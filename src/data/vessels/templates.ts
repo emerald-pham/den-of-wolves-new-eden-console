@@ -62,6 +62,18 @@ export function defineShip(
 
 export type ShuttleCapability = 'newspaper-confetti' | 'press-dispatches';
 
+/** GM-controlled craft only become available when the GM enables their owner role. */
+export type ShuttleAvailability = 'standard' | 'gm-controlled';
+
+export type ShuttleOperationPhase = 'Team' | 'Coordination' | 'Away mission' | 'Wolf attack';
+
+/** Printed operational rule shown in the shared shuttle role workspace. */
+export interface ShuttleOperation {
+  readonly name: string;
+  readonly phase: ShuttleOperationPhase;
+  readonly effect: string;
+}
+
 export interface Shuttlecraft {
   readonly id: string;
   readonly name: string;
@@ -72,9 +84,13 @@ export interface Shuttlecraft {
   readonly vesselType: string;
   readonly description: string;
   readonly captainRoleId: string;
+  readonly availability: ShuttleAvailability;
   readonly consoleClass?: string;
   readonly mark?: string;
   readonly capabilities: readonly ShuttleCapability[];
+  readonly operations: readonly ShuttleOperation[];
+  /** The actual resource categories this craft may transfer, when its sheet supplies them. */
+  readonly cargoTransfer?: string;
   readonly dockingEntrance?: 'press';
   readonly dockingPort?: string;
   readonly initialDocking?: Omit<ShuttleDocking, 'shuttleId'>;
@@ -82,7 +98,22 @@ export interface Shuttlecraft {
 }
 
 export function defineShuttle(
-  definition: Omit<Shuttlecraft, 'capabilities'> & Partial<Pick<Shuttlecraft, 'capabilities'>>,
+  definition: Omit<Shuttlecraft, 'availability' | 'capabilities' | 'operations' | 'initialVisit'> &
+    Partial<Pick<Shuttlecraft, 'availability' | 'capabilities' | 'operations' | 'initialVisit'>>,
 ): Shuttlecraft {
-  return { capabilities: [], ...definition };
+  const initialVisit = definition.initialVisit ?? (definition.initialDocking
+    ? {
+      id: `${definition.id}-initial-${definition.initialDocking.shipId}-docking`,
+      shipId: definition.initialDocking.shipId,
+      action: 'docked' as const,
+      occurredAt: definition.initialDocking.dockedAt,
+    }
+    : undefined);
+  return {
+    availability: 'standard',
+    capabilities: [],
+    operations: [],
+    ...definition,
+    ...(initialVisit ? { initialVisit } : {}),
+  };
 }
