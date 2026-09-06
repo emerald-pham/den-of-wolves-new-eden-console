@@ -9,11 +9,7 @@ import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 /** Table codes are read aloud across a noisy room, so they stay short. */
 const CODE_LENGTH = 4;
 
-export default function Landing({
-  onTransmission,
-}: {
-  onTransmission?: ((active: boolean) => void) | undefined;
-}) {
+export default function Landing() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -63,7 +59,6 @@ export default function Landing({
       </h1>
 
       <ArrivalDisplay
-        onTransmission={onTransmission}
         standDown={busy}
         survivorPopulation={survivorPopulation}
       />

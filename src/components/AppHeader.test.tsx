@@ -1,19 +1,33 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
+import type { Player } from '@/types/game';
 import AppHeader from './AppHeader';
 
 vi.mock('@/lib/sessionService', () => ({
-  getSessionPresence: vi.fn(),
   releaseConsoleRole: vi.fn(),
   releaseGmInstance: vi.fn(),
   disconnectFromSession: vi.fn(),
 }));
-const { getSessionPresence, releaseConsoleRole, releaseGmInstance } =
+vi.mock('@/lib/firestore', () => ({
+  subscribeConnectedPlayers: vi.fn(),
+}));
+const { releaseConsoleRole, releaseGmInstance } =
   await import('@/lib/sessionService');
+const { subscribeConnectedPlayers } = await import('@/lib/firestore');
+
+const connectedPlayer = (uid: string): Player => ({
+  uid,
+  sessionId: 's1',
+  displayName: `Player ${uid}`,
+  role: 'player',
+  seatId: null,
+  activeConsoleRoleId: null,
+  joinedAt: '2026-01-01T00:00:00.000Z',
+});
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -21,13 +35,36 @@ beforeEach(() => {
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
   });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([connectedPlayer('u1'), connectedPlayer('u2')]);
+    return vi.fn();
+  });
 });
 
 afterEach(() => vi.restoreAllMocks());
 
+it('shows the current session personnel count in the top-right header', async () => {
+  let publish: ((players: readonly Player[]) => void) | undefined;
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    publish = onPlayers;
+    onPlayers([connectedPlayer('u1'), connectedPlayer('u2'), connectedPlayer('u3')]);
+    return vi.fn();
+  });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  expect(await screen.findByText('3 personnel connected to CIC')).toBeVisible();
+  act(() => publish?.([
+    connectedPlayer('u1'), connectedPlayer('u2'), connectedPlayer('u3'), connectedPlayer('u4'),
+  ]));
+  expect(screen.getByText('4 personnel connected to CIC')).toBeVisible();
+});
+
 it('shows the last-player warning inside settings', async () => {
   const user = userEvent.setup();
-  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 1 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([connectedPlayer('u1')]);
+    return vi.fn();
+  });
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
@@ -39,7 +76,6 @@ it('shows the last-player warning inside settings', async () => {
 
 it('shows the system motion setting and lets a player override it', async () => {
   const user = userEvent.setup();
-  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 2 });
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
@@ -53,7 +89,6 @@ it('shows the system motion setting and lets a player override it', async () => 
 
 it('focuses the dialog, closes it with Escape, and restores settings focus', async () => {
   const user = userEvent.setup();
-  vi.mocked(getSessionPresence).mockResolvedValue({ connectedPlayers: 2 });
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
 
   const settings = screen.getByRole('button', { name: /settings/i });

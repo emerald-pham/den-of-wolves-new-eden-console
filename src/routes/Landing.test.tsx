@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -72,32 +72,6 @@ describe('Landing', () => {
       expect(getSurvivorPopulation).toHaveBeenCalledOnce();
     });
     expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('232,501');
-  });
-
-  it('reports an intrusion upward so the board behind every route can go hostile', () => {
-    vi.useFakeTimers();
-    try {
-      const onTransmission = vi.fn();
-      render(
-        <MemoryRouter>
-          <Landing onTransmission={onTransmission} />
-        </MemoryRouter>,
-      );
-
-      expect(onTransmission).toHaveBeenLastCalledWith(false);
-
-      act(() => {
-        vi.advanceTimersByTime(20_000);
-      });
-      expect(onTransmission).toHaveBeenLastCalledWith(true);
-
-      act(() => {
-        vi.advanceTimersByTime(5_000);
-      });
-      expect(onTransmission).toHaveBeenLastCalledWith(false);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it('offers the two ways in', () => {
@@ -178,26 +152,6 @@ describe('Landing', () => {
 
     expect(createSession).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
-  });
-
-  it('stands down an active intrusion as soon as session entry begins', () => {
-    vi.useFakeTimers();
-    const onTransmission = vi.fn();
-    vi.mocked(createSession).mockReturnValue(new Promise<void>(() => undefined));
-    render(
-      <MemoryRouter>
-        <Landing onTransmission={onTransmission} />
-      </MemoryRouter>,
-    );
-
-    act(() => vi.advanceTimersByTime(20_000));
-    expect(onTransmission).toHaveBeenLastCalledWith(true);
-    expect(document.querySelector('.intrusion')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /create a session/i }));
-
-    expect(onTransmission).toHaveBeenLastCalledWith(false);
-    expect(document.querySelector('.intrusion')).not.toBeInTheDocument();
   });
 
   it('reports a failure to join instead of failing silently', async () => {

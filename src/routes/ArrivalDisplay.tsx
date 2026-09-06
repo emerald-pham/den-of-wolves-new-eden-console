@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
-import Intrusion from '@/components/Intrusion';
+import { useEffect, useState } from 'react';
 import { useMotionPreference } from '@/lib/motionPreference';
 
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
@@ -44,50 +43,19 @@ const manifests: readonly {
   },
   { label: 'WOLVES AMONG US', start: '1', offset: CYCLE_MS * 0.6, draw: inOrder(['1', '?', '2']) },
 ];
-const messages = [
-  'EARTH IS NOT FOR YOU',
-  'BE AFRAID',
-  'A COLD GRAVE AWAITS YOU',
-  'YOU WILL DIE A HORRIBLE DEATH',
-  'EVERYONE YOU KNOW IS A SPY',
-  'WE CANNOT BE STOPPED',
-];
-
-/**
- * `onTransmission` lets the rest of the launcher react to an intrusion without
- * this component knowing what reacts. It is held in a ref so a parent that
- * hands over a fresh closure on every render cannot restart the timers and
- * reset the manifest cycle underneath it.
- */
 export default function ArrivalDisplay({
-  onTransmission,
   standDown = false,
   survivorPopulation = null,
 }: {
-  onTransmission?: ((active: boolean) => void) | undefined;
   standDown?: boolean | undefined;
   survivorPopulation?: number | null | undefined;
 }) {
   const { reducedMotion } = useMotionPreference();
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
   const [sus, setSus] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const notify = useRef(onTransmission);
 
   useEffect(() => {
-    notify.current = onTransmission;
-  }, [onTransmission]);
-
-  useEffect(() => {
-    notify.current?.(message !== null && !reducedMotion && !standDown);
-  }, [message, reducedMotion, standDown]);
-
-  // Leaving the launcher stands the board down; nothing is hunting an unmounted
-  // screen.
-  useEffect(() => () => notify.current?.(false), []);
-
-  useEffect(() => {
-    if (reducedMotion || standDown) { setMessage(null); return; }
+    if (reducedMotion || standDown) return;
     const timers: number[] = [];
     manifests.forEach((manifest, index) => {
       const tick = () => {
@@ -98,17 +66,6 @@ export default function ArrivalDisplay({
       };
       timers.push(window.setTimeout(tick, CYCLE_MS + manifest.offset));
     });
-    let lastMessage = -1;
-    const transmit = () => {
-      // Select randomly without repeating the previous transmission.
-      const next = lastMessage < 0 ? Math.floor(Math.random() * messages.length)
-        : (lastMessage + 1 + Math.floor(Math.random() * (messages.length - 1))) % messages.length;
-      lastMessage = next;
-      setMessage(messages[next] ?? messages[0] ?? '');
-      timers.push(window.setTimeout(() => setMessage(null), 5000));
-      timers.push(window.setTimeout(transmit, 60000));
-    };
-    timers.push(window.setTimeout(transmit, 20000));
     return () => timers.forEach(window.clearTimeout);
   }, [reducedMotion, standDown]);
 
@@ -149,11 +106,10 @@ export default function ArrivalDisplay({
             <div className="arrival-readout__value" aria-label="Arrival readout 4">
               <span>{survivorPopulation?.toLocaleString('en-US') ?? '—'}</span>
             </div>
-            <div className="arrival-readout__label">SURVIVORS</div>
+            <div className="arrival-readout__label">POPULATION ESTIMATE AFTER INITIAL STARVATION</div>
           </div>
         </div>
       </section>
-      {message && !reducedMotion && !standDown && <Intrusion message={message} />}
     </>
   );
 }

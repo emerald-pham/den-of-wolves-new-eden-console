@@ -145,17 +145,17 @@ Shared utilities, all in src/styles/cic.css:
 - `.cic-overline` — small amber uppercase mono caption.
 - `.cic-text-button` — borderless cyan control, 44px minimum.
 
-Arrival readouts show a changing value with its descriptive label underneath:
-SHIPS IN CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, and WOLVES AMONG US, in
-that order. PERSONNEL GRANTED CIC DATA ACCESS is the 8–21 player-held posts—not
-the roughly 200,000 souls in the fleet. Keep these labels
-visible at every viewport size. Hide the sequences of possible numbers; do not
-confuse those sequences with the descriptive labels. Do not show a SCENARIO
-SIGNAL footer. Avoid other franchise-specific terminology anywhere a player
-can read it, including decorative text inside the contact plot. CIC and DRADIS
-are the deliberate exceptions. Use a three-column display on wide screens and
-compact stacked readouts on phones. Preserve native buttons, labels, visible
-keyboard focus, error announcements, and at least 44px touch targets.
+Arrival readouts show a value with its descriptive label underneath: SHIPS IN
+CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, WOLVES AMONG US, and POPULATION
+ESTIMATE AFTER INITIAL STARVATION, in that order. PERSONNEL GRANTED CIC DATA
+ACCESS is the 8–21 player-held posts—not the roughly 200,000 souls in the fleet.
+Keep these labels visible at every viewport size. Hide the sequences of possible
+numbers; do not confuse those sequences with the descriptive labels. Do not
+show a SCENARIO SIGNAL footer. Avoid other franchise-specific terminology
+anywhere a player can read it, including decorative text inside the contact
+plot. CIC and DRADIS are the deliberate exceptions. Use a compact grid on wide
+screens and stacked readouts on phones. Preserve native buttons, labels,
+visible keyboard focus, error announcements, and at least 44px touch targets.
 
 ### Control rows and everyday layout
 
@@ -311,9 +311,8 @@ its route is introduced.
 
 **It is rendered once in `App`, above the router.** One continuous scan runs
 from the launcher through the role picker to a connected console, rather than a
-fresh board that restarts its sweep on every navigation. `Landing` no longer
-owns it; it only reports intrusions upward through `onTransmission`, and `App`
-holds that flag.
+fresh board that restarts its sweep on every navigation. `Landing` does not own
+the board or activate its hostile state.
 
 Because the board sits above the canvas and below the routes, **the ground
 lives on `body` and no route container may be opaque.** A route with its own
@@ -514,13 +513,9 @@ panel stay above it. Decorative overlines are amber-ember; the message is
   canonical copy, giving each letter an independent 10% chance of replacement.
   Preserve spaces and punctuation so the words flicker without shifting layout.
 
-The launcher's schedule: first intrusion at 20 seconds, subsequent starts 60
-seconds apart, chosen randomly without an immediate repeat. Text, always in
-caps: EARTH IS NOT FOR YOU / BE AFRAID / A COLD GRAVE AWAITS YOU / YOU WILL DIE
-A HORRIBLE DEATH / EVERYONE YOU KNOW IS A SPY / WE CANNOT BE STOPPED.
-`ArrivalDisplay`
-reports the intrusion up through an optional `onTransmission` callback, held in
-a ref so a parent handing over a fresh closure cannot restart the timers.
+The launcher does not run intrusion takeovers or display hostile messages.
+Threat presentation remains available for later gameplay where it has clear
+context, but it is deliberately absent from the opening experience.
 
 Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 5/6.5/8 seconds.

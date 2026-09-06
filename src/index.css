@@ -239,6 +239,20 @@ body {
   line-height: 1;
 }
 
+.personnel-count {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+  max-width: 12rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 88%, transparent);
+  color: var(--cic-cyan);
+  font: 0.62rem/1.35 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .indicator {
   display: inline-flex;
   align-items: center;
@@ -2202,7 +2216,13 @@ body {
 @media (max-width: 24rem) {
   .ship-resources ul { grid-template-columns: 1fr; }
   .app-header {
+    flex-wrap: wrap;
     gap: 0.4rem;
+  }
+
+  .personnel-count {
+    order: 4;
+    margin-left: auto;
   }
 
   .session-badge {

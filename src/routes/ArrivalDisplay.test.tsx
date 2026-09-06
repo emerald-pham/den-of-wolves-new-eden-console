@@ -30,11 +30,11 @@ it('turns each readout over every five seconds on proportionally staggered beats
   expect(readout(3)).toHaveTextContent('?');
 });
 
-it('draws one fixed estimated survivor population with no trailing zero or five', () => {
+it('draws one fixed population estimate with no trailing zero or five', () => {
   render(<ArrivalDisplay survivorPopulation={222_501} />);
 
   expect(readout(4)).toHaveTextContent('222,501');
-  expect(screen.getByText('SURVIVORS')).toBeVisible();
+  expect(screen.getByText('POPULATION ESTIMATE AFTER INITIAL STARVATION')).toBeVisible();
 
   const population = shown(4);
   advance(60_000);
@@ -119,34 +119,15 @@ it('never redraws the value a readout is already showing', () => {
     advance(5000);
   }
 });
-it('transmits at twenty seconds for five seconds, then a different message each minute', () => {
+it('does not show hostile hacking messages on the opening display', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0);
   render(<ArrivalDisplay />);
-  advance(19999);
-  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
-  advance(1);
-  expect(screen.getByText('EARTH IS NOT FOR YOU')).toBeInTheDocument();
-  advance(4999);
-  expect(screen.getByText('EARTH IS NOT FOR YOU')).toBeInTheDocument();
-  advance(1);
-  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
-  advance(55000);
-  expect(screen.getByText('BE AFRAID')).toBeInTheDocument();
-});
+  advance(80_000);
 
-it('never uses the removed children threat', () => {
-  vi.spyOn(Math, 'random').mockReturnValue(0.45);
-  render(<ArrivalDisplay />);
-  advance(20_000);
-  expect(document.body.textContent).not.toMatch(/your children will suffer/i);
-});
-it('draws from every hostile message, the newer threats included', () => {
-  vi.spyOn(Math, 'random').mockReturnValue(0.99);
-  render(<ArrivalDisplay />);
-
-  advance(20000);
-
-  expect(screen.getByText('WE CANNOT BE STOPPED')).toBeInTheDocument();
+  expect(document.querySelector('.intrusion')).not.toBeInTheDocument();
+  expect(document.body.textContent).not.toMatch(
+    /EARTH IS NOT FOR YOU|BE AFRAID|A COLD GRAVE AWAITS YOU|YOU WILL DIE A HORRIBLE DEATH|EVERYONE YOU KNOW IS A SPY|WE CANNOT BE STOPPED/i,
+  );
 });
 
 it('has no motion control and clears timers on unmount', () => {
@@ -186,30 +167,4 @@ it('omits the scenario signal footer', () => {
 
   expect(screen.queryByText(/SCENARIO SIGNAL/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/NOT LIVE SESSION DATA/i)).not.toBeInTheDocument();
-});
-
-it('reports an intrusion for as long as it is on screen so the plot can go hostile', () => {
-  vi.spyOn(Math, 'random').mockReturnValue(0);
-  const onTransmission = vi.fn();
-  const { unmount } = render(<ArrivalDisplay onTransmission={onTransmission} />);
-
-  expect(onTransmission).toHaveBeenLastCalledWith(false);
-  advance(20000);
-  expect(onTransmission).toHaveBeenLastCalledWith(true);
-  advance(5000);
-  expect(onTransmission).toHaveBeenLastCalledWith(false);
-
-  unmount();
-  expect(onTransmission).toHaveBeenLastCalledWith(false);
-});
-
-it('never reports an intrusion when reduced motion has stood the display down', () => {
-  vi.mocked(matchMedia).mockReturnValue({
-    matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn(),
-  } as unknown as MediaQueryList);
-  const onTransmission = vi.fn();
-  render(<ArrivalDisplay onTransmission={onTransmission} />);
-
-  advance(80000);
-  expect(onTransmission).not.toHaveBeenCalledWith(true);
 });

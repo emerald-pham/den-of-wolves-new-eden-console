@@ -4,7 +4,6 @@ import ConnectionIndicator from './ConnectionIndicator';
 import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
 import {
   disconnectFromSession,
-  getSessionPresence,
   releaseConsoleRole,
   releaseGmInstance,
 } from '@/lib/sessionService';
@@ -19,6 +18,7 @@ export default function AppHeader() {
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
   const status = useSessionStore(selectConnectionStatus);
+  const sessionId = useSessionStore((state) => state.session?.id);
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
@@ -28,16 +28,30 @@ export default function AppHeader() {
     state.pendingCommands.some((command) => command.kind === 'disconnectFromSession'));
   const { override, reducedMotion, systemReducedMotion } = useMotionPreference();
 
-  async function openSettings(): Promise<void> {
+  function openSettings(): void {
     setSettingsOpen(true);
-    setConnectedPlayers(null);
-    try {
-      const presence = await getSessionPresence();
-      setConnectedPlayers(presence.connectedPlayers);
-    } catch {
-      // The disconnect action remains available when presence cannot be read.
-    }
   }
+
+  useEffect(() => {
+    if (!sessionId) {
+      setConnectedPlayers(null);
+      return;
+    }
+    let active = true;
+    let unsubscribe: () => void = () => undefined;
+    setConnectedPlayers(null);
+    void import('@/lib/firestore').then(({ subscribeConnectedPlayers }) => {
+      if (!active) return;
+      unsubscribe = subscribeConnectedPlayers(
+        sessionId,
+        (players) => setConnectedPlayers(players.length),
+      );
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [sessionId]);
 
   function closeSettings(): void {
     setSettingsOpen(false);
@@ -112,6 +126,11 @@ export default function AppHeader() {
           <strong className="session-badge__code">{joinCode}</strong>
         </div>
       )}
+      {connectedPlayers !== null && (
+        <div className="personnel-count" aria-live="polite">
+          {connectedPlayers} personnel connected to CIC
+        </div>
+      )}
       <ConnectionIndicator status={status} />
       {joinCode !== undefined && (
         <button
@@ -119,7 +138,7 @@ export default function AppHeader() {
           ref={settingsButton}
           type="button"
           aria-label="Settings"
-          onClick={() => void openSettings()}
+          onClick={openSettings}
         >
           <span aria-hidden="true">⚙</span>
         </button>

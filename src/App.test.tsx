@@ -11,7 +11,6 @@ vi.mock('@/lib/sessionService', () => ({
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
   getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),
-  getSessionPresence: vi.fn().mockResolvedValue({ connectedPlayers: 2 }),
   joinSession: vi.fn(),
   kickGmInstance: vi.fn(),
   listGmInstances: vi.fn().mockResolvedValue([]),
@@ -25,6 +24,7 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
+  subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
     _sessionId: string,

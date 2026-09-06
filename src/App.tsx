@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Landing from '@/routes/Landing';
 import RoleSelect from '@/routes/RoleSelect';
@@ -36,10 +36,6 @@ function AppRoutes() {
   const playerUid = me?.uid;
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
-  // The threat board lives above the router so it survives every navigation:
-  // one continuous scan from the launcher through to a connected console,
-  // rather than a fresh one that restarts its sweep on each route.
-  const [intrusion, setIntrusion] = useState(false);
   const shipId = location.pathname.startsWith('/ships/')
     ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
     : location.pathname === '/press'
@@ -78,13 +74,13 @@ function AppRoutes() {
     session && me ? (
       <Navigate to={restoreRoute} replace />
     ) : (
-      <Landing onTransmission={setIntrusion} />
+      <Landing />
     );
 
   return (
     <div data-motion={reducedMotion ? 'reduce' : 'full'}>
       <ShipPlot
-        hostile={intrusion}
+        hostile={false}
         aboard={hasConsoleDradis(location.pathname)}
         viewerId={shipId}
         capybaraEnabled={session?.capybaraEnabled !== false}
