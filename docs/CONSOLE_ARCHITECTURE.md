@@ -106,9 +106,9 @@ missing server docking field uses that initial manifest for legacy sessions;
 an explicitly empty server list means no craft is docked. The server remains
 authoritative for docking and every future travel action.
 
-Airspace Control is a real shared phase instrument, but shuttle travel is still
-future work. When travel is implemented, restricted airspace will prevent
-between-ship shuttle movement until the coordination phase begins; AEGIS may
+Airspace Control is a real shared airspace instrument, but shuttle travel is
+still future work. When travel is implemented, restricted airspace will prevent
+between-ship shuttle movement until airspace opens; AEGIS may
 authorize the unaffiliated Press vessel as a limited exception. Do not add a
 client-only travel control or describe that enforcement as implemented today.
 

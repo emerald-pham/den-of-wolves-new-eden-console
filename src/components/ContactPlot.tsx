@@ -30,6 +30,8 @@ import { useMotionPreference } from '@/lib/motionPreference';
  * stops both the CSS motion and the observer.
  */
 
+type CombatRange = 'long' | 'medium' | 'short';
+
 type Track = {
   readonly tag: string;
   /** Degrees clockwise around the vertical axis. */
@@ -38,6 +40,8 @@ type Track = {
   readonly elevation: number;
   /** Distance out from us: 0 at the centre of the sphere, 1 at its skin. */
   readonly range: number;
+  /** Gameplay range is deliberately independent from this track's 3D position. */
+  readonly combatRange: CombatRange;
   readonly color?: string;
 };
 
@@ -48,6 +52,8 @@ export interface PlotContact {
   readonly y: number;
   readonly z: number;
   readonly color: string;
+  /** Gameplay range is deliberately independent from this contact's 3D position. */
+  readonly combatRange?: CombatRange;
   readonly transit?: {
     readonly destination: Vector;
     readonly durationMs: number;
@@ -58,14 +64,14 @@ export interface PlotContact {
 /** Hand-placed rather than random, so the board is composed and never flickers
  *  into a new arrangement on re-render. */
 const CONTACTS: readonly Track[] = [
-  { tag: 'TRK 01', bearing: 18, elevation: 22, range: 0.72 },
-  { tag: 'TRK 02', bearing: 63, elevation: -14, range: 0.44 },
-  { tag: 'UNKN', bearing: 107, elevation: 41, range: 0.86 },
-  { tag: 'TRK 04', bearing: 152, elevation: -33, range: 0.61 },
-  { tag: 'TRK 05', bearing: 198, elevation: 8, range: 0.93 },
-  { tag: 'UNKN', bearing: 241, elevation: -52, range: 0.55 },
-  { tag: 'TRK 07', bearing: 286, elevation: 29, range: 0.78 },
-  { tag: 'TRK 08', bearing: 331, elevation: -6, range: 0.38 },
+  { tag: 'TRK 01', bearing: 18, elevation: 22, range: 0.72, combatRange: 'short' },
+  { tag: 'TRK 02', bearing: 63, elevation: -14, range: 0.44, combatRange: 'short' },
+  { tag: 'UNKN', bearing: 107, elevation: 41, range: 0.86, combatRange: 'short' },
+  { tag: 'TRK 04', bearing: 152, elevation: -33, range: 0.61, combatRange: 'short' },
+  { tag: 'TRK 05', bearing: 198, elevation: 8, range: 0.93, combatRange: 'short' },
+  { tag: 'UNKN', bearing: 241, elevation: -52, range: 0.55, combatRange: 'short' },
+  { tag: 'TRK 07', bearing: 286, elevation: 29, range: 0.78, combatRange: 'short' },
+  { tag: 'TRK 08', bearing: 331, elevation: -6, range: 0.38, combatRange: 'short' },
 ];
 
 /**
@@ -76,11 +82,11 @@ const CONTACTS: readonly Track[] = [
  * system works out they were never there.
  */
 const SPOOFED: readonly Track[] = [
-  { tag: 'TRK 09', bearing: 41, elevation: 12, range: 0.99 },
-  { tag: 'UNKN', bearing: 128, elevation: -25, range: 0.95 },
-  { tag: 'TRK 11', bearing: 214, elevation: 37, range: 0.97 },
-  { tag: 'TRK 12', bearing: 269, elevation: -9, range: 0.92 },
-  { tag: 'UNKN', bearing: 349, elevation: 19, range: 0.98 },
+  { tag: 'TRK 09', bearing: 41, elevation: 12, range: 0.99, combatRange: 'short' },
+  { tag: 'UNKN', bearing: 128, elevation: -25, range: 0.95, combatRange: 'short' },
+  { tag: 'TRK 11', bearing: 214, elevation: 37, range: 0.97, combatRange: 'short' },
+  { tag: 'TRK 12', bearing: 269, elevation: -9, range: 0.92, combatRange: 'short' },
+  { tag: 'UNKN', bearing: 349, elevation: 19, range: 0.98, combatRange: 'short' },
 ];
 
 /** What a spoofed track is called once the board knows better. */
@@ -123,6 +129,10 @@ function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
     ? (Math.floor(index / 2) % 2 === 0 ? 'south' : 'north')
     : (y < 0 ? 'north' : 'south');
   return `${vertical}-${horizontal}`;
+}
+
+function combatRangeLabel(track: Track | PlotContact): string {
+  return `${(track.combatRange ?? 'short').toUpperCase()} RANGE`;
 }
 
 /** Spherical coordinates to the offsets CSS translates a contact by. */
@@ -276,6 +286,7 @@ export default function ContactPlot({
         tag: classifiedOccurrenceId === ambient.id ? ambient.classification : 'UNKNOWN CONTACT',
         ...ambient.start,
         color: 'var(--cic-cyan-hot)',
+        combatRange: 'short' as const,
         transit: {
           destination: ambient.destination,
           durationMs: AMBIENT_CONTACT_LIFETIME_MS,
@@ -345,7 +356,8 @@ export default function ContactPlot({
                   <span className="contact-plot__drop" />
                   <span className="contact-plot__blip" />
                   <span className="contact-plot__tag">
-                    {spoof && exposed ? EXPOSED : track.tag}
+                    <span>{spoof && exposed ? EXPOSED : track.tag}</span>
+                    <span className="contact-plot__range">{combatRangeLabel(track)}</span>
                   </span>
                 </div>
               </div>

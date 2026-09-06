@@ -362,11 +362,16 @@ describe('App', () => {
 
     const center = () => container.querySelector('.contact-plot__origin')?.textContent;
     const contacts = () => Array.from(container.querySelectorAll('.contact-plot__contact .contact-plot__tag'))
-      .map((tag) => tag.textContent);
+      .map((tag) => tag.firstElementChild?.textContent);
+    const combatRanges = () => Array.from(container.querySelectorAll('.contact-plot__range'))
+      .map((range) => range.textContent);
 
     expect(center()).toBe('AEGIS');
     expect(contacts()).toEqual(expect.arrayContaining([
       'DIONE', 'ICEBREAKER', 'CAPYBARA', 'SHEPHERD', 'QUELLON', 'REFINERY 124',
+    ]));
+    expect(combatRanges()).toEqual(expect.arrayContaining([
+      'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE', 'SHORT RANGE',
     ]));
     expect(contacts()).not.toContain('AEGIS');
 

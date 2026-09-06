@@ -994,7 +994,7 @@ export const beginOpenAirspacePhase = onCall<{
       throw new HttpsError('failed-precondition', 'No current turn phase is available.');
     }
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
-      throw new HttpsError('failed-precondition', 'The team phase timer is still active.');
+      throw new HttpsError('failed-precondition', 'The airspace-restricted timer is still active.');
     }
     if (phase.airspace.state === 'lifted') return { turnPhase: phase };
     const turnPhase = {

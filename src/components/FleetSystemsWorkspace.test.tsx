@@ -90,7 +90,7 @@ it.each(SHIPS.filter(ship => ship.maintenance))('reads out the normal jump-drive
   renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
 
   const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
-  const baseline = jump.getByText(/charged:|coordination phase|short \/\//i, { selector: 'p' });
+  const baseline = jump.getByText(/charged:|airspace open|short \/\//i, { selector: 'p' });
   const normalFailure = jump.getByText('A jump fails on a roll of 1–2.', { selector: 'p' });
   const condition = jump.getByText('Condition', { selector: 'dt' });
 

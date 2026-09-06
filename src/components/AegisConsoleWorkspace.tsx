@@ -104,7 +104,7 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 
       {page === 'flight' ? (
         <div className="aegis-craft-grid">
           <article className="aegis-craft aegis-craft--starlight cic-frame">
-            <p>Exploration shuttle // Coordination phase</p>
+            <p>Exploration shuttle // Airspace open</p>
             <h3>{starlight.name}</h3>
             <dl>
               <div><dt>Scouting envelope</dt><dd>One system within {console.scoutRange} jumps of AEGIS</dd></div>

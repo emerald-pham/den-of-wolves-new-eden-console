@@ -20,29 +20,29 @@ function useTurnPhaseReadout(phase: TurnPhase | undefined): TurnPhaseReadout | u
   return turnPhaseReadout(phase, now);
 }
 
-/** The team-phase clock remains an instrument inside the DRADIS frame. */
+/** The restricted-airspace clock remains an instrument inside the DRADIS frame. */
 export function DradisTeamPhaseTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
   const readout = useTurnPhaseReadout(phase);
   if (!readout || readout.kind !== 'team') return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
   return (
     <div className="turn-phase-timer" role="status" aria-live="off"
-      aria-label={`Team phase // ${time} remaining`} data-tone="blue">
-      <span>Team phase</span>
+      aria-label={`Airspace restricted // ${time} remaining`} data-tone="blue">
+      <span>Airspace restricted</span>
       <strong>{time}</strong>
     </div>
   );
 }
 
-/** The coordination clock occupies the lower edge of the fleet ticker. */
+/** The open-airspace clock occupies the lower edge of the fleet ticker. */
 export function TickerOpenAirspaceTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
   const readout = useTurnPhaseReadout(phase);
   if (!readout || readout.kind !== 'open' || phase?.airspace.state !== 'lifted') return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
   return (
     <span className="fleet-ticker__phase-timer" role="status" aria-live="off"
-      aria-label={`Coordination phase // ${time} remaining`}>
-      Coordination phase // {time}
+      aria-label={`Airspace open // ${time} remaining`}>
+      Airspace open // {time}
     </span>
   );
 }
@@ -59,12 +59,12 @@ export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | u
   return (
     <div className="airspace-control__timers" aria-label="Automated phase timers">
       <button className="airspace-control__timer" type="button" disabled data-tone="red"
-        aria-label={`Team phase timer // ${teamTime} // no manual control`}>
-        Team phase // {teamTime} // no manual control
+        aria-label={`Airspace restricted timer // ${teamTime} // no manual control`}>
+        Airspace restricted // {teamTime} // no manual control
       </button>
       <button className="airspace-control__timer" type="button" disabled data-tone="blue"
-        aria-label={`Coordination phase timer // ${openTime} // no manual control`}>
-        Coordination phase // {openTime} // no manual control
+        aria-label={`Airspace open timer // ${openTime} // no manual control`}>
+        Airspace open // {openTime} // no manual control
       </button>
     </div>
   );

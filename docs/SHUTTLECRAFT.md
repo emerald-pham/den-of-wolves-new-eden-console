@@ -36,10 +36,10 @@ from server timestamps and transactions.
 ## Planned airspace enforcement
 
 Each numbered turn starts with restricted airspace. When shuttle travel exists,
-the server will prevent a shuttle from moving between ships until the team phase
-ends and airspace is lifted. AEGIS may authorize the unaffiliated SNN Press
+the server will prevent a shuttle from moving between ships until airspace opens.
+AEGIS may authorize the unaffiliated SNN Press
 vessel as an exception during the restricted window. The current Airspace
-Control screen and phase clocks only express that future rule: no shuttle
+Control screen and airspace clocks only express that future rule: no shuttle
 movement control or movement enforcement has been implemented yet.
 
 ## DRADIS sampling

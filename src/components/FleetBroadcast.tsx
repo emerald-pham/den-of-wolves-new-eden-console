@@ -23,7 +23,7 @@ export default function FleetBroadcast() {
         id: `${session.id}:airspace:${phase.turn}:${phase.airspace.state}`,
         text: phase.airspace.state === 'restricted'
           ? 'AIRSPACE RESTRICTED'
-          : 'AIRSPACE RESTRICTIONS LIFTED',
+          : 'AIRSPACE OPEN',
         tone: 'normal' as const,
         gap: 'airspace' as const,
       }

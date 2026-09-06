@@ -5,13 +5,19 @@ import PressDispatch from './PressDispatch';
 import RoleAssignment from './RoleAssignment';
 import RoleConsoleTemplate from './RoleConsoleTemplate';
 import { SHIPS } from '@/data/ships';
-import type { Shuttlecraft, ShuttleCapability } from '@/data/vessels/templates';
+import type { Shuttlecraft, ShuttleCapability, ShuttleOperationPhase } from '@/data/vessels/templates';
 import type { ShuttleDocking } from '@/types/game';
 
 const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType<{ shuttle: Shuttlecraft }>; placement: 'workspace' | 'instruments' }> = {
   'newspaper-confetti': { component: PressConfetti, placement: 'instruments' },
   'press-dispatches': { component: PressDispatch, placement: 'workspace' },
 };
+
+function operationPhaseLabel(phase: ShuttleOperationPhase): string {
+  if (phase === 'Team') return 'Airspace restricted';
+  if (phase === 'Coordination') return 'Airspace open';
+  return phase;
+}
 
 interface Props {
   readonly shuttle: Shuttlecraft;
@@ -63,7 +69,7 @@ export default function ShuttleConsoleTemplate({ shuttle, captainName, canLeave,
             <div className="aegis-system-grid">
               {shuttle.operations.map((operation) => <article className="aegis-system cic-frame"
                 key={`${operation.phase}-${operation.name}`}>
-                <p>{operation.phase}</p>
+                <p>{operationPhaseLabel(operation.phase)}</p>
                 <h3>{operation.name}</h3>
                 <p>{operation.effect}</p>
               </article>)}

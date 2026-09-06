@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -210,6 +211,12 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(screen.getByRole('button', { name: /view dradis from shepherd/i }))
     .toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
+});
+
+it('forwards gameplay-defined fleet ranges into the GM DRADIS without recalculating coordinates', () => {
+  const console = readFileSync('src/routes/GmConsole.tsx', 'utf8');
+
+  expect(console).toMatch(/color: ship\.color,\s+combatRange: ship\.combatRange,/);
 });
 
 it('shows live resource stock for every flagged ship', async () => {

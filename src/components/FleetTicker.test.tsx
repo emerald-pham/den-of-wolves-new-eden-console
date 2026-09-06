@@ -72,7 +72,7 @@ it('shows readable stationary copy in reduced motion and clears finite messages'
   act(() => vi.advanceTimersByTime(60000));
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
-it('keeps the coordination clock at the ticker edge even when Press has cleared the lane', () => {
+it('keeps the airspace-open clock at the ticker edge even when Press has cleared the lane', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
   render(<FleetTicker turnPhase={{
@@ -84,10 +84,10 @@ it('keeps the coordination clock at the ticker edge even when Press has cleared 
 
   expect(screen.getByLabelText('Fleet broadcasts')).toBeVisible();
   expect(screen.getByRole('status', {
-    name: 'Coordination phase // 15:00 remaining',
+    name: 'Airspace open // 15:00 remaining',
   })).toBeVisible();
 });
-it('waits for the server airspace handoff before declaring coordination on the ticker', () => {
+it('waits for the server airspace handoff before declaring airspace open on the ticker', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
   render(<FleetTicker message={{
@@ -100,7 +100,7 @@ it('waits for the server airspace handoff before declaring coordination on the t
   }} />);
 
   expect(screen.queryByRole('status', {
-    name: 'Coordination phase // 15:00 remaining',
+    name: 'Airspace open // 15:00 remaining',
   })).not.toBeInTheDocument();
 });
 it('duplicates every moving broadcast into two seamless, screen-filling groups', () => {
@@ -119,6 +119,15 @@ it('uses all-capital lettering for fleet broadcasts', async () => {
   expect(tickerRule).not.toMatch(/position:\s*fixed/);
   expect(tickerRule).not.toMatch(/bottom:/);
   expect(tickerRule).toMatch(/border:\s*1px solid var\(--cic-rule\)/);
+});
+it('reserves a vertically centred line box so SNN ticker text cannot clip at the bottom', () => {
+  const css = readFileSync('src/components/fleetTicker.css', 'utf8');
+  const windowRule = css.match(/\.fleet-ticker__window\s*\{([^}]*)\}/)?.[1] ?? '';
+  const groupRule = css.match(/\.fleet-ticker__group\s*\{([^}]*)\}/)?.[1] ?? '';
+
+  expect(windowRule).toContain('min-block-size: 1.5rem');
+  expect(groupRule).toContain('inset-block: 0');
+  expect(groupRule).toContain('align-items: center');
 });
 it('leaves a long gap between repeated press dispatches', async () => {
   const { container } = render(<FleetTicker message={{

@@ -13,6 +13,7 @@ it('renders a second craft through the base with its own identity and opt-in equ
     id: 'test-shuttle', name: 'Test Shuttle', shortName: 'Test', consoleName: 'Survey Console',
     operator: 'Survey Fleet', operatorShort: 'SURVEY', vesselType: 'Survey shuttle',
     description: 'Surveys the fleet.', captainRoleId: 'test-captain',
+    operations: [{ name: 'Launch', phase: 'Team', effect: 'Depart only when cleared.' }],
   });
   const { rerender } = render(<MemoryRouter><ShuttleConsoleTemplate
     shuttle={shuttle} captainName="Survey Officer" canLeave={true}
@@ -20,6 +21,7 @@ it('renders a second craft through the base with its own identity and opt-in equ
   expect(screen.getByRole('heading', { name: 'Survey Console' })).toBeInTheDocument();
   expect(screen.getByText('Survey Officer // Captain')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent('In transit');
+  expect(screen.getByText('Airspace restricted')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Leave shuttle' })).toHaveAttribute('href', '/console');
   expect(screen.queryByText('SNN')).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
@@ -65,6 +67,7 @@ it('renders a printed shuttle’s operational sheet through the shared ship work
   expect(within(workspace).getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
   expect(within(workspace).getByText(/within 3 jumps of quellon/i)).toBeInTheDocument();
   expect(within(workspace).getByText(/resource harvesting/i)).toBeInTheDocument();
+  expect(within(workspace).getAllByText('Airspace open')).toHaveLength(2);
   expect(within(workspace).getByText('Fuelled this turn')).toBeInTheDocument();
   expect(within(workspace).queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
 });

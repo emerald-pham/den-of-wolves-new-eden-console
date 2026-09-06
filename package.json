@@ -1,7 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console",
   "private": true,
-  "version": "0.2.43",
+  "version": "0.2.44",
   "type": "module",
   "description": "Den of Wolves: New Eden Unofficial Companion Console",
   "engines": {

@@ -188,6 +188,7 @@ export default function GmConsole() {
     y: ship.y,
     z: ship.z,
     color: ship.color,
+    combatRange: ship.combatRange,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {

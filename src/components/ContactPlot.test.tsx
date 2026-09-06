@@ -66,6 +66,25 @@ it('paints every track on its own bearing so contacts never stack on one another
   expect(bearings.every((bearing) => bearing.endsWith('deg'))).toBe(true);
 });
 
+it('labels every return with its explicit combat range without changing its plotted coordinates', () => {
+  const contacts = [
+    { tag: 'AEGIS', x: 0.08, y: -0.04, z: 0.1, color: 'white', combatRange: 'short' as const },
+    { tag: 'DIONE', x: -0.84, y: 0.22, z: -0.31, color: 'white', combatRange: 'short' as const },
+  ];
+  const { container } = render(<ContactPlot contacts={contacts} />);
+
+  expect(contactsIn(container).map((contact) => [
+    contact.style.getPropertyValue('--x'),
+    contact.style.getPropertyValue('--y'),
+    contact.style.getPropertyValue('--z'),
+  ])).toEqual([
+    ['0.08', '-0.04', '0.1'],
+    ['-0.84', '0.22', '-0.31'],
+  ]);
+  expect([...container.querySelectorAll('.contact-plot__range')].map((range) => range.textContent))
+    .toEqual(['SHORT RANGE', 'SHORT RANGE']);
+});
+
 it('places contacts through the volume of the sphere rather than on a single plane', () => {
   const { container } = render(<ContactPlot />);
   const contacts = contactsIn(container);

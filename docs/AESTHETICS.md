@@ -279,6 +279,15 @@ DRADIS has one authoritative spatial truth and a deliberately imperfect visual
 report of that truth. Game state owns each contact's canonical coordinate or
 trajectory. The display may sample it, but must never rewrite it.
 
+Combat-range labels are separate gameplay state, never a reading of plot
+geometry. Each return prints the documented `LONG RANGE`, `MEDIUM RANGE`, or
+`SHORT RANGE` label supplied for that contact; do not infer it from canonical
+XYZ coordinates, bearing, elevation, CSS perspective, or a transit vector. The
+current fleet formation is gameplay range 1 and therefore prints `SHORT RANGE`
+for every fleet contact even when its real DRADIS coordinates place it elsewhere
+in the drawn volume. Adding or changing a combat-range label must not alter a
+contact's coordinate, trajectory, sampled fix, or scan-acquisition behavior.
+
 A contact does not exist on the instrument until a rendered sweep circumference
 crosses the contact's actual current position in space. Before that crossing,
 both the return and its name are invisible. The crossing seen on screen is the
@@ -779,6 +788,10 @@ Press dispatches use its long-gap mode on the same instrument. Reduced motion
 shows the current stationary wrapped copy immediately and does not retain a
 dismissed visual message.
 
+The ticker window reserves a full, vertically centred line box for both moving
+and stationary copy. Keep that lower breathing room even when the ticker is
+compact: SNN’s monospaced lettering must never be clipped at the bottom edge.
+
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
 and publishes through server authority with revision checks. The current copy
@@ -829,25 +842,28 @@ briefing beats use four-second reading holds—rather than the ordinary 2.4-seco
 operational cadence—and each carries one concise thought. Keep each slide centered,
 balanced, and readable at 1440×900, 390×844, and 844×390.
 
-The server owns the phase timestamps and creates a fresh schedule with every
-turn advance. Turn 1 has a 10-minute team phase followed by a 20-minute
-coordination phase. Every later turn has a 5-minute team phase followed by a
-15-minute coordination phase. The team countdown is a blue, non-interactive
-instrument at DRADIS’s lower left. Once the server lifts the restriction, the
-coordination countdown sits at the lower left of the fleet ticker. The ticker
-automatically repeats `AIRSPACE RESTRICTED`, then `AIRSPACE RESTRICTIONS
-LIFTED`, with a deliberately much larger dead space than Press dispatches; each
-automatic bulletin remains until Press publishes new copy after it is queued.
-The ticker must not announce coordination until the shared server state has
-actually lifted the restriction.
+The server owns the airspace timestamps and creates a fresh schedule with every
+turn advance. Turn 1 has 10 minutes of restricted airspace followed by 20
+minutes of open airspace. Every later turn has 5 minutes of restricted airspace
+followed by 15 minutes of open airspace. Every console label says `AIRSPACE
+RESTRICTED` for the first window and `AIRSPACE OPEN` for the second. The
+restricted-airspace countdown is a blue, non-interactive instrument at DRADIS’s
+lower left. Once the server lifts
+the restriction, the airspace-open countdown sits at the lower left of the
+fleet ticker. The ticker automatically repeats `AIRSPACE RESTRICTED`, then
+`AIRSPACE OPEN`, with a deliberately much larger dead space than Press
+dispatches; each automatic bulletin remains until Press publishes new copy after
+it is queued. The ticker must not announce `AIRSPACE OPEN` until the shared
+server state has actually lifted the restriction.
 
 The GM’s first early-advance attempt during either live timer turns the same
 control into a danger-red `ARE YOU SURE?` confirmation. The confirmed advance
 starts the correct timer pair for the next numbered turn rather than leaving an
 expired clock in place. AEGIS’s Admiral console holds Airspace Control behind a
 recessed Systems control disclosure: it may grant `Unlock airspace // Press` to
-the unaffiliated shuttle during restriction, while red team and blue
-coordination timer buttons remain visibly disabled to show they are automatic.
+the unaffiliated shuttle during restriction, while red restricted-airspace and
+blue open-airspace timer buttons remain visibly disabled to show they are
+automatic.
 
 Airspace restriction is a documented **future movement rule**: when shuttle
 travel is implemented, it will prevent a shuttle from moving between ships

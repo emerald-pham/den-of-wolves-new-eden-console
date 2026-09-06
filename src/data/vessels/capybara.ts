@@ -53,7 +53,7 @@ export default defineShip({
       name: "Jump Drive",
       timing: 'ftl',
       id: "jump-drive",
-      effect: "Coordination phase, if charged: FTL jump. 3 / 6 / 12 fuel for short / medium / long. Upgraded: 1 fewer fuel, jumps only fail when damaged on a 1. Damaged: jumps fail on 1–3.",
+      effect: "Airspace open, if charged: FTL jump. 3 / 6 / 12 fuel for short / medium / long. Upgraded: 1 fewer fuel, jumps only fail when damaged on a 1. Damaged: jumps fail on 1–3.",
     },
   ],
   maintenance: {reactor: 3, jump: [3, 6, 12], food: [0, 3, 7, 11], water: [0, 2, 5, 8]},

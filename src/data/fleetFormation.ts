@@ -10,6 +10,8 @@ export interface FleetContact extends FleetPoint {
   readonly id: string;
   readonly name: string;
   readonly color: string;
+  /** Fleet formation shares the gameplay-defined short combat range. */
+  readonly combatRange: 'short';
 }
 
 /**
@@ -51,6 +53,7 @@ export function fleetViewFrom(
       id: ship.id,
       name: ship.name,
       color: ship.dradisColor ?? ship.color,
+      combatRange: 'short',
       x: round(point.x - viewer.x),
       y: round(point.y - viewer.y),
       z: round(point.z - viewer.z),

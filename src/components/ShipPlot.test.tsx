@@ -166,7 +166,7 @@ it('reserves space above the bottom-left warning for the expanded DRADIS compass
   expect(css).toMatch(/\.ship-plot:has\(\.contact-plot__red-alert\) \.ship-plot__compass\s*\{[^}]*bottom:\s*calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 2\.75rem\)/);
 });
 
-it('shows the blue team-phase countdown at the bottom-left of DRADIS', () => {
+it('shows the blue airspace-restricted countdown at the bottom-left of DRADIS', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
   const turnPhase = {
@@ -178,7 +178,7 @@ it('shows the blue team-phase countdown at the bottom-left of DRADIS', () => {
 
   render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={turnPhase} />);
 
-  const countdown = screen.getByRole('status', { name: 'Team phase // 10:00 remaining' });
+  const countdown = screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' });
   expect(countdown).toHaveAttribute('data-tone', 'blue');
   const css = readFileSync('src/index.css', 'utf8');
   expect(css).toMatch(/\.turn-phase-timer\[data-tone=['"]blue['"]\][^}]*color:\s*var\(--cic-cyan-hot\)/);

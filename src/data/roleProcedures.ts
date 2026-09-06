@@ -17,15 +17,15 @@ export function proceduresForRole(roleId: string): readonly RoleProcedure[] {
 const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
   'dione-president': [
     { name: 'Political capital', effect: 'Track 0–8 at the table. Resolving a crisis grants 1 political capital, plus the resolution’s consequences.' },
-    { name: 'Presidential address', effect: 'At the start of each Team Phase, address the fleet and invite up to one extra player to speak. Announce new laws and binding resolutions at the next Team Phase.' },
-    { name: 'Presidential visit', effect: 'During Coordination, spend 1 political capital to lower one ship’s unrest by 1.' },
+    { name: 'Presidential address', effect: 'At the start of each restricted-airspace window, address the fleet and invite up to one extra player to speak. Announce new laws and binding resolutions at the next restricted-airspace window.' },
+    { name: 'Presidential visit', effect: 'During open airspace, spend 1 political capital to lower one ship’s unrest by 1.' },
   ],
   'icebreaker-miner': [
     { name: 'Mining production', effect: 'Coordinate Mining Drone Control and the Ram Scoop with reactor charging and the fleet’s jump plan.' },
     { name: 'Ore supply', effect: 'Coordinate ore supply with Refinery 124 so the fleet can produce jump fuel.' },
   ],
   'shepherd-scientist': [
-    { name: 'Research programme', effect: 'During the Team Phase, advance up to 3 research types by one box each. Choose each type at most once per turn.' },
+    { name: 'Research programme', effect: 'During restricted airspace, advance up to 3 research types by one box each. Choose each type at most once per turn.' },
     { name: 'Additional research', effect: 'Up to twice per turn, spend 5 ore from Shepherd’s hold for an extra research choice.' },
     { name: 'Construction costs', effect: 'Pay the left-most unlocked material cost from Shepherd’s hold. Research progress and built devices are tracked at the table.' },
     { name: 'Reactor / Jump Drive', effect: 'Material tracks: Reactor 8 / 7 / 6 / 5 / 4; Jump Drive 14 / 10 / 6 / 4 / 3.' },

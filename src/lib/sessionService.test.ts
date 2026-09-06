@@ -471,7 +471,7 @@ describe('GM instance commands', () => {
     useSessionStore.getState().setConnection('live');
     vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
       code: 'functions/failed-precondition',
-      message: 'The team phase timer is still active.',
+      message: 'The airspace-restricted timer is still active.',
     }));
 
     await expect(beginOpenAirspacePhase(2)).rejects.toMatchObject({

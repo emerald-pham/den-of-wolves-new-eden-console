@@ -297,11 +297,19 @@
 
 .contact-plot__tag {
   position: absolute;
+  display: grid;
+  gap: 0.14rem;
   font: 0.55rem/1 var(--cic-mono);
   letter-spacing: 0.18em;
   white-space: nowrap;
   color: color-mix(in srgb, var(--contact-ink) 72%, var(--cic-ink));
   opacity: 1;
+}
+
+.contact-plot__range {
+  color: color-mix(in srgb, var(--contact-ink) 62%, var(--cic-muted));
+  font-size: 0.46rem;
+  letter-spacing: 0.12em;
 }
 
 .contact-plot__contact[data-label-anchor$='east'] .contact-plot__tag {

@@ -10,6 +10,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'DRADIS returns now identify their combat range, with every fleet ship reporting SHORT RANGE without changing its plotted position.',
+      'Live-turn instruments and shuttle procedures now say AIRSPACE RESTRICTED and AIRSPACE OPEN.',
+      'SNN ticker lettering now has clear vertical room instead of clipping along its lower edge.',
+    ],
+  },
+  {
+    version: '0.2.43',
+    changes: [
       'Turn 1 now delivers its opening fleet briefing as clear, individually timed messages, giving everyone time to read the situation before play begins.',
     ],
   },
@@ -30,7 +38,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'New games now begin at Turn 0: players can choose and inspect stations while gameplay waits for the GM to start Turn 1.',
       'Every live turn start now opens with a fleet transmission, including the current survivor count and a longer Turn 1 briefing.',
-      'Turn 1 runs a 10-minute team phase and 20-minute coordination phase; later turns run 5 and 15 minutes. Airspace bulletins yield to the Press’s next dispatch.',
+      'Turn 1 begins with 10 minutes of restricted airspace and 20 minutes of open airspace; later turns run 5 and 15 minutes. Airspace bulletins yield to the Press’s next dispatch.',
       'AEGIS can grant the Press an airspace exception from Systems control, and early GM turn advances now require a red confirmation.',
     ],
   },

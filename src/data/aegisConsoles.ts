@@ -68,7 +68,7 @@ const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
     id: 'jump-drive',
     name: 'Jump Drive',
-    station: 'Coordination // FTL',
+    station: 'Airspace open // FTL',
     timing: 'ftl',
     baseline: 'Short // 2 fuel · Medium // 3 fuel · Long // 6 fuel.',
     upgraded: 'Each jump costs 1 fewer fuel. If damaged, fail only on a roll of 1.',

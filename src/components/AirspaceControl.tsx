@@ -46,7 +46,7 @@ export default function AirspaceControl() {
         </button>
         <AirspaceTimerControls phase={phase} />
         <p className="airspace-control__note">
-          Phase clocks are automatic. Shuttle movement enforcement is not yet implemented.
+          Airspace timers are automatic. Shuttle movement enforcement is not yet implemented.
         </p>
       </section>
     </details>

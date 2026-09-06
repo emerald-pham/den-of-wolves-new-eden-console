@@ -82,6 +82,26 @@ it('repeats the current airspace directive with substantial open space until Pre
   expect(screen.getByRole('status', { name: 'AIRSPACE RESTRICTED' })).toBeVisible();
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'airspace');
 });
+it('names the lifted window AIRSPACE OPEN in the fleet bulletin', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    const now = new Date(Date.now());
+    state.setSession({
+      ...state.session!,
+      currentTurn: 1,
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: new Date(now.getTime() - 5 * 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(now.getTime() + 15 * 60_000).toISOString(),
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+    } as never);
+  });
+
+  render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', { name: 'AIRSPACE OPEN' })).toBeVisible();
+});
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
   state.setSession({

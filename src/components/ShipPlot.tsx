@@ -126,6 +126,7 @@ export default function ShipPlot({
     y: ship.y,
     z: ship.z,
     color: ship.color,
+    combatRange: ship.combatRange,
   }));
 
   return (

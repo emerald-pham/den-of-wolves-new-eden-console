@@ -34,6 +34,17 @@ describe('the initial fleet formation', () => {
     });
   });
 
+  it('marks every fleet contact as short range independently of its DRADIS coordinates', () => {
+    const contacts = fleetViewFrom('aegis');
+
+    expect(contacts.map(({ combatRange }) => combatRange)).toEqual(
+      Array(contacts.length).fill('short'),
+    );
+    expect(contacts.find(({ id }) => id === 'dione')).toMatchObject({
+      x: -0.32, y: 0.18, z: 0.22,
+    });
+  });
+
   it('removes Capybara from DRADIS when the GM disables it', () => {
     expect(fleetViewFrom('aegis', false).map(({ id }) => id)).not.toContain('capybara');
   });
