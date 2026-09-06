@@ -119,6 +119,67 @@ describe('connect', () => {
     expect(useSessionStore.getState().connection).toBe('live');
     expect(useSessionStore.getState().session).toBeNull();
   });
+
+  it('keeps reconnecting while a transient outbox replay remains queued', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().enqueueCommand({
+      id: 'command-1', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date().toISOString(),
+    });
+    let attempts = 0;
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      if (name === 'kickGmInstance') {
+        attempts += 1;
+        return attempts === 1
+          ? callableRejecting({ code: 'functions/unavailable' })
+          : callableReturning({ data: {} });
+      }
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().pendingCommands).toHaveLength(1);
+
+    await connect();
+
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+  });
+
+  it('does not restore a session after a local disconnect races a resume reply', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    let markResumeStarted: () => void = () => undefined;
+    const resumeStarted = new Promise<void>((resolve) => { markResumeStarted = resolve; });
+    let finishResume: (value: { data: { session: typeof session; player: typeof player } }) => void;
+    const pendingResume = new Promise<{ data: { session: typeof session; player: typeof player } }>((resolve) => {
+      finishResume = resolve;
+    });
+    const resume = Object.assign(vi.fn(() => {
+      markResumeStarted();
+      return pendingResume;
+    }), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return resume;
+      if (name === 'disconnectFromSession') {
+        return callableReturning({ data: { sessionId: 's1' } });
+      }
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    const connecting = connect();
+    await resumeStarted;
+    await disconnectFromSession();
+    finishResume!({ data: { session, player } });
+    await connecting;
+
+    expect(useSessionStore.getState().session).toBeNull();
+    expect(useSessionStore.getState().me).toBeNull();
+    expect(useSessionStore.getState().connection).toBe('live');
+  });
 });
 
 describe('joinSession', () => {

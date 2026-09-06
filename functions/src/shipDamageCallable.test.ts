@@ -54,7 +54,7 @@ beforeEach(() => {
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
 
-it('draws and persists one AEGIS damage card atomically in the GM-only draw log', async () => {
+it('draws and persists one AEGIS damage card atomically in the shared draw log', async () => {
   await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
     card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
     destroyed: false,

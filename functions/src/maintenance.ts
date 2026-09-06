@@ -5,6 +5,7 @@ import { populationChange } from './shipPopulation';
 export interface MaintenanceCycle {
   step: number; revision: number; results: Record<string, string>; charges: string[];
   refuelled: string[]; turn?: number; rationBonus?: number; startedAt?: string; completedAt?: string;
+  damageDrawId?: string;
 }
 export interface MaintenanceInput {
   shipId: string; cycle: MaintenanceCycle; currentTurn: number; expectedRevision: number; action: string;
@@ -13,6 +14,7 @@ export interface MaintenanceInput {
   cargo: Record<string, Record<string, number>>; fuelled: Record<string, boolean>;
   rolls: number[]; entropy: number; foodLevel?: number; waterLevel?: number;
   consoles?: string[]; refuels?: Record<string, string>; upgraded?: readonly string[]; now: string;
+  damageDrawId?: string;
 }
 export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water: number[]; reactor: number; damagedPenalty: number }>> = {
   aegis: { food: [0,3,5,8], water: [0,2,3,6], reactor: 5, damagedPenalty: 3 },
@@ -51,6 +53,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.rationBonus = 0;
     cycle.startedAt = input.now;
     delete cycle.completedAt;
+    delete cycle.damageDrawId;
   } else if (action === 'storage') {
     if (damage.damagedSystemIds.includes('storage')) {
       const losses: string[] = [];
@@ -84,10 +87,12 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.results['3'] = `Rolled ${input.rolls[0]} + ${input.rolls[1]} + ${cycle.rationBonus ?? 0} = ${total}. Added ${gain} unrest; unrest ${unrest}.`;
   } else if (action === 'riot') {
     const roll = input.rolls[0]!;
+    delete cycle.damageDrawId;
     cycle.results['4'] = `Rolled ${roll} against unrest ${unrest}. No riot.`;
     if (roll < unrest) {
       damageDraw = drawShipDamage(shipId, damage, upper => Math.floor(input.entropy * upper));
       damage = damageDraw.state;
+      if (input.damageDrawId) cycle.damageDrawId = input.damageDrawId;
       if (!damageDraw.destroyed && !damageDraw.card.systemId.startsWith('armoured-hull') && population > 0) {
         population = populationChange(shipId, population, -1, false).amount;
         if (population === 0) unrest = Math.min(10, unrest + 2);

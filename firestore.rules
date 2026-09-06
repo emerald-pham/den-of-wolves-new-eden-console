@@ -53,7 +53,9 @@ service cloud.firestore {
           && resource.data.connected == true
           && request.resource.data.connected == true
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['displayName']);
+               .hasOnly(['displayName'])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() <= 40;
 
         allow delete: if false;
       }
@@ -84,7 +86,7 @@ service cloud.firestore {
       }
 
       match /damageDraws/{drawId} {
-        allow get, list: if isGm(sessionId);
+        allow get, list: if isMember(sessionId);
         allow write: if false;
       }
 

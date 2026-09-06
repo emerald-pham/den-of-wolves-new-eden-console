@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 
@@ -13,35 +14,46 @@ export default function JointEngineeringConsole() {
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const role = findConsoleRole(roleId);
+  const roleEnabled = Boolean(role &&
+    (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(role.id));
+  const canClaimRole = Boolean(
+    session && me && mode === 'console' && role && role.shipId === 'joint-engineering-union' &&
+    roleEnabled && (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === role.id),
+  );
 
   useEffect(() => {
-    if (!role) return;
+    if (!role || !canClaimRole) return;
     void selectConsoleRole(role.id).catch(() => undefined);
-  }, [role]);
+  }, [canClaimRole, role]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }
   if (
-    mode !== 'console' || role?.shipId !== 'joint-engineering-union' ||
-    (!(session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(role.id) &&
+    !role || mode !== 'console' || role.shipId !== 'joint-engineering-union' ||
+    (!roleEnabled &&
       me.activeConsoleRoleId !== role.id)
   ) return <Navigate to="/console" replace />;
 
   return (
-    <main className="session-mode">
-      <section className="session-mode__panel cic-frame">
-        {isGm && (
-          <Link className="session-mode__back cic-text-button" to="/console">
-            Back to role selection
-          </Link>
-        )}
-        <p className="eyebrow">{session.name} // Joint station</p>
-        <h1 className="role-select__title">Joint Engineering Union</h1>
-        <p className="role-select__lede">{role.name}</p>
-        <JointEngineeringWorkspace roleId={role.id} />
-      </section>
-    </main>
+    <ConsoleAccessContext.Provider value={{
+      writable: me.activeConsoleRoleId === role.id,
+      roleId: role.id,
+    }}>
+      <main className="session-mode">
+        <section className="session-mode__panel cic-frame">
+          {isGm && (
+            <Link className="session-mode__back cic-text-button" to="/console">
+              Back to role selection
+            </Link>
+          )}
+          <p className="eyebrow">{session.name} // Joint station</p>
+          <h1 className="role-select__title">Joint Engineering Union</h1>
+          <p className="role-select__lede">{role.name}</p>
+          <JointEngineeringWorkspace roleId={role.id} />
+        </section>
+      </main>
+    </ConsoleAccessContext.Provider>
   );
 }

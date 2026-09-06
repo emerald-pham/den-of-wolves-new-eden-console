@@ -1809,7 +1809,7 @@ export const runMaintenance = onCall<{
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
         cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls, entropy,
-        now: occurredAt,
+        now: occurredAt, damageDrawId: eventId,
       });
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');

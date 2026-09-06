@@ -21,6 +21,7 @@ import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
 import { shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
+import { normalizeDisplayName } from './displayName';
 
 let firestore: Firestore | undefined;
 
@@ -102,7 +103,7 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
   return {
     uid,
     sessionId,
-    displayName: data.displayName as string,
+    displayName: normalizeDisplayName(data.displayName),
     role: data.role as Player['role'],
     seatId: (data.seatId as string | null) ?? null,
     activeConsoleRoleId: (data.activeConsoleRoleId as string | null) ?? null,

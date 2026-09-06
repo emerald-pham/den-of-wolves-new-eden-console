@@ -72,9 +72,34 @@ it.each([[1, 1, 0, 2], [3, 3, 6, 1], [6, 6, 9, 0]])('applies unrest thresholds f
   expect(result.cycle.step).toBe(4);
 });
 it('resolves riot damage and survivor loss, but not on a roll equal to unrest', () => {
-  const base = input({ action: 'riot', unrest: 4, cycle: { step: 4, revision: 0, results: {}, charges: [], refuelled: [] }, rolls: [1, 1], entropy: 0 });
-  expect(advanceMaintenance(base)).toMatchObject({ population: 2000, damage: { damagedSystemIds: ['fighter-bay-alpha'] } });
-  expect(advanceMaintenance({ ...base, rolls: [4, 1] }).population).toBe(2500);
+  const base = input({ action: 'riot', unrest: 4, cycle: { step: 4, revision: 0, results: {}, charges: [], refuelled: [] }, rolls: [1, 1], entropy: 0, damageDrawId: 'riot-draw' });
+  const riot = advanceMaintenance(base);
+  expect(riot).toMatchObject({ population: 2000, damage: { damagedSystemIds: ['fighter-bay-alpha'] } });
+  expect(riot.cycle).toMatchObject({ damageDrawId: 'riot-draw' });
+  expect(riot.cycle.results['4']).toContain('Fighter Bay Alpha damaged.');
+  expect(riot.cycle.results['4']).not.toContain('A♥');
+  const noRiot = advanceMaintenance({ ...base, rolls: [4, 1] });
+  expect(noRiot.population).toBe(2500);
+  expect(noRiot.cycle.results['4']).toBe('Rolled 4 against unrest 4. No riot.');
+  expect(noRiot.cycle).not.toHaveProperty('damageDrawId');
+});
+
+it('reports armour absorbing riot damage and recycling its card', () => {
+  const result = advanceMaintenance(input({
+    action: 'riot',
+    unrest: 4,
+    cycle: { step: 4, revision: 0, results: {}, charges: [], refuelled: [] },
+    rolls: [1, 1],
+    entropy: 0.39,
+    damageDrawId: 'armour-draw',
+  }));
+
+  expect(result.damageDraw).toMatchObject({
+    destroyed: false,
+    card: { card: '6♥', systemName: 'Armoured Hull I' },
+    recycled: true,
+  });
+  expect(result.cycle.results['4']).toContain('Armoured Hull I absorbed damage.');
 });
 it('replaces old charges at reactor power-up and enforces damaged capacity', () => {
   const base = input({ action: 'reactor', cycle: { step: 5, revision: 0, results: {}, charges: ['jump-drive'], refuelled: [] }, consoles: ['fighter-bay-alpha'], damage: { damagedSystemIds: ['reactor'], destroyed: false } });

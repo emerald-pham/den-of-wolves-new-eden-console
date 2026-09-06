@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -14,8 +14,11 @@ vi.mock('@/lib/pressDispatchService', () => ({
   publishPressDispatch: vi.fn(),
 }));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
+const { selectConsoleRole } = await import('@/lib/sessionService');
 
 beforeEach(() => {
+  vi.mocked(selectConsoleRole).mockReset();
+  vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   vi.mocked(publishPressDispatch).mockReset();
   vi.mocked(publishPressDispatch).mockResolvedValue(undefined);
   vi.mocked(dismissPressDispatch).mockReset();
@@ -37,6 +40,40 @@ beforeEach(() => {
     joinedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setMode('console');
+});
+
+it('keeps the newspaper dispenser locked when the Press Officer claim is rejected', async () => {
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role already held.'));
+
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const cover = screen.getByRole('button', { name: /open newspaper confetti cover/i });
+  expect(cover).toBeDisabled();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('press-officer'));
+  expect(cover).toBeDisabled();
+});
+
+it('does not claim the Press role while another console is held', async () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'admiral' });
+
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/ships/aegis/roles/admiral" element={<p>Admiral console</p>} />
+        <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Admiral console')).toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });
 
 it('gives the Press Officer a dispatch desk that publishes to the fleet ticker', async () => {

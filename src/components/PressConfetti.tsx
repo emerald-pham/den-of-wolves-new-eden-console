@@ -18,6 +18,7 @@ export default function PressConfetti({ shuttle }: {
   readonly shuttle: Pick<Shuttlecraft, 'id' | 'captainRoleId' | 'operatorShort'>;
 }) {
   const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const [coverOpen, setCoverOpen] = useState(false);
   const [firing, setFiring] = useState(false);
@@ -26,6 +27,7 @@ export default function PressConfetti({ shuttle }: {
     command.kind === 'popShipConfetti' &&
     command.payload.sessionId === session.id &&
     command.payload.shipId === shuttle.id));
+  const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
 
   useEffect(() => {
     if (!session?.id) return;
@@ -56,7 +58,7 @@ export default function PressConfetti({ shuttle }: {
   }, [burst]);
 
   async function activate() {
-    if (queued || firing) return;
+    if (!authorized || queued || firing) return;
     setFiring(true);
     try {
       await popShipConfetti(shuttle.id, shuttle.captainRoleId);
@@ -79,7 +81,7 @@ export default function PressConfetti({ shuttle }: {
             className="confetti-dispenser__trigger"
             type="button"
             aria-label="Activate newspaper confetti"
-            disabled={!coverOpen || queued || firing}
+            disabled={!authorized || !coverOpen || queued || firing}
             onClick={() => void activate()}
           >{queued ? 'QUEUED' : 'EXTRA!'}</button>
           <button
@@ -87,7 +89,7 @@ export default function PressConfetti({ shuttle }: {
             type="button"
             aria-label={`${coverOpen ? 'Close' : 'Open'} newspaper confetti cover`}
             aria-pressed={coverOpen}
-            disabled={queued}
+            disabled={!authorized || queued}
             onClick={() => setCoverOpen((open) => !open)}
           >{coverOpen ? 'EDITION READY' : 'HOLD THE PRESSES'}</button>
         </div>

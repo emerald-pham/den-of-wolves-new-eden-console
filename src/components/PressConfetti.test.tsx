@@ -14,9 +14,12 @@ beforeEach(() => {
   vi.mocked(popShipConfetti).mockReset().mockResolvedValue('applied');
   vi.mocked(subscribeShipConfetti).mockReset().mockReturnValue(vi.fn());
   useSessionStore.getState().reset();
-  useSessionStore.getState().setSession({
+  useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  }, {
+    uid: 'u1', sessionId: 's1', displayName: 'Press Officer', role: 'player', seatId: null,
+    activeConsoleRoleId: 'press-officer', joinedAt: '2026-01-01T00:00:00.000Z',
   });
 });
 
@@ -47,6 +50,9 @@ it('fires newspaper confetti from the SNN shuttle dispenser', async () => {
 
 it('binds reusable equipment to the configured craft and captain', async () => {
   const shuttle = { id: 'survey-shuttle', captainRoleId: 'survey-captain', operatorShort: 'SURVEY' };
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'survey-captain' });
   render(<PressConfetti shuttle={shuttle} />);
   expect(screen.getByRole('region', { name: 'SURVEY Newspaper Confetti Dispenser' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: /open newspaper confetti cover/i }));

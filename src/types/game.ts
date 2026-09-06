@@ -55,6 +55,8 @@ export interface MaintenanceCycle {
   readonly rationBonus?: number;
   readonly startedAt?: Timestamp;
   readonly completedAt?: Timestamp;
+  /** Links a damage-causing step to the shared record for the card that was drawn. */
+  readonly damageDrawId?: Id;
 }
 
 export interface PressDispatch {

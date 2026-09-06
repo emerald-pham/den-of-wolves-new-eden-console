@@ -14,7 +14,16 @@ beforeEach(() => {
   });
 });
 it('requests one authoritative draw with GM identity', async () => {
-  await assignShipDamage('aegis');
+  mocks.call.mockResolvedValue({ data: {
+    destroyed: false,
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
+    recycled: false,
+  } });
+  await expect(assignShipDamage('aegis')).resolves.toEqual({
+    destroyed: false,
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
+    recycled: false,
+  });
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'addShipDamage');
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis', instanceId: 'gm1' });
   expect(useSessionStore.getState().session?.shipDamage).toBeUndefined();
@@ -28,6 +37,7 @@ it('rejects offline or non-GM assignments', async () => {
 });
 it('requests GM repair through its callable', async () => {
   const { repairAllShipDamage } = await import('./shipDamageService');
+  mocks.call.mockResolvedValue({ data: { repaired: true } });
   await repairAllShipDamage('aegis');
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'repairAllShipDamage');
   expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', shipId: 'aegis', instanceId: 'gm1' });

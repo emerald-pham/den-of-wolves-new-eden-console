@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import MaintenanceSystems from './MaintenanceSystems';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -78,6 +78,54 @@ it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintena
   act(() => useSessionStore.setState({ session: { ...session, shipDamage: { [shipId]: { damagedSystemIds: [], destroyed: true } } } }));
   expect(button).toBeDisabled();
   view.unmount();
+});
+
+it('notes the drawn card beside the GM control that applied damage', async () => {
+  assign.mockResolvedValue({
+    destroyed: false,
+    card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
+    recycled: false,
+  });
+  useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+  expect(screen.getByText('Roll 1d6. Below current unrest causes a riot: draw and apply 1 damage card.')).toBeVisible();
+
+  await userEvent.click(screen.getByRole('button', { name: 'Assign damage' }));
+
+  expect(await screen.findByRole('status')).toHaveTextContent('Damage applied // card 10♥ // Reactor damaged.');
+});
+
+it.each(['player', 'gm'] as const)('notes a maintenance-drawn card inside the damage-causing step for a %s', (role) => {
+  useSessionStore.setState({
+    session: { ...session, maintenanceCycles: { aegis: {
+      step: 5,
+      revision: 5,
+      results: { '4': 'Rolled 1 against unrest 4. Riot: Fighter Bay Alpha damaged. Population 2000.' },
+      charges: [],
+      refuelled: [],
+      damageDrawId: 'riot-draw',
+    } } },
+    me: { ...me, role },
+  });
+  render(<MaintenanceSystems
+    name="AEGIS"
+    shipId="aegis"
+    systems={[]}
+    renderSystem={() => null}
+    rations={null}
+    damageDraws={[{
+      id: 'riot-draw', sessionId: 's1', shipId: 'aegis', type: 'ship-damage', card: 'A♥',
+      systemId: 'fighter-bay-alpha', systemName: 'Fighter Bay Alpha', recycled: false,
+      createdAt: '2026-09-06T12:00:00.000Z',
+    }]}
+  />);
+
+  const riotStep = screen.getByText('Riot check').closest('li');
+  expect(riotStep).not.toBeNull();
+  expect(within(riotStep!).getByText('Damage card A♥ // Fighter Bay Alpha damaged.')).toBeVisible();
 });
 
 it('shows repair only to GMs and repairs a destroyed ship', async () => {

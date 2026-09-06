@@ -6,7 +6,7 @@ import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
-import type { ShipDamageState } from '@/types/game';
+import type { DamageDraw, ShipDamageState } from '@/types/game';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -22,12 +22,13 @@ function systemEffectRows(effect: string) {
   return { baseline, rules };
 }
 
-export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordinate, damage }: {
+export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordinate, damage, damageDraws }: {
   readonly ship: Ship;
   readonly role: ConsoleRole;
   readonly fuel: number;
   readonly galacticCoordinate: string;
   readonly damage?: ShipDamageState | undefined;
+  readonly damageDraws?: readonly DamageDraw[] | undefined;
 }) {
   const maintenance = ship.maintenance;
   const commandMetrics = maintenance ?? {
@@ -63,7 +64,7 @@ export default function FleetSystemsWorkspace({ ship, role, fuel, galacticCoordi
     galacticCoordinate={galacticCoordinate} fuel={fuel}
     reactorCapacity={commandMetrics.reactor} jumpCosts={commandMetrics.jump} damage={damage}>
     {maintenance
-      ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} rations={<>
+      ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
         <tbody><tr><th>Food</th>{maintenance.food.map((value, index) => <td key={index}>{value}</td>)}</tr>

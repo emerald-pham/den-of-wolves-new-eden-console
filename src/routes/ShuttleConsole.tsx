@@ -19,11 +19,16 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const captainRole = findConsoleRole(shuttle?.captainRoleId);
   const docking = dockingForShuttle(session ?? {}, shuttleId);
   const shuttleEnabled = shuttle ? isShuttleEnabled(shuttle, activeRoles) : false;
+  const canClaimCaptainRole = Boolean(
+    session && me && shuttle && (mode === 'console' || mode === 'press') &&
+    shuttleEnabled &&
+    (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === shuttle.captainRoleId),
+  );
 
   useEffect(() => {
-    if (!shuttle) return;
+    if (!shuttle || !canClaimCaptainRole) return;
     void selectConsoleRole(shuttle.captainRoleId).catch(() => undefined);
-  }, [shuttle]);
+  }, [canClaimCaptainRole, shuttle]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== shuttle?.captainRoleId) {

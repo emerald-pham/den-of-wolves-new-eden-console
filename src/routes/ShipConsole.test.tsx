@@ -34,7 +34,13 @@ beforeEach(() => {
   vi.mocked(adjustShipUnrest).mockReset();
   vi.mocked(adjustShipUnrest).mockResolvedValue(undefined);
   vi.mocked(selectConsoleRole).mockReset();
-  vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
+  vi.mocked(selectConsoleRole).mockImplementation(async (roleId) => {
+    const current = useSessionStore.getState().me;
+    if (current) useSessionStore.getState().setMe({
+      ...current,
+      activeConsoleRoleId: roleId,
+    });
+  });
   vi.mocked(subscribeShipConfetti).mockReset();
   vi.mocked(subscribeShipConfetti).mockReturnValue(vi.fn());
   vi.mocked(subscribeDamageDraws).mockReset();
@@ -578,7 +584,45 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
     .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
 });
 
-it('shows authoritative AEGIS damage without exposing a damage control', () => {
+it('keeps ship controls read-only until the requested role is confirmed', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'active' });
+  useSessionStore.getState().setConnection('live');
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(
+    new Error('That console role is already taken.'),
+  );
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+  expect(begin).toBeDisabled();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('admiral'));
+  expect(begin).toBeDisabled();
+});
+
+it('does not claim a role from a malformed cross-ship console route', async () => {
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role route is invalid.'));
+
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/admiral']}>
+      <Routes>
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Fleet roster')).toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+});
+
+it('shows authoritative AEGIS damage and its drawn card without exposing a damage control', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({
@@ -586,6 +630,21 @@ it('shows authoritative AEGIS damage without exposing a damage control', () => {
     shipDamage: {
       aegis: { damagedSystemIds: ['reactor'], destroyed: false },
     },
+  });
+  vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
+    onDraws([{
+      id: 'draw-1', sessionId: 's1', type: 'ship-damage', shipId: 'aegis', card: '10♥',
+      systemId: 'reactor', systemName: 'Reactor', recycled: false,
+      createdAt: '2026-01-01T00:02:00.000Z',
+    }, {
+      id: 'draw-2', sessionId: 's1', type: 'ship-damage', shipId: 'aegis', card: '6♥',
+      systemId: 'armoured-hull-i', systemName: 'Armoured Hull I', recycled: true,
+      createdAt: '2026-01-01T00:03:00.000Z',
+    }, {
+      id: 'draw-3', sessionId: 's1', type: 'ship-destroyed', shipId: 'aegis',
+      createdAt: '2026-01-01T00:04:00.000Z',
+    }]);
+    return vi.fn();
   });
 
   render(
@@ -599,13 +658,16 @@ it('shows authoritative AEGIS damage without exposing a damage control', () => {
   expect(screen.getByRole('article', { name: 'Storage system // operational' }))
     .toHaveTextContent(/condition.*operational/i);
   expect(screen.queryByRole('button', { name: /damage/i })).not.toBeInTheDocument();
-  expect(screen.queryByText(/[♥♦♣♠]/)).not.toBeInTheDocument();
+  const damageCards = await screen.findByRole('region', { name: /aegis ship systems/i });
+  expect(damageCards).toHaveTextContent(/reactor.*damaged.*10♥/i);
+  expect(damageCards).toHaveTextContent(/armoured hull i.*damage absorbed.*card recycled.*6♥/i);
+  expect(damageCards).toHaveTextContent(/ship destroyed.*no damage card remained/i);
 });
 
 it.each([
   ['/ships/aegis/roles/admiral', false],
   ['/ships/aegis/observer', true],
-] as const)('shows GM damage cards in ship systems at %s', async (route, observer) => {
+] as const)('shows damage cards in ship systems to a GM at %s', async (route, observer) => {
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   useSessionStore.getState().setMe({ ...me, role: 'gm' });
@@ -633,7 +695,7 @@ it.each([
 
   const card = await screen.findByText('2♥');
   expect(card).toHaveClass('ship-damage-card');
-  expect(card).toHaveAttribute('tabindex', '0');
+  expect(card).not.toHaveAttribute('tabindex');
   expect(screen.getByRole('region', { name: /aegis ship systems/i })).toHaveTextContent(
     /fighter bay bravo.*2♥/i,
   );
