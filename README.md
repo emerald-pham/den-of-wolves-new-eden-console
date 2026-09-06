@@ -92,10 +92,10 @@ service-account key belongs anywhere in this repo — CI uses short-lived
 Workload Identity Federation credentials.
 
 Firebase App Check uses reCAPTCHA Enterprise to attest the web app before it
-accesses Firebase services. Callable Functions enforce that attestation, while
-the public site key is restricted to this project's Firebase Hosting domains.
-Local emulator builds use Firebase's debug-provider path; never add
-`localhost` to the production reCAPTCHA key or commit a debug token.
+accesses Firebase services. Callable Functions and Cloud Firestore enforce that
+attestation, while the public site key is restricted to this project's Firebase
+Hosting domains. Local emulator builds use Firebase's debug-provider path;
+never add `localhost` to the production reCAPTCHA key or commit a debug token.
 
 ## Local development
 

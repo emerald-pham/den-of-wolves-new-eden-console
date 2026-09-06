@@ -29,6 +29,9 @@ unreviewed infrastructure migration.
   `firebaseapp.com` domains. The client initializes App Check before Firebase
   services and every callable inherits `enforceAppCheck: true` from the shared
   runtime options.
+- The production Cloud Firestore API has App Check enforcement enabled. The
+  Firebase Console notes that a changed enforcement setting can take up to 15
+  minutes to take effect.
 - A Cloudflare proxy for a future custom Hosting domain would not by itself
   protect Firebase's default Hosting domains, direct callable-function URLs,
   or Firestore traffic. Do not treat it as a complete backend DDoS solution.
@@ -54,11 +57,12 @@ Read and follow [`CLAUDE.md`](../CLAUDE.md) before changing code. In particular:
 
 ### 2. Verify Firebase App Check deliberately
 
-The first implementation uses the reCAPTCHA Enterprise web provider and the
+The implementation uses the reCAPTCHA Enterprise web provider and the
 documented callable `enforceAppCheck` option rather than a home-grown header
-check. Confirm the deployed client receives tokens and unverified callable
-requests are rejected before expanding enforcement to additional Firebase
-products.
+check. Cloud Firestore enforcement was enabled after confirming that the
+deployed client includes App Check initialization. Confirm token metrics and
+unverified callable rejection behavior before expanding enforcement to any
+additional Firebase products.
 
 - Preserve an emulator-only test/debug path; it must never become a production
   bypass.
@@ -69,6 +73,17 @@ products.
 - Document the Firebase Console setup, allowed production domains, rollout
   procedure, and rollback procedure. Never commit a service-account key or a
   private attestation credential.
+
+Current Firestore console procedure and rollback:
+
+1. Firebase Console → **App Check** → **APIs** → **Cloud Firestore** is set to
+   **Enforced**. Expect up to 15 minutes before a setting change takes effect.
+2. Review verified and unverified request metrics after a real game session;
+   investigate a new unverified spike before changing other enforcement modes.
+3. If a verified production regression requires immediate recovery, open the
+   Cloud Firestore details and select **Unenforce**. Do not unregister the web
+   app or delete its reCAPTCHA Enterprise key; doing so makes recovery harder
+   and invalidates the intended client attestation path.
 
 App Check is an abuse-reduction control, not a substitute for authentication,
 authorization, or DDoS controls. Keep the existing server-side checks.
