@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "serve": "npm run build && firebase emulators:start --only functions,firestore",
+    "serve": "npm run build && node ../scripts/run-emulator-command.mjs functions",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {

@@ -103,11 +103,11 @@ never add `localhost` to the production reCAPTCHA key or commit a debug token.
 npm ci
 npm ci --prefix functions
 
-npm run dev            # Vite dev server on :5173
-npm run emulators      # Auth, Firestore, Functions, Hosting emulators
+npm run dev            # Normal Vite dev server on :5173
 ```
 
-Set `VITE_USE_EMULATORS=1` in `.env.local` to point the app at the emulators.
+For emulator-backed development, configure an isolated worktree slot first;
+the commands are described below.
 
 ## Tests
 
@@ -116,6 +116,26 @@ npm test            # unit + component (jsdom)
 npm run test:rules  # security rules, wrapped in the Firestore emulator
 npm run test:all
 ```
+
+Before either emulator-backed command locally, configure a worktree slot below.
+
+### Concurrent local emulator slots
+
+Each active worktree needs its own complete Firebase and Vite port set. Claim a
+free slot from the table in [`CLAUDE.md`](CLAUDE.md#concurrent-worktrees-and-emulator-ports),
+then configure it once in that worktree:
+
+```bash
+npm run emulators:configure -- 7
+npm run emulators
+npm run dev:emulators
+```
+
+The setup command verifies the eight Firebase ports, including Firestore's
+separate WebSocket listener, and writes ignored
+`firebase.local.json` and `.env.emulators.local` files. `npm run test:rules`
+and `npm --prefix functions run serve` use the same generated Firebase config.
+Do not share a slot with another worktree; stop its emulators when finished.
 
 `npm run test:rules` needs a JDK on PATH (the Firestore emulator is a Java
 process).

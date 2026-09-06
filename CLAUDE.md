@@ -132,31 +132,49 @@ each suitable task.
 Assume several local worktrees are active at the same time. Never start
 `firebase emulators:start`, `firebase emulators:exec`, `npm run emulators`,
 `npm run test:rules`, or `npm run test:all` in a worktree until that worktree has
-its own complete emulator port set. The defaults in `firebase.json` belong to
-only one worktree at a time; do not let Firebase silently reuse or kill another
-agent's emulator processes.
+its own complete emulator port set. This includes Firestore's separate WebSocket
+listener. The defaults in `firebase.json` belong to only one worktree at a time;
+do not let Firebase silently reuse or kill another agent's emulator processes.
 
 Coordinate a free slot with the other active agents and announce the slot in
 the task before starting emulators. Use one row as a unit—do not mix ports from
-different rows:
+different rows. The logging range begins at 4600, rather than the historical
+4500, so it cannot overlap Hub ports once all 15 slots are in use:
 
-| Slot | Auth | Functions | Firestore | Hosting | UI | Hub | Logging |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0 | 9099 | 5001 | 8080 | 5000 | 4000 | 4400 | 4500 |
-| 1 | 9109 | 5011 | 8090 | 5010 | 4010 | 4410 | 4510 |
-| 2 | 9119 | 5021 | 8100 | 5020 | 4020 | 4420 | 4520 |
-| 3 | 9129 | 5031 | 8110 | 5030 | 4030 | 4430 | 4530 |
-| 4 | 9139 | 5041 | 8120 | 5040 | 4040 | 4440 | 4540 |
-| 5 | 9149 | 5051 | 8130 | 5050 | 4050 | 4450 | 4550 |
+| Slot | Auth | Functions | Firestore | Firestore WS | Hosting | UI | Hub | Logging | Vite |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | 9099 | 5001 | 8080 | 9300 | 5000 | 4000 | 4400 | 4600 | 5173 |
+| 1 | 9109 | 5011 | 8090 | 9310 | 5010 | 4010 | 4410 | 4610 | 5174 |
+| 2 | 9119 | 5021 | 8100 | 9320 | 5020 | 4020 | 4420 | 4620 | 5175 |
+| 3 | 9129 | 5031 | 8110 | 9330 | 5030 | 4030 | 4430 | 4630 | 5176 |
+| 4 | 9139 | 5041 | 8120 | 9340 | 5040 | 4040 | 4440 | 4640 | 5177 |
+| 5 | 9149 | 5051 | 8130 | 9350 | 5050 | 4050 | 4450 | 4650 | 5178 |
+| 6 | 9159 | 5061 | 8140 | 9360 | 5060 | 4060 | 4460 | 4660 | 5179 |
+| 7 | 9169 | 5071 | 8150 | 9370 | 5070 | 4070 | 4470 | 4670 | 5180 |
+| 8 | 9179 | 5081 | 8160 | 9380 | 5080 | 4080 | 4480 | 4680 | 5181 |
+| 9 | 9189 | 5091 | 8170 | 9390 | 5090 | 4090 | 4490 | 4690 | 5182 |
+| 10 | 9199 | 5101 | 8180 | 9400 | 5100 | 4100 | 4500 | 4700 | 5183 |
+| 11 | 9209 | 5111 | 8190 | 9410 | 5110 | 4110 | 4510 | 4710 | 5184 |
+| 12 | 9219 | 5121 | 8200 | 9420 | 5120 | 4120 | 4520 | 4720 | 5185 |
+| 13 | 9229 | 5131 | 8210 | 9430 | 5130 | 4130 | 4530 | 4730 | 5186 |
+| 14 | 9239 | 5141 | 8220 | 9440 | 5140 | 4140 | 4540 | 4740 | 5187 |
 
 Before claiming a row, verify every port in it is free with
 `lsof -nP -iTCP:<port> -sTCP:LISTEN`. Put the chosen values for auth,
-Functions, Firestore, Hosting, Emulator UI, Hub, and Logging in a
+Functions, Firestore, Firestore WebSocket, Hosting, Emulator UI, Hub, and Logging in a
 worktree-local Firebase config, and pass it explicitly with `--config` to both
 `firebase emulators:start` and `firebase emulators:exec`. Do not commit a
-developer's port-only config. When a task ends, stop its emulators so the slot
-becomes available. If all rows are occupied, add another row by continuing the
-same +10 offset; never take a port that is already listening.
+developer's port-only config.
+
+Use `npm run emulators:configure -- <slot>` after claiming a row. It checks all
+eight Firebase ports before writing ignored `firebase.local.json` and
+`.env.emulators.local` files. Then use `npm run emulators`, `npm run
+dev:emulators`, `npm run test:rules`, or `npm --prefix functions run serve`;
+these commands explicitly load the worktree-local config, and the Vite command
+uses the matching client ports. CI has no local config and intentionally uses
+the committed slot-0 defaults. When a task ends, stop its emulators so the slot
+becomes available. If all rows are occupied, wait for a free slot; never take a
+port that is already listening.
 
 ## 2. Merge once done
 

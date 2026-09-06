@@ -40,9 +40,11 @@
   "emulators": {
     "auth": { "port": 9099 },
     "functions": { "port": 5001 },
-    "firestore": { "port": 8080 },
+    "firestore": { "port": 8080, "websocketPort": 9300 },
     "hosting": { "port": 5000 },
-    "ui": { "enabled": true },
+    "ui": { "enabled": true, "port": 4000 },
+    "hub": { "port": 4400 },
+    "logging": { "port": 4600 },
     "singleProjectMode": true
   }
 }

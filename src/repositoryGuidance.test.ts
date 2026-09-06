@@ -31,8 +31,10 @@ describe('repository guidance', () => {
     expect(guidance).toContain('firebase emulators:start');
     expect(guidance).toContain('firebase emulators:exec');
     expect(guidance).toContain('lsof');
+    expect(guidance).toContain('npm run emulators:configure -- <slot>');
+    expect(guidance).toContain('| 14 |');
     expect(guidance).toMatch(
-      /auth,\s+Functions, Firestore, Hosting, Emulator UI, Hub, and Logging/,
+      /auth,\s+Functions, Firestore, Firestore WebSocket, Hosting, Emulator UI, Hub, and Logging/,
     );
   });
 

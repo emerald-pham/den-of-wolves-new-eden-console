@@ -13,6 +13,7 @@ serviceAccountKey*.json
 
 # firebase local state
 .firebase/
+firebase.local.json
 firebase-debug.log
 firestore-debug.log
 ui-debug.log

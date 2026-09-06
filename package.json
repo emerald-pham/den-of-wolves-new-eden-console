@@ -16,9 +16,11 @@
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
-    "test:rules": "npx --yes firebase-tools@15.29.0 emulators:exec --only firestore \"vitest run --project rules\"",
+    "test:rules": "node scripts/run-emulator-command.mjs rules",
     "test:all": "npm run test && npm run test:rules",
-    "emulators": "firebase emulators:start",
+    "emulators:configure": "node scripts/configure-emulator-slot.mjs",
+    "emulators": "npm run build --prefix functions && node scripts/run-emulator-command.mjs start",
+    "dev:emulators": "node scripts/run-emulator-command.mjs vite",
     "deploy": "npm run build && firebase deploy",
     "deploy:hosting": "npm run build && firebase deploy --only hosting"
   },

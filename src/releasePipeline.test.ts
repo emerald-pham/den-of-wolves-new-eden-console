@@ -6,6 +6,7 @@ const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
+const emulatorCommand = readFileSync('scripts/run-emulator-command.mjs', 'utf8');
 const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8')) as {
   fieldOverrides: Array<{
     collectionGroup: string;
@@ -44,13 +45,21 @@ it('deploys every Firebase surface when manually dispatched', () => {
 });
 
 it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {
-  expect(packageJson.scripts['test:rules']).toContain(FIREBASE_CLI);
+  expect(packageJson.scripts['test:rules']).toContain('run-emulator-command.mjs');
+  expect(emulatorCommand).toContain(FIREBASE_CLI);
   expect(ci).toContain('npm run test:rules');
   expect(deploy).toContain('npm run test:rules');
   expect(deploy).toContain(FIREBASE_CLI);
   expect(ci).not.toContain('firebase-tools@latest');
   expect(deploy).not.toContain('firebase-tools@latest');
-  expect(packageJson.scripts['test:rules']).not.toContain('firebase-tools@latest');
+  expect(emulatorCommand).not.toContain('firebase-tools@latest');
+});
+
+it('runs the rules emulator under the same project ID as the rules harness', () => {
+  expect(emulatorCommand).toContain("RULES_PROJECT_ID = 'dow-new-eden-rules-test'");
+  expect(emulatorCommand).toMatch(
+    /emulators:exec[\s\S]*?--project[\s\S]*?RULES_PROJECT_ID/,
+  );
 });
 
 it('removes retired Cloud Functions during non-interactive deployment', () => {
