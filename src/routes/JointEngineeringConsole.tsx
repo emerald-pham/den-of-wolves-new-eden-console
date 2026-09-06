@@ -1,3 +1,4 @@
+import JointEngineeringWorkspace from '@/components/JointEngineeringWorkspace';
 import { useEffect } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
@@ -39,6 +40,7 @@ export default function JointEngineeringConsole() {
         <p className="eyebrow">{session.name} // Joint station</p>
         <h1 className="role-select__title">Joint Engineering Union</h1>
         <p className="role-select__lede">{role.name}</p>
+        <JointEngineeringWorkspace roleId={role.id} />
       </section>
     </main>
   );

@@ -19,7 +19,20 @@ export interface ShipIdentity {
   readonly secondaryColor?: string;
 }
 
+export interface ShipSystem {
+  readonly name: string;
+  readonly card: string;
+  readonly effect: string;
+}
+
 export interface Ship extends ShipIdentity {
+  readonly systems?: readonly ShipSystem[];
+  readonly maintenance?: {
+    readonly reactor: number;
+    readonly jump: readonly number[];
+    readonly food: readonly number[];
+    readonly water: readonly number[];
+  };
   readonly id: Exclude<ConsoleShipId, 'press' | 'joint-engineering-union'>;
   readonly roles: readonly ConsoleRole[];
   readonly workspace: 'scaffold' | 'aegis';
@@ -59,6 +72,7 @@ export interface Shuttlecraft {
   readonly consoleClass?: string;
   readonly mark?: string;
   readonly capabilities: readonly ShuttleCapability[];
+  readonly dockingEntrance?: 'press';
   readonly initialDocking?: Omit<ShuttleDocking, 'shuttleId'>;
   readonly initialVisit?: Omit<ShuttleVisit, 'shuttleId'>;
 }

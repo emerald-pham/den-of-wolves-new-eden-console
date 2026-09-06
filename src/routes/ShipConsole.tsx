@@ -11,8 +11,6 @@ import { findShip } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
-import { isImplementedAegisRole } from '@/data/aegisConsoles';
-import { isScaffoldedConsoleRole } from '@/data/shipConsoleWorkspaces';
 import { shuttlebayForShip } from '@/data/shuttles';
 import {
   popShipConfetti,
@@ -63,12 +61,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
   const population = ship ? populationForShip(ship.id, session?.shipSurvivors) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
-  const hasConsoleWorkspace = Boolean(
-    ship && consoleRole && (
-      (ship.workspace === 'aegis' && isImplementedAegisRole(consoleRole.id)) ||
-      isScaffoldedConsoleRole(ship.id, consoleRole.id)
-    ),
-  );
+  const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
 
   useEffect(() => {
     if (!consoleRole || observer) return;
@@ -250,11 +243,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <section className="ship-shuttlebay cic-frame" aria-label={`${ship.name} shuttlebay`}>
           <p className="ship-shuttlebay__eyebrow">Shuttlebay // live manifest</p>
           <h2>Docked shuttlecraft</h2>
+          <p>Linked mechanical bays // {shuttlebay?.mechanicalBays.map(bay => bay.name).join(' + ')}</p>
+          <p>One shared ship manifest. Each undamaged bay may refuel one shuttle for 1 fuel during its maintenance step.</p>
+          <p>Mechanical dock occupancy // {shuttlebay?.mechanicalDockedShuttles.length ?? 0}</p>
           {shuttlebay?.dockedShuttles.length ? (
             <ul className="ship-shuttlebay__docked">
               {shuttlebay.dockedShuttles.map((shuttle) => (
                 <li key={`${shuttle.id}-${shuttle.dockedAt}`}>
-                  <strong>{shuttle.name}</strong><span>Currently docked</span>
+                  <strong>{shuttle.name}</strong><span>{shuttle.dockingEntrance === 'press' ? 'Currently docked // Separate press entrance · no mechanical bay use' : 'Currently docked // Linked mechanical bays'}</span>
                 </li>
               ))}
             </ul>

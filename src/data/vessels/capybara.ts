@@ -12,6 +12,44 @@ export default defineShip({
   flag: san,
   color: 'var(--cic-faction-san)',
 
+  systems: [
+    {
+      name: "Storage",
+      card: "A♠",
+      effect: "If damaged, discard half the ship's resources including those on docked shuttles. Round losses down (5 food → 3).",
+    },
+    {
+      name: "Advanced Hydroponics",
+      card: "2♠",
+      effect: "Spend 2 water → 6 food. May spend an additional 1 scrap → +6 food. Upgraded: +3 food. Damaged: cannot be charged.",
+    },
+    {
+      name: "Reactor",
+      card: "3♠",
+      effect: "Charge up to 3 consoles. Upgraded: +1. Damaged: −3.",
+    },
+    {
+      name: "Water Production",
+      card: "4♠",
+      effect: "Generate 6 water. May spend 1 scrap → +6 water. Upgraded: +3 water. Damaged: cannot be charged.",
+    },
+    {
+      name: "Scrap Refinery",
+      card: "7♠",
+      effect: "Choose one: spend 1 scrap → 3 materials, or generate 1 scrap. Damaged: cannot be charged.",
+    },
+    {
+      name: "Shuttle Bay",
+      card: "6♠",
+      effect: "Spend 1 strytium fuel to refuel one shuttle. Damaged: cannot refuel.",
+    },
+    {
+      name: "Jump Drive",
+      card: "5♠",
+      effect: "Coordination phase, if charged: FTL jump. 3 / 6 / 12 fuel for short / medium / long. Upgraded: 1 fewer fuel, jumps only fail when damaged on a 1. Damaged: jumps fail on 1–3.",
+    },
+  ],
+  maintenance: {reactor: 3, jump: [3, 6, 12], food: [0, 3, 7, 11], water: [0, 2, 5, 8]},
   roles: [
     { id: 'capybara-captain', name: 'Capybara Captain', commandAuthority: 'captain' },
     { id: 'capybara-recycler', name: 'Capybara Recycler', commandAuthority: 'officer' },

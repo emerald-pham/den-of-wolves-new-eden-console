@@ -85,3 +85,14 @@ it('keeps an engineer at a held station if the GM disables it', () => {
 
   expect(screen.getByRole('heading', { name: /joint engineering union/i })).toBeInTheDocument();
 });
+
+it('switches between the assigned ships’ engineering reference systems', async () => {
+  render(<MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
+    <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>
+  </MemoryRouter>);
+  expect(screen.getByRole('heading', { name: 'Water Production' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Refinery 124' }));
+  expect(screen.getByRole('heading', { name: 'Fuel Refinery' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Quellon' }));
+  expect(screen.getByRole('heading', { name: 'Water Production' })).toBeInTheDocument();
+});

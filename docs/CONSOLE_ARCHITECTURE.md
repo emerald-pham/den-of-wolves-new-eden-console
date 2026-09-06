@@ -30,11 +30,20 @@ approved resources, specifications and population tracks. Missing
 specifications and tracks remain absent. Add a new ship ID to the typed role
 catalog when introducing a new ship.
 
-The default workspace is the shared scaffold. Implemented role content plugs
-into `FleetConsoleWorkspace` and uses `RoleConsoleTemplate` for chrome. AEGIS
-selects its existing Admiral and Wing Commander modules this way; their
-systems, maintenance and flight content stay role-specific. The Executive
-Officer retains its current outer console without invented gameplay panels.
+Fleet role content plugs into `FleetConsoleWorkspace` and uses
+`RoleConsoleTemplate` for chrome. AEGIS retains its Admiral and Wing Commander
+modules; the Executive Officer has a battle-sheet reference. Other roles use
+`FleetSystemsWorkspace`, with ship systems and initial maintenance schedules
+in each vessel definition and role procedures in `roleProcedures.ts`. Joint
+Engineering switches between its two assigned ships using the same workspace.
+Charges, damage, research and procedure outcomes remain table-resolved until
+their individual gameplay implementation passes.
+
+Each ship has one shared docking manifest. Its mechanical bay entries derive
+from the vessel systems, retaining each bay’s refuelling allowance. A shuttle
+with `dockingEntrance: 'press'` remains in the visible manifest and visit log
+but is excluded from mechanical dock occupancy. This adds no shuttle craft or
+travel/refuelling mutations.
 
 A new workspace kind belongs in the template's typed workspace selection and
 the central renderer. Keep workspace availability checks in sync. Never copy

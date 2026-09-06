@@ -1,3 +1,4 @@
+import { SHIPS } from './ships';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
 import snnPressShuttle from './vessels/snn-press-shuttle';
 import type { Shuttlecraft } from './vessels/templates';
@@ -21,11 +22,15 @@ interface ShuttleSessionState {
 export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) {
   const dockings = session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS;
   const visits = session.shuttleVisitLog ?? INITIAL_SHUTTLE_VISITS;
-  return {
-    dockedShuttles: dockings.filter((item) => item.shipId === shipId).flatMap((docking) => {
+  const dockedShuttles = dockings.filter((item) => item.shipId === shipId).flatMap((docking) => {
       const shuttle = SHUTTLECRAFT.find((item) => item.id === docking.shuttleId);
       return shuttle ? [{ ...shuttle, dockedAt: docking.dockedAt }] : [];
-    }),
+    });
+  return {
+    dockedShuttles,
+    mechanicalBays: (SHIPS.find(ship => ship.id === shipId)?.systems ?? []).filter(system => system.name.startsWith('Shuttle Bay')),
+    mechanicalDockedShuttles: dockedShuttles.filter(shuttle => shuttle.dockingEntrance !== 'press'),
+    pressDockedShuttles: dockedShuttles.filter(shuttle => shuttle.dockingEntrance === 'press'),
     visits: visits.filter((item) => item.shipId === shipId).flatMap((visit) => {
       const shuttle = SHUTTLECRAFT.find((item) => item.id === visit.shuttleId);
       return shuttle ? [{ ...visit, shuttle }] : [];

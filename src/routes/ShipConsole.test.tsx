@@ -212,7 +212,7 @@ it.each([
   await waitFor(() => expect(subscribeShipConfetti).toHaveBeenCalledWith(
       's1', 'aegis', expect.any(Function), expect.any(Function),
     ));
-  expect(screen.queryByText(/wolf/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolf agent assigned/i)).not.toBeInTheDocument();
 });
 
 it('lets a GM return every staffed ship console to its own role picker', async () => {
@@ -555,17 +555,15 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
     .not.toBeInTheDocument();
 });
 
-it('does not add an AEGIS gameplay workspace to the Executive Officer console', () => {
+it('adds the Executive Officer battle reference workspace', () => {
   render(
     <MemoryRouter initialEntries={['/ships/aegis/roles/executive-officer']}>
       <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('region', { name: /AEGIS Executive Officer console/i }))
-    .not.toBeInTheDocument();
-  expect(screen.queryByText(/command and control|missile launchers|point defence|pallas/i))
-    .not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /AEGIS Executive Officer console/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Command and Control' })).toBeInTheDocument();
 });
 
 it.each([
@@ -586,7 +584,7 @@ it.each([
   ['refinery-124', 'Refinery 124', 'refinery-124-captain', 'Captain'],
   ['refinery-124', 'Refinery 124', 'refinery-124-engineer', 'Engineer'],
   ['refinery-124', 'Refinery 124', 'refinery-124-pdf-colonel', 'P.D.F. Colonel'],
-] as const)('scaffolds the %s %s console without activating gameplay', (
+] as const)('displays the %s %s systems without activating gameplay', (
   shipId,
   shipName,
   roleId,
@@ -599,12 +597,10 @@ it.each([
   );
 
   const scaffold = screen.getByRole('region', {
-    name: `${shipName} ${roleName} console scaffold`,
+    name: `${shipName} ${roleName} console`,
   });
-  expect(within(scaffold).getByRole('heading', { name: `${roleName} console` }))
-    .toBeInTheDocument();
-  expect(scaffold).toHaveTextContent(/scaffold ready/i);
-  expect(scaffold).toHaveTextContent(/no gameplay controls active/i);
+  expect(within(scaffold).getByRole('button', { name: 'Ship systems' })).toBeInTheDocument();
+  expect(scaffold).toHaveTextContent(/tracked at the table/i);
 });
 
 it('applies the capital-ship identity and survivor instruments to AEGIS', () => {
