@@ -120,8 +120,6 @@ function AppRoutes() {
  * config and GitHub Pages give you.
  */
 export default function App() {
-  useEffect(() => startVersionUpgradeMonitor(), []);
-
   // The status light starts red and only goes yellow once this resolves, so a
   // misconfigured or unreachable Firebase shows as red rather than as a page
   // that looks fine and silently does nothing.
@@ -136,6 +134,9 @@ export default function App() {
     };
     const renewPresence = () => refreshPresence().catch(() => {
       useSessionStore.getState().setConnection('offline');
+    });
+    const stopVersionMonitor = startVersionUpgradeMonitor({
+      reconnect: () => run(connect),
     });
     run(connect);
 
@@ -169,6 +170,7 @@ export default function App() {
       window.clearInterval(retry);
       window.clearInterval(reconcileGm);
       window.clearInterval(heartbeat);
+      stopVersionMonitor();
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
     };

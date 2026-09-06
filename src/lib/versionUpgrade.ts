@@ -1,6 +1,6 @@
 import { APP_VERSION } from '@/version';
 
-export const VERSION_CHECK_INTERVAL_MS = 5_000;
+export const PAGE_STALE_AFTER_MS = 60_000;
 
 interface VersionResponse {
   readonly ok: boolean;
@@ -13,27 +13,31 @@ interface VersionUpgradeMonitorOptions {
     init: { readonly cache: 'no-store' },
   ) => Promise<VersionResponse>;
   readonly reload?: () => void;
-  readonly intervalMs?: number;
+  readonly reconnect?: () => void;
+  readonly staleAfterMs?: number;
 }
 
 /**
- * Discover a newly deployed client and reload into it without sending the
- * explicit disconnect command. The persisted session, route and GM instance
- * remain available for the normal startup resume path, while server presence
- * never transitions through a player-drop state.
+ * Recover after the page has been hidden long enough for browser throttling to
+ * stale its connection. A newer build reloads with persisted identity intact;
+ * the current build resumes directly. Neither path sends the explicit
+ * disconnect command, so server presence does not enter a player-drop state.
  */
 export function startVersionUpgradeMonitor(
   options: VersionUpgradeMonitorOptions = {},
 ): () => void {
   const fetchVersion = options.fetchVersion ?? ((input, init) => fetch(input, init));
   const reload = options.reload ?? (() => window.location.reload());
+  const reconnect = options.reconnect ?? (() => undefined);
+  const staleAfterMs = options.staleAfterMs ?? PAGE_STALE_AFTER_MS;
+  let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
   let stopped = false;
   let checking = false;
-  let upgradeFound = false;
 
-  const check = async (): Promise<void> => {
-    if (stopped || checking || upgradeFound) return;
+  const recover = async (): Promise<void> => {
+    if (stopped || checking) return;
     checking = true;
+    let reloading = false;
     try {
       const response = await fetchVersion('/build-version.json', { cache: 'no-store' });
       if (!response.ok) return;
@@ -43,21 +47,33 @@ export function startVersionUpgradeMonitor(
         'version' in metadata && typeof metadata.version === 'string' &&
         metadata.version !== APP_VERSION
       ) {
-        upgradeFound = true;
+        reloading = true;
         reload();
       }
     } catch {
-      // A missed poll is harmless; Firebase reconnect and the next poll continue.
+      // Reconnection is still useful when the static version marker is unavailable.
     } finally {
       checking = false;
+      if (!stopped && !reloading) reconnect();
     }
   };
 
-  void check();
-  const timer = window.setInterval(() => void check(), options.intervalMs ?? VERSION_CHECK_INTERVAL_MS);
+  const handleVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt ??= Date.now();
+      return;
+    }
+    const lastHiddenAt = hiddenAt;
+    hiddenAt = null;
+    if (lastHiddenAt !== null && Date.now() - lastHiddenAt >= staleAfterMs) {
+      void recover();
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   return () => {
     stopped = true;
-    window.clearInterval(timer);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
   };
 }

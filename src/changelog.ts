@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Returning to a console after at least one minute away now checks for an update and resumes the previous session without continuous background polling.',
+    ],
+  },
+  {
+    version: '0.2.28',
+    changes: [
       'The landing-page motion control now matches the typography and display of the other session controls.',
     ],
   },

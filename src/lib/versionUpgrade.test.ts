@@ -1,16 +1,30 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
-import { startVersionUpgradeMonitor } from './versionUpgrade';
+import { PAGE_STALE_AFTER_MS, startVersionUpgradeMonitor } from './versionUpgrade';
 
-describe('version upgrade monitor', () => {
+describe('stale page recovery', () => {
+  let visibility: DocumentVisibilityState;
+
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-06T18:00:00.000Z'));
+    visibility = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
     useSessionStore.getState().reset();
     localStorage.clear();
   });
 
-  it('reloads an old client while preserving its session and GM instance for resume', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('only treats a page as stale after it has been unseen for one minute', () => {
+    expect(PAGE_STALE_AFTER_MS).toBe(60_000);
+  });
+
+  it('reloads a stale page into a newer build without clearing its resumable identity', async () => {
     const session = {
       id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby' as const,
       ownerUid: 'u1', createdAt: '2026-01-01T00:00:00.000Z',
@@ -29,67 +43,75 @@ describe('version upgrade monitor', () => {
     useSessionStore.getState().setMode('gm');
     useSessionStore.getState().setLastRoute('/gm');
     const reload = vi.fn();
+    const reconnect = vi.fn();
     const fetchVersion = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ version: '99.99.99' }),
     });
+    const stop = startVersionUpgradeMonitor({ fetchVersion, reload, reconnect });
 
-    const stop = startVersionUpgradeMonitor({ fetchVersion, reload });
+    expect(fetchVersion).not.toHaveBeenCalled();
+    visibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(PAGE_STALE_AFTER_MS);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(fetchVersion).toHaveBeenCalledWith('/build-version.json', {
-      cache: 'no-store',
-    });
+    expect(fetchVersion).toHaveBeenCalledOnce();
     expect(reload).toHaveBeenCalledOnce();
+    expect(reconnect).not.toHaveBeenCalled();
     expect(useSessionStore.getState()).toMatchObject({
-      session,
-      me: player,
-      gmInstance,
-      mode: 'gm',
-      lastRoute: '/gm',
+      session, me: player, gmInstance, mode: 'gm', lastRoute: '/gm',
     });
     stop();
   });
 
-  it('keeps the current client running for matching, unavailable, or malformed metadata', async () => {
-    const reload = vi.fn();
-    const replies = [
-      { ok: true, json: async () => ({ version: APP_VERSION }) },
-      { ok: false, json: async () => ({ version: '99.99.99' }) },
-      { ok: true, json: async () => ({ version: 27 }) },
-    ];
-    const fetchVersion = vi.fn().mockImplementation(async () => replies.shift());
-
-    const stop = startVersionUpgradeMonitor({
-      fetchVersion,
-      reload,
-      intervalMs: 1_000,
-    });
-    await vi.advanceTimersByTimeAsync(2_000);
-
-    expect(fetchVersion).toHaveBeenCalledTimes(3);
-    expect(reload).not.toHaveBeenCalled();
-    stop();
-  });
-
-  it('stops polling after an upgrade is found or the monitor is disposed', async () => {
-    const reload = vi.fn();
+  it('reconnects the previous session after a stale return when the build is current', async () => {
+    const reconnect = vi.fn();
     const fetchVersion = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ version: '99.99.99' }),
+      json: async () => ({ version: APP_VERSION }),
     });
-    const stop = startVersionUpgradeMonitor({
-      fetchVersion,
-      reload,
-      intervalMs: 1_000,
-    });
+    const stop = startVersionUpgradeMonitor({ fetchVersion, reconnect, reload: vi.fn() });
 
-    await vi.advanceTimersByTimeAsync(5_000);
+    visibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(PAGE_STALE_AFTER_MS - 1);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchVersion).not.toHaveBeenCalled();
+    expect(reconnect).not.toHaveBeenCalled();
+
+    visibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(PAGE_STALE_AFTER_MS);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+
     expect(fetchVersion).toHaveBeenCalledOnce();
-    expect(reload).toHaveBeenCalledOnce();
-
+    expect(reconnect).toHaveBeenCalledOnce();
     stop();
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(fetchVersion).toHaveBeenCalledOnce();
+  });
+
+  it('still reconnects when the version marker is temporarily unavailable', async () => {
+    const reconnect = vi.fn();
+    const stop = startVersionUpgradeMonitor({
+      fetchVersion: vi.fn().mockRejectedValue(new Error('offline')),
+      reconnect,
+      reload: vi.fn(),
+    });
+
+    visibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(PAGE_STALE_AFTER_MS);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reconnect).toHaveBeenCalledOnce();
+    stop();
   });
 });
