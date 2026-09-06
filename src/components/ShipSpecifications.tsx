@@ -57,7 +57,7 @@ export default function ShipSpecifications({ shipId, shipName, population }: {
           ['Length', specs.length, false],
           ['Tonnage', specs.tonnage.toLocaleString('en-US'), false],
           ['Crew Capacity', specs.crewCapacity.toLocaleString('en-US'), overloaded],
-          ['Passengers Capacity', specs.passengerCapacity.toLocaleString('en-US'), overloaded],
+          ['Passenger Capacity', specs.passengerCapacity.toLocaleString('en-US'), overloaded],
         ].map(([label, value, warning], index) => (
           <div key={String(label)}>
             <dt>{label}</dt><dd>{value}{warning && (

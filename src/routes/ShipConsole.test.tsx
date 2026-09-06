@@ -732,7 +732,7 @@ it('applies the capital-ship identity and survivor instruments to AEGIS', () => 
   );
 
   const specs = screen.getByRole('region', { name: 'AEGIS specifications' });
-  expect(specs).toHaveTextContent(/Length250m.*Tonnage80,000.*Crew Capacity3,000.*Passengers Capacity100/);
+  expect(specs).toHaveTextContent(/Length250m.*Tonnage80,000.*Crew Capacity3,000.*Passenger Capacity100/);
   expect(within(specs).queryByRole('button', { name: /crew and passenger capacity exceeded/i }))
     .not.toBeInTheDocument();
   const track = within(screen.getByRole('region', { name: 'AEGIS census' }))
@@ -743,11 +743,11 @@ it('applies the capital-ship identity and survivor instruments to AEGIS', () => 
 });
 
 it.each([
-  ['dione', 'Dione', /Length550m.*Tonnage500,000.*Crew Capacity4,000.*Passengers Capacity12,000/],
-  ['icebreaker', 'Icebreaker', /Length800m.*Tonnage1,200,000.*Crew Capacity10,000.*Passengers Capacity100/],
-  ['shepherd', 'Shepherd', /Length700m.*Tonnage750,000.*Crew Capacity4,000.*Passengers Capacity4,000/],
-  ['quellon', 'Quellon', /Length600m.*Tonnage700,000.*Crew Capacity6,500.*Passengers Capacity10/],
-  ['refinery-124', 'Refinery 124', /Length500km.*Tonnage450,000.*Crew Capacity5,000.*Passengers Capacity0/],
+  ['dione', 'Dione', /Length550m.*Tonnage500,000.*Crew Capacity4,000.*Passenger Capacity12,000/],
+  ['icebreaker', 'Icebreaker', /Length800m.*Tonnage1,200,000.*Crew Capacity10,000.*Passenger Capacity100/],
+  ['shepherd', 'Shepherd', /Length700m.*Tonnage750,000.*Crew Capacity4,000.*Passenger Capacity4,000/],
+  ['quellon', 'Quellon', /Length600m.*Tonnage700,000.*Crew Capacity6,500.*Passenger Capacity10/],
+  ['refinery-124', 'Refinery 124', /Length500km.*Tonnage450,000.*Crew Capacity5,000.*Passenger Capacity0/],
 ] as const)('shows %s specifications and overload warnings from its survivor count', (
   shipId,
   shipName,
@@ -863,7 +863,7 @@ it('places Capybara specifications before the role and shows a read-only survivo
     <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
   </MemoryRouter>);
   const specs = screen.getByRole('region', { name: 'Capybara specifications' });
-  expect(specs).toHaveTextContent(/Length600m.*Tonnage800,000.*Crew Capacity5,000.*Passengers Capacity500/);
+  expect(specs).toHaveTextContent(/Length600m.*Tonnage800,000.*Crew Capacity5,000.*Passenger Capacity500/);
   const role = screen.getByText('Capybara Captain');
   expect(screen.getByText('Role assignment').tagName).toBe('DT');
   expect(role.tagName).toBe('DD');
