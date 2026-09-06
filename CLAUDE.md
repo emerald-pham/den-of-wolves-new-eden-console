@@ -90,37 +90,41 @@ the intended starting point (normally current `origin/main`) before proceeding.
 
 ## Routine task delegation
 
-The product owner gives standing authorization to delegate small, routine tasks
-to GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) when doing so is expected to save
-tokens after accounting for setup, context transfer, and review. No separate
-confirmation is needed for each suitable task.
+The product owner gives standing authorization to delegate suitable, well-scoped
+tasks when doing so is expected to save total effort and tokens after accounting
+for setup, context transfer, and review. No separate confirmation is needed for
+each suitable task.
 
-- Give each delegated task its own worktree and short-lived branch. Never have
-  delegated agents edit the primary agent's checkout or another agent's files.
+- GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) is strictly read-only. Prefer
+  Spark first for every suitable bounded read-only subtask so available Spark
+  usage is consumed. Spark may inspect known surfaces—such as quick surface
+  maps, candidate-file reconnaissance, targeted consistency searches, and
+  medium-grain checks of what changed or where a relevant seam lies—but may not
+  edit files or otherwise mutate repository state. Spark's read-only
+  assignments do not require a worktree or branch.
+- GPT-5.6 Luna (`gpt-5.6-luna`) at `max` reasoning is a strict capability
+  superset of Spark. Luna may do anything Spark can do and is the fallback for
+  suitable bounded read-only work when Spark is unavailable. Luna also has
+  standing trust and authorization for well-scoped local edits, including code,
+  tests, Markdown docs, refactors, UI, and routine implementation with clear
+  expected results. Every delegated agent that changes files must use its own
+  worktree and short-lived branch; never have Luna edit the primary agent's
+  checkout or another agent's files.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
-  scope and acceptance criteria. Suitable examples include documentation edits
-  and straightforward mechanical changes with clear expected results.
-- Spark agents may also perform bounded read-only work on known surfaces as
-  needed: quick surface maps, candidate-file reconnaissance, targeted
-  consistency searches, and medium-grain checks of what changed or where a
-  relevant seam lies. These read-only tasks do not require a worktree, branch,
-  or a separate confirmation; use a dedicated worktree only if the agent will
-  make a change.
+  scope and acceptance criteria. Delegation must still save total effort and
+  tokens after setup, context transfer, and review. Luna's local editing
+  authority does not authorize merging or pushing, and does not transfer
+  ownership of the final decision.
 - No code change has zero risk. Keep security, authentication, authorization,
-  authoritative state mutations, complex gameplay, and architectural decisions
-  with the primary agent. Keep work local when delegation would cost more tokens
-  than it saves.
-- Prefer Spark when the available interface supports that exact model. If Spark
-  is unavailable, delegate otherwise-suitable routine tasks to GPT-5.6 Luna
-  (`gpt-5.6-luna`) at `xhigh` reasoning instead. The authorization includes
-  internal subagents and separate visible Codex tasks in worktrees. Never claim
-  that Spark ran when the fallback model did the work.
+  authoritative state mutations, complex gameplay, architectural decisions, and
+  other high-risk security or product decisions with the primary agent. The
+  primary agent also owns all review, integration, versioning, merge, and push.
 - Every delegated agent must read this file and follow the applicable test-first,
   dependency, emulator isolation, and version policies. Small task size does not
   exempt code changes from those requirements.
 - The primary agent reviews the diff and verification evidence and coordinates
   integration, versioning, merge, and push. Delegated agents must return their
-  work for that review before merging or pushing to `main`.
+  work for that review before anything is merged or pushed to `main`.
 
 ## Concurrent worktrees and emulator ports
 
