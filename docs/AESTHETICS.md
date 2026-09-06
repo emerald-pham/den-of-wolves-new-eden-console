@@ -809,8 +809,9 @@ The shared maintenance column ends with a ruled GM-only command group beneath
 End maintenance cycle: Assign damage, Repair all damage, and Roll back maintenance
 step. Use the existing cyan `.cic-action-button` treatment and wrapping
 `.maintenance-controls` layout, with muted disabled states and inline errors.
-An applied damage command reports its drawn card and affected system to the GM
-as a cyan status line inside this group; maintenance steps that apply damage
+An applied damage command appends its drawn card and affected system as a cyan
+status line inside this group, keeping earlier cards visible rather than
+replacing them; maintenance steps that apply damage
 include the same details at that numbered step for every connected crew member.
 The line must distinguish a damaged system, an armour card that absorbed damage
 and was recycled, and destruction when no card remained. A failed damage trigger,

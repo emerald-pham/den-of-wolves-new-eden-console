@@ -98,6 +98,32 @@ it('notes the drawn card beside the GM control that applied damage', async () =>
   expect(await screen.findByRole('status')).toHaveTextContent('Damage applied // card 10♥ // Reactor damaged.');
 });
 
+it('stacks GM-assigned damage outcomes without clearing the current log line', async () => {
+  assign
+    .mockResolvedValueOnce({
+      destroyed: false,
+      card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
+      recycled: false,
+    })
+    .mockResolvedValueOnce({
+      destroyed: false,
+      card: { card: 'Q♥', systemId: 'command', systemName: 'Command and Control' },
+      recycled: false,
+    });
+  useSessionStore.setState({
+    me: { ...me, role: 'gm' },
+    gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
+  });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+
+  await userEvent.click(screen.getByRole('button', { name: 'Assign damage' }));
+  expect(await screen.findByText('Damage applied // card 10♥ // Reactor damaged.')).toBeVisible();
+
+  await userEvent.click(screen.getByRole('button', { name: 'Assign damage' }));
+  expect(await screen.findByText('Damage applied // card Q♥ // Command and Control damaged.')).toBeVisible();
+  expect(screen.getByText('Damage applied // card 10♥ // Reactor damaged.')).toBeVisible();
+});
+
 it.each(['player', 'gm'] as const)('notes a maintenance-drawn card inside the damage-causing step for a %s', (role) => {
   useSessionStore.setState({
     session: { ...session, maintenanceCycles: { aegis: {

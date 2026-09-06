@@ -37,12 +37,12 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
-  const [damageNotice, setDamageNotice] = useState('');
+  const [damageNotices, setDamageNotices] = useState<readonly string[]>([]);
   const [foodLevel, setFoodLevel] = useState(0);
   const [waterLevel, setWaterLevel] = useState(0);
   const [consoles, setConsoles] = useState<string[]>([]);
   const [refuels, setRefuels] = useState<Record<string, string>>({});
-  useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotice(''); }, [shipId, step]);
+  useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotices([]); }, [shipId, step]);
   const damage = session?.shipDamage?.[shipId];
   const maintenanceDamageDraw = cycle?.damageDrawId
     ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
@@ -146,12 +146,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             (label === 'Assign damage' ? damage?.destroyed === true : label === 'Repair all damage' ? !damage?.destroyed && !damage?.damagedSystemIds.length : revision === 0)}
           onClick={() => {
             if (busy.current) return;
-            busy.current = true; setPending(true); setError(''); setDamageNotice('');
+            busy.current = true; setPending(true); setError('');
             const command = label === 'Assign damage'
               ? assignShipDamage(shipId).then(result => {
-                setDamageNotice(result.destroyed
+                const notice = result.destroyed
                   ? 'Damage applied // no card remained // ship destroyed.'
-                  : `Damage applied // card ${result.card.card} // ${result.card.systemName}${result.recycled ? ' absorbed damage // card recycled' : ' damaged'}.`);
+                  : `Damage applied // card ${result.card.card} // ${result.card.systemName}${result.recycled ? ' absorbed damage // card recycled' : ' damaged'}.`;
+                setDamageNotices(current => [...current, notice]);
               })
               : label === 'Repair all damage'
                 ? repairAllShipDamage(shipId)
@@ -160,7 +161,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
               .catch(cause => setError(cause instanceof Error ? cause.message : 'Damage command failed.'))
               .finally(() => { busy.current = false; setPending(false); });
           }}>{label}</button>)}
-        {damageNotice && <p role="status">{damageNotice}</p>}
+        {damageNotices.map((notice, index) => <p key={`${index}-${notice}`} role="status">{notice}</p>)}
       </div>}
     </section>
     <div className="maintenance-systems__other">

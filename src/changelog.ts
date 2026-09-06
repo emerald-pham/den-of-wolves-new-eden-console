@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GM damage controls now keep every applied damage-card outcome visible as new cards are assigned.',
+    ],
+  },
+  {
+    version: '0.2.36',
+    changes: [
       'Shuttle cargo rules now wrap in full at every console size instead of truncating the printed allowance.',
     ],
   },
