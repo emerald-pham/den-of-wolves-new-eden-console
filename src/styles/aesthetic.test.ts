@@ -402,14 +402,16 @@ it.each([false, true])('preserves semantic system colors with damage=%s and vary
   const article = document.createElement('article');
   article.className = 'aegis-system';
   article.dataset.damaged = String(damaged);
-  article.innerHTML = '<p>System reference</p><dl><div class="aegis-system__condition"><dt>Condition</dt><dd>State</dd></div><div><dt>If Damaged</dt><dd>Rule</dd></div></dl>';
+  article.innerHTML = '<p>System reference</p><dl><div class="aegis-system__condition"><dt>Condition</dt><dd>State</dd></div><div class="aegis-system__damaged-rule"><dt>If Damaged</dt><dd>Rule</dd></div></dl>';
   document.body.append(article);
   try {
     const condition = article.querySelector('dl > div')!;
     for (const last of [false, true]) {
       if (last) article.querySelector('dl')!.append(condition);
       for (const label of article.querySelectorAll('dt')) {
-        expect(getComputedStyle(label).color).toBe('var(--cic-amber)');
+        expect(getComputedStyle(label).color).toBe(
+          label.textContent === 'If Damaged' ? 'var(--cic-danger)' : 'var(--cic-amber)',
+        );
         expect(getComputedStyle(label).fontSize).toBe('0.75rem');
       }
       for (const value of article.querySelectorAll('dd')) {
