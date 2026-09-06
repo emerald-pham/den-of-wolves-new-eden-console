@@ -59,6 +59,22 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
+it('shows the player command rank in the top-right header', async () => {
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([connectedPlayer('u1')]);
+    return vi.fn();
+  });
+  useSessionStore.getState().setMe({
+    ...connectedPlayer('u1'),
+    activeConsoleRoleId: 'admiral',
+  });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  expect(screen.getByText('Rank: Admiral')).toBeVisible();
+  expect(await screen.findByText('1 connected to CIC')).toBeVisible();
+});
+
 it('shows the last-player warning inside settings', async () => {
   const user = userEvent.setup();
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {

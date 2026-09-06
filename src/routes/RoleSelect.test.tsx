@@ -125,11 +125,12 @@ describe('RoleSelect', () => {
     const nameInput = screen.getByRole('textbox', { name: /^input gm name$/i });
     await user.type(nameInput, 'Bridge laptop');
 
-    expect(nameInput).toHaveAccessibleName('Name inputted');
+    expect(nameInput).toHaveAccessibleName('Input GM Name');
     await user.click(claim);
 
     expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop');
     expect(screen.getByRole('button', { name: /gm joined/i })).toBeDisabled();
+    expect(nameInput).toHaveAccessibleName('Name entered');
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
   });
 

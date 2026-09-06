@@ -116,6 +116,21 @@ body {
   max-width: calc(100vw - 1.5rem);
 }
 
+.player-rank {
+  min-height: 2.5rem;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+  color: var(--cic-cyan);
+  font: 0.7rem/1.2 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .settings-button {
   width: 2.5rem;
   height: 2.5rem;

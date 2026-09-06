@@ -89,7 +89,7 @@ export default function RoleSelect() {
 
   const claimLabel = isGm ? 'GM joined' : pendingClaim ? 'GM join queued' : 'Join as GM';
   const registrationLocked = controlsLocked && activeGmCount !== 0;
-  const hasInstanceName = (isGm ? gmInstance?.name ?? instanceName : instanceName).trim().length > 0;
+  const hasEnteredInstanceName = isGm && (gmInstance?.name ?? '').trim().length > 0;
 
   return (
     <main className="role-select">
@@ -112,7 +112,7 @@ export default function RoleSelect() {
             {claimLabel}
           </button>
           <label className="role-card__name" htmlFor="gm-instance-name">
-            {hasInstanceName ? 'Name inputted' : 'Input GM Name'}
+            {hasEnteredInstanceName ? 'Name entered' : 'Input GM Name'}
           </label>
           <input
             id="gm-instance-name"
