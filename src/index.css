@@ -4,6 +4,7 @@
 
 :root {
   color-scheme: dark;
+  --console-plot-top: calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 0.75rem);
   --ship-plot-widget-size: clamp(10rem, 22vw, 17rem);
 }
 
@@ -1609,7 +1610,7 @@ body {
 .ship-console__instruments {
   position: absolute;
   top: calc(
-    max(0.75rem, env(safe-area-inset-top)) + 4.25rem +
+    var(--console-plot-top) +
     var(--ship-plot-widget-size) + 1rem
   );
   right: max(0.75rem, env(safe-area-inset-right));
@@ -1869,7 +1870,7 @@ body {
 }
 
 .ship-plot[data-aboard='true'] {
-  top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
+  top: var(--console-plot-top);
   right: max(0.75rem, env(safe-area-inset-right));
   z-index: 4;
   width: var(--ship-plot-widget-size);
@@ -2087,7 +2088,7 @@ body {
   }
 
   .confetti-dispenser {
-    top: calc(max(0.75rem, env(safe-area-inset-top)) + 4.25rem);
+    top: var(--console-plot-top);
     right: auto;
     bottom: auto;
     left: max(0.75rem, env(safe-area-inset-left));
@@ -2107,7 +2108,7 @@ body {
 
 @media (max-width: 42rem) {
   .ship-plot[data-aboard='true'][data-expanded='false'] {
-    top: max(0.75rem, env(safe-area-inset-top));
+    top: var(--console-plot-top);
     transition-property: width, height, border-color, background-color, box-shadow;
   }
 
@@ -2176,7 +2177,7 @@ body {
   .ship-role-select {
     align-content: start;
     padding-top: calc(
-      max(0.75rem, env(safe-area-inset-top)) + 5.25rem +
+      var(--console-plot-top) + 1rem +
       var(--ship-plot-widget-size) + 1rem
     );
     padding-right: max(clamp(1rem, 5vw, 3rem), env(safe-area-inset-right));
@@ -2207,11 +2208,11 @@ body {
     gap: 1rem;
     overflow-y: auto;
     padding-top: calc(
-      max(0.75rem, env(safe-area-inset-top)) + 5.25rem +
+      var(--console-plot-top) + 1rem +
       var(--ship-plot-widget-size)
     );
   }
-  .ship-console:not(.shuttle-console) .ship-console__identity,
+  .ship-console .ship-console__identity,
   .ship-console:not(.shuttle-console) .ship-console__instruments {
     position: relative;
     inset: auto;
@@ -2403,8 +2404,57 @@ body {
 .population-track__key { color: var(--cic-danger); font-size: 0.55rem; }
 
 @media (max-width: 42rem) {
-  .ship-console:not(.shuttle-console) .ship-console__identity {
+  .ship-console .ship-console__identity {
     max-height: none;
     overflow-y: visible;
+  }
+}
+
+/* Scrollable consoles share frozen workspace rows on phones and short displays.
+   The session chrome and DRADIS belong to the opening document area; the
+   workspace displaces them as it reaches the safe top edge. */
+@media (max-width: 42rem), (max-height: 42rem) {
+  [data-console-chrome="true"] .app-header,
+  [data-console-chrome="true"] .ship-plot[data-aboard='true'][data-expanded='false'] {
+    position: absolute;
+  }
+
+  .ship-console,
+  .ship-console:not(.shuttle-console),
+  .shuttle-console {
+    display: grid;
+    align-content: start;
+    gap: 1rem;
+    overflow: visible;
+    padding-top: calc(var(--console-plot-top) + var(--ship-plot-widget-size) + 1rem);
+  }
+
+  .ship-console .ship-console__identity {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    background: var(--cic-void);
+  }
+
+  .ship-console .ship-console__instruments {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    min-height: min(32rem, 75dvh);
+  }
+}
+
+@media (max-width: 42rem), (max-height: 42rem) {
+  .ship-console .ship-console__name {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding-block: max(0.75rem, env(safe-area-inset-top)) 0.5rem;
+    background: var(--cic-void);
   }
 }
