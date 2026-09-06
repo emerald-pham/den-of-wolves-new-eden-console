@@ -825,20 +825,23 @@ roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.
 
 During a live Turn 0 session, the top-right connection light uses cyan-blue
-instrumentation and says `CONNECTED, AWAITING UPLINK`; it makes the fleet's
+instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's
 boot-up state clear without treating it as an offline connection. The first
 Turn 1 snapshot restores the usual green in-session light, marking CIC as fully
 uplinked and the fleet as ready to launch.
 
-Each live turn transition begins with `TURN N` before any other copy. The fleet
-transmission reuses the full-screen intrusion envelope with the neutral fleet
-variant: no hostile glitch treatment, amber structural overlines, bone-white
+Each live turn transition begins with `TURN N` before any other copy, except the
+Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
+before `TURN 1`. The fleet transmission reuses the full-screen intrusion
+envelope with the neutral fleet variant: no hostile glitch treatment, amber structural overlines, bone-white
 narrative, cyan survivor count and `SURVIVE.`, and hostile red only for the
 word `TRAITORS.`. Turn 1 carries the complete destruction and traitor reveal in
 separate timed slides; later turns contain only the turn marker, the calculated
 fleet survivor count and the final survival beat. The transmission is a live
-event rather than a replay for a newly joined browser. Turn 1's three opening
-briefing beats use four-second reading holds—rather than the ordinary 2.4-second
+event rather than a replay for a newly joined browser. The first Turn 1 slide is
+the ordinary 2.4-second operational beat `IRIS AUTHENTICATION CONFIRMED`; `TURN 1`
+follows before any narrative. Turn 1's three opening briefing beats use four-second
+reading holds—rather than the ordinary 2.4-second
 operational cadence—and each carries one concise thought. Keep each slide centered,
 balanced, and readable at 1440×900, 390×844, and 844×390.
 

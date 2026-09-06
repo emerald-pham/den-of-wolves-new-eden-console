@@ -60,7 +60,7 @@ it('shows the current session personnel count in the top-right header', async ()
   expect(screen.getByText('4 connected to CIC')).toBeVisible();
 });
 
-it('shows a blue uplink status while Turn 0 systems are still booting', async () => {
+it('shows a blue iris-authentication status while Turn 0 systems are still booting', async () => {
   const session = useSessionStore.getState().session!;
   useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
   useSessionStore.getState().setMe(connectedPlayer('u1'));
@@ -71,7 +71,7 @@ it('shows a blue uplink status while Turn 0 systems are still booting', async ()
   await screen.findByText('2 connected to CIC');
 
   const indicator = screen.getByRole('status');
-  expect(indicator).toHaveTextContent('Connected, Awaiting Uplink');
+  expect(indicator).toHaveTextContent('Connected, Awaiting Iris Authentication');
   expect(indicator).toHaveAttribute('data-status', 'blue');
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));

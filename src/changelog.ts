@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The Turn 0 connection light now reads “Connected, Awaiting Iris Authentication,” and the live Turn 1 briefing opens with “Iris Authentication Confirmed.”',
+    ],
+  },
+  {
+    version: '0.2.45',
+    changes: [
       'DRADIS and live console instruments now stay more responsive during busy sessions while keeping the same scan behavior and visual effects.',
       'GM maintenance alerts still appear at their exact deadlines while the command console does less unnecessary redrawing.',
     ],

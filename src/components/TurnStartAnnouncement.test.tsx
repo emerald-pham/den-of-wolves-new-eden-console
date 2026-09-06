@@ -17,7 +17,7 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-it('gives each part of the Turn 1 briefing its own readable slide', () => {
+it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   vi.useFakeTimers();
   render(<TurnStartAnnouncement />);
 
@@ -27,7 +27,13 @@ it('gives each part of the Turn 1 briefing its own readable slide', () => {
     turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
   }));
 
+  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.queryByText('TURN 1')).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('TURN 1')).toBeInTheDocument();
+  expect(screen.queryByText('Iris Authentication Confirmed')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));

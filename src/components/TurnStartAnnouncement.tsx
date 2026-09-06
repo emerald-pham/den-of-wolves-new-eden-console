@@ -35,11 +35,11 @@ function FleetTransmission({
 }) {
   const [slide, setSlide] = useState(0);
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 8 : 3;
+  const slideCount = isFirstTurn ? 9 : 3;
   const survivorPopulation = new Intl.NumberFormat('en-US').format(transmission.survivorPopulation);
 
   useEffect(() => {
-    const isNarrativeBeat = isFirstTurn && slide >= 1 && slide <= 3;
+    const isNarrativeBeat = isFirstTurn && slide >= 2 && slide <= 4;
     const timer = window.setTimeout(() => {
       if (slide < slideCount - 1) {
         setSlide(slide + 1);
@@ -57,20 +57,22 @@ function FleetTransmission({
         ? <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
         : <p className="turn-start-announcement__survive">SURVIVE.</p>
   ) : slide === 0 ? (
-    <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
+    <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
   ) : slide === 1 ? (
-    <p className="turn-start-announcement__message">THE WOLVES DESTROYED YOUR HOMES.</p>
+    <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
   ) : slide === 2 ? (
-    <p className="turn-start-announcement__message">THE FLEET IS ALL THAT REMAINS.</p>
+    <p className="turn-start-announcement__message">THE WOLVES DESTROYED YOUR HOMES.</p>
   ) : slide === 3 ? (
-    <p className="turn-start-announcement__message">THEY ARE PURSUING YOU THROUGH THE VOID.</p>
+    <p className="turn-start-announcement__message">THE FLEET IS ALL THAT REMAINS.</p>
   ) : slide === 4 ? (
-    <p className="turn-start-announcement__message">SOME OF YOU —</p>
+    <p className="turn-start-announcement__message">THEY ARE PURSUING YOU THROUGH THE VOID.</p>
   ) : slide === 5 ? (
+    <p className="turn-start-announcement__message">SOME OF YOU —</p>
+  ) : slide === 6 ? (
     <p className="turn-start-announcement__message">
       ARE <span className="turn-start-announcement__traitors">TRAITORS.</span>
     </p>
-  ) : slide === 6 ? (
+  ) : slide === 7 ? (
     <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
   ) : <p className="turn-start-announcement__survive">SURVIVE.</p>;
 
