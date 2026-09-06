@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -8,8 +8,11 @@ import JointEngineeringConsole from './JointEngineeringConsole';
 vi.mock('@/lib/sessionService', () => ({
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
 }));
+const { selectConsoleRole } = await import('@/lib/sessionService');
 
 beforeEach(() => {
+  vi.mocked(selectConsoleRole).mockReset();
+  vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
   useSessionStore.getState().reset();
   useSessionStore.getState().setIdentity({
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
@@ -20,6 +23,60 @@ beforeEach(() => {
     joinedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setMode('console');
+});
+
+it('keeps engineering controls read-only when its role claim is rejected', async () => {
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role already held.'));
+  useSessionStore.getState().setConnection('live');
+
+  render(
+    <MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
+      <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  const begin = screen.getByRole('button', { name: /begin maintenance cycle/i });
+  expect(begin).toBeDisabled();
+  await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith(
+    'joint-engineering-quellon-refinery',
+  ));
+  expect(begin).toBeDisabled();
+});
+
+it('does not claim a non-union role from a malformed station route', async () => {
+  vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role route is invalid.'));
+
+  render(
+    <MemoryRouter initialEntries={['/union/roles/admiral']}>
+      <Routes>
+        <Route path="/console" element={<p>Role selection</p>} />
+        <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+});
+
+it('does not claim a union role while another console is held', async () => {
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected the test player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'admiral' });
+
+  render(
+    <MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
+      <Routes>
+        <Route path="/ships/aegis/roles/admiral" element={<p>Admiral console</p>} />
+        <Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Admiral console')).toBeInTheDocument();
+  await act(async () => { await Promise.resolve(); });
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });
 
 it('lets a GM open an enabled union station and return to role selection', async () => {

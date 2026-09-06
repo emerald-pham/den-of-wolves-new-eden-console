@@ -47,9 +47,15 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
   const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
   const [observerWrite, setObserverWrite] = useState(false);
-  const writable = observer ? observerWrite : !visiting || Boolean(crew && ship && ownShip === ship.id && !ship.roles.every(role => crew.some(player => ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)));
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
+  const hasConfirmedRole = !observer && me?.activeConsoleRoleId === consoleRole?.id;
+  const canCoverShortStaffedShip = Boolean(
+    !observer && visiting && crew && ship && ownShip === ship.id &&
+    !ship.roles.every(role => crew.some(player =>
+      ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)),
+  );
+  const writable = observer ? observerWrite : hasConfirmedRole || canCoverShortStaffedShip;
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const roleEnabled = !roleId || (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(roleId);
   const [coverOpen, setCoverOpen] = useState(false);
@@ -72,11 +78,16 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const population = ship ? populationForShip(ship.id, session?.shipSurvivors) : undefined;
   const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
+  const canClaimConsoleRole = Boolean(
+    session && me && mode === 'console' && ship && consoleRole && validRole && roleEnabled &&
+    !(ship.id === 'capybara' && session.capybaraEnabled === false) &&
+    !(ship.id === 'dione' && session.dioneEnabled === false),
+  );
 
   useEffect(() => {
-    if (!consoleRole || observer || visiting) return;
+    if (!consoleRole || !canClaimConsoleRole || observer || visiting) return;
     void selectConsoleRole(consoleRole.id).catch(() => undefined);
-  }, [consoleRole, observer, visiting]);
+  }, [canClaimConsoleRole, consoleRole, observer, visiting]);
 
   useEffect(() => setObserverWrite(false), [ship?.id, observer]);
 

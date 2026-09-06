@@ -6,6 +6,7 @@ import DradisEffectControls from '@/components/DradisEffectControls';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
+import { normalizeDisplayName } from '@/lib/displayName';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
@@ -105,7 +106,7 @@ function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleG
     .map((group) => ({
       ...group,
       players: [...group.players].sort((left, right) =>
-        left.displayName.localeCompare(right.displayName)),
+        normalizeDisplayName(left.displayName).localeCompare(normalizeDisplayName(right.displayName))),
     }));
 }
 
@@ -742,7 +743,7 @@ export default function GmConsole() {
                     </div>
                     <ul aria-label={`${group.label} players`}>
                       {group.players.map((player) => (
-                        <li key={player.uid}>{player.displayName}</li>
+                        <li key={player.uid}>{normalizeDisplayName(player.displayName)}</li>
                       ))}
                     </ul>
                   </li>
