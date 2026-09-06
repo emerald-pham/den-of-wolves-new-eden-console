@@ -775,3 +775,20 @@ RoleConsoleTemplate as ship role consoles. The dispatch desk sits directly
 below the captain role assignment; status and the evidence shredder stay in
 the DRADIS instrument rail. Capability placement is owned by the shared shuttle
 template, including future craft.
+
+### Console access and GM maintenance corrections
+
+The shared maintenance column ends with a ruled GM-only command group beneath
+End maintenance cycle: Assign damage, Repair all damage, and Roll back maintenance
+step. Use the existing cyan `.cic-action-button` treatment and wrapping
+`.maintenance-controls` layout, with muted disabled states and inline errors.
+The group is absent for players. Read-only observers retain visible disabled
+commands until they select Write.
+
+GM observers choose the viewed role using a labelled native ship-console select.
+The instrument-rail Read / Write button toggles access and shows its current state;
+leaving the ship resets it to Read. Crew viewing another console see an explicit
+read-only or incomplete-crew write status and keep View ship consoles navigation.
+Page navigation remains usable in read-only mode. Reviewed at 320×844, 1440×900,
+and 844×390 with operational and damaged systems, the shared command group,
+observer access toggling, and return navigation.

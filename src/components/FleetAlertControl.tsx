@@ -1,14 +1,16 @@
 import { useRef, useState } from 'react';
+import { useConsoleAccess } from '@/lib/consoleAccess';
 import { useSessionStore } from '@/store/useSessionStore';
 import { setFleetRedAlert } from '@/lib/fleetAlertService';
 
 export default function FleetAlertControl() {
+  const access = useConsoleAccess();
   const { session, me, connection } = useSessionStore();
   const [coverOpen, setCoverOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
-  if (me?.activeConsoleRoleId !== 'admiral') return null;
+  if ((access.roleId ?? me?.activeConsoleRoleId) !== 'admiral') return null;
   const active = session?.fleetRedAlert?.active === true;
   const execute = async () => {
     if (busy.current) return;
@@ -24,7 +26,7 @@ export default function FleetAlertControl() {
     }
     finally { busy.current = false; setPending(false); }
   };
-  const unavailable = connection !== 'live' || session?.phase === 'closed';
+  const unavailable = !access.writable || connection !== 'live' || session?.phase === 'closed';
   return <section aria-label="FLEETWIDE RED ALERT"
     className="confetti-dispenser confetti-dispenser--fleet-alert">
     <p className="confetti-dispenser__label">FLEETWIDE RED ALERT</p>
@@ -38,7 +40,7 @@ export default function FleetAlertControl() {
       <button className="confetti-dispenser__cover" type="button"
         aria-label={`${coverOpen ? 'CLOSE' : 'OPEN'} RED ALERT COMMAND COVER`}
         aria-pressed={coverOpen}
-        disabled={pending}
+        disabled={pending || unavailable}
         onClick={() => setCoverOpen((current) => !current)}>
         {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
       </button>

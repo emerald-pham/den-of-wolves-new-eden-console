@@ -128,3 +128,32 @@ it.each([['aegis', 2000], ['dione', 95000], ['icebreaker', 37000], ['shepherd', 
     expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ [`shipSurvivors.${shipId}`]: population }));
   },
 );
+it.each(['aegis', 'capybara'])('repairs all %s damage and restores its deck without restoring casualties', async shipId => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.damage = { [shipId]: { damagedSystemIds: ['reactor'], destroyed: true } };
+  await repairAllShipDamage.run(request({ ...data, shipId }));
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+    [`shipDamage.${shipId}`]: { damagedSystemIds: [], destroyed: false }, updatedAt: 'server-time',
+  });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/damage-event', expect.objectContaining({ type: 'ship-repaired', shipId, actorUid: 'u1' }));
+});
+it.each(['player', 'observer'])('denies repair by %s with forged GM identity', async role => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.role = role;
+  await expect(repairAllShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('denies repairs from a disconnected GM or another GM instance', async () => {
+  const { repairAllShipDamage } = await import('./index');
+  mock.connected = false;
+  await expect(repairAllShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.connected = true; mock.owner = 'other';
+  await expect(repairAllShipDamage.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('rejects random damage draws after the session closes', async () => {
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => path === 'sessions/s1' ? { exists: true, get: (key: string) => key === 'phase' ? 'closed' : undefined } : previous(path));
+  await expect(addShipDamage.run(request(data))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});

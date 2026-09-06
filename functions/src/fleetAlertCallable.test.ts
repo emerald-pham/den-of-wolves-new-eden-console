@@ -3,7 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => ({ doc: (path: string) => path,
+  getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
     runTransaction: (callback: (tx: unknown) => unknown) => callback({ get: mock.get, update: mock.update }) }),
   FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
@@ -14,6 +14,7 @@ beforeEach(() => {
   Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', revision: 0, active: false });
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.endsWith('/players')) return { docs: ['admiral', 'executive-officer', 'wing-commander'].map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
       : { phase: mock.phase, fleetRedAlert: { revision: mock.revision, active: mock.active } };
@@ -52,4 +53,23 @@ it('rejects malformed, closed and stale commands without writes', async () => {
 it('does not create a cancellation for an inactive alert', async () => {
   await setFleetRedAlert.run(request({ ...data, active: false }));
   expect(mock.update).not.toHaveBeenCalled();
+});
+it('allows AEGIS relief only while the connected complement is incomplete', async () => {
+  mock.post = 'wing-commander';
+  const previous = mock.get.getMockImplementation()!;
+  let posts = ['wing-commander'];
+  mock.get.mockImplementation(async (path: string) => path.endsWith('/players')
+    ? { docs: posts.map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) }
+    : previous(path));
+  await expect(setFleetRedAlert.run(request())).resolves.toMatchObject({ revision: 1 });
+  mock.update.mockClear();
+  posts = ['admiral', 'wing-commander', 'executive-officer'];
+  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it('lets a verified GM observer command the Admiral console without claiming it', async () => {
+  mock.role = 'gm'; mock.post = '';
+  const previous = mock.get.getMockImplementation()!;
+  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/') ? { exists: true, get: (key: string) => key === 'uid' ? 'u1' : undefined } : previous(path));
+  await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
 });

@@ -422,3 +422,11 @@ describe('fleet red alert authority', () => {
     await assertFails(getDoc(doc(as('outsider'), SESSION)));
   });
 });
+
+it('denies client access to maintenance rollback snapshots, including GM clients', async () => {
+  for (const uid of ['alice', 'gm1']) {
+    const undo = doc(as(uid), `${SESSION}/maintenanceUndo/aegis`);
+    await assertFails(getDoc(undo));
+    await assertFails(setDoc(undo, { turn: 1, entries: [] }));
+  }
+});

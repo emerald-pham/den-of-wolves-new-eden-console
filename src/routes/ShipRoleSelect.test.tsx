@@ -142,3 +142,14 @@ it('keeps Observer available to the GM when every command role is disabled', () 
 
   expect(screen.getByRole('link', { name: /^observer$/i })).toBeInTheDocument();
 });
+it('lets an assigned officer view another console without releasing their role, including unstaffed consoles', async () => {
+  useSessionStore.setState({ me: { ...useSessionStore.getState().me!, activeConsoleRoleId: 'admiral' }, session: { ...useSessionStore.getState().session!, activeRoleIds: ['admiral'] } });
+  render(<MemoryRouter initialEntries={['/ships/aegis/roles']}><Routes>
+    <Route path="/ships/:shipId/roles" element={<ShipRoleSelect />} />
+    <Route path="/ships/aegis/roles/wing-commander" element={<p>Wing console</p>} />
+  </Routes></MemoryRouter>);
+  expect(screen.getByRole('heading', { name: 'View ship consoles' })).toBeVisible();
+  await userEvent.click(screen.getByRole('link', { name: 'Wing Commander' }));
+  expect(screen.getByText('Wing console')).toBeVisible();
+  expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe('admiral');
+});

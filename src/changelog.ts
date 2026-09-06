@@ -10,6 +10,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GMs can assign a random damage card, repair all ship damage, and roll back the last maintenance step from the ship’s maintenance panel.',
+      'Crew can view their ship’s other consoles without changing roles, and operate them while the ship has an incomplete connected crew.',
+      'GM observers can browse every console aboard their ship and use the Read / Write toggle to switch access; each visit starts read-only.',
+    ],
+  },
+  {
+    version: '0.2.23',
+    changes: [
       'Shuttles now use the wider ship console layout, with the dispatch desk in the main role workspace and shuttle instruments in the side rail.',
     ],
   },

@@ -28,8 +28,8 @@ matching system, and may declare the printed recycle-after-resolution rule.
 The Cloud Functions catalog remains an independent authority boundary: a
 server-side draw records the damaged system in shared session state and writes
 an audit event. Clients may display that state but never choose a card, mark a
-system damaged, clear damage, or declare a ship destroyed directly. Repair is
-a later server-authoritative mechanic and has no control in the current UI.
+system damaged, clear damage, or declare a ship destroyed directly. GM repairs restore all systems and the full deck without restoring casualties.
+The maintenance panel exposes GM-only random damage and repair controls.
 
 ## Adding a ship or role
 
@@ -124,3 +124,18 @@ exception. Ordinary damage advances the printed survivor track, with GM alerts
 at starred thresholds. An empty deck destroys the ship on the next draw.
 The reference errata are applied: Refinery 124 Water Reclamation is 5♦ by
 elimination; expansion Capybara Scrap Refinery uses 7♠, disregarding the stray 5♦.
+
+
+Ship role browsing retains the player's assigned role. A connected ship officer
+may operate another console on that ship only while any role in the ship's full
+configured complement is missing from the connected crew. Disabled/unfilled roles
+remain viewable for relief aboard the assigned ship. Live roster updates change
+the view's access; callables independently recheck authority inside transactions.
+GM observers use the same role workspace with a local role selector and Read /
+Write toggle; they never claim the viewed role, and begin each visit read-only.
+
+Maintenance records private per-step undo snapshots, denied to all client SDKs.
+GM rollback restores the previous step's effects only if later changes would not
+be overwritten, and always advances the revision. Undo is limited to recorded
+steps in the current turn; cycles started before undo recording was deployed
+have no earlier snapshots. Damage and maintenance audit history remains intact.

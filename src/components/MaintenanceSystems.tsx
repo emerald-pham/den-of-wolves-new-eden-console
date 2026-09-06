@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSessionStore } from '@/store/useSessionStore';
-import { runMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
+import { runMaintenance, rollbackMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
+import { assignShipDamage, repairAllShipDamage } from '@/lib/shipDamageService';
+import { useConsoleAccess } from '@/lib/consoleAccess';
 import { SHIPS } from '@/data/ships';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
@@ -23,6 +25,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   readonly rations: ReactNode;
 }) {
   const { session, me, connection } = useSessionStore();
+  const access = useConsoleAccess();
   const cycle = session?.maintenanceCycles?.[shipId];
   const step = cycle?.step ?? 0;
   const revision = cycle?.revision ?? 0;
@@ -38,13 +41,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [refuels, setRefuels] = useState<Record<string, string>>({});
   useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); }, [shipId, step]);
   const damage = session?.shipDamage?.[shipId];
-  const blocked = pending || !session || !me || connection !== 'live';
+  const blocked = !access.writable || pending || !session || !me || connection !== 'live';
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
   const execute = async (action: string, choices: MaintenanceChoices = {}) => {
     if (busy.current) return;
     busy.current = true; setPending(true); setError('');
-    try { await runMaintenance(shipId, action, revision, choices); }
+    try { await runMaintenance(shipId, action, revision, choices, access.roleId); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Maintenance failed. Try again.'); }
     finally { busy.current = false; setPending(false); }
   };
@@ -126,6 +129,18 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
       </ol>
       <button className="cic-action-button" disabled={disabled(7)} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
+      {me?.role === 'gm' && <div className="maintenance-controls" aria-label="GM damage controls">
+        {(['Assign damage', 'Repair all damage', 'Roll back maintenance step'] as const).map(label => <button key={label} className="cic-action-button"
+          disabled={!access.writable || pending || connection !== 'live' || session?.phase === 'closed' ||
+            (label === 'Assign damage' ? damage?.destroyed === true : label === 'Repair all damage' ? !damage?.destroyed && !damage?.damagedSystemIds.length : revision === 0)}
+          onClick={() => {
+            if (busy.current) return;
+            busy.current = true; setPending(true); setError('');
+            void (label === 'Assign damage' ? assignShipDamage(shipId) : label === 'Repair all damage' ? repairAllShipDamage(shipId) : rollbackMaintenance(shipId, revision))
+              .catch(cause => setError(cause instanceof Error ? cause.message : 'Damage command failed.'))
+              .finally(() => { busy.current = false; setPending(false); });
+          }}>{label}</button>)}
+      </div>}
     </section>
     <div className="maintenance-systems__other">
       {(['ftl', 'combat', 'passive'] as const).map(timing => {

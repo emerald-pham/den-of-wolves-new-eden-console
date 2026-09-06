@@ -4,6 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipConsole from './ShipConsole';
+import type { Player } from '@/types/game';
 
 vi.mock('@/lib/sessionService', () => ({
   adjustShipResource: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeShipConfetti: vi.fn(),
   subscribeDamageDraws: vi.fn(),
+  subscribeConnectedPlayers: vi.fn(),
 }));
 
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
@@ -278,7 +280,7 @@ it('lets a GM return every staffed ship console to its own role picker', async (
   expect(screen.getByText('Dione roles')).toBeInTheDocument();
 });
 
-it('does not let a player leave or change an active command role from the console', () => {
+it('lets a player browse consoles without releasing their command role', () => {
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'dione-president' });
@@ -291,7 +293,7 @@ it('does not let a player leave or change an active command role from the consol
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /change role|leave ship/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /view ship consoles/i })).toHaveAttribute('href', '/ships/dione/roles');
 });
 
 it('keeps a player at a held command role if the GM disables it', () => {
@@ -947,4 +949,57 @@ it('names the FTL maintenance group Faster Than Light', () => {
 
   expect(screen.getByRole('heading', { name: 'Faster Than Light' })).toBeVisible();
   expect(screen.queryByRole('heading', { name: 'Faster Than Light Subsystem' })).not.toBeInTheDocument();
+});
+
+it.each([
+  ['aegis', 'wing-commander', 'admiral', ['admiral', 'executive-officer', 'wing-commander']],
+  ['capybara', 'capybara-captain', 'capybara-recycler', ['capybara-captain', 'capybara-recycler']],
+] as const)('updates visiting console authority with the %s crew without claiming the viewed role', async (shipId, ownRole, targetRole, roles) => {
+  const me = { ...useSessionStore.getState().me!, activeConsoleRoleId: ownRole };
+  useSessionStore.setState({ me, connection: 'live' });
+  const { subscribeConnectedPlayers } = await import('@/lib/firestore');
+  let update: (players: readonly Player[]) => void = () => undefined;
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_id, callback) => { update = callback; callback(roles.map((role, index) => ({ ...me, uid: String(index), activeConsoleRoleId: role }))); return vi.fn(); });
+  render(<MemoryRouter initialEntries={[`/ships/${shipId}/roles/${targetRole}`]}><Routes>
+    <Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} />
+    <Route path="/ships/:shipId/roles" element={<p>Ship consoles</p>} />
+  </Routes></MemoryRouter>);
+  await screen.findByText(/Console access.*Read only/i);
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
+  act(() => update([me]));
+  expect(screen.getByText(/Console access.*Write.*crew incomplete/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeEnabled();
+  await userEvent.click(screen.getByRole('link', { name: /view ship consoles/i }));
+  expect(screen.getByText('Ship consoles')).toBeVisible();
+  expect(useSessionStore.getState().me?.activeConsoleRoleId).toBe(ownRole);
+});
+it.each(['aegis', 'capybara'])('lets an observer browse every %s console and toggle read / write without claiming roles', async shipId => {
+  useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'gm' }, connection: 'live', gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' } });
+  const { findShip } = await import('@/data/ships');
+  render(<MemoryRouter initialEntries={[`/ships/${shipId}/observer`]}><Routes><Route path="/ships/:shipId/observer" element={<ShipConsole observer />} /></Routes></MemoryRouter>);
+  const select = screen.getByRole('combobox', { name: 'View ship console' });
+  for (const role of findShip(shipId)!.roles) {
+    await userEvent.selectOptions(select, role.id);
+    expect(select).toHaveValue(role.id);
+  }
+  await userEvent.selectOptions(select, findShip(shipId)!.roles[0]!.id);
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
+  const toggle = screen.getByRole('button', { name: /observer write mode/i });
+  expect(toggle).toHaveTextContent(/Read \/ Write/);
+  await userEvent.click(toggle);
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeEnabled();
+  await userEvent.click(toggle);
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
+});
+it('enables observer ship commands only after Write is selected', async () => {
+  useSessionStore.setState({ me: { ...useSessionStore.getState().me!, role: 'gm' }, connection: 'live', gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' } });
+  render(<MemoryRouter initialEntries={['/ships/capybara/observer']}><Routes><Route path="/ships/:shipId/observer" element={<ShipConsole observer />} /></Routes></MemoryRouter>);
+  const cover = screen.getByRole('button', { name: /open confetti activation cover/i });
+  expect(cover).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Assign damage' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: /observer write mode/i }));
+  expect(cover).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Assign damage' })).toBeEnabled();
 });

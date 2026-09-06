@@ -1,3 +1,5 @@
+import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
+import { canOperateRole, shipForRole } from './crewAccess';
 import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import {
   INITIAL_SHIP_SURVIVORS,
@@ -1055,7 +1057,13 @@ export const popShipConfetti = onCall<{
     }
     const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;
-    if (!activeRoleIds.includes(activation.roleId)) {
+    if (shipForRole(activation.roleId) && player.get('role') !== 'gm') {
+      if (player.get('role') !== 'player' || !canOperateRole(player.get('activeConsoleRoleId'), activation.roleId,
+        connectedPlayers.docs.filter(member => isActivePlayer(member) && ['player', 'gm'].includes(String(member.get('role')))).map(member => member.get('activeConsoleRoleId')))) {
+        throw new HttpsError('permission-denied', 'This console is read only with the current crew.');
+      }
+    }
+    if (!shipForRole(activation.roleId) && !activeRoleIds.includes(activation.roleId)) {
       throw new HttpsError('failed-precondition', 'That role is not active in this session.');
     }
     let decision;
@@ -1446,6 +1454,22 @@ async function requireShipCounterAuthority(
   }
 }
 
+async function requireConsoleAuthority(
+  tx: Transaction, sessionId: string, player: DocumentSnapshot, targetRole: string,
+): Promise<void> {
+  const ownRole = player.get('activeConsoleRoleId');
+  if (ownRole === targetRole && shipForRole(targetRole)) return;
+  if (!shipForRole(targetRole) || shipForRole(ownRole) !== shipForRole(targetRole)) {
+    throw new HttpsError('permission-denied', 'A role aboard this ship is required.');
+  }
+  const players = await tx.get(db.collection(`sessions/${sessionId}/players`));
+  const roles = players.docs.filter(member => isActivePlayer(member) &&
+    ['player', 'gm'].includes(String(member.get('role')))).map(member => member.get('activeConsoleRoleId'));
+  if (!canOperateRole(ownRole, targetRole, roles)) {
+    throw new HttpsError('permission-denied', 'This console is read only while the full crew is connected.');
+  }
+}
+
 type StoredUnrestAlert = {
   shipId: string;
   shipName: string;
@@ -1546,9 +1570,8 @@ export const dismissUnrestAlert = onCall<{
 });
 
 /**
- * Draw one card from a ship's remaining damage deck. The source mechanic has
- * no player-facing control yet, so only a named active GM instance may invoke
- * this authoritative seam until that mechanic can call it server-side.
+ * Draw randomly from the remaining deck for the GM damage control. Gameplay
+ * mechanics use the same deck resolver inside their authoritative transactions.
  */
 export const addShipDamage = onCall<{
   sessionId: string; shipId: string; instanceId: string;
@@ -1570,6 +1593,7 @@ export const addShipDamage = onCall<{
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
     const storedDamage = shipDamage(session.get('shipDamage'));
     const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
     const result = drawShipDamage(
@@ -1731,14 +1755,15 @@ export const dismissPopulationAlert = onCall<{
 export const runMaintenance = onCall<{
   sessionId: string; shipId: string; action: string; expectedRevision: number;
   instanceId?: string; foodLevel?: number; waterLevel?: number;
-  consoles?: string[]; refuels?: Record<string, string>;
+  consoles?: string[]; refuels?: Record<string, string>; consoleRoleId?: string;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  const allowed = ['sessionId', 'shipId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels'];
+  const allowed = ['sessionId', 'shipId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'consoleRoleId'];
   if (!data || Object.keys(data).some(key => !allowed.includes(key)) ||
     typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
     typeof data.shipId !== 'string' || !MAINTENANCE_RULES[data.shipId] ||
+    (data.consoleRoleId !== undefined && (typeof data.consoleRoleId !== 'string' || shipForRole(data.consoleRoleId) !== data.shipId)) ||
     typeof data.action !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 ||
     (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
@@ -1764,6 +1789,9 @@ export const runMaintenance = onCall<{
     if (!(isActivePlayer(player) && player.get('role') === 'player' && joint)) {
       await requireShipCounterAuthority(tx, data.sessionId, uid, data.shipId, data.instanceId);
     }
+    if (data.consoleRoleId && player.get('role') !== 'gm') {
+      await requireConsoleAuthority(tx, data.sessionId, player, data.consoleRoleId);
+    }
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
@@ -1775,8 +1803,8 @@ export const runMaintenance = onCall<{
       : 1;
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
-    const unrestAlerts = (snapshot.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
-    const populationAlerts = (snapshot.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
+    const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
+    const populationAlerts = { ...(snapshot.get('populationAlerts') ?? {}) } as Record<string, StoredPopulationAlert>;
     if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
     let result: ReturnType<typeof advanceMaintenance>;
     const occurredAt = new Date().toISOString();
@@ -1803,15 +1831,21 @@ export const runMaintenance = onCall<{
         if (populationThreshold) populationAlerts[data.shipId] = { ...alert, population: result.population };
       }
     }
-    tx.update(ref, {
+    const undoRef = db.doc(`sessions/${data.sessionId}/maintenanceUndo/${data.shipId}`);
+    const undo = await tx.get(undoRef);
+    const patch = {
       [`maintenanceCycles.${data.shipId}`]: result.cycle,
       [`shipResources.${data.shipId}`]: result.resources,
       [`shipDamage.${data.shipId}`]: result.damage,
       [`shipUnrest.${data.shipId}`]: result.unrest,
       [`shipSurvivors.${data.shipId}`]: result.population,
       shuttleCargo: result.cargo, shuttleFuelled: result.fuelled,
-      unrestAlerts, populationAlerts, updatedAt: FieldValue.serverTimestamp(),
-    });
+      unrestAlerts, populationAlerts,
+    };
+    const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
+    entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch) });
+    tx.set(undoRef, { turn: currentTurn, entries });
+    tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
     tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), {
       type: 'maintenance', shipId: data.shipId,
       shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
@@ -1834,22 +1868,25 @@ export const runMaintenance = onCall<{
 
 /** Admiral commands are serialized with the fleet's live alert revision. */
 export const setFleetRedAlert = onCall<{
-  sessionId: string; active: boolean; expectedRevision: number;
+  sessionId: string; active: boolean; expectedRevision: number; instanceId?: string;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision'].includes(key)) ||
+  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
+      (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
       typeof data.active !== 'boolean' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) {
     throw new HttpsError('invalid-argument', 'Invalid fleet alert command.');
   }
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
-    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'admiral') {
+    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
       throw new HttpsError('permission-denied', 'Only the active AEGIS Admiral may command a fleet red alert.');
     }
+    if (player.get('role') === 'gm' && data.instanceId) {
+      await requireShipCounterAuthority(tx, data.sessionId, uid, 'aegis', data.instanceId, true);
+    } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral');
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
@@ -1900,5 +1937,67 @@ export const publishPressDispatch = onCall<{
     };
     tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });
     return pressDispatch;
+  });
+});
+
+/** GM correction: restore all systems and the deck, preserving casualty history. */
+export const repairAllShipDamage = onCall<{
+  sessionId: string; shipId: string; instanceId: string;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireShipDamageRequest(request.data ?? {});
+  if (!SHIP_DAMAGE_DECKS[change.shipId]) throw new HttpsError('invalid-argument', 'Unknown damage deck.');
+  const eventId = randomUUID();
+  const ref = db.doc(`sessions/${change.sessionId}`);
+  return db.runTransaction(async tx => {
+    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
+    const session = await tx.get(ref);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
+    tx.update(ref, {
+      [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), {
+      type: 'ship-repaired', shipId: change.shipId, actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { repaired: true };
+  });
+});
+
+/** Undo only recorded steps whose resulting state has not subsequently changed. */
+export const rollbackMaintenance = onCall<{
+  sessionId: string; shipId: string; instanceId: string; expectedRevision: number;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const { expectedRevision, ...input } = request.data ?? {};
+  const change = requireShipDamageRequest(input);
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new HttpsError('invalid-argument', 'Invalid maintenance revision.');
+  const ref = db.doc(`sessions/${change.sessionId}`);
+  const undoRef = db.doc(`sessions/${change.sessionId}/maintenanceUndo/${change.shipId}`);
+  const eventId = randomUUID();
+  return db.runTransaction(async tx => {
+    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
+    const session = await tx.get(ref);
+    const undo = await tx.get(undoRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const cycle = session.get(`maintenanceCycles.${change.shipId}`) as MaintenanceCycle | undefined;
+    const entries = (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
+    const last = entries.at(-1);
+    if (session.get('phase') === 'closed' || !last || cycle?.revision !== expectedRevision ||
+        undo.get('turn') !== (session.get('currentTurn') ?? 1)) {
+      throw new HttpsError('failed-precondition', 'No current maintenance step is available to roll back.');
+    }
+    let patch: Record<string, unknown>;
+    try { patch = restoreMaintenanceUndo(last.fields, field => session.get(field), change.shipId, expectedRevision); }
+    catch (cause) { throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Rollback failed.'); }
+    tx.update(ref, { ...Object.fromEntries(Object.entries(patch).map(([field, value]) => [field, value === undefined ? FieldValue.delete() : value])), updatedAt: FieldValue.serverTimestamp() });
+    tx.set(undoRef, { turn: undo.get('turn'), entries: entries.slice(0, -1) });
+    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), {
+      type: 'maintenance-rollback', shipId: change.shipId, actorUid: uid,
+      revision: expectedRevision + 1, createdAt: FieldValue.serverTimestamp(),
+    });
+    return { revision: expectedRevision + 1 };
   });
 });

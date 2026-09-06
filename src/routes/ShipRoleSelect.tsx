@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { findShip } from '@/data/ships';
-import { rolesForShip } from '@/data/roles';
+import { rolesForShip, findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import { selectIsGm } from '@/store/useSessionStore';
@@ -14,14 +14,15 @@ export default function ShipRoleSelect() {
   const isGm = useSessionStore(selectIsGm);
   const ship = findShip(shipId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
-  const roles = rolesForShip(shipId ?? '').filter((role) => activeRoleIds.includes(role.id));
+  const aboard = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId === shipId;
+  const roles = rolesForShip(shipId ?? '').filter((role) => aboard || activeRoleIds.includes(role.id));
 
   if (!session || !me) return <Navigate to="/" replace />;
   const shipEnabled =
     (ship?.id !== 'capybara' || session.capybaraEnabled !== false) &&
     (ship?.id !== 'dione' || session.dioneEnabled !== false);
   if (!shipEnabled) return <Navigate to="/console" replace />;
-  if (!isGm && me.activeConsoleRoleId) {
+  if (!isGm && me.activeConsoleRoleId && !aboard) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }
   if (mode !== 'console' || !ship || (roles.length === 0 && !isGm)) {
@@ -43,7 +44,7 @@ export default function ShipRoleSelect() {
             style={{ viewTransitionName: 'shared-ship-flag' }}
           />
           <p className="eyebrow">{session.name} // {ship.name}</p>
-          <h1 className="role-select__title">Select command role</h1>
+          <h1 className="role-select__title">{aboard ? 'View ship consoles' : 'Select command role'}</h1>
         </div>
         <div className="role-select__grid">
           {roles.map((role) => (

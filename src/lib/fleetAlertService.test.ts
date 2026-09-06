@@ -22,3 +22,8 @@ it('rejects offline commands without queueing a delayed warning', async () => {
   await expect(setFleetRedAlert(true)).rejects.toThrow('Reconnect');
   expect(mocks.call).not.toHaveBeenCalled();
 });
+it('includes the GM instance for observer write mode', async () => {
+  useSessionStore.setState({ gmInstance: { id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: '', claimedAt: '' } });
+  await setFleetRedAlert(false);
+  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: false, expectedRevision: 3, instanceId: 'gm1' });
+});

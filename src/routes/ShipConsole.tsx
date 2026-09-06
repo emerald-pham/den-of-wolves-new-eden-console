@@ -19,7 +19,8 @@ import {
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
-import type { DamageDraw } from '@/types/game';
+import { ConsoleAccessContext } from '@/lib/consoleAccess';
+import type { Player, DamageDraw } from '@/types/game';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
 const CONFETTI_PIECES = Array.from({ length: 48 }, (_, index) => ({
@@ -41,7 +42,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const ship = findShip(shipId);
-  const consoleRole = findConsoleRole(roleId);
+  const [crew, setCrew] = useState<readonly Player[] | null>(null);
+  const ownShip = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId;
+  const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
+  const [observerRoleId, setObserverRoleId] = useState<string | null>(null);
+  const [observerWrite, setObserverWrite] = useState(false);
+  const writable = observer ? observerWrite : !visiting || Boolean(crew && ship && ownShip === ship.id && !ship.roles.every(role => crew.some(player => ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)));
+  const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
+  const consoleRole = findConsoleRole(viewedRoleId);
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const roleEnabled = !roleId || (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(roleId);
   const [coverOpen, setCoverOpen] = useState(false);
@@ -53,7 +61,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     name: string;
   } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
-  const [observerWrite, setObserverWrite] = useState(false);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
@@ -67,9 +74,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
 
   useEffect(() => {
-    if (!consoleRole || observer) return;
+    if (!consoleRole || observer || visiting) return;
     void selectConsoleRole(consoleRole.id).catch(() => undefined);
-  }, [consoleRole, observer]);
+  }, [consoleRole, observer, visiting]);
 
   useEffect(() => setObserverWrite(false), [ship?.id, observer]);
 
@@ -98,11 +105,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }, [isGm, session?.id]);
 
   useEffect(() => {
+    setCrew(null);
     if (!session?.id || !ship) return;
+    let unsubscribeCrew: (() => void) | undefined;
     let active = true;
     let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeShipConfetti }) => {
+    void import('@/lib/firestore').then(({ subscribeShipConfetti, subscribeConnectedPlayers }) => {
       if (!active) return;
+      unsubscribeCrew = subscribeConnectedPlayers(session.id, setCrew, () => setCrew(null));
       unsubscribe = subscribeShipConfetti(
         session.id,
         ship.id,
@@ -123,6 +133,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     return () => {
       active = false;
       unsubscribe();
+      unsubscribeCrew?.();
     };
   }, [session?.id, ship]);
 
@@ -134,12 +145,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (observer && !isGm) return <Navigate to="/console" replace />;
-  if (!observer && !isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId) {
+  if (!observer && !isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId && ownShip !== ship?.id) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
   }
   if (
     mode !== 'console' || !ship || !validRole ||
-    (!roleEnabled && me.activeConsoleRoleId !== roleId) ||
+    (!roleEnabled && me.activeConsoleRoleId !== roleId && ownShip !== ship.id) ||
     (ship.id === 'capybara' && session.capybaraEnabled === false) ||
     (ship.id === 'dione' && session.dioneEnabled === false)
   ) return <Navigate to="/console" replace />;
@@ -159,6 +170,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   return (
+    <ConsoleAccessContext.Provider value={{ writable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
     <main
       className={`ship-console ship-console--${ship.id}${
         hasConsoleWorkspace
@@ -181,12 +193,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         style={{ viewTransitionName: 'shared-ship-flag' }}
       />
       <section className="ship-console__identity" aria-labelledby="ship-name">
-        {(isGm || !consoleRole) && (
+        {(
           <Link
             className="ship-console__back cic-text-button"
             to={(roleId || observer) ? `/ships/${ship.id}/roles` : '/console'}
           >
-            {(roleId || observer) ? 'Change role' : 'Leave ship'}
+            {!isGm && consoleRole ? 'View ship consoles' : (roleId || observer) ? 'Change role' : 'Leave ship'}
           </Link>
         )}
         <p className="ship-console__nation">
@@ -199,7 +211,13 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
         )}
-        {!observer && (
+        {visiting && <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>}
+        {observer && <label className="maintenance-controls">View ship console
+          <select aria-label="View ship console" value={viewedRoleId ?? ''} onChange={event => setObserverRoleId(event.target.value)}>
+            {ship.roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+          </select>
+        </label>}
+        {(
           <FleetConsoleWorkspace
             ship={ship}
             role={consoleRole}
@@ -286,7 +304,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               aria-pressed={observerWrite}
               onClick={() => setObserverWrite((current) => !current)}
             >
-              Write mode // {observerWrite ? 'On' : 'Off'}
+              Read / Write // {observerWrite ? 'Write' : 'Read'}
             </button>
           </section>
         )}
@@ -304,7 +322,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             </ol>
           ) : <p>No recorded shuttle dockings</p>}
         </section>
-        {!observer && ship.id === 'aegis' && consoleRole?.id === 'admiral' ? (
+        {ship.id === 'aegis' && consoleRole?.id === 'admiral' ? (
           <FleetAlertControl />
         ) : ship.id !== 'aegis' ? (
           <section className="confetti-dispenser" aria-label="Emergency Bridge Confetti Dispenser">
@@ -318,7 +336,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                   : queued
                     ? 'Emergency Bridge Confetti Dispenser activation queued'
                     : 'Activate Emergency Bridge Confetti Dispenser'}
-                disabled={!coverOpen || !consoleRole || observer || spent || queued || activating}
+                disabled={!writable || !coverOpen || !consoleRole || spent || queued || activating}
                 onClick={() => void activate()}
               >
                 {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -328,7 +346,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                 type="button"
                 aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
                 aria-pressed={coverOpen}
-                disabled={observer || spent || queued}
+                disabled={!writable || spent || queued}
                 onClick={() => setCoverOpen((current) => !current)}
               >
                 {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
@@ -368,5 +386,6 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         </div>
       )}
     </main>
+    </ConsoleAccessContext.Provider>
   );
 }
