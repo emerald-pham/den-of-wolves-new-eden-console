@@ -104,7 +104,7 @@ export default function Landing() {
           </button>
           <button
             type="button"
-            className="landing__motion-control"
+            className="landing__button landing__motion-control"
             onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
           >
             {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}

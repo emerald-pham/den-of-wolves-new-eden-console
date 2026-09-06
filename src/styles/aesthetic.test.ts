@@ -145,6 +145,17 @@ describe('the in-session header', () => {
 });
 
 describe('the launcher manifest', () => {
+  it('presents the motion control with the same button typography as the other launcher actions', () => {
+    const landing = readFileSync('src/routes/Landing.tsx', 'utf8');
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const motionControl = index.match(/\.landing__motion-control\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(landing).toContain('className="landing__button landing__motion-control"');
+    expect(motionControl).not.toMatch(/\bfont(?:-family|-size)?\s*:/);
+    expect(motionControl).not.toContain('letter-spacing:');
+    expect(motionControl).not.toContain('text-transform:');
+  });
+
   it('uses shared value and label rows so every readout aligns', () => {
     const arrival = SHEETS.find(({ name }) => name === 'src/routes/arrival.css')?.css ?? '';
     const grid = arrival.match(/\.arrival-manifest__grid\s*\{([^}]*)\}/)?.[1] ?? '';

@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The landing-page motion control now matches the typography and display of the other session controls.',
+    ],
+  },
+  {
+    version: '0.2.27',
+    changes: [
       'New console releases automatically reload connected players into the updated build and resume their previous session, page, role, and GM instance without announcing a dropout.',
     ],
   },

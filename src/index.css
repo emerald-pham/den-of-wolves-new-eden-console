@@ -2581,23 +2581,6 @@ body {
   margin-top: 0.45rem;
 }
 
-.landing__motion-control {
-  padding: 0.45rem 0.65rem;
-  border: 1px solid var(--cic-rule);
-  border-radius: var(--cic-radius);
-  background: var(--cic-void);
-  color: var(--cic-muted);
-  font: 0.6rem/1.2 var(--cic-mono);
-  letter-spacing: 0.05em;
-  cursor: pointer;
-}
-
-.landing__motion-control:hover,
-.landing__motion-control:focus-visible {
-  border-color: var(--cic-amber);
-  color: var(--cic-amber);
-}
-
 .landing__motion-status {
   margin: -0.4rem 0 0;
   color: var(--cic-muted);
