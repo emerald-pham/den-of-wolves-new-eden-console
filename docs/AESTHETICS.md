@@ -824,7 +824,9 @@ narrative, cyan survivor count and `SURVIVE.`, and hostile red only for the
 word `TRAITORS.`. Turn 1 carries the complete destruction and traitor reveal in
 separate timed slides; later turns contain only the turn marker, the calculated
 fleet survivor count and the final survival beat. The transmission is a live
-event rather than a replay for a newly joined browser. Keep each slide centered,
+event rather than a replay for a newly joined browser. Turn 1's three opening
+briefing beats use four-second reading holds—rather than the ordinary 2.4-second
+operational cadence—and each carries one concise thought. Keep each slide centered,
 balanced, and readable at 1440×900, 390×844, and 844×390.
 
 The server owns the phase timestamps and creates a fresh schedule with every

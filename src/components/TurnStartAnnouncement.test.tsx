@@ -1,7 +1,10 @@
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
-import TurnStartAnnouncement, { TURN_START_SLIDE_MS } from './TurnStartAnnouncement';
+import TurnStartAnnouncement, {
+  TURN_ONE_NARRATIVE_SLIDE_MS,
+  TURN_START_SLIDE_MS,
+} from './TurnStartAnnouncement';
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -14,7 +17,7 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-it('turns the GM transition from Turn 0 into a staged fleet survival transmission', () => {
+it('gives each part of the Turn 1 briefing its own readable slide', () => {
   vi.useFakeTimers();
   render(<TurnStartAnnouncement />);
 
@@ -25,15 +28,27 @@ it('turns the GM transition from Turn 0 into a staged fleet survival transmissio
   }));
 
   expect(screen.getByText('TURN 1')).toBeInTheDocument();
-  expect(screen.queryByText(/wolves have destroyed your homes/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText(/wolves have destroyed your homes/i)).toBeInTheDocument();
-  expect(screen.getByText(/nothing but rubble and distended meat where people lived/i)).toBeInTheDocument();
-  expect(screen.getByText(/pursuing you relentlessly thru the void/i)).toBeInTheDocument();
+  expect(screen.getByText(/wolves destroyed your homes/i)).toBeInTheDocument();
+  expect(screen.queryByText(/fleet is all that remains/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/pursuing you through the void/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS - 1));
+  expect(screen.getByText(/wolves destroyed your homes/i)).toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(1));
+  expect(screen.getByText(/fleet is all that remains/i)).toBeInTheDocument();
+  expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/pursuing you through the void/i)).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS));
+  expect(screen.getByText(/pursuing you through the void/i)).toBeInTheDocument();
+  expect(screen.queryByText(/fleet is all that remains/i)).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS));
   expect(screen.getByText(/some of you/i)).toBeInTheDocument();
   expect(screen.queryByText(/traitors/i)).not.toBeInTheDocument();
 
@@ -60,7 +75,7 @@ it('uses only the survivor-count beat on every turn after Turn 1', () => {
 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
   expect(screen.queryByText('237,000 PEOPLE —')).not.toBeInTheDocument();
-  expect(screen.queryByText(/wolves have destroyed your homes/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
@@ -78,5 +93,5 @@ it('does not replay the arrival transmission when a session first opens after Tu
   });
   render(<TurnStartAnnouncement />);
 
-  expect(screen.queryByText(/wolves have destroyed your homes/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 });

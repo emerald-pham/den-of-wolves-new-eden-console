@@ -10,7 +10,19 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Turn 1 now delivers its opening fleet briefing as clear, individually timed messages, giving everyone time to read the situation before play begins.',
+    ],
+  },
+  {
+    version: '0.2.42',
+    changes: [
       'The top-right connection light now shows blue “Connected, Awaiting Uplink” while Turn 0 systems boot, then returns to green when Turn 1 begins.',
+    ],
+  },
+  {
+    version: '0.2.41',
+    changes: [
+      'The session join prompt now stays focused on entering your code.',
     ],
   },
   {

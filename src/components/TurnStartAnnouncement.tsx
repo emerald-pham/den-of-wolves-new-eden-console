@@ -4,6 +4,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 
 export const TURN_START_SLIDE_MS = 2_400;
+export const TURN_ONE_NARRATIVE_SLIDE_MS = 4_000;
 
 type TurnStartTransmission = {
   readonly sessionId: string;
@@ -30,24 +31,24 @@ function FleetTransmission({
   onComplete,
 }: {
   readonly transmission: TurnStartTransmission;
-  readonly onComplete: () => void;
+  readonly onComplete: (completed: TurnStartTransmission) => void;
 }) {
   const [slide, setSlide] = useState(0);
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 6 : 3;
+  const slideCount = isFirstTurn ? 8 : 3;
   const survivorPopulation = new Intl.NumberFormat('en-US').format(transmission.survivorPopulation);
 
   useEffect(() => {
-    const timers = Array.from({ length: slideCount - 1 }, (_, index) => window.setTimeout(
-      () => setSlide(index + 1),
-      TURN_START_SLIDE_MS * (index + 1),
-    ));
-    const completion = window.setTimeout(onComplete, TURN_START_SLIDE_MS * slideCount);
-    return () => {
-      timers.forEach((timer) => window.clearTimeout(timer));
-      window.clearTimeout(completion);
-    };
-  }, [onComplete, slideCount]);
+    const isNarrativeBeat = isFirstTurn && slide >= 1 && slide <= 3;
+    const timer = window.setTimeout(() => {
+      if (slide < slideCount - 1) {
+        setSlide(slide + 1);
+        return;
+      }
+      onComplete(transmission);
+    }, isNarrativeBeat ? TURN_ONE_NARRATIVE_SLIDE_MS : TURN_START_SLIDE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isFirstTurn, onComplete, slide, slideCount, transmission]);
 
   const message = !isFirstTurn ? (
     slide === 0
@@ -58,18 +59,18 @@ function FleetTransmission({
   ) : slide === 0 ? (
     <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
   ) : slide === 1 ? (
-    <p className="turn-start-announcement__message">
-      THE WOLVES HAVE DESTROYED YOUR HOMES.<br />
-      THERE IS NOTHING BUT RUBBLE AND DISTENDED MEAT WHERE PEOPLE LIVED.<br />
-      THEY ARE PURSUING YOU RELENTLESSLY THRU THE VOID.
-    </p>
+    <p className="turn-start-announcement__message">THE WOLVES DESTROYED YOUR HOMES.</p>
   ) : slide === 2 ? (
-    <p className="turn-start-announcement__message">SOME OF YOU —</p>
+    <p className="turn-start-announcement__message">THE FLEET IS ALL THAT REMAINS.</p>
   ) : slide === 3 ? (
-    <p className="turn-start-announcement__message">
-      SOME OF YOU — ARE <span className="turn-start-announcement__traitors">TRAITORS.</span>
-    </p>
+    <p className="turn-start-announcement__message">THEY ARE PURSUING YOU THROUGH THE VOID.</p>
   ) : slide === 4 ? (
+    <p className="turn-start-announcement__message">SOME OF YOU —</p>
+  ) : slide === 5 ? (
+    <p className="turn-start-announcement__message">
+      ARE <span className="turn-start-announcement__traitors">TRAITORS.</span>
+    </p>
+  ) : slide === 6 ? (
     <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
   ) : <p className="turn-start-announcement__survive">SURVIVE.</p>;
 
@@ -119,6 +120,6 @@ export default function TurnStartAnnouncement() {
   return <FleetTransmission
     key={`${transmission.sessionId}-${transmission.turn}`}
     transmission={transmission}
-    onComplete={() => complete(transmission)}
+    onComplete={complete}
   />;
 }
