@@ -8,6 +8,7 @@ import {
 } from 'react';
 import ContactPlot from './ContactPlot';
 import DradisEffectControls from './DradisEffectControls';
+import { DradisTeamPhaseTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
@@ -40,6 +41,7 @@ export default function ShipPlot({
   dioneEnabled = true,
   shipGalacticCoordinates = {},
   ambientSession,
+  turnPhase,
 }: {
   hostile: boolean;
   aboard: boolean;
@@ -48,6 +50,7 @@ export default function ShipPlot({
   dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
   ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
+  turnPhase?: GameSession['turnPhase'] | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
@@ -145,6 +148,7 @@ export default function ShipPlot({
       />
       {aboard ? (
         <>
+          <DradisTeamPhaseTimer phase={turnPhase} />
           <span className="ship-plot__label" aria-hidden="true">
             {expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
           </span>

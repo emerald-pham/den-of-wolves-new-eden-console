@@ -14,6 +14,7 @@ src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 - [Capybara ship template](SHIP_TEMPLATE.md)
 - [Screen crossings](#screen-crossings)
 - [Intrusion / hostile takeover](#intrusion--hostile-takeover)
+- [Turn zero and timed phase instruments](#turn-zero-and-timed-phase-instruments)
 - [Every viewport](#every-viewport)
 
 ## The philosophy, and what it rules out
@@ -800,6 +801,51 @@ with wrapped, scrollable text and two 30-second reading periods for cancellation
 The measured header height reserves the required page-top space as the ticker
 wraps. Review at 320px phone, wide 1440px desktop and short 844×390 landscape
 dimensions, including return navigation.
+
+### Turn zero and timed phase instruments
+
+A new table is in **Turn 0** until an active GM advances it. Players may still
+use role selection and browse stations, but every control that changes gameplay
+is disabled with a concise `TURN 0 // AWAITING GM START` readout. The GM remains
+able to set up the table. The GM Console belongs in the Independent stations
+roster beside the Press Officer card, not in the device-connection panel, and it
+is not rendered for non-GMs.
+
+Each live turn transition begins with `TURN N` before any other copy. The fleet
+transmission reuses the full-screen intrusion envelope with the neutral fleet
+variant: no hostile glitch treatment, amber structural overlines, bone-white
+narrative, cyan survivor count and `SURVIVE.`, and hostile red only for the
+word `TRAITORS.`. Turn 1 carries the complete destruction and traitor reveal in
+separate timed slides; later turns contain only the turn marker, the calculated
+fleet survivor count and the final survival beat. The transmission is a live
+event rather than a replay for a newly joined browser. Keep each slide centered,
+balanced, and readable at 1440×900, 390×844, and 844×390.
+
+The server owns the phase timestamps and creates a fresh schedule with every
+turn advance. Turn 1 has a 10-minute team phase followed by a 20-minute
+coordination phase. Every later turn has a 5-minute team phase followed by a
+15-minute coordination phase. The team countdown is a blue, non-interactive
+instrument at DRADIS’s lower left. Once the server lifts the restriction, the
+coordination countdown sits at the lower left of the fleet ticker. The ticker
+automatically repeats `AIRSPACE RESTRICTED`, then `AIRSPACE RESTRICTIONS
+LIFTED`, with a deliberately much larger dead space than Press dispatches; each
+automatic bulletin remains until Press publishes new copy after it is queued.
+The ticker must not announce coordination until the shared server state has
+actually lifted the restriction.
+
+The GM’s first early-advance attempt during either live timer turns the same
+control into a danger-red `ARE YOU SURE?` confirmation. The confirmed advance
+starts the correct timer pair for the next numbered turn rather than leaving an
+expired clock in place. AEGIS’s Admiral console holds Airspace Control behind a
+recessed Systems control disclosure: it may grant `Unlock airspace // Press` to
+the unaffiliated shuttle during restriction, while red team and blue
+coordination timer buttons remain visibly disabled to show they are automatic.
+
+Airspace restriction is a documented **future movement rule**: when shuttle
+travel is implemented, it will prevent a shuttle from moving between ships
+during the restricted window, except for an authorized non-affiliated Press
+vessel. Shuttle movement and this enforcement are not implemented yet; do not
+present the exception as an active travel control.
 
 Shuttle role capabilities use the same wide gameplay identity pane and
 RoleConsoleTemplate as ship role consoles. The dispatch desk sits directly

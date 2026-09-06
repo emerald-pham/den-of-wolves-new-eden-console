@@ -36,6 +36,15 @@ it('runs the Admiral command, waits for authority, then offers stand down', asyn
   fireEvent.click(screen.getByRole('button', { name: 'STAND DOWN' }));
   await waitFor(() => expect(setFleetRedAlert).toHaveBeenCalledWith(false));
 });
+
+it('holds the Admiral alert controls during Turn 0 for a player', () => {
+  const state = useSessionStore.getState();
+  state.setSession({ ...state.session!, currentTurn: 0 });
+  render(<FleetAlertControl />);
+
+  expect(screen.getByRole('textbox', { name: 'ALERT MESSAGE' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' })).toBeDisabled();
+});
 it('shows the latest press dispatch while no alert is active', () => {
   act(() => {
     const state = useSessionStore.getState();
@@ -51,6 +60,27 @@ it('shows the latest press dispatch while no alert is active', () => {
   expect(screen.getByRole('status', {
     name: 'SNN // Convoy arrival confirmed',
   })).toBeVisible();
+});
+
+it('repeats the current airspace directive with substantial open space until Press transmits', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    const now = new Date(Date.now());
+    state.setSession({
+      ...state.session!,
+      currentTurn: 1,
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: new Date(now.getTime() + 10 * 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    } as never);
+  });
+  const { container } = render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', { name: 'AIRSPACE RESTRICTED' })).toBeVisible();
+  expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'airspace');
 });
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();

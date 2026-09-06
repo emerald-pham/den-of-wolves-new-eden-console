@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { runMaintenance, rollbackMaintenance, type MaintenanceChoices } from '@/lib/maintenanceService';
 import { assignShipDamage, repairAllShipDamage } from '@/lib/shipDamageService';
 import { useConsoleAccess } from '@/lib/consoleAccess';
@@ -8,6 +8,7 @@ import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import type { DamageDraw } from '@/types/game';
+import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -27,6 +28,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   readonly damageDraws?: readonly DamageDraw[] | undefined;
 }) {
   const { session, me, connection } = useSessionStore();
+  const isGm = useSessionStore(selectIsGm);
   const access = useConsoleAccess();
   const cycle = session?.maintenanceCycles?.[shipId];
   const step = cycle?.step ?? 0;
@@ -47,11 +49,12 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const maintenanceDamageDraw = cycle?.damageDrawId
     ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
     : undefined;
-  const blocked = !access.writable || pending || !session || !me || connection !== 'live';
+  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
+  const blocked = !access.writable || pending || !session || !me || connection !== 'live' || turnZeroLocked;
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
   const execute = async (action: string, choices: MaintenanceChoices = {}) => {
-    if (busy.current) return;
+    if (blocked || busy.current) return;
     busy.current = true; setPending(true); setError('');
     try { await runMaintenance(shipId, action, revision, choices, access.roleId); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Maintenance failed. Try again.'); }
@@ -78,6 +81,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           setConfirmBegin(false);
           void execute('begin');
         }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Turn ${currentTurn}`}</button>
+      {turnZeroLocked && <p role="status">Turn 0 // Awaiting GM start</p>}
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

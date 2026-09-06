@@ -57,13 +57,14 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
 });
 
-it('offers Press Officer from Select a role and opens the SNN console', async () => {
+it('offers Press Officer and the GM Console from Select a role', async () => {
   const user = userEvent.setup();
-  render(
+  const pressView = render(
     <MemoryRouter initialEntries={['/console']}>
       <Routes>
         <Route path="/console" element={<SessionMode mode="console" />} />
         <Route path="/press" element={<p>SNN console</p>} />
+        <Route path="/gm" element={<p>GM console</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -72,6 +73,33 @@ it('offers Press Officer from Select a role and opens the SNN console', async ()
   await user.click(screen.getByRole('link', { name: /press officer/i }));
   expect(screen.getByText('SNN console')).toBeInTheDocument();
   expect(useSessionStore.getState().mode).toBe('console');
+  pressView.unmount();
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes>
+        <Route path="/console" element={<SessionMode mode="console" />} />
+        <Route path="/gm" element={<p>GM console</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await user.click(screen.getByRole('link', { name: /gm console/i }));
+  expect(screen.getByText('GM console')).toBeInTheDocument();
+});
+
+it('hides the GM Console from non-GM role selection', () => {
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, role: 'player' });
+  state.setGmInstance(null);
+  state.setMode('console');
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /gm console/i })).not.toBeInTheDocument();
 });
 
 it('groups every ship role by its world of origin without exposing ship actions', () => {

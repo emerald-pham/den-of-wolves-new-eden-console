@@ -1,9 +1,12 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
+  shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
+  turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
+  activeConsoleRoleId: undefined as string | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
@@ -22,7 +25,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { advanceTurn, runMaintenance } from './index';
+import { advanceTurn, beginOpenAirspacePhase, runMaintenance, unlockPressAirspace } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{
@@ -37,6 +40,12 @@ beforeEach(() => {
   mock.damage = {};
   mock.currentTurn = 1;
   mock.maintenanceCycles = {};
+  mock.shipSurvivors = {};
+  mock.capybaraEnabled = true;
+  mock.dioneEnabled = true;
+  mock.turnPhase = undefined;
+  mock.pressDispatch = undefined;
+  mock.activeConsoleRoleId = undefined;
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -46,13 +55,26 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     const fields: Record<string, unknown> = path.includes('/players/')
-      ? { role: mock.role, connected: mock.connected }
+      ? {
+          role: mock.role, connected: mock.connected,
+          activeConsoleRoleId: mock.activeConsoleRoleId,
+        }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner }
-        : { shipDamage: mock.damage, currentTurn: mock.currentTurn, maintenanceCycles: mock.maintenanceCycles };
+        : {
+          shipDamage: mock.damage,
+          currentTurn: mock.currentTurn,
+          maintenanceCycles: mock.maintenanceCycles,
+          shipSurvivors: mock.shipSurvivors,
+          capybaraEnabled: mock.capybaraEnabled,
+          dioneEnabled: mock.dioneEnabled,
+          turnPhase: mock.turnPhase,
+          pressDispatch: mock.pressDispatch,
+        };
     return { exists: true, get: (key: string) => fields[key] };
   });
 });
+afterEach(() => vi.useRealTimers());
 it('rejects a second maintenance cycle in the same turn', async () => {
   mock.maintenanceCycles = {
     aegis: { step: 0, revision: 8, turn: 1, results: {}, charges: [], refuelled: [] },
@@ -97,16 +119,150 @@ it('allows a ship officer and assigned joint engineer, but denies another ship',
   await expect(runMaintenance.run(request({ ...data, shipId: 'shepherd' }))).rejects.toMatchObject({ code: 'permission-denied' });
 });
 
-it('lets an active GM instance advance exactly the displayed turn', async () => {
+it('starts Turn 1 with a ten-minute team phase and later turns with the shorter real-time schedule', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.currentTurn = 0;
+  mock.capybaraEnabled = false;
+  mock.shipSurvivors = {
+    aegis: 1_000,
+    dione: 90_000,
+    icebreaker: 30_000,
+    capybara: 20_000,
+    shepherd: 20_000,
+    quellon: 10_000,
+    'refinery-124': 5_000,
+  };
   await expect(advanceTurn.run(request({
-    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
-  }))).resolves.toEqual({ currentTurn: 2 });
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ currentTurn: 2 }));
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
+  }))).resolves.toEqual({
+    currentTurn: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_000 },
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_000 },
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  }));
 
-  mock.currentTurn = 2;
+  mock.currentTurn = 1;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.update.mockClear();
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/timer/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).resolves.toEqual({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_000 },
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_000 },
+    turnPhase: expect.objectContaining({ turn: 2 }),
+  }));
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('turns the ticker into an open-airspace bulletin after the team timer expires', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: false, pressAccess: true },
+  };
+  mock.pressDispatch = { dispatches: [{ id: 'earlier', text: 'SNN // Earlier copy' }], revision: 1 };
+
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).resolves.toEqual({
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: expect.objectContaining({
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    }),
+  }));
+});
+
+it('requires AEGIS authority for the Press exception and heals a stale restriction into coordination', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
+    },
+  });
+
+  mock.update.mockClear();
+  mock.activeConsoleRoleId = 'dione-captain';
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).rejects
+    .toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.activeConsoleRoleId = 'admiral';
+  vi.setSystemTime(new Date('2026-09-06T12:10:00.000Z'));
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: expect.objectContaining({
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    }),
+  }));
 });
 
 it('denies turn advancement without an active GM instance', async () => {

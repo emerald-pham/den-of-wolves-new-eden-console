@@ -62,3 +62,13 @@ it('binds reusable equipment to the configured craft and captain', async () => {
     's1', 'survey-shuttle', expect.any(Function), expect.any(Function),
   );
 });
+
+it('holds the evidence shredder at Turn 0 for a non-GM player', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected a session.');
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+
+  render(<PressConfetti shuttle={snnPressShuttle} />);
+
+  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
+});

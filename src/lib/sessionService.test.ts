@@ -31,6 +31,7 @@ const {
   setDioneEnabled,
   setGmControlsLocked,
   advanceTurn,
+  beginOpenAirspacePhase,
   setActiveRoleEnabled,
   selectConsoleRole,
   applyRolePreset,
@@ -423,16 +424,60 @@ describe('GM instance commands', () => {
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
     });
     useSessionStore.getState().setSession({ ...session, currentTurn: 3 });
-    const callable = callableReturning({ data: { currentTurn: 4 } });
+    const callable = callableReturning({
+      data: {
+        currentTurn: 4,
+        turnStartAnnouncement: { turn: 4, survivorPopulation: 232_501 },
+        turnPhase: {
+          turn: 4,
+          teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        },
+      },
+    });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await advanceTurn();
+    await advanceTurn({ overridePhaseTimer: true });
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceTurn');
     expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 3,
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 3, overridePhaseTimer: true,
     });
     expect(useSessionStore.getState().session?.currentTurn).toBe(4);
+    expect(useSessionStore.getState().session?.turnStartAnnouncement).toEqual({
+      turn: 4,
+      survivorPopulation: 232_501,
+    });
+    expect(useSessionStore.getState().session?.turnPhase).toEqual({
+      turn: 4,
+      teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    });
+  });
+
+  it('leaves a slight server-clock lag retryable while the same team phase remains live', async () => {
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    });
+    useSessionStore.getState().setConnection('live');
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/failed-precondition',
+      message: 'The team phase timer is still active.',
+    }));
+
+    await expect(beginOpenAirspacePhase(2)).rejects.toMatchObject({
+      code: 'functions/failed-precondition',
+    });
+    expect(useSessionStore.getState().communicationError).toBeNull();
   });
 
   it('triggers a fleetwide DRADIS contact through the active GM instance', async () => {

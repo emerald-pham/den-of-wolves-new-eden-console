@@ -42,6 +42,7 @@ import {
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
@@ -88,6 +89,12 @@ import {
   takeJoinCodeAttempt,
   type JoinCodeAttemptState,
 } from './joinCodeSecurity';
+import {
+  isPlayerGameplayLockedAtTurnZero,
+  isTurnPhaseTimerActive,
+  startTurnPhase,
+  turnPhaseState,
+} from './turnZero';
 
 /**
  * Server-side authority for the companion console.
@@ -128,6 +135,55 @@ async function requireGm(sessionId: string, uid: string): Promise<void> {
 
 function isActivePlayer(player: DocumentSnapshot): boolean {
   return player.exists && player.get('connected') === true;
+}
+
+function sessionTurn(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 1;
+}
+
+type TurnStartAnnouncement = {
+  readonly turn: number;
+  readonly survivorPopulation: number;
+};
+
+function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefined {
+  if (
+    typeof value !== 'object' || value === null || Array.isArray(value) ||
+    !('turn' in value) || !('survivorPopulation' in value) ||
+    typeof value.turn !== 'number' || !Number.isSafeInteger(value.turn) || value.turn < 1 ||
+    typeof value.survivorPopulation !== 'number' ||
+    !Number.isSafeInteger(value.survivorPopulation) || value.survivorPopulation < 0
+  ) return undefined;
+  return { turn: value.turn, survivorPopulation: value.survivorPopulation };
+}
+
+function fleetSurvivorPopulation(session: DocumentSnapshot): number {
+  const rawSurvivors = session.get('shipSurvivors');
+  const survivors = typeof rawSurvivors === 'object' && rawSurvivors !== null &&
+    !Array.isArray(rawSurvivors)
+    ? rawSurvivors as Readonly<Record<string, unknown>>
+    : {};
+  return Object.entries(INITIAL_SHIP_SURVIVORS).reduce((population, [shipId, initial]) => {
+    if (
+      (shipId === 'capybara' && session.get('capybaraEnabled') === false) ||
+      (shipId === 'dione' && session.get('dioneEnabled') === false)
+    ) return population;
+    const stored = survivors[shipId];
+    return population + (
+      typeof stored === 'number' && Number.isSafeInteger(stored) && stored >= 0
+        ? stored
+        : initial
+    );
+  }, 0);
+}
+
+function requireTurnOneForPlayer(session: DocumentSnapshot, player: DocumentSnapshot): void {
+  if (isPlayerGameplayLockedAtTurnZero(session.get('currentTurn'), player.get('role'))) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Turn 0 is for GM setup. Wait for the GM to advance to Turn 1.',
+    );
+  }
 }
 
 async function membershipIsActive(
@@ -288,7 +344,7 @@ export const createSession = onCall<{
           name,
           joinCode,
           phase: 'lobby',
-          currentTurn: 1,
+          currentTurn: 0,
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -334,7 +390,7 @@ export const createSession = onCall<{
             name,
             joinCode,
             phase: 'lobby',
-            currentTurn: 1,
+            currentTurn: 0,
             capybaraEnabled: true,
             dioneEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -439,14 +495,17 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     await touchSurvivorPopulation();
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
+    const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
+    const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
     return {
       session: {
         id: sessionId,
         name: sessionSnap.get('name') as string,
         joinCode,
         phase: sessionSnap.get('phase') as string,
-        currentTurn: Number.isSafeInteger(sessionSnap.get('currentTurn')) && sessionSnap.get('currentTurn') >= 1
-          ? sessionSnap.get('currentTurn') as number : 1,
+        currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+        ...(announcement ? { turnStartAnnouncement: announcement } : {}),
+        ...(phaseClock ? { turnPhase: phaseClock } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
@@ -538,14 +597,17 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   await touchSurvivorPopulation();
 
+  const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
+  const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
   return {
     session: {
       id: sessionId,
       name: sessionSnap.get('name') as string,
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
-      currentTurn: Number.isSafeInteger(sessionSnap.get('currentTurn')) && sessionSnap.get('currentTurn') >= 1
-        ? sessionSnap.get('currentTurn') as number : 1,
+      currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+      ...(announcement ? { turnStartAnnouncement: announcement } : {}),
+      ...(phaseClock ? { turnPhase: phaseClock } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
@@ -857,6 +919,7 @@ export const advanceTurn = onCall<{
   sessionId?: string;
   instanceId?: string;
   expectedTurn?: number;
+  overridePhaseTimer?: boolean;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const advance = requireTurnAdvanceRequest(request.data ?? {});
@@ -876,15 +939,111 @@ export const advanceTurn = onCall<{
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
-    const currentTurn = Number.isSafeInteger(session.get('currentTurn')) && session.get('currentTurn') >= 1
-      ? session.get('currentTurn') as number
-      : 1;
+    const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== advance.expectedTurn) {
       throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
     }
+    const activePhase = turnPhaseState(session.get('turnPhase'));
+    if (
+      activePhase?.turn === currentTurn && isTurnPhaseTimerActive(activePhase) &&
+      !advance.overridePhaseTimer
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'A turn phase timer is still active. Confirm the override to advance early.',
+      );
+    }
     const nextTurn = currentTurn + 1;
-    tx.update(sessionRef, { currentTurn: nextTurn, updatedAt: FieldValue.serverTimestamp() });
-    return { currentTurn: nextTurn };
+    const announcement = {
+      turn: nextTurn,
+      survivorPopulation: fleetSurvivorPopulation(session),
+    };
+    const turnPhase = startTurnPhase(nextTurn);
+    tx.update(sessionRef, {
+      currentTurn: nextTurn,
+      turnStartAnnouncement: announcement,
+      turnPhase,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { currentTurn: nextTurn, turnStartAnnouncement: announcement, turnPhase };
+  });
+});
+
+/** Promote the shared real-time turn clock into its coordination/open-airspace phase. */
+export const beginOpenAirspacePhase = onCall<{
+  sessionId?: unknown;
+  expectedTurn?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const requestData = requireOpenAirspacePhaseRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
+
+  return db.runTransaction(async tx => {
+    const [session, player] = await Promise.all([tx.get(sessionRef), tx.get(playerRef)]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    if (sessionTurn(session.get('currentTurn')) !== requestData.expectedTurn) {
+      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== requestData.expectedTurn) {
+      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+    }
+    if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
+      throw new HttpsError('failed-precondition', 'The team phase timer is still active.');
+    }
+    if (phase.airspace.state === 'lifted') return { turnPhase: phase };
+    const turnPhase = {
+      ...phase,
+      airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
+    };
+    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+    return { turnPhase };
+  });
+});
+
+/** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */
+export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request => {
+  const uid = requireUid(request.auth);
+  const requestData = requireSessionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  return db.runTransaction(async tx => {
+    const player = await tx.get(db.doc(`sessions/${requestData.sessionId}/players/${uid}`));
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral');
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(session, player);
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
+      throw new HttpsError('failed-precondition', 'No current airspace window is available.');
+    }
+    // A late command can be the first live request after the team deadline.
+    // Heal the shared clock before evaluating a restriction-only exception.
+    if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {
+      const turnPhase = {
+        ...phase,
+        airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
+      };
+      tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+      return { turnPhase };
+    }
+    if (phase.airspace.state !== 'restricted' || phase.airspace.pressAccess) {
+      return { turnPhase: phase };
+    }
+    const turnPhase = {
+      ...phase,
+      airspace: { ...phase.airspace, pressAccess: true },
+    };
+    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+    return { turnPhase };
   });
 });
 
@@ -1092,6 +1251,7 @@ export const popShipConfetti = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    requireTurnOneForPlayer(session, player);
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
     }
@@ -1700,10 +1860,15 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
     const uid = requireUid(request.auth);
     const { sessionId, sides, count } = requireDiceRequest(request.data ?? {});
 
-    const player = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
+    const [player, session] = await Promise.all([
+      db.doc(`sessions/${sessionId}/players/${uid}`).get(),
+      db.doc(`sessions/${sessionId}`).get(),
+    ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Join the session first.');
     }
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(session, player);
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
     const id = randomUUID();
@@ -1837,13 +2002,12 @@ export const runMaintenance = onCall<{
     }
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(snapshot, player);
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
         snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
     const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
-    const currentTurn = Number.isSafeInteger(snapshot.get('currentTurn')) && snapshot.get('currentTurn') >= 1
-      ? snapshot.get('currentTurn') as number
-      : 1;
+    const currentTurn = sessionTurn(snapshot.get('currentTurn'));
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
@@ -1944,6 +2108,7 @@ export const setFleetRedAlert = onCall<{
     } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral');
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
     const current = session.get('fleetRedAlert') as
       { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
@@ -1988,6 +2153,7 @@ export const publishPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
@@ -2005,7 +2171,16 @@ export const publishPressDispatch = onCall<{
       ],
       revision: data.expectedRevision + 1,
     };
-    tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });
+    const phase = turnPhaseState(session.get('turnPhase'));
+    const turnPhase = phase?.turn === sessionTurn(session.get('currentTurn')) &&
+      phase.airspace.tickerActive
+      ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
+      : undefined;
+    tx.update(ref, {
+      pressDispatch,
+      ...(turnPhase ? { turnPhase } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
     return pressDispatch;
   });
 });
@@ -2028,6 +2203,7 @@ export const dismissPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
@@ -2096,7 +2272,7 @@ export const rollbackMaintenance = onCall<{
     const entries = (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     const last = entries.at(-1);
     if (session.get('phase') === 'closed' || !last || cycle?.revision !== expectedRevision ||
-        undo.get('turn') !== (session.get('currentTurn') ?? 1)) {
+        undo.get('turn') !== sessionTurn(session.get('currentTurn'))) {
       throw new HttpsError('failed-precondition', 'No current maintenance step is available to roll back.');
     }
     let patch: Record<string, unknown>;

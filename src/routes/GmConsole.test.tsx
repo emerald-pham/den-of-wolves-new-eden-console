@@ -50,8 +50,8 @@ function renderConsole() {
     <MemoryRouter initialEntries={['/gm']}>
       <Routes>
         <Route
-          path="/roles"
-          element={<><p>Roles route</p><Link to="/gm">Return to GM console</Link></>}
+          path="/console"
+          element={<><p>Role selection route</p><Link to="/gm">Return to GM console</Link></>}
         />
         <Route path="/gm" element={<GmConsole />} />
       </Routes>
@@ -96,7 +96,7 @@ function streamInstances(instances: readonly typeof local[]) {
 
 it('redirects browsers without a local GM claim', () => {
   renderConsole();
-  expect(screen.getByText('Roles route')).toBeInTheDocument();
+  expect(screen.getByText('Role selection route')).toBeInTheDocument();
 });
 
 it('lists every GM instance and only offers to kick other instances', async () => {
@@ -110,16 +110,16 @@ it('lists every GM instance and only offers to kick other instances', async () =
   expect(screen.getAllByRole('button', { name: /kick/i })).toHaveLength(1);
 });
 
-it('returns to the roles screen', async () => {
+it('returns to role selection', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   renderConsole();
 
   await screen.findByText('Bridge laptop');
-  await user.click(screen.getByRole('link', { name: /back to roles/i }));
+  await user.click(screen.getByRole('link', { name: /back to role selection/i }));
 
-  expect(screen.getByText('Roles route')).toBeInTheDocument();
+  expect(screen.getByText('Role selection route')).toBeInTheDocument();
 });
 
 it('kicks another instance and removes it from the list', async () => {
@@ -280,7 +280,7 @@ it('keeps resource stores read-only until enabled and resets after leaving', asy
   await user.click(increaseFuel);
   expect(adjustShipResource).toHaveBeenCalledWith('dione', 'fuel', 1);
 
-  await user.click(screen.getByRole('link', { name: /back to roles/i }));
+  await user.click(screen.getByRole('link', { name: /back to role selection/i }));
   await user.click(screen.getByRole('link', { name: /return to gm console/i }));
 
   const returnedFleet = await screen.findByRole('region', { name: /fleet resource controls/i });
@@ -616,11 +616,20 @@ it('locks and unlocks subsequent GM registration without locking Setup', async (
   expect(screen.getByRole('group', { name: /active roles/i })).toBeInTheDocument();
 });
 
-it('shows the current turn and lets the GM advance it', async () => {
+it('requires a deliberate second GM advance while either phase timer is active', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
-  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 3 });
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
   vi.mocked(advanceTurn).mockResolvedValue(undefined);
@@ -628,7 +637,11 @@ it('shows the current turn and lets the GM advance it', async () => {
 
   expect(screen.getByText('Turn 3')).toBeVisible();
   await user.click(screen.getByRole('button', { name: 'Advance to Turn 4' }));
+  expect(advanceTurn).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' }));
   expect(advanceTurn).toHaveBeenCalledOnce();
+  expect(advanceTurn).toHaveBeenCalledWith({ overridePhaseTimer: true });
 });
 
 it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {
@@ -775,6 +788,6 @@ it('uses the role workspace with a separate persistent GM instrument rail', asyn
   const instruments = screen.getByRole('complementary', { name: 'GM instruments' });
   expect(within(instruments).getByRole('region', { name: 'Fleet DRADIS' })).toBeVisible();
   expect(within(workspace).queryByRole('region', { name: 'Fleet DRADIS' })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('link', { name: 'Back to roles' }));
-  expect(screen.getByText('Roles route')).toBeVisible();
+  await userEvent.click(screen.getByRole('link', { name: 'Back to role selection' }));
+  expect(screen.getByText('Role selection route')).toBeVisible();
 });

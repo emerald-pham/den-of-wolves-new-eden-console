@@ -8,11 +8,15 @@
 .fleet-ticker__separator { padding-inline: 1.4rem; color: var(--cic-amber); }
 .fleet-ticker__group[data-gap='long'] .fleet-ticker__separator,
 .fleet-ticker__probe[data-gap='long'] .fleet-ticker__separator { padding-inline: clamp(6rem, 24vw, 20rem); }
+.fleet-ticker__group[data-gap='airspace'] .fleet-ticker__separator,
+.fleet-ticker__probe[data-gap='airspace'] .fleet-ticker__separator { padding-inline: clamp(14rem, 42vw, 42rem); }
 .fleet-ticker__group[data-tone="danger"] { color: var(--cic-hostile); }
 .fleet-ticker__group[data-tone="danger"] .fleet-ticker__copy,
 .fleet-ticker[data-tone="danger"] .fleet-ticker__message { text-transform: lowercase; }
 .fleet-ticker__press { color: var(--cic-ink); text-transform: uppercase; }
 .fleet-ticker__probe { position: absolute; visibility: hidden; pointer-events: none; }
+.fleet-ticker:has(.fleet-ticker__phase-timer) { position: relative; min-height: 3.5rem; padding-bottom: 1.45rem; }
+.fleet-ticker__phase-timer { position: absolute; bottom: 0.3rem; left: 0.7rem; color: var(--cic-cyan-hot); font: 0.58rem/1 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
 @keyframes fleet-broadcast-pass {
   from { transform: translate3d(var(--fleet-ticker-start-x), 0, 0); }
   to { transform: translate3d(calc(0px - var(--fleet-ticker-group-width)), 0, 0); }

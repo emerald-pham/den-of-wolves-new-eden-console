@@ -1,4 +1,5 @@
 import MaintenanceSystems from './MaintenanceSystems';
+import AirspaceControl from './AirspaceControl';
 import JumpFailureReadout from './JumpFailureReadout';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import { useState } from 'react';
@@ -77,6 +78,7 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws }: Omit<
             </table>
           </div>
         </>} />
+      <AirspaceControl />
     </FleetRoleConsoleTemplate>
   );
 }

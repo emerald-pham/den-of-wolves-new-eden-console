@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import ShipPlot from './ShipPlot';
 
@@ -21,6 +21,7 @@ beforeEach(() => {
     })),
   );
 });
+afterEach(() => vi.useRealTimers());
 
 it('offers every registered DRADIS effect in any expanded console to an active GM', async () => {
   const user = userEvent.setup();
@@ -163,4 +164,22 @@ it('keeps contacts, names, and altitude indicators inside the oriented 3D rig', 
 it('reserves space above the bottom-left warning for the expanded DRADIS compass', () => {
   const css = readFileSync('src/index.css', 'utf8');
   expect(css).toMatch(/\.ship-plot:has\(\.contact-plot__red-alert\) \.ship-plot__compass\s*\{[^}]*bottom:\s*calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 2\.75rem\)/);
+});
+
+it('shows the blue team-phase countdown at the bottom-left of DRADIS', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  const turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted' as const, tickerActive: true, pressAccess: false },
+  };
+
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={turnPhase} />);
+
+  const countdown = screen.getByRole('status', { name: 'Team phase // 10:00 remaining' });
+  expect(countdown).toHaveAttribute('data-tone', 'blue');
+  const css = readFileSync('src/index.css', 'utf8');
+  expect(css).toMatch(/\.turn-phase-timer\[data-tone=['"]blue['"]\][^}]*color:\s*var\(--cic-cyan-hot\)/);
 });

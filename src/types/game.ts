@@ -69,9 +69,32 @@ export interface PressDispatchState {
   readonly revision: number;
 }
 
+/** The shared real-time window that starts with every numbered turn. */
+export interface TurnPhase {
+  readonly turn: number;
+  /** End of the team window: ten minutes on Turn 1, five minutes afterward. */
+  readonly teamPhaseEndsAt: Timestamp;
+  /** End of the coordination window: twenty minutes on Turn 1, fifteen afterward. */
+  readonly openAirspaceEndsAt: Timestamp;
+  readonly airspace: {
+    readonly state: 'restricted' | 'lifted';
+    /** Stays true until Press publishes one new dispatch after this directive starts. */
+    readonly tickerActive: boolean;
+    /** AEGIS may grant this exception to non-affiliated SNN vessels during restriction. */
+    readonly pressAccess: boolean;
+  };
+}
+
 export interface GameSession {
-  /** Shared game turn advanced by an active GM; legacy sessions begin at Turn 1. */
+  /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
+  /** The most recently authorized fleet-status transmission for a turn start. */
+  readonly turnStartAnnouncement?: {
+    readonly turn: number;
+    readonly survivorPopulation: number;
+  };
+  /** Current server-authorized real-time phase and airspace directive. */
+  readonly turnPhase?: TurnPhase;
   readonly fleetRedAlert?: {
     readonly active: boolean;
     readonly revision: number;

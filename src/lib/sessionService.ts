@@ -6,6 +6,7 @@ import type { PendingCommand } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import type { ResourceId } from '@/data/resources';
 import { normalizePressDispatch } from './pressDispatchState';
+import { turnPhaseState } from './turnPhase';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -537,27 +538,84 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
   });
 }
 
-export async function advanceTurn(): Promise<void> {
+export async function advanceTurn({ overridePhaseTimer = false }: {
+  readonly overridePhaseTimer?: boolean;
+} = {}): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
   await ensureSignedIn();
   const expectedTurn = store.session.currentTurn ?? 1;
   const call = httpsCallable<
-    { sessionId: string; instanceId: string; expectedTurn: number },
-    { currentTurn: number }
+    { sessionId: string; instanceId: string; expectedTurn: number; overridePhaseTimer?: boolean },
+    {
+      currentTurn: number;
+      turnStartAnnouncement?: { turn: number; survivorPopulation: number };
+      turnPhase?: unknown;
+    }
   >(functions(), 'advanceTurn');
   try {
     const reply = await call({
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       expectedTurn,
+      ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
     });
     const activeSession = useSessionStore.getState().session;
-    if (activeSession?.id === store.session.id && Number.isSafeInteger(reply.data.currentTurn)) {
-      useSessionStore.getState().setSession({ ...activeSession, currentTurn: reply.data.currentTurn });
+    const announcement = reply.data.turnStartAnnouncement;
+    const hasAnnouncement = Boolean(
+      announcement && Number.isSafeInteger(announcement.turn) && announcement.turn >= 1 &&
+      Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0,
+    );
+    const phaseClock = turnPhaseState(reply.data.turnPhase);
+    if (
+      activeSession?.id === store.session.id && Number.isSafeInteger(reply.data.currentTurn) &&
+      reply.data.currentTurn >= 0
+    ) {
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        currentTurn: reply.data.currentTurn,
+        ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
+        ...(phaseClock ? { turnPhase: phaseClock } : {}),
+      });
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Let any connected player synchronize the server-owned handoff into coordination. */
+export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || store.connection !== 'live') return;
+  if (store.session.currentTurn !== expectedTurn) return;
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; expectedTurn: number },
+    { turnPhase?: unknown }
+  >(functions(), 'beginOpenAirspacePhase');
+  try {
+    const reply = await call({ sessionId: store.session.id, expectedTurn });
+    const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const activeSession = useSessionStore.getState().session;
+    if (phaseClock && activeSession?.id === store.session.id) {
+      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+    }
+  } catch (cause) {
+    // A concurrent GM advance intentionally makes an already-scheduled handoff stale.
+    // If the same restricted phase remains local, however, the client likely reached
+    // the deadline fractionally before the server and the coordinator must retry.
+    if (errorCode(cause) === 'functions/failed-precondition') {
+      const latestSession = useSessionStore.getState().session;
+      const latestPhase = turnPhaseState(latestSession?.turnPhase);
+      if (
+        latestSession?.currentTurn !== expectedTurn ||
+        latestPhase?.turn !== expectedTurn ||
+        latestPhase.airspace.state === 'lifted'
+      ) return;
+      if (latestPhase.airspace.state === 'restricted') throw cause;
+    }
+    store.setCommunicationError(interception(cause));
     throw cause;
   }
 }

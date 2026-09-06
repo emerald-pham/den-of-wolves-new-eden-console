@@ -17,9 +17,10 @@ defines the shared worldspace and travel behavior behind that interface.
   It may fire repeatedly without generating GM activity-log entries; ordinary
   shuttlecraft do not inherit a dispenser by default.
 
-## Movement contract
+## Movement contract (planned)
 
-Shuttle movement is an authoritative server operation. A transit stores its
+Shuttle movement is not implemented in the current console. When it is added,
+it will be an authoritative server operation. A transit will store its
 current world position, current velocity vector, final destination ship,
 `departedAt`, and `arrivesAt`. A normal leg lasts 60 seconds. The server derives
 and persists the current position before every course change, so a new order
@@ -31,6 +32,15 @@ animation.
 The client may animate between authoritative samples, but animation is only a
 projection. Arrival, retargeting, docking, and visit-log entries are determined
 from server timestamps and transactions.
+
+## Planned airspace enforcement
+
+Each numbered turn starts with restricted airspace. When shuttle travel exists,
+the server will prevent a shuttle from moving between ships until the team phase
+ends and airspace is lifted. AEGIS may authorize the unaffiliated SNN Press
+vessel as an exception during the restricted window. The current Airspace
+Control screen and phase clocks only express that future rule: no shuttle
+movement control or movement enforcement has been implemented yet.
 
 ## DRADIS sampling
 

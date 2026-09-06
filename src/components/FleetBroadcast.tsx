@@ -1,11 +1,13 @@
 import { DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
+import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
 
 export default function FleetBroadcast() {
   const { session, me } = useSessionStore();
   const alert = session?.fleetRedAlert;
+  const phase = phaseForSession(session);
   const dispatchState = normalizePressDispatch(session?.pressDispatch);
   const dispatchText = dispatchState.dispatches.map((dispatch) => dispatch.text).join(' // ');
   const pressDispatch = session && dispatchText
@@ -16,9 +18,21 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
+  const airspaceDirective = session && phase?.airspace.tickerActive
+    ? {
+        id: `${session.id}:airspace:${phase.turn}:${phase.airspace.state}`,
+        text: phase.airspace.state === 'restricted'
+          ? 'AIRSPACE RESTRICTED'
+          : 'AIRSPACE RESTRICTIONS LIFTED',
+        tone: 'normal' as const,
+        gap: 'airspace' as const,
+      }
+    : undefined;
+  const standingMessage = airspaceDirective ?? pressDispatch;
   if (!session || !me) return null;
   if (!alert || alert.revision === 0) {
-    return <FleetTicker {...(pressDispatch ? { message: pressDispatch } : {})} />;
+    return <FleetTicker {...(standingMessage ? { message: standingMessage } : {})}
+      {...(phase === undefined ? {} : { turnPhase: phase })} />;
   }
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,
@@ -29,5 +43,6 @@ export default function FleetBroadcast() {
     ...(alert.active
       ? (dispatchText ? { pressText: dispatchText } : {})
       : { passes: 2 }),
-  }} {...(pressDispatch ? { fallback: pressDispatch } : {})} />;
+  }} {...(standingMessage ? { fallback: standingMessage } : {})}
+    {...(phase === undefined ? {} : { turnPhase: phase })} />;
 }

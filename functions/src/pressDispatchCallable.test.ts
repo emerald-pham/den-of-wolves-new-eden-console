@@ -3,7 +3,8 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'player', post: 'press-officer', connected: true,
-  exists: true, phase: 'active', pressDispatch: undefined as unknown,
+  exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
+  turnPhase: undefined as unknown,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
@@ -29,7 +30,7 @@ const request = (input: Record<string, unknown> = data) => ({
 beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
-    phase: 'active', pressDispatch: undefined,
+    phase: 'active', currentTurn: 1, pressDispatch: undefined, turnPhase: undefined,
   });
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
@@ -37,7 +38,13 @@ beforeEach(() => {
   mock.get.mockImplementation(async (path: string) => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
-      : { phase: mock.phase, fleetRedAlert: { active: true, revision: 1 }, pressDispatch: mock.pressDispatch };
+      : {
+        phase: mock.phase,
+        currentTurn: mock.currentTurn,
+        fleetRedAlert: { active: true, revision: 1 },
+        pressDispatch: mock.pressDispatch,
+        turnPhase: mock.turnPhase,
+      };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
 });
@@ -66,6 +73,41 @@ it('uses revision zero when the session has no earlier dispatch', async () => {
     },
     updatedAt: 'server-time',
   });
+});
+
+it('stops an airspace bulletin only when Press publishes new copy', async () => {
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await publishPressDispatch.run(request());
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+    pressDispatch: {
+      dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
+      revision: 1,
+    },
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+    },
+    updatedAt: 'server-time',
+  });
+});
+
+it('holds Press Officer dispatches at Turn 0 unless the caller is a GM', async () => {
+  mock.currentTurn = 0;
+  await expect(publishPressDispatch.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn 1/i),
+  });
+  mock.role = 'gm';
+  await expect(publishPressDispatch.run(request())).resolves.toMatchObject({ revision: 1 });
 });
 
 it('dismisses only the selected active dispatch and advances the collection revision', async () => {

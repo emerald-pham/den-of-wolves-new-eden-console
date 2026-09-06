@@ -30,6 +30,7 @@ import {
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { hasActiveTurnTimer, phaseForSession } from '@/lib/turnPhase';
 import type { DamageDraw, GmInstance, Player, SessionEvent } from '@/types/game';
 
 interface PlayerRoleGroup {
@@ -141,6 +142,7 @@ export default function GmConsole() {
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
+  const [confirmTurnOverride, setConfirmTurnOverride] = useState(false);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
@@ -158,6 +160,8 @@ export default function GmConsole() {
   );
   const controlsLocked = session?.gmControlsLocked === true;
   const currentTurn = session?.currentTurn ?? 1;
+  const currentPhase = phaseForSession(session);
+  const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
@@ -306,8 +310,12 @@ export default function GmConsole() {
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    setConfirmTurnOverride(false);
+  }, [currentTurn]);
+
   if (!session || !me) return <Navigate to="/" replace />;
-  if (!isGm || !local) return <Navigate to="/roles" replace />;
+  if (!isGm || !local) return <Navigate to="/console" replace />;
 
   async function kick(instance: GmInstance): Promise<void> {
     try {
@@ -355,15 +363,25 @@ export default function GmConsole() {
     }
   }
 
-  async function moveToNextTurn(): Promise<void> {
+  async function moveToNextTurn(overridePhaseTimer = false): Promise<void> {
     setAdvancingTurn(true);
     try {
-      await advanceTurn();
+      await (overridePhaseTimer ? advanceTurn({ overridePhaseTimer: true }) : advanceTurn());
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
       setAdvancingTurn(false);
     }
+  }
+
+  function requestTurnAdvance(): void {
+    if (activeTurnTimer && !confirmTurnOverride) {
+      setConfirmTurnOverride(true);
+      return;
+    }
+    const override = activeTurnTimer && confirmTurnOverride;
+    setConfirmTurnOverride(false);
+    void moveToNextTurn(override);
   }
 
   async function randomizeWolves(count: 1 | 2): Promise<void> {
@@ -437,8 +455,8 @@ export default function GmConsole() {
   return (
     <main className="ship-console ship-console--gameplay gm-console">
       <section className="ship-console__identity" aria-label="GM command">
-        <Link className="ship-console__back cic-text-button" to="/roles">
-          Back to roles
+        <Link className="ship-console__back cic-text-button" to="/console">
+          Back to role selection
         </Link>
         <p className="ship-console__nation">{session.name} // Game master</p>
         <h1 className="ship-console__name">GM Console</h1>
@@ -459,13 +477,22 @@ export default function GmConsole() {
           <section className="gm-console__module cic-frame" aria-label="Turn controls">
             <h2 className="gm-console__section-title">Turn control</h2>
             <p className="gm-console__status">Turn {currentTurn}</p>
+            {confirmTurnOverride && activeTurnTimer && (
+              <p className="gm-turn-control__override" role="alert">
+                ARE YOU SURE? // ACTIVE PHASE TIMER WILL BE OVERRIDDEN
+              </p>
+            )}
             <button
               className="cic-action-button"
               type="button"
               disabled={advancingTurn}
-              onClick={() => void moveToNextTurn()}
+              onClick={requestTurnAdvance}
             >
-              {advancingTurn ? 'Advancing turn…' : `Advance to Turn ${currentTurn + 1}`}
+              {advancingTurn
+                ? 'Advancing turn…'
+                : confirmTurnOverride && activeTurnTimer
+                  ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
+                  : `Advance to Turn ${currentTurn + 1}`}
             </button>
           </section>
           <section

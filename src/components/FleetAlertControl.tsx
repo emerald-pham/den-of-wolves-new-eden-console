@@ -1,8 +1,9 @@
 import { DEFAULT_FLEET_ALERT_MESSAGE, MAX_FLEET_ALERT_LENGTH } from '@/lib/fleetAlertMessage';
 import { useEffect, useRef, useState } from 'react';
 import { useConsoleAccess } from '@/lib/consoleAccess';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { setFleetRedAlert } from '@/lib/fleetAlertService';
+import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 
 const FLEET_ALERT_COOLDOWN_MINUTES = 10;
 const FLEET_ALERT_COOLDOWN_MS = FLEET_ALERT_COOLDOWN_MINUTES * 60 * 1000;
@@ -10,6 +11,7 @@ const FLEET_ALERT_COOLDOWN_MS = FLEET_ALERT_COOLDOWN_MINUTES * 60 * 1000;
 export default function FleetAlertControl() {
   const access = useConsoleAccess();
   const { session, me, connection } = useSessionStore();
+  const isGm = useSessionStore(selectIsGm);
   const defaultMessage = DEFAULT_FLEET_ALERT_MESSAGE.toUpperCase();
   const [text, setText] = useState((session?.fleetRedAlert?.text ?? defaultMessage).toUpperCase());
   const [coverOpen, setCoverOpen] = useState(false);
@@ -33,8 +35,10 @@ export default function FleetAlertControl() {
   const cooldownNotice = lockout
     ? `${lockoutMinutes} ${lockoutMinutes === 1 ? 'MINUTE' : 'MINUTES'} REMAINING // FLEET ALERT COOLDOWN`
     : null;
+  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
+  const unavailable = turnZeroLocked || !access.writable || connection !== 'live' || session?.phase === 'closed';
   const execute = async (nextActive = !active) => {
-    if (busy.current) return;
+    if (busy.current || unavailable) return;
     busy.current = true; setPending(true); setError('');
     try {
       if (nextActive) await setFleetRedAlert(true, text.trim().toUpperCase());
@@ -48,7 +52,6 @@ export default function FleetAlertControl() {
     }
     finally { busy.current = false; setPending(false); }
   };
-  const unavailable = !access.writable || connection !== 'live' || session?.phase === 'closed';
   return <section aria-label="FLEETWIDE RED ALERT"
     className="confetti-dispenser confetti-dispenser--fleet-alert">
     <p className="confetti-dispenser__label">FLEETWIDE RED ALERT</p>
@@ -78,7 +81,7 @@ export default function FleetAlertControl() {
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      FLEET COMMAND // {pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
+      FLEET COMMAND // {turnZeroLocked ? 'TURN 0 // AWAITING GM START' : pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
     </p>
     {cooldownNotice && <p className="confetti-dispenser__notice">{cooldownNotice}</p>}
     <p className="confetti-dispenser__notice">

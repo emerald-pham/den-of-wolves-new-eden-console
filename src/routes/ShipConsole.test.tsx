@@ -497,6 +497,21 @@ it('opens a digital cover before activating a non-AEGIS one-shot Emergency Bridg
   expect(container.querySelectorAll('.confetti-burst__piece')).toHaveLength(48);
 });
 
+it('holds a player ship dispenser at Turn 0', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected test session state.');
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'dione-captain' });
+  render(
+    <MemoryRouter initialEntries={['/ships/dione/roles/dione-captain']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeDisabled();
+});
+
 it('tells a lone non-captain that a second person must fire the cannon', async () => {
   const user = userEvent.setup();
   vi.mocked(popShipConfetti).mockResolvedValue('awaiting-officer');

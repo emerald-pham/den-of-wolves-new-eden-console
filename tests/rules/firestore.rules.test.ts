@@ -148,6 +148,18 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { phase: 'active' }));
   });
 
+  it('cannot forge turn clocks or an airspace exception from the client', async () => {
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, {
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        openAirspaceEndsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+        airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+      },
+    }));
+  });
+
   it('cannot change the GM registration and Setup lock from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
   });

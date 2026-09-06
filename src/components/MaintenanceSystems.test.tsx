@@ -48,6 +48,13 @@ it('keeps completed maintenance locked until the GM advances the turn', () => {
   act(() => useSessionStore.setState({ session: { ...useSessionStore.getState().session!, currentTurn: 5 } }));
   expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 5' })).toBeEnabled();
 });
+
+it('holds player maintenance controls during Turn 0 while GM setup is underway', () => {
+  useSessionStore.setState({ session: { ...session, currentTurn: 0 } });
+  render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 0' })).toBeDisabled();
+});
 it('presents every maintenance command as a boxed CIC action', () => {
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
 

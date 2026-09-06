@@ -8,6 +8,9 @@ import {
   useState,
 } from 'react';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { turnPhaseReadout } from '@/lib/turnPhase';
+import { TickerOpenAirspaceTimer } from './TurnPhaseTimer';
+import type { TurnPhase } from '@/types/game';
 import './fleetTicker.css';
 
 export interface FleetMessage {
@@ -15,7 +18,7 @@ export interface FleetMessage {
   readonly text: string;
   readonly tone: 'danger' | 'normal';
   readonly pressText?: string | undefined;
-  readonly gap?: 'standard' | 'long';
+  readonly gap?: 'standard' | 'long' | 'airspace';
   /** Omit to repeat until replaced. */
   readonly passes?: number;
 }
@@ -93,9 +96,10 @@ function MessageCopy({ message, copyRef }: {
   );
 }
 
-function StationaryMessage({ message, fallback }: {
+function StationaryMessage({ message, fallback, turnPhase }: {
   readonly message: FleetMessage;
   readonly fallback?: FleetMessage;
+  readonly turnPhase?: TurnPhase | undefined;
 }) {
   const [completed, setCompleted] = useState(() => readCompletedPasses(message));
   const done = message.passes !== undefined && completed >= message.passes;
@@ -113,13 +117,15 @@ function StationaryMessage({ message, fallback }: {
 
   if (done) {
     return fallback
-      ? <StationaryMessage key={messageSignature(fallback)} message={fallback} />
+      ? <StationaryMessage key={messageSignature(fallback)} message={fallback}
+          {...(turnPhase === undefined ? {} : { turnPhase })} />
       : null;
   }
 
   return (
     <aside className="fleet-ticker" aria-label="Fleet broadcasts"
-      data-tone={message.tone} data-gap={message.gap ?? 'standard'} data-reduced="true">
+      data-tone={message.tone} data-gap={message.gap ?? 'standard'} data-reduced="true"
+      data-phase-timer={String(turnPhase !== undefined)}>
       <div className="fleet-ticker__window" role="status" aria-label={messageLabel(message)}
         aria-live="polite" aria-atomic="true">
         <p className="fleet-ticker__message">
@@ -127,13 +133,29 @@ function StationaryMessage({ message, fallback }: {
           {message.pressText && <span className="fleet-ticker__press"> // {message.pressText}</span>}
         </p>
       </div>
+      <TickerOpenAirspaceTimer phase={turnPhase} />
     </aside>
   );
 }
 
-function MovingMessage({ message, fallback }: {
+/** Preserve the live coordination instrument after Press deliberately clears all copy. */
+function PhaseTimerOnlyTicker({ turnPhase, reducedMotion }: {
+  readonly turnPhase: TurnPhase;
+  readonly reducedMotion: boolean;
+}) {
+  return (
+    <aside className="fleet-ticker" aria-label="Fleet broadcasts" data-tone="normal"
+      data-gap="standard" data-reduced={String(reducedMotion)} data-phase-timer="true">
+      <div className="fleet-ticker__window" aria-hidden="true" />
+      <TickerOpenAirspaceTimer phase={turnPhase} />
+    </aside>
+  );
+}
+
+function MovingMessage({ message, fallback, turnPhase }: {
   readonly message?: FleetMessage;
   readonly fallback?: FleetMessage;
+  readonly turnPhase?: TurnPhase | undefined;
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
   const messageProbeRef = useRef<HTMLSpanElement>(null);
@@ -167,9 +189,11 @@ function MovingMessage({ message, fallback }: {
   ): GroupGeometry => {
     const availableWidth = windowWidth();
     const measuredWidth = probe?.scrollWidth || probe?.getBoundingClientRect().width || 0;
-    const separatorAllowance = nextMessage.gap === 'long'
-      ? Math.min(320, availableWidth * 0.48)
-      : 44;
+    const separatorAllowance = nextMessage.gap === 'airspace'
+      ? Math.min(640, availableWidth * 0.76)
+      : nextMessage.gap === 'long'
+        ? Math.min(320, availableWidth * 0.48)
+        : 44;
     const estimatedWidth = messageLabel(nextMessage).length * 8 + separatorAllowance;
     const copyWidth = Math.max(MIN_COPY_WIDTH, measuredWidth || estimatedWidth);
     const copyCount = Math.max(2, Math.ceil(availableWidth / copyWidth) + 1);
@@ -298,12 +322,17 @@ function MovingMessage({ message, fallback }: {
   }, [appendGroups, geometryFor, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
-  if (!announcedMessage && groups.length === 0 && !waitingForLayout) return null;
+  if (!announcedMessage && groups.length === 0 && !waitingForLayout) {
+    return turnPhase?.airspace.state === 'lifted' && turnPhaseReadout(turnPhase)?.kind === 'open'
+      ? <PhaseTimerOnlyTicker turnPhase={turnPhase} reducedMotion={false} />
+      : null;
+  }
 
   return (
     <aside className="fleet-ticker" aria-label="Fleet broadcasts"
       data-tone={announcedMessage?.tone ?? 'normal'}
-      data-gap={announcedMessage?.gap ?? 'standard'} data-reduced="false">
+      data-gap={announcedMessage?.gap ?? 'standard'} data-reduced="false"
+      data-phase-timer={String(turnPhase !== undefined)}>
       <div ref={windowRef} className="fleet-ticker__window"
         {...(announcedMessage
           ? {
@@ -350,22 +379,28 @@ function MovingMessage({ message, fallback }: {
           </span>
         )}
       </div>
+      <TickerOpenAirspaceTimer phase={turnPhase} />
     </aside>
   );
 }
 
 /** Shared viewport surface for alert and press messages; identity owns playback. */
-export default function FleetTicker({ message, fallback }: {
+export default function FleetTicker({ message, fallback, turnPhase }: {
   readonly message?: FleetMessage;
   readonly fallback?: FleetMessage;
+  readonly turnPhase?: TurnPhase | undefined;
 }) {
   const { reducedMotion } = useMotionPreference();
   if (reducedMotion) {
     return message
       ? <StationaryMessage key={messageSignature(message)} message={message}
-          {...(fallback === undefined ? {} : { fallback })} />
-      : null;
+          {...(fallback === undefined ? {} : { fallback })}
+          {...(turnPhase === undefined ? {} : { turnPhase })} />
+      : turnPhase?.airspace.state === 'lifted' && turnPhaseReadout(turnPhase)?.kind === 'open'
+        ? <PhaseTimerOnlyTicker turnPhase={turnPhase} reducedMotion />
+        : null;
   }
   return <MovingMessage {...(message === undefined ? {} : { message })}
-    {...(fallback === undefined ? {} : { fallback })} />;
+    {...(fallback === undefined ? {} : { fallback })}
+    {...(turnPhase === undefined ? {} : { turnPhase })} />;
 }

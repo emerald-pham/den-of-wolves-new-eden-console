@@ -8,6 +8,7 @@ import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
+  beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
   getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),

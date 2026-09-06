@@ -2088,6 +2088,27 @@ body {
   pointer-events: none;
 }
 
+.turn-phase-timer {
+  position: absolute;
+  left: max(0.45rem, env(safe-area-inset-left));
+  bottom: max(0.45rem, env(safe-area-inset-bottom));
+  z-index: 4;
+  display: grid;
+  gap: 0.15rem;
+  min-width: 5.5rem;
+  padding: 0.38rem 0.45rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 92%, transparent);
+  font: 0.5rem/1 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.turn-phase-timer[data-tone='blue'] { color: var(--cic-cyan-hot); }
+.turn-phase-timer > span { color: var(--cic-muted); }
+.turn-phase-timer > strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
 .ship-plot__toggle {
   position: absolute;
   right: 0.45rem;
@@ -3140,11 +3161,58 @@ body {
 .maintenance-systems__cycle > ol > li > p { font-size: 0.875rem; }
 .maintenance-systems__cycle > ol > li > p[role='status'] { color: var(--cic-cyan); }
 
+.aegis-systems-control {
+  margin: 0.75rem;
+  border: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 80%, transparent);
+}
+.aegis-systems-control > summary {
+  min-height: 44px;
+  padding: 0.8rem;
+  color: var(--cic-amber);
+  font: 0.72rem/1.2 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.airspace-control {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0.75rem 0.75rem;
+  padding: 0.8rem;
+}
+.airspace-control h3 { margin: 0; color: var(--cic-amber); font: 1rem/1 var(--cic-display); text-transform: uppercase; }
+.airspace-control p { margin: 0; color: var(--cic-muted); font: 0.68rem/1.45 var(--cic-mono); }
+.airspace-control__eyebrow { color: var(--cic-amber) !important; letter-spacing: 0.1em; text-transform: uppercase; }
+.airspace-control__timers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.airspace-control__timer {
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, var(--cic-void) 90%, transparent);
+  font: 0.58rem/1.35 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.airspace-control__timer:disabled { opacity: 1; cursor: not-allowed; }
+.airspace-control__timer[data-tone='red'] { color: var(--cic-danger); }
+.airspace-control__timer[data-tone='blue'] { color: var(--cic-cyan-hot); }
+.airspace-control__note { border-top: 1px solid var(--cic-rule); padding-top: 0.6rem; }
+@media (max-width: 30rem) { .airspace-control__timers { grid-template-columns: 1fr; } }
+
 /* GM uses the same ship identity/workspace shell, with fleet DRADIS in its rail. */
 .gm-console .gm-console__section-title {
   margin: 0;
   color: var(--cic-amber);
   font: 0.875rem/1.4 var(--cic-mono);
+}
+.gm-turn-control__override {
+  margin: 0.5rem 0;
+  color: var(--cic-danger);
+  font: 0.64rem/1.45 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 .gm-console__instruments {
   position: absolute;
@@ -3208,4 +3276,12 @@ body {
 
 .ship-plot:has(.contact-plot__red-alert) .ship-plot__compass {
   bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 2.75rem);
+}
+
+.ship-plot:has(.turn-phase-timer) .ship-plot__compass {
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 3.6rem);
+}
+
+.ship-plot:has(.contact-plot__red-alert):has(.turn-phase-timer) .ship-plot__compass {
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 6.35rem);
 }

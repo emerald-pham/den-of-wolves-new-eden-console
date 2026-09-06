@@ -100,6 +100,113 @@
   animation: cic-split-cyan 4.2s ease-in-out infinite alternate;
 }
 
+/* Fleet turn-start transmission ------------------------------------------------
+   Reuses the full-screen signal envelope without implying a hostile takeover.
+   The turn marker is an operational readout; only the traitor reveal carries
+   threat red. */
+.intrusion--fleet {
+  z-index: 30;
+  background: radial-gradient(
+    ellipse 68% 60% at 50% 48%,
+    color-mix(in srgb, var(--cic-panel) 94%, transparent) 0%,
+    var(--cic-void) 78%
+  );
+  animation: none;
+}
+
+.intrusion--fleet::before {
+  opacity: 0.14;
+  background:
+    repeating-linear-gradient(0deg, var(--cic-amber-dim) 0 1px, transparent 1px 6px),
+    repeating-linear-gradient(90deg, transparent 0 11px, var(--cic-cyan-dim) 11px 12px, transparent 12px 23px);
+}
+
+.intrusion--fleet::after {
+  background: radial-gradient(
+    ellipse 56% 50% at 50% 50%,
+    transparent 50%,
+    color-mix(in srgb, var(--cic-cyan-dim) 35%, transparent) 118%
+  );
+  animation: none;
+}
+
+.intrusion--fleet .intrusion__signal .cic-overline {
+  color: var(--cic-amber);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cic-amber-glow) 72%, transparent);
+}
+
+.turn-start-announcement__slide {
+  display: grid;
+  min-height: min(16rem, 55dvh);
+  place-items: center;
+  animation: turn-start-message 400ms ease-out both;
+}
+
+.turn-start-announcement__turn,
+.turn-start-announcement__population,
+.turn-start-announcement__survive,
+.turn-start-announcement__message {
+  width: min(100%, 68rem);
+  margin: 0;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.turn-start-announcement__turn {
+  color: var(--cic-amber);
+  font: clamp(2.5rem, 9vw, 7rem) / 1 var(--cic-display);
+  letter-spacing: 0.09em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--cic-amber-glow) 76%, transparent);
+}
+
+.turn-start-announcement__message {
+  color: var(--cic-ink);
+  font: clamp(1.15rem, 3.4vw, 2.65rem) / 1.32 var(--cic-display);
+  letter-spacing: 0.035em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--cic-cyan-dim) 45%, transparent);
+}
+
+.turn-start-announcement__population,
+.turn-start-announcement__survive {
+  color: var(--cic-cyan-hot);
+  font: clamp(2.25rem, 8vw, 6.2rem) / 1 var(--cic-display);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--cic-cyan) 74%, transparent);
+}
+
+.turn-start-announcement__traitors {
+  color: var(--cic-hostile);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--cic-hostile) 86%, transparent);
+}
+
+.turn-start-announcement__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes turn-start-message {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-height: 31rem) {
+  .intrusion--fleet { padding-block: 0.75rem; }
+  .turn-start-announcement__slide { min-height: 9rem; }
+  .turn-start-announcement__message { font-size: clamp(1rem, 4.3vh, 1.7rem); }
+}
+
 @keyframes cic-transmission {
   0% {
     opacity: 0;
@@ -144,7 +251,8 @@
   .intrusion,
   .intrusion::after,
   .intrusion__message::before,
-  .intrusion__message::after {
+  .intrusion__message::after,
+  .turn-start-announcement__slide {
     animation: none;
   }
 }

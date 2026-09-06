@@ -16,6 +16,8 @@ import ScreenFade from '@/components/ScreenFade';
 import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
 import UnrestAlert from '@/components/UnrestAlert';
+import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
+import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
 import { useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
@@ -94,6 +96,7 @@ function AppRoutes() {
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
         ambientSession={session ?? undefined}
+        turnPhase={session?.turnPhase}
       />
       <AppHeader />
       <CommunicationError />
@@ -117,6 +120,8 @@ function AppRoutes() {
           </Routes>
         )}
       </ScreenFade>
+      <TurnStartAnnouncement />
+      <TurnPhaseCoordinator />
     </div>
   );
 }

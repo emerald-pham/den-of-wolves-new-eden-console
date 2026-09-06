@@ -92,14 +92,29 @@ export function requireTurnAdvanceRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
   expectedTurn?: unknown;
-}): { sessionId: string; instanceId: string; expectedTurn: number } {
-  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
-    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  overridePhaseTimer?: unknown;
+}): { sessionId: string; instanceId: string; expectedTurn: number; overridePhaseTimer: boolean } {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a non-negative integer.');
+  }
+  if (data.overridePhaseTimer !== undefined && typeof data.overridePhaseTimer !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'overridePhaseTimer must be boolean.');
   }
   return {
     ...requireGmInstanceRequest(data),
     expectedTurn: data.expectedTurn as number,
+    overridePhaseTimer: data.overridePhaseTimer === true,
   };
+}
+
+export function requireOpenAirspacePhaseRequest(data: {
+  sessionId?: unknown;
+  expectedTurn?: unknown;
+}): { sessionId: string; expectedTurn: number } {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  return { sessionId: requiredId(data.sessionId, 'sessionId'), expectedTurn: data.expectedTurn as number };
 }
 
 export function requireShipAvailabilityRequest(data: {

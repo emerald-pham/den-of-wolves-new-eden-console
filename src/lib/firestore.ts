@@ -22,6 +22,7 @@ import { shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
+import { turnPhaseState } from './turnPhase';
 
 let firestore: Firestore | undefined;
 
@@ -43,14 +44,31 @@ function iso(value: unknown): string {
   return new Date().toISOString();
 }
 
+function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnouncement'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const announcement = value as Readonly<Record<string, unknown>>;
+  const turn = announcement.turn;
+  const survivorPopulation = announcement.survivorPopulation;
+  if (
+    typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
+    typeof survivorPopulation !== 'number' || !Number.isSafeInteger(survivorPopulation) ||
+    survivorPopulation < 0
+  ) return undefined;
+  return { turn, survivorPopulation };
+}
+
 function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
+  const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
+  const phaseClock = turnPhaseState(data.turnPhase);
   return {
     id,
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
-    currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 1 ? data.currentTurn as number : 1,
+    currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0 ? data.currentTurn as number : 1,
+    ...(announcement ? { turnStartAnnouncement: announcement } : {}),
+    ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     shipGalacticCoordinates:

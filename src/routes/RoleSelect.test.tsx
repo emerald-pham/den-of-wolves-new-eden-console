@@ -77,7 +77,7 @@ describe('RoleSelect', () => {
 
     expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^join as gm/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /gm console/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^setup/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /select a role/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /press.*snn/i })).not.toBeInTheDocument();
@@ -135,20 +135,20 @@ describe('RoleSelect', () => {
   });
 
 
-  it('blocks GM Console until this browser has claimed GM', async () => {
+  it('keeps the GM console out of the device connection panel', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
     renderRoute();
 
-    expect(screen.getByRole('button', { name: /gm console/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /gm console/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /select a role/i }));
 
     expect(screen.getByText('Console route')).toBeInTheDocument();
     expect(useSessionStore.getState().mode).toBe('console');
   });
 
-  it('opens GM Console after this browser claims GM', async () => {
+  it('keeps the role picker available after this browser claims GM', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(gm);
@@ -158,9 +158,8 @@ describe('RoleSelect', () => {
     });
     renderRoute();
 
-    await user.click(screen.getByRole('button', { name: /gm console/i }));
-    expect(screen.getByText('GM route')).toBeInTheDocument();
-
+    await user.click(screen.getByRole('button', { name: /select a role/i }));
+    expect(screen.getByText('Console route')).toBeInTheDocument();
   });
 
   it('shows a greyed lock control to non-GMs and blocks claims when a GM is present', async () => {

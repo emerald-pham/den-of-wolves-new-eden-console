@@ -18,6 +18,7 @@ import {
   selectConsoleRole,
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import type { Player, DamageDraw } from '@/types/game';
@@ -41,6 +42,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
+  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
   const ship = findShip(shipId);
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
   const ownShip = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId;
@@ -154,7 +156,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   ) return <Navigate to="/console" replace />;
 
   async function activate(): Promise<void> {
-    if (!ship || !consoleRole || spent || queued || activating) return;
+    if (!ship || !consoleRole || turnZeroLocked || spent || queued || activating) return;
     setActivating(true);
     try {
       const result = await popShipConfetti(ship.id, consoleRole.id);
@@ -336,7 +338,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                   : queued
                     ? 'Emergency Bridge Confetti Dispenser activation queued'
                     : 'Activate Emergency Bridge Confetti Dispenser'}
-                disabled={!writable || !coverOpen || !consoleRole || spent || queued || activating}
+                disabled={!writable || turnZeroLocked || !coverOpen || !consoleRole || spent || queued || activating}
                 onClick={() => void activate()}
               >
                 {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -346,14 +348,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                 type="button"
                 aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
                 aria-pressed={coverOpen}
-                disabled={!writable || spent || queued}
+                disabled={!writable || turnZeroLocked || spent || queued}
                 onClick={() => setCoverOpen((current) => !current)}
               >
                 {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}
               </button>
             </div>
             <p className="confetti-dispenser__status">
-              ONE USE // {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+              ONE USE // {turnZeroLocked ? 'TURN 0 // AWAITING GM START' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
             </p>
             {confettiActor && (
               <p className="confetti-dispenser__notice" role="status">

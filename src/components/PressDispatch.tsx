@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import type { Shuttlecraft } from '@/data/shuttles';
 import { dismissPressDispatch, publishPressDispatch } from '@/lib/pressDispatchService';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
+import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 
 const MAX_DISPATCH_LENGTH = 220;
 
@@ -10,14 +11,18 @@ export default function PressDispatch({ shuttle }: {
   readonly shuttle: Pick<Shuttlecraft, 'captainRoleId' | 'operatorShort'>;
 }) {
   const me = useSessionStore((state) => state.me);
+  const session = useSessionStore((state) => state.session);
   const connection = useSessionStore((state) => state.connection);
-  const dispatchState = useSessionStore((state) => state.session?.pressDispatch);
+  const isGm = useSessionStore(selectIsGm);
+  const dispatchState = session?.pressDispatch;
   const current = normalizePressDispatch(dispatchState).dispatches;
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [dismissing, setDismissing] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
+  const hasPressAuthority = me?.activeConsoleRoleId === shuttle.captainRoleId;
+  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
+  const authorized = hasPressAuthority && !turnZeroLocked;
 
   async function publish(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -101,7 +106,9 @@ export default function PressDispatch({ shuttle }: {
         ) : <p className="press-dispatch__empty">No active dispatches</p>}
       </div>
       <p className="press-dispatch__status" aria-live="polite">
-        {notice || (!authorized ? 'Press Officer authority required' : '')}
+        {notice || (turnZeroLocked
+          ? 'Turn 0 // Awaiting GM start'
+          : !authorized ? 'Press Officer authority required' : '')}
       </p>
     </section>
   );

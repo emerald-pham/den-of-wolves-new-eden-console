@@ -96,6 +96,21 @@ it('gives the Press Officer a dispatch desk that publishes to the fleet ticker',
   expect(desk).toHaveTextContent('Dispatch transmitted');
 });
 
+it('holds Press Officer dispatch controls during Turn 0', () => {
+  const state = useSessionStore.getState();
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'press-officer' });
+  state.setSession({ ...state.session!, currentTurn: 0 });
+  state.setConnection('live');
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('textbox', { name: 'Dispatch' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Publish dispatch' })).toBeDisabled();
+});
+
 it('shows every current dispatch and dismisses only the selected dispatch', async () => {
   const user = userEvent.setup();
   const state = useSessionStore.getState();

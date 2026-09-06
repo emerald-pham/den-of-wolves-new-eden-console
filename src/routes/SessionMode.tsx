@@ -98,6 +98,14 @@ function FleetRoster({
       <section className="fleet-group" aria-labelledby="independent-roles">
         <h2 className="fleet-group__title" id="independent-roles">Independent stations</h2>
         <div className="role-select__grid">
+          {isGm && <Link
+            className="role-card cic-frame"
+            to="/gm"
+            aria-label="GM Console"
+          >
+            <span className="role-card__name">GM Console</span>
+            <span className="role-card__description">Session controls and fleet oversight</span>
+          </Link>}
           {active.has('press-officer') && <Link
             className="role-card cic-frame"
             to="/press"

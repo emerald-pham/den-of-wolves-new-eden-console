@@ -8,14 +8,11 @@ const MODES: readonly {
   mode: ConsoleMode;
   label: string;
   description: string;
-  gmOnly: boolean;
 }[] = [
-  { mode: 'gm', label: 'GM Console', description: 'Manage active GM instances.', gmOnly: true },
   {
     mode: 'console',
     label: 'Select a role',
     description: 'Choose an independent or shipboard station.',
-    gmOnly: false,
   },
 ];
 
@@ -144,12 +141,11 @@ export default function RoleSelect() {
             {pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
           </span>
         </button>
-        {MODES.map(({ mode, label, description, gmOnly }) => (
+        {MODES.map(({ mode, label, description }) => (
           <button
             className="role-card cic-frame"
             type="button"
             key={mode}
-            disabled={gmOnly && !isGm}
             onClick={() => connectAs(mode)}
           >
             <span className="role-card__name">{label}</span>
