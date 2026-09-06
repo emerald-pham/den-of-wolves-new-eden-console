@@ -11,6 +11,7 @@ src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 - [CIC / default interface](#cic--default-interface)
 - [Contact plot / threat board](#contact-plot--threat-board)
 - [SNN shuttle template](SHUTTLE_TEMPLATE.md)
+- [Capybara ship template](SHIP_TEMPLATE.md)
 - [Screen crossings](#screen-crossings)
 - [Intrusion / hostile takeover](#intrusion--hostile-takeover)
 - [Every viewport](#every-viewport)
@@ -283,6 +284,11 @@ specialize the accent and modules but must not replace the shell.
   workspace and must not introduce secondary console pages.
 
 ### Ship console layout and growth
+
+Use the [Capybara ship template](SHIP_TEMPLATE.md) for the remaining fleet
+ships. It specifies identity statistics, census survivor steps, capacity
+warnings and GM threshold alerts. This is the requested implementation
+specification; its presence does not mean these additions are implemented.
 
 Capital-ship consoles are built for multiple internal mechanics pages. The
 current identity view is the first page, not a mandate to place every later
