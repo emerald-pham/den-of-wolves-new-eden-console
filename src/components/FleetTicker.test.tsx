@@ -5,19 +5,38 @@ import FleetTicker from './FleetTicker';
 import { setMotionOverride } from '@/lib/motionPreference';
 const alert = { id: 'alert-1', text: 'red alert from AEGIS Admiral - wolf attack imminent, all hands to battle stations', tone: 'danger' as const };
 const cancelled = { id: 'cancel-2', text: 'red alert cancelled by AEGIS, stand down, stand down all battlestations. repeat, stand down, stand down all battlestations. red alert cancelled by AEGIS.', tone: 'normal' as const, passes: 2 };
+const finishMovingPasses = (container: HTMLElement, messageId: string) => {
+  [...container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${messageId}"]`,
+  )].forEach((group) => fireEvent.animationEnd(group));
+};
 beforeEach(() => { sessionStorage.clear(); setMotionOverride('full'); });
 afterEach(() => { vi.useRealTimers(); act(() => setMotionOverride('system')); });
-it('repeats the alert indefinitely and replaces it with exactly two cancellation passes', () => {
+it('lets the old broadcast leave naturally while its replacement follows on the same lane', () => {
   const view = render(<FleetTicker message={alert} />);
+  const track = view.container.querySelector('.fleet-ticker__track');
   const alertStatus = screen.getByRole('status', { name: alert.text });
-  fireEvent.animationIteration(alertStatus.querySelector('.fleet-ticker__track')!);
   expect(alertStatus).toBeVisible();
   view.rerender(<FleetTicker message={cancelled} />);
-  expect(screen.queryByRole('status', { name: alert.text })).not.toBeInTheDocument();
+
   const cancellationStatus = screen.getByRole('status', { name: cancelled.text });
-  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  expect(cancellationStatus.querySelector('.fleet-ticker__track')).toBe(track);
+  expect(view.container.querySelector(
+    `.fleet-ticker__group[data-message-id="${alert.id}"]`,
+  )).toHaveTextContent(alert.text);
+  expect(view.container.querySelector(
+    `.fleet-ticker__group[data-message-id="${cancelled.id}"]`,
+  )).toHaveTextContent(cancelled.text);
+
+  finishMovingPasses(view.container, alert.id);
+  expect(view.container.querySelector(
+    `.fleet-ticker__group[data-message-id="${alert.id}"]`,
+  )).not.toBeInTheDocument();
   expect(cancellationStatus).toBeVisible();
-  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+});
+it('plays a finite replacement for exactly its configured passes', () => {
+  const view = render(<FleetTicker message={cancelled} />);
+  finishMovingPasses(view.container, cancelled.id);
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
   view.unmount(); render(<FleetTicker message={cancelled} />);
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
@@ -29,11 +48,17 @@ it('returns to a standing press bulletin after a finite broadcast completes', ()
     tone: 'normal' as const,
     gap: 'long' as const,
   };
-  render(<FleetTicker message={cancelled} fallback={standby} />);
-  const cancellationStatus = screen.getByRole('status', { name: cancelled.text });
-  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
-  fireEvent.animationIteration(cancellationStatus.querySelector('.fleet-ticker__track')!);
+  const { container } = render(<FleetTicker message={cancelled} fallback={standby} />);
+  finishMovingPasses(container, cancelled.id);
   expect(screen.getByRole('status', { name: standby.text })).toBeVisible();
+});
+it('lets the final broadcast slide away before clearing its instrument', () => {
+  const view = render(<FleetTicker message={alert} />);
+  view.rerender(<FleetTicker />);
+
+  expect(screen.getByLabelText('Fleet broadcasts')).toHaveTextContent(alert.text);
+  finishMovingPasses(view.container, alert.id);
+  expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
 });
 it('runs press copy on the same surface without pause controls', () => {
   render(<FleetTicker message={{ id: 'press-1', text: 'Press missive', tone: 'normal' }} />);
@@ -58,7 +83,7 @@ it('duplicates every moving broadcast into two seamless, screen-filling groups',
 it('uses all-capital lettering for fleet broadcasts', async () => {
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
   expect(css).toMatch(/\.fleet-ticker__message[^}]*text-transform:\s*uppercase/);
-  expect(css).toMatch(/@keyframes fleet-broadcast-pass[^]*translateX\(-50%\)/);
+  expect(css).toMatch(/@keyframes fleet-broadcast-pass[^]*calc\(0px - var\(--fleet-ticker-group-width\)\)/);
   const tickerRule = css.match(/\.fleet-ticker\s*\{([^}]*)\}/)?.[1];
   expect(tickerRule).not.toMatch(/position:\s*fixed/);
   expect(tickerRule).not.toMatch(/bottom:/);
@@ -70,13 +95,16 @@ it('leaves a long gap between repeated press dispatches', async () => {
   }} />);
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
-  expect(css).toMatch(/\.fleet-ticker\[data-gap=["']long["']\][^}]*\.fleet-ticker__separator/);
+  expect(css).toMatch(/\.fleet-ticker__group\[data-gap=["']long["']\][^}]*\.fleet-ticker__separator/);
 });
 
-it('brings danger copy in from the right before its repeating passes', () => {
+it('moves every incoming tone at the shared linear ticker rate', () => {
   const { container } = render(<FleetTicker message={alert} />);
-  expect(container.querySelector('.fleet-ticker__entrance')).not.toBeNull();
+  expect(container.querySelector('.fleet-ticker__group')).toHaveAttribute(
+    'data-tone', 'danger',
+  );
   const css = readFileSync('src/components/fleetTicker.css', 'utf8');
-  expect(css).toMatch(/@keyframes fleet-broadcast-enter[^]*translateX\(100%\)/);
+  expect(css).toMatch(/animation:\s*fleet-broadcast-pass var\(--fleet-ticker-duration\) linear forwards/);
+  expect(css).not.toContain('fleet-broadcast-enter');
   expect(css).toMatch(/text-transform:\s*lowercase/);
 });

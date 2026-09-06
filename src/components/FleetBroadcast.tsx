@@ -14,8 +14,9 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
-  if (!session || !me || !alert || alert.revision === 0) {
-    return pressDispatch ? <FleetTicker message={pressDispatch} /> : null;
+  if (!session || !me) return null;
+  if (!alert || alert.revision === 0) {
+    return <FleetTicker {...(pressDispatch ? { message: pressDispatch } : {})} />;
   }
   return <FleetTicker message={{
     id: `${session.id}:red-alert:${alert.revision}`,

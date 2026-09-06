@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Ticker messages now keep their natural scrolling pace when replaced or dismissed, with new copy following smoothly on the same track.',
+    ],
+  },
+  {
+    version: '0.2.29',
+    changes: [
       'Returning to a console after at least one minute away now checks for an update and resumes the previous session without continuous background polling.',
     ],
   },

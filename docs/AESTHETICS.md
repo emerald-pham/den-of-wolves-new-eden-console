@@ -216,9 +216,11 @@ it. The SNN ticker remains absent until the Press Officer publishes the first
 dispatch, then returns between finite broadcasts. Press dispatches leave a
 deliberately long field of empty track between repetitions,
 so each item reads as a discrete wire-service bulletin rather than a dense alert.
-Moving broadcasts contain two identical groups, with enough copies in each
-group to span the available readout before the track loops between them. Reduced
-motion shows one stationary, wrapping message in the same instrument.
+Stable moving broadcasts keep two identical groups, with enough copies in each
+group to span the available readout. Every ticker uses the continuous-track
+transition defined under Fleet broadcast scroller; do not unmount or replace a
+visible group when its source message changes. Reduced motion shows one
+stationary, wrapping message in the same instrument.
 
 The AEGIS fleet-alert command occupies the guarded bridge-control housing that
 other ships use for the emergency confetti dispenser. Its closed command cover,
@@ -750,17 +752,23 @@ Admiral command uses the shared framed action button, with a live status
 alongside it and inline errors. Every label, control state, status and error in
 this alert instrument is authored in uppercase.
 
-Active warnings enter from the right over four seconds, fading to full intensity
-during the first second, before beginning their repeating 30-second passes.
-The entrance is separate from the looping track so it never counts as a completed
-pass. Reduced motion shows stationary wrapped copy immediately.
+All moving ticker copy enters from the right and travels left at one constant,
+linear rate. This is the fleetwide press/alert transition convention: when a
+message is replaced or dismissed, every group already visible keeps its exact
+position and normal speed until its trailing edge leaves the window. Discard
+only repetitions that have not entered the window. Queue replacement copy just
+beyond the outgoing tail—or at the right edge when the remaining tail is already
+inside the window—so it enters at that same rate. Never add a separate entrance,
+exit, fade, easing curve or message-specific speed.
 
-Each full right-to-left pass takes 30 seconds. Alert copy repeats until replaced;
-stand-down copy makes two complete passes. Playback identity includes the session
-and alert revision, and completed passes survive navigation and tab reloads.
-A new alert immediately replaces a cancellation still playing. The shared
-FleetTicker accepts message copy, tone, spacing and optional pass count. Press
-dispatches use its long-gap mode on the same instrument.
+Alert copy repeats until replaced; stand-down copy makes two complete passes.
+Playback identity includes the session and alert revision, and completed passes
+survive navigation and tab reloads. A new alert follows any cancellation copy
+already visible while unentered cancellation repetitions are dropped. The
+shared FleetTicker accepts message copy, tone, spacing and optional pass count.
+Press dispatches use its long-gap mode on the same instrument. Reduced motion
+shows the current stationary wrapped copy immediately and does not retain a
+dismissed visual message.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
@@ -808,5 +816,5 @@ Page navigation remains usable in read-only mode. Reviewed at 320×844, 1440×90
 and 844×390 with operational and damaged systems, the shared command group,
 observer access toggling, and return navigation.
 
-Alert editor, ticker entrance, lowercase warning and DRADIS warning reviewed at
+Alert editor, continuous ticker transition, lowercase warning and DRADIS warning reviewed at
 1440×900, 320×844 and 844×390, including reduced motion and return navigation.

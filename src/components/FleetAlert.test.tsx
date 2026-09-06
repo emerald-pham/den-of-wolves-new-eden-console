@@ -47,6 +47,27 @@ it('shows the latest press dispatch while no alert is active', () => {
     name: 'SNN // Convoy arrival confirmed',
   })).toBeVisible();
 });
+it('keeps the last press copy moving until it clears the ticker window', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    pressDispatch: { text: 'SNN // Convoy arrival confirmed', revision: 1 },
+  });
+  const view = render(<FleetBroadcast />);
+
+  act(() => {
+    const sessionWithoutDispatch = { ...useSessionStore.getState().session! };
+    delete sessionWithoutDispatch.pressDispatch;
+    useSessionStore.getState().setSession(sessionWithoutDispatch);
+  });
+
+  expect(screen.getByLabelText('Fleet broadcasts'))
+    .toHaveTextContent('SNN // Convoy arrival confirmed');
+  view.container.querySelectorAll<HTMLElement>(
+    '.fleet-ticker__group[data-message-id="s1:press-dispatch:1"]',
+  ).forEach((group) => fireEvent.animationEnd(group));
+  expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
+});
 it('does not offer the command to other roles and shows fleet messages to them', () => {
   act(() => { const state = useSessionStore.getState(); state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' }); state.setSession({ ...state.session!, fleetRedAlert: { active: false, revision: 2 } }); });
   render(<><AegisConsoleWorkspace roleId="wing-commander" galacticCoordinate="0000" fuel={0} /><FleetBroadcast /></>);
