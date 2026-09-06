@@ -128,6 +128,12 @@ describe('the CIC frame', () => {
 });
 
 describe('the in-session header', () => {
+  it('uses the same session readout composition in header and settings', () => {
+    const header = readFileSync('src/components/AppHeader.tsx', 'utf8');
+
+    expect(header.match(/<SessionReadouts/g)).toHaveLength(2);
+  });
+
   it('centres the session label and code on a shared two-column grid', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const badge = index.match(/\.session-badge\s*\{([^}]*)\}/)?.[1] ?? '';
