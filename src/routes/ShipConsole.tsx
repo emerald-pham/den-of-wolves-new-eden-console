@@ -7,7 +7,7 @@ import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
-import { findShip } from '@/data/ships';
+import { findShip, SHIP_ORIGIN_LABELS } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -162,7 +162,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             {(roleId || observer) ? 'Change role' : 'Leave ship'}
           </Link>
         )}
-        <p className="ship-console__nation">{ship.nation} // {ship.nationShort}</p>
+        <p className="ship-console__nation">
+          {SHIP_ORIGIN_LABELS[ship.origin]} // {ship.nation} // {ship.nationShort}
+        </p>
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>

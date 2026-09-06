@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router-dom';
 import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
-import { SHIPS, type ShipOrigin } from '@/data/ships';
+import { SHIPS, SHIP_ORIGIN_LABELS, type ShipOrigin } from '@/data/ships';
 import { findConsoleRole, rolesForShip } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS, CONSOLE_ROLES } from '@/data/roles';
 import ShuttleConsole from '@/routes/ShuttleConsole';
@@ -63,8 +63,8 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
 }
 
 const FLEET_GROUPS: readonly { origin: ShipOrigin; label: string }[] = [
-  { origin: 'earth', label: 'Old Nations of Earth' },
-  { origin: 'colonies', label: 'New Nations of the Colonies' },
+  { origin: 'earth', label: SHIP_ORIGIN_LABELS.earth },
+  { origin: 'colonies', label: SHIP_ORIGIN_LABELS.colonies },
 ];
 
 function FleetRoster({

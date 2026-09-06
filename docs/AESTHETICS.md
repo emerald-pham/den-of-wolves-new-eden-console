@@ -126,6 +126,11 @@ elsewhere. This makes faction color informational rather than ornamental.
 Shepherd is the deliberate contact-color exception: its DRADIS return is white
 while its joined-ship identity remains Rosal red.
 
+On every joined ship console, keep the fleet origin, nation and abbreviation on
+one identity line: `OLD NATIONS OF EARTH // [nation] // [abbreviation]` or
+`NEW NATIONS OF THE COLONIES // [nation] // [abbreviation]`. The shared ship
+origin labels also title the corresponding fleet-selection groups.
+
 Type: `--cic-mono` for every label, control and readout caption, always
 uppercase with wide tracking; `--cic-display` for manifest numbers and
 cinematic headlines. System fonts only, no external font dependency.

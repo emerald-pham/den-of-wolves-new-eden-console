@@ -79,6 +79,19 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
 });
 
 it.each([
+  ['aegis', 'Old Nations of Earth // Interstellar Council Service Navy // ICN'],
+  ['shepherd', 'New Nations of the Colonies // Rosal // ROSAL'],
+] as const)('shows the %s ship nation within its fleet origin', (shipId, nationLine) => {
+  render(
+    <MemoryRouter initialEntries={[`/ships/${shipId}`]}>
+      <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText(nationLine)).toBeInTheDocument();
+});
+
+it.each([
   ['aegis', 'AEGIS', [0, 4, 8, 6, 1, 9]],
   ['dione', 'Dione', [0, 3, 13, 14, 0, 2]],
   ['icebreaker', 'Icebreaker', [0, 4, 11, 9, 3, 2]],
