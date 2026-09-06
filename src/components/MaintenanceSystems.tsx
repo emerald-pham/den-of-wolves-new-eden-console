@@ -27,6 +27,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const step = cycle?.step ?? 0;
   const revision = cycle?.revision ?? 0;
   const currentTurn = session?.currentTurn ?? 1;
+  const [confirmBegin, setConfirmBegin] = useState(false);
+  useEffect(() => { setConfirmBegin(false); }, [shipId, currentTurn, step, revision, session?.id, connection]);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [error, setError] = useState('');
@@ -58,7 +60,15 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   return <div className="maintenance-systems">
     <section className="maintenance-systems__cycle" aria-label={`${name} maintenance cycle`}>
       <h3>Maintenance cycle</h3>
-      <button className="cic-action-button" disabled={disabled(0)} onClick={() => void execute('begin')}>Begin Maintenance Cycle: Turn {currentTurn}</button>
+      <button className="cic-action-button" disabled={disabled(0)}
+        style={confirmBegin ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' } : undefined}
+        onBlur={() => setConfirmBegin(false)}
+        onKeyDown={event => { if (event.key === 'Escape') setConfirmBegin(false); }}
+        onClick={() => {
+          if (!confirmBegin) { setConfirmBegin(true); return; }
+          setConfirmBegin(false);
+          void execute('begin');
+        }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Turn ${currentTurn}`}</button>
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

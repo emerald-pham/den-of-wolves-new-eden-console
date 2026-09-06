@@ -710,6 +710,10 @@ its own.
 ### Interactive maintenance
 
 The shared maintenance path keeps Begin immediately beneath the amber heading.
+Its first click changes the same button to “ARE YOU SURE?” with danger-red type
+and border, a deliberate caution-colour exception for starting maintenance.
+A second click starts the cycle; blur or Escape cancels confirmation. Later
+steps remain single-click commands.
 All step controls remain present, with inactive buttons and choices in muted grey.
 The current step uses a cyan rail; server-confirmed outcomes use cyan readouts.
 Ration and refuelling selects and checkbox labels have 44px minimum touch targets,

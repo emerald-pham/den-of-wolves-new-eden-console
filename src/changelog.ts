@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Starting a ship’s maintenance cycle now requires a red “ARE YOU SURE?” confirmation; subsequent steps remain one click.',
+    ],
+  },
+  {
+    version: '0.2.21',
+    changes: [
       'The top press ticker now remains visible between fleet events, with clearer all-capital red-alert shelter instructions for non-crew.',
       'The Press Officer can write fleetwide SNN dispatches from the Press shuttle, beginning with “SNN // Your Trusted Partner.”',
       'The Admiral’s guarded red-alert command now keeps every label, status and error in all capitals.',
