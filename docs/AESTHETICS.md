@@ -337,7 +337,9 @@ On phones and short landscape screens, session controls, compact DRADIS, vessel
 identity and instruments all remain in document flow and scroll fully out of
 view. Nothing sticks over the active console workspace. DRADIS begins below the
 measured session-header height, including wrapped rows and rotation; never put
-it behind those controls.
+it behind those controls. The console begins below the resulting DRADIS outline
+using that same measured top and the compact plot size; phone breakpoints must
+not substitute a hard-coded header height that lets the two overlap.
 
 Every in-session page uses the shared `SessionReadouts` composition for session
 code and “X connected to CIC”. The global header and Settings render that same

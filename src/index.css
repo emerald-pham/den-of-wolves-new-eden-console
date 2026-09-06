@@ -2325,7 +2325,7 @@ body {
 @media (max-width: 32rem) {
   .ship-resources ul { grid-template-columns: 1fr; }
   .ship-plot[data-aboard='true'][data-expanded='false'] {
-    top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.25rem);
+    top: var(--console-plot-top);
   }
   .app-header {
     flex-wrap: wrap;

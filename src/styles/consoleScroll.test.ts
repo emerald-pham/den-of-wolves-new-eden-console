@@ -6,6 +6,20 @@ it('reserves the measured header row above compact DRADIS', () => {
   expect(css).toContain('--console-plot-top: calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 0.75rem)');
   expect(css).not.toMatch(/\.ship-plot\[data-aboard='true'\]\[data-expanded='false'\]\s*\{\s*top: max/);
 });
+
+it('keeps narrow-phone DRADIS on the measured top used to clear the console', () => {
+  const narrowPhone = css.slice(
+    css.indexOf('@media (max-width: 32rem)'),
+    css.indexOf("[data-motion='reduce']"),
+  );
+
+  expect(narrowPhone).toMatch(
+    /\.ship-plot\[data-aboard='true'\]\[data-expanded='false'\]\s*\{[^}]*top: var\(--console-plot-top\)/s,
+  );
+  expect(narrowPhone).not.toMatch(
+    /\.ship-plot\[data-aboard='true'\]\[data-expanded='false'\]\s*\{[^}]*top: calc\([^}]*5\.25rem/s,
+  );
+});
 it('lets app-wide session chrome scroll away without freezing ship names', () => {
   const header = css.match(/\.app-header\s*\{([^}]*)\}/)?.[1] ?? '';
 
