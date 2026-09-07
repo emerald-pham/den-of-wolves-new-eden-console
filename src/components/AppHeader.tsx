@@ -23,6 +23,32 @@ import FleetBroadcast from './FleetBroadcast';
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
 const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
+const CONNECTION_STATUS_STARTUP_LIE_MS = 5_000;
+
+/**
+ * Keep the header optimistic while the first connection attempt settles.
+ * This is presentation-only: the session store remains the source of truth
+ * for commands and other behavior. A known connected state, including the
+ * separate reconnect grace, always wins over this startup default.
+ */
+function useStartupConnectionStatusLie(
+  status: ReturnType<typeof selectConnectionStatus>,
+  hasCachedSession: boolean,
+): ReturnType<typeof selectConnectionStatus> {
+  const [showRealStatus, setShowRealStatus] = useState(false);
+  const hasKnownConnection = useRef(status !== 'red' || hasCachedSession);
+  if (status !== 'red' || hasCachedSession) hasKnownConnection.current = true;
+
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setShowRealStatus(true),
+      CONNECTION_STATUS_STARTUP_LIE_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  return showRealStatus || hasKnownConnection.current || status !== 'red' ? status : 'yellow';
+}
 
 /**
  * Keep the last known connection light steady while a passive reconnect has a
@@ -165,7 +191,11 @@ export default function AppHeader() {
   const status = useSessionStore(selectConnectionStatus);
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
-  const displayStatus = useConnectionStatusGrace(status, Boolean(sessionId && playerUid));
+  const reconnectDisplayStatus = useConnectionStatusGrace(status, Boolean(sessionId && playerUid));
+  const displayStatus = useStartupConnectionStatusLie(
+    reconnectDisplayStatus,
+    Boolean(sessionId && playerUid),
+  );
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const hasSession = sessionId !== undefined && joinCode !== undefined;
   const currentTurn = useSessionStore((state) => state.session?.currentTurn);
