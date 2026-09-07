@@ -8,7 +8,9 @@ const mock = vi.hoisted(() => {
     path: string;
     id: string;
     get: () => Promise<unknown>;
+    set: (fields: StoredDocument) => Promise<void>;
     update: (fields: StoredDocument) => Promise<void>;
+    delete: () => Promise<void>;
   };
   type Query = {
     query: true;
@@ -27,7 +29,9 @@ const mock = vi.hoisted(() => {
     path,
     id: documentId(path),
     get: async () => snapshot(ref(path)),
+    set: async (fields) => { documents.set(path, { ...fields }); },
     update: async (fields) => directUpdate(ref(path), fields),
+    delete: async () => { documents.delete(path); },
   });
   const snapshot = (target: Ref) => {
     const fields = documents.get(target.path);
@@ -72,7 +76,9 @@ const mock = vi.hoisted(() => {
   });
   const remove = vi.fn((target: Ref) => { documents.delete(target.path); });
   const collection = (path: string) => ({
+    query: true as const,
     path,
+    filters: [] as ReadonlyArray<readonly [string, unknown]>,
     doc: (id?: string) => ref(path + '/' + (id ?? 'generated')),
     where: (field: string, operator: string, value: unknown) =>
       query(path).where(field, operator, value),
@@ -98,7 +104,7 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { serverTimestamp: () => ({ toMillis: () => Date.now() }) },
   Timestamp: class {},
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
@@ -114,7 +120,14 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
   onSchedule: (_schedule: string, handler: (event: unknown) => unknown) => ({ run: handler }),
 }));
 
-import { claimGmInstance, elevateToGm, releaseGmInstance } from './index';
+import {
+  claimGmInstance,
+  elevateToGm,
+  loginGmAccess,
+  logoutGmAccess,
+  releaseGmInstance,
+} from './index';
+import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 
 function put(path: string, fields: StoredDocument) {
   mock.documents.set(path, { ...fields });
@@ -148,6 +161,10 @@ function instance(id: string, uid: string) {
     deviceLabel: 'Test browser',
     claimedAt: 'server-time',
   });
+}
+
+async function login() {
+  await loginGmAccess.run(request({ password: 'bananasplit' }));
 }
 
 function request<T extends Record<string, unknown>>(data: T, uid = 'u1') {
@@ -205,16 +222,45 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('logs in and out of persistent GM access', async () => {
+    await expect(loginGmAccess.run(request({ password: 'bananasplit' })))
+      .resolves.toEqual({ authenticated: true });
+    expect(read('gmAccess/u1')).toMatchObject({ uid: 'u1' });
+
+    await expect(logoutGmAccess.run(request({}))).resolves.toEqual({ authenticated: false });
+    expect(read('gmAccess/u1')).toBeUndefined();
+  });
+
+  it('logging out releases this browser GM instance', async () => {
+    session();
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    await login();
+
+    await expect(logoutGmAccess.run(request({ sessionId: 's1', instanceId: 'bridge' })))
+      .resolves.toEqual({ authenticated: false });
+
+    expect(read('gmAccess/u1')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+  });
+
+  it('rejects a wrong login password without creating access state', async () => {
+    await expect(loginGmAccess.run(request({ password: 'not-the-password' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('gmAccess/u1')).toBeUndefined();
+  });
+
   it('claims a named browser atomically and raises only its owner to GM', async () => {
     session();
     player('u1');
+    await login();
 
     await expect(claimGmInstance.run(request({
       sessionId: 's1',
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
-      password: 'bananasplit',
     }))).resolves.toMatchObject({
       instance: { id: 'bridge', uid: 'u1' },
     });
@@ -227,20 +273,20 @@ describe('GM instance ownership', () => {
     session();
     player('u1');
     instance('bridge', 'u2');
+    await login();
 
     await expect(claimGmInstance.run(request({
       sessionId: 's1',
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
-      password: 'bananasplit',
     }))).rejects.toMatchObject({ code: 'already-exists' });
 
     expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u2' });
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
   });
 
-  it('rejects an incorrect GM access password before changing session state', async () => {
+  it('rejects a GM claim when this browser has not logged in', async () => {
     session();
     player('u1');
 
@@ -249,11 +295,28 @@ describe('GM instance ownership', () => {
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
-      password: 'not-the-password',
     }))).rejects.toMatchObject({ code: 'permission-denied' });
 
     expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+  });
+
+  it('rejects a GM claim after the remembered access window expires', async () => {
+    session();
+    player('u1');
+    await login();
+    put('gmAccess/u1', {
+      uid: 'u1',
+      authenticatedAt: { toMillis: () => Date.now() - GM_ACCESS_TIMEOUT_MS - 1 },
+    });
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1',
+      instanceId: 'bridge',
+      name: 'Bridge laptop',
+      deviceLabel: 'Test browser',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
   });
 
   it('demotes only when a release removes the target final browser instance', async () => {

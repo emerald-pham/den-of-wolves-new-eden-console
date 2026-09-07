@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { useSessionStore } from '@/store/useSessionStore';
+import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 
@@ -13,7 +13,9 @@ vi.mock('@/lib/sessionService', () => ({
   disconnectFromSession: vi.fn(),
   joinSession: vi.fn(),
   kickGmInstance: vi.fn(),
+  loginGmAccess: vi.fn(),
   listGmInstances: vi.fn().mockResolvedValue([]),
+  logoutGmAccess: vi.fn(),
   popShipConfetti: vi.fn(),
   reconcileGmAuthority: vi.fn().mockResolvedValue(undefined),
   refreshPresence: vi.fn().mockResolvedValue(undefined),
@@ -52,6 +54,7 @@ vi.mock('@/lib/versionUpgrade', () => ({
 const {
   connect,
   disconnectFromSession,
+  logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
   releaseConsoleRole,
@@ -89,6 +92,7 @@ describe('App', () => {
       useSessionStore.getState().disconnect();
       return 'applied';
     });
+    vi.mocked(logoutGmAccess).mockResolvedValue('applied');
   });
 
   afterEach(() => {
@@ -101,6 +105,19 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: /Den of Wolves: New Eden/i }),
     ).toBeInTheDocument();
+  });
+
+  it('automatically logs out GM access after the safety timeout', async () => {
+    const authenticatedAt = Date.now() - GM_ACCESS_TIMEOUT_MS - 1;
+    useSessionStore.getState().setGmAccessAuthenticatedAt(authenticatedAt);
+    render(<App />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(logoutGmAccess).toHaveBeenCalledOnce();
+    expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
   });
 
   it.each([

@@ -57,15 +57,35 @@ export function requireGmClaimRequest(data: {
   instanceId?: unknown;
   name?: unknown;
   deviceLabel?: unknown;
-  password?: unknown;
-}): { sessionId: string; instanceId: string; name: string; deviceLabel: string; password: string } {
+}): { sessionId: string; instanceId: string; name: string; deviceLabel: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     name: requiredText(data.name, 'name', 40),
     deviceLabel: requiredText(data.deviceLabel, 'deviceLabel', 160),
-    password: requiredText(data.password, 'password', 128),
   };
+}
+
+export function requireGmAccessLoginRequest(data: {
+  password?: unknown;
+}): { password: string } {
+  return { password: requiredText(data.password, 'password', 128) };
+}
+
+export function requireGmAccessLogoutRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+}): { sessionId: string | undefined; instanceId: string | undefined } {
+  const sessionId = data.sessionId === null || data.sessionId === undefined
+    ? undefined
+    : requiredId(data.sessionId, 'sessionId');
+  const instanceId = data.instanceId === null || data.instanceId === undefined
+    ? undefined
+    : requiredId(data.instanceId, 'instanceId');
+  if ((sessionId === undefined) !== (instanceId === undefined)) {
+    throw new HttpsError('invalid-argument', 'sessionId and instanceId must be supplied together.');
+  }
+  return { sessionId, instanceId };
 }
 
 export function requireGmInstanceActionRequest(data: {

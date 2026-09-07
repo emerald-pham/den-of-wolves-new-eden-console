@@ -288,11 +288,13 @@ vertical scroll region, so a growing log never pushes session, motion, release,
 or disconnect controls beyond practical reach. The scroll region is keyboard
 focusable and remains bounded on short landscape displays.
 
-Settings also carries a compact GM access notice. Keep it as a ruled amber
-section with readable bone-white copy and a cyan mail link; it may explain the
-legitimate-product-access requirement and how to request the facilitator
-password, but it must never display the password itself. The notice is part of
-the dialog's normal document flow so it remains reachable on short screens.
+Settings also carries a compact GM access login. Keep it as a ruled amber
+section with readable bone-white copy, a cyan mail link, and a small lock emoji
+that makes the logged-out or logged-in state immediately legible. The password
+field belongs here rather than on the role-claim card; the browser may remember
+only the login timestamp, never the password. Show the explicit logout control
+and the 24-hour safety timeout in the normal document flow so both remain
+reachable on short screens.
 
 ## Contact plot / threat board
 

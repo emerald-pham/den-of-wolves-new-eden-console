@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { GameSession, GmInstance, Player, Seat, TurnStartReplay } from '@/types/game';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
+export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export type ConsoleMode = 'gm' | 'console' | 'press';
 
 export type PendingCommand =
@@ -15,8 +16,6 @@ export type PendingCommand =
         readonly instanceId: string;
         readonly name: string;
         readonly deviceLabel: string;
-        /** Ephemeral only: never write the GM password to localStorage. */
-        readonly password: string;
       };
       readonly createdAt: string;
     }
@@ -27,6 +26,15 @@ export type PendingCommand =
         readonly sessionId: string;
         readonly instanceId: string;
         readonly targetInstanceId: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'logoutGmAccess';
+      readonly payload: {
+        readonly sessionId: string | null;
+        readonly instanceId: string | null;
       };
       readonly createdAt: string;
     }
@@ -135,6 +143,7 @@ interface SessionState {
   seats: readonly Seat[];
   me: Player | null;
   gmInstance: GmInstance | null;
+  gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
@@ -147,6 +156,8 @@ interface SessionState {
   setSeats: (seats: readonly Seat[]) => void;
   setMe: (me: Player | null) => void;
   setGmInstance: (instance: GmInstance | null) => void;
+  setGmAccessAuthenticatedAt: (authenticatedAt: number | null) => void;
+  clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
@@ -163,6 +174,7 @@ const initial = {
   seats: [] as readonly Seat[],
   me: null,
   gmInstance: null,
+  gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
@@ -171,7 +183,7 @@ const initial = {
   connection: 'idle',
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'turnStartReplay' | 'pendingCommands' |
+  'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
   'communicationError' | 'mode' | 'lastRoute' | 'connection'
 >;
 
@@ -186,6 +198,8 @@ export const useSessionStore = create<SessionState>()(
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => { if (!shallow(get().me, me)) set({ me }); },
       setGmInstance: (gmInstance) => set({ gmInstance }),
+      setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
+      clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
@@ -206,10 +220,10 @@ export const useSessionStore = create<SessionState>()(
           turnStartReplay: null,
           mode: null,
           lastRoute: null,
-          // A queued disconnect must survive local teardown so it can tell the
-          // server that this device left. No other action remains meaningful.
+          // Queued disconnect and logout commands must survive local teardown
+          // so the server can receive the user's explicit cleanup decision.
           pendingCommands: state.pendingCommands.filter(
-            (command) => command.kind === 'disconnectFromSession',
+            (command) => command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess',
           ),
         })),
       reset: () => set({ ...initial }),
@@ -218,12 +232,13 @@ export const useSessionStore = create<SessionState>()(
       name: SESSION_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: ({ session, me, gmInstance, pendingCommands, mode, lastRoute }) => ({
+      partialize: ({ session, me, gmInstance, gmAccessAuthenticatedAt, pendingCommands, mode, lastRoute }) => ({
         session,
         me,
         gmInstance,
-        // GM claims carry a credential for an authoritative retry. Keep that
-        // command in memory while this page is alive, but never persist it.
+        gmAccessAuthenticatedAt,
+        // A GM claim is deliberately not replayed after a reload; access must
+        // be freshly authorized by the current browser login state.
         pendingCommands: pendingCommands.filter((command) => command.kind !== 'claimGmInstance'),
         mode,
         lastRoute,
@@ -235,6 +250,15 @@ export const useSessionStore = create<SessionState>()(
 export const selectIsGm = (state: SessionState): boolean =>
   state.me?.role === 'gm' && state.gmInstance !== null &&
   state.gmInstance.sessionId === state.session?.id;
+
+export const selectGmAccessAuthenticated = (
+  state: { gmAccessAuthenticatedAt: number | null },
+  now = Date.now(),
+): boolean => {
+  const authenticatedAt = state.gmAccessAuthenticatedAt;
+  return typeof authenticatedAt === 'number' && Number.isFinite(authenticatedAt) &&
+    now >= authenticatedAt && now - authenticatedAt < GM_ACCESS_TIMEOUT_MS;
+};
 
 /**
  * What the status light in the header shows.

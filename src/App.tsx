@@ -9,7 +9,12 @@ import GmConsole from '@/routes/GmConsole';
 import ShipRoleSelect from '@/routes/ShipRoleSelect';
 import JointEngineeringConsole from '@/routes/JointEngineeringConsole';
 import ShuttleConsole from '@/routes/ShuttleConsole';
-import { connect, reconcileGmAuthority, refreshPresence } from '@/lib/sessionService';
+import {
+  connect,
+  logoutGmAccess,
+  reconcileGmAuthority,
+  refreshPresence,
+} from '@/lib/sessionService';
 import AppHeader from '@/components/AppHeader';
 import ShipPlot from '@/components/ShipPlot';
 import ScreenFade from '@/components/ScreenFade';
@@ -19,7 +24,7 @@ import UnrestAlert from '@/components/UnrestAlert';
 import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
 import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
-import { useSessionStore } from '@/store/useSessionStore';
+import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
@@ -40,6 +45,7 @@ function AppRoutes() {
   const me = useSessionStore((state) => state.me);
   const sessionId = session?.id;
   const playerUid = me?.uid;
+  const gmAccessAuthenticatedAt = useSessionStore((state) => state.gmAccessAuthenticatedAt);
   const lastRoute = useSessionStore((state) => state.lastRoute);
   const setLastRoute = useSessionStore((state) => state.setLastRoute);
   const shuttleId = location.pathname.startsWith('/shuttles/')
@@ -77,6 +83,23 @@ function AppRoutes() {
       unsubscribe();
     };
   }, [playerUid, sessionId]);
+
+  useEffect(() => {
+    if (gmAccessAuthenticatedAt === null) return;
+    const expire = () => {
+      const state = useSessionStore.getState();
+      if (state.gmAccessAuthenticatedAt !== gmAccessAuthenticatedAt) return;
+      state.clearGmAccess();
+      void logoutGmAccess().catch(() => undefined);
+    };
+    const remaining = gmAccessAuthenticatedAt + GM_ACCESS_TIMEOUT_MS - Date.now();
+    if (remaining <= 0) {
+      expire();
+      return;
+    }
+    const timeout = window.setTimeout(expire, remaining);
+    return () => window.clearTimeout(timeout);
+  }, [gmAccessAuthenticatedAt]);
 
   const restoreRoute =
     lastRoute && isSessionRoute(lastRoute) ? lastRoute : '/roles';

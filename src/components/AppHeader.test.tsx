@@ -12,11 +12,19 @@ vi.mock('@/lib/sessionService', () => ({
   releaseConsoleRole: vi.fn(),
   releaseGmInstance: vi.fn(),
   disconnectFromSession: vi.fn(),
+  loginGmAccess: vi.fn(),
+  logoutGmAccess: vi.fn(),
 }));
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
 }));
-const { disconnectFromSession, releaseConsoleRole, releaseGmInstance } =
+const {
+  disconnectFromSession,
+  loginGmAccess,
+  logoutGmAccess,
+  releaseConsoleRole,
+  releaseGmInstance,
+} =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 
@@ -41,6 +49,8 @@ beforeEach(() => {
     return vi.fn();
   });
   vi.mocked(disconnectFromSession).mockResolvedValue('applied');
+  vi.mocked(loginGmAccess).mockResolvedValue('applied');
+  vi.mocked(logoutGmAccess).mockResolvedValue('applied');
 });
 
 afterEach(() => {
@@ -204,6 +214,43 @@ it('shows the GM access request instructions inside settings', async () => {
   const contact = screen.getByRole('link', { name: /emerald\.pham@hey\.com/i });
   expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
   expect(screen.getByText(/proof.*original den of wolves: new eden product/i)).toBeVisible();
+  expect(screen.getByText('🔐')).toBeVisible();
+  expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
+});
+
+it('logs in to GM access from settings and shows the active login', async () => {
+  const user = userEvent.setup();
+  vi.mocked(loginGmAccess).mockImplementation(async () => {
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+    return 'applied';
+  });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.type(screen.getByLabelText(/gm access password/i), 'bananasplit');
+  await user.click(screen.getByRole('button', { name: /log in/i }));
+
+  expect(loginGmAccess).toHaveBeenCalledWith('bananasplit');
+  expect(screen.getByText('🔓')).toBeVisible();
+  expect(screen.getByText(/login is remembered in this browser/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: /log out gm access/i })).toBeVisible();
+});
+
+it('logs out of GM access from settings', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  vi.mocked(logoutGmAccess).mockImplementation(async () => {
+    useSessionStore.getState().clearGmAccess();
+    return 'applied';
+  });
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /log out gm access/i }));
+
+  expect(logoutGmAccess).toHaveBeenCalledOnce();
+  expect(screen.getByText('🔐')).toBeVisible();
+  expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
 });
 
 it('offers reduce motion as a simple on-off setting', async () => {
