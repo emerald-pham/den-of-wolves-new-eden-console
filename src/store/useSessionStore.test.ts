@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  GM_ACCESS_TIMEOUT_MS,
   SESSION_STORAGE_KEY,
   selectConnectionStatus,
+  selectGmAccessAuthenticated,
   selectIsGm,
   useSessionStore,
 } from './useSessionStore';
@@ -46,6 +48,7 @@ describe('useSessionStore', () => {
     expect(state.connection).toBe('idle');
     expect(state.seats).toEqual([]);
     expect(state.session).toBeNull();
+    expect(state.gmAccessAuthenticatedAt).toBeNull();
   });
 
   it('reset clears a populated store', () => {
@@ -62,6 +65,7 @@ describe('useSessionStore', () => {
     useSessionStore.getState().setMode('console');
     useSessionStore.getState().setLastRoute('/console');
     useSessionStore.getState().setGmInstance(gmInstance);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
 
     const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
     expect(saved.state).toMatchObject({
@@ -72,6 +76,33 @@ describe('useSessionStore', () => {
       lastRoute: '/console',
     });
     expect(saved.state).not.toHaveProperty('connection');
+  });
+
+  it('persists GM login status without persisting the password', () => {
+    const authenticatedAt = Date.parse('2026-01-01T00:00:00.000Z');
+    useSessionStore.getState().setGmAccessAuthenticatedAt(authenticatedAt);
+
+    expect(selectGmAccessAuthenticated(useSessionStore.getState(), authenticatedAt)).toBe(true);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state)
+      .toMatchObject({ gmAccessAuthenticatedAt: authenticatedAt });
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state)
+      .not.toHaveProperty('gmAccessPassword');
+
+    useSessionStore.getState().clearGmAccess();
+    expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
+    expect(selectGmAccessAuthenticated(useSessionStore.getState(), authenticatedAt)).toBe(false);
+  });
+
+  it('expires GM login after the safety timeout', () => {
+    const authenticatedAt = Date.parse('2026-01-01T00:00:00.000Z');
+    useSessionStore.getState().setGmAccessAuthenticatedAt(authenticatedAt);
+
+    expect(selectGmAccessAuthenticated(
+      useSessionStore.getState(), authenticatedAt + GM_ACCESS_TIMEOUT_MS - 1,
+    )).toBe(true);
+    expect(selectGmAccessAuthenticated(
+      useSessionStore.getState(), authenticatedAt + GM_ACCESS_TIMEOUT_MS,
+    )).toBe(false);
   });
 
   it('keeps a GM-only transmission replay local and ephemeral', () => {
@@ -118,6 +149,7 @@ describe('useSessionStore', () => {
     useSessionStore.getState().setMode('console');
     useSessionStore.getState().setLastRoute('/console');
     useSessionStore.getState().setGmInstance(gmInstance);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
 
     useSessionStore.getState().disconnect();
     useSessionStore.getState().disconnect();
@@ -129,6 +161,7 @@ describe('useSessionStore', () => {
       seats: [],
       mode: null,
       lastRoute: null,
+      gmAccessAuthenticatedAt: expect.any(Number),
     });
     const saved = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}');
     expect(saved.state).toMatchObject({
@@ -137,6 +170,7 @@ describe('useSessionStore', () => {
       gmInstance: null,
       mode: null,
       lastRoute: null,
+      gmAccessAuthenticatedAt: expect.any(Number),
     });
   });
 
@@ -157,13 +191,13 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
-  it('does not persist a password-protected GM claim in the browser outbox', () => {
+  it('does not persist a GM claim in the browser outbox', () => {
     const command = {
       id: 'gm-command-1',
       kind: 'claimGmInstance' as const,
       payload: {
         sessionId: 's1', instanceId: 'instance-1', name: 'Bridge',
-        deviceLabel: 'Browser', password: 'bananasplit',
+        deviceLabel: 'Browser',
       },
       createdAt: new Date().toISOString(),
     };

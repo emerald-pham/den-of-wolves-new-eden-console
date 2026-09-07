@@ -1,7 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { claimGmInstance, setGmControlsLocked } from '@/lib/sessionService';
-import { selectIsGm, useSessionStore, type ConsoleMode } from '@/store/useSessionStore';
+import {
+  selectGmAccessAuthenticated,
+  selectIsGm,
+  useSessionStore,
+  type ConsoleMode,
+} from '@/store/useSessionStore';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 
 const MODES: readonly {
@@ -21,6 +26,7 @@ export default function RoleSelect() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const gmInstance = useSessionStore((state) => state.gmInstance);
+  const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const isGm = useSessionStore(selectIsGm);
   const pendingClaim = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'claimGmInstance'));
@@ -28,7 +34,6 @@ export default function RoleSelect() {
     state.pendingCommands.some((command) => command.kind === 'setGmControlsLocked'));
   const setMode = useSessionStore((state) => state.setMode);
   const [instanceName, setInstanceName] = useState('');
-  const [gmPassword, setGmPassword] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [changingLock, setChangingLock] = useState(false);
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
@@ -66,8 +71,7 @@ export default function RoleSelect() {
     event.preventDefault();
     setClaiming(true);
     try {
-      await claimGmInstance(instanceName, gmPassword);
-      setGmPassword('');
+      await claimGmInstance(instanceName);
     } catch {
       // The shared interception notice carries the actionable server error.
     } finally {
@@ -105,7 +109,7 @@ export default function RoleSelect() {
             type="submit"
             disabled={
               isGm || pendingClaim || claiming || registrationLocked ||
-              instanceName.trim().length === 0 || gmPassword.trim().length === 0
+              instanceName.trim().length === 0 || !gmAccessAuthenticated
             }
           >
             {claimLabel}
@@ -122,19 +126,11 @@ export default function RoleSelect() {
             autoComplete="off"
             onChange={(event) => setInstanceName(event.target.value)}
           />
-          <label className="role-card__name" htmlFor="gm-access-password">
-            GM access password
-          </label>
-          <input
-            id="gm-access-password"
-            className="role-claim__input"
-            type="password"
-            value={gmPassword}
-            disabled={isGm || pendingClaim || claiming || registrationLocked}
-            maxLength={128}
-            autoComplete="current-password"
-            onChange={(event) => setGmPassword(event.target.value)}
-          />
+          {!isGm && !gmAccessAuthenticated && (
+            <span className="role-card__description">
+              🔐 Log in through Settings to unlock GM access.
+            </span>
+          )}
           {registrationLocked && <span className="role-card__description">GM registration locked.</span>}
           {controlsLocked && activeGmCount === 0 && !isGm && (
             <span className="role-card__description">Failsafe active // no active GM.</span>

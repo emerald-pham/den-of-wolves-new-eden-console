@@ -2,9 +2,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ConnectionIndicator from './ConnectionIndicator';
 import SessionReadouts from './SessionReadouts';
-import { selectConnectionStatus, useSessionStore } from '@/store/useSessionStore';
+import {
+  selectConnectionStatus,
+  selectGmAccessAuthenticated,
+  useSessionStore,
+} from '@/store/useSessionStore';
 import {
   disconnectFromSession,
+  loginGmAccess,
+  logoutGmAccess,
   releaseConsoleRole,
   releaseGmInstance,
 } from '@/lib/sessionService';
@@ -72,6 +78,8 @@ export default function AppHeader() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [gmAccessPassword, setGmAccessPassword] = useState('');
+  const [gmAccessBusy, setGmAccessBusy] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -83,6 +91,7 @@ export default function AppHeader() {
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const currentTurn = useSessionStore((state) => state.session?.currentTurn);
   const gmInstance = useSessionStore((state) => state.gmInstance);
+  const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const activeConsoleRoleId = useSessionStore((state) => state.me?.activeConsoleRoleId);
   const releaseQueued = useSessionStore((state) =>
     state.pendingCommands.some((command) => command.kind === 'releaseGmInstance'));
@@ -162,6 +171,35 @@ export default function AppHeader() {
       setConfirmDisconnect(false);
     }
   }, [disconnectQueued, sessionId, settingsOpen]);
+
+  async function loginGm(): Promise<void> {
+    setGmAccessBusy(true);
+    try {
+      await loginGmAccess(gmAccessPassword);
+      setGmAccessPassword('');
+    } catch {
+      // The shared interception notice carries the actionable server error.
+    } finally {
+      setGmAccessBusy(false);
+    }
+  }
+
+  async function logoutGm(): Promise<void> {
+    const wasGm = gmInstance !== null;
+    setGmAccessBusy(true);
+    try {
+      await logoutGmAccess();
+      setGmAccessPassword('');
+      if (wasGm) {
+        setSettingsOpen(false);
+        navigate('/roles', { replace: true });
+      }
+    } catch {
+      // The shared interception notice carries the actionable server error.
+    } finally {
+      setGmAccessBusy(false);
+    }
+  }
 
   async function disconnectNow(): Promise<void> {
     const disconnecting = disconnectFromSession();
@@ -260,7 +298,12 @@ export default function AppHeader() {
             <p>Disconnect this device from session {joinCode}.</p>
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
             <section className="settings-dialog__gm-access" aria-labelledby="gm-access-settings-title">
-              <h3 id="gm-access-settings-title">GM access</h3>
+              <h3 id="gm-access-settings-title">
+                <span className="settings-dialog__gm-access-icon" aria-hidden="true">
+                  {gmAccessAuthenticated ? '🔓' : '🔐'}
+                </span>{' '}
+                GM access
+              </h3>
               <p>
                 To run a game as GM, email{' '}
                 <a href="mailto:emerald.pham@hey.com">emerald.pham@hey.com</a>{' '}
@@ -268,6 +311,45 @@ export default function AppHeader() {
                 original Den of Wolves: New Eden product. This keeps GM secrets from being
                 spoiled and helps prevent unauthorized use.
               </p>
+              {gmAccessAuthenticated ? (
+                <>
+                  <p className="settings-dialog__gm-access-status">
+                    🔓 GM access login is remembered in this browser and automatically logs out
+                    after 24 hours.
+                  </p>
+                  <button
+                    className="settings-dialog__gm-access-button"
+                    type="button"
+                    disabled={gmAccessBusy}
+                    onClick={() => void logoutGm()}
+                  >
+                    {gmAccessBusy ? 'Logging out…' : 'Log out GM access'}
+                  </button>
+                </>
+              ) : (
+                <form className="settings-dialog__gm-access-form" onSubmit={(event) => {
+                  event.preventDefault();
+                  void loginGm();
+                }}>
+                  <label htmlFor="settings-gm-access-password">GM access password</label>
+                  <input
+                    id="settings-gm-access-password"
+                    type="password"
+                    value={gmAccessPassword}
+                    disabled={gmAccessBusy}
+                    maxLength={128}
+                    autoComplete="current-password"
+                    onChange={(event) => setGmAccessPassword(event.target.value)}
+                  />
+                  <button
+                    className="settings-dialog__gm-access-button"
+                    type="submit"
+                    disabled={gmAccessBusy || gmAccessPassword.trim().length === 0}
+                  >
+                    {gmAccessBusy ? 'Logging in…' : 'Log in'}
+                  </button>
+                </form>
+              )}
             </section>
             <section className="settings-dialog__motion" aria-labelledby="motion-settings-title">
               <h3 id="motion-settings-title">Motion</h3>

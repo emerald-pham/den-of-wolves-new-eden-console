@@ -23,7 +23,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
-import { isGmAccessPassword } from './gmAccess';
+import { isGmAccessActive, isGmAccessPassword } from './gmAccess';
 import {
   FLEET_SHIP_NAMES,
   canPopShipConfetti,
@@ -40,6 +40,8 @@ import {
   requireDebriefModeRequest,
   requireDioneAvailabilityRequest,
   requireElevationRequest,
+  requireGmAccessLoginRequest,
+  requireGmAccessLogoutRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
@@ -758,19 +760,62 @@ function gmInstanceFrom(
   };
 }
 
+/** Establish persistent GM access for this anonymous browser identity. */
+export const loginGmAccess = onCall<{ password?: string }>(async (request) => {
+  const uid = requireUid(request.auth);
+  const { password } = requireGmAccessLoginRequest(request.data ?? {});
+  if (!isGmAccessPassword(password)) {
+    throw new HttpsError('permission-denied', 'GM access credentials rejected.');
+  }
+  await db.doc(`gmAccess/${uid}`).set({
+    uid,
+    authenticatedAt: FieldValue.serverTimestamp(),
+  });
+  return { authenticated: true };
+});
+
+/** Revoke persistent GM access and release this browser's active GM instance. */
+export const logoutGmAccess = onCall<{
+  sessionId?: string | null;
+  instanceId?: string | null;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const logout = requireGmAccessLogoutRequest(request.data ?? {});
+  if (logout.sessionId && logout.instanceId) {
+    const instanceRef = db.doc(
+      `sessions/${logout.sessionId}/gmInstances/${logout.instanceId}`,
+    );
+    const playerRef = db.doc(`sessions/${logout.sessionId}/players/${uid}`);
+    const instancesRef = db.collection(`sessions/${logout.sessionId}/gmInstances`);
+    await db.runTransaction(async (tx) => {
+      const [instance, player, activeInstances] = await Promise.all([
+        tx.get(instanceRef),
+        tx.get(playerRef),
+        tx.get(instancesRef),
+      ]);
+      if (!instance.exists || instance.get('uid') !== uid) return;
+      tx.delete(instanceRef);
+      const anotherOwnedInstance = activeInstances.docs.some((candidate) =>
+        candidate.id !== logout.instanceId && candidate.get('uid') === uid);
+      if (isActivePlayer(player) && !anotherOwnedInstance) {
+        tx.update(playerRef, { role: 'player' });
+      }
+    });
+  }
+  await db.doc(`gmAccess/${uid}`).delete();
+  return { authenticated: false };
+});
+
 /** Claim GM authority for one named browser/device instance. */
 export const claimGmInstance = onCall<{
   sessionId?: string;
   instanceId?: string;
   name?: string;
   deviceLabel?: string;
-  password?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
-  if (!isGmAccessPassword(claim.password)) {
-    throw new HttpsError('permission-denied', 'GM access credentials rejected.');
-  }
+  const accessRef = db.doc(`gmAccess/${uid}`);
   const sessionRef = db.doc(`sessions/${claim.sessionId}`);
   const playerRef = db.doc(`sessions/${claim.sessionId}/players/${uid}`);
   const instancesRef = db.collection(`sessions/${claim.sessionId}/gmInstances`);
@@ -778,12 +823,16 @@ export const claimGmInstance = onCall<{
     `sessions/${claim.sessionId}/gmInstances/${claim.instanceId}`,
   );
   await db.runTransaction(async (tx) => {
-    const [session, player, existing, activeInstances] = await Promise.all([
+    const [access, session, player, existing, activeInstances] = await Promise.all([
+      tx.get(accessRef),
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
       tx.get(instancesRef),
     ]);
+    if (!access.exists || !isGmAccessActive(access.get('authenticatedAt'))) {
+      throw new HttpsError('permission-denied', 'Log in to GM access before claiming the GM console.');
+    }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (

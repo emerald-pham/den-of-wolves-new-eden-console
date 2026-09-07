@@ -110,6 +110,7 @@ describe('RoleSelect', () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     vi.mocked(claimGmInstance).mockImplementation(async (name) => {
       useSessionStore.getState().setGmInstance({
         id: 'instance-1', sessionId: 's1', uid: 'gm1', name,
@@ -126,17 +127,25 @@ describe('RoleSelect', () => {
     await user.type(nameInput, 'Bridge laptop');
 
     expect(nameInput).toHaveAccessibleName('Input GM Name');
-    const passwordInput = screen.getByLabelText(/gm access password/i);
-    expect(passwordInput).toHaveAttribute('type', 'password');
-    expect(claim).toBeDisabled();
-    await user.type(passwordInput, 'bananasplit');
     expect(claim).toBeEnabled();
     await user.click(claim);
 
-    expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop', 'bananasplit');
+    expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop');
     expect(screen.getByRole('button', { name: /gm joined/i })).toBeDisabled();
     expect(nameInput).toHaveAccessibleName('Name entered');
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
+  });
+
+  it('requires GM login from Settings before claiming GM', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    renderRoute();
+
+    await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Bridge laptop');
+
+    expect(screen.getByRole('button', { name: /^join as gm/i })).toBeDisabled();
+    expect(screen.getByText(/🔐.*settings/i)).toBeInTheDocument();
   });
 
 
@@ -170,6 +179,7 @@ describe('RoleSelect', () => {
   it('shows a greyed lock control to non-GMs and blocks claims when a GM is present', async () => {
     useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     vi.mocked(subscribeGmInstances).mockImplementation((_sessionId, onInstances) => {
       onInstances([{
         id: 'active-gm', sessionId: 's1', uid: 'gm2', name: 'GM station',
@@ -189,17 +199,17 @@ describe('RoleSelect', () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession({ ...session, gmControlsLocked: true });
     useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
     vi.mocked(claimGmInstance).mockResolvedValue('applied');
     renderRoute();
 
     expect(await screen.findByText(/failsafe.*no active gm/i)).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Recovery');
-    await user.type(screen.getByLabelText(/gm access password/i), 'bananasplit');
     const claim = await screen.findByRole('button', { name: /^join as gm/i });
     await waitFor(() => expect(claim).toBeEnabled());
     await user.click(claim);
 
-    expect(claimGmInstance).toHaveBeenCalledWith('Recovery', 'bananasplit');
+    expect(claimGmInstance).toHaveBeenCalledWith('Recovery');
   });
 
   it('lets this GM toggle the lock from the registration and Setup controls', async () => {

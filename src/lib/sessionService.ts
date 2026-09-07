@@ -91,6 +91,15 @@ async function executeCommand(command: PendingCommand): Promise<unknown> {
 
 function applyCommandResult(command: PendingCommand, result: unknown): void {
   const store = useSessionStore.getState();
+  if (command.kind === 'logoutGmAccess') {
+    store.clearGmAccess();
+    if (store.gmInstance?.id === command.payload.instanceId) {
+      store.setGmInstance(null);
+      store.setMode(null);
+      store.setLastRoute('/roles');
+    }
+    return;
+  }
   if (command.kind === 'claimGmInstance') {
     if (
       typeof result === 'object' && result !== null && 'instance' in result &&
@@ -213,7 +222,10 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
 async function flushPendingCommands(): Promise<boolean> {
   const store = useSessionStore.getState();
   for (const command of [...store.pendingCommands]) {
-    if (Date.now() - Date.parse(command.createdAt) > COMMAND_RECONNECT_WINDOW_MS) {
+    if (
+      command.kind !== 'logoutGmAccess' &&
+      Date.now() - Date.parse(command.createdAt) > COMMAND_RECONNECT_WINDOW_MS
+    ) {
       store.removeCommand(command.id);
       store.setCommunicationError({
         code: 'Wolf Intercepted Request Timeout',
@@ -482,7 +494,54 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   return applySession(reply.data, sessionId);
 }
 
-export async function claimGmInstance(name: string, password: string): Promise<CommandDisposition> {
+export async function loginGmAccess(password: string): Promise<CommandDisposition> {
+  if (!window.navigator.onLine) {
+    throw new Error('Reconnect before logging in to GM access.');
+  }
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<{ password: string }, { authenticated: boolean }>(
+      functions(),
+      'loginGmAccess',
+    );
+    const reply = await call({ password });
+    if (reply.data.authenticated !== true) {
+      throw new Error('The server did not confirm GM access.');
+    }
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+    return 'applied';
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export async function logoutGmAccess(): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  const instanceId = store.gmInstance?.id ?? null;
+  const command: PendingCommand = {
+    id: commandId(),
+    kind: 'logoutGmAccess',
+    payload: {
+      sessionId: store.session?.id ?? null,
+      instanceId,
+    },
+    createdAt: new Date().toISOString(),
+  };
+  const disposition = await sendOrQueue(command);
+  if (disposition === 'queued') {
+    const current = useSessionStore.getState();
+    current.clearGmAccess();
+    if (current.gmInstance?.id === instanceId) {
+      current.setGmInstance(null);
+      current.setMode(null);
+      current.setLastRoute('/roles');
+    }
+  }
+  return disposition;
+}
+
+export async function claimGmInstance(name: string): Promise<CommandDisposition> {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Join a session before claiming GM.');
   return sendOrQueue({
@@ -493,7 +552,6 @@ export async function claimGmInstance(name: string, password: string): Promise<C
       instanceId: commandId(),
       name: name.trim(),
       deviceLabel: deviceLabel(),
-      password,
     },
     createdAt: new Date().toISOString(),
   });

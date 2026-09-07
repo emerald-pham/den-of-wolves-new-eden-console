@@ -21,6 +21,8 @@ const {
   disconnectFromSession,
   joinSession,
   kickGmInstance,
+  loginGmAccess,
+  logoutGmAccess,
   popShipConfetti,
   refreshPresence,
   releaseConsoleRole,
@@ -191,7 +193,7 @@ describe('connect', () => {
       callableRejecting({ code: 'functions/resource-exhausted', message: 'Try again shortly.' }),
     );
 
-    await expect(claimGmInstance('Bridge', 'bananasplit')).resolves.toBe('queued');
+    await expect(claimGmInstance('Bridge')).resolves.toBe('queued');
 
     expect(useSessionStore.getState().connection).toBe('offline');
     expect(useSessionStore.getState().pendingCommands).toEqual([
@@ -322,14 +324,13 @@ describe('GM instance commands', () => {
     const callable = callableReturning({ data: { instance } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await claimGmInstance('Bridge laptop', 'bananasplit');
+    await claimGmInstance('Bridge laptop');
 
     expect(callable).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 's1',
       name: 'Bridge laptop',
       instanceId: expect.any(String),
       deviceLabel: expect.any(String),
-      password: 'bananasplit',
     }));
     expect(useSessionStore.getState().gmInstance).toEqual(instance);
     expect(useSessionStore.getState().me?.role).toBe('gm');
@@ -725,6 +726,44 @@ describe('GM instance commands', () => {
 
 });
 
+describe('GM access login', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(session, player);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('logs in through the callable and stores only a local timestamp', async () => {
+    const callable = callableReturning({ data: { authenticated: true } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await loginGmAccess('bananasplit');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'loginGmAccess');
+    expect(callable).toHaveBeenCalledWith({ password: 'bananasplit' });
+    expect(useSessionStore.getState().gmAccessAuthenticatedAt).toEqual(expect.any(Number));
+    expect(localStorage.getItem('gmAccessPassword')).toBeNull();
+  });
+
+  it('logs out through the callable and clears the local GM session', async () => {
+    const callable = callableReturning({ data: { authenticated: false } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    await logoutGmAccess();
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'logoutGmAccess');
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'instance-1' });
+    expect(useSessionStore.getState().gmAccessAuthenticatedAt).toBeNull();
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+  });
+});
+
 describe('command role presence', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
@@ -854,7 +893,6 @@ describe('session lifecycle commands', () => {
       id: 'old-command', kind: 'claimGmInstance',
       payload: {
         sessionId: 's1', instanceId: 'instance-1', name: 'Bridge', deviceLabel: 'Browser',
-        password: 'bananasplit',
       },
       createdAt: new Date().toISOString(),
     });

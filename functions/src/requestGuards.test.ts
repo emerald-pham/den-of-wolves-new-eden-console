@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   requireDiceRequest,
   requireElevationRequest,
+  requireGmAccessLoginRequest,
+  requireGmAccessLogoutRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
   requireDebriefModeRequest,
@@ -93,23 +95,39 @@ describe('callable request guards', () => {
   it('requires a named GM instance with bounded device information', () => {
     expectHttpsError(
       () => requireGmClaimRequest({
-        sessionId: 's1', instanceId: 'i1', name: '   ', deviceLabel: 'Chrome', password: 'bananasplit',
-      }),
-      'invalid-argument',
-    );
-    expectHttpsError(
-      () => requireGmClaimRequest({
-        sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop', deviceLabel: 'Chrome',
+        sessionId: 's1', instanceId: 'i1', name: '   ', deviceLabel: 'Chrome',
       }),
       'invalid-argument',
     );
     expect(requireGmClaimRequest({
       sessionId: 's1', instanceId: 'i1', name: ' Bridge laptop ',
-      deviceLabel: ' macOS / Chrome ', password: ' bananasplit ',
+      deviceLabel: ' macOS / Chrome ',
     })).toEqual({
       sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop',
-      deviceLabel: 'macOS / Chrome', password: 'bananasplit',
+      deviceLabel: 'macOS / Chrome',
     });
+  });
+
+  it('keeps GM access credentials on the login boundary', () => {
+    expectHttpsError(() => requireGmAccessLoginRequest({}), 'invalid-argument');
+    expect(requireGmAccessLoginRequest({ password: ' bananasplit ' })).toEqual({
+      password: 'bananasplit',
+    });
+  });
+
+  it('accepts an optional current GM instance when logging out', () => {
+    expect(requireGmAccessLogoutRequest({})).toEqual({
+      sessionId: undefined,
+      instanceId: undefined,
+    });
+    expect(requireGmAccessLogoutRequest({ sessionId: 's1', instanceId: 'i1' })).toEqual({
+      sessionId: 's1',
+      instanceId: 'i1',
+    });
+    expectHttpsError(
+      () => requireGmAccessLogoutRequest({ sessionId: 's1' }),
+      'invalid-argument',
+    );
   });
 
   it('requires caller and target instance ids for a kick', () => {
