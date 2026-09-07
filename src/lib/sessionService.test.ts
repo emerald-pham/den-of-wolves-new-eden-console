@@ -31,6 +31,7 @@ const {
   resetWolves,
   setCapybaraEnabled,
   setDioneEnabled,
+  setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
   beginOpenAirspacePhase,
@@ -484,6 +485,25 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', locked: true,
     });
     expect(useSessionStore.getState().session?.gmControlsLocked).toBe(true);
+  });
+
+  it('sends finale state through the active GM instance and applies the server result', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({
+      data: { debriefMode: { active: true, revision: 1 } },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setDebriefMode(true);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setDebriefMode');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', active: true,
+    });
+    expect(useSessionStore.getState().session?.debriefMode).toEqual({ active: true, revision: 1 });
   });
 
   it('advances the displayed turn through the active GM instance', async () => {

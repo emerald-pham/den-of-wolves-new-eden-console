@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GMs can now start a shared Finale after a deliberate two-press confirmation, lowering a digital disco ball and a continuous confetti stream into every connected console.',
+      'Retracting Finale stops the confetti stream immediately, while a blue “Debrief mode enabled” notice confirms the live effect for everyone already connected.',
+    ],
+  },
+  {
+    version: '0.2.53',
+    changes: [
       'Returning after a closed, sleeping, or long-idle browser can now resume the same session and reclaim an open previous seat. If another player took it, you stay in the session and can choose another seat.',
       'Disconnect now asks for a red “ARE YOU SURE?” confirmation before this browser leaves the session.',
     ],

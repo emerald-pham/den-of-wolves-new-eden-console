@@ -36,6 +36,7 @@ import {
 } from './shipConfetti';
 import {
   requireDiceRequest,
+  requireDebriefModeRequest,
   requireDioneAvailabilityRequest,
   requireElevationRequest,
   requireGmClaimRequest,
@@ -217,6 +218,21 @@ function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefine
     !Number.isSafeInteger(value.survivorPopulation) || value.survivorPopulation < 0
   ) return undefined;
   return { turn: value.turn, survivorPopulation: value.survivorPopulation };
+}
+
+type DebriefMode = { readonly active: boolean; readonly revision: number };
+
+function debriefModeState(value: unknown): DebriefMode {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { active: false, revision: 0 };
+  }
+  const state = value as Readonly<Record<string, unknown>>;
+  if (
+    typeof state.active !== 'boolean' ||
+    typeof state.revision !== 'number' || !Number.isSafeInteger(state.revision) ||
+    state.revision < 0
+  ) return { active: false, revision: 0 };
+  return { active: state.active, revision: state.revision };
 }
 
 function fleetSurvivorPopulation(session: DocumentSnapshot): number {
@@ -417,6 +433,7 @@ export const createSession = onCall<{
           shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
           populationAlerts: {},
           gmControlsLocked: false,
+          debriefMode: { active: false, revision: 0 },
           activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
           shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
@@ -463,6 +480,7 @@ export const createSession = onCall<{
             shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
             populationAlerts: {},
             gmControlsLocked: false,
+            debriefMode: { active: false, revision: 0 },
             activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
             shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
             shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
@@ -591,6 +609,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
+        debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
         activeRoleIds:
           (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
         shuttleDockings:
@@ -703,6 +722,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
+      debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
       activeRoleIds:
         (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
       shuttleDockings:
@@ -993,6 +1013,49 @@ export const setGmControlsLocked = onCall<{
   });
 
   return { gmControlsLocked: setting.locked };
+});
+
+/** Lower or retract the shared visual finale from an active GM browser. */
+export const setDebriefMode = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  active?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requireDebriefModeRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
+  );
+
+  const debriefMode = await db.runTransaction(async (tx): Promise<DebriefMode> => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const current = debriefModeState(session.get('debriefMode'));
+    if (current.active === setting.active) return current;
+    const next = { active: setting.active, revision: current.revision + 1 };
+    tx.update(sessionRef, {
+      debriefMode: next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return next;
+  });
+
+  return { debriefMode };
 });
 
 /** Advance the shared game turn from the value shown on an active GM instance. */

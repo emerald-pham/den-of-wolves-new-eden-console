@@ -14,6 +14,7 @@ src/components/Intrusion.tsx and src/routes/ArrivalDisplay.tsx.
 - [Capybara ship template](SHIP_TEMPLATE.md)
 - [Screen crossings](#screen-crossings)
 - [Intrusion / hostile takeover](#intrusion--hostile-takeover)
+- [Finale / debrief mode](#finale--debrief-mode)
 - [Turn zero and timed phase instruments](#turn-zero-and-timed-phase-instruments)
 - [Every viewport](#every-viewport)
 
@@ -720,6 +721,40 @@ effects. The Settings control may override the system preference in either
 direction; all motion-bearing components must consume the shared effective
 preference from `src/lib/motionPreference.ts`. Clean up timers on exit.
 These are conservative motion choices, not a medical guarantee.
+
+## Finale / debrief mode
+
+The GM Console's `FINALE // ENABLE DEBRIEF MODE` is a shared, deliberately
+bounded presentation control for the end of play. The first press changes that
+same control to `ARE YOU SURE? // ENABLE FINALE`; only the second press calls
+the active GM instance's server-authorized command. While live, the control
+reads `RETRACT FINALE // STOP CONFETTI` and retracts immediately without a
+second confirmation. This is presentation state rather than an inferred game
+phase: the session stores `{ active, revision }`, clients never write it, and a
+closed session cannot start it.
+
+`DebriefMode` is rendered once beside the router in `App`, so every current
+viewport receives the same state through its normal session snapshot. Its ball
+is a small top-centred seven-by-seven cyan/amber digital facet grid inside a
+circular rim; the outer layer lowers and retracts while the inner grid rotates.
+It is an accent, not a modal: `pointer-events: none`, `aria-hidden`, and layer
+26 leave every underlying control, navigation path, and header available.
+
+The confetti is exactly 72 fixed CSS pieces with staggered, looping CSS
+animations. There is no canvas, interval, particle generator, retained history,
+or React frame loop. Retracting omits all pieces immediately, so no additional
+confetti can be generated while the ball completes its short retraction. The
+same blue/cyan language appears in a temporary live-only status toast:
+`DEBRIEF MODE ENABLED`. A browser that joins after the mode is already live sees
+the finale but does not replay the toast.
+
+Reduced motion keeps the finale's static ball and fixed confetti composition
+without lowering, spinning, falling, pulsing, or toast motion. Review the
+enabled, confirmation, retracted, and reduced-motion states at 1440×900,
+390×844, and 844×390; the ball must never obscure controls or force a route
+change. On the two compact viewports, move the ball into the otherwise unused
+top-left corner and reduce its size rather than placing it over session chrome
+or DRADIS controls.
 
 ## Every viewport
 

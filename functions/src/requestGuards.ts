@@ -162,6 +162,20 @@ export function requireGmControlsLockRequest(data: {
   };
 }
 
+export function requireDebriefModeRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  active?: unknown;
+}): { sessionId: string; instanceId: string; active: boolean } {
+  if (typeof data.active !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'active must be boolean.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    active: data.active,
+  };
+}
+
 export function requireShipConfettiRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;

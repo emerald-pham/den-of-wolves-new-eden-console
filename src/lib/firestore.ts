@@ -57,6 +57,19 @@ function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnounceme
   return { turn, survivorPopulation };
 }
 
+function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return { active: false, revision: 0 };
+  }
+  const state = value as Readonly<Record<string, unknown>>;
+  if (
+    typeof state.active !== 'boolean' ||
+    typeof state.revision !== 'number' || !Number.isSafeInteger(state.revision) ||
+    state.revision < 0
+  ) return { active: false, revision: 0 };
+  return { active: state.active, revision: state.revision };
+}
+
 function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
@@ -76,6 +89,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
+    debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     maintenanceCycles: data.maintenanceCycles ?? {},
     shuttleCargo: data.shuttleCargo ?? {},

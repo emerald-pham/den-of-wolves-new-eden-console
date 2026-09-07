@@ -164,6 +164,12 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
   });
 
+  it('cannot enable or retract the shared finale from a client', async () => {
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, { debriefMode: { active: true, revision: 1 } }));
+    await assertFails(updateDoc(session, { debriefMode: { active: false, revision: 2 } }));
+  });
+
   it('cannot change active role availability from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), {
       activeRoleIds: ['admiral'],

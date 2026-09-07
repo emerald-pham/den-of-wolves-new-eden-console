@@ -66,6 +66,16 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setDebriefMode';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly active: boolean;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setActiveRoleEnabled';
       readonly payload: {
         readonly sessionId: string;

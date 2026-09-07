@@ -253,6 +253,22 @@ describe('App', () => {
     expect(screen.getByText('4821')).toBeInTheDocument();
   });
 
+  it('mounts the shared finale layer above every routed viewport', async () => {
+    window.location.hash = '#/console';
+    useSessionStore.getState().setIdentity({
+      ...session,
+      debriefMode: { active: true, revision: 1 },
+    }, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/console');
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(container.querySelector('.debrief-mode')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelectorAll('.debrief-mode__confetti-piece')).toHaveLength(72);
+  });
+
   it('restores the last in-session page when a tab reopens at the root', async () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);

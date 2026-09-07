@@ -4,6 +4,7 @@ import {
   requireElevationRequest,
   requireGmClaimRequest,
   requireGmControlsLockRequest,
+  requireDebriefModeRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireDioneAvailabilityRequest,
@@ -160,6 +161,15 @@ describe('callable request guards', () => {
     expect(requireGmControlsLockRequest({
       sessionId: 's1', instanceId: 'i1', locked: true,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', locked: true });
+  });
+
+  it('requires a boolean finale state from a named GM instance', () => {
+    expectHttpsError(
+      () => requireDebriefModeRequest({ sessionId: 's1', instanceId: 'i1', active: 'yes' }),
+      'invalid-argument',
+    );
+    expect(requireDebriefModeRequest({ sessionId: 's1', instanceId: 'i1', active: true }))
+      .toEqual({ sessionId: 's1', instanceId: 'i1', active: true });
   });
 
   it('requires session and ship ids for a confetti activation', () => {

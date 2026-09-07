@@ -102,6 +102,153 @@ body {
   opacity: 0;
 }
 
+/* Shared finale ------------------------------------------------------- */
+
+/* This overlay is a server-authorized presentation layer. It deliberately has
+   no controls or hit targets, so the GM can pull it into every viewport without
+   taking the live console away from a player. */
+.debrief-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 26;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.debrief-mode__ball {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: clamp(7rem, 19vmin, 13rem);
+  aspect-ratio: 1;
+  transform: translateX(-50%) translateY(calc(-100% - 1rem));
+  transform-origin: 50% 0;
+}
+
+/* A centered ball would cover the compact session chrome. On phones and
+   short landscape screens, use the otherwise empty top-left corner instead. */
+@media (max-width: 720px), (max-height: 480px) {
+  .debrief-mode__ball {
+    left: max(2rem, calc(env(safe-area-inset-left) + 2rem));
+    width: clamp(3.5rem, 14vmin, 4rem);
+  }
+}
+
+.debrief-mode__ball::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  bottom: 100%;
+  left: 50%;
+  width: 1px;
+  height: 100dvh;
+  background: var(--cic-cyan-dim);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cic-cyan) 72%, transparent);
+}
+
+.debrief-mode__ball[data-state='lowered'] {
+  animation: debrief-ball-lower 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.debrief-mode__ball[data-state='retracting'] {
+  animation: debrief-ball-retract 450ms ease-in both;
+}
+
+.debrief-mode__orb {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--cic-cyan-hot);
+  border-radius: 50%;
+  background: var(--cic-void);
+  box-shadow:
+    0 0 12px color-mix(in srgb, var(--cic-cyan) 85%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--cic-cyan-dim) 70%, transparent);
+  animation: debrief-orb-spin 5.6s linear infinite;
+}
+
+.debrief-mode__orb i {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--cic-void) 64%, transparent);
+  background: var(--debrief-facet-color);
+  opacity: 0.78;
+  animation: debrief-facet-pulse 1.4s steps(2, end) var(--debrief-facet-delay) infinite;
+}
+
+.debrief-mode__confetti,
+.debrief-mode__confetti-piece {
+  position: absolute;
+  inset: 0;
+}
+
+.debrief-mode__confetti-piece {
+  top: -2rem;
+  right: auto;
+  bottom: auto;
+  left: calc(50% + var(--debrief-x));
+  width: 0.34rem;
+  height: 0.72rem;
+  background: var(--debrief-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--debrief-color) 78%, transparent);
+  animation: debrief-confetti-drop var(--debrief-duration) linear var(--debrief-delay) infinite;
+}
+
+.debrief-mode__toast {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 27;
+  display: grid;
+  gap: 0.25rem;
+  width: min(23rem, calc(100vw - 2rem));
+  padding: 0.8rem 1rem;
+  border-color: var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-panel) 94%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--cic-cyan) 46%, transparent);
+  color: var(--cic-cyan-hot);
+  font: 0.68rem/1.45 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  animation: debrief-toast 6s ease both;
+}
+
+.debrief-mode__toast strong { font: 700 0.78rem/1.35 var(--cic-mono); }
+.debrief-mode__toast span { color: var(--cic-cyan); }
+
+@keyframes debrief-ball-lower {
+  from { transform: translateX(-50%) translateY(calc(-100% - 1rem)); }
+  to { transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top))); }
+}
+
+@keyframes debrief-ball-retract {
+  from { transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top))); }
+  to { transform: translateX(-50%) translateY(calc(-100% - 1rem)); }
+}
+
+@keyframes debrief-orb-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes debrief-facet-pulse {
+  50% { opacity: 0.36; }
+}
+
+@keyframes debrief-confetti-drop {
+  from { transform: translate3d(0, -8vh, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: 0.9; }
+  to { transform: translate3d(var(--debrief-drift), 112vh, 0) rotate(var(--debrief-spin)); opacity: 0; }
+}
+
+@keyframes debrief-toast {
+  0%, 100% { opacity: 0; transform: translateY(0.75rem); }
+  10%, 88% { opacity: 1; transform: translateY(0); }
+}
+
 /* Shared app chrome -------------------------------------------------- */
 
 .app-header {
@@ -2626,6 +2773,22 @@ body {
 [data-motion='reduce'] .screen-fade[data-phase='out'] .screen-fade__content {
   opacity: 1 !important;
   transition: none !important;
+}
+
+[data-motion='reduce'] .debrief-mode__ball,
+[data-motion='reduce'] .debrief-mode__orb,
+[data-motion='reduce'] .debrief-mode__confetti-piece,
+[data-motion='reduce'] .debrief-mode__toast {
+  animation: none;
+}
+
+[data-motion='reduce'] .debrief-mode__ball[data-state='lowered'] {
+  transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top)));
+}
+
+[data-motion='reduce'] .debrief-mode__confetti-piece {
+  transform: translate3d(var(--debrief-drift), var(--debrief-rest-y), 0) rotate(var(--debrief-spin));
+  opacity: 0.72;
 }
 
 .settings-dialog__motion {

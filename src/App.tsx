@@ -17,6 +17,7 @@ import CommunicationError from '@/components/CommunicationError';
 import PopulationAlert from '@/components/PopulationAlert';
 import UnrestAlert from '@/components/UnrestAlert';
 import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
+import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
 import { useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -121,6 +122,7 @@ function AppRoutes() {
         )}
       </ScreenFade>
       <TurnStartAnnouncement />
+      <DebriefMode />
       <TurnPhaseCoordinator />
     </div>
   );

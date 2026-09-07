@@ -15,6 +15,7 @@ vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
+  setDebriefMode: vi.fn(),
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   setActiveRoleConfiguration: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
   advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
@@ -797,6 +798,35 @@ it('requires a deliberate second GM advance while either phase timer is active',
   await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' }));
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith({ overridePhaseTimer: true });
+});
+
+it('requires a deliberate second press to lower the finale, then lets the GM retract it', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setDebriefMode).mockImplementation(async (active) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) {
+      const revision = activeSession.debriefMode?.revision ?? 0;
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        debriefMode: { active, revision: revision + 1 },
+      });
+    }
+    return 'applied';
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /finale.*enable debrief mode/i }));
+  expect(setDebriefMode).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: /are you sure.*enable finale/i })).toBeVisible();
+
+  await user.click(screen.getByRole('button', { name: /are you sure.*enable finale/i }));
+  expect(setDebriefMode).toHaveBeenCalledWith(true);
+  expect(await screen.findByRole('button', { name: /retract finale.*stop confetti/i })).toBeVisible();
+
+  await user.click(screen.getByRole('button', { name: /retract finale.*stop confetti/i }));
+  expect(setDebriefMode).toHaveBeenLastCalledWith(false);
 });
 
 it('shows Emergency Bridge Confetti Dispenser activations in the console log', async () => {

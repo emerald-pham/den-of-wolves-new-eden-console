@@ -223,6 +223,26 @@ describe('the GM console', () => {
     expect(index).toMatch(/@media \(max-width: 720px\)\s*\{[^]*?\.gm-roster-draft \{ grid-template-columns: 1fr; \}/);
   });
 
+  it('keeps the finale layer decorative, and honors the in-app reduced-motion setting', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const layer = index.match(/\.debrief-mode\s*\{([^}]*)\}/)?.[1] ?? '';
+    const toast = index.match(/\.debrief-mode__toast\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(layer).toContain('pointer-events: none');
+    expect(layer).toContain('z-index: 26');
+    expect(toast).toContain('color: var(--cic-cyan-hot)');
+    expect(index).toMatch(/\[data-motion='reduce'\][^}]*\.debrief-mode__ball[^}]*animation: none/);
+    expect(index).toMatch(/\[data-motion='reduce'\][^}]*\.debrief-mode__confetti-piece[^}]*animation: none/);
+  });
+
+  it('moves the finale ball into the unused corner on compact viewports', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /@media \(max-width: 720px\), \(max-height: 480px\)\s*\{[^]*?\.debrief-mode__ball\s*\{[^}]*left: max\(2rem, calc\(env\(safe-area-inset-left\) \+ 2rem\)\);[^}]*width: clamp\(3.5rem, 14vmin, 4rem\);/,
+    );
+  });
+
 });
 
 describe('the shuttlecraft console template', () => {

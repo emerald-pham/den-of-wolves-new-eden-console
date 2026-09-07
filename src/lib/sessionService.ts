@@ -125,6 +125,18 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
       store.setSession({ ...store.session, gmControlsLocked: locked });
     }
   }
+  if (command.kind === 'setDebriefMode' && store.session?.id === command.payload.sessionId) {
+    const mode =
+      typeof result === 'object' && result !== null && 'debriefMode' in result &&
+      typeof result.debriefMode === 'object' && result.debriefMode !== null &&
+      'active' in result.debriefMode && 'revision' in result.debriefMode &&
+      typeof result.debriefMode.active === 'boolean' &&
+      typeof result.debriefMode.revision === 'number' &&
+      Number.isSafeInteger(result.debriefMode.revision) && result.debriefMode.revision >= 0
+        ? { active: result.debriefMode.active, revision: result.debriefMode.revision }
+        : undefined;
+    if (mode) store.setSession({ ...store.session, debriefMode: mode });
+  }
   if (
     (
       command.kind === 'setActiveRoleEnabled' ||
@@ -631,6 +643,23 @@ export async function setGmControlsLocked(locked: boolean): Promise<CommandDispo
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       locked,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setDebriefMode(active: boolean): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing debrief mode.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setDebriefMode',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      active,
     },
     createdAt: new Date().toISOString(),
   });

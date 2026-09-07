@@ -102,6 +102,11 @@ export interface GameSession {
     /** ISO-8601 instant for the last raised alert, used to enforce cooldown policy. */
     readonly raisedAt?: string;
   };
+  /** GM-controlled presentation state for the shared end-of-session finale. */
+  readonly debriefMode?: {
+    readonly active: boolean;
+    readonly revision: number;
+  };
   readonly pressDispatch?: PressDispatchState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;

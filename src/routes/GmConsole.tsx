@@ -31,6 +31,7 @@ import {
   resetWolves,
   kickGmInstance,
   setCapybaraEnabled,
+  setDebriefMode,
   setDioneEnabled,
   setGmControlsLocked,
   setActiveRoleConfiguration,
@@ -240,6 +241,8 @@ export default function GmConsole() {
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [confirmTurnOverride, setConfirmTurnOverride] = useState(false);
+  const [changingDebrief, setChangingDebrief] = useState(false);
+  const [confirmFinale, setConfirmFinale] = useState(false);
   const [assigningWolves, setAssigningWolves] = useState(false);
   const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
@@ -255,11 +258,15 @@ export default function GmConsole() {
     (command) => command.kind === 'setDioneEnabled',
   );
   const controlsLocked = session?.gmControlsLocked === true;
+  const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
   const currentPhase = phaseForSession(session);
   const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
+  );
+  const debriefQueued = pendingCommands.some(
+    (command) => command.kind === 'setDebriefMode',
   );
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
@@ -566,6 +573,31 @@ export default function GmConsole() {
     }
   }
 
+  async function changeDebriefMode(active: boolean): Promise<void> {
+    setChangingDebrief(true);
+    try {
+      await setDebriefMode(active);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setChangingDebrief(false);
+    }
+  }
+
+  function requestFinale(): void {
+    if (debriefMode.active) {
+      setConfirmFinale(false);
+      void changeDebriefMode(false);
+      return;
+    }
+    if (!confirmFinale) {
+      setConfirmFinale(true);
+      return;
+    }
+    setConfirmFinale(false);
+    void changeDebriefMode(true);
+  }
+
   async function moveToNextTurn(overridePhaseTimer = false): Promise<void> {
     setAdvancingTurn(true);
     try {
@@ -693,6 +725,34 @@ export default function GmConsole() {
                 : confirmTurnOverride && activeTurnTimer
                   ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
                   : `Advance to Turn ${currentTurn + 1}`}
+            </button>
+          </section>
+          <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
+            <h2 className="gm-console__section-title">Finale</h2>
+            <p className="gm-console__status">
+              Debrief mode // {debriefMode.active ? 'Live across every console' : 'Standing by'}
+            </p>
+            {confirmFinale && !debriefMode.active && (
+              <p className="gm-finale__confirm" role="alert">
+                ARE YOU SURE? // LOWER THE DEBRIEF BALL AND BEGIN THE CONFETTI STREAM
+              </p>
+            )}
+            <button
+              className="cic-action-button"
+              type="button"
+              aria-pressed={debriefMode.active}
+              disabled={changingDebrief || debriefQueued}
+              onClick={requestFinale}
+            >
+              {changingDebrief
+                ? debriefMode.active ? 'Retracting finale…' : 'Enabling finale…'
+                : debriefQueued
+                  ? 'Finale command queued'
+                  : debriefMode.active
+                    ? 'Retract finale // Stop confetti'
+                    : confirmFinale
+                      ? 'ARE YOU SURE? // Enable finale'
+                      : 'Finale // Enable debrief mode'}
             </button>
           </section>
           <section
