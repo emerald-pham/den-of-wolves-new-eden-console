@@ -103,6 +103,7 @@ export function coordinationFilePath(
 export function emptyCoordinationState(): CoordinationState;
 export function parseCoordinationState(content: string): CoordinationState;
 export function compareApplicationVersions(left: string, right: string): -1 | 0 | 1;
+export function nextApplicationVersion(version: string): string;
 export function validationPlanForFiles(
   changedFiles?: readonly string[],
 ): ValidationPlan;
