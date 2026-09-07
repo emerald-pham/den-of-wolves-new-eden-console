@@ -11,6 +11,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     changes: [
       'The Turn 1 fleet transmission now delivers “There are traitors among us; that’s kind of sus” as one complete slide.',
+      'GM Console now offers a Skip to Turn 1 control during setup so you can start a live debug session faster.',
     ],
   },
   {
