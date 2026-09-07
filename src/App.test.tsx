@@ -104,6 +104,52 @@ describe('App', () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    '/roles',
+    '/gm',
+    '/console',
+    '/press',
+    '/ships/aegis/roles',
+    '/ships/aegis/roles/admiral',
+    '/ships/aegis/observer',
+    '/union/roles/joint-engineering-quellon-refinery',
+    '/shuttles/snn-press-shuttle',
+  ])('returns a direct protected route without session identity to the landing page: %s', async (route) => {
+    window.location.hash = '#' + route;
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', {
+      name: /Den of Wolves: New Eden/i,
+    })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/');
+  });
+
+  it('returns a non-GM direct GM route to the safe console roster', async () => {
+    window.location.hash = '#/gm';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /select a role/i })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/console');
+  });
+
+  it('returns a player from a foreign console URL to their assigned station', async () => {
+    window.location.hash = '#/ships/aegis/roles/admiral';
+    useSessionStore.getState().setIdentity(session, {
+      ...player,
+      activeConsoleRoleId: 'dione-engineer',
+    });
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Dione' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/ships/dione/roles/dione-engineer');
+  });
+
   it('reaches for Firebase as soon as it mounts, so the light can leave red', async () => {
     render(<App />);
     await waitFor(() => {
@@ -403,6 +449,9 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: /settings/i }));
     expect(screen.getByRole('dialog', { name: /session settings/i })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /disconnect/i }));
+    expect(disconnectFromSession).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: /session settings/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /are you sure/i }));
 
     expect(
       await screen.findByRole('heading', { name: /Den of Wolves: New Eden/i }),

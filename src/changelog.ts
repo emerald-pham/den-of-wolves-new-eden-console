@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Returning after a closed, sleeping, or long-idle browser can now resume the same session and reclaim an open previous seat. If another player took it, you stay in the session and can choose another seat.',
+      'Disconnect now asks for a red “ARE YOU SURE?” confirmation before this browser leaves the session.',
+    ],
+  },
+  {
+    version: '0.2.41',
+    changes: [
       'The session join prompt now stays focused on entering your code.',
     ],
   },
