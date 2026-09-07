@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Local table hosts can now create and run an emulated session without production-only App Check blocking the console; public consoles keep their existing app-verification protection.',
+    ],
+  },
+  {
+    version: '0.2.54',
+    changes: [
       'GMs can now start a shared Finale after a deliberate two-press confirmation, lowering a digital disco ball and a continuous confetti stream into every connected console.',
       'Retracting Finale stops the confetti stream immediately, while a blue “Debrief mode enabled” notice confirms the live effect for everyone already connected.',
     ],
