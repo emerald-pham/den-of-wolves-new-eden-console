@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -12,11 +12,10 @@ import { APP_VERSION } from '@/version';
 // reporting -- is exercised for real.
 vi.mock('@/lib/sessionService', () => ({
   createSession: vi.fn(),
-  getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),
   joinSession: vi.fn(),
 }));
 
-const { createSession, getSurvivorPopulation, joinSession } = await import('@/lib/sessionService');
+const { createSession, joinSession } = await import('@/lib/sessionService');
 
 function LocationProbe() {
   return <div aria-label="Current route">{useLocation().pathname}</div>;
@@ -39,6 +38,7 @@ describe('Landing', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     window.localStorage.removeItem('new-eden-motion-override');
     vi.mocked(createSession).mockReset();
     vi.mocked(joinSession).mockReset();
@@ -59,19 +59,26 @@ describe('Landing', () => {
     expect(screen.getByText(/SYSTEM INTERFACE \/ BUILD/)).toHaveTextContent(`SYSTEM INTERFACE / BUILD ${APP_VERSION}`);
   });
 
+  it('shows a numeric local population estimate on boot', () => {
+    renderLanding();
+    expect(screen.getByLabelText('Arrival readout 4')).not.toHaveTextContent('—');
+  });
+
   it('includes the arrival display', () => {
     renderLanding();
     expect(screen.getByLabelText('Arrival readout 1')).toHaveTextContent('6');
   });
 
-  it('loads the survivor count from the cloud after Firebase is live', async () => {
+  it('keeps the population estimate local when Firebase is live', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
     useSessionStore.getState().setConnection('live');
     renderLanding();
 
-    await waitFor(() => {
-      expect(getSurvivorPopulation).toHaveBeenCalledOnce();
-      expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('232,501');
+    await act(async () => {
+      await Promise.resolve();
     });
+
+    expect(screen.getByLabelText('Arrival readout 4')).toHaveTextContent('222,501');
   });
 
   it('offers the two ways in', () => {

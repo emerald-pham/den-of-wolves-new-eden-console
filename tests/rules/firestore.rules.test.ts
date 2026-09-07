@@ -99,15 +99,6 @@ beforeEach(async () => {
 
 const as = (uid: string) => env.authenticatedContext(uid).firestore();
 
-describe('app-wide arrival state', () => {
-  it('cannot be read or changed directly by a client', async () => {
-    const state = doc(as('alice'), 'appState/arrival');
-
-    await assertFails(getDoc(state));
-    await assertFails(setDoc(state, { survivorPopulation: 222_501 }));
-  });
-});
-
 describe('session header', () => {
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);

@@ -11,7 +11,6 @@ vi.mock('@/lib/sessionService', () => ({
   beginOpenAirspacePhase: vi.fn().mockResolvedValue(undefined),
   createSession: vi.fn(),
   disconnectFromSession: vi.fn(),
-  getSurvivorPopulation: vi.fn().mockResolvedValue(232_501),
   joinSession: vi.fn(),
   kickGmInstance: vi.fn(),
   listGmInstances: vi.fn().mockResolvedValue([]),

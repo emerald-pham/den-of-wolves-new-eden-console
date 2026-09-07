@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { CHANGELOG } from './changelog';
 import { APP_VERSION } from './version';
 
 it('keeps the visible build reference aligned with the package version', () => {
@@ -7,6 +8,12 @@ it('keeps the visible build reference aligned with the package version', () => {
   const versionModule = readFileSync('src/version.ts', 'utf8');
   expect(APP_VERSION).toBe(packageJson.version);
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
+});
+
+it('records the boot-time population estimate in the current player-facing release notes', () => {
+  expect(CHANGELOG[0]?.changes).toContain(
+    'The landing display now begins with a population estimate while CIC connects.',
+  );
 });
 
 it('emits uncached build metadata for live clients to discover upgrades', () => {

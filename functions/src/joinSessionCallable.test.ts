@@ -128,7 +128,6 @@ it('replaces a stale membership lock when the same identity joins its remembered
     });
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: false });
-    if (path === 'appState/arrival') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 

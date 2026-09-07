@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The landing display now begins with a population estimate while CIC connects.',
+    ],
+  },
+  {
+    version: '0.2.55',
+    changes: [
       'Local table hosts can now create and run an emulated session without production-only App Check blocking the console; public consoles keep their existing app-verification protection.',
     ],
   },

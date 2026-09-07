@@ -89,7 +89,6 @@ import {
   deletionDeadline,
   isPresenceStale,
 } from './sessionLifecycle';
-import { generateSurvivorPopulation, shouldRefreshSurvivorPopulation } from './survivorPopulation';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import {
   applyPopulationSteps,
@@ -124,7 +123,6 @@ initializeApp();
 setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
-const ARRIVAL_STATE = db.doc('appState/arrival');
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
   aegis: '0000',
   dione: '0000',
@@ -339,36 +337,6 @@ async function consumeJoinCodeAttempt(uid: string): Promise<void> {
 }
 
 /**
- * One app-wide arrival figure is server-owned. Every live instance renews the
- * activity lease; only a full week with no launcher or session activity draws
- * a new value.
- */
-async function touchSurvivorPopulation(): Promise<number> {
-  return db.runTransaction(async (tx) => {
-    const state = await tx.get(ARRIVAL_STATE);
-    const now = new Date();
-    const lastActivity = state.get('lastActivityAt') as Timestamp | undefined;
-    const currentPopulation = state.get('survivorPopulation') as number | undefined;
-    const refresh = !state.exists || !Number.isInteger(currentPopulation) ||
-      !(lastActivity instanceof Timestamp) || shouldRefreshSurvivorPopulation(lastActivity.toDate(), now);
-    const survivorPopulation = refresh || currentPopulation === undefined
-      ? generateSurvivorPopulation(() => randomInt(0, 16_000) / 16_000)
-      : currentPopulation;
-    tx.set(ARRIVAL_STATE, {
-      survivorPopulation,
-      lastActivityAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    return survivorPopulation;
-  });
-}
-
-/** Read and renew the global launcher statistic for this signed-in app instance. */
-export const getSurvivorPopulation = onCall<Record<string, never>>(async (request) => {
-  requireUid(request.auth);
-  return { survivorPopulation: await touchSurvivorPopulation() };
-});
-
-/**
  * Legacy four-digit codes share a ten-thousand-code space, while current
  * six-digit codes use a million. `joinCodes/{code}` is a uniqueness lock:
  * creating it inside the same transaction as the session is what makes "pick a
@@ -461,7 +429,6 @@ export const createSession = onCall<{
       });
 
       if (claimed) {
-        await touchSurvivorPopulation();
         const now = new Date().toISOString();
         return {
           session: {
@@ -581,7 +548,6 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
       return null;
     });
-    await touchSurvivorPopulation();
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
@@ -694,7 +660,6 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     return returningSeat.seatId;
   });
 
-  await touchSurvivorPopulation();
   [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
@@ -1591,7 +1556,6 @@ export const refreshPresence = onCall<{
     tx.update(playerRef, presenceUpdate);
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
-  await touchSurvivorPopulation();
   return { sessionId };
 });
 

@@ -305,20 +305,6 @@ export async function createSession(name?: string): Promise<void> {
   applySession(reply.data);
 }
 
-/** Fetch the server-owned launcher figure and renew this app instance's activity lease. */
-export async function getSurvivorPopulation(): Promise<number> {
-  await ensureSignedIn();
-  const call = httpsCallable<Record<string, never>, { survivorPopulation: number }>(
-    functions(),
-    'getSurvivorPopulation',
-  );
-  const reply = await call({});
-  if (!Number.isInteger(reply.data.survivorPopulation)) {
-    throw new Error('The server returned an invalid survivor population.');
-  }
-  return reply.data.survivorPopulation;
-}
-
 async function sendCounterChange(
   name: 'adjustShipResource' | 'adjustShipUnrest' | 'dismissUnrestAlert' | 'adjustShipPopulation' | 'dismissPopulationAlert',
   payload: Record<string, string | number | undefined>,

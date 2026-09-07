@@ -14,9 +14,16 @@ const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 const readout = (n: number) => screen.getByLabelText(`Arrival readout ${n}`);
 const shown = (n: number) => readout(n).textContent ?? '';
 
+it('draws its initial population estimate locally', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  render(<ArrivalDisplay />);
+
+  expect(readout(4)).toHaveTextContent('222,501');
+});
+
 it('turns each readout over every five seconds on proportionally staggered beats', () => {
   vi.spyOn(Math, 'random').mockReturnValue(0.5);
-  render(<ArrivalDisplay survivorPopulation={222_501} />);
+  render(<ArrivalDisplay />);
   expect(readout(1)).toHaveTextContent('6');
   expect(readout(2)).toHaveTextContent('20');
   expect(readout(3)).toHaveTextContent('1');
@@ -31,8 +38,8 @@ it('turns each readout over every five seconds on proportionally staggered beats
 });
 
 it('turns the population estimate over on the fourth staggered beat', () => {
-  vi.spyOn(Math, 'random').mockReturnValue(0.5);
-  render(<ArrivalDisplay survivorPopulation={222_501} />);
+  vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValue(0.5);
+  render(<ArrivalDisplay />);
 
   expect(readout(4)).toHaveTextContent('222,501');
   expect(screen.getByText('POPULATION ESTIMATE AFTER INITIAL STARVATION')).toBeVisible();
