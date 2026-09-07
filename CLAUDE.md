@@ -160,6 +160,12 @@ parent context and avoids growing or compressing that context. If no safe,
 independent sidecar exists, continue locally and record why rather than forcing
 an artificial split.
 
+Delegation startup cleanup is required. Before substantive work or new
+delegation, inspect the child IDs owned by the current parent, retrieve any
+terminal result still needed, and close every completed or errored child. Leave
+pending or running children alone; close them after they reach a terminal state
+unless they are still needed for the current task.
+
 - Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
   is not an approved delegation model for this codebase.
 - Delegated subagents have full read/write access to their assigned worktree.
