@@ -30,11 +30,4 @@ describe('AEGIS role console reference', () => {
     expect(AEGIS_ROLE_CONSOLES['wing-commander'].fighterCapacity)
       .toEqual({ standard: 4, upgraded: 6 });
   });
-
-  it('does not define the Executive Officer battle sheet in this increment', () => {
-    expect(AEGIS_ROLE_CONSOLES).not.toHaveProperty('executive-officer');
-    expect(JSON.stringify(AEGIS_ROLE_CONSOLES)).not.toMatch(
-      /Command and Control|Missile Launchers|Point Defence Lasers|Pallas/,
-    );
-  });
 });
