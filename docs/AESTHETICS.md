@@ -212,6 +212,16 @@ ship-console attachment can be added without making the instrument player
 visible now. Chart selection and node selection stay local until an authoritative
 session field exists; the map performs no client write.
 
+The starmap may make the instrument feel space-facing with a restrained scanline,
+ruled projection planes, and a small DRADIS orientation rail. These are display
+chrome only: they must use existing amber/cyan tokens, keep square corners, and
+freeze under the app's reduced-motion setting. Selected jump links are the only
+animated topology treatment and are cyan because they report the currently
+selected system's real neighbours. Fleet fixes reuse each ship's existing
+faction color as a square outer rail and marker; the accessible system name also
+announces the plotted ship names. Do not add a synthetic starfield, depth gauge,
+or other visual that suggests gameplay data the session does not hold.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
@@ -221,6 +231,14 @@ Maintenance-cycle commands use `.cic-action-button` at every step so disabled
 future actions retain the same control silhouette as the active command.
 The GM turn control uses a regular ruled instrument module: show the current
 turn as a real status value and use `.cic-action-button` for the advance action.
+Its four-command setup row uses equal flexible widths at wide sizes and wraps
+in reading order when a phone cannot hold all four targets; long replay labels
+may wrap inside the same-height square controls rather than shrinking the type.
+Any irreversible or high-impact command that requires a deliberate second press
+uses `.cic-action-button--confirm`: keep the same square target and mono type,
+but switch its border and text to the danger-red confirmation treatment with a
+subtle blood-toned ground. The first press changes the same control to explicit
+`ARE YOU SURE? // ...` copy; only the second press performs the command.
 The launcher uses a 48px minimum for Create, Session code, Join, and the motion
 button. The motion button follows Join in both visual and keyboard order;
 both Reduce motion and Restore motion use the same height. Secondary emphasis
@@ -300,6 +318,13 @@ origin and alternate them near a centreline so neighboring names remain
 readable without moving between sweeps. Group the returns in an isolated
 foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
+
+Compact shipboard and GM DRADIS use the shared `.dradis-outline` square
+instrument frame and `.dradis-label` treatment. The fleet display may place
+perspective controls beside or below its viewport, but the plot itself keeps
+the same amber edge, near-black ground and cyan glow as a ship console. The
+frame belongs to the viewport rather than the surrounding controls so the two
+surfaces remain visually interchangeable at every compact size.
 
 ### DRADIS contact rules
 
@@ -940,6 +965,11 @@ is disabled with a concise `TURN 0 // AWAITING GM START` readout. The GM remains
 able to set up the table. The GM Console belongs in the Independent stations
 roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.
+The Turn 0 GM control row puts `ADVANCE TO TURN 1` first and `SKIP TO TURN 1`
+second, followed by `REPLAY LAST TRANSMISSION // GM ONLY` and `REPLAY LAST
+TRANSMISSION // EVERYONE`. The first replay is browser-local to that GM; the
+second increments the server-owned transmission revision so every connected
+console replays the same current-turn briefing without changing the game turn.
 
 During a live Turn 0 session, the top-right connection light uses cyan-blue
 instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's
@@ -986,6 +1016,13 @@ shared reduced-motion override removes it along with the message entrance.
 Each non-final beat eases upward out over a short 320ms handoff before the next
 beat eases upward in, using separate asymmetric curves so the transmission
 reads like a live instrument handing off a signal rather than a linear carousel.
+The final two Turn 0 → Turn 1 beats—`PEOPLE` without a trailing dash and
+`SURVIVE.`—hold for three seconds each so the closing instruction has room to
+land. When the final `SURVIVE.` beat completes, the whole fleet transmission
+fades to transparent over one full second before it leaves the stage, revealing
+the live console without an abrupt cut. This exit applies to Turn 0 → Turn 1
+and every later turn transition; reduced motion removes the fade and clears the
+transmission immediately.
 On narrow screens the header and readout rail stack in place, and on short
 landscape screens the message well contracts before the surrounding instrument
 is allowed to clip.
@@ -1078,3 +1115,9 @@ Alert editor, continuous ticker transition, uppercase source-prefixed warning an
 Damage-card outcomes at the maintenance riot step and the shared GM damage
 controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
 wraps without clipping or obscuring controls.
+
+The expanded GM DRADIS treats its lower edge as two stacked instruments on
+phones and short landscape screens: the live airspace countdown owns the
+bottom line, and the COMBAT RANGES key sits above it with a reserved 4.75rem
+offset. This keeps both readouts legible over the plot without changing their
+desktop placement.

@@ -162,6 +162,20 @@ describe('the fleet transmission', () => {
     );
     expect(intrusion).not.toContain('translateY(calc(100% + 15rem))');
   });
+
+  it('codifies the danger-red second-press confirmation treatment', () => {
+    const cic = SHEETS.find(({ name }) => name === 'src/styles/cic.css')?.css ?? '';
+    const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';
+    const aesthetics = readFileSync('docs/AESTHETICS.md', 'utf8');
+
+    expect(cic).toMatch(
+      /\.cic-action-button--confirm\s*\{[^}]*border-color:\s*var\(--cic-danger\)[^}]*color:\s*var\(--cic-scream\)/,
+    );
+    expect(intrusion).toMatch(
+      /\.intrusion--fleet\[data-state='exiting'\]\s*\{[^}]*animation:\s*turn-start-announcement-fade-out 1000ms/,
+    );
+    expect(aesthetics).toContain('.cic-action-button--confirm');
+  });
 });
 
 describe('the in-session header', () => {
@@ -312,6 +326,19 @@ describe('the GM console', () => {
 
 });
 
+describe('the GM starmap instrument', () => {
+  it('keeps the spatial treatment ruled, square, and still in reduced motion', () => {
+    const starmap = SHEETS.find(({ name }) => name === 'src/styles/starmap.css')?.css ?? '';
+
+    expect(starmap).toContain('.starmap__scanline');
+    expect(starmap).toMatch(/@keyframes starmap-scan\s*\{[^]*?from\s*\{[^}]*left:\s*0[^}]*\}[^]*?to\s*\{[^}]*left:\s*calc\(100% - 1px\)/);
+    expect(starmap).toContain('rotateX(40deg) rotateZ(-3deg)');
+    expect(starmap).toMatch(/\.starmap__node\s*\{[^}]*min-height:\s*44px/);
+    expect(starmap).toMatch(/\[data-motion='reduce'\][^}]*\.starmap__scanline[^}]*animation:\s*none/);
+    expect(starmap).toMatch(/\[data-motion='reduce'\][^}]*\.starmap__link--selected[^}]*animation:\s*none/);
+  });
+});
+
 describe('the shuttlecraft console template', () => {
   it('uses the ship console viewport and stacks real instruments on phones', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
@@ -370,6 +397,21 @@ describe('ship console instrument layout', () => {
     expect(plot).toContain('container-type: size');
     expect(plot).toContain('transition:');
     expect(plot).toContain('var(--ship-plot-resize) ease-in-out');
+  });
+
+  it('shares the square outlined instrument treatment between ship and GM DRADIS', () => {
+    const plot = SHEETS.find(({ name }) => name === 'src/styles/plot.css')?.css ?? '';
+    const outline = plot.match(/\.dradis-outline\s*\{([^}]*)\}/)?.[1] ?? '';
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const label = index.match(/\.dradis-label\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(outline).toContain('border: 1px solid var(--cic-amber-dim)');
+    expect(outline).toContain('background: var(--cic-void)');
+    expect(outline).toContain('box-shadow: 0 0 24px color-mix(in srgb, var(--cic-cyan) 18%, transparent)');
+    expect(label).toContain('color: var(--cic-amber)');
+    expect(label).toContain('text-transform: uppercase');
+    expect(index).toMatch(/\.gm-dradis__viewport\s*\{[^}]*container-type: size/);
+    expect(index).toContain(".gm-dradis[data-expanded='true'] .gm-dradis__viewport");
   });
 
   it('anchors compact ship DRADIS below the measured header on phones', () => {

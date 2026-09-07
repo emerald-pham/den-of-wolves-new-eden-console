@@ -34,6 +34,7 @@ const {
   setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
+  replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
@@ -504,6 +505,50 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', active: true,
     });
     expect(useSessionStore.getState().session?.debriefMode).toEqual({ active: true, revision: 1 });
+  });
+
+  it('replays the current transmission locally for this GM only', async () => {
+    vi.mocked(httpsCallable).mockReset();
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 1,
+      turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+    });
+
+    await replayTurnStartAnnouncement('gm');
+
+    expect(useSessionStore.getState().turnStartReplay).toMatchObject({
+      sessionId: 's1', turn: 1, survivorPopulation: 242_500,
+    });
+    expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
+  it('replays the current transmission through the server for everyone', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 2,
+      turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000, revision: 3 },
+    });
+    const callable = callableReturning({
+      data: { turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000, revision: 4 } },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await replayTurnStartAnnouncement('everyone');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'replayTurnStartAnnouncement');
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'instance-1' });
+    expect(useSessionStore.getState().session?.turnStartAnnouncement).toEqual({
+      turn: 2, survivorPopulation: 237_000, revision: 4,
+    });
   });
 
   it('advances the displayed turn through the active GM instance', async () => {

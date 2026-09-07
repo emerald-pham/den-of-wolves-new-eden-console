@@ -53,3 +53,27 @@ it('keeps the selected site effect and every distinct fleet fix in the readout',
   expect(screen.getByText(/FLEET FIXES \/\/ 0000 \/\/ 6798 \/\/ 2 ships plotted/i))
     .toBeInTheDocument();
 });
+
+it('surfaces live fleet plotting state and the selected jump corridor', () => {
+  const { container } = render(
+    <Starmap
+      chart="A"
+      selectedCoordinate="6798"
+      fleetMarkers={[
+        { id: 'aegis', label: 'AEGIS', coordinate: '0000', color: 'var(--cic-faction-icn)' },
+        { id: 'snn', label: 'SNN', coordinate: '6798', color: 'var(--cic-faction-fas)' },
+      ]}
+    />,
+  );
+
+  const map = screen.getByRole('region', { name: '3D starmap' });
+  expect(map).toHaveTextContent(/FLEET PLOT \/\/ 2 SHIPS PLOTTED/i);
+  expect(map).toHaveTextContent(/PERSPECTIVE OVERLAY \/\/ DISPLAY ONLY/i);
+
+  const selectedNode = screen.getByRole('button', { name: /system 6798/i });
+  expect(selectedNode.style.getPropertyValue('--starmap-faction'))
+    .toBe('var(--cic-faction-fas)');
+  expect(selectedNode).toHaveAttribute('data-fleet-count', '1');
+
+  expect(container.querySelectorAll('line[data-route-state="selected"]')).toHaveLength(4);
+});

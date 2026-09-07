@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { GameSession, GmInstance, Player, Seat } from '@/types/game';
+import type { GameSession, GmInstance, Player, Seat, TurnStartReplay } from '@/types/game';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export type ConsoleMode = 'gm' | 'console' | 'press';
@@ -133,6 +133,7 @@ interface SessionState {
   seats: readonly Seat[];
   me: Player | null;
   gmInstance: GmInstance | null;
+  turnStartReplay: TurnStartReplay | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
   mode: ConsoleMode | null;
@@ -144,6 +145,7 @@ interface SessionState {
   setSeats: (seats: readonly Seat[]) => void;
   setMe: (me: Player | null) => void;
   setGmInstance: (instance: GmInstance | null) => void;
+  setTurnStartReplay: (replay: TurnStartReplay | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
   setCommunicationError: (error: CommunicationError | null) => void;
@@ -159,6 +161,7 @@ const initial = {
   seats: [] as readonly Seat[],
   me: null,
   gmInstance: null,
+  turnStartReplay: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
   mode: null,
@@ -166,7 +169,7 @@ const initial = {
   connection: 'idle',
 } satisfies Pick<
   SessionState,
-  'session' | 'seats' | 'me' | 'gmInstance' | 'pendingCommands' |
+  'session' | 'seats' | 'me' | 'gmInstance' | 'turnStartReplay' | 'pendingCommands' |
   'communicationError' | 'mode' | 'lastRoute' | 'connection'
 >;
 
@@ -181,6 +184,7 @@ export const useSessionStore = create<SessionState>()(
       // the entire UI and serializing the full persisted session in that case.
       setMe: (me) => { if (!shallow(get().me, me)) set({ me }); },
       setGmInstance: (gmInstance) => set({ gmInstance }),
+      setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
       removeCommand: (id) =>
@@ -197,6 +201,7 @@ export const useSessionStore = create<SessionState>()(
           seats: [],
           me: null,
           gmInstance: null,
+          turnStartReplay: null,
           mode: null,
           lastRoute: null,
           // A queued disconnect must survive local teardown so it can tell the

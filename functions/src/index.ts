@@ -205,6 +205,7 @@ function sessionTurn(value: unknown): number {
 type TurnStartAnnouncement = {
   readonly turn: number;
   readonly survivorPopulation: number;
+  readonly revision?: number;
 };
 
 function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefined {
@@ -215,7 +216,22 @@ function turnStartAnnouncement(value: unknown): TurnStartAnnouncement | undefine
     typeof value.survivorPopulation !== 'number' ||
     !Number.isSafeInteger(value.survivorPopulation) || value.survivorPopulation < 0
   ) return undefined;
-  return { turn: value.turn, survivorPopulation: value.survivorPopulation };
+  if ('revision' in value && value.revision !== undefined) {
+    if (
+      typeof value.revision !== 'number' ||
+      !Number.isSafeInteger(value.revision) ||
+      value.revision < 0
+    ) return undefined;
+    return {
+      turn: value.turn,
+      survivorPopulation: value.survivorPopulation,
+      revision: value.revision,
+    };
+  }
+  return {
+    turn: value.turn,
+    survivorPopulation: value.survivorPopulation,
+  };
 }
 
 type DebriefMode = { readonly active: boolean; readonly revision: number };
@@ -1094,6 +1110,51 @@ export const advanceTurn = onCall<{
     });
     return { currentTurn: nextTurn, turnStartAnnouncement: announcement, turnPhase };
   });
+});
+
+/** Replay the latest turn transmission on every connected console. */
+export const replayTurnStartAnnouncement = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const action = requireGmInstanceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${action.sessionId}`);
+  const playerRef = db.doc(`sessions/${action.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
+
+  const announcement = await db.runTransaction(async (tx): Promise<TurnStartAnnouncement> => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const current = turnStartAnnouncement(session.get('turnStartAnnouncement'));
+    if (!current || current.turn !== currentTurn || currentTurn < 1) {
+      throw new HttpsError('failed-precondition', 'No current turn transmission is available to replay.');
+    }
+    const next = {
+      turn: current.turn,
+      survivorPopulation: current.survivorPopulation,
+      revision: (current.revision ?? 0) + 1,
+    };
+    tx.update(sessionRef, {
+      turnStartAnnouncement: next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return next;
+  });
+
+  return { turnStartAnnouncement: announcement };
 });
 
 /** Promote the shared real-time turn clock into its coordination/open-airspace phase. */

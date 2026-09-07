@@ -12,6 +12,22 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Live roster changes now immediately make removed ship and Press roles read-only, with server-side checks protecting maintenance, dispatch, alert, counter, and confetti actions.',
       'Expired presence leases no longer let stale crew block two-person confetti approvals, and legacy connected records remain consistent with session membership locking.',
+      'The GM starmap now reads as a deeper tactical navigation instrument, with highlighted jump corridors, a restrained scanning pass, and clearer perspective depth.',
+      'Fleet fixes now carry their existing ship colors into the chart, while the live plot strip and accessible system labels make plotted ships easier to track.',
+      'The Turn 0 → Turn 1 transmission now gives its closing PEOPLE and SURVIVE. beats more room to land, removes the stray dash, and fades out over a full second.',
+      'GM Console can replay the latest transmission locally or across every connected console, with a codified danger-red second press for the setup skip command.',
+    ],
+  },
+  {
+    version: '0.2.71',
+    changes: [
+      'GM Console DRADIS now uses the same square outlined instrument display as the ship consoles, with matching fleet-plot labeling and responsive sizing.',
+    ],
+  },
+  {
+    version: '0.2.70',
+    changes: [
+      'On phones, the expanded GM DRADIS keeps its combat-range key clear of the live airspace countdown.',
     ],
   },
   {

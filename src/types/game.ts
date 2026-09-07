@@ -85,14 +85,26 @@ export interface TurnPhase {
   };
 }
 
+export interface TurnStartAnnouncement {
+  readonly turn: number;
+  readonly survivorPopulation: number;
+  /** Increments when the GM deliberately replays this transmission. */
+  readonly revision?: number;
+}
+
+/** A browser-local GM replay; it is intentionally never persisted or shared. */
+export interface TurnStartReplay {
+  readonly sessionId: Id;
+  readonly turn: number;
+  readonly survivorPopulation: number;
+  readonly token: number;
+}
+
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
   /** The most recently authorized fleet-status transmission for a turn start. */
-  readonly turnStartAnnouncement?: {
-    readonly turn: number;
-    readonly survivorPopulation: number;
-  };
+  readonly turnStartAnnouncement?: TurnStartAnnouncement;
   /** Current server-authorized real-time phase and airspace directive. */
   readonly turnPhase?: TurnPhase;
   readonly fleetRedAlert?: {

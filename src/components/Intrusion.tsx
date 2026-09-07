@@ -13,6 +13,7 @@ interface IntrusionProps {
   readonly children?: ReactNode;
   readonly variant?: IntrusionVariant;
   readonly overlines?: readonly [string, string];
+  readonly state?: 'active' | 'exiting';
 }
 
 /**
@@ -31,6 +32,7 @@ export default function Intrusion({
   children,
   variant = 'hostile',
   overlines = SIGNAL_COPY,
+  state,
 }: IntrusionProps) {
   const [signalCopy, setSignalCopy] = useState<readonly [string, string]>(() => [
     scrambleSignalText(overlines[0], Math.random, variant === 'hostile'),
@@ -52,7 +54,11 @@ export default function Intrusion({
   }, [overlines, variant]);
 
   return (
-    <div className={`intrusion intrusion--${variant}`} aria-hidden="true">
+    <div
+      className={`intrusion intrusion--${variant}`}
+      data-state={state}
+      aria-hidden="true"
+    >
       <div className="intrusion__signal">
         <span className="cic-overline">{signalCopy[0]}</span>
         {children ?? (

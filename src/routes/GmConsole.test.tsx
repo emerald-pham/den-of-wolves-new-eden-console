@@ -16,6 +16,7 @@ vi.mock('@/lib/sessionService', () => ({
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
   setDebriefMode: vi.fn(),
+  replayTurnStartAnnouncement: vi.fn(),
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   setActiveRoleConfiguration: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
-  advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
+  replayTurnStartAnnouncement, advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -137,7 +138,18 @@ it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
   renderConsole();
 
   const turnControls = await screen.findByRole('region', { name: /turn controls/i });
-  await user.click(within(turnControls).getByRole('button', { name: /skip to turn 1/i }));
+  const buttons = within(turnControls).getAllByRole('button');
+  expect(buttons).toHaveLength(4);
+  expect(buttons[0]).toHaveTextContent('Advance to Turn 1');
+  expect(buttons[1]).toHaveTextContent('Skip to Turn 1');
+  expect(buttons[2]).toBeDisabled();
+  expect(buttons[3]).toBeDisabled();
+
+  await user.click(buttons[1]!);
+  expect(advanceTurn).not.toHaveBeenCalled();
+  expect(buttons[1]).toHaveClass('cic-action-button--confirm');
+  expect(buttons[1]).toHaveTextContent('ARE YOU SURE? // Skip to Turn 1');
+  await user.click(buttons[1]!);
 
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith();
@@ -162,10 +174,41 @@ it('keeps the normal Turn 0 route to Turn 1 alongside the skip shortcut', async 
 
   await user.click(advanceToTurnOne);
   await user.click(skipToTurnOne);
+  await user.click(within(turnControls).getByRole('button', { name: /are you sure.*skip to turn 1/i }));
 
   expect(advanceTurn).toHaveBeenCalledTimes(2);
   expect(advanceTurn).toHaveBeenNthCalledWith(1);
   expect(advanceTurn).toHaveBeenNthCalledWith(2);
+});
+
+it('offers local and shared replay controls for the current turn transmission', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(replayTurnStartAnnouncement).mockResolvedValue(undefined);
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const gmOnly = within(turnControls).getByRole('button', {
+    name: /replay last transmission \/\/ gm only/i,
+  });
+  const everyone = within(turnControls).getByRole('button', {
+    name: /replay last transmission \/\/ everyone/i,
+  });
+  expect(gmOnly).toBeEnabled();
+  expect(everyone).toBeEnabled();
+
+  await user.click(gmOnly);
+  expect(replayTurnStartAnnouncement).toHaveBeenCalledWith('gm');
+  await user.click(everyone);
+  expect(replayTurnStartAnnouncement).toHaveBeenCalledWith('everyone');
 });
 
 it('kicks another instance and removes it from the list', async () => {
@@ -257,6 +300,18 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(screen.getByRole('button', { name: /view dradis from shepherd/i }))
     .toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
+});
+
+it('uses the ship-console outline treatment for compact GM DRADIS', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const { container } = renderConsole();
+
+  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  const viewport = container.querySelector('.gm-dradis__viewport');
+
+  expect(viewport).toHaveClass('dradis-outline');
+  expect(within(dradis).getByText('DRADIS // FLEET PLOT')).toBeInTheDocument();
 });
 
 it('shows the 3D starmap only inside the GM console and follows the organiser chart', async () => {
