@@ -115,7 +115,7 @@
 }
 
 .intrusion--fleet[data-state='exiting'] {
-  animation: turn-start-announcement-fade-out 1000ms ease-in forwards;
+  animation: turn-start-announcement-fade-out 2000ms ease-in forwards;
 }
 
 .intrusion--fleet::before {
