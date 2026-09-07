@@ -14,7 +14,7 @@ const SHUTTLE_CAPABILITIES: Record<ShuttleCapability, { component: ComponentType
 };
 
 function operationPhaseLabel(phase: ShuttleOperationPhase): string {
-  if (phase === 'Team') return 'Airspace restricted';
+  if (phase === 'Team') return 'Airspace closed';
   if (phase === 'Coordination') return 'Airspace open';
   return phase;
 }

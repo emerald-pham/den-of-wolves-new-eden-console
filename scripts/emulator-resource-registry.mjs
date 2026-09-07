@@ -774,6 +774,18 @@ export function formatCoordinationState(state) {
   const entries = Array.isArray(state.entries) ? state.entries : [];
   const reservations = Array.isArray(state.reservations) ? state.reservations : [];
   const configurations = Array.isArray(state.configurations) ? state.configurations : [];
+  const occupiedSlots = new Set(
+    [...reservations, ...configurations]
+      .map((resource) => resource?.slot)
+      .filter(
+        (slot) => Number.isInteger(slot) && slot >= 0 && slot < EMULATOR_SLOT_COUNT,
+      ),
+  );
+  const availableSlots = Array.from(
+    { length: EMULATOR_SLOT_COUNT },
+    (_, slot) => slot,
+  ).filter((slot) => !occupiedSlots.has(slot));
+  const formatSlots = (slots) => (slots.length > 0 ? slots.join(', ') : 'none');
   const lines = [
     '# Den of Wolves local coordination',
     '',
@@ -787,6 +799,11 @@ export function formatCoordinationState(state) {
   else lines.push(...entries.map(formatEntry));
 
   lines.push(
+    '',
+    `## Emulator capacity (${EMULATOR_SLOT_COUNT} isolated emulator slots)`,
+    `- available slots: ${formatSlots(availableSlots)}`,
+    `- occupied slots: ${formatSlots([...occupiedSlots].sort((a, b) => a - b))}`,
+    '- Claim a free row atomically with `npm run emulators:configure -- auto`.',
     '',
     '## Configured worktree slots (reserved; unavailable to other worktrees)',
   );

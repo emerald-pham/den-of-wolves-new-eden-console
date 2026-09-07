@@ -36,7 +36,7 @@ export default function AirspaceControl() {
         <p>
           Non-affiliated vessels // {pressAccess || phase?.airspace.state === 'lifted'
             ? 'Press clearance authorized'
-            : 'Restricted'}
+            : 'Closed'}
         </p>
         <button className="cic-action-button" type="button" disabled={!canUnlock}
           onClick={() => void unlock()}>

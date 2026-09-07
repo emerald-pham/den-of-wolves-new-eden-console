@@ -480,6 +480,7 @@ export default function GmConsole() {
   }, [nextClockUpdate]);
 
   useEffect(() => {
+    setConfirmTurnAdvance(false);
     setConfirmTurnOverride(false);
     setConfirmTurnSkip(false);
     setConfirmAirspaceExtension(null);
@@ -679,7 +680,7 @@ export default function GmConsole() {
     void moveToNextTurn(override);
   }
 
-  function requestTurnOneSkip(): void {
+  function requestTurnSkip(): void {
     if (!confirmTurnSkip) {
       setConfirmTurnSkip(true);
       return;
@@ -815,47 +816,30 @@ export default function GmConsole() {
               </p>
             )}
             <div className="gm-turn-control__actions">
-              {currentTurn === 0 ? (
-                <>
-                  <button
-                    className={`cic-action-button${confirmTurnAdvance ? ' cic-action-button--confirm' : ''}`}
-                    type="button"
-                    disabled={changingTurn || replayingTurnAnnouncement !== null}
-                    onClick={requestTurnAdvance}
-                  >
-                    {advancingTurn
-                      ? 'Advancing to Turn 1…'
-                      : confirmTurnAdvance
-                        ? 'ARE YOU SURE? // Advance to Turn 1'
-                        : 'Advance to Turn 1'}
-                  </button>
-                  <button
-                    className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
-                    type="button"
-                    disabled={changingTurn || replayingTurnAnnouncement !== null}
-                    onClick={requestTurnOneSkip}
-                  >
-                    {skippingTurn
-                      ? 'Skipping to Turn 1…'
-                      : confirmTurnSkip
-                        ? 'ARE YOU SURE? // Skip to Turn 1'
-                        : 'Skip to Turn 1'}
-                  </button>
-                </>
-              ) : (
-                <button
-                  className={`cic-action-button${confirmTurnOverride && activeTurnTimer ? ' cic-action-button--confirm' : ''}`}
-                  type="button"
-                  disabled={changingTurn || replayingTurnAnnouncement !== null}
-                  onClick={requestTurnAdvance}
-                >
-                  {advancingTurn
-                    ? 'Advancing turn…'
-                    : confirmTurnOverride && activeTurnTimer
-                      ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
-                      : `Advance to Turn ${currentTurn + 1}`}
-                </button>
-              )}
+              <button
+                className={`cic-action-button${confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer) ? ' cic-action-button--confirm' : ''}`}
+                type="button"
+                disabled={changingTurn || replayingTurnAnnouncement !== null}
+                onClick={requestTurnAdvance}
+              >
+                {advancingTurn
+                  ? `Advancing to Turn ${currentTurn + 1}…`
+                  : confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer)
+                    ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
+                    : `Advance to Turn ${currentTurn + 1}`}
+              </button>
+              <button
+                className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
+                type="button"
+                disabled={changingTurn || replayingTurnAnnouncement !== null}
+                onClick={requestTurnSkip}
+              >
+                {skippingTurn
+                  ? `Skipping to Turn ${currentTurn + 1}…`
+                  : confirmTurnSkip
+                    ? `ARE YOU SURE? // Skip to Turn ${currentTurn + 1}`
+                    : `Skip to Turn ${currentTurn + 1}`}
+              </button>
               <button
                 className="cic-action-button"
                 type="button"

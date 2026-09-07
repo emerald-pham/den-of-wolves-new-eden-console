@@ -35,10 +35,10 @@ from server timestamps and transactions.
 
 ## Planned airspace enforcement
 
-Each numbered turn starts with restricted airspace. When shuttle travel exists,
+Each numbered turn starts with closed airspace. When shuttle travel exists,
 the server will prevent a shuttle from moving between ships until airspace opens.
 AEGIS may authorize the unaffiliated SNN Press
-vessel as an exception during the restricted window. The current Airspace
+vessel as an exception during the closed window. The current Airspace
 Control screen and airspace clocks only express that future rule: no shuttle
 movement control or movement enforcement has been implemented yet.
 

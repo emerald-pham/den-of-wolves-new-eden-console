@@ -23,11 +23,11 @@ function useTurnPhaseReadout(phase: TurnPhase | undefined): TurnPhaseReadout | u
 /** Each live airspace window remains a non-interactive instrument inside DRADIS. */
 export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | undefined }) {
   const readout = useTurnPhaseReadout(phase);
-  const restricted = readout?.kind === 'team';
+  const closed = readout?.kind === 'team';
   const open = readout?.kind === 'open' && phase?.airspace.state === 'lifted';
-  if (!restricted && !open) return null;
+  if (!closed && !open) return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
-  const label = restricted ? 'Airspace restricted' : 'Airspace open';
+  const label = closed ? 'Airspace closed' : 'Airspace open';
   return (
     <div className="turn-phase-timer" role="status" aria-live="off"
       aria-label={`${label} // ${time} remaining`} data-tone="blue">
@@ -49,8 +49,8 @@ export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | u
   return (
     <div className="airspace-control__timers" aria-label="Automated phase timers">
       <button className="airspace-control__timer" type="button" disabled data-tone="red"
-        aria-label={`Airspace restricted timer // ${teamTime} // no manual control`}>
-        Airspace restricted // {teamTime} // no manual control
+        aria-label={`Airspace closed timer // ${teamTime} // no manual control`}>
+        Airspace closed // {teamTime} // no manual control
       </button>
       <button className="airspace-control__timer" type="button" disabled data-tone="blue"
         aria-label={`Airspace open timer // ${openTime} // no manual control`}>

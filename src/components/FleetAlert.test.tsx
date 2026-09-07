@@ -101,7 +101,7 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   const { container } = render(<FleetBroadcast />);
 
   expect(screen.getByRole('status', {
-    name: 'AIRSPACE CONTROL // AIRSPACE RESTRICTED',
+    name: 'AIRSPACE CONTROL // AIRSPACE CLOSED',
   })).toBeVisible();
   expect(container.querySelector('.fleet-ticker')).toHaveAttribute('data-gap', 'long');
   act(() => {

@@ -143,6 +143,10 @@
   width: min(1100px, 100%);
 }
 
+.intrusion--fleet .turn-phase-timer {
+  position: fixed;
+}
+
 .turn-start-announcement__console {
   position: relative;
   display: grid;

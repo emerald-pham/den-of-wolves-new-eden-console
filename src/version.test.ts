@@ -28,6 +28,14 @@ it('retains fleet DRADIS range behavior in player-facing release notes', () => {
   ))).toBe(true);
 });
 
+it('keeps each release entry focused instead of creating a megachangelog', () => {
+  const versions = CHANGELOG.map((entry) => entry.version);
+  const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
+
+  expect(new Set(versions).size).toBe(versions.length);
+  expect(currentEntry?.changes.length).toBeLessThanOrEqual(3);
+});
+
 it('emits uncached build metadata for live clients to discover upgrades', () => {
   const viteConfig = readFileSync('vite.config.ts', 'utf8');
   const firebaseConfig = readFileSync('firebase.json', 'utf8');

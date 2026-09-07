@@ -562,13 +562,14 @@ do not add placeholder tabs until their destination mechanics exist.
 
 The right status rail is persistent across those pages. Compact DRADIS owns the
 top-right square. Directly beneath it, the ship-local pursuit tracker reports
-the current ship's coordinate, turn load and pursuit value. Its depth comes
-from the shared printed galactic map (`src/data/starChart.ts`); it never
+the current ship's turn load and `Distance from Home Systems` value. Its depth
+comes from the shared printed galactic map (`src/data/starChart.ts`); it never
 enumerates other ship positions, because a split fleet keeps independent
-ship-relative tracks. The rail then uses the remaining viewport for the
-shuttlebay manifest and compact command controls. The manifest is the only
-flexible-height item and scrolls internally, so an unbounded docking history
-can never grow underneath or overlap DRADIS. It is a plain ledger: each row
+ship-relative tracks. The panel keeps this shared-distance label concise and
+omits a redundant coordinate or scope note. The rail then uses the remaining
+viewport for the shuttlebay manifest and compact command controls. The manifest
+is the only flexible-height item and scrolls internally, so an unbounded docking
+history can never grow underneath or overlap DRADIS. It is a plain ledger: each row
 names the shuttlecraft and the shuttleport where it docked. Do not mix current
 occupancy, maintenance rules, or departure events into this panel. The Press
 shuttle's port is the civilian access hatch.
@@ -1080,7 +1081,10 @@ that same fleet-wide delta in the turn transaction. Before each transmission,
 the authoritative starting count rises by 42 when it would otherwise end in 0
 or 5; the resulting count is clamped at zero or above. This fleet-level
 adjustment never rewrites an individual ship's printed population track. Later
-turns contain only the turn marker and the calculated fleet survivor count. The
+turns use four concise beats: TURN N, AIRSPACE CLOSED, the calculated fleet
+survivor count, and OBJECTIVE // SURVIVE. The live airspace countdown keeps
+running while this transmission is on screen, including during the survivor
+beat; the overlay must never pause or reset the server-owned clock. The
 transmission is a live event rather than a replay for
 a newly joined browser. The first Turn 1 slide is
 the ordinary 2.4-second operational beat `IRIS AUTHENTICATION CONFIRMED`; `TURN 1`
@@ -1102,8 +1106,9 @@ Each non-final beat eases upward out over a short 320ms handoff before the next
 beat eases upward in, using separate asymmetric curves so the transmission
 reads like a live instrument handing off a signal rather than a linear carousel.
 The final Turn 0 → Turn 1 beat—`N SURVIVORS`—holds for three seconds so the
-closing count has room to land. Later transitions use the same single survivor
-beat. When the final survivor beat completes, the whole fleet transmission
+closing count has room to land. Later transitions use the four-beat sequence
+above, with the same survivor-count loss halfway through its survivor beat.
+When the final survivor beat completes, the whole fleet transmission
 fades to transparent over one full second before it leaves the stage, revealing
 the live console without an abrupt cut. This exit applies to Turn 0 → Turn 1
 and every later turn transition; reduced motion removes the fade and clears the
@@ -1113,14 +1118,14 @@ landscape screens the message well contracts before the surrounding instrument
 is allowed to clip.
 
 The server owns the airspace timestamps and creates a fresh schedule with every
-turn advance. Turn 1 has 10 minutes of restricted airspace followed by 20
-minutes of open airspace. Every later turn has 5 minutes of restricted airspace
+turn advance. Turn 1 has 10 minutes of closed airspace followed by 20
+minutes of open airspace. Every later turn has 5 minutes of closed airspace
 followed by 15 minutes of open airspace. Every console label says `AIRSPACE
-RESTRICTED` for the first window and `AIRSPACE OPEN` for the second. The
+CLOSED` for the first window and `AIRSPACE OPEN` for the second. The
 current airspace-window countdown is a blue, non-interactive instrument at
 DRADIS’s lower left in both compact and expanded shipboard and fleet views.
 At the same transition, Airspace Control posts a normal, long-gap ticker
-bulletin (`AIRSPACE CONTROL // AIRSPACE RESTRICTED` or `AIRSPACE CONTROL //
+bulletin (`AIRSPACE CONTROL // AIRSPACE CLOSED` or `AIRSPACE CONTROL //
 AIRSPACE OPEN`) that loops until AEGIS or the Press sends newer broadcast copy.
 It never carries the countdown or adds a second ticker row, so the ticker keeps
 its compact measured height. The DRADIS instrument and Airspace Control
@@ -1132,13 +1137,13 @@ control into a danger-red `ARE YOU SURE?` confirmation. The confirmed advance
 starts the correct timer pair for the next numbered turn rather than leaving an
 expired clock in place. AEGIS’s Admiral console holds Airspace Control behind a
 recessed Systems control disclosure: it may grant `Unlock airspace // Press` to
-the unaffiliated shuttle during restriction, while red restricted-airspace and
+the unaffiliated shuttle during the closed window, while red closed-airspace and
 blue open-airspace timer buttons remain visibly disabled to show they are
 automatic.
 
-Airspace restriction is a documented **future movement rule**: when shuttle
+Airspace closure is a documented **future movement rule**: when shuttle
 travel is implemented, it will prevent a shuttle from moving between ships
-during the restricted window, except for an authorized non-affiliated Press
+during the closed window, except for an authorized non-affiliated Press
 vessel. Shuttle movement and this enforcement are not implemented yet; do not
 present the exception as an active travel control.
 
