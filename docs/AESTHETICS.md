@@ -813,9 +813,22 @@ panel stay above it. Decorative overlines are amber-ember; the message is
   canonical copy, giving each letter an independent 10% chance of replacement.
   Preserve spaces and punctuation so the words flicker without shifting layout.
 
-The launcher does not run intrusion takeovers or display hostile messages.
-Threat presentation remains available for later gameplay where it has clear
-context, but it is deliberately absent from the opening experience.
+The launcher's former hacking-message capability is restored behind the
+explicit `ArrivalDisplay` `enableHackingMessages` opt-in. `Landing` passes
+`LAUNCHER_HACKING_MESSAGES_ENABLED`, which must remain `false` until a Wolf
+gameplay event supplies the context; the current opening experience therefore
+does not display hostile messages. This preserves the considerate,
+accessibility-friendly default introduced when the opening intrusion was
+removed, while keeping the exact copy and timing available for later use.
+
+When Wolf hacking is implemented, use the shared `HACKING_MESSAGES` copy and
+`HackingMessageOverlay` from `src/components/HackingMessageOverlay.tsx` (or
+the `ArrivalDisplay` opt-in when the event is on the launcher). Drive the
+opt-in from authoritative Wolf state, never by flipping the launcher constant
+globally or by adding a second message list. Keep `Intrusion`'s `aria-hidden`,
+no-focus-trap presentation, the shared reduced-motion behavior, and the
+`standDown` cleanup so hacking copy remains decorative and does not interrupt
+assistive technology.
 
 Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 5/6.5/8 seconds.
