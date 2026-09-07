@@ -160,6 +160,19 @@ it('accepts the paired Joint Engineering console identity for its maintenance wo
   }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });
 
+it('revokes maintenance when the assigned ship role is removed from the live roster', async () => {
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'dione-engineer';
+  mock.activeRoleIds = ['dione-captain'];
+
+  await expect(runMaintenance.run(request({
+    ...data,
+    shipId: 'dione',
+    consoleRoleId: 'dione-engineer',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('does not let a GM add a Union role alongside the engineers it replaces', async () => {
   await expect(setActiveRoleEnabled.run(request({
     sessionId: 's1',

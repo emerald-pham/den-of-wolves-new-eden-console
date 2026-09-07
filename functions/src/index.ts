@@ -281,9 +281,10 @@ async function membershipIsActive(
   if (!sessionId) return false;
   const player = await tx.get(db.doc(`sessions/${sessionId}/players/${uid}`));
   const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
-  return isActivePlayer(player)
-    && lastSeenAt instanceof Timestamp
-    && !isPresenceStale(lastSeenAt.toDate(), new Date());
+  return isActivePlayer(player) && (
+    lastSeenAt === undefined ||
+    (lastSeenAt instanceof Timestamp && !isPresenceStale(lastSeenAt.toDate(), new Date()))
+  );
 }
 
 function isoOf(value: unknown): string {
@@ -1432,8 +1433,16 @@ export const popShipConfetti = onCall<{
     const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;
     if (shipForRole(activation.roleId) && player.get('role') !== 'gm') {
-      if (player.get('role') !== 'player' || !canOperateRole(player.get('activeConsoleRoleId'), activation.roleId,
-        connectedPlayers.docs.filter(member => isActivePlayer(member) && ['player', 'gm'].includes(String(member.get('role')))).map(member => member.get('activeConsoleRoleId')))) {
+      if (!activeRoleIds.includes(activation.roleId) || player.get('role') !== 'player' ||
+          !canOperateRole(
+            player.get('activeConsoleRoleId'),
+            activation.roleId,
+            connectedPlayers.docs
+              .filter(member => isActivePlayer(member) && ['player', 'gm'].includes(String(member.get('role'))))
+              .map(member => member.get('activeConsoleRoleId'))
+              .filter((roleId): roleId is string => typeof roleId === 'string' && activeRoleIds.includes(roleId)),
+            activeRoleIds,
+          )) {
         throw new HttpsError('permission-denied', 'This console is read only with the current crew.');
       }
     }
@@ -1448,9 +1457,9 @@ export const popShipConfetti = onCall<{
         uid,
         (approval.get('approvals') as Array<{ uid: string; roleId: string }> | undefined) ?? [],
         [uid, ...connectedPlayers.docs
-          .filter((connectedPlayer) => isOfficerRoleForShip(
-            connectedPlayer.get('activeConsoleRoleId'), shipId,
-          ))
+          .filter((connectedPlayer) => isActivePlayer(connectedPlayer) &&
+            activeRoleIds.includes(String(connectedPlayer.get('activeConsoleRoleId'))) &&
+            isOfficerRoleForShip(connectedPlayer.get('activeConsoleRoleId'), shipId))
           .map((connectedPlayer) => connectedPlayer.id)],
       );
     } catch {
@@ -1821,6 +1830,13 @@ function roleShipId(roleId: unknown): string | undefined {
     : undefined;
 }
 
+function configuredRoleIds(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeRoleIds');
+  return Array.isArray(stored)
+    ? ROLE_IDS.filter((roleId) => stored.includes(roleId))
+    : DEFAULT_ACTIVE_ROLE_IDS;
+}
+
 async function requireShipCounterAuthority(
   tx: Transaction,
   sessionId: string,
@@ -1844,7 +1860,12 @@ async function requireShipCounterAuthority(
     }
     return;
   }
-  if (roleShipId(player.get('activeConsoleRoleId')) !== shipId) {
+  const session = await tx.get(db.doc(`sessions/${sessionId}`));
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  const ownRole = player.get('activeConsoleRoleId');
+  const activeRoleIds = configuredRoleIds(session);
+  if (typeof ownRole !== 'string' || !activeRoleIds.includes(ownRole) ||
+      roleShipId(ownRole) !== shipId) {
     throw new HttpsError('permission-denied', 'An active role aboard this ship is required.');
   }
 }
@@ -1852,15 +1873,25 @@ async function requireShipCounterAuthority(
 async function requireConsoleAuthority(
   tx: Transaction, sessionId: string, player: DocumentSnapshot, targetRole: string,
 ): Promise<void> {
+  const session = await tx.get(db.doc(`sessions/${sessionId}`));
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
+  if (player.get('role') !== 'gm' &&
+      (typeof ownRole !== 'string' || !activeRoleIds.includes(ownRole) ||
+       !activeRoleIds.includes(targetRole))) {
+    throw new HttpsError('permission-denied', 'That console role is not active.');
+  }
   if (ownRole === targetRole && shipForRole(targetRole)) return;
   if (!shipForRole(targetRole) || shipForRole(ownRole) !== shipForRole(targetRole)) {
     throw new HttpsError('permission-denied', 'A role aboard this ship is required.');
   }
   const players = await tx.get(db.collection(`sessions/${sessionId}/players`));
   const roles = players.docs.filter(member => isActivePlayer(member) &&
-    ['player', 'gm'].includes(String(member.get('role')))).map(member => member.get('activeConsoleRoleId'));
-  if (!canOperateRole(ownRole, targetRole, roles)) {
+    ['player', 'gm'].includes(String(member.get('role'))) &&
+    activeRoleIds.includes(String(member.get('activeConsoleRoleId'))))
+    .map(member => member.get('activeConsoleRoleId'));
+  if (!canOperateRole(ownRole, targetRole, roles, activeRoleIds)) {
     throw new HttpsError('permission-denied', 'This console is read only while the full crew is connected.');
   }
 }
@@ -2482,6 +2513,9 @@ export const publishPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
+      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
@@ -2532,6 +2566,9 @@ export const dismissPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
+      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');

@@ -165,3 +165,21 @@ it('refuses to displace an identity that is actively connected in another sessio
 
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('treats a legacy connected player without a heartbeat as active elsewhere', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
+    if (path === 'sessions/s2/players/u1') return snapshot({ connected: true });
+    throw new Error('Unexpected read: ' + path);
+  });
+
+  await expect(joinSession.run(request('482109'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+  expect(mock.delete).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+});

@@ -322,6 +322,8 @@ it('keeps a player at a held command role if the GM disables it', () => {
 
   expect(screen.getByRole('heading', { name: 'Dione' })).toBeInTheDocument();
   expect(screen.queryByText('Fleet roster')).not.toBeInTheDocument();
+  expect(screen.getByText(/Console access \/\/ Read only/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Begin Maintenance/ })).toBeDisabled();
 });
 
 it('keeps ship and role navigation available to the GM', () => {

@@ -13,3 +13,19 @@ it('derives the complement for a different ship and never grants another ship au
   expect(canOperateRole(undefined, 'admiral', [])).toBe(false);
   expect(canOperateRole('made-up', 'made-up', [])).toBe(false);
 });
+
+it('uses the live configured complement when checking relief authority', () => {
+  const configuredRoles = ['dione-captain', 'dione-engineer'];
+  expect(canOperateRole(
+    'dione-captain',
+    'dione-engineer',
+    ['dione-captain'],
+    configuredRoles,
+  )).toBe(true);
+  expect(canOperateRole(
+    'dione-captain',
+    'dione-engineer',
+    ['dione-captain', 'dione-engineer'],
+    configuredRoles,
+  )).toBe(false);
+});

@@ -7,9 +7,14 @@ export function shipForRole(roleId: unknown): string | undefined {
   return roleId.startsWith('refinery-124-') ? 'refinery-124' : roleId.split('-')[0];
 }
 
-export function canOperateRole(ownRole: unknown, targetRole: string, connectedRoles: readonly unknown[]): boolean {
+export function canOperateRole(
+  ownRole: unknown,
+  targetRole: string,
+  connectedRoles: readonly unknown[],
+  configuredRoles: readonly unknown[] = ROLE_IDS,
+): boolean {
   const ship = shipForRole(targetRole);
   if (!ship || shipForRole(ownRole) !== ship) return false;
-  return ownRole === targetRole || !ROLE_IDS.filter(id => shipForRole(id) === ship)
+  return ownRole === targetRole || !configuredRoles.filter(id => shipForRole(id) === ship)
     .every(id => connectedRoles.includes(id));
 }

@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), role: 'player', post: 'press-officer', connected: true,
   exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
   turnPhase: undefined as unknown,
+  activeRoleIds: undefined as readonly string[] | undefined,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
@@ -31,6 +32,7 @@ beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
     phase: 'active', currentTurn: 1, pressDispatch: undefined, turnPhase: undefined,
+    activeRoleIds: undefined,
   });
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
@@ -44,6 +46,7 @@ beforeEach(() => {
         fleetRedAlert: { active: true, revision: 1 },
         pressDispatch: mock.pressDispatch,
         turnPhase: mock.turnPhase,
+        activeRoleIds: mock.activeRoleIds,
       };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
@@ -140,6 +143,14 @@ it('denies other roles, disconnected players, and unsigned callers', async () =>
     .toMatchObject({ code: 'permission-denied' });
   await expect(publishPressDispatch.run({ data } as CallableRequest<typeof data>)).rejects
     .toMatchObject({ code: 'unauthenticated' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('revokes Press publishing when the live roster removes the Press role', async () => {
+  mock.activeRoleIds = ['admiral'];
+
+  await expect(publishPressDispatch.run(request())).rejects
+    .toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
 });
 

@@ -52,14 +52,16 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const viewedRoleId = observer ? (ship?.roles.some(role => role.id === observerRoleId) ? observerRoleId! : ship?.roles[0]?.id) : roleId;
   const consoleRole = findConsoleRole(viewedRoleId);
   const hasConfirmedRole = !observer && me?.activeConsoleRoleId === consoleRole?.id;
+  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const configuredShipRoles = ship?.roles.filter(role => activeRoleIds.includes(role.id)) ?? [];
+  const roleEnabled = !roleId || activeRoleIds.includes(roleId);
   const canCoverShortStaffedShip = Boolean(
     !observer && visiting && crew && ship && ownShip === ship.id &&
-    !ship.roles.every(role => crew.some(player =>
+    configuredShipRoles.length > 0 && !configuredShipRoles.every(role => crew.some(player =>
       ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)),
   );
-  const writable = observer ? observerWrite : hasConfirmedRole || canCoverShortStaffedShip;
+  const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
-  const roleEnabled = !roleId || (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS).includes(roleId);
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [burst, setBurst] = useState(0);
@@ -211,7 +213,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
         )}
-        {visiting && <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>}
+        {(visiting || (!observer && !roleEnabled)) && (
+          <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
+        )}
         {observer && <label className="maintenance-controls">View ship console
           <select aria-label="View ship console" value={viewedRoleId ?? ''} onChange={event => setObserverRoleId(event.target.value)}>
             {ship.roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
