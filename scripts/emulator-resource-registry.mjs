@@ -22,8 +22,10 @@ import {
   vitePortForSlot,
 } from './emulator-slots.js';
 
+export const CODEX_COORDINATION_FILE_ENV = 'CODEX_COORDINATION_FILE';
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
 export const COORDINATION_SCHEMA_VERSION = 1;
+export const COORDINATION_SCOPE = 'codex-wide';
 export const DEFAULT_VERSION_AGREEMENT =
   'Increment the patch version for each completed player-facing fix; roll 0.x.99 over to 0.(x+1).0; do not bump tooling-only work.';
 
@@ -500,12 +502,15 @@ function processIsAlive(pid) {
   }
 }
 
-/** Return the one coordination file shared by local worktrees on this host. */
+/** Return the one coordination file shared by every local repository on this host. */
 export function coordinationFilePath(
   environment = process.env,
   temporaryDirectory = tmpdir(),
 ) {
-  const configuredPath = environment[COORDINATION_FILE_ENV];
+  const configuredPath = [
+    environment[CODEX_COORDINATION_FILE_ENV],
+    environment[COORDINATION_FILE_ENV],
+  ].find((candidate) => typeof candidate === 'string' && candidate.trim());
   if (typeof configuredPath === 'string' && configuredPath.trim()) {
     return resolve(configuredPath);
   }
@@ -515,6 +520,7 @@ export function coordinationFilePath(
 export function emptyCoordinationState() {
   return {
     version: COORDINATION_SCHEMA_VERSION,
+    scope: COORDINATION_SCOPE,
     versionAgreement: DEFAULT_VERSION_AGREEMENT,
     entries: [],
     reservations: [],
@@ -546,6 +552,7 @@ function normalizeState(value) {
 
   return {
     version: COORDINATION_SCHEMA_VERSION,
+    scope: COORDINATION_SCOPE,
     versionAgreement: text(record.versionAgreement, DEFAULT_VERSION_AGREEMENT),
     entries,
     reservations,
@@ -1257,7 +1264,8 @@ export function formatCoordinationState(state, { includeHistory = false } = {}) 
   ).filter((slot) => !occupiedSlots.has(slot));
   const formatSlots = (slots) => (slots.length > 0 ? slots.join(', ') : 'none');
   const lines = [
-    '# Den of Wolves local coordination',
+    '# Codex-wide coordination',
+    'All local repositories on this host share this coordination registry.',
     '',
     '## Version agreement',
     text(state.versionAgreement, DEFAULT_VERSION_AGREEMENT),

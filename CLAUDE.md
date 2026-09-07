@@ -10,7 +10,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Shared test-runner contention](#shared-test-runner-contention)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
 - [Worktree branch bootstrap](#worktree-branch-bootstrap)
-- [Local worktree coordination and versioning agreement](#local-worktree-coordination-and-versioning-agreement)
+- [Codex-wide coordination and versioning agreement](#codex-wide-coordination-and-versioning-agreement)
 - [Routine task delegation](#routine-task-delegation)
 - [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
 - [Merge once done](#2-merge-once-done)
@@ -76,10 +76,11 @@ that documented outcome and explain why it could not merge.
 3. Before editing, run `npm run coordination:begin -- ...` from this same
    worktree, save the printed entry id, and immediately run
    `npm run coordination:status`. Confirm that the entry's `worktree` path
-   equals the current `pwd` and that no active entry overlaps the intent. If it
-   points elsewhere, do not edit or finish that entry; reconcile the worktrees
-   first. Treat this status pass as startup recovery: an earlier task may have
-   skipped its end cleanup. Status shows active work by default; use
+   equals the current `pwd` and that no active entry overlaps the intent,
+   including entries from other repositories. If it points elsewhere, do not
+   edit or finish that entry; reconcile the worktrees first. Treat this status
+   pass as startup recovery: an earlier task may have skipped its end cleanup.
+   Status shows active work by default; use
    `npm run coordination:status -- --history` only when historical receipts are
    needed.
 4. For player-facing product work, complete the changelog preflight immediately:
@@ -215,7 +216,7 @@ The branch must be attached to this checkout, not merely listed elsewhere in
 Git. Reconcile it with newer `main` work before merging rather than silently
 shipping from an old base.
 
-## Local worktree coordination and versioning agreement
+## Codex-wide coordination and versioning agreement
 
 After branch bootstrap and **before editing any file**, register the task in the
 shared local coordination pane:
@@ -228,12 +229,20 @@ npm run coordination:begin -- \
   --resources "The emulator slot, service, or other shared resource."
 ```
 
-This writes a human-readable, Git-ignored coordination file shared by local
-worktrees. Status shows active intent, version/changelog agreements, configured
-emulator rows, and live process reservations. The entry records its absolute
-worktree path: always compare it with `pwd`, keep the printed id, and finish
-only your own entry. The default file is in the OS temporary directory; set
-`DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
+This writes a human-readable, Git-ignored coordination file shared by every
+local repository on this host, not only this repository's worktrees. Status
+shows active intent, version/changelog agreements, configured emulator rows,
+and live process reservations from all participating projects. The entry
+records its absolute worktree path: always compare it with `pwd`, keep the
+printed id, and finish only your own entry.
+
+The default file is in the OS temporary directory and is intentionally
+independent of the current repository or directory. Projects that need an
+explicit shared location must set the canonical `CODEX_COORDINATION_FILE` to
+the same absolute path. The older `DOW_EMULATOR_COORDINATION_FILE` variable is
+still accepted for compatibility, but do not create a different per-repository
+file. The status pane's `Coordination file:` line is the source of truth for
+the path in use.
 `coordination:begin` also records the attached branch, its starting SHA, and the
 starting `main` SHA; it refuses detached checkouts, direct work on `main`, and a
 duplicate active entry for the same worktree.
@@ -347,21 +356,24 @@ Keep delegation economical:
 
 ## Concurrent worktrees and emulator ports
 
-Assume several local worktrees are active at the same time. Never start
+Assume several local worktrees and repositories are active at the same time.
+Never start
 `firebase emulators:start`, `firebase emulators:exec`, `npm run emulators`,
 `npm run test:rules`, or `npm run test:all` in a worktree until that worktree has
 its own complete emulator port set. This includes Firestore's separate WebSocket
 listener. The defaults in `firebase.json` belong to only one worktree at a time;
 do not let Firebase silently reuse or kill another agent's emulator processes.
 
-There is no single shared emulator instance. The shared resource is only the
-coordination registry; each worktree gets an isolated row of ports, and this
-repository provides 15 rows. One occupied or configured row blocks only that
-row. Never report that a “shared emulator remains reserved” or skip emulator
-validation for that reason unless every row is occupied and the status pane
-confirms that no free slot exists. If a task does not need an emulator, say so
-because its validation scope is unit/component-only, not because another task
-owns a different row.
+There is no single shared emulator instance. The Codex-wide coordination
+registry is the shared resource ledger; each Den of Wolves worktree gets an
+isolated row of ports, and this repository provides 15 rows. One occupied or
+configured row blocks only that row. A different repository's entry is visible
+in the same pane, but only a declared or verified shared resource blocks this
+repository's work. Never report that a “shared emulator remains reserved” or
+skip emulator validation for that reason unless every row is occupied and the
+status pane confirms that no free slot exists. If a task does not need an
+emulator, say so because its validation scope is unit/component-only, not
+because another task owns a different row.
 
 When emulator-backed validation is needed, claim a row atomically with
 `npm run emulators:configure -- auto` (or an explicitly selected free slot)

@@ -1,5 +1,7 @@
+export const CODEX_COORDINATION_FILE_ENV: string;
 export const COORDINATION_FILE_ENV: string;
 export const COORDINATION_SCHEMA_VERSION: number;
+export const COORDINATION_SCOPE: string;
 export const DEFAULT_VERSION_AGREEMENT: string;
 
 export interface CoordinationReservation {
@@ -91,6 +93,7 @@ export interface ConfiguredEmulatorSlot {
 
 export interface CoordinationState {
   readonly version: number;
+  readonly scope?: string;
   readonly versionAgreement: string;
   readonly entries: readonly CoordinationEntry[];
   readonly reservations: readonly CoordinationReservation[];

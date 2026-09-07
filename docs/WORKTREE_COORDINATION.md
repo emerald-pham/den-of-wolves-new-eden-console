@@ -1,13 +1,17 @@
-# Local worktree coordination
+# Codex-wide coordination
 
-Use this page as the command reference for the shared local coordination
-ledger. [`CLAUDE.md`](../CLAUDE.md) remains the canonical source for branch,
-version, validation, emulator, merge, and cleanup policy.
+Use this page as the command reference for the Codex-wide coordination ledger.
+[`CLAUDE.md`](../CLAUDE.md) remains the canonical source for branch, version,
+validation, emulator, merge, and cleanup policy.
 
-The ledger is a Git-ignored JSON file in the OS temporary directory, normally
-named `den-of-wolves-new-eden-coordination.json`. It records worktree intent,
-version/changelog agreements, configured emulator rows, and live process
-reservations. Set `DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
+The ledger is a Git-ignored JSON file in the OS temporary directory and is
+shared by every local repository on this host. It records each participating
+worktree's intent, version/changelog agreements, configured emulator rows, and
+live process reservations. It is not scoped to the current repository or
+directory. Set the canonical `CODEX_COORDINATION_FILE` to the same absolute
+path when another project's coordination wrapper needs an explicit location.
+`DOW_EMULATOR_COORDINATION_FILE` remains a compatibility alias. Use the path
+printed by `coordination:status` to verify that all projects are on one ledger.
 
 ## Coordination hardening objectives
 
@@ -69,8 +73,9 @@ npm run coordination:status
 ```
 
 Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
-attached to that checkout, and no active entry claims overlapping work. A blank
-branch, path mismatch, or unexpected commit is an unresolved handoff.
+attached to that checkout, and no active entry—including one from another
+repository—claims overlapping work. A blank branch, path mismatch, or
+unexpected commit is an unresolved handoff.
 The default pane shows active work and a count of hidden completed entries so
 startup review stays concise. Use `npm run coordination:status -- --history`
 only when a historical validation or release receipt is needed.

@@ -113,10 +113,13 @@ Configured rows remain unavailable to other worktrees while their coordination
 entry is active or a live process lease exists, even when no live process lease
 is shown. Startup/status cleanup releases rows tied only to completed or missing
 worktrees.
-The shared coordination file records configured rows and live process leases;
-rules tests automatically choose another complete row when the configured row
-is already serving a preview. Do not share a slot with another worktree; stop
-its emulators when finished.
+The Codex-wide coordination file records active worktree intent, configured rows,
+and live process leases across repositories. Rules tests automatically choose
+another complete row when the configured row is already serving a preview. All
+projects on the host must point their coordination wrappers at the same ledger;
+set `CODEX_COORDINATION_FILE` to an absolute shared path when an explicit path
+is needed. Do not share a slot with another worktree; stop its emulators when
+finished.
 
 The Firebase web configuration contains public identifiers, not credentials.
 Never commit a service-account key or App Check debug token. Production App
