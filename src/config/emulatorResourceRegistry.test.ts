@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
+  finishCoordinationEntry,
   formatCoordinationState,
   isPortFree,
   parseCoordinationState,
@@ -16,7 +17,65 @@ import {
   reserveAvailableConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
   reserveEmulatorSlot,
+  validationPlanForFiles,
+  validateCoordinationEntry,
+  validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
+
+const codeValidation = {
+  commitSha: 'branch-sha',
+  completedAt: '2026-09-07T00:05:00.000Z',
+  passed: true,
+  commands: [
+    'git diff --check',
+    'npm run lint',
+    'npm run test:all',
+    'npm run build',
+    'npm run build --prefix functions',
+  ],
+  files: ['scripts/example.mjs'],
+  docsOnly: false,
+  reviews: {},
+};
+
+const releaseEntry = {
+  id: 'release-task',
+  worktree: process.cwd(),
+  startedAt: '2026-09-07T00:00:00.000Z',
+  status: 'active',
+  intent: 'land a release',
+  versionPlan: 'Reserve application patch version 0.2.103.',
+  preemptiveChangelog: 'A player-facing release note.',
+  startBranchSha: 'start-sha',
+  startMainSha: 'start-main-sha',
+  validation: codeValidation,
+};
+
+function releaseState(overrides = {}) {
+  return {
+    branchName: 'fix/release-task',
+    branchSha: 'branch-sha',
+    startBranchSha: 'start-sha',
+    branchBaselineIsAncestor: true,
+    mainSha: 'main-sha',
+    originMainSha: 'main-sha',
+    mainContainsBranch: true,
+    worktreeClean: true,
+    branchVersion: '0.2.103',
+    mainVersion: '0.2.102',
+    branchLockVersion: '0.2.103',
+    mainLockVersion: '0.2.102',
+    branchChangelog: [
+      { version: '0.2.103', source: 'new release' },
+      { version: '0.2.102', source: 'previous release' },
+    ],
+    mainChangelog: [
+      { version: '0.2.102', source: 'previous release' },
+    ],
+    changedFiles: ['scripts/example.mjs'],
+    ...overrides,
+  };
+}
 
 describe('local emulator coordination', () => {
   it('routes rules tests to another slot when the preview owns the preferred slot', () => {
@@ -140,6 +199,64 @@ describe('local emulator coordination', () => {
     expect(output).toContain('available slots: 0, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14');
     expect(output).toContain('occupied slots: 1, 3');
     expect(output).toContain('npm run emulators:configure -- auto');
+  });
+
+  it('derives the documented validation plan from changed files', () => {
+    expect(validationPlanForFiles(['README.md', 'docs/WORKTREE_COORDINATION.md'])).toEqual({
+      documentationOnly: true,
+      requiresDocumentationReview: true,
+      requiresVisualReview: false,
+      commands: ['git diff --check'],
+    });
+    expect(validationPlanForFiles(['src/routes/ShipConsole.tsx'])).toEqual({
+      documentationOnly: false,
+      requiresDocumentationReview: false,
+      requiresVisualReview: true,
+      commands: [
+        'git diff --check',
+        'npm run lint',
+        'npm run test:all',
+        'npm run build',
+        'npm run build --prefix functions',
+      ],
+    });
+  });
+
+  it('records a passing validation receipt against the exact branch SHA', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-validation-${randomUUID()}.json`);
+    const commands: string[] = [];
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState(),
+        commandRunner: async (command) => {
+          commands.push(command);
+        },
+      });
+
+      const state = await readCoordinationState(filePath);
+      expect(commands).toEqual(codeValidation.commands);
+      expect(state.entries[0]?.validation).toMatchObject({
+        commitSha: 'branch-sha',
+        passed: true,
+        docsOnly: false,
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
   });
 
   it('atomically assigns distinct rows when worktrees auto-configure concurrently', async () => {
@@ -352,5 +469,151 @@ describe('local emulator coordination', () => {
 
   it('does not silently discard a corrupted shared coordination file', () => {
     expect(() => parseCoordinationState('{not-json')).toThrow(/coordination/i);
+  });
+
+  it('rejects completion when main does not contain the task branch commit', () => {
+    expect(() => validateReleaseCompletion({
+      entry: releaseEntry,
+      release: releaseState({ mainContainsBranch: false }),
+    })).toThrow(/main.*does not contain.*branch commit/i);
+  });
+
+  it('rejects completion from a dirty checkout', () => {
+    expect(() => validateReleaseCompletion({
+      entry: releaseEntry,
+      release: releaseState({ worktreeClean: false }),
+    })).toThrow(/uncommitted changes/i);
+  });
+
+  it('rejects completion without a validation receipt for the current branch SHA', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        validation: {
+          ...codeValidation,
+          commitSha: 'older-branch-sha',
+        },
+      },
+      release: releaseState(),
+    })).toThrow(/validation.*branch-sha|branch-sha.*validation/i);
+  });
+
+  it('requires the human review attestation that matches documentation or UI scope', () => {
+    const documentationEntry = {
+      ...releaseEntry,
+      validation: {
+        ...codeValidation,
+        commands: ['git diff --check'],
+        files: ['CLAUDE.md'],
+        docsOnly: true,
+      },
+    };
+    expect(() => validateReleaseCompletion({
+      entry: documentationEntry,
+      release: releaseState({ changedFiles: ['CLAUDE.md'] }),
+    })).toThrow(/documentation.*review/i);
+
+    const visualEntry = {
+      ...releaseEntry,
+      validation: {
+        ...codeValidation,
+        files: ['src/routes/ShipConsole.tsx'],
+        reviews: {},
+      },
+    };
+    expect(() => validateReleaseCompletion({
+      entry: visualEntry,
+      release: releaseState({ changedFiles: ['src/routes/ShipConsole.tsx'] }),
+    })).toThrow(/visual.*review/i);
+  });
+
+  it('rejects package metadata that is out of sync with the root lockfile', () => {
+    expect(() => validateReleaseCompletion({
+      entry: releaseEntry,
+      release: releaseState({ branchLockVersion: '0.2.102' }),
+    })).toThrow(/package\.json.*package-lock\.json/i);
+  });
+
+  it('rejects a stale branch that lowers the application version', () => {
+    expect(() => validateReleaseCompletion({
+      entry: releaseEntry,
+      release: releaseState({
+        mainContainsBranch: false,
+        branchVersion: '0.2.95',
+        mainVersion: '0.2.100',
+        branchChangelog: [{ version: '0.2.95', source: 'old release' }],
+        mainChangelog: [
+          { version: '0.2.100', source: 'new release' },
+          { version: '0.2.99', source: 'newer release' },
+        ],
+      }),
+    })).toThrow(/0\.2\.95.*older.*0\.2\.100/i);
+  });
+
+  it('rejects a branch that would replace newer changelog entries', () => {
+    expect(() => validateReleaseCompletion({
+      entry: releaseEntry,
+      release: releaseState({
+        mainContainsBranch: false,
+        branchChangelog: [
+          { version: '0.2.103', source: 'new release' },
+        ],
+        mainChangelog: [
+          { version: '0.2.102', source: 'previous release' },
+          { version: '0.2.100', source: 'older release' },
+        ],
+      }),
+    })).toThrow(/0\.2\.102.*changelog/i);
+  });
+
+  it('records final branch, main, remote, and pushed state when completion succeeds', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-release-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [releaseEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await finishCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        result: 'landed and pushed',
+        release: releaseState(),
+      });
+
+      const state = await readCoordinationState(filePath);
+      expect(state.entries[0]).toMatchObject({
+        status: 'complete',
+        result: 'landed and pushed',
+        finalBranchName: 'fix/release-task',
+        finalBranchSha: 'branch-sha',
+        mainSha: 'main-sha',
+        originMainSha: 'main-sha',
+        pushed: true,
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('allows a merged tooling branch to retain the older application version', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        versionPlan: 'Tooling-only; no application version bump.',
+      },
+      release: releaseState({
+        branchVersion: '0.2.102',
+        mainVersion: '0.2.106',
+        branchLockVersion: '0.2.102',
+        mainLockVersion: '0.2.106',
+        branchChangelog: [{ version: '0.2.102', source: 'tooling base' }],
+        mainChangelog: [{ version: '0.2.106', source: 'newer main release' }],
+      }),
+    })).not.toThrow();
   });
 });

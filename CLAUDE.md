@@ -98,12 +98,24 @@ that documented outcome and explain why it could not merge.
    `git status --short --branch`, and report the verification evidence.
 2. For documentation-only work, review rendered text, links, examples, and the
    final diff instead of running application tests.
-3. Once the required validation is green, stop other work and immediately
-   commit the branch, reconcile it with current `main`, merge it into `main`,
-   push `main` to `origin`, and report the resulting main commit. Do not leave
-   a green worktree dirty, idle, or waiting for another task.
-4. Close the coordination entry with
+3. Commit the final task changes, reconcile the task branch with current
+   `main`, and commit any conflict resolution before running the executable
+   coordination gate:
+   `npm run coordination:validate -- --id <id>`, adding
+   `--documentation-review "..."` for Markdown/README changes and
+   `--visual-review "..."` for UI changes. The gate derives the required
+   commands from the committed file set, records a receipt against the exact
+   branch SHA, and rejects a stale or rewritten baseline.
+4. Once the required validation is green, stop other work and immediately merge
+   the task branch into `main`, push `main` to `origin`, and report the resulting
+   main commit. Do not leave a green worktree dirty, idle, or waiting for another
+   task.
+5. Close the coordination entry with
    `npm run coordination:finish -- --id <id>` and confirm it is no longer active.
+   Completion is machine-checked: `main` must contain the task commit, local
+   `main` must equal `origin/main`, the worktree and package metadata must be
+   clean, newer versions and changelog entries must be preserved, and the final
+   branch SHA, main SHA, remote SHA, and pushed state are recorded.
 
 ## 1. Test first for code
 
@@ -216,6 +228,9 @@ emulator rows, and live process reservations. The entry records its absolute
 worktree path: always compare it with `pwd`, keep the printed id, and finish
 only your own entry. The default file is in the OS temporary directory; set
 `DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
+`coordination:begin` also records the attached branch, its starting SHA, and the
+starting `main` SHA; it refuses detached checkouts, direct work on `main`, and a
+duplicate active entry for the same worktree.
 
 Run `npm run coordination:status` before overlapping work and after finishing
 to confirm the entry and any resource reservations are clear.
@@ -234,6 +249,15 @@ task and one release version; if the version is already claimed or `main` has
 advanced, reconcile the claim before editing.
 The final release note may refine that same entry, but it must never append to
 another task's entry or roll several tasks into a single version.
+
+The executable release gate covers the deterministic part of this agreement:
+it compares branch and `main` package/lock versions, checks the newest changelog
+entry, refuses a branch that would lower the application version or replace
+newer notes, and verifies the final local/remote commit relationship. The
+validation receipt also makes human-only evidence explicit: documentation
+review is required for Markdown/README changes and visual review is required
+for UI changes. The receipt records those attestations but cannot prove that a
+human actually performed them; the final review remains a deliberate handoff.
 
 ## Routine task delegation
 
@@ -395,10 +419,16 @@ port that is already listening.
 - Branch from `main`. Short-lived, one concern per branch.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the
   end of the week, not once three other things are also finished.
-- A green test result is the handoff trigger, not merely a progress update. The
-  next objective is commit → reconcile with current `main` → merge to `main` →
-  push to `origin` → close coordination. Do not start unrelated work, wait for
-  another branch, or go idle while a green branch remains dirty or unmerged.
+- A green validation receipt is the handoff trigger, not merely a progress
+  update. The final objective is commit → reconcile with current `main` →
+  validate the reconciled branch → merge to `main` → push to `origin` → close
+  coordination. Do not start unrelated work, wait for another branch, or go
+  idle while a green branch remains dirty or unmerged.
+- The required local checks are machine-recorded by
+  `npm run coordination:validate -- --id <id>`. It runs `git diff --check`,
+  lint, the complete test suite, and both production builds for code changes;
+  documentation-only changes use the lighter diff check. A receipt is valid
+  only for the exact final branch SHA.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant
@@ -663,6 +693,10 @@ tests/rules/      assertions against the emulator
 - [ ] For UI changes, rendered aesthetics were reviewed at narrow, wide, and short
   landscape sizes, relevant states were checked, and new aesthetic decisions
   were recorded in `docs/AESTHETICS.md`.
+- [ ] `coordination:validate` recorded a passing receipt for the final branch
+  SHA, including required documentation or visual-review attestations.
+- [ ] `coordination:finish` recorded the final branch SHA, `main` SHA,
+  `origin/main` SHA, and pushed state after the merge.
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
