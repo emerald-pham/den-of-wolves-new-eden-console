@@ -28,6 +28,7 @@ export default function RoleSelect() {
     state.pendingCommands.some((command) => command.kind === 'setGmControlsLocked'));
   const setMode = useSessionStore((state) => state.setMode);
   const [instanceName, setInstanceName] = useState('');
+  const [gmPassword, setGmPassword] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [changingLock, setChangingLock] = useState(false);
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
@@ -65,7 +66,8 @@ export default function RoleSelect() {
     event.preventDefault();
     setClaiming(true);
     try {
-      await claimGmInstance(instanceName);
+      await claimGmInstance(instanceName, gmPassword);
+      setGmPassword('');
     } catch {
       // The shared interception notice carries the actionable server error.
     } finally {
@@ -103,7 +105,7 @@ export default function RoleSelect() {
             type="submit"
             disabled={
               isGm || pendingClaim || claiming || registrationLocked ||
-              instanceName.trim().length === 0
+              instanceName.trim().length === 0 || gmPassword.trim().length === 0
             }
           >
             {claimLabel}
@@ -119,6 +121,19 @@ export default function RoleSelect() {
             maxLength={40}
             autoComplete="off"
             onChange={(event) => setInstanceName(event.target.value)}
+          />
+          <label className="role-card__name" htmlFor="gm-access-password">
+            GM access password
+          </label>
+          <input
+            id="gm-access-password"
+            className="role-claim__input"
+            type="password"
+            value={gmPassword}
+            disabled={isGm || pendingClaim || claiming || registrationLocked}
+            maxLength={128}
+            autoComplete="current-password"
+            onChange={(event) => setGmPassword(event.target.value)}
           />
           {registrationLocked && <span className="role-card__description">GM registration locked.</span>}
           {controlsLocked && activeGmCount === 0 && !isGm && (

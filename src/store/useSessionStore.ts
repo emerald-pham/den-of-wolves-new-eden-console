@@ -15,6 +15,8 @@ export type PendingCommand =
         readonly instanceId: string;
         readonly name: string;
         readonly deviceLabel: string;
+        /** Ephemeral only: never write the GM password to localStorage. */
+        readonly password: string;
       };
       readonly createdAt: string;
     }
@@ -220,7 +222,9 @@ export const useSessionStore = create<SessionState>()(
         session,
         me,
         gmInstance,
-        pendingCommands,
+        // GM claims carry a credential for an authoritative retry. Keep that
+        // command in memory while this page is alive, but never persist it.
+        pendingCommands: pendingCommands.filter((command) => command.kind !== 'claimGmInstance'),
         mode,
         lastRoute,
       }),

@@ -93,16 +93,22 @@ describe('callable request guards', () => {
   it('requires a named GM instance with bounded device information', () => {
     expectHttpsError(
       () => requireGmClaimRequest({
-        sessionId: 's1', instanceId: 'i1', name: '   ', deviceLabel: 'Chrome',
+        sessionId: 's1', instanceId: 'i1', name: '   ', deviceLabel: 'Chrome', password: 'bananasplit',
+      }),
+      'invalid-argument',
+    );
+    expectHttpsError(
+      () => requireGmClaimRequest({
+        sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop', deviceLabel: 'Chrome',
       }),
       'invalid-argument',
     );
     expect(requireGmClaimRequest({
       sessionId: 's1', instanceId: 'i1', name: ' Bridge laptop ',
-      deviceLabel: ' macOS / Chrome ',
+      deviceLabel: ' macOS / Chrome ', password: ' bananasplit ',
     })).toEqual({
       sessionId: 's1', instanceId: 'i1', name: 'Bridge laptop',
-      deviceLabel: 'macOS / Chrome',
+      deviceLabel: 'macOS / Chrome', password: 'bananasplit',
     });
   });
 
