@@ -346,10 +346,14 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
     return 1;
   }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const painted: { element: Element; keyframes: Keyframe[] }[] = [];
   Object.defineProperty(Element.prototype, 'animate', {
     configurable: true,
     writable: true,
-    value: vi.fn(() => ({ cancel: vi.fn() }) as unknown as Animation),
+    value: vi.fn(function (this: Element, keyframes: Keyframe[]) {
+      painted.push({ element: this, keyframes });
+      return { cancel: vi.fn() } as unknown as Animation;
+    }),
   });
   let normal = { x: 0, y: 0, z: 1 };
   let actualPosition = { x: 80, y: 10, z: 20 };
@@ -383,6 +387,8 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   };
   const { container, unmount } = render(<ContactPlot contacts={[moving]} />);
   const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
+  const pinged = vi.fn();
+  plotIn(container)?.addEventListener(CONTACT_SCAN_EVENT, pinged);
 
   act(() => frame(0));
   normal = { x: 0.996, y: 0, z: 0.087 };
@@ -391,6 +397,8 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(firstFix).toContain('--fix-x: 0.8');
   expect(firstFix).toContain('--fix-y: 0.1');
   expect(firstFix).toContain('--fix-z: 0.2');
+  expect(pinged).toHaveBeenCalledTimes(1);
+  expect(painted).toHaveLength(2);
 
   actualPosition = { x: 40, y: -30, z: 60 };
   act(() => frame(32));
@@ -398,11 +406,28 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
 
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(48));
+  expect(apparent?.style.cssText).toBe(firstFix);
+  expect(pinged).toHaveBeenCalledTimes(2);
+  expect(painted).toHaveLength(4);
   normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
+  // A recent repeat still confirms the contact: its return brightens and the
+  // scan event fires, but the sampled visible fix must not move yet.
+  expect(apparent?.style.cssText).toBe(firstFix);
+  expect(pinged).toHaveBeenCalledTimes(3);
+  expect(painted).toHaveLength(6);
+  expect(painted[4]?.keyframes[0]).toMatchObject({ opacity: 1 });
+
+  // Once the contact has not been pinged for the fresh-return window, the
+  // next crossing may sample its current true position again.
+  normal = { x: 0, y: 0, z: 1 };
+  act(() => frame(64 + SCAN_FRESH_MS));
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(64 + SCAN_FRESH_MS + 16));
   expect(apparent?.style.cssText).toContain('--fix-x: 0.4');
   expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
+  expect(pinged).toHaveBeenCalledTimes(4);
   unmount();
 });
 

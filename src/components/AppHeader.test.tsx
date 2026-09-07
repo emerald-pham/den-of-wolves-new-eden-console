@@ -15,6 +15,7 @@ vi.mock('@/lib/sessionService', () => ({
   disconnectFromSession: vi.fn(),
   loginGmAccess: vi.fn(),
   logoutGmAccess: vi.fn(),
+  startSinglePlayerDemo: vi.fn(),
 }));
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
@@ -25,6 +26,7 @@ const {
   logoutGmAccess,
   releaseConsoleRole,
   releaseGmInstance,
+  startSinglePlayerDemo,
 } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
@@ -52,6 +54,7 @@ beforeEach(() => {
   vi.mocked(disconnectFromSession).mockResolvedValue('applied');
   vi.mocked(loginGmAccess).mockResolvedValue('applied');
   vi.mocked(logoutGmAccess).mockResolvedValue('applied');
+  vi.mocked(startSinglePlayerDemo).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -294,6 +297,39 @@ it('shows the last-player warning inside settings', async () => {
   expect(await screen.findByText(/you.re the last player to leave the server/i))
     .toHaveTextContent('After seven days of inactivity, this session will be deleted.');
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
+});
+
+it('offers the single-player demo only to the sole Turn Zero player and closes settings when started', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([connectedPlayer('u1')]);
+    return vi.fn();
+  });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  const demo = screen.getByRole('button', { name: /start single-player demo/i });
+  expect(demo).toBeVisible();
+
+  await user.click(demo);
+
+  expect(startSinglePlayerDemo).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('dialog', { name: /session settings/i })).not.toBeInTheDocument();
+});
+
+it('does not offer the single-player demo when another player is connected', async () => {
+  const user = userEvent.setup();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.queryByRole('button', { name: /start single-player demo/i })).not.toBeInTheDocument();
 });
 
 it('shows the GM access request instructions inside settings', async () => {

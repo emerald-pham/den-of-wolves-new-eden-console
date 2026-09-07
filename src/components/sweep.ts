@@ -210,8 +210,10 @@ export function followSweeps(plot: HTMLElement): () => void {
       const firstAcquisition = apparent.dataset.acquired !== 'true';
       // Both rims can cross within a few frames. Confirm the existing fix
       // while its paint is fresh; only a later crossing of a dimmed return
-      // may choose another bearing, before starting its new flash.
-      if (firstAcquisition || moving || now - state.scannedAt >= SCAN_FRESH_MS) {
+      // may choose another bearing, before starting its new flash. Moving
+      // contacts use the same sample-and-hold window as stationary returns.
+      const mayRefreshFix = firstAcquisition || now - state.scannedAt >= SCAN_FRESH_MS;
+      if (mayRefreshFix) {
         if (moving) {
           // The true-position marker follows the CSS trajectory continuously.
           // Sample its current 3D translation only when a sweep reaches it;
@@ -228,6 +230,8 @@ export function followSweeps(plot: HTMLElement): () => void {
         }
         state.scans += 1;
       }
+      // Every crossing is still a ping: it refreshes the visible flare and
+      // dispatches CONTACT_SCAN_EVENT below, even when the fresh fix is held.
       state.scannedAt = now;
       apparent.dataset.acquired = 'true';
       element.dataset.scanFresh = 'true';

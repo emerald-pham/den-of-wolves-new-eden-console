@@ -186,7 +186,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   async function toggleConsoleLock(): Promise<void> {
-    if (!ship || !writable || lockPending) return;
+    if (!ship || !writable || turnZeroLocked || lockPending) return;
     setLockPending(true);
     try {
       await setShipConsoleLock(ship.id, !consoleLocked);
@@ -198,7 +198,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   return (
-    <ConsoleAccessContext.Provider value={{ writable: effectiveWritable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
+    <ConsoleAccessContext.Provider value={{ writable: effectiveWritable && !turnZeroLocked, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
     <main
       className={`ship-console ship-console--${ship.id}${
         hasConsoleWorkspace
@@ -245,7 +245,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <button
             className="cic-action-button"
             type="button"
-            disabled={!writable || lockPending}
+            disabled={!writable || turnZeroLocked || lockPending}
             onClick={() => void toggleConsoleLock()}
           >
             {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}
