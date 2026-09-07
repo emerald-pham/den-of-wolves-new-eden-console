@@ -50,7 +50,10 @@ only read this file:
    high-risk security, authentication, authorization, architecture, and product
    decisions, plus all review, integration, versioning, merge, and push.
    Close each completed child with `close_agent`, because finished descendants
-   remain open and consume concurrency capacity until closed.
+   remain open and consume concurrency capacity until closed. Immediately after
+   closing an agent, reassess whether the next step has another useful,
+   independent, bounded sidecar; delegate it under the same Luna-only rules when
+   it would materially advance the work, and otherwise continue locally.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

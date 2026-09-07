@@ -251,6 +251,10 @@ Keep delegation economical:
   completed result, close the child with `close_agent`. Completed descendants
   remain open and count toward the concurrency limit until closed, so do not
   leave finished children occupying capacity.
+- Immediately after closing an agent, reassess whether the next step exposes
+  another useful, independent, bounded sidecar. If it would materially advance
+  the work, delegate it under the same Luna-only rules; otherwise continue
+  locally without forcing an artificial split.
 - No code change has zero risk. Keep security, authentication, authorization,
   authoritative state mutations, complex gameplay, architectural decisions, and
   other high-risk security or product decisions with the primary agent. The
