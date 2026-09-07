@@ -32,6 +32,15 @@ Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
 attached to that checkout, and no active entry claims overlapping work. A blank
 branch, path mismatch, or unexpected commit is an unresolved handoff.
 
+For player-facing work, the preemptive changelog is the first release step, not
+a roll-up written at the end. Claim one unused release version for this task,
+record that exact version in `--version-plan`, update `package.json` and the root
+lockfile, and add one standalone top-level entry to `src/changelog.ts` before
+writing implementation tests or code. Each versioned entry belongs to one task;
+never append a second agent's note to the existing current-version object. If an
+active entry already claims the version, or `main` advances before merge,
+reconcile the version and preserve each task's separate entry.
+
 ## Emulator rows
 
 Configure a worktree with the atomic selector:

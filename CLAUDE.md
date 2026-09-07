@@ -68,9 +68,17 @@ it visible while the scope is active. At wrap-up, publish the same checklist as
    points elsewhere, do not edit or finish that entry; reconcile the worktrees
    first. Treat this status pass as startup recovery: an earlier task may have
    skipped its end cleanup.
-4. Load dependencies only when the validation command needs them. Follow the
-   test-first, emulator-slot, and product-reference rules below. Documentation-
-   only work uses the lighter review path described in [Test first for code](#1-test-first-for-code).
+4. For player-facing product work, complete the changelog preflight immediately:
+   reserve one unused release version for this task, record that exact version
+   in `--version-plan`, update `package.json` and the root lockfile to it, and
+   add the planned note as a new, standalone top-level entry in
+   `src/changelog.ts` before the test-first implementation sequence begins.
+   Never append the note to another task's current-version entry. Tooling,
+   test, and documentation-only work records an explicit
+   no-player-facing-change note and does not add an entry. The lighter
+   documentation-only review path is described in [Test first for code](#1-test-first-for-code).
+   Load dependencies only when the validation command needs them, then follow
+   the test-first, emulator-slot, and product-reference rules below.
 
 ### Finish
 
@@ -201,8 +209,15 @@ monotonic application version, keeps `package.json` and the root lockfile in
 sync, and adds the newest user-facing `src/changelog.ts` entry. Development
 tooling, tests, and documentation-only work explicitly record that no
 application version or player-facing changelog entry is expected. The
-preemptive changelog is a plan, not a substitute for the completed release
-entry.
+preemptive changelog is the task's release-note draft and must be written at
+startup. For product work, claim an unused release version in this coordination
+pane, state that exact version in `--version-plan`, update the package metadata,
+and copy the draft into one new top-level `src/changelog.ts` entry before
+writing implementation tests or code. Each entry belongs to exactly one agent
+task and one release version; if the version is already claimed or `main` has
+advanced, reconcile the claim before editing.
+The final release note may refine that same entry, but it must never append to
+another task's entry or roll several tasks into a single version.
 
 ## Routine task delegation
 
@@ -382,6 +397,12 @@ port that is already listening.
 Commit messages: imperative subject under 72 characters, and a body that says
 *why* when the why is not obvious. Reference the behavior, not the file list.
 
+Before merging concurrent product branches, inspect the changelog diff against
+current `main`. It must add one new top-level entry for the task's reserved
+version, with only that task's notes. If the diff instead adds bullets to an
+existing version entry, stop, allocate a separate version, and preserve every
+task as its own entry before merging.
+
 ## Worktree retention and cleanup
 
 Keep a completed task's worktree and its attached short-lived branch for at
@@ -450,6 +471,14 @@ version first and describe only changes a player or GM can see, use, or
 understand. Write from the user perspective, not the developer perspective:
 describe the improved experience or new capability, never internal components,
 refactors, implementation details, test changes, or deployment machinery.
+
+The changelog is release-scoped, not a running work log. Every product task
+owns exactly one `ChangelogEntry` for its one release version. A `changes` array
+may contain several notes only when they are inseparable parts of that same
+task; never add another agent's note to the existing `version: APP_VERSION`
+object, and never create a catch-all or megachangelog entry. When concurrent
+work reaches `main`, keep every task's entry as its own versioned object and
+preserve both notes during conflict resolution.
 
 The newest changelog entry must use the version derived from `package.json` so
 the visible build reference and release notes stay aligned. Preserve the
@@ -589,6 +618,8 @@ tests/rules/      assertions against the emulator
 
 - [ ] The current checkout is on the intended short-lived branch; the branch
   and coordination entry refer to the same worktree.
+- [ ] Product work began with its own preemptive, standalone changelog entry;
+  no unrelated task was appended to that release version.
 - [ ] For code changes, a test was written first and observed failing.
 - [ ] Every completed product edit updated the player-facing changelog in user terms.
 - [ ] For changes that are not documentation-only, local lint and tests were
