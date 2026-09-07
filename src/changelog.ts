@@ -12,6 +12,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'Turn handoffs now clear unused console charges and shuttle fuel after Coordination Phase, keep overrunning missions and their docking state in place, and show the numbered successor turn with an AIRSPACE CLOSED, survivor, and OBJECTIVE // SURVIVE. transmission.',
       'GM fleet resource cards now show each ship’s current ship-relative pursuit tracker beneath its resource and census controls, using the shared galactic map even when the fleet is split.',
+      'Closed-airspace ticker copy now keeps the lockdown directive visible until a newer AEGIS or SNN broadcast replaces it.',
     ],
   },
   {

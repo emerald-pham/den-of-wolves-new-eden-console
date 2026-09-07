@@ -1124,12 +1124,15 @@ CLOSED` for the first window and `AIRSPACE OPEN` for the second. The
 current airspace-window countdown is a blue, non-interactive instrument at
 DRADIS’s lower left in both compact and expanded shipboard and fleet views.
 At the same transition, Airspace Control posts a normal, long-gap ticker
-bulletin (`AIRSPACE CONTROL // AIRSPACE CLOSED` or `AIRSPACE CONTROL //
-AIRSPACE OPEN`) that loops until AEGIS or the Press sends newer broadcast copy.
-It never carries the countdown or adds a second ticker row, so the ticker keeps
-its compact measured height. The DRADIS instrument and Airspace Control
-bulletin must not say `AIRSPACE OPEN` until the shared server state has actually
-lifted the restriction.
+bulletin. During the closed window it reads `AIRSPACE CONTROL // AIRSPACE
+CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN
+THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.`; during the
+open window it reads `AIRSPACE CONTROL // AIRSPACE OPEN`. The closed bulletin
+loops until AEGIS or the Press sends newer broadcast copy. It never carries the
+countdown or adds a second ticker row, so the ticker keeps its compact measured
+height. The DRADIS instrument and Airspace Control bulletin must not say
+`AIRSPACE OPEN` until the shared server state has actually lifted the
+restriction.
 
 The GM’s first early-advance attempt during either live timer turns the same
 control into a danger-red `ARE YOU SURE?` confirmation. The confirmed advance
