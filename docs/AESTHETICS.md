@@ -822,8 +822,9 @@ does not display hostile messages. This preserves the considerate,
 accessibility-friendly default introduced when the opening intrusion was
 removed, while keeping the exact copy and timing available for later use.
 
-When Wolf hacking is implemented, use the shared `HACKING_MESSAGES` copy and
-`HackingMessageOverlay` from `src/components/HackingMessageOverlay.tsx` (or
+When Wolf hacking is implemented, use the shared `HACKING_MESSAGES` copy from
+`src/lib/hackingMessages.ts` and `HackingMessageOverlay` from
+`src/components/HackingMessageOverlay.tsx` (or
 the `ArrivalDisplay` opt-in when the event is on the launcher). Drive the
 opt-in from authoritative Wolf state, never by flipping the launcher constant
 globally or by adding a second message list. Keep `Intrusion`'s `aria-hidden`,

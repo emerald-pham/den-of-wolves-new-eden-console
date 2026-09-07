@@ -359,9 +359,10 @@ movement and action surfaces for every supported craft.
   intel, suspicion clue thresholds, investigations, arrests, prisoner
   deadlines, and replacement roles, with private result delivery.
 - Wolf hacking presentation must reuse the dormant launcher capability in
-  `src/components/HackingMessageOverlay.tsx` and its `HACKING_MESSAGES` copy;
-  enable it only from authoritative Wolf state and preserve its reduced-motion,
-  `aria-hidden`, and no-focus-trap accessibility behavior.
+  `src/components/HackingMessageOverlay.tsx` and the shared `HACKING_MESSAGES`
+  copy in `src/lib/hackingMessages.ts`; enable it only from authoritative Wolf
+  state and preserve its reduced-motion, `aria-hidden`, and no-focus-trap
+  accessibility behavior.
 - Implement the five-step Wolf attack order: targeting and wraparound,
   Wolf Commander rerolls/adjustments, long/medium/short simultaneous actions,
   fighter-wing-first damage, boarding parties, security dice, Pallas/Chepu and

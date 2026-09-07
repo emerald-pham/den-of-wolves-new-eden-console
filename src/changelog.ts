@@ -10,6 +10,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The former launcher hacking transmissions are restored as a future-ready capability, but remain disabled in the current opening experience until Wolf gameplay provides the context.',
       'The Turn 1 traitor reveal now lingers longer for a clearer read, and the final survivors slide fades out more deliberately.',
       'Ship jump consoles now include a non-GM navigation map with the current ship fix and the coordinates of that ship’s previous fixes, synced to the GM star map without exposing organiser site overlays.',
       'GMs can select a fleet ship, click a printed system, and move that ship there; the authoritative ship log records the stardate, navigational error, and nearby fleet jump-away or jump-arrival notices.',

@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import HackingMessageOverlay, {
+import HackingMessageOverlay from '@/components/HackingMessageOverlay';
+import {
   HACKING_MESSAGE_DURATION_MS,
   HACKING_MESSAGE_INITIAL_DELAY_MS,
   HACKING_MESSAGE_INTERVAL_MS,
   nextHackingMessage,
   type HackingMessage,
-} from '@/components/HackingMessageOverlay';
+} from '@/lib/hackingMessages';
 import { useMotionPreference } from '@/lib/motionPreference';
 
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
