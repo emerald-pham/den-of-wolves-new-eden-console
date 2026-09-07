@@ -5,7 +5,7 @@
  * enables the paired Union role and establishes docking when it is in play.
  */
 export const INITIAL_SHUTTLE_DOCKINGS = [
-  { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+  { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: 'SESSION START' },
   { shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' },
   { shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'SESSION START' },
   { shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' },
@@ -24,7 +24,7 @@ export const INITIAL_SHUTTLE_DOCKINGS = [
 
 export const INITIAL_SHUTTLE_VISITS = INITIAL_SHUTTLE_DOCKINGS.map((docking) => ({
   id: docking.shuttleId === 'snn-press-shuttle'
-    ? 'snn-initial-aegis-docking'
+    ? 'snn-initial-dione-docking'
     : `${docking.shuttleId}-initial-${docking.shipId}-docking`,
   shuttleId: docking.shuttleId,
   shipId: docking.shipId,

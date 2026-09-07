@@ -53,11 +53,11 @@ function AppRoutes() {
     ? location.pathname.slice('/shuttles/'.length).split('/')[0]
     : undefined;
   const shuttleHost = shuttleId ? dockingForShuttle(session ?? {}, shuttleId)?.shipId : undefined;
+  const pressDocking = dockingForShuttle(session ?? {}, 'snn-press-shuttle');
   const shipId = location.pathname.startsWith('/ships/')
     ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
     : location.pathname === '/press'
-      ? session?.shuttleDockings?.find((docking) => docking.shuttleId === 'snn-press-shuttle')
-        ?.shipId ?? 'aegis'
+      ? pressDocking?.shipId ?? 'dione'
       : shuttleHost ?? 'aegis';
 
   useEffect(() => {
