@@ -6,6 +6,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 ## Contents
 
 - [Test first for code](#1-test-first-for-code)
+- [Shared test-runner contention](#shared-test-runner-contention)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
 - [Worktree branch bootstrap](#worktree-branch-bootstrap)
 - [Local worktree coordination and versioning agreement](#local-worktree-coordination-and-versioning-agreement)
@@ -69,6 +70,28 @@ npm test            # unit + component
 npm run test:rules  # security rules, wrapped in the Firestore emulator
 npm run test:all    # both — this is what CI runs
 ```
+
+### Shared test-runner contention
+
+All agents share one MacBook Pro M3, and as many as six agents may run Node
+tests concurrently. Expect CPU, memory, disk, and emulator contention to make a
+normally quick test run substantially slower and to reduce or delay the output
+returned by the command wrapper.
+
+- Set the **outer command or tool timeout**, not individual test assertion
+  timeouts, to at least 15 minutes for `npm test` and `npm run test:rules`, and
+  30 minutes for `npm run test:all`. Use a longer timeout when a prior run or
+  current contention indicates it is needed.
+- Keep long-running commands attached or poll their existing session instead
+  of cancelling them just because output is quiet. A slow or quiet process is
+  not evidence that the tests are hung.
+- Treat a wrapper or tool timeout before the process exits as **inconclusive**,
+  not as a test failure. Inspect the captured output and whether the process is
+  still running; if it was stopped before reporting results, rerun with a
+  larger outer timeout when resources allow.
+- Only call the run passed or failed when the test runner reports its results
+  or exits with a corresponding status. Report wrapper timeouts separately
+  from assertion failures, crashes, and emulator errors.
 
 ## Worktree dependency bootstrap
 
