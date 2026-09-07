@@ -73,15 +73,18 @@ npm run test:all    # both — this is what CI runs
 
 ### Shared test-runner contention
 
-All agents share one MacBook Pro M3, and as many as six agents may run Node
-tests concurrently. Expect CPU, memory, disk, and emulator contention to make a
-normally quick test run substantially slower and to reduce or delay the output
-returned by the command wrapper.
+All agents share one MacBook Pro M3. The coordination model supports up to 15
+active worktrees, but plan for roughly seven concurrent Node test runs, with 10
+being a realistic peak. Expect CPU, memory, disk, and emulator contention to
+make a normally quick test run substantially slower and to reduce or delay the
+output returned by the command wrapper.
 
 - Set the **outer command or tool timeout**, not individual test assertion
   timeouts, to at least 15 minutes for `npm test` and `npm run test:rules`, and
   30 minutes for `npm run test:all`. Use a longer timeout when a prior run or
-  current contention indicates it is needed.
+  current contention indicates it is needed; with 10 or more concurrent test
+  runs, use 30 minutes for an individual suite and 60 minutes for
+  `npm run test:all`.
 - Keep long-running commands attached or poll their existing session instead
   of cancelling them just because output is quiet. A slow or quiet process is
   not evidence that the tests are hung.
