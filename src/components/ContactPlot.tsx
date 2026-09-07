@@ -291,6 +291,7 @@ export default function ContactPlot({
         ...ambient.start,
         color: 'var(--cic-cyan-hot)',
         combatRange: 'short' as const,
+        showCombatRange: false,
         transit: {
           destination: ambient.destination,
           durationMs: AMBIENT_CONTACT_LIFETIME_MS,
