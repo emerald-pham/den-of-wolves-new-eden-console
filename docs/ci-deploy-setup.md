@@ -1,6 +1,9 @@
 # Fixing the GitHub Actions deploy (Workload Identity Federation)
 
-Handoff notes. Everything needed is here; no prior conversation required.
+Historical setup handoff from 2026-09-04. For current repository workflow and
+the canonical `npm run deploy` path, start with [`CLAUDE.md`](../CLAUDE.md) and
+the root [README](../README.md); use this page for the recorded federation
+setup and troubleshooting details.
 
 ## Contents
 

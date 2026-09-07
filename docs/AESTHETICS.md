@@ -610,7 +610,7 @@ turning through a three-dimensional volume. Contacts hang anywhere inside that
 volume. Do not rebuild this as a tilted ground plane with a rotating wedge —
 that is a different, flatter instrument.
 
-### How to recreate it
+### How to recreate the contact plot
 
 1. **Layer.** `position: fixed; inset: 0; z-index: 0; overflow: hidden;
    pointer-events: none`, centred with grid. Put `perspective` (≈130vmin) and
@@ -783,7 +783,7 @@ player was doing underneath keeps working, and the app header and the action
 panel stay above it. Decorative overlines are amber-ember; the message is
 `--cic-scream` so it stays legible, and all the red comes from its glow.
 
-### How to recreate it
+### How to recreate the intrusion
 
 - **Keep the field black and the red concentrated.** A near-black radial base
   (`#080203f2` centre to `#030001bf` edge), thinner at the rim so the threat
@@ -1139,8 +1139,6 @@ RoleConsoleTemplate as ship role consoles. The dispatch desk sits directly
 below the captain role assignment; status and the evidence shredder stay in
 the DRADIS instrument rail. Capability placement is owned by the shared shuttle
 template, including future craft.
-
-### Console access and GM maintenance corrections
 
 ### GM counter burst feedback
 

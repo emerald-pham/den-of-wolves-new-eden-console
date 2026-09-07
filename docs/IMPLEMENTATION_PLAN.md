@@ -1,7 +1,7 @@
 # Den of Wolves: New Eden — Implementation Plan and Objectives
 
-Status: planning baseline. This document is the pre-implementation gate for
-future gameplay work.
+Status: living roadmap. This document is the planning gate for future gameplay
+work and records which foundation is implemented versus still incomplete.
 
 This plan describes how to take the Companion Console from its current
 server-authoritative session and console foundation to a complete,

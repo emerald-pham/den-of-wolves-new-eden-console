@@ -27,6 +27,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Layout](#layout)
 - [Definition of done](#definition-of-done)
 - [Aesthetic profiles and responsive UI](#aesthetic-profiles-and-responsive-ui)
+- [Shared vessel and role console architecture](#shared-vessel-and-role-console-architecture)
 
 ## Agent fast path
 
@@ -36,12 +37,11 @@ worktree.
 
 ### Session goal checklists
 
-At the top of every session, before substantive work, publish a concise
-`Session goals` checklist containing the concrete outcomes you intend to
-deliver. Keep it visible in the session updates and revise it if the agreed
-scope changes. At wrap-up, publish the same checklist again as `Session
-wrap-up`, marking each item `[x]` when complete or `[ ]` when incomplete. Add a
-brief note for any unchecked item explaining the blocker or remaining work.
+Before substantive work, publish a concise `Session goals` checklist and keep
+it visible while the scope is active. At wrap-up, publish the same checklist as
+`Session wrap-up`, marking each item `[x]` or `[ ]`; explain any unchecked item.
+
+### Start
 
 1. Read this file and `AGENTS.md`, then inspect the checkout you will actually
    edit:
@@ -64,18 +64,20 @@ brief note for any unchecked item explaining the blocker or remaining work.
 3. Before editing, run `npm run coordination:begin -- ...` from this same
    worktree, save the printed entry id, and immediately run
    `npm run coordination:status`. Confirm that the entry's `worktree` path
-   equals the current `pwd` and that no active entry overlaps the intent. If it
-   points elsewhere, do not edit or finish that entry; reconcile the worktrees
-   first.
+   equals `pwd` and that no active entry overlaps the intent. If it points
+   elsewhere, reconcile the worktrees first.
 4. Load dependencies only when the validation command needs them. Follow the
-   test-first, emulator-slot, and product-reference rules below; documentation-
+   test-first, emulator-slot, and product-reference rules below. Documentation-
    only work uses the lighter review path described in [Test first for code](#1-test-first-for-code).
-5. Finish from the same worktree. At minimum, run `git diff --check`, inspect
-   `git status --short --branch`, report the verification evidence, and close
-   the coordination entry with
-   `npm run coordination:finish -- --id <id>`. For documentation-only work,
-   review rendered text, links, examples, and the final diff instead of
-   running application tests.
+
+### Finish
+
+1. Finish from the same worktree. At minimum, run `git diff --check`, inspect
+   `git status --short --branch`, and report the verification evidence.
+2. For documentation-only work, review rendered text, links, examples, and the
+   final diff instead of running application tests.
+3. Close the coordination entry with
+   `npm run coordination:finish -- --id <id>` and confirm it is no longer active.
 
 ## 1. Test first for code
 
@@ -162,17 +164,12 @@ in a fresh worktree, before running tests, builds, or other repository scripts:
 
 ## Worktree branch bootstrap
 
-Agents must run `git branch --show-current` before changing files. If it prints
-nothing, the worktree has a detached `HEAD`; immediately create a uniquely
-named, short-lived task branch at the current `HEAD` and do all work there.
-Never make changes or commits while detached. Confirm the branch is based on
-the intended starting point (normally current `origin/main`) before proceeding.
-Treat this branch check as a hard gate for coordination: run it in the checkout
-that will be edited, and do not run `coordination:begin` while it is detached.
-The branch must be attached to that same checkout; a branch that exists in
-`git branch -a` or is attached to another worktree is not sufficient. If the
-branch is behind newer `main` work because another task landed first, reconcile
-it before merging rather than silently shipping from an old base.
+The [Agent fast path](#agent-fast-path) is mandatory. In particular, never edit
+or commit while detached: if `git branch --show-current` is empty, create a
+unique short-lived branch in this checkout and verify it before coordination.
+The branch must be attached to this checkout, not merely listed elsewhere in
+Git. Reconcile it with newer `main` work before merging rather than silently
+shipping from an old base.
 
 ## Local worktree coordination and versioning agreement
 
@@ -188,16 +185,14 @@ npm run coordination:begin -- \
 ```
 
 This writes a human-readable, Git-ignored coordination file shared by local
-worktrees. `npm run coordination:status` displays the **Version agreement**,
-the active **Preemptive changelog**, configured emulator rows, and live process
-reservations so another agent can see intent before touching overlapping work.
-The entry records the directory from which `coordination:begin` ran. Always run
-it from the worktree you will edit, then compare the recorded `worktree` path
-with `pwd`; do not assume that a similarly named branch or entry belongs to
-this checkout. Keep the printed id, and finish only your own entry.
-Close the entry with `npm run coordination:finish -- --id <id>` when the work is
-complete. The default file is in the OS temporary directory; set
-`DOW_EMULATOR_COORDINATION_FILE` to use another common local path.
+worktrees. Status shows active intent, version/changelog agreements, configured
+emulator rows, and live process reservations. The entry records its absolute
+worktree path: always compare it with `pwd`, keep the printed id, and finish
+only your own entry. The default file is in the OS temporary directory; set
+`DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
+
+Run `npm run coordination:status` before overlapping work and after finishing
+to confirm the entry and any resource reservations are clear.
 
 The version agreement is: completed player-facing product work increments the
 monotonic application version, keeps `package.json` and the root lockfile in
@@ -209,73 +204,29 @@ entry.
 
 ## Routine task delegation
 
-The product owner gives standing authorization to delegate suitable, well-scoped
-tasks when doing so is expected to save total effort and tokens after accounting
-for setup, context transfer, and review. No separate confirmation is needed for
-each suitable task.
+The product owner authorizes suitable delegation when it saves effort after
+setup and review. Fan out independent, bounded reconnaissance, implementation,
+or verification tracks to GPT-5.6 Luna at `high` reasoning; do not use GPT-5.3
+Codex Spark. If no safe sidecar exists, continue locally rather than creating
+one to satisfy a quota.
 
-Subagent-maxing is the default for suitable work. As soon as a task has
-independent, bounded reconnaissance, implementation, or verification tracks,
-fan them out to Luna and keep the parent focused on coordination and
-integration. Prefer delegation when it keeps unrelated file output out of the
-parent context and avoids growing or compressing that context. If no safe,
-independent sidecar exists, continue locally and record why rather than forcing
-an artificial split.
+Before substantive work or new delegation, inspect child IDs owned by this
+parent and terminal children surfaced from inactive chats. Retrieve any needed
+result and close every completed, errored, or interrupted child; leave pending
+children alone until they are terminal unless they are still needed.
 
-Delegation startup cleanup is required. Before substantive work or new
-delegation, inspect the child IDs owned by the current parent and any terminal
-children surfaced from inactive chats, retrieve any result still needed, and
-close every completed, errored, or interrupted child. Leave pending or running
-children from any chat alone; close them only after they reach a terminal state
-unless they are still needed for the current task.
+Keep assignments narrow, with a disjoint file scope, explicit acceptance
+criteria, and a request for changed paths, commands, and results. Run
+independent sidecars in parallel, do non-overlapping work while they run, and
+wait only when a result blocks the next decision. Review each result, close the
+child immediately, then reassess whether another bounded sidecar is useful.
 
-Keep delegation economical:
-
-- Delegate only a bounded sidecar with a concrete output and acceptance
-  criteria. If no independent sidecar exists, continue locally; do not create
-  an agent merely to satisfy a quota.
-- Start independent sidecars in parallel, do non-overlapping work while they
-  run, and do not repeat their assigned investigation in the parent.
-- Wait only when the result is needed for the next critical-path decision;
-  otherwise collect it once it reaches a terminal state.
-- Ask every child to return changed paths (if any), commands run, and observed
-  results. Review that evidence before integration, then close the child
-  immediately.
-
-- Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
-  is not an approved delegation model for this codebase.
-- Delegated subagents have full read/write access to their assigned worktree.
-  They may inspect, create, edit, rename, and delete files as needed, run
-  commands and tests, and perform well-scoped implementation work. No
-  read-only restriction applies to delegated subagents.
-- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning for suitable delegated
-  work when delegation saves total effort and tokens after setup, context
-  transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
-  UI, and routine implementation with clear expected results.
-- Keep assignments narrow, low risk, and easy to verify, with explicit file
-  scope and acceptance criteria. Every delegated agent that changes files must
-  use its own worktree and short-lived branch; never have a delegated agent
-  edit the primary agent's checkout or another agent's files. Full read/write
-  access is scoped to that assigned worktree and does not authorize merging or
-  pushing.
-- Treat child-agent lifecycle as part of delegation: after collecting a
-  completed result, close the child with `close_agent`. Completed descendants
-  remain open and count toward the concurrency limit until closed, so do not
-  leave finished children occupying capacity.
-- Immediately after closing an agent, reassess whether the next step exposes
-  another useful, independent, bounded sidecar. If it would materially advance
-  the work, delegate it under the same Luna-only rules; otherwise continue
-  locally without forcing an artificial split.
-- No code change has zero risk. Keep security, authentication, authorization,
-  authoritative state mutations, complex gameplay, architectural decisions, and
-  other high-risk security or product decisions with the primary agent. The
-  primary agent also owns all review, integration, versioning, merge, and push.
-- Every delegated agent must read this file and follow the applicable test-first,
-  dependency, emulator isolation, and version policies. Small task size does not
-  exempt code changes from those requirements.
-- The primary agent reviews the diff and verification evidence and coordinates
-  integration, versioning, merge, and push. Delegated agents must return their
-  work for that review before anything is merged or pushed to `main`.
+Delegated agents may inspect and change files, but a changing child must use its
+own short-lived branch and worktree. Every child reads this file and follows its
+test-first, dependency, emulator, version, and documentation rules. The primary
+agent retains security, authentication, authorization, authoritative-state,
+architecture, product, review, integration, versioning, merge, and push
+decisions; no child may merge or push.
 
 ## Concurrent worktrees and emulator ports
 
@@ -627,40 +578,19 @@ to underlying controls during decorative effects.
 
 All future ship role consoles and shuttle consoles must extend the shared
 architecture in [docs/CONSOLE_ARCHITECTURE.md](docs/CONSOLE_ARCHITECTURE.md).
-This is a standing product requirement, including roles whose gameplay differs
-from other stations.
+The linked document is the canonical ownership map and extension guide; this
+section preserves only its non-negotiable boundaries:
 
-- Store each ship or shuttle's identity and configuration in its own file in
-  `src/data/vessels/`, using `defineShip` or `defineShuttle`. Register it once in
-  the corresponding fleet catalog. Derive catalogs from those definitions;
-  do not maintain duplicate per-vessel values in each consumer.
-- Every ship role uses `ShipConsole` for the outer console and
-  `RoleConsoleTemplate` for its workspace header, telemetry and real page
-  controls. Add role-specific content as modules inside these shared surfaces.
-  Do not clone a route, shared layout, navigation, census, stores or shuttlebay
-  to implement a new role. Joint non-ship stations keep their station shell;
-  future gameplay workspaces there also use `RoleConsoleTemplate`.
-- Treat those shared components and the other single owners listed in
-  `docs/CONSOLE_ARCHITECTURE.md` as the underlying base system, not merely as
-  examples or starting templates. A fleet-wide ship-console change must be made
-  once in that base and must reach every current and future ship console
-  automatically through composition and configuration. Never satisfy a shared
-  requirement with per-ship copies, patches or a checklist of console-specific
-  edits.
-- Every shuttle uses `ShuttleConsole` and `ShuttleConsoleTemplate`. Branding,
-  initial location and equipment are configuration; capabilities are opt-in.
-  Never inherit SNN's equipment, identity or docking by default.
-- Put improvements that apply to all variants in the base. Add a narrowly
-  typed configuration field or module slot for a real exception; do not add
-  vessel-ID branches throughout shared components.
-- Write and run a failing test before implementation. Exercise the shared base
-  with the reference vessel and at least one materially different configuration
-  to prove inheritance; do not require repeated manual inspection or bespoke
-  assertions for every ship in the fleet. Preserve route guards, role ownership,
-  return navigation and server authority.
-- Whenever a gameplay step or control applies ship damage, name the drawn card
-  and affected system in the crew-visible outcome at that same point of resolution.
-  Also state when armour absorbed and recycled the card, when the triggering
-  check failed and caused no damage, or when the deck was empty and no card
-  remained. Undrawn deck order stays server-only; connected session members may
-  read completed draw records, but clients may never choose or write a draw.
+- Define each vessel once in `src/data/vessels/` with `defineShip` or
+  `defineShuttle`, register it once, and derive consumer catalogs from it.
+- Use the shared ship/shuttle shells and role templates. Put real exceptions in
+  typed configuration or modules; never copy routes or scatter vessel-ID
+  branches through shared components. Shuttle branding, docking, and equipment
+  are opt-in configuration—never inherited from SNN by default.
+- Test the shared base with the reference vessel and a materially different
+  configuration. Preserve route guards, role ownership, return navigation, and
+  server authority.
+- Damage outcomes name the drawn card and affected system, or explicitly say
+  when armour recycled it, a check caused no damage, or the deck was empty.
+  Undrawn deck order remains server-only; clients may only read completed draw
+  records.

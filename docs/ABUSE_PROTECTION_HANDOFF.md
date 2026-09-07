@@ -43,17 +43,12 @@ supports the operating envelope without weakening the repository's security
 model. Do not blindly raise instance limits or add Cloudflare because it sounds
 protective: collect load and cost evidence first.
 
-### 1. Follow repository safeguards first
+### 1. Follow repository safeguards
 
-Read and follow [`CLAUDE.md`](../CLAUDE.md) before changing code. In particular:
-
-- Work on a short-lived branch, write and run a failing test before each code
-  change, then run the required validation suite.
-- Preserve the rule that clients may write only their own presence documents;
-  game-authoritative mutations remain callable functions inside transactions.
-- Treat Firebase configuration and deploy changes as production changes: update
-  the application version and player-facing changelog, merge to `main`, and
-  push once green.
+Before changing code, follow [`CLAUDE.md`](../CLAUDE.md): use its short-lived
+branch and test-first gates, preserve callable/server authority and client-write
+denials, and apply its version, changelog, validation, merge, and push rules to
+any Firebase configuration or deployment change.
 
 ### 2. Verify Firebase App Check deliberately
 

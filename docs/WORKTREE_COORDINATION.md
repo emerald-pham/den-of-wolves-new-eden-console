@@ -1,22 +1,18 @@
 # Local worktree coordination
 
-All worktrees on the same machine share a small coordination file in the OS
-temporary directory:
+Use this page as the command reference for the shared local coordination
+ledger. [`CLAUDE.md`](../CLAUDE.md) remains the canonical source for branch,
+version, validation, emulator, merge, and cleanup policy.
 
-```text
-den-of-wolves-new-eden-coordination.json
-```
-
-Set `DOW_EMULATOR_COORDINATION_FILE` when a different shared path is needed.
-The file is outside the repository, ignored by Git, and contains a readable
-version-agreement pane, preemptive changelog entries, configured emulator rows,
-and live emulator reservations. It is local coordination data, not product
-state.
+The ledger is a Git-ignored JSON file in the OS temporary directory, normally
+named `den-of-wolves-new-eden-coordination.json`. It records worktree intent,
+version/changelog agreements, configured emulator rows, and live process
+reservations. Set `DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
 
 ## Before editing
 
-After checking out a short-lived branch and before changing a file, register the
-work in the shared ledger:
+After attaching a short-lived branch—and before changing any file—register the
+work from the exact checkout you will edit:
 
 ```bash
 npm run coordination:begin -- \
@@ -26,49 +22,38 @@ npm run coordination:begin -- \
   --resources "emulator-slot-4,shared-coordination-file"
 ```
 
-When following or recovering another entry, match its absolute `worktree:` path
-with its Git identity before editing:
-
-```bash
-git -C "<worktree-path>" branch --show-current
-git -C "<worktree-path>" rev-parse --short HEAD
-git worktree list --porcelain
-```
-
-A blank branch, a path mismatch, or an unexpected commit is an unresolved
-handoff. Do not edit or finish that entry until it is reconciled.
-
-The three required fields are deliberately explicit. Product work states the
-planned application version and its player-facing release note before coding;
-tooling, documentation, and test-only work state that no application version or
-player-facing changelog entry is expected.
-
-Inspect the shared status pane at any time:
+Save the printed id, then inspect the ledger:
 
 ```bash
 npm run coordination:status
 ```
 
-Only `[active]` entries represent current work claims. `[complete]` entries are
-historical and do not reserve a worktree, branch, or emulator resource.
+Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
+attached to that checkout, and no active entry claims overlapping work. A blank
+branch, path mismatch, or unexpected commit is an unresolved handoff.
 
-The emulator commands also claim their configured slot in the same file. Rules
-tests prefer the worktree's configured row, but automatically claim another
-complete free row when that row is already running a preview or another
-worktree. They release the temporary reservation when the command exits.
+## Emulator rows
 
-When the task is complete, close its preemptive entry:
+Each active worktree needs one complete Firebase/Vite slot. Configure a free
+row with `npm run emulators:configure -- <slot>` before starting emulators or
+rules tests. The command and test runner verify the row and record ownership;
+long-running processes release their reservations when they exit. Never mix
+ports from different rows or take a listening port from another worktree.
+
+The full slot matrix, port checks, and concurrent-test guidance are in
+[`CLAUDE.md`](../CLAUDE.md#concurrent-worktrees-and-emulator-ports).
+
+## Finish
+
+From the same checkout that began the work, close only its own entry:
 
 ```bash
 npm run coordination:finish -- \
   --id "<id printed by coordination:begin>" \
   --result "Merged after the local gate passed."
+npm run coordination:status
 ```
 
-From the same checkout that began the task, close the entry using the exact id
-printed by `coordination:begin`, then run `npm run coordination:status` once to
-confirm it is no longer active. Do this before deleting the branch or worktree;
-never finish an entry copied from another worktree. The registry prunes dead
-process reservations. A configured row remains visible until that worktree
-configures another row, so an abandoned worktree cannot be silently reused by a
-different worktree.
+The final status should show the entry as historical rather than active, with
+no live process reservation left behind. Do not finish an id copied from
+another worktree.
