@@ -31,6 +31,14 @@ export default function FleetBroadcast() {
   const dispatchText = dispatchState.dispatches
     .map((dispatch) => sourceBulletin('SNN', dispatch.text))
     .join(' // ');
+  const turnZeroBulletin = session && session.currentTurn === 0
+    ? {
+        id: `${session.id}:turn-zero-console-lockout`,
+        text: sourceBulletin('AEGIS', 'CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE'),
+        tone: 'normal' as const,
+        gap: 'long' as const,
+      }
+    : undefined;
   const pressDispatch = session && dispatchText
     ? {
         id: `${session.id}:press-dispatch:${dispatchState.revision}`,
@@ -49,7 +57,7 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
-  const standingMessage = airspaceBulletin ?? pressDispatch;
+  const standingMessage = turnZeroBulletin ?? airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
   if (debriefMode.active) {
     return <FleetTicker message={{

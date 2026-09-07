@@ -60,6 +60,29 @@ it('shows the latest press dispatch while no alert is active', () => {
   expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
+it('warns about the Turn 0 console lockout and dismisses it when Turn 1 begins', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({ ...state.session!, currentTurn: 0 });
+  });
+
+  render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', {
+    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+  })).toBeVisible();
+  expect(screen.getByLabelText('Fleet broadcasts')).toHaveAttribute('data-gap', 'long');
+
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({ ...state.session!, currentTurn: 1 });
+  });
+
+  expect(screen.queryByRole('status', {
+    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+  })).not.toBeInTheDocument();
+});
+
 it('posts the current airspace window as a compact looping Airspace Control bulletin', () => {
   act(() => {
     const state = useSessionStore.getState();

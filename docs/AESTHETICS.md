@@ -911,6 +911,12 @@ and stand-down notices, `ICSN ADMIRAL //` for active Admiral warnings, and
 reduced-motion readout, and assistive-technology status so the origin stays
 clear before a bulletin is read.
 
+During Turn 0, the same instrument carries the normal long-gap boot bulletin
+`AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE`. It is
+removed from the requested queue as soon as the shared turn reaches Turn 1, so
+the setup warning never repeats into live play; any copy already on screen
+still drains under the normal ticker transition.
+
 All moving ticker copy enters from the right and travels left at one constant,
 linear rate. This is the fleetwide press/alert transition convention: when a
 message is replaced or dismissed, every group already visible keeps its exact
