@@ -784,6 +784,11 @@ change. On the two compact viewports, move the ball into the otherwise unused
 top-left corner and reduce its size rather than placing it over session chrome
 or DRADIS controls.
 
+While the Finale is live, the fleet ticker gives the presentation a persistent,
+normal-tone credit roll for the original game, New Eden game design, and web
+app lead. It takes priority over ordinary alert, airspace and press copy until
+the Finale is retracted, so the credits are visible on every connected console.
+
 ## Every viewport
 
 All screens must work on mobile, laptop, and desktop, in portrait and landscape,

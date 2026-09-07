@@ -6,6 +6,9 @@ import FleetTicker from './FleetTicker';
 
 type BulletinSource = 'AEGIS' | 'AIRSPACE CONTROL' | 'SNN';
 
+const FINALE_CREDITS =
+  'CREDITS // BASED ON THE ORIGINAL MEGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM';
+
 function sourceBulletin(source: BulletinSource, text: string): string {
   const prefix = `${source} // `;
   return text.startsWith(prefix) ? text : `${prefix}${text}`;
@@ -22,6 +25,7 @@ export default function FleetBroadcast() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const alert = session?.fleetRedAlert;
+  const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const phase = phaseForSession(session);
   const dispatchState = normalizePressDispatch(session?.pressDispatch);
   const dispatchText = dispatchState.dispatches
@@ -47,6 +51,13 @@ export default function FleetBroadcast() {
     : undefined;
   const standingMessage = airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
+  if (debriefMode.active) {
+    return <FleetTicker message={{
+      id: `${session.id}:finale-credits:${debriefMode.revision}`,
+      text: FINALE_CREDITS,
+      tone: 'normal',
+    }} />;
+  }
   if (!alert || alert.revision === 0) {
     return <FleetTicker {...(standingMessage ? { message: standingMessage } : {})} />;
   }

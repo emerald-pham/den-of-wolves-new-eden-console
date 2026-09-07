@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The live Finale now scrolls a full credit roll for the original Den of Wolves creators, New Eden game design, and web app lead Emerald Fleur Pham through the fleet news ticker.',
+    ],
+  },
+  {
+    version: '0.2.66',
+    changes: [
       'The Turn 0 → Turn 1 fleet transmission scan now travels all the way to the bottom edge of its instrument frame.',
     ],
   },
