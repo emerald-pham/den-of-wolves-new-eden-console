@@ -1,72 +1,9 @@
 # AGENTS.md
 
-**Read [`CLAUDE.md`](./CLAUDE.md) first and follow it.** It is the single source
-of truth for how work is done in this repository, and it applies to every agent
-and every tool — Claude Code, Codex, Cursor, Copilot, anything else.
+Read [`CLAUDE.md`](./CLAUDE.md) before doing repository work. It is the single
+source of truth for agent and contributor workflow, including branch and
+worktree setup, test-first requirements, delegation, security, versioning,
+validation, merge, and cleanup rules.
 
-Key rules from it are repeated here so no agent can claim it
-only read this file:
-
-0. **Start in the checkout you will edit.** Read `CLAUDE.md`, then run
-   `pwd`, `git branch --show-current`, `git status --short --branch`, and
-   `git log -1 --oneline --decorate`. If the branch is empty, create a unique
-   short-lived branch in this same worktree before changing anything. A branch
-   that exists elsewhere does not fix a detached checkout. Run
-   `coordination:begin` from this worktree, verify its recorded path with
-   `coordination:status`, and keep its printed id for completion.
-
-1. **Test first for code.** A failing test exists and has been *run* before any
-   implementation code is written. No exceptions for "small" code changes.
-   Documentation-only edits are exempt; see `CLAUDE.md` for the exact boundary.
-2. **Merge once done; retain briefly.** Work that will land happens on a branch
-   and reaches `main` the moment it is green and complete. Preserved or
-   discarded work must have an explicit recorded decision. Keep the completed
-   worktree and attached short-lived branch for 48 hours after completion before
-   cleanup. No stacked half-finished work and no "I'll merge it later" branches.
-
-3. **Version every completed product edit.** Keep the monotonic application
-   version in sync and visible. Documentation-only edits do not change the
-   application version. Patch numbers may exceed 9; reserve `0.9.x` for genuine
-   release-candidate maturity, and never call a build `1.0.0` until the complete
-   20-player set has full, complex gameplay across interacting systems and a
-   clear game end. See `CLAUDE.md` for the full policy.
-
-4. **Maximize suitable subagent use with Luna only.**
-   Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository.
-   Fan out independent, bounded reconnaissance, implementation, and verification
-   tracks early so the parent stays focused on coordination and integration;
-   prefer this to growing or compressing the parent context. Keep the split
-   concrete and skip it when no safe sidecar exists.
-   Start cleanup is authoritative because end cleanup may be skipped. Clean up
-   terminal child agents first: retrieve any result still needed, then close
-   every completed, errored, or interrupted child owned by this parent or
-   surfaced from an inactive chat before substantive work or new delegation.
-   Inspect coordination status and reconcile leftover process reservations or
-   configured rows from prior work; never treat no live reservation as proof
-   that a configured row is free, and never release a live worktree's row based
-   only on age. Leave pending or running children from any chat alone.
-   Delegated subagents have full read/write access to their assigned worktree:
-   they may inspect, create, edit, rename, and delete files, run commands and
-   tests, and perform well-scoped implementation work. No read-only restriction
-   applies to delegated subagents. Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high`
-   reasoning when delegation saves total effort and tokens after setup, context
-   transfer, and review. Every delegated agent that changes files must use its
-   own worktree and short-lived branch. Full read/write access is scoped to that
-   worktree and does not authorize merging or pushing. The primary agent retains
-   high-risk security, authentication, authorization, architecture, and product
-   decisions, plus all review, integration, versioning, merge, and push.
-   Close each completed child with `close_agent`, because finished descendants
-   remain open and consume concurrency capacity until closed. Immediately after
-   closing an agent, reassess whether the next step has another useful,
-   independent, bounded sidecar; delegate it under the same Luna-only rules when
-   it would materially advance the work, and otherwise continue locally.
-   End cleanup is still required even though startup cleanup is the recovery
-   boundary: stop processes this task started, release its emulator reservation,
-   finish its coordination entry, close completed children, and run one final
-   status check. Scope cleanup to this task's own resources; do not sweep
-   unrelated live work.
-   Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
-   scope, model availability, review, and integration requirements.
-
-Everything else — stack, layout, the security model, what may and may not be
-written from a client, commit conventions — is in `CLAUDE.md`. Go read it.
+This file is intentionally only a pointer. Do not duplicate those rules here:
+when guidance appears to differ, `CLAUDE.md` wins.

@@ -104,16 +104,12 @@ implemented, omit its module instead of displaying a disabled fiction.
 
 ## Travel state and authority
 
-Movement, retargeting, docking and visit-log entries are authoritative server
-operations. A client may project motion between samples but cannot decide an
-arrival or write a destination, travel timestamp, docking or log entry. A
-course change begins at the server-resolved current position; it must never
-snap the shuttle back to its former origin.
-
-The navigation module reports current state but does not expose the travel
-ledger. A host ship owns its local immutable arrival/departure history, while a
-shuttle may carry a complete ledger only when its design calls for one. The SNN
-ledger and its lock remain future server-authoritative Press Captain controls.
+Use [SHUTTLECRAFT.md](SHUTTLECRAFT.md) as the canonical worldspace and travel
+contract. The template only defines its presentation boundary: navigation
+reports authoritative docked/transit state, does not invent telemetry, and does
+not expose a travel ledger unless the craft specification grants one. Clients
+may project motion, but the server decides movement, retargeting, docking,
+arrival, timestamps, and visit-log entries.
 
 ## New shuttle specification checklist
 
@@ -148,4 +144,5 @@ Implementation must demonstrate:
 - Content and controls remain accessible on narrow, wide and short screens.
 - Reduced-motion preferences apply to optional animated capabilities.
 
-Follow the repository's test-first policy when implementing these behaviors.
+Use the repository's [test-first policy](../CLAUDE.md#1-test-first-for-code) when
+implementing these behaviors.
