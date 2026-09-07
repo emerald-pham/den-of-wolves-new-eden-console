@@ -32,6 +32,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import {
   advanceTurn,
   beginOpenAirspacePhase,
+  extendAirspaceWindow,
   runMaintenance,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
@@ -421,6 +422,86 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     }),
   }));
+});
+
+it('lets the active GM add five minutes to a live restricted window', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'restricted',
+  }))).resolves.toEqual({
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:25:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:25:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  }));
+});
+
+it('lets the active GM add five minutes to a live open window', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:10:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'open',
+  }))).resolves.toEqual({
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:25:00.000Z',
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  });
+});
+
+it('rejects stale, inactive-window, and non-GM airspace extensions without writing', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  mock.role = 'player';
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'restricted',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.role = 'gm';
+
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, window: 'restricted',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'open',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('requires AEGIS authority for the Press exception and heals a stale restriction into coordination', async () => {

@@ -39,6 +39,8 @@ export interface ShipNavigationLogEntry {
 export type ShipNavigationLogs = Readonly<Record<string, readonly ShipNavigationLogEntry[]>>;
 export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
 
+export type AirspaceWindow = 'restricted' | 'open';
+
 export interface ShipResourceValues {
   readonly ore: number;
   readonly fuel: number;
