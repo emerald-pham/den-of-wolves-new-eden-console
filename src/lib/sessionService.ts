@@ -1033,6 +1033,36 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
   }
 }
 
+/** GM-only, live-only emergency interlock; a pause must never wait in an outbox. */
+export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.connection !== 'live') {
+    throw new Error('Reconnect and claim GM before changing the emergency timer.');
+  }
+  await ensureSignedIn();
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    expectedTurn: store.session.currentTurn ?? 1,
+    paused,
+  };
+  const call = httpsCallable<typeof payload, { turnPhase?: unknown }>(
+    functions(),
+    'setEmergencyTimerPaused',
+  );
+  try {
+    const reply = await call(payload);
+    const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const activeSession = useSessionStore.getState().session;
+    if (phaseClock && activeSession?.id === payload.sessionId) {
+      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+    }
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function triggerDradisContact(): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {
