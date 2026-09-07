@@ -1211,6 +1211,10 @@ body {
   font: 400 1rem/1 var(--cic-display);
 }
 
+.gm-fleet-resource-ship > .pursuit-tracker {
+  margin: 0.75rem;
+}
+
 .gm-fleet-resources .ship-counter__controls button {
   border-color: var(--cic-ink);
   color: var(--cic-ink);

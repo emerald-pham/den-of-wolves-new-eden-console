@@ -940,6 +940,10 @@ screens it enters document flow before the workspace; both scroll with the page.
 Expanded DRADIS retains its full-screen view and existing perspective controls.
 Resource rows stack their label above the counter when the ship panel is narrow,
 so nested workspace frames never reduce a resource name to an ellipsis.
+Each fleet resource card keeps that ship's current ship-local pursuit tracker
+directly beneath its resource and census controls, using the shared galactic
+map depth without coupling the readout to GM DRADIS or exposing another ship's
+position.
 
 ### GM roster confirmation
 
