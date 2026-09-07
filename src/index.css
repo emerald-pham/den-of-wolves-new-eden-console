@@ -2272,10 +2272,8 @@ body {
 
 .pursuit-tracker__header h2,
 .pursuit-tracker__header p,
-.pursuit-tracker__relative,
 .pursuit-tracker__metric,
-.pursuit-tracker__status,
-.pursuit-tracker__note { margin: 0; }
+.pursuit-tracker__status { margin: 0; }
 
 .pursuit-tracker__header h2 {
   color: var(--cic-ink);
@@ -2287,14 +2285,6 @@ body {
   color: var(--ship-accent);
   font-size: 0.55rem;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.pursuit-tracker__relative {
-  overflow-wrap: anywhere;
-  color: var(--cic-muted);
-  font-size: 0.62rem;
-  line-height: 1.4;
   text-transform: uppercase;
 }
 
@@ -2361,13 +2351,6 @@ body {
 }
 
 .pursuit-tracker__status--surrounded { color: var(--cic-scream); }
-
-.pursuit-tracker__note {
-  color: var(--cic-muted);
-  font-size: 0.54rem;
-  line-height: 1.4;
-  text-transform: uppercase;
-}
 
 /* Persistent status rail. Future ship mechanics belong in the pageable main
    workspace, not in this rail; the manifest consumes only the space left below

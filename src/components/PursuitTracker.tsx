@@ -46,8 +46,6 @@ export default function PursuitTracker({
         <h2>Pursuit</h2>
       </header>
 
-      <p className="pursuit-tracker__relative">Relative to {shipName} // {coordinate}</p>
-
       <div className="pursuit-tracker__readout">
         <p className="pursuit-tracker__metric">
           <span>Current track // </span>
@@ -58,7 +56,7 @@ export default function PursuitTracker({
           <strong>+{turnLoad}</strong>
         </p>
         <p className="pursuit-tracker__metric pursuit-tracker__metric--map">
-          <span>Map depth // </span>
+          <span>Distance from Home Systems // </span>
           <strong>{mapDepth}</strong>
         </p>
       </div>
@@ -78,9 +76,6 @@ export default function PursuitTracker({
 
       <p className={`pursuit-tracker__status pursuit-tracker__status--${status}`}>
         {statusLabel}
-      </p>
-      <p className="pursuit-tracker__note">
-        Map depth is shared; position is ship-local.
       </p>
     </section>
   );

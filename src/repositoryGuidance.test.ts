@@ -67,4 +67,15 @@ describe('repository guidance', () => {
     expect(guidance).toContain('End cleanup remains required');
     expect(guidance).toMatch(/worktree is\s+missing/);
   });
+
+  it('requires every task to track immediate post-test merge as an objective', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('Every `Session goals` checklist must include this release objective');
+    expect(guidance.replace(/\s+/g, ' ')).toContain(
+      'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.',
+    );
+    expect(guidance).toContain('Immediate post-test merge objective is checked off');
+  });
 });

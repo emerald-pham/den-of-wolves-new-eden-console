@@ -41,6 +41,15 @@ Before substantive work, publish a concise `Session goals` checklist and keep
 it visible while the scope is active. At wrap-up, publish the same checklist as
 `Session wrap-up`, marking each item `[x]` or `[ ]`; explain any unchecked item.
 
+Every `Session goals` checklist must include this release objective:
+
+- [ ] As soon as required validation is green: commit, reconcile with current
+  main, merge to main, push to origin, and close coordination.
+
+Keep this objective unchecked until the sequence has actually happened. If the
+work is explicitly preserved or discarded instead of landed, replace it with
+that documented outcome and explain why it could not merge.
+
 ### Start
 
 1. Read this file and `AGENTS.md`, then inspect the checkout you will actually
@@ -86,7 +95,11 @@ it visible while the scope is active. At wrap-up, publish the same checklist as
    `git status --short --branch`, and report the verification evidence.
 2. For documentation-only work, review rendered text, links, examples, and the
    final diff instead of running application tests.
-3. Close the coordination entry with
+3. Once the required validation is green, stop other work and immediately
+   commit the branch, reconcile it with current `main`, merge it into `main`,
+   push `main` to `origin`, and report the resulting main commit. Do not leave
+   a green worktree dirty, idle, or waiting for another task.
+4. Close the coordination entry with
    `npm run coordination:finish -- --id <id>` and confirm it is no longer active.
 
 ## 1. Test first for code
@@ -308,9 +321,20 @@ its own complete emulator port set. This includes Firestore's separate WebSocket
 listener. The defaults in `firebase.json` belong to only one worktree at a time;
 do not let Firebase silently reuse or kill another agent's emulator processes.
 
-Coordinate a free slot with the other active agents and announce the slot in
-the task before starting emulators. Use one row as a unit—do not mix ports from
-different rows. The logging range begins at 4600, rather than the historical
+There is no single shared emulator instance. The shared resource is only the
+coordination registry; each worktree gets an isolated row of ports, and this
+repository provides 15 rows. One occupied or configured row blocks only that
+row. Never report that a “shared emulator remains reserved” or skip emulator
+validation for that reason unless every row is occupied and the status pane
+confirms that no free slot exists. If a task does not need an emulator, say so
+because its validation scope is unit/component-only, not because another task
+owns a different row.
+
+When emulator-backed validation is needed, claim a row atomically with
+`npm run emulators:configure -- auto` (or an explicitly selected free slot)
+before starting the process, and announce the selected row in the task. Do not
+scan status and choose a row in a separate step. Use one row as a unit—do not
+mix ports from different rows. The logging range begins at 4600, rather than the historical
 4500, so it cannot overlap Hub ports once all 15 slots are in use:
 
 | Slot | Auth | Functions | Firestore | Firestore WS | Hosting | UI | Hub | Logging | Vite |
@@ -368,6 +392,10 @@ port that is already listening.
 - Branch from `main`. Short-lived, one concern per branch.
 - A branch lands on `main` **as soon as it is green and complete**. Not at the
   end of the week, not once three other things are also finished.
+- A green test result is the handoff trigger, not merely a progress update. The
+  next objective is commit → reconcile with current `main` → merge to `main` →
+  push to `origin` → close coordination. Do not start unrelated work, wait for
+  another branch, or go idle while a green branch remains dirty or unmerged.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant
@@ -637,6 +665,10 @@ tests/rules/      assertions against the emulator
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
 - [ ] The task's coordination entry was closed with a concise result, and every
   completed delegated child was closed.
+- [ ] Immediate post-test merge objective is checked off: after required
+  validation became green, the branch was committed, reconciled with current
+  `main`, merged to `main`, pushed to `origin`, and the coordination entry was
+  closed; any preserved or discarded exception is explicitly documented.
 - [ ] For landed work, the branch is merged to `main` and **pushed to origin**
   (pushing deploys the affected Firebase surfaces, including Hosting for
   visible product edits); for preserved or discarded work, the decision and

@@ -117,9 +117,10 @@ it('places the pursuit tracker beneath shipboard DRADIS and uses this ship posit
   const instruments = screen.getByRole('complementary', { name: /capybara instruments/i });
   expect(tracker.parentElement).toBe(instruments);
   expect(instruments.firstElementChild).toBe(tracker);
-  expect(tracker).toHaveTextContent('Relative to Capybara // 8378');
+  expect(tracker).not.toHaveTextContent('Relative to Capybara // 8378');
   expect(tracker).toHaveTextContent('Current track // 2 / 10');
-  expect(tracker).toHaveTextContent('Map depth // -6 pursuit distance');
+  expect(tracker).toHaveTextContent('Distance from Home Systems // -6 pursuit distance');
+  expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
   expect(tracker).not.toHaveTextContent('Dione');
 });
 

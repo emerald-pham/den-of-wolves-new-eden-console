@@ -13,9 +13,11 @@ it('tracks only the current ship and reads pursuit depth from the galactic map',
   );
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
-  expect(tracker).toHaveTextContent('Relative to Shepherd // 8378');
+  expect(tracker).not.toHaveTextContent('Relative to Shepherd // 8378');
   expect(tracker).toHaveTextContent('Current track // 2 / 10');
-  expect(tracker).toHaveTextContent('Map depth // -6 pursuit distance');
+  expect(tracker).toHaveTextContent('Distance from Home Systems // -6 pursuit distance');
+  expect(tracker).not.toHaveTextContent('Map depth //');
+  expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
   expect(tracker).not.toHaveTextContent('Dione');
 });
 

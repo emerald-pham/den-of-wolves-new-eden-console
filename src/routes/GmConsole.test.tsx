@@ -454,21 +454,22 @@ it('shows each ship-local pursuit tracker beneath its resource controls', async 
 
   const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
   const expectedTrackByShip = [
-    ['AEGIS', '0000', '8 / 10'],
-    ['Dione', '5143', '7 / 10'],
-    ['Icebreaker', '6837', '6 / 10'],
-    ['Capybara', '8378', '2 / 10'],
-    ['Shepherd', '0000', '8 / 10'],
-    ['Quellon', '1096', '4 / 10'],
-    ['Refinery 124', '0408', '1 / 10'],
+    ['AEGIS', 'Start system', '8 / 10'],
+    ['Dione', '-1 pursuit distance', '7 / 10'],
+    ['Icebreaker', '-2 pursuit distance', '6 / 10'],
+    ['Capybara', '-6 pursuit distance', '2 / 10'],
+    ['Shepherd', 'Start system', '8 / 10'],
+    ['Quellon', '-4 pursuit distance', '4 / 10'],
+    ['Refinery 124', '-7 pursuit distance', '1 / 10'],
   ] as const;
 
-  for (const [shipName, coordinate, track] of expectedTrackByShip) {
+  for (const [shipName, distance, track] of expectedTrackByShip) {
     const ship = within(fleet).getByRole('group', { name: `${shipName} resource controls` });
     const tracker = within(ship).getByRole('region', { name: 'Pursuit tracker' });
 
-    expect(tracker).toHaveTextContent(`Relative to ${shipName} // ${coordinate}`);
+    expect(tracker).toHaveTextContent(`Distance from Home Systems // ${distance}`);
     expect(tracker).toHaveTextContent(`Current track // ${track}`);
+    expect(tracker).not.toHaveTextContent('Map depth is shared; position is ship-local.');
     expect(ship.lastElementChild).toBe(tracker);
   }
 });
