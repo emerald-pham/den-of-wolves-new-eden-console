@@ -53,7 +53,7 @@ describe('shared vessel templates', () => {
   });
 
   it('uses initial docking only when the server has no docking snapshot', () => {
-    expect(dockingForShuttle({}, 'snn-press-shuttle')?.shipId).toBe('aegis');
+    expect(dockingForShuttle({}, 'snn-press-shuttle')?.shipId).toBe('dione');
     expect(dockingForShuttle({ shuttleDockings: [] }, 'snn-press-shuttle')).toBeUndefined();
     expect(dockingForShuttle({ shuttleDockings: [
       { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: 'NOW' },

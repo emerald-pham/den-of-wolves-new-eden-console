@@ -10,6 +10,10 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'First-time session access now opens a Code of Conduct waiver with the fleet’s ship-table role-play rule and CIC information-security regulation.',
+      'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
+      'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',
+      'DRADIS acquisition now follows rendered 3D sweep-plane crossings against each target’s actual rig-space XYZ position instead of its projected screen position.',
       'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
       'GM access now logs in from Settings, remembers the browser login for 24 hours, shows a lock-state emoji, and provides an explicit safety logout.',
       'The launcher now keeps Settings available, and creating or joining a session lands at the pre-role device connection screen after any current session has been disconnected.',

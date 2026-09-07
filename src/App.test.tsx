@@ -5,6 +5,7 @@ import App from './App';
 import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
+import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -87,6 +88,7 @@ describe('App', () => {
     window.location.hash = '#/';
     useSessionStore.getState().reset();
     localStorage.clear();
+    localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
     vi.mocked(startVersionUpgradeMonitor).mockClear();
     vi.mocked(disconnectFromSession).mockImplementation(async () => {
       useSessionStore.getState().disconnect();
@@ -164,6 +166,27 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dione' })).toBeInTheDocument();
     expect(window.location.hash).toBe('#/ships/dione/roles/dione-engineer');
+  });
+
+  it('requires a joined player to acknowledge the code of conduct before continuing', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/roles';
+    localStorage.removeItem(SESSION_WAIVER_STORAGE_KEY);
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+
+    render(<App />);
+
+    expect(await screen.findByRole('dialog', { name: /code of conduct/i })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', {
+      name: 'Acknowledge regulations and continue',
+    }));
+
+    expect(screen.queryByRole('dialog', { name: /code of conduct/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /connect this device/i })).toBeVisible();
+    expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toEqual(expect.any(String));
   });
 
   it('reaches for Firebase as soon as it mounts, so the light can leave red', async () => {

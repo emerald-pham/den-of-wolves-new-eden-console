@@ -320,7 +320,7 @@ movement and action surfaces for every supported craft.
 - Complete per-vessel shuttle definitions: stable ID, owner role, initial
   dock, ports, cargo types, fuel requirement, phase, combat capability,
   away-mission bonus, and optional module. Do not inherit SNN identity,
-  equipment, or AEGIS docking by default.
+  equipment, or Dione docking by default.
 - Implement authoritative docked/transit state with current world position,
   velocity, destination, departure/arrival timestamps, course changes from the
   resolved current position, arrival/departure events, and host-local docking

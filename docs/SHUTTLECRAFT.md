@@ -6,7 +6,7 @@ defines the shared worldspace and travel behavior behind that interface.
 
 ## Current baseline
 
-- The SNN Independent Press Shuttle starts docked to AEGIS.
+- The SNN Independent Press Shuttle starts docked to Dione.
 - Every fleet ship has an immutable docking history listing each shuttlecraft
   and the shuttleport where it docked. The Press shuttle always uses the
   civilian access hatch.

@@ -21,6 +21,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Security model](#security-model--the-load-bearing-rule)
 - [State](#state)
 - [Navigability](#navigability--no-dead-ends)
+- [Session goal checklists](#session-goal-checklists)
 - [Session lifecycle and audit guardrails](#session-lifecycle-and-audit-guardrails)
 - [Layout](#layout)
 - [Definition of done](#definition-of-done)
@@ -31,6 +32,15 @@ Working agreement for this repository. Applies to every agent and contributor.
 Use this short sequence at the start and end of every task. It keeps the
 checkout, branch, coordination entry, and final handoff tied to the same
 worktree.
+
+### Session goal checklists
+
+At the top of every session, before substantive work, publish a concise
+`Session goals` checklist containing the concrete outcomes you intend to
+deliver. Keep it visible in the session updates and revise it if the agreed
+scope changes. At wrap-up, publish the same checklist again as `Session
+wrap-up`, marking each item `[x]` when complete or `[ ]` when incomplete. Add a
+brief note for any unchecked item explaining the blocker or remaining work.
 
 1. Read this file and `AGENTS.md`, then inspect the checkout you will actually
    edit:

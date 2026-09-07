@@ -16,9 +16,9 @@ export default defineShuttle({
   dockingEntrance: 'press',
   dockingPort: 'Civilian access hatch',
   capabilities: ['press-dispatches', 'newspaper-confetti'],
-  initialDocking: { shipId: 'aegis', dockedAt: 'SESSION START' },
+  initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
   initialVisit: {
-    id: 'snn-initial-aegis-docking', shipId: 'aegis',
+    id: 'snn-initial-dione-docking', shipId: 'dione',
     action: 'docked', occurredAt: 'SESSION START',
   },
 });
