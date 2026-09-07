@@ -327,6 +327,11 @@ route guard, or disconnecting as the only way out of a screen.
 - While connected, refresh the server presence lease every 10 seconds. The
   server expires a device after 45 seconds without a heartbeat and reconciles
   its membership lock, GM instances, and renewable session-retention deadline.
+  Expiry ends only that device's authority: it releases a seat only when the
+  seat still names the stale UID, while retaining the player record and its
+  seat intent. resumeSession may atomically reclaim that seat if it remains
+  open; if another player took it, clear only the returning player’s seat
+  pointer and keep them in the session.
   Shared session, player, seat, and GM-instance views use live snapshots so a
   reconnect replaces cached state with server authority.
 - GM and Console are **device modes**, not freely selectable Firestore roles.
@@ -340,6 +345,8 @@ route guard, or disconnecting as the only way out of a screen.
   route, then replace navigation with `/`. Preserve a queued disconnect long
   enough to replay it. An empty session gets a renewable seven-day retention
   deadline; reconnecting cancels it.
+- The visible Settings disconnect action uses the documented danger-red
+  two-step “ARE YOU SURE?” confirmation before this browser leaves a session.
 - Session headers are readable only by members and may never be listed. Joining
   and resuming happen through callable functions. Preserve both denial tests.
 - A player may hold at most one seat. Keep the claim and release pointer checks

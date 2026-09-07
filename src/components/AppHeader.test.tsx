@@ -16,7 +16,7 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
 }));
-const { releaseConsoleRole, releaseGmInstance } =
+const { disconnectFromSession, releaseConsoleRole, releaseGmInstance } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers } = await import('@/lib/firestore');
 
@@ -40,6 +40,7 @@ beforeEach(() => {
     onPlayers([connectedPlayer('u1'), connectedPlayer('u2')]);
     return vi.fn();
   });
+  vi.mocked(disconnectFromSession).mockResolvedValue('applied');
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -244,6 +245,44 @@ it('releases a command role through settings and returns to role selection', asy
   await user.click(screen.getByRole('button', { name: /release role/i }));
 
   expect(releaseConsoleRole).toHaveBeenCalledOnce();
+});
+
+it('requires a red confirmation before disconnecting this device from its session', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /^disconnect$/i }));
+
+  expect(disconnectFromSession).not.toHaveBeenCalled();
+  const confirm = screen.getByRole('button', { name: /^are you sure\?$/i });
+  expect(confirm).toHaveStyle({
+    color: 'var(--cic-danger)',
+    borderColor: 'var(--cic-danger)',
+  });
+
+  await user.click(confirm);
+
+  expect(disconnectFromSession).toHaveBeenCalledOnce();
+});
+
+it('cancels the disconnect confirmation when it loses focus or receives Escape', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+  await user.click(screen.getByRole('button', { name: /^disconnect$/i }));
+  await user.keyboard('{Escape}');
+
+  expect(screen.getByRole('dialog', { name: /session settings/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^disconnect$/i })).toBeVisible();
+  expect(disconnectFromSession).not.toHaveBeenCalled();
+
+  await user.click(screen.getByRole('button', { name: /^disconnect$/i }));
+  await user.click(screen.getByRole('button', { name: /view changelog/i }));
+
+  expect(screen.getByRole('button', { name: /^disconnect$/i })).toBeVisible();
+  expect(disconnectFromSession).not.toHaveBeenCalled();
 });
 
 it('measures wrapped header rows and updates the shared instrument offset', () => {

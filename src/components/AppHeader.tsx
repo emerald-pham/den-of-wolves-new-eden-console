@@ -34,6 +34,7 @@ export default function AppHeader() {
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -56,6 +57,7 @@ export default function AppHeader() {
   const indicatorStatus = status === 'green' && currentTurn === 0 ? 'blue' : status;
 
   function openSettings(): void {
+    setConfirmDisconnect(false);
     setChangelogOpen(false);
     setSettingsOpen(true);
   }
@@ -82,6 +84,7 @@ export default function AppHeader() {
   }, [sessionId]);
 
   function closeSettings(): void {
+    setConfirmDisconnect(false);
     setSettingsOpen(false);
     setChangelogOpen(false);
     queueMicrotask(() => settingsButton.current?.focus());
@@ -115,8 +118,15 @@ export default function AppHeader() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [settingsOpen]);
 
+  useEffect(() => {
+    if (!settingsOpen || !sessionId || disconnectQueued) {
+      setConfirmDisconnect(false);
+    }
+  }, [disconnectQueued, sessionId, settingsOpen]);
+
   async function disconnectNow(): Promise<void> {
     const disconnecting = disconnectFromSession();
+    setConfirmDisconnect(false);
     setSettingsOpen(false);
     navigate('/', { replace: true });
     try {
@@ -124,6 +134,15 @@ export default function AppHeader() {
     } catch {
       // A permanent rejection is reported by the shared interception notice.
     }
+  }
+
+  function requestDisconnect(): void {
+    if (!confirmDisconnect) {
+      setConfirmDisconnect(true);
+      return;
+    }
+    setConfirmDisconnect(false);
+    void disconnectNow();
   }
 
   async function releaseGm(): Promise<void> {
@@ -274,9 +293,19 @@ export default function AppHeader() {
               className="settings-dialog__disconnect"
               type="button"
               disabled={disconnectQueued}
-              onClick={() => void disconnectNow()}
+              style={confirmDisconnect
+                ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' }
+                : undefined}
+              onBlur={() => setConfirmDisconnect(false)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return;
+                event.preventDefault();
+                event.stopPropagation();
+                setConfirmDisconnect(false);
+              }}
+              onClick={requestDisconnect}
             >
-              {disconnectQueued ? 'Disconnect queued' : 'Disconnect'}
+              {disconnectQueued ? 'Disconnect queued' : confirmDisconnect ? 'ARE YOU SURE?' : 'Disconnect'}
             </button>
           </section>
         </div>

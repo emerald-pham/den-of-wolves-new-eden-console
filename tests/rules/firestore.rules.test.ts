@@ -392,6 +392,22 @@ describe('players', () => {
   });
 });
 
+describe('player authority', () => {
+  it('allows only a display-name change on the caller own connected player record', async () => {
+    const ownPlayer = doc(as('alice'), SESSION + '/players/alice');
+    for (const fields of [
+      { connected: false },
+      { seatId: 'seat1' },
+      { activeConsoleRoleId: 'admiral' },
+      { sessionId: 's2' },
+      { role: 'gm' },
+    ]) {
+      await assertFails(updateDoc(ownPlayer, fields));
+    }
+    await assertFails(deleteDoc(ownPlayer));
+  });
+});
+
 describe('GM instances', () => {
   it('are readable and listable by session members', async () => {
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/gmInstances/bridge`)));
@@ -435,6 +451,64 @@ describe('secrets', () => {
         payload: {},
       }),
     );
+  });
+});
+
+it('denies secret collection listing that could reveal another player private record', async () => {
+  await assertFails(getDocs(collection(as('alice'), SESSION + '/secrets')));
+});
+
+describe('complete server-owned denial matrix', () => {
+  it('denies direct lifecycle and retention changes from both players and GMs', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const header = doc(as(uid), SESSION);
+      for (const fields of [
+        { ownerUid: 'alice' },
+        { joinCode: '999999' },
+        { deleteAfter: new Date() },
+        { deletingAt: new Date() },
+      ]) {
+        await assertFails(updateDoc(header, fields));
+      }
+    }
+  });
+
+  it('denies every client write to authority-only collections', async () => {
+    const db = as('alice');
+    const targets = [
+      SESSION + '/events/forged',
+      SESSION + '/damageDraws/forged',
+      SESSION + '/seats/seat1',
+      SESSION + '/shipConfetti/aegis',
+      SESSION + '/maintenanceUndo/aegis',
+      'joinCodes/482109',
+      'activeMemberships/alice',
+    ];
+
+    for (const path of targets) {
+      const target = doc(db, path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+    }
+  });
+
+  it('denies signed-out and stranger reads of private session collections', async () => {
+    const signedOut = env.unauthenticatedContext().firestore();
+    const stranger = as('stranger');
+    const protectedCollections = [
+      'players',
+      'seats',
+      'events',
+      'damageDraws',
+      'gmInstances',
+      'secrets',
+      'shipConfetti',
+    ];
+
+    for (const name of protectedCollections) {
+      await assertFails(getDocs(collection(signedOut, SESSION + '/' + name)));
+      await assertFails(getDocs(collection(stranger, SESSION + '/' + name)));
+    }
   });
 });
 

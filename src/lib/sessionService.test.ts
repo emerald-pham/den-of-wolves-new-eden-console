@@ -22,8 +22,10 @@ const {
   joinSession,
   kickGmInstance,
   popShipConfetti,
+  refreshPresence,
   releaseConsoleRole,
   reconcileGmAuthority,
+  resumeSession,
   assignWolves,
   assignWolfRoles,
   resetWolves,
@@ -123,6 +125,34 @@ describe('connect', () => {
     expect(useSessionStore.getState().session).toBeNull();
   });
 
+  it('clears every persisted authority field after a terminal resume denial', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setSeats([{
+      id: 'seat-1', sessionId: 's1', label: 'Seat 1', status: 'claimed',
+      holderUid: 'u1', factionId: null, claimedAt: '2026-01-01T00:00:00.000Z',
+    }]);
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setMode('gm');
+    useSessionStore.getState().setLastRoute('/gm');
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableRejecting({ code: 'functions/not-found' }),
+    );
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: null,
+      me: null,
+      seats: [],
+      gmInstance: null,
+      mode: null,
+      lastRoute: null,
+    });
+  });
+
   it('keeps reconnecting while a transient outbox replay remains queued', async () => {
     useSessionStore.getState().setIdentity(session, player);
     useSessionStore.getState().enqueueCommand({
@@ -216,6 +246,42 @@ describe('joinSession', () => {
 
     expect(useSessionStore.getState().session).toEqual(session);
     expect(useSessionStore.getState().me).toEqual(player);
+  });
+});
+
+describe('authoritative session replies', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(session, player);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('refuses a resume reply for a different session instead of replacing local identity', async () => {
+    const otherSession = { ...session, id: 's2', joinCode: '9999' };
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableReturning({ data: { session: otherSession, player: { ...player, sessionId: 's2' } } }),
+    );
+
+    await expect(resumeSession('s1')).resolves.toBe(false);
+
+    expect(useSessionStore.getState().session).toEqual(session);
+    expect(useSessionStore.getState().me).toEqual(player);
+  });
+
+  it('does not call a rejected resume payload a live connection', async () => {
+    const otherSession = { ...session, id: 's2', joinCode: '9999' };
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableReturning({ data: { session: otherSession, player: { ...player, sessionId: 's2' } } }),
+    );
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      connection: 'offline',
+      session,
+      me: player,
+    });
   });
 });
 
@@ -678,6 +744,43 @@ describe('session lifecycle commands', () => {
     ]);
   });
 
+  it('keeps an unavailable disconnect queued until a later server acknowledgement', async () => {
+    const online = vi.spyOn(window.navigator, 'onLine', 'get');
+    online.mockReturnValue(false);
+    useSessionStore.getState().setIdentity(session, player);
+    await disconnectFromSession();
+    online.mockReturnValue(true);
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableRejecting({ code: 'functions/unavailable' }),
+    );
+
+    await connect();
+
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(useSessionStore.getState().pendingCommands).toEqual([
+      expect.objectContaining({ kind: 'disconnectFromSession' }),
+    ]);
+  });
+
+  it('removes a queued disconnect only after the server acknowledges it', async () => {
+    const online = vi.spyOn(window.navigator, 'onLine', 'get');
+    online.mockReturnValue(false);
+    useSessionStore.getState().setIdentity(session, player);
+    await disconnectFromSession();
+    online.mockReturnValue(true);
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
+      if (name === 'disconnectFromSession') {
+        return callableReturning({ data: { sessionId: 's1' } });
+      }
+      return callableRejecting(new Error('Unexpected callable ' + name));
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().connection).toBe('live');
+  });
+
   it('drops unrelated queued actions when disconnecting locally', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     useSessionStore.getState().setIdentity(session, player);
@@ -712,6 +815,48 @@ describe('session lifecycle commands', () => {
       code: 'permission-denied',
       message: 'You are no longer in that session.',
     });
+  });
+});
+
+describe('client authority boundaries', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session,
+      capybaraEnabled: true,
+      dioneEnabled: true,
+      gmControlsLocked: false,
+    }, player);
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('does not invent settings from a malformed server result', async () => {
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: {} }));
+
+    await setCapybaraEnabled(false);
+    await setDioneEnabled(false);
+    await setGmControlsLocked(true);
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      capybaraEnabled: true,
+      dioneEnabled: true,
+      gmControlsLocked: false,
+    });
+  });
+
+  it('does not send a presence mutation when this browser is offline or has no session', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+
+    await refreshPresence();
+    useSessionStore.getState().disconnect();
+    await refreshPresence();
+
+    expect(httpsCallable).not.toHaveBeenCalled();
   });
 });
 

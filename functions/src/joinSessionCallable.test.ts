@@ -22,6 +22,7 @@ const mock = vi.hoisted(() => {
     get: vi.fn(),
     set: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
     Timestamp: MockTimestamp,
   };
 });
@@ -38,6 +39,7 @@ vi.mock('firebase-admin/firestore', () => ({
       get: mock.get,
       set: mock.set,
       update: mock.update,
+      delete: mock.delete,
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
@@ -61,6 +63,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.set.mockReset();
   mock.update.mockReset();
+  mock.delete.mockReset();
 });
 
 it('records an allowed code attempt before looking up the code', async () => {
@@ -106,4 +109,60 @@ it('rejects an unsupported code shape without spending a limiter attempt', async
   });
 
   expect(mock.get).not.toHaveBeenCalled();
+});
+
+it('replaces a stale membership lock when the same identity joins its remembered table', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one',
+      phase: 'lobby',
+      ownerUid: 'owner',
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({
+      displayName: 'Returning player',
+      role: 'player',
+      seatId: null,
+      activeConsoleRoleId: null,
+    });
+    if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
+    if (path === 'sessions/s2/players/u1') return snapshot({ connected: false });
+    if (path === 'appState/arrival') return snapshot({}, false);
+    throw new Error('Unexpected read: ' + path);
+  });
+
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    session: { id: 's1' },
+    player: { seatId: null },
+  });
+
+  expect(mock.delete).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'activeMemberships/u1' }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'activeMemberships/u1' }),
+    expect.objectContaining({ sessionId: 's1' }),
+  );
+});
+
+it('refuses to displace an identity that is actively connected in another session', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
+    if (path === 'sessions/s2/players/u1') return snapshot({
+      connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(new Date()),
+    });
+    throw new Error('Unexpected read: ' + path);
+  });
+
+  await expect(joinSession.run(request('482109'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+  });
+
+  expect(mock.update).not.toHaveBeenCalled();
 });

@@ -100,24 +100,30 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
       typeof result === 'object' && result !== null && 'capybaraEnabled' in result &&
       typeof result.capybaraEnabled === 'boolean'
         ? result.capybaraEnabled
-        : command.payload.capybaraEnabled;
-    store.setSession({ ...store.session, capybaraEnabled: enabled });
+        : undefined;
+    if (enabled !== undefined) {
+      store.setSession({ ...store.session, capybaraEnabled: enabled });
+    }
   }
   if (command.kind === 'setDioneEnabled' && store.session?.id === command.payload.sessionId) {
     const enabled =
       typeof result === 'object' && result !== null && 'dioneEnabled' in result &&
       typeof result.dioneEnabled === 'boolean'
         ? result.dioneEnabled
-        : command.payload.dioneEnabled;
-    store.setSession({ ...store.session, dioneEnabled: enabled });
+        : undefined;
+    if (enabled !== undefined) {
+      store.setSession({ ...store.session, dioneEnabled: enabled });
+    }
   }
   if (command.kind === 'setGmControlsLocked' && store.session?.id === command.payload.sessionId) {
     const locked =
       typeof result === 'object' && result !== null && 'gmControlsLocked' in result &&
       typeof result.gmControlsLocked === 'boolean'
         ? result.gmControlsLocked
-        : command.payload.locked;
-    store.setSession({ ...store.session, gmControlsLocked: locked });
+        : undefined;
+    if (locked !== undefined) {
+      store.setSession({ ...store.session, gmControlsLocked: locked });
+    }
   }
   if (
     (
@@ -202,7 +208,13 @@ async function flushPendingCommands(): Promise<boolean> {
 
 function applySession(reply: SessionReply, expectedSessionId?: string): boolean {
   const store = useSessionStore.getState();
-  if (expectedSessionId !== undefined && store.session?.id !== expectedSessionId) return false;
+  if (
+    reply.player.sessionId !== reply.session.id ||
+    (expectedSessionId !== undefined && (
+      store.session?.id !== expectedSessionId ||
+      reply.session.id !== expectedSessionId
+    ))
+  ) return false;
   store.setIdentity({
     ...reply.session,
     ...(reply.session.pressDispatch === undefined
@@ -239,7 +251,10 @@ export async function connect(): Promise<void> {
     const rememberedSession = store.session;
     if (rememberedSession) {
       try {
-        await resumeSession(rememberedSession.id);
+        const resumed = await resumeSession(rememberedSession.id);
+        if (!resumed && useSessionStore.getState().session?.id === rememberedSession.id) {
+          throw new Error('The server returned a mismatched session identity.');
+        }
       } catch (cause) {
         if (!TERMINAL_RESUME_ERRORS.has(errorCode(cause) ?? '')) throw cause;
         store.disconnect();
@@ -493,9 +508,10 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
 }
 
 export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
+  const store = useSessionStore.getState();
+  const session = store.session;
+  if (!session || !window.navigator.onLine || store.connection === 'offline') return;
   await ensureSignedIn();
-  const session = useSessionStore.getState().session;
-  if (!session) return;
   const call = httpsCallable<{
     sessionId: string; activeConsoleRoleId?: string | null;
   }, { sessionId: string }>(

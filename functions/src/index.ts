@@ -141,15 +141,62 @@ function shipGalacticCoordinates(value: unknown): Record<string, string> {
   return { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...value as Record<string, string> };
 }
 
-async function requireGm(sessionId: string, uid: string): Promise<void> {
-  const snap = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
-  if (!snap.exists || snap.get('connected') !== true || snap.get('role') !== 'gm') {
-    throw new HttpsError('permission-denied', 'GM only.');
-  }
+function isConnectedPlayer(player: DocumentSnapshot): boolean {
+  return player.exists && player.get('connected') === true;
 }
 
 function isActivePlayer(player: DocumentSnapshot): boolean {
-  return player.exists && player.get('connected') === true;
+  if (!isConnectedPlayer(player)) return false;
+  const lastSeenAt = player.get('lastSeenAt');
+  // All current player records carry this timestamp. Keeping old records
+  // without it usable avoids evicting a legacy table during migration.
+  if (lastSeenAt === undefined) return true;
+  return lastSeenAt instanceof Timestamp &&
+    !isPresenceStale(lastSeenAt.toDate(), new Date());
+}
+
+type ReturningSeat = Readonly<{
+  seatId: string | null;
+  clearPointer: boolean;
+}>;
+
+/**
+ * A presence lease expires a device, not the player's membership. A returning
+ * player reclaims a recorded seat if it is still open, and loses only that
+ * pointer if someone else has since taken it.
+ */
+async function reconcileReturningSeat(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  player: DocumentSnapshot,
+): Promise<ReturningSeat> {
+  const storedSeatId = player.get('seatId');
+  if (storedSeatId === null || storedSeatId === undefined) {
+    return { seatId: null, clearPointer: false };
+  }
+  if (typeof storedSeatId !== 'string' || storedSeatId.length === 0) {
+    return { seatId: null, clearPointer: true };
+  }
+
+  const seatRef = db.doc('sessions/' + sessionId + '/seats/' + storedSeatId);
+  const seat = await tx.get(seatRef);
+  if (
+    seat.exists &&
+    seat.get('status') === 'claimed' &&
+    seat.get('holderUid') === uid
+  ) {
+    return { seatId: storedSeatId, clearPointer: false };
+  }
+  if (seat.exists && seat.get('status') === 'open') {
+    tx.update(seatRef, {
+      status: 'claimed',
+      holderUid: uid,
+      claimedAt: FieldValue.serverTimestamp(),
+    });
+    return { seatId: storedSeatId, clearPointer: false };
+  }
+  return { seatId: null, clearPointer: true };
 }
 
 function sessionTurn(value: unknown): number {
@@ -464,7 +511,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
-    await db.runTransaction(async (tx) => {
+    const resumedSeatId = await db.runTransaction(async (tx) => {
       const [sessionDoc, player, membership] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
@@ -490,7 +537,15 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
       if (player.exists) {
-        tx.update(playerRef, { connected: true, lastSeenAt: FieldValue.serverTimestamp() });
+        const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
+        tx.update(playerRef, {
+          connected: true,
+          lastSeenAt: FieldValue.serverTimestamp(),
+          ...(returningSeat.clearPointer ? { seatId: null } : {}),
+        });
+        tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+        return returningSeat.seatId;
       } else {
         tx.set(playerRef, {
           uid,
@@ -506,6 +561,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
       tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+      return null;
     });
     await touchSurvivorPopulation();
     const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
@@ -553,7 +609,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         sessionId,
         displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
         role: playerSnap.get('role') as string,
-        seatId: (playerSnap.get('seatId') as string | null) ?? null,
+        seatId: resumedSeatId,
         activeConsoleRoleId:
           (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
         joinedAt: isoOf(playerSnap.get('joinedAt')),
@@ -568,7 +624,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-  const [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
+  let [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
   if (!sessionSnap.exists) {
     throw new HttpsError('not-found', 'That session no longer exists.');
@@ -581,7 +637,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   }
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
-  await db.runTransaction(async (tx) => {
+  const resumedSeatId = await db.runTransaction(async (tx) => {
     const [currentSession, currentPlayer, membership] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
@@ -589,6 +645,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     ]);
     if (!currentSession.exists || currentSession.get('deletingAt')) {
       throw new HttpsError('not-found', 'That session no longer exists.');
+    }
+    if (currentSession.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'That session has closed.');
     }
     if (!currentPlayer.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -605,12 +664,19 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       );
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
-    tx.update(playerRef, { connected: true, lastSeenAt: FieldValue.serverTimestamp() });
+    const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
+    tx.update(playerRef, {
+      connected: true,
+      lastSeenAt: FieldValue.serverTimestamp(),
+      ...(returningSeat.clearPointer ? { seatId: null } : {}),
+    });
     tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
+    return returningSeat.seatId;
   });
 
   await touchSurvivorPopulation();
+  [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
@@ -655,7 +721,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       sessionId,
       displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
       role: playerSnap.get('role') as string,
-      seatId: (playerSnap.get('seatId') as string | null) ?? null,
+      seatId: resumedSeatId,
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       joinedAt: isoOf(playerSnap.get('joinedAt')),
@@ -1558,14 +1624,27 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
-        !session.exists || !isActivePlayer(player) || !lastSeenAt ||
+        !session.exists || !isConnectedPlayer(player) || !lastSeenAt ||
         lastSeenAt.toMillis() > cutoff.toMillis()
       ) return;
+      const storedSeatId = player.get('seatId');
+      const seatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+        ? db.doc('sessions/' + sessionId + '/seats/' + storedSeatId)
+        : null;
+      const seat = seatRef ? await tx.get(seatRef) : null;
       tx.update(playerRef, {
         connected: false,
         ...disconnectedRoleState(),
         lastSeenAt: FieldValue.serverTimestamp(),
       });
+      if (
+        seatRef &&
+        seat?.exists &&
+        seat.get('status') === 'claimed' &&
+        seat.get('holderUid') === uid
+      ) {
+        tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
+      }
       for (const instance of ownedInstances.docs) tx.delete(instance.ref);
       if (membership.exists && membership.get('sessionId') === sessionId) {
         tx.delete(membershipRef);
@@ -1639,8 +1718,8 @@ export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
         ? db.doc(`sessions/${sessionId}/players/${holderUid}`)
         : null;
       const holder = holderRef ? await tx.get(holderRef) : null;
-      if (holderUid !== uid) {
-        await requireGm(sessionId, uid);
+      if (holderUid !== uid && actor.get('role') !== 'gm') {
+        throw new HttpsError('permission-denied', 'GM only.');
       }
 
       tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
@@ -1663,25 +1742,29 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
   async (request) => {
     const uid = requireUid(request.auth);
     const { sessionId, targetUid } = requireElevationRequest(request.data ?? {});
+    const sessionRef = db.doc('sessions/' + sessionId);
+    const callerRef = db.doc('sessions/' + sessionId + '/players/' + uid);
+    const targetRef = db.doc('sessions/' + sessionId + '/players/' + targetUid);
 
-    const sessionSnap = await db.doc(`sessions/${sessionId}`).get();
-    if (!sessionSnap.exists) throw new HttpsError('not-found', 'No such session.');
-
-    const caller = await db.doc(`sessions/${sessionId}/players/${uid}`).get();
-    if (!isActivePlayer(caller)) {
-      throw new HttpsError('permission-denied', 'Join the session first.');
-    }
-
-    if (sessionSnap.get('ownerUid') !== uid) {
-      await requireGm(sessionId, uid);
-    }
-
-    const target = await db.doc(`sessions/${sessionId}/players/${targetUid}`).get();
-    if (!isActivePlayer(target)) {
-      throw new HttpsError('failed-precondition', 'That player is not connected.');
-    }
-    await target.ref.update({ role: 'gm' });
-    return { targetUid, role: 'gm' };
+    return db.runTransaction(async (tx) => {
+      const [sessionSnap, caller, target] = await Promise.all([
+        tx.get(sessionRef),
+        tx.get(callerRef),
+        tx.get(targetRef),
+      ]);
+      if (!sessionSnap.exists) throw new HttpsError('not-found', 'No such session.');
+      if (!isActivePlayer(caller)) {
+        throw new HttpsError('permission-denied', 'Join the session first.');
+      }
+      if (sessionSnap.get('ownerUid') !== uid && caller.get('role') !== 'gm') {
+        throw new HttpsError('permission-denied', 'GM only.');
+      }
+      if (!isActivePlayer(target)) {
+        throw new HttpsError('failed-precondition', 'That player is not connected.');
+      }
+      tx.update(targetRef, { role: 'gm' });
+      return { targetUid, role: 'gm' };
+    });
   },
 );
 
