@@ -27,9 +27,10 @@ only read this file:
    tracks early so the parent stays focused on coordination and integration;
    prefer this to growing or compressing the parent context. Keep the split
    concrete and skip it when no safe sidecar exists.
-   At startup, clean up this parent's terminal child agents first: retrieve any
-   result still needed, then close every completed or errored child before
-   substantive work or new delegation. Leave pending or running children alone.
+   At startup, clean up terminal child agents first: retrieve any result still
+   needed, then close every completed, errored, or interrupted child owned by
+   this parent or surfaced from an inactive chat before substantive work or new
+   delegation. Leave pending or running children from any chat alone.
    Delegated subagents have full read/write access to their assigned worktree:
    they may inspect, create, edit, rename, and delete files, run commands and
    tests, and perform well-scoped implementation work. No read-only restriction

@@ -161,9 +161,10 @@ independent sidecar exists, continue locally and record why rather than forcing
 an artificial split.
 
 Delegation startup cleanup is required. Before substantive work or new
-delegation, inspect the child IDs owned by the current parent, retrieve any
-terminal result still needed, and close every completed or errored child. Leave
-pending or running children alone; close them after they reach a terminal state
+delegation, inspect the child IDs owned by the current parent and any terminal
+children surfaced from inactive chats, retrieve any result still needed, and
+close every completed, errored, or interrupted child. Leave pending or running
+children from any chat alone; close them only after they reach a terminal state
 unless they are still needed for the current task.
 
 - Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
