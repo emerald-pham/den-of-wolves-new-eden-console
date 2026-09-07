@@ -19,8 +19,8 @@ describe('repository guidance', () => {
 
     expect(guidance).toContain('Worktree branch bootstrap');
     expect(guidance).toContain('git branch --show-current');
-    expect(guidance).toContain('before changing files');
-    expect(guidance).toContain('current `HEAD`');
+    expect(guidance).toContain('Before editing');
+    expect(guidance).toContain('branch must be attached');
   });
 
   it('requires collision-free emulator ports in concurrent worktrees', () => {
@@ -52,9 +52,9 @@ describe('repository guidance', () => {
     const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
     const guidance = readFileSync(guidancePath, 'utf8');
 
-    expect(guidance).toContain('Preemptive changelog');
+    expect(guidance).toContain('preemptive changelog');
     expect(guidance).toContain('coordination:begin');
-    expect(guidance).toContain('Version agreement');
+    expect(guidance).toContain('version agreement');
     expect(guidance).toContain('coordination:status');
   });
 
