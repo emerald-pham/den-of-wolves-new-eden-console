@@ -31,7 +31,7 @@ describe('repository guidance', () => {
     expect(guidance).toContain('firebase emulators:start');
     expect(guidance).toContain('firebase emulators:exec');
     expect(guidance).toContain('lsof');
-    expect(guidance).toContain('npm run emulators:configure -- <slot>');
+    expect(guidance).toContain('npm run emulators:configure -- auto');
     expect(guidance).toContain('| 14 |');
     expect(guidance).toMatch(
       /auth,\s+Functions, Firestore, Firestore WebSocket, Hosting, Emulator UI, Hub, and Logging/,
@@ -56,5 +56,15 @@ describe('repository guidance', () => {
     expect(guidance).toContain('coordination:begin');
     expect(guidance).toContain('Version agreement');
     expect(guidance).toContain('coordination:status');
+  });
+
+  it('makes startup recovery authoritative when end cleanup was skipped', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('Start cleanup is authoritative');
+    expect(guidance).toMatch(/no\s+live reservation does not mean a configured row is free/);
+    expect(guidance).toContain('End cleanup remains required');
+    expect(guidance).toMatch(/worktree is\s+missing/);
   });
 });

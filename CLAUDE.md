@@ -66,7 +66,8 @@ brief note for any unchecked item explaining the blocker or remaining work.
    `npm run coordination:status`. Confirm that the entry's `worktree` path
    equals the current `pwd` and that no active entry overlaps the intent. If it
    points elsewhere, do not edit or finish that entry; reconcile the worktrees
-   first.
+   first. Treat this status pass as startup recovery: an earlier task may have
+   skipped its end cleanup.
 4. Load dependencies only when the validation command needs them. Follow the
    test-first, emulator-slot, and product-reference rules below; documentation-
    only work uses the lighter review path described in [Test first for code](#1-test-first-for-code).
@@ -222,12 +223,19 @@ parent context and avoids growing or compressing that context. If no safe,
 independent sidecar exists, continue locally and record why rather than forcing
 an artificial split.
 
-Delegation startup cleanup is required. Before substantive work or new
-delegation, inspect the child IDs owned by the current parent and any terminal
-children surfaced from inactive chats, retrieve any result still needed, and
-close every completed, errored, or interrupted child. Leave pending or running
-children from any chat alone; close them only after they reach a terminal state
-unless they are still needed for the current task.
+Start cleanup is authoritative because end cleanup may be skipped. Before
+substantive work or new delegation, inspect the child IDs owned by the current
+parent and any terminal children surfaced from inactive chats, retrieve any
+result still needed, and close every completed, errored, or interrupted child.
+Then inspect `npm run coordination:status` and the worktree/process state for
+leftover reservations or configured rows from prior work. The status command
+prunes dead process reservations; a configured row whose worktree is missing is
+stale, while a row whose worktree still exists requires task/process
+reconciliation before release. Never stop a live process, close a running child,
+or release another active worktree's row based only on age or a missing live
+reservation. Leave pending or running children from any chat alone; close them
+only after they reach a terminal state unless they are still needed for the
+current task.
 
 Keep delegation economical:
 
@@ -262,6 +270,11 @@ Keep delegation economical:
   completed result, close the child with `close_agent`. Completed descendants
   remain open and count toward the concurrency limit until closed, so do not
   leave finished children occupying capacity.
+- End cleanup remains required even though startup cleanup is the recovery
+  boundary: stop processes this task started, release its emulator reservation,
+  finish its coordination entry, close completed children, and run one final
+  status check. End cleanup is scoped to this task's own children, processes,
+  reservations, and entry; it must not sweep unrelated live work.
 - Immediately after closing an agent, reassess whether the next step exposes
   another useful, independent, bounded sidecar. If it would materially advance
   the work, delegate it under the same Luna-only rules; otherwise continue
@@ -316,9 +329,14 @@ worktree-local Firebase config, and pass it explicitly with `--config` to both
 `firebase emulators:start` and `firebase emulators:exec`. Do not commit a
 developer's port-only config.
 
-Use `npm run emulators:configure -- <slot>` after claiming a row. It checks all
-eight Firebase ports plus the matching Vite port before writing ignored
-`firebase.local.json` and `.env.emulators.local` files. Then use `npm run
+Use `npm run emulators:configure -- auto` to atomically select and claim the
+first complete free row. It checks all eight Firebase ports plus the matching
+Vite port while holding the shared coordination lock, then writes ignored
+`firebase.local.json` and `.env.emulators.local` files. An explicit
+`npm run emulators:configure -- <slot 0-14>` remains available when a specific
+row is required. Do not scan status and choose a row in a separate step: no
+live reservation does not mean a configured row is free, and concurrent agents
+must claim through the atomic command. Then use `npm run
 emulators`, `npm run dev:emulators`, `npm run test:rules`, or `npm --prefix
 functions run serve`;
 these commands explicitly load the worktree-local config, and the Vite command
@@ -327,9 +345,14 @@ the committed slot-0 defaults. The configure command records the row in the
 shared coordination file; the long-running emulator commands claim and release
 live process reservations there. `npm run test:rules` prefers the configured
 row, but automatically claims another complete free row when a preview already
-owns it, then removes its temporary config on exit. When a task ends, stop its
-emulators so the slot becomes available. If all rows are occupied, wait for a
-free slot; never take a port that is already listening.
+owns it, then removes its temporary config on exit. Configured worktree rows
+are unavailable to other worktrees while their entry is active or a process
+lease is live, even when the live-reservations section is empty. At startup,
+inspect the status pane for terminal children, dead process reservations, and
+configured rows whose worktree is missing; status cleanup releases rows tied
+only to completed worktrees. Reconcile only resources confirmed not to be used
+by a live task. If all rows are occupied, wait for a free slot; never take a
+port that is already listening.
 
 ## 2. Merge once done
 

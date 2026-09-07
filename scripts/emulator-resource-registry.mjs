@@ -5,6 +5,7 @@ import {
   open,
   readFile,
   rename,
+  stat,
   unlink,
   writeFile,
 } from 'node:fs/promises';
@@ -14,7 +15,11 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { EMULATOR_SLOT_COUNT, emulatorPortsForSlot } from './emulator-slots.js';
+import {
+  EMULATOR_SLOT_COUNT,
+  emulatorPortsForSlot,
+  vitePortForSlot,
+} from './emulator-slots.js';
 
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
 export const COORDINATION_SCHEMA_VERSION = 1;
@@ -24,6 +29,7 @@ export const DEFAULT_VERSION_AGREEMENT =
 const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
+const EMPTY_LOCK_GRACE_MS = 1_000;
 const execFileAsync = promisify(execFile);
 
 function objectRecord(value) {
@@ -121,6 +127,37 @@ export function pruneDeadReservations(state, isAlive = processIsAlive) {
   };
 }
 
+/**
+ * Recover durable configuration rows when a task skipped its end cleanup.
+ *
+ * A configured row is needed only while its worktree has an active coordination
+ * entry or a live process reservation. Completed historical entries and
+ * worktrees with no live lease must not permanently consume the finite slot
+ * pool. This deliberately does not infer liveness from age.
+ */
+export function pruneOrphanedConfigurations(state) {
+  const activeWorktrees = new Set(
+    (Array.isArray(state.entries) ? state.entries : [])
+      .filter((entry) => entry?.status === 'active' && typeof entry.worktree === 'string')
+      .map((entry) => entry.worktree),
+  );
+  const liveReservationWorktrees = new Set(
+    (Array.isArray(state.reservations) ? state.reservations : [])
+      .filter((reservation) => typeof reservation?.worktree === 'string')
+      .map((reservation) => reservation.worktree),
+  );
+
+  return {
+    ...state,
+    configurations: (Array.isArray(state.configurations) ? state.configurations : [])
+      .filter(
+        (configuration) =>
+          activeWorktrees.has(configuration.worktree) ||
+          liveReservationWorktrees.has(configuration.worktree),
+      ),
+  };
+}
+
 function reservationBlocksSlot(reservation, request) {
   if (reservation.slot !== request.slot) return false;
 
@@ -193,32 +230,125 @@ function delay(milliseconds) {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 }
 
+function lockOwner(content) {
+  const trimmed = content.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (validPid(parsed?.pid)) {
+      return {
+        pid: parsed.pid,
+        token: typeof parsed.token === 'string' ? parsed.token : undefined,
+      };
+    }
+  } catch {
+    // Lock files from the original registry stored only the PID. Keep those
+    // files recoverable while new owners use a token for safe release.
+  }
+
+  const pid = Number.parseInt(trimmed, 10);
+  return validPid(pid) ? { pid, token: undefined } : undefined;
+}
+
 async function lockIsStale(lockPath) {
   try {
-    const content = await readFile(lockPath, 'utf8');
-    const pid = Number.parseInt(content.trim(), 10);
-    return !processIsAlive(pid);
+    const [content, metadata] = await Promise.all([
+      readFile(lockPath, 'utf8'),
+      stat(lockPath),
+    ]);
+    if (!content.trim()) {
+      return Date.now() - metadata.mtimeMs >= EMPTY_LOCK_GRACE_MS;
+    }
+
+    const owner = lockOwner(content);
+    return owner === undefined || !processIsAlive(owner.pid);
   } catch (error) {
     return error?.code === 'ENOENT';
+  }
+}
+
+async function releaseOwnedLock(lockPath, token) {
+  try {
+    const owner = lockOwner(await readFile(lockPath, 'utf8'));
+    if (owner?.token !== token) return;
+    await unlink(lockPath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
+async function reclaimStaleRecoveryLock(recoveryPath) {
+  if (!(await lockIsStale(recoveryPath))) return false;
+  await delay(LOCK_RETRY_MS);
+  if (!(await lockIsStale(recoveryPath))) return false;
+  await unlink(recoveryPath).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+  return true;
+}
+
+/** Serialize stale-lock removal so a waiter cannot delete a replacement lock. */
+async function reclaimStaleLock(lockPath) {
+  const recoveryPath = `${lockPath}.recovery`;
+  const recoveryToken = randomUUID();
+  let recoveryHandle;
+
+  try {
+    recoveryHandle = await open(recoveryPath, 'wx', 0o600);
+    await recoveryHandle.writeFile(
+      `${JSON.stringify({ pid: process.pid, token: recoveryToken })}\n`,
+      'utf8',
+    );
+  } catch (error) {
+    if (recoveryHandle) await recoveryHandle.close().catch(() => undefined);
+    if (error?.code === 'EEXIST') {
+      await reclaimStaleRecoveryLock(recoveryPath);
+      return false;
+    }
+    throw error;
+  }
+
+  try {
+    if (!(await lockIsStale(lockPath))) return false;
+    await delay(LOCK_RETRY_MS);
+    if (!(await lockIsStale(lockPath))) return false;
+    await unlink(lockPath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+    return true;
+  } finally {
+    await recoveryHandle.close();
+    await releaseOwnedLock(recoveryPath, recoveryToken);
   }
 }
 
 async function withCoordinationLock(filePath, operation) {
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   const lockPath = `${filePath}.lock`;
+  const lockToken = randomUUID();
   let lockHandle;
 
   for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
+    let candidateHandle;
     try {
-      lockHandle = await open(lockPath, 'wx', 0o600);
-      await lockHandle.writeFile(String(process.pid), 'utf8');
+      candidateHandle = await open(lockPath, 'wx', 0o600);
+      await candidateHandle.writeFile(
+        `${JSON.stringify({ pid: process.pid, token: lockToken })}\n`,
+        'utf8',
+      );
+      lockHandle = candidateHandle;
       break;
     } catch (error) {
+      if (candidateHandle) {
+        await candidateHandle.close().catch(() => undefined);
+        await releaseOwnedLock(lockPath, lockToken).catch(() => undefined);
+      }
       if (error?.code !== 'EEXIST') throw error;
       if (await lockIsStale(lockPath)) {
-        await unlink(lockPath).catch((unlinkError) => {
-          if (unlinkError?.code !== 'ENOENT') throw unlinkError;
-        });
+        await reclaimStaleLock(lockPath);
       } else {
         await delay(LOCK_RETRY_MS);
       }
@@ -235,9 +365,7 @@ async function withCoordinationLock(filePath, operation) {
     return await operation();
   } finally {
     await lockHandle.close();
-    await unlink(lockPath).catch((error) => {
-      if (error?.code !== 'ENOENT') throw error;
-    });
+    await releaseOwnedLock(lockPath, lockToken);
   }
 }
 
@@ -423,6 +551,83 @@ export async function reserveConfiguredEmulatorSlot({
   });
 }
 
+/**
+ * Atomically select and record the first complete free worktree slot.
+ *
+ * Configuration is a durable row claim, so this operation must select the
+ * row and write it while holding the same lock. A status scan followed by a
+ * separate configure command would let concurrent worktrees choose the same
+ * row.
+ */
+export async function reserveAvailableConfiguredEmulatorSlot({
+  filePath = coordinationFilePath(),
+  preferredSlot,
+  worktree = process.cwd(),
+  availableSlots = Array.from({ length: EMULATOR_SLOT_COUNT }, (_, slot) => slot),
+  portsForSlot = (slot) => [
+    ...Object.values(emulatorPortsForSlot(slot)),
+    vitePortForSlot(slot),
+  ],
+  portCheck = isPortFree,
+}) {
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const reservations = coordinationReservations(state);
+    const firstCandidate = chooseAvailableEmulatorSlot({
+      preferredSlot,
+      availableSlots,
+      worktree,
+      kind: 'configuration',
+      reservations,
+    });
+
+    if (firstCandidate === undefined) {
+      throw new Error(
+        'No unreserved emulator slot is available for configuration. ' +
+          `See ${filePath}; configured rows remain reserved for their worktrees.`,
+      );
+    }
+
+    const candidateSlots = [
+      firstCandidate,
+      ...availableSlots.filter((candidate) => candidate !== firstCandidate),
+    ];
+    for (const candidate of candidateSlots) {
+      const slot = chooseAvailableEmulatorSlot({
+        preferredSlot: candidate,
+        availableSlots: [],
+        worktree,
+        kind: 'configuration',
+        reservations,
+      });
+      if (slot === undefined) continue;
+
+      const ports = portsForSlot(slot);
+      const occupied = await occupiedPorts(ports, portCheck);
+      if (occupied.length > 0) continue;
+
+      const configuration = {
+        id: `configuration-${randomUUID()}`,
+        slot,
+        worktree,
+        configuredAt: new Date().toISOString(),
+        ports: [...ports],
+      };
+      state.configurations = state.configurations.filter(
+        (candidateConfiguration) => candidateConfiguration.worktree !== worktree,
+      );
+      state.configurations.push(configuration);
+      await writeStateUnlocked(filePath, state);
+      return configuration;
+    }
+
+    throw new Error(
+      'No free emulator port set is available for configuration. ' +
+        `See ${filePath}; stop a listening process or release a configured worktree row.`,
+    );
+  });
+}
+
 export async function releaseConfiguredEmulatorSlot(
   configuration,
   filePath = coordinationFilePath(),
@@ -581,7 +786,10 @@ export function formatCoordinationState(state) {
   if (entries.length === 0) lines.push('- none');
   else lines.push(...entries.map(formatEntry));
 
-  lines.push('', '## Configured worktree slots');
+  lines.push(
+    '',
+    '## Configured worktree slots (reserved; unavailable to other worktrees)',
+  );
   if (configurations.length === 0) lines.push('- none');
   else {
     lines.push(
@@ -592,7 +800,7 @@ export function formatCoordinationState(state) {
     );
   }
 
-  lines.push('', '## Emulator reservations');
+  lines.push('', '## Live emulator reservations');
   if (reservations.length === 0) lines.push('- none');
   else lines.push(...reservations.map(formatReservation));
 
@@ -635,7 +843,7 @@ async function beginEntry(filePath, options) {
         : [],
     };
     state.entries.push(entry);
-    await writeStateUnlocked(filePath, state);
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
 }
@@ -650,14 +858,16 @@ async function finishEntry(filePath, options) {
     entry.status = 'complete';
     entry.completedAt = new Date().toISOString();
     if (options.result) entry.result = options.result;
-    await writeStateUnlocked(filePath, state);
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
 }
 
 async function status(filePath) {
   const state = await withCoordinationLock(filePath, async () => {
-    const cleanState = pruneDeadReservations(await readStateUnlocked(filePath));
+    const cleanState = pruneOrphanedConfigurations(
+      pruneDeadReservations(await readStateUnlocked(filePath)),
+    );
     await writeStateUnlocked(filePath, cleanState);
     return cleanState;
   });

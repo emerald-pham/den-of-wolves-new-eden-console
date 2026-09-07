@@ -53,6 +53,9 @@ export function pruneDeadReservations(
   state: CoordinationState,
   isAlive?: (pid: number) => boolean,
 ): CoordinationState;
+export function pruneOrphanedConfigurations(
+  state: CoordinationState,
+): CoordinationState;
 export function chooseAvailableEmulatorSlot(options: {
   preferredSlot?: number;
   availableSlots: readonly number[];
@@ -67,6 +70,14 @@ export function reserveConfiguredEmulatorSlot(options: {
   slot: number;
   worktree?: string;
   ports: readonly number[];
+  portCheck?: (port: number) => Promise<boolean>;
+}): Promise<ConfiguredEmulatorSlot>;
+export function reserveAvailableConfiguredEmulatorSlot(options: {
+  filePath?: string;
+  preferredSlot?: number;
+  worktree?: string;
+  availableSlots?: readonly number[];
+  portsForSlot?: (slot: number) => readonly number[];
   portCheck?: (port: number) => Promise<boolean>;
 }): Promise<ConfiguredEmulatorSlot>;
 export function releaseConfiguredEmulatorSlot(

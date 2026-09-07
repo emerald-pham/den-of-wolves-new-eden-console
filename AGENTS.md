@@ -37,10 +37,14 @@ only read this file:
    tracks early so the parent stays focused on coordination and integration;
    prefer this to growing or compressing the parent context. Keep the split
    concrete and skip it when no safe sidecar exists.
-   At startup, clean up terminal child agents first: retrieve any result still
-   needed, then close every completed, errored, or interrupted child owned by
-   this parent or surfaced from an inactive chat before substantive work or new
-   delegation. Leave pending or running children from any chat alone.
+   Start cleanup is authoritative because end cleanup may be skipped. Clean up
+   terminal child agents first: retrieve any result still needed, then close
+   every completed, errored, or interrupted child owned by this parent or
+   surfaced from an inactive chat before substantive work or new delegation.
+   Inspect coordination status and reconcile leftover process reservations or
+   configured rows from prior work; never treat no live reservation as proof
+   that a configured row is free, and never release a live worktree's row based
+   only on age. Leave pending or running children from any chat alone.
    Delegated subagents have full read/write access to their assigned worktree:
    they may inspect, create, edit, rename, and delete files, run commands and
    tests, and perform well-scoped implementation work. No read-only restriction
@@ -56,6 +60,11 @@ only read this file:
    closing an agent, reassess whether the next step has another useful,
    independent, bounded sidecar; delegate it under the same Luna-only rules when
    it would materially advance the work, and otherwise continue locally.
+   End cleanup is still required even though startup cleanup is the recovery
+   boundary: stop processes this task started, release its emulator reservation,
+   finish its coordination entry, close completed children, and run one final
+   status check. Scope cleanup to this task's own resources; do not sweep
+   unrelated live work.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

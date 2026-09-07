@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { unlink } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -9,9 +9,12 @@ import {
   formatCoordinationState,
   isPortFree,
   parseCoordinationState,
+  pruneOrphanedConfigurations,
   readCoordinationState,
   releaseEmulatorSlot,
   reserveAvailableEmulatorSlot,
+  reserveAvailableConfiguredEmulatorSlot,
+  reserveConfiguredEmulatorSlot,
   reserveEmulatorSlot,
 } from '../../scripts/emulator-resource-registry.mjs';
 
@@ -102,6 +105,163 @@ describe('local emulator coordination', () => {
     expect(output).toContain('Version agreement');
     expect(output).toContain('Prevent rules emulator port collisions.');
     expect(output).toContain('Rules validation remains reliable during preview.');
+    expect(output).toContain(
+      'Configured worktree slots (reserved; unavailable to other worktrees)',
+    );
+    expect(output).toContain('Live emulator reservations');
+  });
+
+  it('atomically assigns distinct rows when worktrees auto-configure concurrently', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registry-test-${randomUUID()}.json`);
+
+    try {
+      const configurations = await Promise.all([
+        reserveAvailableConfiguredEmulatorSlot({
+          filePath,
+          availableSlots: [0, 1],
+          worktree: '/worktrees/first',
+          portsForSlot: () => [1],
+          portCheck: async () => true,
+        }),
+        reserveAvailableConfiguredEmulatorSlot({
+          filePath,
+          availableSlots: [0, 1],
+          worktree: '/worktrees/second',
+          portsForSlot: () => [1],
+          portCheck: async () => true,
+        }),
+      ]);
+
+      expect(new Set(configurations.map((configuration) => configuration.slot))).toEqual(
+        new Set([0, 1]),
+      );
+      expect((await readCoordinationState(filePath)).configurations).toHaveLength(2);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('skips an occupied slot and rows already configured by other worktrees', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registry-test-${randomUUID()}.json`);
+
+    try {
+      await reserveConfiguredEmulatorSlot({
+        filePath,
+        slot: 1,
+        worktree: '/worktrees/other',
+        ports: [5001],
+        portCheck: async () => true,
+      });
+
+      const configuration = await reserveAvailableConfiguredEmulatorSlot({
+        filePath,
+        availableSlots: [0, 1, 2],
+        worktree: '/worktrees/current',
+        portsForSlot: (slot) => [slot === 0 ? 5000 : 5001],
+        portCheck: async (port) => port !== 5000,
+      });
+
+      expect(configuration.slot).toBe(2);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('reclaims configured rows left by completed worktrees without touching active work', () => {
+    const state = {
+      version: 1,
+      versionAgreement: 'agreement',
+      entries: [
+        {
+          id: 'active-entry',
+          worktree: '/worktrees/active',
+          startedAt: '2026-09-07T00:00:00.000Z',
+          status: 'active',
+          intent: 'active work',
+          versionPlan: 'tooling-only',
+          preemptiveChangelog: 'none',
+        },
+        {
+          id: 'complete-entry',
+          worktree: '/worktrees/complete',
+          startedAt: '2026-09-06T00:00:00.000Z',
+          status: 'complete',
+          intent: 'finished work',
+          versionPlan: 'tooling-only',
+          preemptiveChangelog: 'none',
+        },
+      ],
+      reservations: [
+        {
+          id: 'live-reservation',
+          slot: 2,
+          worktree: '/worktrees/live',
+          kind: 'emulators',
+          pid: process.pid,
+          command: 'npm run emulators',
+          claimedAt: '2026-09-07T00:00:00.000Z',
+        },
+      ],
+      configurations: [
+        {
+          id: 'active-config',
+          slot: 0,
+          worktree: '/worktrees/active',
+          configuredAt: '2026-09-07T00:00:00.000Z',
+        },
+        {
+          id: 'complete-config',
+          slot: 1,
+          worktree: '/worktrees/complete',
+          configuredAt: '2026-09-07T00:00:00.000Z',
+        },
+        {
+          id: 'live-config',
+          slot: 2,
+          worktree: '/worktrees/live',
+          configuredAt: '2026-09-07T00:00:00.000Z',
+        },
+      ],
+    };
+
+    expect(pruneOrphanedConfigurations(state).configurations.map((configuration) => configuration.id))
+      .toEqual(['active-config', 'live-config']);
+  });
+
+  it('does not remove a replacement lock while releasing its own lease', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registry-test-${randomUUID()}.json`);
+    const lockPath = `${filePath}.lock`;
+    let replaced = false;
+
+    try {
+      await reserveEmulatorSlot({
+        filePath,
+        slot: 0,
+        worktree: '/worktrees/current',
+        kind: 'rules',
+        command: 'npm run test:rules',
+        ports: [1],
+        portCheck: async () => {
+          if (!replaced) {
+            replaced = true;
+            await writeFile(
+              lockPath,
+              `${JSON.stringify({ pid: process.pid, token: 'replacement-lock' })}\n`,
+              'utf8',
+            );
+          }
+          return true;
+        },
+      });
+
+      expect(await readFile(lockPath, 'utf8')).toContain('replacement-lock');
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(lockPath).catch(() => undefined);
+      await unlink(`${lockPath}.recovery`).catch(() => undefined);
+    }
   });
 
   it('atomically moves a rules lease to a complete free slot and releases it', async () => {

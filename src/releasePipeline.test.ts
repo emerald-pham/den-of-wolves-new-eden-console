@@ -73,7 +73,11 @@ it('coordinates emulator commands and gives rules tests an isolated fallback slo
 });
 
 it('records configured slots in the shared worktree coordination file', () => {
-  expect(configureEmulatorCommand).toContain('reserveConfiguredEmulatorSlot');
+  expect(configureEmulatorCommand).toContain('reserveAvailableConfiguredEmulatorSlot');
+  expect(configureEmulatorCommand).toContain("args[0] === 'auto'");
+  expect(configureEmulatorCommand).toContain('const selectedSlot = configuration.slot');
+  expect(configureEmulatorCommand).toContain('firebaseConfigForSlot(baseConfig, selectedSlot)');
+  expect(configureEmulatorCommand).toContain('emulatorEnvironmentForSlot(selectedSlot)');
   expect(configureEmulatorCommand).toContain('releaseConfiguredEmulatorSlot');
 });
 
