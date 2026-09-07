@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Connection indicators now give passive reconnects and page returns up to 30 seconds to recover, while an active player sees a disconnect immediately.',
+    ],
+  },
+  {
+    version: '0.2.93',
+    changes: [
       'Pursuit panels now show the shared Distance from Home Systems readout without redundant coordinate or scope labels.',
     ],
   },

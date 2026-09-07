@@ -24,12 +24,13 @@ import {
   SESSION_WAIVER_RESET_EVENT,
 } from '@/lib/sessionWaiver';
 
-const CONNECTION_STATUS_GRACE_MS = 1_000;
+const CONNECTION_STATUS_GRACE_MS = 30_000;
 
 /**
- * Keep the last known in-session light steady just long enough for a restored
- * browser or waking tab to reconnect. This is presentation-only: commands
- * still read the authoritative connection state from the session store.
+ * Keep the last known connection light steady while a passive reconnect has a
+ * chance to complete. This is presentation-only: commands still read the
+ * authoritative connection state from the session store. Any player input
+ * immediately ends the grace so stale chrome cannot hide a failed action.
  */
 function useConnectionStatusGrace(
   status: ReturnType<typeof selectConnectionStatus>,
@@ -38,6 +39,44 @@ function useConnectionStatusGrace(
   const [graceDeadline, setGraceDeadline] = useState<number | null>(() =>
     hasCachedSession && status === 'red' ? Date.now() + CONNECTION_STATUS_GRACE_MS : null,
   );
+  const statusRef = useRef(status);
+  const cachedSessionRef = useRef(hasCachedSession);
+  const playerInteracted = useRef(false);
+  const previousStatus = useRef(status);
+  const previousHasCachedSession = useRef(hasCachedSession);
+  const lastConnectedStatus = useRef<ReturnType<typeof selectConnectionStatus>>(
+    status === 'red' ? 'green' : status,
+  );
+  statusRef.current = status;
+  cachedSessionRef.current = hasCachedSession;
+  if (status !== 'red') lastConnectedStatus.current = status;
+
+  const startPassiveGrace = () => {
+    playerInteracted.current = false;
+    if (cachedSessionRef.current && statusRef.current === 'red') {
+      setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
+    }
+  };
+
+  useLayoutEffect(() => {
+    const becameOffline = previousStatus.current !== 'red' && status === 'red';
+    const gainedCachedSession = !previousHasCachedSession.current && hasCachedSession;
+    previousStatus.current = status;
+    previousHasCachedSession.current = hasCachedSession;
+
+    if (!hasCachedSession) {
+      setGraceDeadline(null);
+      return;
+    }
+    if (status !== 'red') return;
+    if (playerInteracted.current) {
+      setGraceDeadline(null);
+      return;
+    }
+    if (becameOffline || gainedCachedSession) {
+      setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
+    }
+  }, [hasCachedSession, status]);
 
   useEffect(() => {
     if (graceDeadline === null) return;
@@ -49,16 +88,47 @@ function useConnectionStatusGrace(
   }, [graceDeadline]);
 
   useEffect(() => {
-    const restoreCachedLight = () => {
-      if (document.visibilityState === 'visible' && hasCachedSession && status === 'red') {
-        setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
+    const markInteraction = () => {
+      if (!cachedSessionRef.current) return;
+      playerInteracted.current = true;
+      if (statusRef.current === 'red') setGraceDeadline(null);
+    };
+    const restorePassiveContext = () => {
+      startPassiveGrace();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' || document.visibilityState === 'visible') {
+        restorePassiveContext();
       }
     };
-    document.addEventListener('visibilitychange', restoreCachedLight);
-    return () => document.removeEventListener('visibilitychange', restoreCachedLight);
-  }, [hasCachedSession, status]);
 
-  return hasCachedSession && status === 'red' && graceDeadline !== null ? 'green' : status;
+    document.addEventListener('pointerdown', markInteraction, true);
+    document.addEventListener('click', markInteraction, true);
+    document.addEventListener('keydown', markInteraction, true);
+    document.addEventListener('input', markInteraction, true);
+    document.addEventListener('change', markInteraction, true);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', restorePassiveContext);
+    window.addEventListener('focus', restorePassiveContext);
+    window.addEventListener('pagehide', restorePassiveContext);
+    window.addEventListener('pageshow', restorePassiveContext);
+    return () => {
+      document.removeEventListener('pointerdown', markInteraction, true);
+      document.removeEventListener('click', markInteraction, true);
+      document.removeEventListener('keydown', markInteraction, true);
+      document.removeEventListener('input', markInteraction, true);
+      document.removeEventListener('change', markInteraction, true);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', restorePassiveContext);
+      window.removeEventListener('focus', restorePassiveContext);
+      window.removeEventListener('pagehide', restorePassiveContext);
+      window.removeEventListener('pageshow', restorePassiveContext);
+    };
+  }, []);
+
+  return hasCachedSession && status === 'red' && graceDeadline !== null
+    ? lastConnectedStatus.current
+    : status;
 }
 
 export default function AppHeader() {

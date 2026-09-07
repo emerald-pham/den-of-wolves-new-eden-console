@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -96,7 +96,7 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
-it('keeps a cached session light green for one second while a refreshed browser reconnects', async () => {
+it('keeps a cached session light green for thirty seconds while a refreshed browser reconnects', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
 
@@ -106,17 +106,21 @@ it('keeps a cached session light green for one second while a refreshed browser 
   const indicator = screen.getByRole('status');
   expect(indicator).toHaveAttribute('data-status', 'green');
 
-  act(() => vi.advanceTimersByTime(1_000));
+  act(() => vi.advanceTimersByTime(29_999));
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(1));
   expect(indicator).toHaveAttribute('data-status', 'red');
 });
 
-it('briefly restores the cached session light when a background tab returns', async () => {
+it('restores the cached session light for thirty seconds when a background tab returns', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setConnection('live');
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   act(() => useSessionStore.getState().setConnection('offline'));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(30_000));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
 
   act(() => {
@@ -127,9 +131,65 @@ it('briefly restores the cached session light when a background tab returns', as
   });
 
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(1_000));
+  act(() => vi.advanceTimersByTime(29_999));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(1));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
   Reflect.deleteProperty(document, 'visibilityState');
+});
+
+it('holds the last session light during a passive connection loss', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  act(() => useSessionStore.getState().setConnection('offline'));
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(30_000));
+  expect(indicator).toHaveAttribute('data-status', 'red');
+});
+
+it('shows the disconnected state immediately after player interaction', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  act(() => useSessionStore.getState().setConnection('offline'));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+
+  fireEvent.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+});
+
+it('treats a page re-entry event as passive reconnect context', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  act(() => useSessionStore.getState().setConnection('offline'));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(30_000));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+
+  act(() => {
+    window.dispatchEvent(new Event('pageshow'));
+  });
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(30_000));
+  expect(indicator).toHaveAttribute('data-status', 'red');
 });
 
 it('keeps fleet broadcasts in the same measured header row as the session code', async () => {
