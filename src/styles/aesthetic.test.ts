@@ -172,7 +172,7 @@ describe('the fleet transmission', () => {
       /\.cic-action-button--confirm\s*\{[^}]*border-color:\s*var\(--cic-danger\)[^}]*color:\s*var\(--cic-scream\)/,
     );
     expect(intrusion).toMatch(
-      /\.intrusion--fleet\[data-state='exiting'\]\s*\{[^}]*animation:\s*turn-start-announcement-fade-out 1000ms/,
+      /\.intrusion--fleet\[data-state='exiting'\]\s*\{[^}]*animation:\s*turn-start-announcement-fade-out 2000ms/,
     );
     expect(aesthetics).toContain('.cic-action-button--confirm');
   });
