@@ -11,6 +11,7 @@ state backed by Firebase.
 
 - [Stack](#stack)
 - [Operating profile](#operating-profile)
+- [Implementation plan](#implementation-plan)
 - [Layout](#layout)
 - [Security model](#security-model)
 - [Local development](#local-development)
@@ -45,6 +46,14 @@ load-tested.
 
 For the implementation brief covering capacity validation and DDoS/abuse
 protection, see [the 60-client hardening handoff](docs/ABUSE_PROTECTION_HANDOFF.md).
+
+## Implementation plan
+
+The staged objectives, source-of-truth policy, implementation phases, test-first
+gates, and release criteria are recorded in the
+[implementation plan](docs/IMPLEMENTATION_PLAN.md). It is the
+pre-implementation reference for future gameplay work; it does not authorize
+placeholder controls or undocumented rule interpretations.
 
 ## Layout
 
