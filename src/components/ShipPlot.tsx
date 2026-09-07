@@ -10,7 +10,7 @@ import ContactPlot from './ContactPlot';
 import DradisEffectControls from './DradisEffectControls';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
-import { fleetViewFrom } from '@/data/fleetFormation';
+import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import type { GameSession } from '@/types/game';
@@ -112,6 +112,7 @@ export default function ShipPlot({
 
   const viewer = findShip(viewerId) ?? findShip('aegis');
   const effectiveViewerId = viewer?.id ?? 'aegis';
+  const viewerOrigin = fleetOriginFor(effectiveViewerId);
   const galacticCoordinate = shipGalacticCoordinates[effectiveViewerId] ??
     ORIGIN_GALACTIC_COORDINATE;
   const fleetContacts = fleetViewFrom(
@@ -147,6 +148,7 @@ export default function ShipPlot({
         ambientSession={ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
+        origin={viewerOrigin}
       />
       {aboard ? (
         <>

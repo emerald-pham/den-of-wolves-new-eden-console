@@ -9,6 +9,7 @@ import {
   type AmbientDradisSession,
 } from './ambientDradisContact';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { ambientCombatRange as ambientCombatRangeFor, type CombatRange } from './dradisRange';
 
 /**
  * The threat board behind the launcher.
@@ -29,8 +30,6 @@ import { useMotionPreference } from '@/lib/motionPreference';
  * to acquire and refresh returns when their visible circumferences pass them. Reduced motion
  * stops both the CSS motion and the observer.
  */
-
-type CombatRange = 'long' | 'medium' | 'short';
 
 type Track = {
   readonly tag: string;
@@ -100,6 +99,8 @@ const EXPOSED = 'FALSE';
  *  going to pieces. Long enough for the slowest of them to finish; the CSS
  *  carries the same budget across its duration and its delay. */
 export const SPASM_MS = 3300;
+const AMBIENT_RANGE_UPDATE_MS = 1_000;
+const ZERO_ORIGIN: Vector = { x: 0, y: 0, z: 0 };
 
 const MERIDIANS = [0, 30, 60, 90, 120, 150];
 const PARALLELS = [-60, -30, 0, 30, 60];
@@ -137,6 +138,18 @@ function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
 
 function combatRangeLabel(track: Track | PlotContact): string {
   return (track.combatRange ?? 'short').toUpperCase();
+}
+
+function relativeVector(point: Vector, origin: Vector): Vector {
+  return { x: point.x - origin.x, y: point.y - origin.y, z: point.z - origin.z };
+}
+
+function interpolateVector(start: Vector, destination: Vector, progress: number): Vector {
+  return {
+    x: start.x + (destination.x - start.x) * progress,
+    y: start.y + (destination.y - start.y) * progress,
+    z: start.z + (destination.z - start.z) * progress,
+  };
 }
 
 /** Spherical coordinates to the offsets CSS translates a contact by. */
@@ -203,6 +216,7 @@ export default function ContactPlot({
   ambientSession,
   centerLabel,
   orientation,
+  origin = ZERO_ORIGIN,
 }: {
   hostile?: boolean;
   /** `field` fills the viewport behind everything; `inset` fills a positioned
@@ -215,6 +229,8 @@ export default function ContactPlot({
   ambientSession?: AmbientDradisSession | undefined;
   centerLabel?: string | undefined;
   orientation?: { readonly pitch: number; readonly yaw: number } | undefined;
+  /** Shared-world origin of the ship whose DRADIS is rendering this plot. */
+  origin?: Vector | undefined;
 }) {
   const redAlert = useSessionStore(state => state.session?.fleetRedAlert?.active === true);
   const plot = useRef<HTMLDivElement>(null);
@@ -229,9 +245,10 @@ export default function ContactPlot({
     if (now !== clock) setClock(now);
     const next = nextAmbientDradisChange(ambientSession, now);
     if (next === null) return;
-    const timer = window.setTimeout(() => setClock(Date.now()), Math.max(1, next - now));
+    const refreshAt = ambient ? Math.min(next, now + AMBIENT_RANGE_UPDATE_MS) : next;
+    const timer = window.setTimeout(() => setClock(Date.now()), Math.max(1, refreshAt - now));
     return () => window.clearTimeout(timer);
-  }, [ambientSession, clock]);
+  }, [ambient, ambientSession, clock]);
 
   useEffect(() => {
     const node = plot.current;
@@ -273,6 +290,14 @@ export default function ContactPlot({
   // to break up. Dropping them the instant the hack ends would cut the reveal
   // off at its first frame.
   const exposed = departing && !hostile;
+  const ambientProgress = ambient
+    ? Math.min(1, Math.max(0, (clock - ambient.appearedAt) / AMBIENT_CONTACT_LIFETIME_MS))
+    : 0;
+  const ambientPosition = ambient
+    ? interpolateVector(ambient.start, ambient.destination, ambientProgress)
+    : null;
+  const ambientStart = ambient ? relativeVector(ambient.start, origin) : null;
+  const ambientDestination = ambient ? relativeVector(ambient.destination, origin) : null;
   const baseTracks: readonly {
     track: Track | PlotContact;
     spoof: boolean;
@@ -288,12 +313,13 @@ export default function ContactPlot({
       track: {
         id: ambient.id,
         tag: classifiedOccurrenceId === ambient.id ? ambient.classification : 'UNKNOWN CONTACT',
-        ...ambient.start,
+        ...(ambientStart ?? ZERO_ORIGIN),
         color: 'var(--cic-cyan-hot)',
-        combatRange: 'long' as const,
-        showCombatRange: false,
+        combatRange: ambientPosition
+          ? ambientCombatRangeFor(ambientPosition, origin)
+          : 'long' as const,
         transit: {
-          destination: ambient.destination,
+          destination: ambientDestination ?? ZERO_ORIGIN,
           durationMs: AMBIENT_CONTACT_LIFETIME_MS,
           elapsedMs: Math.max(0, clock - ambient.appearedAt),
         },

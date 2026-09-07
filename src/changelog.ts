@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
+    ],
+  },
+  {
+    version: '0.2.97',
+    changes: [
       'Closed-airspace ticker copy now keeps the lockdown directive visible until a newer AEGIS or SNN broadcast replaces it.',
     ],
   },

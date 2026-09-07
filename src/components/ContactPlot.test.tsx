@@ -87,6 +87,24 @@ it('labels every return with its explicit combat range without changing its plot
     .toEqual(['SHORT', 'MEDIUM', 'LONG']);
 });
 
+it('places every non-fleet combat band directly beneath its contact name', () => {
+  const contacts = [
+    { tag: 'LONG CONTACT', x: 0.8, y: 0, z: 0, color: 'white', combatRange: 'long' as const },
+    { tag: 'MEDIUM CONTACT', x: 0.4, y: 0, z: 0, color: 'white', combatRange: 'medium' as const },
+    { tag: 'SHORT CONTACT', x: 0.1, y: 0, z: 0, color: 'white', combatRange: 'short' as const },
+  ];
+  const { container } = render(<ContactPlot contacts={contacts} />);
+
+  expect(contactsIn(container).map((contact) => ({
+    name: contact.querySelector('.contact-plot__tag > span:first-child')?.textContent,
+    range: contact.querySelector('.contact-plot__tag > .contact-plot__range')?.textContent,
+  }))).toEqual([
+    { name: 'LONG CONTACT', range: 'LONG' },
+    { name: 'MEDIUM CONTACT', range: 'MEDIUM' },
+    { name: 'SHORT CONTACT', range: 'SHORT' },
+  ]);
+});
+
 it('omits combat-range indicators for fleet ships and their shuttles only', () => {
   const contacts = [
     {
@@ -162,7 +180,7 @@ it('tracks a far-moving unknown on the shared variable cadence and drops it afte
 
   const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
   expect(contact).toHaveTextContent('UNKNOWN CONTACT');
-  expect(contact?.querySelector('.contact-plot__range')).not.toBeInTheDocument();
+  expect(contact?.querySelector('.contact-plot__range')).toHaveTextContent('LONG');
   expect(contact).toHaveAttribute('data-combat-range', 'LONG');
   const start = ['--x', '--y', '--z'].map((property) =>
     Number(contact?.style.getPropertyValue(property)),
@@ -185,6 +203,31 @@ it('tracks a far-moving unknown on the shared variable cadence and drops it afte
     secondInterval - AMBIENT_CONTACT_LIFETIME_MS,
   ));
   expect(container.querySelector("[data-ambient='true']")).toBeInTheDocument();
+});
+
+it('recalculates an unknown contact range from the viewing ship origin', () => {
+  vi.useFakeTimers();
+  const now = Date.parse(ambientSession.createdAt) + ambientContactIntervalMs(ambientSession.id, 1);
+  vi.setSystemTime(now);
+  const occurrence = ambientDradisOccurrence(ambientSession, now);
+  if (!occurrence) throw new Error('Expected the ambient contact to be active.');
+
+  const { container, rerender } = render(
+    <ContactPlot contacts={[]} ambientSession={ambientSession} origin={{ x: 0, y: 0, z: 0 }} />,
+  );
+  const contact = () => container.querySelector<HTMLElement>("[data-ambient='true']");
+  expect(contact()).toHaveAttribute('data-combat-range', 'LONG');
+
+  rerender(
+    <ContactPlot
+      contacts={[]}
+      ambientSession={ambientSession}
+      origin={occurrence.start}
+    />,
+  );
+
+  expect(contact()).toHaveAttribute('data-combat-range', 'SHORT');
+  expect(contact()?.querySelector('.contact-plot__range')).toHaveTextContent('SHORT');
 });
 
 it('classifies the passing unknown only when scanned after ninety seconds', () => {

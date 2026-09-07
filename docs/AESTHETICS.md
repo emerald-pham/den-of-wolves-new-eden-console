@@ -386,13 +386,18 @@ range bands: Long Range, Medium Range, and Short Range. Expanded DRADIS keeps
 those potential bands in a bottom-of-viewport key as `LONG // MEDIUM // SHORT`;
 individual DRADIS returns use the same compact one-word labels. Do not infer a
 label from canonical XYZ coordinates, bearing, elevation, CSS perspective, or a
-transit vector. The current fleet formation is gameplay range 1, but its ships
-and shuttlecraft are known friendly contacts and do not print a combat-range
-label. Every other DRADIS contact keeps its compact range label even when its
-real DRADIS coordinates place it elsewhere in the drawn volume. This compacting
-is exclusive to DRADIS: outside it, retain the documented full combat-category
-names. Adding or changing a combat-range label must not alter a contact's
-coordinate, trajectory, sampled fix, or scan-acquisition behavior.
+transit vector for a gameplay-defined contact. The current fleet formation is
+gameplay range 1, but its ships and shuttlecraft are known friendly contacts and
+do not print a combat-range label. Every other DRADIS contact keeps its compact
+range label even when its real DRADIS coordinates place it elsewhere in the
+drawn volume. The one spatial exception is an unknown ambient contact: its
+shared-world position is measured from the current ship's DRADIS origin in
+meters (one local unit is 1,000 meters) and summarized into equal short,
+medium, and long bands, so the same object can report differently from AEGIS
+and Capybara. This compacting is exclusive to DRADIS: outside it, retain the
+documented full combat-category names. Adding or changing a combat-range label
+must not alter a contact's coordinate, trajectory, sampled fix, or
+scan-acquisition behavior.
 
 A contact does not exist on the instrument until a rendered sweep circumference
 crosses the contact's actual current position in space. Before that crossing,
@@ -435,9 +440,9 @@ vector for exactly two minutes, and then disappears. It reads
 UNKNOWN CONTACT until a sweep crosses it at least ninety seconds into that
 transit; that scan selects the fleetwide classification Asteroid, Rock, Your
 Mom's Big Butt, Emerald Nebula Interference, or Metallic Asteroid without
-extending or restarting its lifetime.
-An unclassified contact enters at LONG range; classification can change its
-label but never shortens that initial placement.
+extending or restarting its lifetime. Its range label is recalculated from the
+current viewing ship's origin as the object moves; classification can change
+the name but never changes that measured range.
 Reduced motion leaves the return at its sampled starting coordinate while
 preserving the same arrival, classification, and disappearance clocks.
 DRADIS acquisition overrides every presentation mode: neither the moving

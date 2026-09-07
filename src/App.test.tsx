@@ -516,14 +516,16 @@ describe('App', () => {
     const center = () => container.querySelector('.contact-plot__origin')?.textContent;
     const contacts = () => Array.from(container.querySelectorAll('.contact-plot__contact .contact-plot__tag'))
       .map((tag) => tag.firstElementChild?.textContent);
-    const combatRanges = () => Array.from(container.querySelectorAll('.contact-plot__range'))
+    const fleetCombatRanges = () => Array.from(
+      container.querySelectorAll('.contact-plot__contact:not([data-ambient="true"]) .contact-plot__range'),
+    )
       .map((range) => range.textContent);
 
     expect(center()).toBe('AEGIS');
     expect(contacts()).toEqual(expect.arrayContaining([
       'DIONE', 'ICEBREAKER', 'CAPYBARA', 'SHEPHERD', 'QUELLON', 'REFINERY 124',
     ]));
-    expect(combatRanges()).toHaveLength(0);
+    expect(fleetCombatRanges()).toHaveLength(0);
     expect(contacts()).not.toContain('AEGIS');
 
     await user.click(screen.getByRole('link', { name: /join quellon/i }));

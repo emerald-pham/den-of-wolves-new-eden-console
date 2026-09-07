@@ -21,8 +21,10 @@ export interface FleetContact extends FleetPoint {
  * are measured from AEGIS inside a unit-scale loose bubble, ready to be swapped
  * for later battle formations without changing the plot renderer.
  */
+const DEFAULT_FLEET_ORIGIN: FleetPoint = { x: 0, y: 0, z: 0 };
+
 export const FLEET_FORMATION: Readonly<Record<string, FleetPoint>> = {
-  aegis: { x: 0, y: 0, z: 0 },
+  aegis: DEFAULT_FLEET_ORIGIN,
   dione: { x: -0.32, y: 0.18, z: 0.22 },
   icebreaker: { x: 0.26, y: -0.12, z: 0.28 },
   capybara: { x: -0.08, y: -0.31, z: 0.12 },
@@ -30,6 +32,10 @@ export const FLEET_FORMATION: Readonly<Record<string, FleetPoint>> = {
   quellon: { x: -0.28, y: -0.08, z: -0.26 },
   'refinery-124': { x: 0.09, y: 0.32, z: 0.31 },
 };
+
+export function fleetOriginFor(viewerId: string): FleetPoint {
+  return FLEET_FORMATION[viewerId] ?? DEFAULT_FLEET_ORIGIN;
+}
 
 const round = (value: number): number => Math.round(value * 1e4) / 1e4;
 
@@ -39,8 +45,7 @@ export function fleetViewFrom(
   shipGalacticCoordinates: Readonly<Record<string, string>> = {},
   dioneEnabled = true,
 ): readonly FleetContact[] {
-  const viewer = FLEET_FORMATION[viewerId] ?? FLEET_FORMATION.aegis;
-  if (!viewer) return [];
+  const viewer = fleetOriginFor(viewerId);
 
   const viewerCoordinate = shipGalacticCoordinates[viewerId] ?? ORIGIN_GALACTIC_COORDINATE;
   return SHIPS.filter((ship) =>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FLEET_FORMATION, fleetViewFrom } from './fleetFormation';
+import { FLEET_FORMATION, fleetOriginFor, fleetViewFrom } from './fleetFormation';
 
 describe('the initial fleet formation', () => {
   it('locks seven ships into one loose 3D bubble around AEGIS', () => {
@@ -26,6 +26,12 @@ describe('the initial fleet formation', () => {
     expect(fromQuellon.find(({ id }) => id === 'dione')).toMatchObject({
       x: -0.04, y: 0.26, z: 0.48,
     });
+  });
+
+  it('exposes the selected ship origin for ship-relative DRADIS calculations', () => {
+    expect(fleetOriginFor('aegis')).toEqual(FLEET_FORMATION.aegis);
+    expect(fleetOriginFor('capybara')).toEqual(FLEET_FORMATION.capybara);
+    expect(fleetOriginFor('missing-ship')).toEqual(FLEET_FORMATION.aegis);
   });
 
   it('renders Shepherd as a white DRADIS contact', () => {

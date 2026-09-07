@@ -10,7 +10,7 @@ import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
 import { normalizeDisplayName } from '@/lib/displayName';
-import { fleetViewFrom } from '@/data/fleetFormation';
+import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
 import { SHIPS } from '@/data/ships';
@@ -328,6 +328,7 @@ export default function GmConsole() {
     combatRange: ship.combatRange,
     showCombatRange: ship.showCombatRange,
   }));
+  const viewerOrigin = fleetOriginFor(viewer?.id ?? 'aegis');
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const nextClockUpdate = nextGmClockUpdate(session, clock);
   const overdueMaintenance = Object.entries(session?.maintenanceCycles ?? {}).flatMap(([shipId, cycle]) => {
@@ -1440,6 +1441,7 @@ export default function GmConsole() {
                 contacts={contacts}
                 ambientSession={session}
                 centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
+                origin={viewerOrigin}
               />
               <DradisAirspaceTimer phase={currentPhase} />
               <span className="gm-dradis__label dradis-label" aria-hidden="true">
