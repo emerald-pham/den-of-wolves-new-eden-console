@@ -4,6 +4,7 @@ import ShipSpecifications from '@/components/ShipSpecifications';
 import PopulationTrack from '@/components/PopulationTrack';
 import FleetConsoleWorkspace from '@/components/FleetConsoleWorkspace';
 import FleetAlertControl from '@/components/FleetAlertControl';
+import PursuitTracker from '@/components/PursuitTracker';
 import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
@@ -168,6 +169,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     (ship.id === 'dione' && session.dioneEnabled === false)
   ) return <Navigate to="/console" replace />;
 
+  const shipCoordinate = session.shipGalacticCoordinates?.[ship.id] ?? '0000';
+
   async function activate(): Promise<void> {
     if (!ship || !consoleRole || turnZeroLocked || spent || queued || activating) return;
     setActivating(true);
@@ -260,7 +263,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <FleetConsoleWorkspace
             ship={ship}
             role={consoleRole}
-            galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
+            galacticCoordinate={shipCoordinate}
             fuel={resources?.fuel ?? 0}
             damage={session.shipDamage?.[ship.id]}
             damageDraws={damageDraws}
@@ -348,6 +351,12 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         </section>
       </section>
       <aside className="ship-console__instruments" aria-label={`${ship.name} instruments`}>
+        <PursuitTracker
+          currentTurn={session.currentTurn ?? 1}
+          shipId={ship.id}
+          shipName={ship.name}
+          shipCoordinate={shipCoordinate}
+        />
         {observer && (
           <section className="observer-access cic-frame" aria-label="Observer access">
             <p className="ship-shuttlebay__eyebrow">

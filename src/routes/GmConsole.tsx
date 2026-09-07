@@ -5,6 +5,7 @@ import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
 import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
 import GmStarmapModule from '@/components/GmStarmapModule';
+import PursuitTracker from '@/components/PursuitTracker';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -900,6 +901,8 @@ export default function GmConsole() {
             <div className="gm-fleet-resources__ships">
               {SHIPS.map((ship) => {
                 const resources = resourcesForShip(ship.id, session.shipResources);
+                const shipCoordinate = session.shipGalacticCoordinates?.[ship.id] ??
+                  ORIGIN_GALACTIC_COORDINATE;
                 const population = populationForShip(ship.id, session.shipSurvivors);
                 const populationTrack = populationTrackForShip(ship.id);
                 const populationTarget: CounterTarget = { counter: 'population', shipId: ship.id };
@@ -1007,6 +1010,12 @@ export default function GmConsole() {
                         </div>
                       </li>
                     </ul>
+                    <PursuitTracker
+                      currentTurn={currentTurn}
+                      shipId={ship.id}
+                      shipName={ship.name}
+                      shipCoordinate={shipCoordinate}
+                    />
                   </section>
                 );
               })}

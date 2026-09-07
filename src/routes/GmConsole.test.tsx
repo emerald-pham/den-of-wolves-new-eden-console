@@ -405,6 +405,46 @@ it('shows live resource stock for every flagged ship', async () => {
   expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeEnabled();
 });
 
+it('shows each ship-local pursuit tracker beneath its resource controls', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 4,
+    shipGalacticCoordinates: {
+      aegis: '0000',
+      dione: '5143',
+      icebreaker: '6837',
+      capybara: '8378',
+      shepherd: '0000',
+      quellon: '1096',
+      'refinery-124': '0408',
+    },
+  });
+  renderConsole();
+
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  const expectedTrackByShip = [
+    ['AEGIS', '0000', '8 / 10'],
+    ['Dione', '5143', '7 / 10'],
+    ['Icebreaker', '6837', '6 / 10'],
+    ['Capybara', '8378', '2 / 10'],
+    ['Shepherd', '0000', '8 / 10'],
+    ['Quellon', '1096', '4 / 10'],
+    ['Refinery 124', '0408', '1 / 10'],
+  ] as const;
+
+  for (const [shipName, coordinate, track] of expectedTrackByShip) {
+    const ship = within(fleet).getByRole('group', { name: `${shipName} resource controls` });
+    const tracker = within(ship).getByRole('region', { name: 'Pursuit tracker' });
+
+    expect(tracker).toHaveTextContent(`Relative to ${shipName} // ${coordinate}`);
+    expect(tracker).toHaveTextContent(`Current track // ${track}`);
+    expect(ship.lastElementChild).toBe(tracker);
+  }
+});
+
 it('keeps resource stores read-only until enabled and resets after leaving', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
