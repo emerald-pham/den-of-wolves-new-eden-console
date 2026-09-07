@@ -21,20 +21,18 @@ only read this file:
    20-player set has full, complex gameplay across interacting systems and a
    clear game end. See `CLAUDE.md` for the full policy.
 
-4. **Delegate suitable routine tasks to Spark first, or Luna.**
-   GPT-5.3 Codex Spark is strictly read-only and should be preferred for every
-   suitable bounded read-only subtask so available Spark usage is consumed; it
-   may not edit files or otherwise mutate repository state. GPT-5.6 Luna at
-   `high` reasoning is a strict capability superset: Luna may do anything Spark
-   can do and is the fallback for read-only work, with standing trust and
-   authorization for well-scoped local edits—including code, tests, docs,
-   refactors, UI, and routine implementation. Any delegated agent that changes
-   files must use its own worktree and short-lived branch.
-   Delegation must still save total effort and tokens after setup, context
-   transfer, and review. The primary agent retains high-risk security,
-   authentication, authorization, architecture, and product decisions, plus
-   all review, integration, versioning, merge, and push; Luna's local editing
-   authority never authorizes merging or pushing.
+4. **Delegate suitable routine tasks to Luna only.**
+   Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository.
+   Delegated subagents have full read/write access to their assigned worktree:
+   they may inspect, create, edit, rename, and delete files, run commands and
+   tests, and perform well-scoped implementation work. No read-only restriction
+   applies to delegated subagents. Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high`
+   reasoning when delegation saves total effort and tokens after setup, context
+   transfer, and review. Every delegated agent that changes files must use its
+   own worktree and short-lived branch. Full read/write access is scoped to that
+   worktree and does not authorize merging or pushing. The primary agent retains
+   high-risk security, authentication, authorization, architecture, and product
+   decisions, plus all review, integration, versioning, merge, and push.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

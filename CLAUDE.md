@@ -96,26 +96,22 @@ tasks when doing so is expected to save total effort and tokens after accounting
 for setup, context transfer, and review. No separate confirmation is needed for
 each suitable task.
 
-- GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) is strictly read-only. Prefer
-  Spark first for every suitable bounded read-only subtask so available Spark
-  usage is consumed. Spark may inspect known surfaces—such as quick surface
-  maps, candidate-file reconnaissance, targeted consistency searches, and
-  medium-grain checks of what changed or where a relevant seam lies—but may not
-  edit files or otherwise mutate repository state. Spark's read-only
-  assignments do not require a worktree or branch.
-- GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning is a strict capability
-  superset of Spark. Luna may do anything Spark can do and is the fallback for
-  suitable bounded read-only work when Spark is unavailable. Luna also has
-  standing trust and authorization for well-scoped local edits, including code,
-  tests, Markdown docs, refactors, UI, and routine implementation with clear
-  expected results. Every delegated agent that changes files must use its own
-  worktree and short-lived branch; never have Luna edit the primary agent's
-  checkout or another agent's files.
+- Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
+  is not an approved delegation model for this codebase.
+- Delegated subagents have full read/write access to their assigned worktree.
+  They may inspect, create, edit, rename, and delete files as needed, run
+  commands and tests, and perform well-scoped implementation work. No
+  read-only restriction applies to delegated subagents.
+- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning for suitable delegated
+  work when delegation saves total effort and tokens after setup, context
+  transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
+  UI, and routine implementation with clear expected results.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
-  scope and acceptance criteria. Delegation must still save total effort and
-  tokens after setup, context transfer, and review. Luna's local editing
-  authority does not authorize merging or pushing, and does not transfer
-  ownership of the final decision.
+  scope and acceptance criteria. Every delegated agent that changes files must
+  use its own worktree and short-lived branch; never have a delegated agent
+  edit the primary agent's checkout or another agent's files. Full read/write
+  access is scoped to that assigned worktree and does not authorize merging or
+  pushing.
 - No code change has zero risk. Keep security, authentication, authorization,
   authoritative state mutations, complex gameplay, architectural decisions, and
   other high-risk security or product decisions with the primary agent. The
