@@ -848,6 +848,8 @@ export async function advanceTurn({
       currentTurn: number;
       turnStartAnnouncement?: { turn: number; survivorPopulation: number };
       turnPhase?: unknown;
+      maintenanceCycles?: GameSession['maintenanceCycles'];
+      shuttleFuelled?: GameSession['shuttleFuelled'];
     }
   >(functions(), 'advanceTurn');
   try {
@@ -874,6 +876,12 @@ export async function advanceTurn({
         currentTurn: reply.data.currentTurn,
         ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
+        ...(reply.data.maintenanceCycles
+          ? { maintenanceCycles: reply.data.maintenanceCycles }
+          : {}),
+        ...(reply.data.shuttleFuelled
+          ? { shuttleFuelled: reply.data.shuttleFuelled }
+          : {}),
       };
       if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
       useSessionStore.getState().setSession(nextSession);

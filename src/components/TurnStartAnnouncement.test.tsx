@@ -101,34 +101,56 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   expect(document.querySelector('.intrusion--fleet')).not.toBeInTheDocument();
 });
 
-it('uses only the survivor-count beat on every turn after Turn 1', () => {
+it('announces the next airspace state, survivors, and objective on every turn after Turn 1', () => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
   render(<TurnStartAnnouncement />);
 
   act(() => useSessionStore.getState().setSession({
     ...useSessionStore.getState().session!,
     currentTurn: 2,
     turnStartAnnouncement: { turn: 2, survivorPopulation: 237_000 },
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
   }));
 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
   expect(screen.getByText('TURN 1 → TURN 2')).toBeInTheDocument();
-  expect(screen.getByText('TRANSMISSION 01 / 02')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 01 / 04')).toBeInTheDocument();
+  expect(screen.getByRole('status', { name: /Airspace closed/, hidden: true }))
+    .toHaveTextContent('05:00');
   expect(screen.queryByText('237,000 SURVIVORS')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  expect(screen.getByText('AIRSPACE CLOSED')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 02 / 04')).toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('237,000 SURVIVORS')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 03 / 04')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
   expect(screen.getByText('236,999 SURVIVORS')).toBeInTheDocument();
   expect(screen.getByText('FLEET SURVIVORS').parentElement).toHaveTextContent('236,999');
-  expect(screen.queryByText('SURVIVE.')).not.toBeInTheDocument();
+  expect(screen.queryByText('OBJECTIVE // SURVIVE.')).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
+  expect(screen.getByText('OBJECTIVE // SURVIVE.')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 04 / 04')).toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(screen.getByRole('status', { name: /Airspace closed/, hidden: true }))
+    .toHaveTextContent('04:52');
 
   const overlay = document.querySelector('.intrusion--fleet');
   expect(overlay).toHaveAttribute('data-state', 'active');
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2 - 1));
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS - 1_000 - 1));
   expect(overlay).toHaveAttribute('data-state', 'active');
   act(() => vi.advanceTimersByTime(1));
   expect(overlay).toHaveAttribute('data-state', 'exiting');
@@ -158,6 +180,10 @@ it('eases the current beat out before the next transmission beat enters', () => 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_EXIT_MS));
+  expect(screen.getByText('AIRSPACE CLOSED')).toBeInTheDocument();
+  expect(screen.getByText('AIRSPACE CLOSED').parentElement).toHaveAttribute('data-motion', 'in');
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('237,000 SURVIVORS')).toBeInTheDocument();
   expect(screen.getByText('237,000 SURVIVORS').parentElement).toHaveAttribute('data-motion', 'in');
 });

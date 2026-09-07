@@ -586,6 +586,10 @@ describe('GM instance commands', () => {
           openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
           airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
         },
+        maintenanceCycles: {
+          aegis: { step: 0, revision: 8, results: {}, charges: [], refuelled: [] },
+        },
+        shuttleFuelled: { starlight: false },
       },
     });
     vi.mocked(httpsCallable).mockReturnValue(callable);
@@ -607,6 +611,10 @@ describe('GM instance commands', () => {
       openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     });
+    expect(useSessionStore.getState().session?.maintenanceCycles).toEqual({
+      aegis: { step: 0, revision: 8, results: {}, charges: [], refuelled: [] },
+    });
+    expect(useSessionStore.getState().session?.shuttleFuelled).toEqual({ starlight: false });
   });
 
   it('skips the Turn 1 fullscreen transmission and clears stale announcement state', async () => {
@@ -656,7 +664,7 @@ describe('GM instance commands', () => {
     useSessionStore.getState().setConnection('live');
     vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
       code: 'functions/failed-precondition',
-      message: 'The airspace-restricted timer is still active.',
+      message: 'The airspace-closed timer is still active.',
     }));
 
     await expect(beginOpenAirspacePhase(2)).rejects.toMatchObject({

@@ -192,10 +192,10 @@ it('keeps both airspace-window countdowns at the lower left of compact and expan
 
   const view = render(<ShipPlot hostile={false} aboard viewerId="aegis" turnPhase={restrictedPhase} />);
 
-  expect(screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' }))
+  expect(screen.getByRole('status', { name: 'Airspace closed // 10:00 remaining' }))
     .toHaveAttribute('data-tone', 'blue');
   fireEvent.click(screen.getByRole('button', { name: /zoom into dradis/i }));
-  expect(screen.getByRole('status', { name: 'Airspace restricted // 10:00 remaining' }))
+  expect(screen.getByRole('status', { name: 'Airspace closed // 10:00 remaining' }))
     .toHaveAttribute('data-tone', 'blue');
 
   view.unmount();

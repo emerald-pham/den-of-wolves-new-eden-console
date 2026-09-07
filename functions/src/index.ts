@@ -75,6 +75,7 @@ import {
   type NavigationLogs,
 } from './navigation';
 import { chooseWolfRoles } from './wolfAssignment';
+import { expireTurnScopedResources } from './turnTransition';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
   isJointEngineeringRoleAvailable,
@@ -1386,6 +1387,12 @@ export const advanceTurn = onCall<{
       survivorPopulation: announcementPopulation,
     };
     const turnPhase = startTurnPhase(nextTurn);
+    const expiredTurnResources = currentTurn >= 1
+      ? expireTurnScopedResources(
+        (session.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>,
+        (session.get('shuttleFuelled') ?? {}) as Record<string, boolean>,
+      )
+      : undefined;
     tx.update(sessionRef, {
       currentTurn: nextTurn,
       turnStartAnnouncement: advance.skipTurnStartAnnouncement
@@ -1393,12 +1400,24 @@ export const advanceTurn = onCall<{
         : announcement,
       fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
       turnPhase,
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     return {
       currentTurn: nextTurn,
       ...(advance.skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
       turnPhase,
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
     };
   });
 });
@@ -1473,7 +1492,7 @@ export const beginOpenAirspacePhase = onCall<{
       throw new HttpsError('failed-precondition', 'No current turn phase is available.');
     }
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
-      throw new HttpsError('failed-precondition', 'The airspace-restricted timer is still active.');
+      throw new HttpsError('failed-precondition', 'The airspace-closed timer is still active.');
     }
     if (phase.airspace.state === 'lifted') return { turnPhase: phase };
     const turnPhase = {
