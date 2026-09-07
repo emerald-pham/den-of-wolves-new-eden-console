@@ -1,4 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import HackingMessageOverlay from '@/components/HackingMessageOverlay';
+import {
+  HACKING_MESSAGE_DURATION_MS,
+  HACKING_MESSAGE_INITIAL_DELAY_MS,
+  HACKING_MESSAGE_INTERVAL_MS,
+  nextHackingMessage,
+  type HackingMessage,
+} from '@/lib/hackingMessages';
 import { useMotionPreference } from '@/lib/motionPreference';
 
 /** Readouts turn over every CYCLE_MS, staggered so the three never move at
@@ -71,15 +79,59 @@ const manifests: readonly {
   },
   { label: 'WOLVES AMONG US', start: '1', offset: CYCLE_MS * 0.6, draw: inOrder(['1', '?', '2']) },
 ];
+
+/** Keep the opening experience accessible and quiet until Wolf gameplay opts in. */
+export const LAUNCHER_HACKING_MESSAGES_ENABLED = false;
+
 export default function ArrivalDisplay({
+  enableHackingMessages = LAUNCHER_HACKING_MESSAGES_ENABLED,
+  onTransmission,
   standDown = false,
 }: {
+  enableHackingMessages?: boolean | undefined;
+  onTransmission?: ((active: boolean) => void) | undefined;
   standDown?: boolean | undefined;
 }) {
   const { reducedMotion } = useMotionPreference();
   const [values, setValues] = useState(() => manifests.map((manifest) => manifest.start));
   const [population, setPopulation] = useState(drawSurvivorPopulation);
   const [sus, setSus] = useState(false);
+  const [message, setMessage] = useState<HackingMessage | null>(null);
+  const notify = useRef(onTransmission);
+
+  useEffect(() => {
+    notify.current = onTransmission;
+  }, [onTransmission]);
+
+  useEffect(() => {
+    notify.current?.(
+      message !== null && enableHackingMessages && !reducedMotion && !standDown,
+    );
+  }, [enableHackingMessages, message, reducedMotion, standDown]);
+
+  // Leaving the launcher or disabling the capability stands the overlay down
+  // immediately, even if an earlier transmission was still on screen.
+  useEffect(() => () => notify.current?.(false), []);
+
+  useEffect(() => {
+    if (!enableHackingMessages || reducedMotion || standDown) {
+      setMessage(null);
+      return;
+    }
+
+    const timers: number[] = [];
+    let previous: HackingMessage | null = null;
+    const transmit = () => {
+      const next = nextHackingMessage(previous);
+      previous = next;
+      setMessage(next);
+      timers.push(window.setTimeout(() => setMessage(null), HACKING_MESSAGE_DURATION_MS));
+      timers.push(window.setTimeout(transmit, HACKING_MESSAGE_INTERVAL_MS));
+    };
+
+    timers.push(window.setTimeout(transmit, HACKING_MESSAGE_INITIAL_DELAY_MS));
+    return () => timers.forEach(window.clearTimeout);
+  }, [enableHackingMessages, reducedMotion, standDown]);
 
   useEffect(() => {
     if (reducedMotion || standDown) return;
@@ -149,6 +201,10 @@ export default function ArrivalDisplay({
           </div>
         </div>
       </section>
+      <HackingMessageOverlay
+        enabled={enableHackingMessages && !reducedMotion && !standDown}
+        message={message}
+      />
     </>
   );
 }

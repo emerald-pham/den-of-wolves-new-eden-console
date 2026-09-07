@@ -140,6 +140,41 @@ it('does not show hostile hacking messages on the opening display', () => {
   );
 });
 
+it('restores the launcher hacking-message sequence only when explicitly enabled', () => {
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  const onTransmission = vi.fn();
+  render(<ArrivalDisplay enableHackingMessages onTransmission={onTransmission} />);
+
+  expect(onTransmission).toHaveBeenLastCalledWith(false);
+  advance(19_999);
+  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
+
+  advance(1);
+  expect(screen.getByText('EARTH IS NOT FOR YOU')).toBeInTheDocument();
+  expect(document.querySelector('.intrusion')).toHaveAttribute('aria-hidden', 'true');
+  expect(onTransmission).toHaveBeenLastCalledWith(true);
+
+  advance(5_000);
+  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
+  expect(onTransmission).toHaveBeenLastCalledWith(false);
+
+  advance(55_000);
+  expect(screen.getByText('BE AFRAID')).toBeInTheDocument();
+});
+
+it('keeps the restored hacking-message capability disabled for reduced motion', () => {
+  vi.mocked(matchMedia).mockReturnValue({
+    matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  } as unknown as MediaQueryList);
+  const onTransmission = vi.fn();
+  render(<ArrivalDisplay enableHackingMessages onTransmission={onTransmission} />);
+
+  advance(80_000);
+
+  expect(screen.queryByText('EARTH IS NOT FOR YOU')).not.toBeInTheDocument();
+  expect(onTransmission).not.toHaveBeenCalledWith(true);
+});
+
 it('has no motion control and clears timers on unmount', () => {
   const { unmount } = render(<ArrivalDisplay />);
   expect(screen.queryByRole('button', { name: /pause effects|resume effects/i })).not.toBeInTheDocument();

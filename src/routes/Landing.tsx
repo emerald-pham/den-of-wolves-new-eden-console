@@ -1,4 +1,4 @@
-import ArrivalDisplay from './ArrivalDisplay';
+import ArrivalDisplay, { LAUNCHER_HACKING_MESSAGES_ENABLED } from './ArrivalDisplay';
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
@@ -50,7 +50,10 @@ export default function Landing() {
         <span className="landing__title-sub">Unofficial Companion Console</span>
       </h1>
 
-      <ArrivalDisplay standDown={busy} />
+      <ArrivalDisplay
+        enableHackingMessages={LAUNCHER_HACKING_MESSAGES_ENABLED}
+        standDown={busy}
+      />
 
       <div className="landing__actions cic-frame">
         <div className="landing__primary-actions">
