@@ -60,6 +60,26 @@ export function emulatorEnvironmentForSlot(slot) {
   };
 }
 
+/** Return the Vite port assigned to one worktree slot. */
+export function vitePortForSlot(slot) {
+  assertSlot(slot);
+  return VITE_DEV_SERVER_PORT + slot;
+}
+
+/** Infer a configured slot from a Firebase config, when its Firestore port matches. */
+export function emulatorSlotForConfig(config) {
+  const configRecord = objectRecord(config);
+  const emulators = objectRecord(configRecord.emulators);
+  const firestore = objectRecord(emulators.firestore);
+  const firestorePort = firestore.port;
+  if (!Number.isInteger(firestorePort)) return undefined;
+
+  const slot = (firestorePort - BASE_PORTS.firestore) / PORT_OFFSET_PER_SLOT;
+  return Number.isInteger(slot) && slot >= 0 && slot < EMULATOR_SLOT_COUNT
+    ? slot
+    : undefined;
+}
+
 /** Overlay one slot's complete emulator set on an existing Firebase config. */
 export function firebaseConfigForSlot(baseConfig, slot) {
   const ports = emulatorPortsForSlot(slot);

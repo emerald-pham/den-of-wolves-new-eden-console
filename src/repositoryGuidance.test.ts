@@ -47,4 +47,14 @@ describe('repository guidance', () => {
     expect(guidance).toContain('user perspective');
     expect(guidance).toContain('developer perspective');
   });
+
+  it('requires a shared preemptive work entry before agents edit a worktree', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('Preemptive changelog');
+    expect(guidance).toContain('coordination:begin');
+    expect(guidance).toContain('Version agreement');
+    expect(guidance).toContain('coordination:status');
+  });
 });

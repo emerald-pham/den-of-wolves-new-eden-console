@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -8,7 +7,13 @@ import {
   emulatorEnvironmentForSlot,
   emulatorPortsForSlot,
   firebaseConfigForSlot,
+  vitePortForSlot,
 } from './emulator-slots.js';
+import {
+  coordinationFilePath,
+  releaseConfiguredEmulatorSlot,
+  reserveConfiguredEmulatorSlot,
+} from './emulator-resource-registry.mjs';
 
 const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json');
@@ -30,25 +35,6 @@ function parseSlot(args) {
   return slot;
 }
 
-function verifyPortIsFree(service, port) {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const server = createServer();
-    server.once('error', (error) => {
-      rejectPromise(
-        new Error(
-          `Cannot claim ${service} port ${port}: ${error.message}. Choose another emulator slot.`,
-        ),
-      );
-    });
-    server.listen({ host: '127.0.0.1', port }, () => {
-      server.close((error) => {
-        if (error) rejectPromise(error);
-        else resolvePromise();
-      });
-    });
-  });
-}
-
 async function writeAtomically(path, content) {
   const temporaryPath = `${path}.${process.pid}.tmp`;
   await writeFile(temporaryPath, content, 'utf8');
@@ -58,27 +44,38 @@ async function writeAtomically(path, content) {
 async function main() {
   const slot = parseSlot(process.argv.slice(2));
   const ports = emulatorPortsForSlot(slot);
-  await Promise.all(
-    Object.entries(ports).map(([service, port]) => verifyPortIsFree(service, port)),
-  );
+  const coordinationPath = coordinationFilePath();
+  const configuration = await reserveConfiguredEmulatorSlot({
+    filePath: coordinationPath,
+    slot,
+    worktree: repositoryDirectory,
+    ports: [...Object.values(ports), vitePortForSlot(slot)],
+  });
 
-  const baseConfig = JSON.parse(
-    await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'),
-  );
-  const localConfig = firebaseConfigForSlot(baseConfig, slot);
-  const environment = emulatorEnvironmentForSlot(slot);
-  const environmentText = `${Object.entries(environment)
-    .map(([name, value]) => `${name}=${value}`)
-    .join('\n')}\n`;
+  try {
+    const baseConfig = JSON.parse(
+      await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'),
+    );
+    const localConfig = firebaseConfigForSlot(baseConfig, slot);
+    const environment = emulatorEnvironmentForSlot(slot);
+    const environmentText = `${Object.entries(environment)
+      .map(([name, value]) => `${name}=${value}`)
+      .join('\n')}\n`;
 
-  await Promise.all([
-    writeAtomically(localFirebaseConfigPath, `${JSON.stringify(localConfig, null, 2)}\n`),
-    writeAtomically(localEnvironmentPath, environmentText),
-  ]);
+    await Promise.all([
+      writeAtomically(localFirebaseConfigPath, `${JSON.stringify(localConfig, null, 2)}\n`),
+      writeAtomically(localEnvironmentPath, environmentText),
+    ]);
+  } catch (error) {
+    await releaseConfiguredEmulatorSlot(configuration, coordinationPath);
+    throw error;
+  }
 
   console.log(`Configured emulator slot ${slot}.`);
   console.log(`  Firebase: ${localFirebaseConfigPath}`);
   console.log(`  Vite:     ${localEnvironmentPath}`);
+  console.log(`  Shared coordination: ${coordinationPath}`);
+  console.log('Run npm run coordination:status to inspect local worktree ownership.');
   console.log('Run npm run emulators, npm run dev:emulators, or npm run test:rules.');
 }
 

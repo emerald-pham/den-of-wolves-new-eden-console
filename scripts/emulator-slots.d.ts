@@ -15,6 +15,8 @@ export const EMULATOR_SLOT_COUNT: number;
 
 export function emulatorPortsForSlot(slot: number): EmulatorSlotPorts;
 export function emulatorEnvironmentForSlot(slot: number): EmulatorEnvironment;
+export function vitePortForSlot(slot: number): number;
+export function emulatorSlotForConfig(config: Record<string, unknown>): number | undefined;
 export function firebaseConfigForSlot(
   baseConfig: Record<string, unknown>,
   slot: number,
