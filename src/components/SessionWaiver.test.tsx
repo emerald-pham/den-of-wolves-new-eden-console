@@ -7,7 +7,7 @@ describe('SessionWaiver', () => {
     vi.useRealTimers();
   });
 
-  it('shows the two regulations together in a code-of-conduct layout', () => {
+  it('shows the three regulations together in a code-of-conduct layout', () => {
     render(<SessionWaiver onAcknowledge={vi.fn()} />);
 
     expect(screen.getByRole('dialog', { name: /code of conduct/i })).toBeInTheDocument();
@@ -18,7 +18,12 @@ describe('SessionWaiver', () => {
     expect(screen.getByRole('article', {
       name: /CIC authorized personnel may hide resource counts/i,
     })).toHaveTextContent(/not compelled to share.*may lie about resource counts.*jump coordinates/i);
-    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(screen.getByRole('article', {
+      name: /remember the human on the other side/i,
+    })).toHaveTextContent(
+      "We're all playing roles, but remember there's another human on the other side. You'll have to debrief and say hi with them when the game is over anyways, even if they are your enemy in the present moment.",
+    );
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
     expect(screen.getAllByRole('checkbox').every((checkbox) => !(checkbox as HTMLInputElement).checked)).toBe(true);
     expect(screen.getByRole('button', { name: 'Acknowledge regulations and continue' })).toBeDisabled();
     expect(screen.getByText(/saved for 24 hours on this device/i)).toBeInTheDocument();
@@ -35,6 +40,8 @@ describe('SessionWaiver', () => {
     fireEvent.click(checkboxes[0]!);
     expect(confirm).toBeDisabled();
     fireEvent.click(checkboxes[1]!);
+    expect(confirm).toBeDisabled();
+    fireEvent.click(checkboxes[2]!);
     expect(confirm).toBeDisabled();
 
     act(() => vi.advanceTimersByTime(9_999));

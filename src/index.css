@@ -3910,8 +3910,8 @@ body {
 /* Session access waiver ------------------------------------------------ */
 
 /* A required acknowledgement is a full-screen instrument: it blocks the
-   underlying console until the player has read the table convention and the
-   in-world information-security rule. */
+   underlying console until the player has read the table convention, the
+   in-world information-security rule, and the human-on-the-other-side reminder. */
 .session-waiver-backdrop {
   position: fixed;
   inset: 0;

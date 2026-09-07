@@ -14,6 +14,12 @@ const REGULATIONS = [
     eyebrow: 'IN-WORLD INFORMATION SECURITY',
     copy: 'CIC authorized personnel may hide resource counts from other ships and are not compelled to share them. They may lie about resource counts, jump coordinates, or other details when informational security requires it.',
   },
+  {
+    id: 'human-on-the-other-side',
+    title: 'REMEMBER THE HUMAN ON THE OTHER SIDE',
+    eyebrow: 'OUT-OF-CHARACTER / TABLE RULE',
+    copy: "We're all playing roles, but remember there's another human on the other side. You'll have to debrief and say hi with them when the game is over anyways, even if they are your enemy in the present moment.",
+  },
 ] as const;
 
 export interface SessionWaiverProps {

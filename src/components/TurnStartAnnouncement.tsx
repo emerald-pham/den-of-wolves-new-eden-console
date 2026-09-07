@@ -6,9 +6,10 @@ import type { GameSession } from '@/types/game';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
-export const TURN_START_EXIT_FADE_MS = 1_000;
+export const TURN_START_EXIT_FADE_MS = 2_000;
 export const TURN_ONE_CLOSING_SLIDE_MS = 3_000;
 export const TURN_ONE_NARRATIVE_SLIDE_MS = 4_000;
+export const TURN_ONE_TRAITORS_SLIDE_MS = 4_800;
 
 type TurnStartTransmission = {
   readonly sessionId: string;
@@ -35,6 +36,7 @@ function currentAnnouncement(session: GameSession | null | undefined): TurnStart
 
 function slideDuration(isFirstTurn: boolean, slide: number): number {
   if (isFirstTurn && slide >= 6) return TURN_ONE_CLOSING_SLIDE_MS;
+  if (isFirstTurn && slide === 5) return TURN_ONE_TRAITORS_SLIDE_MS;
   if (isFirstTurn && slide >= 2 && slide <= 4) return TURN_ONE_NARRATIVE_SLIDE_MS;
   return TURN_START_SLIDE_MS;
 }
