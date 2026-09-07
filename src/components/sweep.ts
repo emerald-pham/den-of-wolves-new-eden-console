@@ -21,27 +21,69 @@ export function rimDistance(point: Vector, normal: Vector, camera: Vector): numb
 }
 
 const SWEEP_EPSILON = 1e-8;
+const SWEEP_DISC_RADIUS = 1;
 
 const dot = (a: Vector, b: Vector): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
-function crossedDistance(previous: number | null, current: number): boolean {
-  if (previous === null) return Math.abs(current) < SWEEP_EPSILON;
-  if (Math.abs(previous) < SWEEP_EPSILON) return false;
-  return Math.abs(current) < SWEEP_EPSILON || (previous < 0) !== (current < 0);
+const lengthSquared = (vector: Vector): number => dot(vector, vector);
+
+function normalize(vector: Vector): Vector {
+  const length = Math.sqrt(lengthSquared(vector));
+  return length > SWEEP_EPSILON
+    ? { x: vector.x / length, y: vector.y / length, z: vector.z / length }
+    : vector;
 }
 
-/** A rendered sweep disc is a plane through the origin. A target is acquired
- * when that plane crosses the target's actual 3D position, wherever the point
- * lies inside the disc, rather than when its screen projection reaches a rim. */
+function interpolate(start: Vector, end: Vector, progress: number): Vector {
+  return {
+    x: start.x + (end.x - start.x) * progress,
+    y: start.y + (end.y - start.y) * progress,
+    z: start.z + (end.z - start.z) * progress,
+  };
+}
+
+function crossingProgress(previous: number | null, current: number): number | null {
+  if (previous === null) return Math.abs(current) < SWEEP_EPSILON ? 1 : null;
+  if (Math.abs(previous) < SWEEP_EPSILON) return null;
+  if (Math.abs(current) < SWEEP_EPSILON) return 1;
+  if ((previous < 0) === (current < 0)) return null;
+  return previous / (previous - current);
+}
+
+/** A rendered sweep is a finite circular plane through the rig origin. Sample
+ * both moving pieces of geometry, then check the crossing point against the
+ * disc itself—not an infinite plane or a 2D screen projection. */
+export function crossedSweepDisc(
+  previousPoint: Vector | null,
+  point: Vector,
+  previousNormal: Vector | null,
+  currentNormal: Vector,
+): boolean {
+  const currentUnitNormal = normalize(currentNormal);
+  const previousUnitNormal = previousNormal === null ? null : normalize(previousNormal);
+  const previousDistance = previousPoint === null || previousUnitNormal === null
+    ? null
+    : dot(previousPoint, previousUnitNormal);
+  const currentDistance = dot(point, currentUnitNormal);
+  const progress = crossingProgress(previousDistance, currentDistance);
+  if (progress === null) return false;
+
+  const crossingPoint = previousPoint === null ? point : interpolate(previousPoint, point, progress);
+  const crossingNormal = previousUnitNormal === null
+    ? currentUnitNormal
+    : normalize(interpolate(previousUnitNormal, currentUnitNormal, progress));
+  const signedDistance = dot(crossingPoint, crossingNormal);
+  const radialDistanceSquared = Math.max(0, lengthSquared(crossingPoint) - signedDistance ** 2);
+  return radialDistanceSquared <= SWEEP_DISC_RADIUS ** 2 + SWEEP_EPSILON;
+}
+
+/** Backward-compatible stationary-point helper for geometry callers. */
 export function crossedPlane(
   point: Vector,
   previousNormal: Vector | null,
   currentNormal: Vector,
 ): boolean {
-  return crossedDistance(
-    previousNormal === null ? null : dot(point, previousNormal),
-    dot(point, currentNormal),
-  );
+  return crossedSweepDisc(point, point, previousNormal, currentNormal);
 }
 
 const BEARING_WALK = [-1, -0.5, 1, 0.5, 0];
@@ -55,6 +97,7 @@ type ReturnState = {
   readonly blip: HTMLElement;
   readonly drop: HTMLElement | null;
   fix: Vector;
+  point: Vector | null;
   scans: number;
   scannedAt: number;
   paint: Animation[];
@@ -135,6 +178,7 @@ export function followSweeps(plot: HTMLElement): () => void {
         blip,
         drop: element.querySelector<HTMLElement>('.contact-plot__drop'),
         fix: canonical,
+        point: null,
         scans: index,
         scannedAt: -Infinity,
         paint: [],
@@ -145,8 +189,10 @@ export function followSweeps(plot: HTMLElement): () => void {
       const point = moving ? actualPoint(actual, canonical, radius) : canonical;
       const crossed = normals.some((normal, i) => {
         const beforeNormal = existing && !suspended ? previous[i] ?? null : null;
-        return crossedPlane(point, beforeNormal, normal);
+        const beforePoint = existing && !suspended ? state.point : null;
+        return crossedSweepDisc(beforePoint, point, beforeNormal, normal);
       });
+      state.point = point;
       if (!crossed) continue;
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.

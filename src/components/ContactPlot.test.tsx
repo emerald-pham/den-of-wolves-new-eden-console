@@ -295,7 +295,7 @@ it('separates a moving contact true position from its sampled visible fix', () =
   expect(actual).not.toContainElement(apparent as HTMLElement);
 });
 
-it('holds a moving return at its sampled fix until another sweep crosses its true position', () => {
+it('holds a moving return at its sampled fix while it stays on one side of a sweep, then refreshes on a later crossing', () => {
   vi.useFakeTimers();
   let frame: FrameRequestCallback = () => undefined;
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -349,7 +349,7 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   expect(firstFix).toContain('--fix-y: 0.1');
   expect(firstFix).toContain('--fix-z: 0.2');
 
-  actualPosition = { x: 40, y: -30, z: 60 };
+  actualPosition = { x: 40, y: 30, z: 60 };
   act(() => frame(32));
   expect(apparent?.style.cssText).toBe(firstFix);
 
@@ -357,7 +357,7 @@ it('holds a moving return at its sampled fix until another sweep crosses its tru
   act(() => frame(48));
   act(() => frame(64));
   expect(apparent?.style.cssText).toContain('--fix-x: 0.4');
-  expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
+  expect(apparent?.style.cssText).toContain('--fix-y: 0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
   unmount();
 });
