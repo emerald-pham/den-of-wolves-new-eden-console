@@ -153,20 +153,23 @@ it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
   await user.click(buttons[1]!);
 
   expect(advanceTurn).toHaveBeenCalledOnce();
-  expect(advanceTurn).toHaveBeenCalledWith();
+  expect(advanceTurn).toHaveBeenCalledWith({ skipTurnStartAnnouncement: true });
   await waitFor(() => expect(within(turnControls).getByText('Turn 1')).toBeInTheDocument());
   expect(within(turnControls).queryByRole('button', { name: /skip to turn 1/i }))
     .not.toBeInTheDocument();
 });
 
-it('keeps the normal Turn 0 route to Turn 1 alongside the skip shortcut', async () => {
+it('requires confirmation for Advance to Turn 1 without changing Skip wording', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
   useSessionStore.getState().setSession({ ...activeSession, currentTurn: 0 });
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(advanceTurn).mockResolvedValue(undefined);
+  let resolveAdvance: (() => void) | undefined;
+  vi.mocked(advanceTurn).mockReturnValue(new Promise<void>((resolve) => {
+    resolveAdvance = resolve;
+  }));
   renderConsole();
 
   const turnControls = await screen.findByRole('region', { name: /turn controls/i });
@@ -174,12 +177,24 @@ it('keeps the normal Turn 0 route to Turn 1 alongside the skip shortcut', async 
   const skipToTurnOne = within(turnControls).getByRole('button', { name: /skip to turn 1/i });
 
   await user.click(advanceToTurnOne);
-  await user.click(skipToTurnOne);
-  await user.click(within(turnControls).getByRole('button', { name: /are you sure.*skip to turn 1/i }));
+  expect(advanceTurn).not.toHaveBeenCalled();
+  expect(within(turnControls).getByRole('button', {
+    name: 'ARE YOU SURE? // Advance to Turn 1',
+  })).toBeVisible();
+  expect(skipToTurnOne).toHaveTextContent('Skip to Turn 1');
 
-  expect(advanceTurn).toHaveBeenCalledTimes(2);
-  expect(advanceTurn).toHaveBeenNthCalledWith(1);
-  expect(advanceTurn).toHaveBeenNthCalledWith(2);
+  await user.click(within(turnControls).getByRole('button', {
+    name: 'ARE YOU SURE? // Advance to Turn 1',
+  }));
+
+  expect(advanceTurn).toHaveBeenCalledOnce();
+  expect(advanceTurn).toHaveBeenCalledWith();
+  expect(skipToTurnOne).toHaveTextContent('Skip to Turn 1');
+  expect(skipToTurnOne).not.toHaveTextContent('Skipping to Turn 1…');
+  await act(async () => {
+    resolveAdvance?.();
+    await Promise.resolve();
+  });
 });
 
 it('offers local and shared replay controls for the current turn transmission', async () => {

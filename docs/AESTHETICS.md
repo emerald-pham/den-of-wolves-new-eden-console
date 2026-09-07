@@ -394,19 +394,18 @@ is exclusive to DRADIS: outside it, retain the documented full combat-category
 names. Adding or changing a combat-range label must not alter a contact's
 coordinate, trajectory, sampled fix, or scan-acquisition behavior.
 
-A contact does not exist on the instrument until a rendered sweep plane crosses
-the contact's actual current 3D position in the shared rig space. Before that
-crossing, both the return and its name are invisible. The crossing is the same
-event that acquires the return, paints its flare and altitude line, and permits
-any scan-gated identification; do not use a parallel timer or a 2D screen
-projection that can reveal or rename a contact before or after the sweep plane
-reaches it.
+A contact does not exist on the instrument until a rendered sweep circumference
+crosses the contact's actual current position in space. Before that crossing,
+both the return and its name are invisible. The crossing seen on screen is the
+same event that acquires the return, paints its flare and altitude line, and
+permits any scan-gated identification; do not use a parallel timer that can
+reveal or rename a contact before or after the visible sweep reaches it.
 
 Stationary spaceship returns retain the established display uncertainty. Each
 eligible sweep samples a new apparent bearing from the fixed walk spanning no
 more than two degrees. The displayed fix holds absolutely still between sweeps.
-A second sweep-plane crossing within 1.12 seconds refreshes the paint without
-changing the fix; only a later crossing may sample another fix. The freshness timer
+A second rim crossing within 1.12 seconds refreshes the paint without changing
+the fix; only a later crossing may sample another fix. The freshness timer
 fading out never moves or jitters a return by itself, and the canonical XYZ
 coordinate is never modified.
 
@@ -661,15 +660,10 @@ that is a different, flatter instrument.
    `|y|` and `--flip` = ±1 for the altitude line down to the equatorial plane,
    and `--phase` = `(bearing mod 180) / 180`.
 8. **Paint flare.** A frame observer reads each disc's rendered CSS transform.
-   A contact acquires and refreshes when either rendered 3D sweep plane crosses
-   its actual XYZ position in the shared rig space. The observer compares the
-   target's signed distance from the plane, so CSS perspective, viewport layout,
-   and the display-only projected return cannot change acquisition. Acquisition,
-   a one-shot blip/altitude-line fade, and the display bearing step share that
-   event; there are no independent repeating contact timers.
-   The finite collision radius comes from that sweep element's own unprojected
-   border box, not a fixed logical constant or a screen-space bound, so the
-   visible viewport disc and its 3D acquisition boundary are the same geometry.
+   A contact acquires and refreshes when any part of either bright circumference
+   crosses its rendered screen position. The observer casts a viewing ray
+   through the actual contact anchor, accounting for CSS perspective and rig tilt. Acquisition, a one-shot blip/altitude-line fade, and the display bearing
+   step share that event; there are no independent repeating contact timers.
    Stationary returns use a bearing walk spanning -1 to +1 degrees around the
    vertical axis while retaining canonical formation coordinates. Moving
    contacts advance an invisible actual-position marker continuously, but copy
@@ -712,12 +706,11 @@ colour and introduces spoofed returns; it does not accelerate the sweep.
 
 CSS owns the disc rotations, invisible actual-position transits and
 spoofed-return breakup. A requestAnimationFrame observer reads both rendered
-disc matrices and detects when their 3D planes cross the canonical or actual
-target coordinates in rig space; it does not project contacts through viewport
-layout, advance an independent scan clock or cause React renders per frame.
-Each hit samples the actual position into a held apparent fix and starts a
-one-shot Web Animation for the blip decay. Cleanup cancels the observer and its
-blip animations.
+disc matrices and detects crossings of the full projected circumference,
+accounting for the rig tilt and CSS perspective; it does not advance an
+independent scan clock or cause React renders per frame. Each hit samples the
+actual position into a held apparent fix and starts a one-shot Web Animation
+for the blip decay. Cleanup cancels the observer and its blip animations.
 `data-still="true"` (set from the effective motion preference) stops the board
 and displays static contacts. Moving encounter contacts still require a real
 sweep and therefore remain hidden if they were not already acquired. The effective preference follows
@@ -814,9 +807,23 @@ panel stay above it. Decorative overlines are amber-ember; the message is
   canonical copy, giving each letter an independent 10% chance of replacement.
   Preserve spaces and punctuation so the words flicker without shifting layout.
 
-The launcher does not run intrusion takeovers or display hostile messages.
-Threat presentation remains available for later gameplay where it has clear
-context, but it is deliberately absent from the opening experience.
+The launcher's former hacking-message capability is restored behind the
+explicit `ArrivalDisplay` `enableHackingMessages` opt-in. `Landing` passes
+`LAUNCHER_HACKING_MESSAGES_ENABLED`, which must remain `false` until a Wolf
+gameplay event supplies the context; the current opening experience therefore
+does not display hostile messages. This preserves the considerate,
+accessibility-friendly default introduced when the opening intrusion was
+removed, while keeping the exact copy and timing available for later use.
+
+When Wolf hacking is implemented, use the shared `HACKING_MESSAGES` copy from
+`src/lib/hackingMessages.ts` and `HackingMessageOverlay` from
+`src/components/HackingMessageOverlay.tsx` (or
+the `ArrivalDisplay` opt-in when the event is on the launcher). Drive the
+opt-in from authoritative Wolf state, never by flipping the launcher constant
+globally or by adding a second message list. Keep `Intrusion`'s `aria-hidden`,
+no-focus-trap presentation, the shared reduced-motion behavior, and the
+`standDown` cleanup so hacking copy remains decorative and does not interrupt
+assistive technology.
 
 Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 5/6.5/8 seconds.
@@ -1035,6 +1042,11 @@ second, followed by `REPLAY LAST TRANSMISSION // GM ONLY` and `REPLAY LAST
 TRANSMISSION // EVERYONE`. The first replay is browser-local to that GM; the
 second increments the server-owned transmission revision so every connected
 console replays the same current-turn briefing without changing the game turn.
+The two Turn 0 commands remain independent: Advance to Turn 1 uses the same
+danger-red second-press `ARE YOU SURE? // ADVANCE TO TURN 1` confirmation as
+other high-impact commands and plays the normal fullscreen transmission, while
+Skip to Turn 1 has its own confirmation and suppresses that transmission.
+Advance's in-flight state must not rewrite Skip's `SKIP TO TURN 1` wording.
 
 During a live Turn 0 session, the top-right connection light uses cyan-blue
 instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's

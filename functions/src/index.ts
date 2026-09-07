@@ -1341,6 +1341,7 @@ export const advanceTurn = onCall<{
   instanceId?: string;
   expectedTurn?: number;
   overridePhaseTimer?: boolean;
+  skipTurnStartAnnouncement?: boolean;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const advance = requireTurnAdvanceRequest(request.data ?? {});
@@ -1387,12 +1388,18 @@ export const advanceTurn = onCall<{
     const turnPhase = startTurnPhase(nextTurn);
     tx.update(sessionRef, {
       currentTurn: nextTurn,
-      turnStartAnnouncement: announcement,
+      turnStartAnnouncement: advance.skipTurnStartAnnouncement
+        ? FieldValue.delete()
+        : announcement,
       fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
       turnPhase,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return { currentTurn: nextTurn, turnStartAnnouncement: announcement, turnPhase };
+    return {
+      currentTurn: nextTurn,
+      ...(advance.skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
+      turnPhase,
+    };
   });
 });
 

@@ -609,6 +609,39 @@ describe('GM instance commands', () => {
     });
   });
 
+  it('skips the Turn 1 fullscreen transmission and clears stale announcement state', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 0,
+      turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+    });
+    const callable = callableReturning({
+      data: {
+        currentTurn: 1,
+        turnPhase: {
+          turn: 1,
+          teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:30:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        },
+      },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn({ skipTurnStartAnnouncement: true });
+
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 0,
+      skipTurnStartAnnouncement: true,
+    });
+    expect(useSessionStore.getState().session?.currentTurn).toBe(1);
+    expect(useSessionStore.getState().session?.turnStartAnnouncement).toBeUndefined();
+  });
+
   it('leaves a slight server-clock lag retryable while the same team phase remains live', async () => {
     useSessionStore.getState().setSession({
       ...session,

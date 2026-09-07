@@ -6,6 +6,7 @@ const mock = vi.hoisted(() => ({
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
+  turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
   activeConsoleRoleId: undefined as string | undefined,
   activeRoleIds: undefined as readonly string[] | undefined,
@@ -23,7 +24,7 @@ vi.mock('firebase-admin/firestore', () => ({
       return callback(tx);
     },
   }),
-  FieldValue: { serverTimestamp: () => 'server-time' },
+  FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
@@ -54,6 +55,7 @@ beforeEach(() => {
   mock.capybaraEnabled = true;
   mock.dioneEnabled = true;
   mock.fleetSurvivorPopulationAdjustment = 0;
+  mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
   mock.pressDispatch = undefined;
   mock.activeConsoleRoleId = undefined;
@@ -79,6 +81,7 @@ beforeEach(() => {
           maintenanceCycles: mock.maintenanceCycles,
           shipSurvivors: mock.shipSurvivors,
           fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
+          turnStartAnnouncement: mock.turnStartAnnouncement,
           capybaraEnabled: mock.capybaraEnabled,
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
@@ -305,6 +308,40 @@ it('keeps the authoritative fleet total non-negative when a turn begins at zero'
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     fleetSurvivorPopulationAdjustment: -155_959,
+  }));
+});
+
+it('skips the Turn 1 fullscreen transmission when requested', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
+  mock.currentTurn = 0;
+  mock.turnStartAnnouncement = { turn: 1, survivorPopulation: 156_042 };
+  mock.capybaraEnabled = false;
+  mock.shipSurvivors = {
+    aegis: 1_000,
+    dione: 90_000,
+    icebreaker: 30_000,
+    capybara: 20_000,
+    shepherd: 20_000,
+    quellon: 10_000,
+    'refinery-124': 5_000,
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
+    skipTurnStartAnnouncement: true,
+  }))).resolves.toEqual({
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 1,
+    turnStartAnnouncement: 'delete-field',
   }));
 });
 
