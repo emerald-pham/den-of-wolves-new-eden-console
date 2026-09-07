@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GMs can now add five minutes to the active Airspace Open or Airspace Closed window from the console after a deliberate confirmation.',
+    ],
+  },
+  {
+    version: '0.2.88',
+    changes: [
       'GM fleet resource cards now show each ship’s current ship-relative pursuit tracker beneath its resource and census controls, using the shared galactic map even when the fleet is split.',
       'Ship consoles now show a ship-relative pursuit tracker directly beneath shipboard DRADIS, using each ship’s live coordinate and the shared galactic map pursuit depth without exposing split-fleet positions.',
       'GM Console now requires a second click to advance from Turn 0, while Skip to Turn 1 bypasses the fullscreen transmission and keeps its own wording independent.',

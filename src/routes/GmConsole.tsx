@@ -39,13 +39,14 @@ import {
   setActiveRoleConfiguration,
   applyShipCounterSteps,
   advanceTurn,
+  extendAirspaceWindow,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
-import { hasActiveTurnTimer, phaseForSession } from '@/lib/turnPhase';
+import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
 import {
   COUNTER_COMMAND_COALESCE_MS,
   previewPopulationChange,
@@ -54,7 +55,7 @@ import {
   type CounterPreview,
   type CounterStep,
 } from '@/lib/counterPreview';
-import type { DamageDraw, GameSession, GmInstance, Player, SessionEvent } from '@/types/game';
+import type { AirspaceWindow, DamageDraw, GameSession, GmInstance, Player, SessionEvent } from '@/types/game';
 
 interface PlayerRoleGroup {
   readonly id: string;
@@ -252,6 +253,8 @@ export default function GmConsole() {
   const [confirmTurnAdvance, setConfirmTurnAdvance] = useState(false);
   const [confirmTurnOverride, setConfirmTurnOverride] = useState(false);
   const [confirmTurnSkip, setConfirmTurnSkip] = useState(false);
+  const [confirmAirspaceExtension, setConfirmAirspaceExtension] = useState<AirspaceWindow | null>(null);
+  const [extendingAirspace, setExtendingAirspace] = useState<AirspaceWindow | null>(null);
   const [replayingTurnAnnouncement, setReplayingTurnAnnouncement] =
     useState<TurnStartReplayAudience | null>(null);
   const [changingDebrief, setChangingDebrief] = useState(false);
@@ -278,6 +281,13 @@ export default function GmConsole() {
   );
   const changingTurn = advancingTurn || skippingTurn;
   const currentPhase = phaseForSession(session);
+  const phaseReadout = turnPhaseReadout(currentPhase, clock);
+  const activeAirspaceWindow: AirspaceWindow | null = phaseReadout?.kind === 'team' &&
+    currentPhase?.airspace.state === 'restricted'
+    ? 'restricted'
+    : phaseReadout?.kind === 'open' && currentPhase?.airspace.state === 'lifted'
+      ? 'open'
+      : null;
   const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
@@ -472,7 +482,8 @@ export default function GmConsole() {
   useEffect(() => {
     setConfirmTurnOverride(false);
     setConfirmTurnSkip(false);
-  }, [currentTurn]);
+    setConfirmAirspaceExtension(null);
+  }, [activeAirspaceWindow, currentTurn]);
 
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm || !local) return <Navigate to="/console" replace />;
@@ -676,6 +687,27 @@ export default function GmConsole() {
     void moveToNextTurn(false, true);
   }
 
+  async function requestAirspaceExtension(window: AirspaceWindow): Promise<void> {
+    if (activeAirspaceWindow !== window || extendingAirspace !== null) return;
+    if (confirmAirspaceExtension !== window) {
+      setConfirmAirspaceExtension(window);
+      return;
+    }
+    setConfirmAirspaceExtension(null);
+    setExtendingAirspace(window);
+    try {
+      await extendAirspaceWindow(window);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setExtendingAirspace(null);
+    }
+  }
+
+  function airspaceWindowLabel(window: AirspaceWindow): string {
+    return window === 'restricted' ? 'Airspace restricted' : 'Airspace open';
+  }
+
   async function replayTurnAnnouncement(audience: TurnStartReplayAudience): Promise<void> {
     setReplayingTurnAnnouncement(audience);
     try {
@@ -849,6 +881,35 @@ export default function GmConsole() {
                   : 'Replay last transmission // Everyone'}
               </button>
             </div>
+            <section className="gm-turn-control__airspace" aria-label="Airspace time controls">
+              <p className="gm-console__status">Airspace extension // +5 minutes</p>
+              <div className="gm-turn-control__actions">
+                {(['restricted', 'open'] as const).map((window) => {
+                  const label = airspaceWindowLabel(window);
+                  const confirming = confirmAirspaceExtension === window;
+                  return (
+                    <button
+                      className={`cic-action-button${confirming ? ' cic-action-button--confirm' : ''}`}
+                      type="button"
+                      key={window}
+                      disabled={
+                        activeAirspaceWindow !== window ||
+                        extendingAirspace !== null ||
+                        changingTurn ||
+                        replayingTurnAnnouncement !== null
+                      }
+                      onClick={() => void requestAirspaceExtension(window)}
+                    >
+                      {extendingAirspace === window
+                        ? `Adding 5 minutes // ${label}…`
+                        : confirming
+                          ? `ARE YOU SURE? // Add 5 minutes // ${label}`
+                          : `Add 5 minutes // ${label}`}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
           </section>
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>

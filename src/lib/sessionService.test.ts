@@ -39,6 +39,7 @@ const {
   advanceTurn,
   replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
+  extendAirspaceWindow,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   selectConsoleRole,
@@ -663,6 +664,48 @@ describe('GM instance commands', () => {
       code: 'functions/failed-precondition',
     });
     expect(useSessionStore.getState().communicationError).toBeNull();
+  });
+
+  it('extends the server-owned airspace phase and reconciles the returned clock', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    });
+    const callable = callableReturning({
+      data: {
+        turnPhase: {
+          turn: 2,
+          teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:25:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        },
+      },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await extendAirspaceWindow('restricted');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'extendAirspaceWindow');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 2, window: 'restricted',
+    });
+    expect(useSessionStore.getState().session?.turnPhase).toEqual({
+      turn: 2,
+      teamPhaseEndsAt: '2026-01-01T00:10:00.000Z',
+      openAirspaceEndsAt: '2026-01-01T00:25:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    });
   });
 
   it('triggers a fleetwide DRADIS contact through the active GM instance', async () => {

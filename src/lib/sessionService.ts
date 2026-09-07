@@ -8,6 +8,7 @@ import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
 import { normalizePressDispatch } from './pressDispatchState';
 import { turnPhaseState } from './turnPhase';
+import type { AirspaceWindow } from '@/types/game';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -960,6 +961,35 @@ export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void
       if (latestPhase.airspace.state === 'restricted') throw cause;
     }
     store.setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Add one server-authorized five-minute increment to the active airspace window. */
+export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || store.connection !== 'live') {
+    throw new Error('Reconnect and claim GM before extending airspace time.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string; expectedTurn: number; window: AirspaceWindow },
+    { turnPhase?: unknown }
+  >(functions(), 'extendAirspaceWindow');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      expectedTurn: store.session.currentTurn ?? 1,
+      window,
+    });
+    const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const activeSession = useSessionStore.getState().session;
+    if (phaseClock && activeSession?.id === store.session.id) {
+      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+    }
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
   }
 }

@@ -9,6 +9,7 @@ import {
   requireDebriefModeRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requireAirspaceWindowExtensionRequest,
   requirePlayerKickRequest,
   requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
@@ -56,6 +57,20 @@ describe('callable request guards', () => {
   it('requires a session id when resuming', () => {
     expectHttpsError(() => requireSessionRequest({ sessionId: '' }), 'invalid-argument');
     expect(requireSessionRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
+  });
+
+  it('requires a current airspace window and positive turn for time extension', () => {
+    expectHttpsError(() => requireAirspaceWindowExtensionRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 0, window: 'restricted',
+    }), 'invalid-argument');
+    expectHttpsError(() => requireAirspaceWindowExtensionRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, window: 'closed',
+    }), 'invalid-argument');
+    expect(requireAirspaceWindowExtensionRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, window: 'open',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, window: 'open',
+    });
   });
 
   it('rejects path separators in every Firestore document id', () => {

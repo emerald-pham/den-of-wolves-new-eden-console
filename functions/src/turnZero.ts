@@ -7,6 +7,9 @@ export const TURN_ONE_TEAM_PHASE_DURATION_MS = 10 * 60_000;
 export const TURN_ONE_COORDINATION_PHASE_DURATION_MS = 20 * 60_000;
 export const SUBSEQUENT_TEAM_PHASE_DURATION_MS = 5 * 60_000;
 export const SUBSEQUENT_COORDINATION_PHASE_DURATION_MS = 15 * 60_000;
+export const AIRSPACE_EXTENSION_MS = 5 * 60_000;
+
+export type AirspaceWindow = 'restricted' | 'open';
 
 export type TurnPhase = {
   readonly turn: number;
@@ -77,6 +80,32 @@ export function startTurnPhase(turn: number, now = Date.now()): TurnPhase {
       now + teamPhaseMs + coordinationPhaseMs,
     ).toISOString(),
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+}
+
+/** Extend only the currently live airspace window by one five-minute increment. */
+export function extendActiveTurnPhase(
+  phase: TurnPhase,
+  window: AirspaceWindow,
+  now = Date.now(),
+): TurnPhase | undefined {
+  const teamPhaseEndsAt = Date.parse(phase.teamPhaseEndsAt);
+  const openAirspaceEndsAt = Date.parse(phase.openAirspaceEndsAt);
+  if (now >= openAirspaceEndsAt) return undefined;
+
+  if (window === 'restricted') {
+    if (phase.airspace.state !== 'restricted' || now >= teamPhaseEndsAt) return undefined;
+    return {
+      ...phase,
+      teamPhaseEndsAt: new Date(teamPhaseEndsAt + AIRSPACE_EXTENSION_MS).toISOString(),
+      openAirspaceEndsAt: new Date(openAirspaceEndsAt + AIRSPACE_EXTENSION_MS).toISOString(),
+    };
+  }
+
+  if (phase.airspace.state !== 'lifted' || now < teamPhaseEndsAt) return undefined;
+  return {
+    ...phase,
+    openAirspaceEndsAt: new Date(openAirspaceEndsAt + AIRSPACE_EXTENSION_MS).toISOString(),
   };
 }
 
