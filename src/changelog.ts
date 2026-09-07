@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'DRADIS contacts now brighten and ping again when a recent sweep finds them, while contacts still under the movement cooldown hold position.',
+    ],
+  },
+  {
+    version: '0.2.100',
+    changes: [
       'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
     ],
   },
