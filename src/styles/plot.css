@@ -162,11 +162,6 @@
 .contact-plot__sweep {
   position: absolute;
   inset: 0;
-  /* The collision observer reads this exact local border box. Keep its centre
-     and radius explicit so the visible viewport disc and 3D scan disc remain
-     one piece of geometry. */
-  box-sizing: border-box;
-  transform-origin: 50% 50% 0;
   border-radius: 50%;
   border: 1px solid color-mix(in srgb, var(--plot-hot) 70%, transparent);
   background: radial-gradient(

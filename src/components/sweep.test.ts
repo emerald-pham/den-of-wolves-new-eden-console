@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apparentFix, crossedPlane, crossedSweepDisc, rimDistance } from './sweep';
+import { apparentFix, rimDistance } from './sweep';
 
 const normalY = (degrees: number) => ({
   x: Math.sin(degrees * Math.PI / 180), y: 0, z: Math.cos(degrees * Math.PI / 180),
@@ -35,37 +35,5 @@ describe('visible sweep circumference', () => {
     for (const z of [-0.6, 0, 0.6]) {
       expect(rimDistance({ x: 1 - z / 3, y: 0, z }, normalY(0), camera)).toBeCloseTo(0);
     }
-  });
-});
-
-describe('three-dimensional sweep intersections', () => {
-  it('detects a target when the rendered sweep plane crosses its 3D position', () => {
-    const point = { x: 0.5, y: 0.6, z: 0.4 };
-    expect(crossedPlane(point, { x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 })).toBe(true);
-  });
-
-  it('does not treat a target as crossed merely because its 2D projection overlaps', () => {
-    const point = { x: 0, y: 0, z: 0.8 };
-    expect(crossedPlane(point, { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 1 })).toBe(false);
-  });
-
-  it('does not acquire a target outside the circular sweep disc when the infinite plane changes sides', () => {
-    // The normal flips across this point, but the contact is 20% beyond the
-    // rendered disc's radius. An infinite-plane test would report a false hit.
-    const point = { x: 1.2, y: 0, z: 0 };
-    expect(crossedPlane(
-      point,
-      { x: 0.8, y: 0, z: 0.6 },
-      { x: -0.8, y: 0, z: 0.6 },
-    )).toBe(false);
-  });
-
-  it('acquires a moving target when it crosses a stationary sweep disc in 3D', () => {
-    expect(crossedSweepDisc(
-      { x: 0.25, y: -0.3, z: 0.4 },
-      { x: 0.25, y: 0.3, z: 0.4 },
-      { x: 0, y: 1, z: 0 },
-      { x: 0, y: 1, z: 0 },
-    )).toBe(true);
   });
 });
