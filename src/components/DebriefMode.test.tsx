@@ -61,3 +61,18 @@ it('does not replay the enabled toast when a browser opens after finale mode is 
 
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
+
+it('renders the finale ball as a bounded 3D DRADIS light instrument', () => {
+  useSessionStore.getState().setSession({
+    ...session,
+    debriefMode: { active: true, revision: 7 },
+  });
+
+  const { container } = render(<DebriefMode />);
+
+  expect(container.querySelector('.debrief-mode__ball')).toHaveAttribute('data-dimensionality', '3d');
+  expect(container.querySelectorAll('.debrief-mode__sweep')).toHaveLength(2);
+  expect(container.querySelector('.debrief-mode__lightfield')).toBeInTheDocument();
+  expect(container.querySelectorAll('.debrief-mode__beam')).toHaveLength(6);
+  expect(container.querySelectorAll('.debrief-mode__light-landing')).toHaveLength(5);
+});

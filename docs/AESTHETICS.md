@@ -743,13 +743,27 @@ viewport receives the same state through its normal session snapshot. Its ball
 is a small top-centred seven-by-seven cyan/amber digital facet grid inside a
 circular rim; the outer layer lowers and retracts while the inner grid rotates.
 It is an accent, not a modal: `pointer-events: none`, `aria-hidden`, and layer
-26 leave every underlying control, navigation path, and header available.
+26 leave every underlying control, navigation path, and header available. The
+ball's scene owns a `34rem` perspective camera and a `preserve-3d` orb with
+three shallow meridians and three parallels. The original seven-by-seven
+cyan/amber facet treatment remains the surface, so the extra depth reads as a
+3D instrument rather than a new visual language.
+
+Two partial-rim scan planes travel over the ball on different axes, echoing the
+fleet DRADIS sphere: one turns around the azimuth and one precesses over the
+polar axis. Six broad, translucent CSS rays leave the ball and five fixed
+landing rings mark session readouts, DRADIS, workspaces, ledgers, and the
+transmission rail. These are decorative light, not data or interactive targets;
+they sit above the live console but below the toast and never intercept input.
 
 The confetti is exactly 72 fixed CSS pieces with staggered, looping CSS
-animations. There is no canvas, interval, particle generator, retained history,
-or React frame loop. Retracting omits all pieces immediately, so no additional
-confetti can be generated while the ball completes its short retraction. The
-same blue/cyan language appears in a temporary live-only status toast:
+animations on wide screens. There is no canvas, interval, particle generator,
+retained history, or React frame loop. Compact screens paint only 48 confetti
+pieces and 36 facets, and four rays; the light field is paint-contained and its
+moving properties are limited to transforms and opacity. Retracting omits all
+pieces immediately, so no additional confetti can be generated while the ball
+completes its short retraction. The same blue/cyan language appears in a
+temporary live-only status toast:
 `DEBRIEF MODE ENABLED`. A browser that joins after the mode is already live sees
 the finale but does not replay the toast.
 

@@ -113,31 +113,115 @@ body {
   z-index: 26;
   overflow: hidden;
   pointer-events: none;
+  perspective: 34rem;
+  perspective-origin: 50% 24%;
+  --debrief-ball-rest-y: calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 0.5rem);
+  --debrief-source-x: 50%;
+  --debrief-source-y: calc(var(--debrief-ball-rest-y) + clamp(3.25rem, 6.5vmin, 4rem));
+}
+
+/* The light field is deliberately small and paint-contained. Its rays are
+   broad CSS planes rather than a canvas or a particle loop, so the finale can
+   tint the live console without creating a frame-by-frame JavaScript workload. */
+.debrief-mode__lightfield {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: paint;
+  pointer-events: none;
+}
+
+.debrief-mode__beam-stack,
+.debrief-mode__landings {
+  position: absolute;
+  inset: 0;
+}
+
+.debrief-mode__beam {
+  position: absolute;
+  top: var(--debrief-source-y);
+  left: var(--debrief-source-x);
+  width: clamp(8rem, 25vw, 22rem);
+  height: 120vmax;
+  transform: translateX(-50%) rotate(var(--debrief-beam-angle));
+  transform-origin: 50% 0;
+  clip-path: polygon(43% 0, 57% 0, 100% 100%, 0 100%);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--debrief-beam-color) 48%, transparent),
+    color-mix(in srgb, var(--debrief-beam-color) 14%, transparent) 42%,
+    transparent 88%
+  );
+  opacity: 0.16;
+  animation: debrief-beam-fan 9s ease-in-out var(--debrief-beam-delay) infinite alternate;
+}
+
+.debrief-mode__light-landing {
+  position: absolute;
+  top: var(--debrief-hit-y);
+  left: var(--debrief-hit-x);
+  width: clamp(2.25rem, 6vw, 5.5rem);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) scale(var(--debrief-hit-scale));
+  border: 1px solid color-mix(in srgb, var(--cic-cyan-hot) 50%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--cic-cyan) 24%, transparent),
+    transparent 68%
+  );
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--cic-cyan) 54%, transparent),
+    inset 0 0 10px color-mix(in srgb, var(--cic-cyan-hot) 24%, transparent);
+  opacity: 0.28;
+  animation: debrief-light-landing 4.6s steps(2, end) var(--debrief-hit-delay) infinite;
 }
 
 .debrief-mode__ball {
   position: absolute;
   top: 0;
   left: 50%;
-  width: clamp(7rem, 19vmin, 13rem);
+  width: clamp(6.5rem, 13vmin, 8rem);
   aspect-ratio: 1;
   transform: translateX(-50%) translateY(calc(-100% - 1rem));
   transform-origin: 50% 0;
+  transform-style: preserve-3d;
+  z-index: 2;
 }
 
 /* A centered ball would cover the compact session chrome. On phones and
    short landscape screens, use the otherwise empty top-left corner instead. */
 @media (max-width: 720px), (max-height: 480px) {
+  .debrief-mode {
+    --debrief-source-x: calc(max(2rem, env(safe-area-inset-left)) + 2rem);
+    --debrief-source-y: calc(var(--debrief-ball-rest-y) + 2rem);
+  }
+
   .debrief-mode__ball {
     left: max(2rem, calc(env(safe-area-inset-left) + 2rem));
     width: clamp(3.5rem, 14vmin, 4rem);
   }
+
+  .debrief-mode__lightfield { opacity: 0.62; }
+  .debrief-mode__beam {
+    width: min(12rem, 34vw);
+    height: 110vmax;
+    animation-duration: 12s;
+  }
+  .debrief-mode__beam:nth-child(n + 5) { display: none; }
+  .debrief-mode__light-landing { width: clamp(2rem, 9vw, 3.2rem); }
+  .debrief-mode__facet-field { grid-template-columns: repeat(6, 1fr); }
+  .debrief-mode__facet-field i:nth-child(n + 37) { display: none; }
+  .debrief-mode__confetti-piece:nth-child(n + 49) { display: none; }
+  .debrief-mode__sweep--azimuth { animation-duration: 7.2s; }
+  .debrief-mode__sweep--polar { animation-duration: 10.8s; }
 }
 
 .debrief-mode__ball::before {
   content: "";
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   bottom: 100%;
   left: 50%;
   width: 1px;
@@ -155,21 +239,37 @@ body {
 }
 
 .debrief-mode__orb {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  position: relative;
+  display: block;
   width: 100%;
   height: 100%;
-  overflow: hidden;
   border: 1px solid var(--cic-cyan-hot);
   border-radius: 50%;
-  background: var(--cic-void);
+  background:
+    radial-gradient(
+      circle at 32% 26%,
+      color-mix(in srgb, var(--cic-cyan-hot) 28%, transparent),
+      transparent 28%
+    ),
+    var(--cic-void);
   box-shadow:
     0 0 12px color-mix(in srgb, var(--cic-cyan) 85%, transparent),
     inset 0 0 18px color-mix(in srgb, var(--cic-cyan-dim) 70%, transparent);
+  transform-style: preserve-3d;
   animation: debrief-orb-spin 5.6s linear infinite;
 }
 
-.debrief-mode__orb i {
+.debrief-mode__facet-field {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  overflow: hidden;
+  border-radius: 50%;
+  transform: translateZ(0.12rem);
+}
+
+.debrief-mode__facet-field i {
   display: block;
   min-width: 0;
   min-height: 0;
@@ -177,6 +277,101 @@ body {
   background: var(--debrief-facet-color);
   opacity: 0.78;
   animation: debrief-facet-pulse 1.4s steps(2, end) var(--debrief-facet-delay) infinite;
+}
+
+/* The facet field keeps the beloved tiled colour treatment. These shallow
+   meridians and parallels give the orb a real 3D read while the parent rotates
+   as one object, so the surface never becomes a flat spinning checkerboard. */
+.debrief-mode__meridian,
+.debrief-mode__parallel {
+  position: absolute;
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--cic-cyan-hot) 52%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.debrief-mode__meridian {
+  inset: -1%;
+}
+
+.debrief-mode__meridian--near {
+  left: 24%;
+  right: 24%;
+  transform: rotateY(62deg) translateZ(0.18rem);
+}
+
+.debrief-mode__meridian--mid {
+  left: 37%;
+  right: 37%;
+  opacity: 0.76;
+  transform: rotateY(24deg) translateZ(0.26rem);
+}
+
+.debrief-mode__meridian--far {
+  left: 7%;
+  right: 7%;
+  opacity: 0.38;
+  transform: rotateY(82deg) translateZ(-0.12rem);
+}
+
+.debrief-mode__parallel {
+  right: -1%;
+  left: -1%;
+  height: 58%;
+}
+
+.debrief-mode__parallel--north {
+  top: -22%;
+  transform: rotateX(64deg) translateZ(0.1rem);
+}
+
+.debrief-mode__parallel--equator {
+  top: 21%;
+  height: 58%;
+  opacity: 0.78;
+  transform: rotateX(76deg) translateZ(0.24rem);
+}
+
+.debrief-mode__parallel--south {
+  top: 64%;
+  transform: rotateX(64deg) translateZ(0.1rem);
+}
+
+/* These are DRADIS-style scan planes: the bright partial rim travels around
+   the sphere while the full rim stays faint enough to read as instrumentation. */
+.debrief-mode__sweep {
+  position: absolute;
+  z-index: 3;
+  inset: -10%;
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--cic-cyan) 42%, transparent);
+  border-radius: 50%;
+  opacity: 0.68;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.debrief-mode__sweep::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid transparent;
+  border-top-color: var(--cic-cyan-hot);
+  border-right-color: var(--cic-cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--cic-cyan-hot) 70%, transparent);
+}
+
+.debrief-mode__sweep--azimuth {
+  animation: debrief-sweep-azimuth 4.8s linear infinite;
+}
+
+.debrief-mode__sweep--polar {
+  inset: -4% 17%;
+  opacity: 0.46;
+  animation: debrief-sweep-polar 7.4s linear infinite;
 }
 
 .debrief-mode__confetti,
@@ -222,16 +417,44 @@ body {
 
 @keyframes debrief-ball-lower {
   from { transform: translateX(-50%) translateY(calc(-100% - 1rem)); }
-  to { transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top))); }
+  to { transform: translateX(-50%) translateY(var(--debrief-ball-rest-y)); }
 }
 
 @keyframes debrief-ball-retract {
-  from { transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top))); }
+  from { transform: translateX(-50%) translateY(var(--debrief-ball-rest-y)); }
   to { transform: translateX(-50%) translateY(calc(-100% - 1rem)); }
 }
 
 @keyframes debrief-orb-spin {
-  to { transform: rotate(360deg); }
+  0% { transform: rotateX(8deg) rotateY(0deg) rotateZ(-2deg); }
+  50% { transform: rotateX(-8deg) rotateY(180deg) rotateZ(2deg); }
+  100% { transform: rotateX(8deg) rotateY(360deg) rotateZ(-2deg); }
+}
+
+@keyframes debrief-sweep-azimuth {
+  from { transform: rotateX(68deg) rotateZ(-18deg) rotateY(0deg); }
+  to { transform: rotateX(68deg) rotateZ(-18deg) rotateY(360deg); }
+}
+
+@keyframes debrief-sweep-polar {
+  from { transform: rotateY(72deg) rotateX(-18deg) rotateZ(12deg); }
+  to { transform: rotateY(72deg) rotateX(342deg) rotateZ(12deg); }
+}
+
+@keyframes debrief-beam-fan {
+  0%, 100% {
+    transform: translateX(-50%) rotate(var(--debrief-beam-angle));
+    opacity: 0.1;
+  }
+  50% {
+    transform: translateX(-50%) rotate(calc(var(--debrief-beam-angle) + 5deg));
+    opacity: 0.23;
+  }
+}
+
+@keyframes debrief-light-landing {
+  0%, 100% { opacity: 0.14; }
+  50% { opacity: 0.36; }
 }
 
 @keyframes debrief-facet-pulse {
@@ -2777,13 +3000,16 @@ body {
 
 [data-motion='reduce'] .debrief-mode__ball,
 [data-motion='reduce'] .debrief-mode__orb,
+[data-motion='reduce'] .debrief-mode__beam,
+[data-motion='reduce'] .debrief-mode__light-landing,
+[data-motion='reduce'] .debrief-mode__sweep,
 [data-motion='reduce'] .debrief-mode__confetti-piece,
 [data-motion='reduce'] .debrief-mode__toast {
   animation: none;
 }
 
 [data-motion='reduce'] .debrief-mode__ball[data-state='lowered'] {
-  transform: translateX(-50%) translateY(max(0.75rem, env(safe-area-inset-top)));
+  transform: translateX(-50%) translateY(var(--debrief-ball-rest-y));
 }
 
 [data-motion='reduce'] .debrief-mode__confetti-piece {

@@ -278,6 +278,29 @@ describe('the GM console', () => {
     );
   });
 
+  it('keeps finale lighting bounded to compositor-friendly transforms', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const scene = index.match(/\.debrief-mode\s*\{([^}]*)\}/)?.[1] ?? '';
+    const ball = index.match(/\.debrief-mode__ball\s*\{([^}]*)\}/)?.[1] ?? '';
+    const orb = index.match(/\.debrief-mode__orb\s*\{([^}]*)\}/)?.[1] ?? '';
+    const lightfield = index.match(/\.debrief-mode__lightfield\s*\{([^}]*)\}/)?.[1] ?? '';
+    const beamKeyframes = index.match(/@keyframes debrief-beam-fan\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+
+    expect(scene).toContain('perspective:');
+    expect(scene).toContain('--debrief-ball-rest-y');
+    expect(scene).toContain('--debrief-source-y: calc(var(--debrief-ball-rest-y) + clamp(3.25rem, 6.5vmin, 4rem))');
+    expect(ball).toContain('width: clamp(6.5rem, 13vmin, 8rem)');
+    expect(index).toContain('translateY(var(--debrief-ball-rest-y))');
+    expect(orb).toContain('transform-style: preserve-3d');
+    expect(lightfield).toContain('contain: paint');
+    expect(lightfield).toContain('pointer-events: none');
+    expect(beamKeyframes).toContain('transform:');
+    expect(beamKeyframes).toContain('opacity:');
+    expect(beamKeyframes).not.toMatch(/filter:|background:|box-shadow:/);
+    expect(index).toContain('.debrief-mode__confetti-piece:nth-child(n + 49)');
+    expect(index).toContain('.debrief-mode__beam:nth-child(n + 5)');
+  });
+
 });
 
 describe('the shuttlecraft console template', () => {

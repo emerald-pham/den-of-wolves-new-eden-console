@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The shared Finale now lowers a true 3D disco ball with twin DRADIS sweeps, sending cyan and amber beams across the console to land on live interface instruments.',
+      'The spectacle keeps its digital facet grid and scrolling confetti while using a bounded, phone-friendly light field that stays quiet and still when reduced motion is enabled.',
+    ],
+  },
+  {
+    version: '0.2.61',
+    changes: [
       'Turn transitions now arrive as a ruled fleet instrument, showing the exact handoff between turns, transmission progress, live survivor count, and the Wolf pursuit status inside the same CIC visual language as the rest of the console.',
       'The transmission frame tightens cleanly for phones, short landscape screens, and reduced motion while keeping the life-or-death briefing readable, with eased handoffs between each message beat.',
     ],
