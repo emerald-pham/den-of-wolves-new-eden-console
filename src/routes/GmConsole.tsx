@@ -299,6 +299,7 @@ export default function GmConsole() {
     z: ship.z,
     color: ship.color,
     combatRange: ship.combatRange,
+    showCombatRange: ship.showCombatRange,
   }));
   const latestAlert = events.find((event) => event.type === 'fullscreen-alert');
   const nextClockUpdate = nextGmClockUpdate(session, clock);

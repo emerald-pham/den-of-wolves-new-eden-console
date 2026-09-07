@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Fleet ships and their shuttlecraft now stay uncluttered on DRADIS without range indicators, while every other contact keeps its range readout.',
+    ],
+  },
+  {
+    version: '0.2.56',
+    changes: [
       'The landing display now begins with a population estimate while CIC connects.',
     ],
   },

@@ -431,9 +431,7 @@ describe('App', () => {
     expect(contacts()).toEqual(expect.arrayContaining([
       'DIONE', 'ICEBREAKER', 'CAPYBARA', 'SHEPHERD', 'QUELLON', 'REFINERY 124',
     ]));
-    expect(combatRanges()).toEqual(expect.arrayContaining([
-      'SHORT', 'SHORT', 'SHORT', 'SHORT', 'SHORT', 'SHORT',
-    ]));
+    expect(combatRanges()).toHaveLength(0);
     expect(contacts()).not.toContain('AEGIS');
 
     await user.click(screen.getByRole('link', { name: /join quellon/i }));

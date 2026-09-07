@@ -286,12 +286,13 @@ range bands: Long Range, Medium Range, and Short Range. Expanded DRADIS keeps
 those potential bands in a bottom-of-viewport key as `LONG // MEDIUM // SHORT`;
 individual DRADIS returns use the same compact one-word labels. Do not infer a
 label from canonical XYZ coordinates, bearing, elevation, CSS perspective, or a
-transit vector. The current fleet formation is gameplay range 1 and therefore
-prints `SHORT` for every fleet contact even when its real DRADIS coordinates
-place it elsewhere in the drawn volume. This compacting is exclusive to DRADIS:
-outside it, retain the documented full combat-category names. Adding or changing
-a combat-range label must not alter a contact's coordinate, trajectory, sampled
-fix, or scan-acquisition behavior.
+transit vector. The current fleet formation is gameplay range 1, but its ships
+and shuttlecraft are known friendly contacts and do not print a combat-range
+label. Every other DRADIS contact keeps its compact range label even when its
+real DRADIS coordinates place it elsewhere in the drawn volume. This compacting
+is exclusive to DRADIS: outside it, retain the documented full combat-category
+names. Adding or changing a combat-range label must not alter a contact's
+coordinate, trajectory, sampled fix, or scan-acquisition behavior.
 
 A contact does not exist on the instrument until a rendered sweep circumference
 crosses the contact's actual current position in space. Before that crossing,

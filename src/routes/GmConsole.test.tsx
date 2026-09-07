@@ -202,6 +202,7 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(screen.getByText(/dradis perspective.*aegis/i)).toBeInTheDocument();
   expect(screen.getByText('DRADIS perspective // AEGIS // GALACTIC COORDINATES // 0000'))
     .toBeInTheDocument();
+  expect(container.querySelectorAll('.gm-dradis .contact-plot__range')).toHaveLength(0);
   const aegisScan = container.querySelector('.gm-dradis .contact-plot__rig');
 
   await user.click(screen.getByRole('button', { name: /view dradis from shepherd/i }));
@@ -212,10 +213,10 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
 });
 
-it('forwards gameplay-defined fleet ranges into the GM DRADIS without recalculating coordinates', () => {
+it('forwards the fleet range-display policy into the GM DRADIS without recalculating coordinates', () => {
   const console = readFileSync('src/routes/GmConsole.tsx', 'utf8');
 
-  expect(console).toMatch(/color: ship\.color,\s+combatRange: ship\.combatRange,/);
+  expect(console).toMatch(/color: ship\.color,\s+combatRange: ship\.combatRange,\s+showCombatRange: ship\.showCombatRange,/);
 });
 
 it('shows live resource stock for every flagged ship', async () => {

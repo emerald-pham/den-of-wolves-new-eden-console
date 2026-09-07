@@ -68,9 +68,9 @@ it('paints every track on its own bearing so contacts never stack on one another
 
 it('labels every return with its explicit combat range without changing its plotted coordinates', () => {
   const contacts = [
-    { tag: 'AEGIS', x: 0.08, y: -0.04, z: 0.1, color: 'white', combatRange: 'short' as const },
-    { tag: 'DIONE', x: -0.84, y: 0.22, z: -0.31, color: 'white', combatRange: 'medium' as const },
-    { tag: 'SHEPHERD', x: 0.31, y: 0.14, z: -0.62, color: 'white', combatRange: 'long' as const },
+    { tag: 'TRK 01', x: 0.08, y: -0.04, z: 0.1, color: 'white', combatRange: 'short' as const },
+    { tag: 'TRK 02', x: -0.84, y: 0.22, z: -0.31, color: 'white', combatRange: 'medium' as const },
+    { tag: 'TRK 03', x: 0.31, y: 0.14, z: -0.62, color: 'white', combatRange: 'long' as const },
   ];
   const { container } = render(<ContactPlot contacts={contacts} />);
 
@@ -85,6 +85,35 @@ it('labels every return with its explicit combat range without changing its plot
   ]);
   expect([...container.querySelectorAll('.contact-plot__range')].map((range) => range.textContent))
     .toEqual(['SHORT', 'MEDIUM', 'LONG']);
+});
+
+it('omits combat-range indicators for fleet ships and their shuttles only', () => {
+  const contacts = [
+    {
+      tag: 'FLEET SHIP', x: 0.08, y: -0.04, z: 0.1, color: 'white',
+      combatRange: 'short' as const, showCombatRange: false,
+    },
+    {
+      tag: 'FLEET SHUTTLE', x: -0.2, y: 0.18, z: -0.31, color: 'white',
+      combatRange: 'medium' as const, showCombatRange: false,
+    },
+    {
+      tag: 'WOLF CONTACT', x: 0.31, y: 0.14, z: -0.62, color: 'white',
+      combatRange: 'long' as const,
+    },
+    { tag: 'UNKNOWN CONTACT', x: -0.44, y: 0.03, z: 0.17, color: 'white' },
+  ];
+  const { container } = render(<ContactPlot contacts={contacts} />);
+
+  expect(contactsIn(container).map((contact) => ({
+    tag: contact.querySelector('.contact-plot__tag > span')?.textContent,
+    range: contact.querySelector('.contact-plot__range')?.textContent,
+  }))).toEqual([
+    { tag: 'FLEET SHIP', range: undefined },
+    { tag: 'FLEET SHUTTLE', range: undefined },
+    { tag: 'WOLF CONTACT', range: 'LONG' },
+    { tag: 'UNKNOWN CONTACT', range: 'SHORT' },
+  ]);
 });
 
 it('places contacts through the volume of the sphere rather than on a single plane', () => {

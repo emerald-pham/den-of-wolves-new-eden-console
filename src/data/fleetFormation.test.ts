@@ -34,11 +34,14 @@ describe('the initial fleet formation', () => {
     });
   });
 
-  it('marks every fleet contact as short range independently of its DRADIS coordinates', () => {
+  it('marks every fleet contact to suppress its range indicator independently of DRADIS coordinates', () => {
     const contacts = fleetViewFrom('aegis');
 
     expect(contacts.map(({ combatRange }) => combatRange)).toEqual(
       Array(contacts.length).fill('short'),
+    );
+    expect(contacts.map(({ showCombatRange }) => showCombatRange)).toEqual(
+      Array(contacts.length).fill(false),
     );
     expect(contacts.find(({ id }) => id === 'dione')).toMatchObject({
       x: -0.32, y: 0.18, z: 0.22,

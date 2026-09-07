@@ -10,9 +10,15 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
-it('records the boot-time population estimate in the current player-facing release notes', () => {
-  expect(CHANGELOG[0]?.changes).toContain(
+it('retains the boot-time population estimate in player-facing release notes', () => {
+  expect(CHANGELOG.some((entry) => entry.changes.includes(
     'The landing display now begins with a population estimate while CIC connects.',
+  ))).toBe(true);
+});
+
+it('records fleet DRADIS range behavior in the current player-facing release notes', () => {
+  expect(CHANGELOG[0]?.changes).toContain(
+    'Fleet ships and their shuttlecraft now stay uncluttered on DRADIS without range indicators, while every other contact keeps its range readout.',
   );
 });
 

@@ -42,6 +42,8 @@ type Track = {
   readonly range: number;
   /** Gameplay range is deliberately independent from this track's 3D position. */
   readonly combatRange: CombatRange;
+  /** Fleet contacts and their shuttlecraft do not print a combat-range indicator. */
+  readonly showCombatRange?: boolean;
   readonly color?: string;
 };
 
@@ -54,6 +56,8 @@ export interface PlotContact {
   readonly color: string;
   /** Gameplay range is deliberately independent from this contact's 3D position. */
   readonly combatRange?: CombatRange;
+  /** Friendly fleet contacts, including their shuttlecraft, suppress the range label. */
+  readonly showCombatRange?: boolean;
   readonly transit?: {
     readonly destination: Vector;
     readonly durationMs: number;
@@ -357,7 +361,9 @@ export default function ContactPlot({
                   <span className="contact-plot__blip" />
                   <span className="contact-plot__tag">
                     <span>{spoof && exposed ? EXPOSED : track.tag}</span>
-                    <span className="contact-plot__range">{combatRangeLabel(track)}</span>
+                    {track.showCombatRange !== false ? (
+                      <span className="contact-plot__range">{combatRangeLabel(track)}</span>
+                    ) : null}
                   </span>
                 </div>
               </div>
