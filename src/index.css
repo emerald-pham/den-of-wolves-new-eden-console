@@ -3738,6 +3738,12 @@ body {
   .gm-console__instruments .gm-dradis__ships {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
   }
+  /* The countdown owns the bottom edge of the expanded plot. Keep the range
+     legend on its own line above it instead of painting both instruments over
+     the same contacts on a phone or short landscape screen. */
+  .gm-console__instruments .gm-dradis[data-expanded='true'] .gm-dradis__range-bands {
+    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4.75rem);
+  }
 }
 @media (max-width: 42rem) {
   .gm-console__instruments .gm-dradis:not([data-expanded='true']) {

@@ -20,6 +20,13 @@ it('keeps narrow-phone DRADIS on the measured top used to clear the console', ()
     /\.ship-plot\[data-aboard='true'\]\[data-expanded='false'\]\s*\{[^}]*top: calc\([^}]*5\.25rem/s,
   );
 });
+
+it('keeps the expanded GM range key above the airspace countdown on narrow screens', () => {
+  expect(css).toMatch(
+    /\.gm-console__instruments \.gm-dradis\[data-expanded='true'\] \.gm-dradis__range-bands\s*\{[^}]*bottom: calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 4\.75rem\)/s,
+  );
+});
+
 it('lets app-wide session chrome scroll away without freezing ship names', () => {
   const header = css.match(/\.app-header\s*\{([^}]*)\}/)?.[1] ?? '';
 

@@ -1085,3 +1085,9 @@ Alert editor, continuous ticker transition, uppercase source-prefixed warning an
 Damage-card outcomes at the maintenance riot step and the shared GM damage
 controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
 wraps without clipping or obscuring controls.
+
+The expanded GM DRADIS treats its lower edge as two stacked instruments on
+phones and short landscape screens: the live airspace countdown owns the
+bottom line, and the COMBAT RANGES key sits above it with a reserved 4.75rem
+offset. This keeps both readouts legible over the plot without changing their
+desktop placement.

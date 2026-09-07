@@ -14,6 +14,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.70',
+    changes: [
+      'On phones, the expanded GM DRADIS keeps its combat-range key clear of the live airspace countdown.',
+    ],
+  },
+  {
     version: '0.2.69',
     changes: [
       'GM Console now keeps the normal Advance to Turn 1 command alongside the fast Skip to Turn 1 shortcut during setup.',
