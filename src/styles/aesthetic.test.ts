@@ -190,6 +190,13 @@ describe('the launcher manifest', () => {
     expect(value).toContain('grid-row: 1');
     expect(label).toContain('grid-row: 2');
   });
+
+  it('keeps the population estimate closer in scale to the other arrival values', () => {
+    const arrival = SHEETS.find(({ name }) => name === 'src/routes/arrival.css')?.css ?? '';
+    const population = arrival.match(/\.arrival-readout--population \.arrival-readout__value\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(population).toContain('font-size: clamp(3.5rem, 7vw, 5rem)');
+  });
 });
 
 describe('the GM console', () => {

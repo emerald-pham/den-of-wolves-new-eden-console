@@ -165,8 +165,12 @@ numbers; do not confuse those sequences with the descriptive labels. Do not
 show a SCENARIO SIGNAL footer. Avoid other franchise-specific terminology
 anywhere a player can read it, including decorative text inside the contact
 plot. CIC and DRADIS are the deliberate exceptions. Use a compact grid on wide
-screens and stacked readouts on phones. Preserve native buttons, labels,
-visible keyboard focus, error announcements, and at least 44px touch targets.
+screens and stacked readouts on phones. The six-digit population estimate uses a
+larger responsive value scale than its previous compact treatment so its visual
+weight stays closer to the other three readouts while still fitting the wide
+four-column grid; on phones it shares the same value size as the other stacked
+readouts. Preserve native buttons, labels, visible keyboard focus, error
+announcements, and at least 44px touch targets.
 
 ### System reference readability
 
