@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GMs can now pause the game timer for emergencies only after completing a deliberate three-click disarm sequence, with the paused state clearly broadcast to the room.',
+    ],
+  },
+  {
+    version: '0.2.100',
+    changes: [
       'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
     ],
   },

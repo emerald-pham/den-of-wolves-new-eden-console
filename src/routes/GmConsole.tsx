@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
+import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import PursuitTracker from '@/components/PursuitTracker';
@@ -218,6 +219,7 @@ export default function GmConsole() {
   const local = useSessionStore((state) => state.gmInstance);
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
+  const connection = useSessionStore((state) => state.connection);
   const queuedKicks = new Set(
     pendingCommands.flatMap((command) =>
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
@@ -282,10 +284,10 @@ export default function GmConsole() {
   const changingTurn = advancingTurn || skippingTurn;
   const currentPhase = phaseForSession(session);
   const phaseReadout = turnPhaseReadout(currentPhase, clock);
-  const activeAirspaceWindow: AirspaceWindow | null = phaseReadout?.kind === 'team' &&
+  const activeAirspaceWindow: AirspaceWindow | null = !currentPhase?.timerPause && phaseReadout?.kind === 'team' &&
     currentPhase?.airspace.state === 'restricted'
     ? 'restricted'
-    : phaseReadout?.kind === 'open' && currentPhase?.airspace.state === 'lifted'
+    : !currentPhase?.timerPause && phaseReadout?.kind === 'open' && currentPhase?.airspace.state === 'lifted'
       ? 'open'
       : null;
   const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
@@ -878,6 +880,7 @@ export default function GmConsole() {
                       type="button"
                       key={window}
                       disabled={
+                        currentPhase?.timerPause !== undefined ||
                         activeAirspaceWindow !== window ||
                         extendingAirspace !== null ||
                         changingTurn ||
@@ -896,6 +899,11 @@ export default function GmConsole() {
               </div>
             </section>
           </section>
+          <EmergencyTimerPauseControl
+            phase={currentPhase}
+            connection={connection}
+            busy={changingTurn || replayingTurnAnnouncement !== null}
+          />
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>
             <p className="gm-console__status">
@@ -1417,7 +1425,9 @@ export default function GmConsole() {
                     ? `${event.sourceRoleName} // FULLSCREEN ALERT // ${event.message}`
                     : event.type === 'maintenance'
                       ? `${event.shipName} // Maintenance cycle ${event.action === 'begin' ? 'started' : 'completed'}`
-                      : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
+                      : event.type === 'timer-pause'
+                        ? `Emergency timer // ${event.action === 'paused' ? 'paused' : 'resumed'} // Turn ${event.turn} // ${event.window} // ${event.actorName}`
+                        : `${event.shipName} // Emergency Bridge Confetti Dispenser // ${event.actorRoleName} // ${event.actorName}`}</span>
                 </li>
                   ))}
                 </>}

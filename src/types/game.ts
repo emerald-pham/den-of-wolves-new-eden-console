@@ -41,6 +41,13 @@ export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
 
 export type AirspaceWindow = 'restricted' | 'open';
 
+/** A server-owned emergency hold freezes the active window, never the client clock. */
+export interface TurnTimerPause {
+  readonly window: AirspaceWindow;
+  readonly remainingMs: number;
+  readonly pausedAt: Timestamp;
+}
+
 export interface ShipResourceValues {
   readonly ore: number;
   readonly fuel: number;
@@ -108,6 +115,8 @@ export interface TurnPhase {
     /** AEGIS may grant this exception to non-affiliated SNN vessels during restriction. */
     readonly pressAccess: boolean;
   };
+  /** Present only while a GM emergency hold is active. */
+  readonly timerPause?: TurnTimerPause;
 }
 
 export interface TurnStartAnnouncement {
@@ -269,7 +278,22 @@ export interface MaintenanceEvent {
   readonly createdAt: Timestamp;
 }
 
-export type SessionEvent = ShipConfettiEvent | FullscreenAlertEvent | MaintenanceEvent;
+export interface TimerPauseEvent {
+  readonly id: Id;
+  readonly sessionId: Id;
+  readonly type: 'timer-pause';
+  readonly action: 'paused' | 'resumed';
+  readonly turn: number;
+  readonly window: AirspaceWindow;
+  readonly actorName: string;
+  readonly createdAt: Timestamp;
+}
+
+export type SessionEvent =
+  | ShipConfettiEvent
+  | FullscreenAlertEvent
+  | MaintenanceEvent
+  | TimerPauseEvent;
 
 export type DamageDraw = {
   readonly id: Id;

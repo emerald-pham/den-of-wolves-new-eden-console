@@ -40,6 +40,7 @@ const {
   replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
   extendAirspaceWindow,
+  setEmergencyTimerPaused,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   selectConsoleRole,
@@ -714,6 +715,64 @@ describe('GM instance commands', () => {
       openAirspaceEndsAt: '2026-01-01T00:25:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     });
+  });
+
+  it('changes the emergency timer only through the live GM callable and reconciles the pause', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+    });
+    const callable = callableReturning({
+      data: {
+        turnPhase: {
+          turn: 2,
+          teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+          timerPause: {
+            window: 'restricted', remainingMs: 180_000,
+            pausedAt: '2026-01-01T00:02:00.000Z',
+          },
+        },
+      },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await setEmergencyTimerPaused(true);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setEmergencyTimerPaused');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 2, paused: true,
+    });
+    expect(useSessionStore.getState().session?.turnPhase).toEqual(expect.objectContaining({
+      timerPause: {
+        window: 'restricted', remainingMs: 180_000,
+        pausedAt: '2026-01-01T00:02:00.000Z',
+      },
+    }));
+  });
+
+  it('does not queue an emergency timer command while offline', async () => {
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    await expect(setEmergencyTimerPaused(true)).rejects.toThrow(/reconnect and claim gm/i);
+    expect(httpsCallable).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
   it('triggers a fleetwide DRADIS contact through the active GM instance', async () => {

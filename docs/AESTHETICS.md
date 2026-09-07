@@ -1036,8 +1036,7 @@ DRADIS shows a stationary hostile-red `RED ALERT` readout at its bottom left,
 in both compact and expanded views. It clears on authoritative stand-down,
 does not intercept pointer input, and leaves the zoom control unobstructed.
 The expanded compass moves above the warning while an alert is active.
-There is no pause control. The
-shared reduced-motion preference replaces motion
+The shared reduced-motion preference replaces motion
 with wrapped, scrollable text and two 30-second reading periods for cancellation.
 The measured header height reserves the required page-top space as the ticker
 wraps. Review at 320px phone, wide 1440px desktop and short 844×390 landscape
@@ -1151,6 +1150,15 @@ recessed Systems control disclosure: it may grant `Unlock airspace // Press` to
 the unaffiliated shuttle during the closed window, while red closed-airspace and
 blue open-airspace timer buttons remain visibly disabled to show they are
 automatic.
+
+The GM Console also has one square, danger-red emergency timer interlock. It is
+for emergencies only: the first and second presses only advance a visible
+three-press sequence, while the third press asks the server to hold or resume
+the shared clock. The interlock is disabled without a live GM connection or
+active phase, and every connected console shows the held readout as
+`EMERGENCY TIMER PAUSED // GM RESUME REQUIRED` in both its DRADIS instrument
+and the long-gap Airspace Control ticker. This is a server-owned hold, not a
+client countdown or an ordinary-play pause control.
 
 Airspace closure is a documented **future movement rule**: when shuttle
 travel is implemented, it will prevent a shuttle from moving between ships

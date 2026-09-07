@@ -39,3 +39,24 @@ it('asks the server to begin coordination exactly when the team window ends', as
   await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
   expect(beginOpenAirspacePhase).toHaveBeenCalledWith(2);
 });
+
+it('does not promote airspace while the emergency timer hold is active', async () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...session,
+    turnPhase: {
+      ...session.turnPhase!,
+      timerPause: {
+        window: 'restricted',
+        remainingMs: 180_000,
+        pausedAt: '2026-09-06T12:02:00.000Z',
+      },
+    },
+  } as never);
+
+  render(<TurnPhaseCoordinator />);
+
+  await act(async () => { await vi.advanceTimersByTimeAsync(30 * 60_000); });
+  expect(beginOpenAirspacePhase).not.toHaveBeenCalled();
+});

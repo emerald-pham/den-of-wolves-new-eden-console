@@ -47,6 +47,7 @@ import {
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
+  requireEmergencyTimerPauseRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -121,6 +122,8 @@ import {
   isPlayerGameplayLockedAtTurnZero,
   extendActiveTurnPhase,
   isTurnPhaseTimerActive,
+  pauseActiveTurnPhase,
+  resumePausedTurnPhase,
   startTurnPhase,
   turnPhaseState,
 } from './turnZero';
@@ -1493,6 +1496,12 @@ export const beginOpenAirspacePhase = onCall<{
     if (!phase || phase.turn !== requestData.expectedTurn) {
       throw new HttpsError('failed-precondition', 'No current turn phase is available.');
     }
+    if (phase.timerPause) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The emergency timer is paused. Resume it before changing airspace.',
+      );
+    }
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
       throw new HttpsError('failed-precondition', 'The airspace-closed timer is still active.');
     }
@@ -1550,6 +1559,81 @@ export const extendAirspaceWindow = onCall<{
   });
 });
 
+/** Hold or resume the live turn clock through the GM emergency interlock. */
+export const setEmergencyTimerPaused = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  expectedTurn?: unknown;
+  paused?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const requestData = requireEmergencyTimerPauseRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
+  // Firestore may retry a transaction; one logical command must retain one audit id.
+  const eventId = randomUUID();
+
+  return db.runTransaction(async tx => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (currentTurn < 1) {
+      throw new HttpsError('failed-precondition', 'The emergency timer is unavailable during Turn 0.');
+    }
+    if (currentTurn !== requestData.expectedTurn) {
+      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== currentTurn) {
+      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+    }
+    const currentlyPaused = phase.timerPause !== undefined;
+    if (currentlyPaused === requestData.paused) return { turnPhase: phase };
+
+    const turnPhase = requestData.paused
+      ? pauseActiveTurnPhase(phase)
+      : resumePausedTurnPhase(phase);
+    if (!turnPhase) {
+      throw new HttpsError(
+        'failed-precondition',
+        requestData.paused
+          ? 'The live turn timer has already expired.'
+          : 'The emergency timer is not currently paused.',
+      );
+    }
+    const window = turnPhase.timerPause?.window ?? phase.timerPause?.window;
+    if (!window) {
+      throw new HttpsError('internal', 'The emergency timer transition had no active window.');
+    }
+    tx.update(sessionRef, {
+      turnPhase,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${requestData.sessionId}/events/${eventId}`), {
+      type: 'timer-pause',
+      action: requestData.paused ? 'paused' : 'resumed',
+      turn: currentTurn,
+      window,
+      actorName: cleanName(player.get('displayName'), 'GM', 40),
+      byUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { turnPhase };
+  });
+});
+
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */
 export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request => {
   const uid = requireUid(request.auth);
@@ -1568,6 +1652,12 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
       throw new HttpsError('failed-precondition', 'No current airspace window is available.');
+    }
+    if (phase.timerPause) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The emergency timer is paused. Resume it before changing airspace.',
+      );
     }
     // A late command can be the first live request after the team deadline.
     // Heal the shared clock before evaluating a restriction-only exception.

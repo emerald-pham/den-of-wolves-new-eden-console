@@ -39,6 +39,17 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
+  const emergencyPauseBulletin = session && phase?.timerPause
+    ? {
+        id: `${session.id}:emergency-timer:${phase.turn}:${phase.timerPause.pausedAt}`,
+        text: sourceBulletin(
+          'AIRSPACE CONTROL',
+          'EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
+        ),
+        tone: 'danger' as const,
+        gap: 'long' as const,
+      }
+    : undefined;
   const pressDispatch = session && dispatchText
     ? {
         id: `${session.id}:press-dispatch:${dispatchState.revision}`,
@@ -57,7 +68,7 @@ export default function FleetBroadcast() {
         gap: 'long' as const,
       }
     : undefined;
-  const standingMessage = turnZeroBulletin ?? airspaceBulletin ?? pressDispatch;
+  const standingMessage = turnZeroBulletin ?? emergencyPauseBulletin ?? airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
   if (debriefMode.active) {
     return <FleetTicker message={{
