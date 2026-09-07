@@ -122,6 +122,29 @@ it('returns to role selection', async () => {
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
 });
 
+it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 0 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(advanceTurn).mockImplementation(async () => {
+    const session = useSessionStore.getState().session;
+    if (session) useSessionStore.getState().setSession({ ...session, currentTurn: 1 });
+  });
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  await user.click(within(turnControls).getByRole('button', { name: /skip to turn 1/i }));
+
+  expect(advanceTurn).toHaveBeenCalledOnce();
+  expect(advanceTurn).toHaveBeenCalledWith();
+  await waitFor(() => expect(within(turnControls).getByText('Turn 1')).toBeInTheDocument());
+  expect(within(turnControls).queryByRole('button', { name: /skip to turn 1/i }))
+    .not.toBeInTheDocument();
+});
+
 it('kicks another instance and removes it from the list', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);

@@ -715,18 +715,29 @@ export default function GmConsole() {
                 ARE YOU SURE? // ACTIVE PHASE TIMER WILL BE OVERRIDDEN
               </p>
             )}
-            <button
-              className="cic-action-button"
-              type="button"
-              disabled={advancingTurn}
-              onClick={requestTurnAdvance}
-            >
-              {advancingTurn
-                ? 'Advancing turn…'
-                : confirmTurnOverride && activeTurnTimer
-                  ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
-                  : `Advance to Turn ${currentTurn + 1}`}
-            </button>
+            {currentTurn === 0 ? (
+              <button
+                className="cic-action-button"
+                type="button"
+                disabled={advancingTurn}
+                onClick={() => void moveToNextTurn()}
+              >
+                {advancingTurn ? 'Skipping to Turn 1…' : 'Skip to Turn 1'}
+              </button>
+            ) : (
+              <button
+                className="cic-action-button"
+                type="button"
+                disabled={advancingTurn}
+                onClick={requestTurnAdvance}
+              >
+                {advancingTurn
+                  ? 'Advancing turn…'
+                  : confirmTurnOverride && activeTurnTimer
+                    ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
+                    : `Advance to Turn ${currentTurn + 1}`}
+              </button>
+            )}
           </section>
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>

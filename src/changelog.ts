@@ -12,6 +12,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     changes: [
       'A returning or refreshed in-session console now keeps its Connected light steady for one second while it restores its uplink.',
       'The landing population estimate now uses a larger, more balanced readout size across wide and phone displays.',
+      'GM Console now offers a Skip to Turn 1 control during setup so you can start a live debug session faster.',
     ],
   },
   {
