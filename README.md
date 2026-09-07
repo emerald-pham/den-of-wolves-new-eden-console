@@ -87,6 +87,31 @@ document. Claims, roles, secrets, random results, and other lie-sensitive game
 mutations are denied by Firestore rules and resolved by callable Cloud
 Functions inside transactions. The rules suite tests those denials.
 
+## Emulator-backed development
+
+```bash
+npm run emulators:configure -- auto
+npm run emulators
+npm run dev:emulators
+```
+
+The setup command atomically selects a complete free row, verifies the eight
+Firebase ports—including Firestore's separate WebSocket listener—plus the
+matching Vite port, and writes ignored `firebase.local.json` and
+`.env.emulators.local` files. Use an explicit `npm run emulators:configure --
+<slot 0-14>` only when a particular row is required. Do not scan status and
+choose a row in a separate step: concurrent agents must claim through the
+atomic command. `npm run test:rules`
+and `npm --prefix functions run serve` use the same generated Firebase config.
+Configured rows remain unavailable to other worktrees while their coordination
+entry is active or a live process lease exists, even when no live process lease
+is shown. Startup/status cleanup releases rows tied only to completed or missing
+worktrees.
+The shared coordination file records configured rows and live process leases;
+rules tests automatically choose another complete row when the configured row
+is already serving a preview. Do not share a slot with another worktree; stop
+its emulators when finished.
+
 The Firebase web configuration contains public identifiers, not credentials.
 Never commit a service-account key or App Check debug token. Production App
 Check, capacity evidence, monitoring, and rollback guidance belong in the

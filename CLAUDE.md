@@ -64,8 +64,10 @@ it visible while the scope is active. At wrap-up, publish the same checklist as
 3. Before editing, run `npm run coordination:begin -- ...` from this same
    worktree, save the printed entry id, and immediately run
    `npm run coordination:status`. Confirm that the entry's `worktree` path
-   equals `pwd` and that no active entry overlaps the intent. If it points
-   elsewhere, reconcile the worktrees first.
+   equals the current `pwd` and that no active entry overlaps the intent. If it
+   points elsewhere, do not edit or finish that entry; reconcile the worktrees
+   first. Treat this status pass as startup recovery: an earlier task may have
+   skipped its end cleanup.
 4. Load dependencies only when the validation command needs them. Follow the
    test-first, emulator-slot, and product-reference rules below. Documentation-
    only work uses the lighter review path described in [Test first for code](#1-test-first-for-code).
@@ -215,18 +217,72 @@ parent and terminal children surfaced from inactive chats. Retrieve any needed
 result and close every completed, errored, or interrupted child; leave pending
 children alone until they are terminal unless they are still needed.
 
-Keep assignments narrow, with a disjoint file scope, explicit acceptance
-criteria, and a request for changed paths, commands, and results. Run
-independent sidecars in parallel, do non-overlapping work while they run, and
-wait only when a result blocks the next decision. Review each result, close the
-child immediately, then reassess whether another bounded sidecar is useful.
+Start cleanup is authoritative because end cleanup may be skipped. Before
+substantive work or new delegation, inspect the child IDs owned by the current
+parent and any terminal children surfaced from inactive chats, retrieve any
+result still needed, and close every completed, errored, or interrupted child.
+Then inspect `npm run coordination:status` and the worktree/process state for
+leftover reservations or configured rows from prior work. The status command
+prunes dead process reservations; a configured row whose worktree is missing is
+stale, while a row whose worktree still exists requires task/process
+reconciliation before release. Never stop a live process, close a running child,
+or release another active worktree's row based only on age or a missing live
+reservation. Leave pending or running children from any chat alone; close them
+only after they reach a terminal state unless they are still needed for the
+current task.
 
-Delegated agents may inspect and change files, but a changing child must use its
-own short-lived branch and worktree. Every child reads this file and follows its
-test-first, dependency, emulator, version, and documentation rules. The primary
-agent retains security, authentication, authorization, authoritative-state,
-architecture, product, review, integration, versioning, merge, and push
-decisions; no child may merge or push.
+Keep delegation economical:
+
+- Delegate only a bounded sidecar with a concrete output and acceptance
+  criteria. If no independent sidecar exists, continue locally; do not create
+  an agent merely to satisfy a quota.
+- Start independent sidecars in parallel, do non-overlapping work while they
+  run, and do not repeat their assigned investigation in the parent.
+- Wait only when the result is needed for the next critical-path decision;
+  otherwise collect it once it reaches a terminal state.
+- Ask every child to return changed paths (if any), commands run, and observed
+  results. Review that evidence before integration, then close the child
+  immediately.
+
+- Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
+  is not an approved delegation model for this codebase.
+- Delegated subagents have full read/write access to their assigned worktree.
+  They may inspect, create, edit, rename, and delete files as needed, run
+  commands and tests, and perform well-scoped implementation work. No
+  read-only restriction applies to delegated subagents.
+- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning for suitable delegated
+  work when delegation saves total effort and tokens after setup, context
+  transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
+  UI, and routine implementation with clear expected results.
+- Keep assignments narrow, low risk, and easy to verify, with explicit file
+  scope and acceptance criteria. Every delegated agent that changes files must
+  use its own worktree and short-lived branch; never have a delegated agent
+  edit the primary agent's checkout or another agent's files. Full read/write
+  access is scoped to that assigned worktree and does not authorize merging or
+  pushing.
+- Treat child-agent lifecycle as part of delegation: after collecting a
+  completed result, close the child with `close_agent`. Completed descendants
+  remain open and count toward the concurrency limit until closed, so do not
+  leave finished children occupying capacity.
+- End cleanup remains required even though startup cleanup is the recovery
+  boundary: stop processes this task started, release its emulator reservation,
+  finish its coordination entry, close completed children, and run one final
+  status check. End cleanup is scoped to this task's own children, processes,
+  reservations, and entry; it must not sweep unrelated live work.
+- Immediately after closing an agent, reassess whether the next step exposes
+  another useful, independent, bounded sidecar. If it would materially advance
+  the work, delegate it under the same Luna-only rules; otherwise continue
+  locally without forcing an artificial split.
+- No code change has zero risk. Keep security, authentication, authorization,
+  authoritative state mutations, complex gameplay, architectural decisions, and
+  other high-risk security or product decisions with the primary agent. The
+  primary agent also owns all review, integration, versioning, merge, and push.
+- Every delegated agent must read this file and follow the applicable test-first,
+  dependency, emulator isolation, and version policies. Small task size does not
+  exempt code changes from those requirements.
+- The primary agent reviews the diff and verification evidence and coordinates
+  integration, versioning, merge, and push. Delegated agents must return their
+  work for that review before anything is merged or pushed to `main`.
 
 ## Concurrent worktrees and emulator ports
 
@@ -267,9 +323,14 @@ worktree-local Firebase config, and pass it explicitly with `--config` to both
 `firebase emulators:start` and `firebase emulators:exec`. Do not commit a
 developer's port-only config.
 
-Use `npm run emulators:configure -- <slot>` after claiming a row. It checks all
-eight Firebase ports plus the matching Vite port before writing ignored
-`firebase.local.json` and `.env.emulators.local` files. Then use `npm run
+Use `npm run emulators:configure -- auto` to atomically select and claim the
+first complete free row. It checks all eight Firebase ports plus the matching
+Vite port while holding the shared coordination lock, then writes ignored
+`firebase.local.json` and `.env.emulators.local` files. An explicit
+`npm run emulators:configure -- <slot 0-14>` remains available when a specific
+row is required. Do not scan status and choose a row in a separate step: no
+live reservation does not mean a configured row is free, and concurrent agents
+must claim through the atomic command. Then use `npm run
 emulators`, `npm run dev:emulators`, `npm run test:rules`, or `npm --prefix
 functions run serve`;
 these commands explicitly load the worktree-local config, and the Vite command
@@ -278,9 +339,14 @@ the committed slot-0 defaults. The configure command records the row in the
 shared coordination file; the long-running emulator commands claim and release
 live process reservations there. `npm run test:rules` prefers the configured
 row, but automatically claims another complete free row when a preview already
-owns it, then removes its temporary config on exit. When a task ends, stop its
-emulators so the slot becomes available. If all rows are occupied, wait for a
-free slot; never take a port that is already listening.
+owns it, then removes its temporary config on exit. Configured worktree rows
+are unavailable to other worktrees while their entry is active or a process
+lease is live, even when the live-reservations section is empty. At startup,
+inspect the status pane for terminal children, dead process reservations, and
+configured rows whose worktree is missing; status cleanup releases rows tied
+only to completed worktrees. Reconcile only resources confirmed not to be used
+by a live task. If all rows are occupied, wait for a free slot; never take a
+port that is already listening.
 
 ## 2. Merge once done
 

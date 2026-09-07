@@ -12,7 +12,7 @@ import {
 import {
   coordinationFilePath,
   releaseConfiguredEmulatorSlot,
-  reserveConfiguredEmulatorSlot,
+  reserveAvailableConfiguredEmulatorSlot,
 } from './emulator-resource-registry.mjs';
 
 const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -20,11 +20,12 @@ const localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.jso
 const localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local');
 
 function usage() {
-  return `usage: npm run emulators:configure -- <slot 0-${EMULATOR_SLOT_COUNT - 1}>`;
+  return `usage: npm run emulators:configure -- <slot 0-${EMULATOR_SLOT_COUNT - 1}|auto>`;
 }
 
 function parseSlot(args) {
   if (args.length !== 1 || !/^\d+$/.test(args[0] ?? '')) {
+    if (args.length === 1 && args[0] === 'auto') return undefined;
     throw new Error(usage());
   }
 
@@ -43,21 +44,27 @@ async function writeAtomically(path, content) {
 
 async function main() {
   const slot = parseSlot(process.argv.slice(2));
-  const ports = emulatorPortsForSlot(slot);
   const coordinationPath = coordinationFilePath();
-  const configuration = await reserveConfiguredEmulatorSlot({
+  const configuration = await reserveAvailableConfiguredEmulatorSlot({
     filePath: coordinationPath,
-    slot,
+    preferredSlot: slot,
     worktree: repositoryDirectory,
-    ports: [...Object.values(ports), vitePortForSlot(slot)],
+    availableSlots: slot === undefined
+      ? Array.from({ length: EMULATOR_SLOT_COUNT }, (_, candidate) => candidate)
+      : [slot],
+    portsForSlot: (candidate) => [
+      ...Object.values(emulatorPortsForSlot(candidate)),
+      vitePortForSlot(candidate),
+    ],
   });
+  const selectedSlot = configuration.slot;
 
   try {
     const baseConfig = JSON.parse(
       await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'),
     );
-    const localConfig = firebaseConfigForSlot(baseConfig, slot);
-    const environment = emulatorEnvironmentForSlot(slot);
+    const localConfig = firebaseConfigForSlot(baseConfig, selectedSlot);
+    const environment = emulatorEnvironmentForSlot(selectedSlot);
     const environmentText = `${Object.entries(environment)
       .map(([name, value]) => `${name}=${value}`)
       .join('\n')}\n`;
@@ -71,7 +78,7 @@ async function main() {
     throw error;
   }
 
-  console.log(`Configured emulator slot ${slot}.`);
+  console.log(`Configured emulator slot ${selectedSlot}.`);
   console.log(`  Firebase: ${localFirebaseConfigPath}`);
   console.log(`  Vite:     ${localEnvironmentPath}`);
   console.log(`  Shared coordination: ${coordinationPath}`);

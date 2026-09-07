@@ -34,11 +34,39 @@ branch, path mismatch, or unexpected commit is an unresolved handoff.
 
 ## Emulator rows
 
-Each active worktree needs one complete Firebase/Vite slot. Configure a free
-row with `npm run emulators:configure -- <slot>` before starting emulators or
-rules tests. The command and test runner verify the row and record ownership;
-long-running processes release their reservations when they exit. Never mix
-ports from different rows or take a listening port from another worktree.
+Configure a worktree with the atomic selector:
+
+```bash
+npm run emulators:configure -- auto
+```
+
+It selects the first complete free row, checks all nine ports, and records the
+durable configuration while holding the shared lock. An explicit slot remains
+available for intentional pinning. Do not scan status and choose a row in a
+separate step. Configured rows are unavailable to other worktrees while their
+coordination entry is active or a live process lease exists, even when the
+live-reservations section is empty. Startup/status cleanup releases rows tied
+only to completed or missing worktrees.
+
+The emulator commands also claim their configured slot in the same file. Rules
+tests prefer the worktree's configured row, but automatically claim another
+complete free row when that row is already running a preview or another
+worktree. They release the temporary reservation when the command exits.
+
+Start cleanup is authoritative because end cleanup may be skipped: inspect
+terminal child tasks, coordination status, live process reservations, and
+configured rows whose worktree is missing before starting new work. The status
+command prunes dead process reservations. Reconcile a configured row whose
+worktree still exists with the task/process state before releasing it; never
+release a live worktree's row just because no process lease is visible. The
+status command prunes dead process reservations and configured rows tied only
+to completed or missing worktrees.
+
+Each active worktree needs one complete Firebase/Vite slot. An explicit slot
+remains available when a particular row is required. The command and test
+runner verify the row and record ownership; long-running processes release
+their reservations when they exit. Never mix ports from different rows or take
+a listening port from another worktree.
 
 The full slot matrix, port checks, and concurrent-test guidance are in
 [`CLAUDE.md`](../CLAUDE.md#concurrent-worktrees-and-emulator-ports).
@@ -54,6 +82,15 @@ npm run coordination:finish -- \
 npm run coordination:status
 ```
 
+Use the exact id printed by `coordination:begin`, then run
+`npm run coordination:status` once to confirm it is no longer active. Do this
+before deleting the branch or worktree; never finish an entry copied from
+another worktree. The registry prunes dead process reservations, and
+startup/status recovery releases configured rows tied only to completed or
+missing worktrees. End cleanup is still required—stop processes started by the
+task, release its live reservation, finish its entry, close completed children,
+and perform the final status check—but startup cleanup is the recovery boundary
+when any of those steps were skipped.
 The final status should show the entry as historical rather than active, with
 no live process reservation left behind. Do not finish an id copied from
 another worktree.
