@@ -2895,8 +2895,10 @@ body {
 }
 
 .turn-phase-timer[data-tone='blue'] { color: var(--cic-cyan-hot); }
+.turn-phase-timer[data-tone='red'] { color: var(--cic-danger); }
 .turn-phase-timer > span { color: var(--cic-muted); }
 .turn-phase-timer > strong { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.turn-phase-timer > small { color: var(--cic-danger); font-size: 0.5rem; }
 
 .ship-plot__toggle {
   position: absolute;
@@ -4049,6 +4051,35 @@ body {
   border-top: 1px solid var(--cic-rule);
 }
 .gm-turn-control__airspace > .gm-console__status { margin: 0 0 0.6rem; }
+.gm-emergency-pause {
+  display: grid;
+  gap: 0.65rem;
+  border-color: color-mix(in srgb, var(--cic-danger) 58%, var(--cic-rule));
+}
+.gm-emergency-pause__eyebrow {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.62rem/1.3 var(--cic-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.gm-emergency-pause .gm-console__status { margin: 0; }
+.gm-emergency-pause[data-state='paused'] .gm-console__status,
+.gm-emergency-pause__warning { color: var(--cic-danger); }
+.gm-emergency-pause__warning,
+.gm-emergency-pause__note {
+  margin: 0;
+  font: 0.66rem/1.45 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gm-emergency-pause__note {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cic-rule);
+  color: var(--cic-muted);
+}
+.gm-emergency-pause .cic-action-button { width: 100%; }
+.gm-emergency-pause[data-state='standby'] { border-color: var(--cic-rule); }
 .gm-console__instruments {
   position: absolute;
   top: var(--console-plot-top);

@@ -569,3 +569,31 @@ opening broader gameplay work:
 This order keeps every new mechanic anchored to source truth, server
 authority, a user-visible outcome, and a regression test before the next
 mechanic is introduced.
+
+## Current vertical slice — emergency timer pause
+
+**Objective:** give an authenticated GM a deliberately difficult, auditable
+way to hold the live turn clock during a genuine emergency, then resume it
+without losing elapsed time.
+
+**Source and product decision:** the printed rules define timed Team and
+Coordination phases and facilitator-announced transitions, but do not define a
+pause action. This slice is therefore an explicit facilitator-only product
+decision layered on the server-owned phase clock; it does not add a new player
+movement exception or alter the printed phase lengths during ordinary play.
+
+**Contract:** the session stores an optional paused phase readout with the
+active window, frozen remaining milliseconds, and pause instant. A callable
+accepts only an active GM instance, current turn, and boolean desired state;
+the transaction rejects stale, expired, Turn 0, closed, non-GM, and foreign
+instance requests, writes one member-visible timer event for each actual state
+change, and treats a repeated desired state as idempotent. Every connected
+console shows the emergency hold in its timer instrument and fleet broadcast.
+
+**Acceptance:** the GM console exposes one square emergency interlock whose
+first and second clicks only advance an explicit three-click sequence; the
+third click pauses or resumes the server clock. The button is unavailable
+without a live timer or GM connectivity, and all three clicks are reset when
+the authoritative turn or pause state changes. The phase display remains
+frozen while paused, resumes with the exact hold duration, and never creates a
+second client-owned clock.

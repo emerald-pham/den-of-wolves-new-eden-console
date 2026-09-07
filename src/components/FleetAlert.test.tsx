@@ -146,6 +146,33 @@ it('names the lifted window as an Airspace Control bulletin', () => {
     name: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   })).toBeVisible();
 });
+
+it('broadcasts an emergency timer hold as a fleetwide Airspace Control bulletin', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!,
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+        openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        timerPause: {
+          window: 'restricted',
+          remainingMs: 180_000,
+          pausedAt: '2026-09-06T12:02:00.000Z',
+        },
+      },
+    } as never);
+  });
+
+  render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', {
+    name: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
+  })).toBeVisible();
+});
 it('lists the game and web app credits when the finale is live', () => {
   act(() => {
     const state = useSessionStore.getState();

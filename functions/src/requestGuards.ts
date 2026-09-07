@@ -189,6 +189,30 @@ export function requireAirspaceWindowExtensionRequest(data: {
   };
 }
 
+export function requireEmergencyTimerPauseRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  expectedTurn?: unknown;
+  paused?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  expectedTurn: number;
+  paused: boolean;
+} {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  if (typeof data.paused !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'paused must be boolean.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    expectedTurn: data.expectedTurn as number,
+    paused: data.paused,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

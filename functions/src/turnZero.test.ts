@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { extendActiveTurnPhase, isPlayerGameplayLockedAtTurnZero } from './turnZero';
+import {
+  extendActiveTurnPhase,
+  isPlayerGameplayLockedAtTurnZero,
+  isTurnPhaseTimerActive,
+  pauseActiveTurnPhase,
+  resumePausedTurnPhase,
+} from './turnZero';
 
 it('reserves Turn 0 gameplay commands for GMs', () => {
   expect(isPlayerGameplayLockedAtTurnZero(0, 'player')).toBe(true);
@@ -54,5 +60,41 @@ it('does not extend a window that is not currently active', () => {
     phase,
     'restricted',
     Date.parse('2026-09-07T12:06:00.000Z'),
+  )).toBeUndefined();
+});
+
+it('pauses and resumes the server-owned clock without losing the held time', () => {
+  const paused = pauseActiveTurnPhase(
+    phase,
+    Date.parse('2026-09-07T12:02:00.000Z'),
+  );
+
+  expect(paused).toEqual({
+    ...phase,
+    timerPause: {
+      window: 'restricted',
+      remainingMs: 3 * 60_000,
+      pausedAt: '2026-09-07T12:02:00.000Z',
+    },
+  });
+  expect(isTurnPhaseTimerActive(paused, Date.parse('2026-09-07T12:30:00.000Z'))).toBe(true);
+
+  expect(resumePausedTurnPhase(
+    paused!,
+    Date.parse('2026-09-07T12:04:00.000Z'),
+  )).toEqual({
+    ...phase,
+    teamPhaseEndsAt: '2026-09-07T12:07:00.000Z',
+    openAirspaceEndsAt: '2026-09-07T12:22:00.000Z',
+  });
+});
+
+it('does not create a second pause or extend a paused window', () => {
+  const paused = pauseActiveTurnPhase(phase, Date.parse('2026-09-07T12:02:00.000Z'))!;
+  expect(pauseActiveTurnPhase(paused, Date.parse('2026-09-07T12:03:00.000Z'))).toEqual(paused);
+  expect(extendActiveTurnPhase(
+    paused,
+    'restricted',
+    Date.parse('2026-09-07T12:03:00.000Z'),
   )).toBeUndefined();
 });

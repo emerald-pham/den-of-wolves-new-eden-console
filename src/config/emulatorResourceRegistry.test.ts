@@ -671,6 +671,38 @@ describe('local emulator coordination', () => {
     })).toThrow(/0\.2\.102.*changelog/i);
   });
 
+  it('preserves a previous APP_VERSION entry across a new release', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-release-preservation-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [releaseEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchChangelog: [
+            { version: '0.2.103', source: "version: '0.2.103' changes: ['new release']" },
+            { version: '0.2.102', source: "version: '0.2.102' changes: ['previous release']" },
+          ],
+          mainChangelog: [
+            { version: '0.2.102', source: "version: APP_VERSION changes: ['previous release']" },
+          ],
+        }),
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({ id: releaseEntry.id });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('records final branch, main, remote, and pushed state when completion succeeds', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-release-gate-${randomUUID()}.json`);
 

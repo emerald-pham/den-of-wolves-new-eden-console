@@ -33,6 +33,7 @@ import {
   advanceTurn,
   beginOpenAirspacePhase,
   extendAirspaceWindow,
+  setEmergencyTimerPaused,
   runMaintenance,
   setShipConsoleLock,
   setActiveRoleEnabled,
@@ -503,6 +504,112 @@ it('rejects stale, inactive-window, and non-GM airspace extensions without writi
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'open',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('lets only the active GM pause and resume a live turn clock with an audit event', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:02:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.randomUUID.mockReturnValue('pause-event');
+
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
+  }))).resolves.toEqual({
+    turnPhase: {
+      ...mock.turnPhase,
+      timerPause: {
+        window: 'restricted', remainingMs: 180_000,
+        pausedAt: '2026-09-06T12:02:00.000Z',
+      },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnPhase: expect.objectContaining({
+      timerPause: {
+        window: 'restricted', remainingMs: 180_000,
+        pausedAt: '2026-09-06T12:02:00.000Z',
+      },
+    }),
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/pause-event', expect.objectContaining({
+    type: 'timer-pause', action: 'paused', turn: 2, window: 'restricted',
+    actorName: 'GM', createdAt: 'server-time',
+  }));
+
+  mock.turnPhase = {
+    ...mock.turnPhase!,
+    timerPause: {
+      window: 'restricted', remainingMs: 180_000,
+      pausedAt: '2026-09-06T12:02:00.000Z',
+    },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
+  }))).resolves.toEqual({ turnPhase: mock.turnPhase });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  vi.setSystemTime(new Date('2026-09-06T12:04:00.000Z'));
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: false,
+  }))).resolves.toEqual({
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:07:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:22:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/pause-event', expect.objectContaining({
+    type: 'timer-pause', action: 'resumed', turn: 2, window: 'restricted',
+  }));
+});
+
+it('denies stale, expired, Turn 0, and non-GM emergency timer requests without writing', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:02:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  mock.role = 'player';
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  mock.role = 'gm';
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, paused: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.currentTurn = 0;
+  mock.turnPhase = undefined;
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0, paused: true,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  vi.setSystemTime(new Date('2026-09-06T12:21:00.000Z'));
+  await expect(setEmergencyTimerPaused.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, paused: true,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('requires AEGIS authority for the Press exception and heals a stale restriction into coordination', async () => {

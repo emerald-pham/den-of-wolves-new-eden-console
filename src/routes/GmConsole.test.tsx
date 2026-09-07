@@ -25,6 +25,7 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   extendAirspaceWindow: vi.fn(),
+  setEmergencyTimerPaused: vi.fn(),
   setActiveRoleConfiguration: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
@@ -38,7 +39,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
+  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setEmergencyTimerPaused, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -1114,6 +1115,67 @@ it('allows the same confirmed control for the live open airspace window', async 
   expect(extendAirspaceWindow).not.toHaveBeenCalled();
   await user.click(confirm);
   expect(extendAirspaceWindow).toHaveBeenCalledWith('open');
+});
+
+it('requires three deliberate clicks to pause and resume the emergency timer', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setEmergencyTimerPaused).mockImplementation(async (paused) => {
+    const session = useSessionStore.getState().session;
+    if (!session?.turnPhase) return;
+    if (paused) {
+      useSessionStore.getState().setSession({
+        ...session,
+        turnPhase: {
+          ...session.turnPhase,
+          timerPause: {
+            window: 'restricted',
+            remainingMs: 180_000,
+            pausedAt: new Date().toISOString(),
+          },
+        },
+      } as never);
+      return;
+    }
+    const { timerPause: _timerPause, ...resumed } = session.turnPhase as unknown as Record<string, unknown>;
+    void _timerPause;
+    useSessionStore.getState().setSession({ ...session, turnPhase: resumed } as never);
+  });
+  renderConsole();
+
+  const region = await screen.findByRole('region', { name: /emergency timer control/i });
+  await user.click(within(region).getByRole('button', { name: /disarm interlock \/\/ pause timer/i }));
+  expect(setEmergencyTimerPaused).not.toHaveBeenCalled();
+  expect(within(region).getByRole('button', { name: /2 clicks remaining/i })).toBeVisible();
+  await user.click(within(region).getByRole('button', { name: /2 clicks remaining/i }));
+  expect(setEmergencyTimerPaused).not.toHaveBeenCalled();
+  expect(within(region).getByRole('button', { name: /1 click remaining/i })).toBeVisible();
+  await user.click(within(region).getByRole('button', { name: /1 click remaining/i }));
+  await waitFor(() => expect(setEmergencyTimerPaused).toHaveBeenCalledWith(true));
+  expect(await within(region).findByText(/emergency timer paused/i)).toBeVisible();
+  expect(useSessionStore.getState().session?.turnPhase).toHaveProperty('timerPause');
+  expect(screen.getByRole('button', { name: /add 5 minutes \/\/ airspace restricted/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /add 5 minutes \/\/ airspace open/i })).toBeDisabled();
+
+  await user.click(within(region).getByRole('button', { name: /re-arm interlock \/\/ resume timer/i }));
+  await user.click(within(region).getByRole('button', { name: /2 clicks remaining/i }));
+  await user.click(within(region).getByRole('button', { name: /1 click remaining/i }));
+  await waitFor(() => expect(setEmergencyTimerPaused).toHaveBeenLastCalledWith(false));
+  expect(setEmergencyTimerPaused).toHaveBeenCalledTimes(2);
 });
 
 it('requires a deliberate second press to lower the finale, then lets the GM retract it', async () => {

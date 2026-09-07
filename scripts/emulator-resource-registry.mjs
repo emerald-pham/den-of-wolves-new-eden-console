@@ -82,6 +82,13 @@ function normalizeChangelogSource(source) {
   return source.replace(/\s+/g, ' ').trim();
 }
 
+function normalizeChangelogEntrySource(source) {
+  return normalizeChangelogSource(source).replace(
+    /^version:\s*(?:APP_VERSION|['"]\d+\.\d+\.\d+['"])/,
+    'version: <VERSION>',
+  );
+}
+
 function parseApplicationVersion(source, ref) {
   const match = source.match(/"version"\s*:\s*"([^"]+)"/);
   const version = match?.[1];
@@ -185,7 +192,10 @@ function changelogPreservationErrors(mainChangelog, branchChangelog) {
       );
       continue;
     }
-    if (branchEntry.source !== mainEntry.source) {
+    if (
+      normalizeChangelogEntrySource(branchEntry.source) !==
+      normalizeChangelogEntrySource(mainEntry.source)
+    ) {
       errors.push(
         `branch changelog would replace main's ${mainEntry.version} entry`,
       );
