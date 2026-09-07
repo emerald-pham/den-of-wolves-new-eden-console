@@ -31,6 +31,16 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'kickPlayer';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly targetUid: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'logoutGmAccess';
       readonly payload: {
         readonly sessionId: string | null;

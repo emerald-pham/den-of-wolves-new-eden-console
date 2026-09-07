@@ -145,6 +145,23 @@ it('replaces a stale membership lock when the same identity joins its remembered
   );
 });
 
+it('rejects a browser that was kicked from this session', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot({ kickedAt: 'server-time' });
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    throw new Error('Unexpected read: ' + path);
+  });
+
+  await expect(joinSession.run(request('482109'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: 'This browser was kicked from that session and cannot rejoin.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('refuses to displace an identity that is actively connected in another session', async () => {
   mock.get.mockImplementation(({ path }: { path: string }) => {
     if (path === 'joinAttemptLimits/u1') return snapshot({}, false);

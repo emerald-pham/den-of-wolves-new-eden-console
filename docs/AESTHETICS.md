@@ -246,6 +246,12 @@ can come from the existing type and border treatment without shrinking the
 touch target. This does not require unrelated instruments, icon controls, or
 multiline panels elsewhere to have identical dimensions.
 
+The launcher keeps the same Settings gear as the in-session header. Session-only
+readouts and disconnect controls are omitted there, while GM access, motion,
+changelog and build information remain available. Creating or joining a new
+session is allowed only after the current browser has disconnected, and a
+successful entry always lands at the pre-role device connection screen.
+
 The six-digit Session code readout reserves 9rem of inline width, keeping all
 six monospaced digits and their tracking visible rather than making the input
 scroll its entered value out of sight.
@@ -272,6 +278,10 @@ group to span the available readout. Every ticker uses the continuous-track
 transition defined under Fleet broadcast scroller; do not unmount or replace a
 visible group when its source message changes. Reduced motion shows one
 stationary, wrapping message in the same instrument.
+The moving copy is measured with its separator spacing and keeps a single
+vertically centred line box, so repeated copies cannot paint into one another;
+the mobile header reserves the measured wrapped chrome height before the role
+picker begins.
 
 The AEGIS fleet-alert command occupies the guarded bridge-control housing that
 other ships use for the emergency confetti dispenser. Its closed command cover,
@@ -396,6 +406,8 @@ UNKNOWN CONTACT until a sweep crosses it at least ninety seconds into that
 transit; that scan selects the fleetwide classification Asteroid, Rock, Your
 Mom's Big Butt, Emerald Nebula Interference, or Metallic Asteroid without
 extending or restarting its lifetime.
+An unclassified contact enters at LONG range; classification can change its
+label but never shortens that initial placement.
 Reduced motion leaves the return at its sampled starting coordinate while
 preserving the same arrival, classification, and disappearance clocks.
 DRADIS acquisition overrides every presentation mode: neither the moving
@@ -796,8 +808,10 @@ closed session cannot start it.
 
 `DebriefMode` is rendered once beside the router in `App`, so every current
 viewport receives the same state through its normal session snapshot. Its ball
-is a small top-centred seven-by-seven cyan/amber digital facet grid inside a
-circular rim; the outer layer lowers and retracts while the inner grid rotates.
+is a small top-centred seven-by-seven cyan/amber digital facet grid on both
+front and back surfaces inside a circular rim; the outer layer lowers and
+retracts while the inner grid rotates. Backface visibility keeps the rear
+surface illuminated instead of exposing the orb's black ground.
 It is an accent, not a modal: `pointer-events: none`, `aria-hidden`, and layer
 26 leave every underlying control, navigation path, and header available. The
 ball's scene owns a `34rem` perspective camera and a `preserve-3d` orb with
@@ -1001,16 +1015,16 @@ Each live turn transition begins with `TURN N` before any other copy, except the
 Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
 before `TURN 1`. The fleet transmission reuses the full-screen intrusion
 envelope with the neutral fleet variant: no hostile glitch treatment, amber structural overlines, bone-white
-narrative and survivor count, cyan `SURVIVE.`, and hostile red only for the
-word `TRAITORS`. Turn 1 carries the complete destruction briefing, then shows
+narrative and survivor count, and hostile red only for the word `TRAITORS`.
+Turn 1 carries the complete destruction briefing, then shows
 `THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.` as one ordinary 2.4-second
 slide. The white survivor count drops by one halfway through its display, and the server commits
 that same fleet-wide delta in the turn transaction. Before each transmission,
 the authoritative starting count rises by 42 when it would otherwise end in 0
 or 5; the resulting count is clamped at zero or above. This fleet-level
 adjustment never rewrites an individual ship's printed population track. Later
-turns contain only the turn marker, the calculated fleet survivor count and the
-final survival beat. The transmission is a live event rather than a replay for
+turns contain only the turn marker and the calculated fleet survivor count. The
+transmission is a live event rather than a replay for
 a newly joined browser. The first Turn 1 slide is
 the ordinary 2.4-second operational beat `IRIS AUTHENTICATION CONFIRMED`; `TURN 1`
 follows before any narrative. Turn 1's three opening briefing beats use four-second
@@ -1030,9 +1044,9 @@ shared reduced-motion override removes it along with the message entrance.
 Each non-final beat eases upward out over a short 320ms handoff before the next
 beat eases upward in, using separate asymmetric curves so the transmission
 reads like a live instrument handing off a signal rather than a linear carousel.
-The final two Turn 0 → Turn 1 beats—`PEOPLE` without a trailing dash and
-`SURVIVE.`—hold for three seconds each so the closing instruction has room to
-land. When the final `SURVIVE.` beat completes, the whole fleet transmission
+The final Turn 0 → Turn 1 beat—`N SURVIVORS`—holds for three seconds so the
+closing count has room to land. Later transitions use the same single survivor
+beat. When the final survivor beat completes, the whole fleet transmission
 fades to transparent over one full second before it leaves the stage, revealing
 the live console without an abrupt cut. This exit applies to Turn 0 → Turn 1
 and every later turn transition; reduced motion removes the fade and clears the
@@ -1130,8 +1144,8 @@ Damage-card outcomes at the maintenance riot step and the shared GM damage
 controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
 wraps without clipping or obscuring controls.
 
-The expanded GM DRADIS treats its lower edge as two stacked instruments on
-phones and short landscape screens: the live airspace countdown owns the
-bottom line, and the COMBAT RANGES key sits above it with a reserved 4.75rem
-offset. This keeps both readouts legible over the plot without changing their
-desktop placement.
+The expanded GM DRADIS keeps the live airspace countdown legible at its lower
+edge on phones and short landscape screens. Individual contact returns retain
+their compact range labels where the game calls for them, but the expanded
+view has no separate LONG // MEDIUM // SHORT key; the plot stays open for the
+contacts and the countdown.

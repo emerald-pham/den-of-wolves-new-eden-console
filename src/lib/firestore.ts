@@ -176,6 +176,7 @@ function gmInstanceFrom(sessionId: string, id: string, data: DocumentData): GmIn
 export interface SessionStateHandlers {
   readonly onSession: (session: GameSession) => void;
   readonly onPlayer: (player: Player) => void;
+  readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
   readonly onError: () => void;
 }
@@ -193,7 +194,9 @@ export function subscribeSessionState(
       else handlers.onError();
     }, handlers.onError),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), (snapshot) => {
-      if (snapshot.exists() && snapshot.get('connected') === true) {
+      if (snapshot.exists() && snapshot.get('kickedAt')) {
+        handlers.onKicked();
+      } else if (snapshot.exists() && snapshot.get('connected') === true) {
         handlers.onPlayer(playerFrom(sessionId, uid, snapshot.data()));
       } else handlers.onError();
     }, handlers.onError),

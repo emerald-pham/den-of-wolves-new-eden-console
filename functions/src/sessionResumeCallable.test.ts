@@ -67,6 +67,7 @@ function snapshot(fields: Readonly<Record<string, unknown>>, exists = true) {
 
 function prepareResume(
   seat: Readonly<Record<string, unknown>>,
+  playerFields: Readonly<Record<string, unknown>> = {},
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
   const session = snapshot({
@@ -87,6 +88,7 @@ function prepareResume(
     connected: false,
     lastSeenAt: twoHoursAgo,
     joinedAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
+    ...playerFields,
   });
 
   mock.get.mockImplementation(({ path }: { path: string }) => {
@@ -128,6 +130,17 @@ it('lets a player return after two idle hours, clearing only an occupied old sea
     expect.objectContaining({ path: 'activeMemberships/u1' }),
     expect.objectContaining({ sessionId: 's1' }),
   );
+});
+
+it('rejects a kicked browser before restoring its session', async () => {
+  prepareResume({ status: 'open', holderUid: null }, { kickedAt: 'server-time' });
+
+  await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: 'This browser was kicked from that session and cannot rejoin.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('keeps the old seat when the returning player still holds it', async () => {

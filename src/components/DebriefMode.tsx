@@ -152,6 +152,9 @@ export default function DebriefMode() {
               <div className="debrief-mode__facet-field">
                 {FACETS.map((facet) => <i key={facet.index} style={facet.style} />)}
               </div>
+              <div className="debrief-mode__facet-field debrief-mode__facet-field--back" aria-hidden="true">
+                {FACETS.map((facet) => <i key={facet.index} style={facet.style} />)}
+              </div>
               {MERIDIANS.map((meridian) => (
                 <i
                   className={`debrief-mode__meridian debrief-mode__meridian--${meridian}`}

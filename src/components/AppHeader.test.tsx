@@ -155,6 +155,19 @@ it('keeps the header clear before the Press Officer releases a dispatch', async 
   expect(await screen.findByText('2 connected to CIC')).toBeVisible();
 });
 
+it('keeps the settings gear available on the launcher without session-only readouts', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().reset();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.getByRole('dialog', { name: /session settings/i })).toBeInTheDocument();
+  expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: /gm access/i })).toBeVisible();
+  expect(screen.queryByText(/disconnect this device from session/i)).not.toBeInTheDocument();
+});
+
 it('shows the player command rank in the top-right header', async () => {
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
     onPlayers([connectedPlayer('u1')]);

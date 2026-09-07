@@ -13,6 +13,7 @@ vi.mock('@/lib/sessionService', () => ({
   assignWolfRoles: vi.fn(),
   resetWolves: vi.fn(),
   kickGmInstance: vi.fn(),
+  kickPlayer: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
   setDebriefMode: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
@@ -241,6 +242,7 @@ it('updates when the live GM instance stream changes', async () => {
 });
 
 it('groups connected players by command role in the GM console', async () => {
+  const user = userEvent.setup();
   const stopPlayers = vi.fn();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
@@ -276,6 +278,10 @@ it('groups connected players by command role in the GM console', async () => {
   expect(within(roster).getByText('Morgan')).toBeInTheDocument();
   expect(within(roster).getByText('Unassigned')).toBeInTheDocument();
   expect(within(roster).getByText('Cy')).toBeInTheDocument();
+
+  vi.mocked(kickPlayer).mockResolvedValue('applied');
+  await user.click(within(roster).getByRole('button', { name: 'Kick Ari' }));
+  expect(kickPlayer).toHaveBeenCalledWith('u2');
 
   unmount();
   expect(stopPlayers).toHaveBeenCalledOnce();
@@ -507,8 +513,8 @@ it('starts with a compact DRADIS and expands it on demand', async () => {
 
   expect(dradis).toHaveAttribute('data-expanded', 'true');
   expect(screen.getByRole('button', { name: /collapse dradis display/i })).toBeInTheDocument();
-  expect(screen.getByRole('complementary', { name: 'Combat range bands' }))
-    .toHaveTextContent('COMBAT RANGES // LONG // MEDIUM // SHORT');
+  expect(screen.queryByRole('complementary', { name: 'Combat range bands' }))
+    .not.toBeInTheDocument();
 });
 
 it('keeps each airspace-window countdown in compact and expanded fleet DRADIS', async () => {

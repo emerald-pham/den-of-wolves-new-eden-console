@@ -393,6 +393,14 @@ describe('players', () => {
       }),
     );
   });
+
+  it('cannot mark its browser as kicked or clear a server kick marker', async () => {
+    await assertFails(
+      updateDoc(doc(as('alice'), `${SESSION}/players/alice`), {
+        kickedAt: new Date(),
+      }),
+    );
+  });
 });
 
 describe('player authority', () => {

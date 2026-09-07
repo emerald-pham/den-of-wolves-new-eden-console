@@ -321,6 +321,25 @@ describe('App', () => {
     ));
   });
 
+  it('returns a kicked browser to the launcher', async () => {
+    let onKicked: (() => void) | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+      onKicked = handlers.onKicked;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(session, player);
+
+    render(<App />);
+    await waitFor(() => expect(onKicked).toBeDefined());
+
+    act(() => onKicked?.());
+
+    expect(await screen.findByRole('heading', { name: /Den of Wolves: New Eden/i }))
+      .toBeInTheDocument();
+    expect(useSessionStore.getState().session).toBeNull();
+    expect(useSessionStore.getState().me).toBeNull();
+  });
+
   it('never follows an unrecognized route restored from local storage', async () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
@@ -505,7 +524,7 @@ describe('App', () => {
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/');
     expect(useSessionStore.getState().session).toBeNull();
-    expect(screen.queryByRole('button', { name: /^settings$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^settings$/i })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: /session settings/i })).not.toBeInTheDocument();
 
     await act(async () => finishDisconnect());

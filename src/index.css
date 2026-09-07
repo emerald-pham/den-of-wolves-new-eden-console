@@ -267,6 +267,11 @@ body {
   overflow: hidden;
   border-radius: 50%;
   transform: translateZ(0.12rem);
+  backface-visibility: hidden;
+}
+
+.debrief-mode__facet-field--back {
+  transform: rotateY(180deg) translateZ(0.12rem);
 }
 
 .debrief-mode__facet-field i {
@@ -989,6 +994,12 @@ body {
   text-transform: uppercase;
 }
 
+.gm-player-roster__hint {
+  margin: 0.35rem 0 0;
+  color: var(--cic-muted);
+  font: 0.62rem/1.5 var(--cic-mono);
+}
+
 .gm-player-roster,
 .gm-player-roster__group ul {
   margin: 0;
@@ -1037,6 +1048,41 @@ body {
 .gm-player-roster__group li li {
   color: var(--cic-ink);
   font: 0.76rem/1.45 var(--cic-mono);
+}
+
+.gm-player-roster__player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.gm-player-roster__player > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-player-roster__player button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--cic-amber-dim);
+  background: transparent;
+  color: var(--cic-amber);
+  font: 600 0.58rem/1.2 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-player-roster__player button:hover:not(:disabled),
+.gm-player-roster__player button:focus-visible {
+  border-color: var(--cic-amber);
+  color: var(--cic-scream);
 }
 
 .gm-console {
@@ -1239,38 +1285,6 @@ body {
 }
 
 .gm-dradis[data-expanded='true'] .gm-dradis__toggle { cursor: zoom-out; }
-
-.dradis-range-bands {
-  position: absolute;
-  z-index: 5;
-  bottom: max(0.75rem, env(safe-area-inset-bottom));
-  display: grid;
-  justify-items: center;
-  gap: 0.2rem;
-  width: max-content;
-  max-width: calc(100% - 1.5rem);
-  padding: 0.45rem 0.65rem;
-  border: 1px solid var(--cic-amber-dim);
-  border-radius: var(--cic-radius);
-  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
-  color: var(--cic-cyan-hot);
-  font: 600 0.5rem/1.2 var(--cic-mono);
-  letter-spacing: 0.1em;
-  text-align: center;
-  text-transform: uppercase;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.dradis-range-bands__title { color: var(--cic-muted); }
-.dradis-range-bands__separator { color: var(--cic-amber-dim); }
-.dradis-range-bands__bands { display: flex; gap: 0.2rem; }
-
-.gm-dradis__range-bands,
-.ship-plot__range-bands {
-  left: 50%;
-  transform: translateX(-50%);
-}
 
 .gm-dradis__controls {
   display: grid;
@@ -2764,19 +2778,6 @@ body {
   perspective: 11rem;
 }
 
-@media (max-width: 520px) {
-  .ship-plot__range-bands {
-    right: max(0.75rem, env(safe-area-inset-right));
-    left: calc(max(0.75rem, env(safe-area-inset-left)) + 10.25rem);
-    max-width: calc(100vw - 11.75rem);
-    transform: none;
-  }
-
-  .ship-plot:has(.dradis-effect-controls) .ship-plot__range-bands {
-    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4.75rem);
-  }
-}
-
 .ship-plot__compass-title {
   margin-bottom: 0.25rem;
   color: var(--cic-muted);
@@ -3014,6 +3015,14 @@ body {
   .app-header {
     flex-wrap: wrap;
     gap: 0.4rem;
+  }
+
+  .role-select,
+  .session-mode {
+    padding-top: max(
+      clamp(6rem, 14vh, 9rem),
+      calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 1rem)
+    );
   }
 
   .personnel-count {
@@ -3820,12 +3829,6 @@ body {
   }
   .gm-console__instruments .gm-dradis__ships {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
-  }
-  /* The countdown owns the bottom edge of the expanded plot. Keep the range
-     legend on its own line above it instead of painting both instruments over
-     the same contacts on a phone or short landscape screen. */
-  .gm-console__instruments .gm-dradis[data-expanded='true'] .gm-dradis__range-bands {
-    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4.75rem);
   }
 }
 @media (max-width: 42rem) {

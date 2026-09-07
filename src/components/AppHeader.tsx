@@ -89,6 +89,7 @@ export default function AppHeader() {
   const playerUid = useSessionStore((state) => state.me?.uid);
   const displayStatus = useConnectionStatusGrace(status, Boolean(sessionId && playerUid));
   const joinCode = useSessionStore((state) => state.session?.joinCode);
+  const hasSession = sessionId !== undefined && joinCode !== undefined;
   const currentTurn = useSessionStore((state) => state.session?.currentTurn);
   const gmInstance = useSessionStore((state) => state.gmInstance);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
@@ -255,17 +256,15 @@ export default function AppHeader() {
       <FleetBroadcast />
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
       <ConnectionIndicator status={indicatorStatus} />
-      {joinCode !== undefined && (
-        <button
-          className="settings-button"
-          ref={settingsButton}
-          type="button"
-          aria-label="Settings"
-          onClick={openSettings}
-        >
-          <span aria-hidden="true">⚙</span>
-        </button>
-      )}
+      <button
+        className="settings-button"
+        ref={settingsButton}
+        type="button"
+        aria-label="Settings"
+        onClick={openSettings}
+      >
+        <span aria-hidden="true">⚙</span>
+      </button>
       {settingsOpen && (
         <div className="settings-backdrop" onMouseDown={closeSettings}>
           <section
@@ -295,7 +294,7 @@ export default function AppHeader() {
                 label="Session status"
               />
             )}
-            <p>Disconnect this device from session {joinCode}.</p>
+            {hasSession && <p>Disconnect this device from session {joinCode}.</p>}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
             <section className="settings-dialog__gm-access" aria-labelledby="gm-access-settings-title">
               <h3 id="gm-access-settings-title">
@@ -395,49 +394,53 @@ export default function AppHeader() {
                 </div>
               )}
             </section>
-            {connectedPlayers === 1 && (
-              <p className="settings-dialog__warning">
-                You’re the last player to leave the server. After seven days of
-                inactivity, this session will be deleted.
-              </p>
+            {hasSession && (
+              <>
+                {connectedPlayers === 1 && (
+                  <p className="settings-dialog__warning">
+                    You’re the last player to leave the server. After seven days of
+                    inactivity, this session will be deleted.
+                  </p>
+                )}
+                {gmInstance !== null && (
+                  <button
+                    className="settings-dialog__disconnect"
+                    type="button"
+                    disabled={releaseQueued}
+                    onClick={() => void releaseGm()}
+                  >
+                    {releaseQueued ? 'Release queued' : 'Release GM role'}
+                  </button>
+                )}
+                {activeConsoleRoleId && (
+                  <button
+                    className="settings-dialog__disconnect"
+                    type="button"
+                    onClick={() => void releaseRole()}
+                  >
+                    Release role
+                  </button>
+                )}
+                <button
+                  className="settings-dialog__disconnect"
+                  type="button"
+                  disabled={disconnectQueued}
+                  style={confirmDisconnect
+                    ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' }
+                    : undefined}
+                  onBlur={() => setConfirmDisconnect(false)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Escape') return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setConfirmDisconnect(false);
+                  }}
+                  onClick={requestDisconnect}
+                >
+                  {disconnectQueued ? 'Disconnect queued' : confirmDisconnect ? 'ARE YOU SURE?' : 'Disconnect'}
+                </button>
+              </>
             )}
-            {gmInstance !== null && (
-              <button
-                className="settings-dialog__disconnect"
-                type="button"
-                disabled={releaseQueued}
-                onClick={() => void releaseGm()}
-              >
-                {releaseQueued ? 'Release queued' : 'Release GM role'}
-              </button>
-            )}
-            {activeConsoleRoleId && (
-              <button
-                className="settings-dialog__disconnect"
-                type="button"
-                onClick={() => void releaseRole()}
-              >
-                Release role
-              </button>
-            )}
-            <button
-              className="settings-dialog__disconnect"
-              type="button"
-              disabled={disconnectQueued}
-              style={confirmDisconnect
-                ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' }
-                : undefined}
-              onBlur={() => setConfirmDisconnect(false)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Escape') return;
-                event.preventDefault();
-                event.stopPropagation();
-                setConfirmDisconnect(false);
-              }}
-              onClick={requestDisconnect}
-            >
-              {disconnectQueued ? 'Disconnect queued' : confirmDisconnect ? 'ARE YOU SURE?' : 'Disconnect'}
-            </button>
           </section>
         </div>
       )}

@@ -8,7 +8,6 @@ import {
 } from 'react';
 import ContactPlot from './ContactPlot';
 import DradisEffectControls from './DradisEffectControls';
-import DradisRangeBands from './DradisRangeBands';
 import { DradisAirspaceTimer } from './TurnPhaseTimer';
 import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetViewFrom } from '@/data/fleetFormation';
@@ -204,7 +203,6 @@ export default function ShipPlot({
                   <span className="ship-plot__compass-south">South</span>
                 </span>
               </div>
-              <DradisRangeBands className="ship-plot__range-bands" />
             </>
           ) : (
             <div className="ship-plot__compact-controls">

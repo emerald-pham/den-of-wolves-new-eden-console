@@ -130,6 +130,7 @@ import {
   elevateToGm,
   loginGmAccess,
   logoutGmAccess,
+  kickPlayer,
   releaseGmInstance,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
@@ -349,5 +350,43 @@ describe('GM instance ownership', () => {
 
     expect(read('sessions/s1/gmInstances/tablet')).toBeDefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
+  });
+
+  it('kicks a player browser, frees its seat, and blocks its return to this session', async () => {
+    session();
+    player('u1', { role: 'gm' });
+    player('u2', { seatId: 'seat-1' });
+    put('sessions/s1/seats/seat-1', {
+      status: 'claimed', holderUid: 'u2', claimedAt: 'server-time',
+    });
+    put('activeMemberships/u2', { sessionId: 's1' });
+    instance('bridge', 'u1');
+
+    await expect(kickPlayer.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetUid: 'u2',
+    }))).resolves.toEqual({ targetUid: 'u2' });
+
+    expect(read('sessions/s1/players/u2')).toMatchObject({
+      connected: false,
+      role: 'player',
+      activeConsoleRoleId: null,
+      kickedAt: expect.anything(),
+    });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({
+      status: 'open', holderUid: null, claimedAt: null,
+    });
+    expect(read('activeMemberships/u2')).toBeUndefined();
+  });
+
+  it('does not let an ordinary player kick another browser', async () => {
+    session();
+    player('u1');
+    player('u2');
+    instance('bridge', 'u1');
+
+    await expect(kickPlayer.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetUid: 'u2',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ connected: true });
   });
 });

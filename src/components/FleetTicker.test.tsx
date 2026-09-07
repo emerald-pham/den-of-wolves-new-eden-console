@@ -94,7 +94,7 @@ it('reserves a vertically centred line box so SNN ticker text cannot clip at the
   const windowRule = css.match(/\.fleet-ticker__window\s*\{([^}]*)\}/)?.[1] ?? '';
   const groupRule = css.match(/\.fleet-ticker__group\s*\{([^}]*)\}/)?.[1] ?? '';
 
-  expect(windowRule).toContain('min-block-size: 1.5rem');
+  expect(windowRule).toContain('min-block-size: 1.75rem');
   expect(groupRule).toContain('inset-block: 0');
   expect(groupRule).toContain('align-items: center');
   expect(css).not.toContain('fleet-ticker__phase-timer');

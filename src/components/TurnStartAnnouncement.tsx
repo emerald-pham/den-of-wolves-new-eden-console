@@ -52,7 +52,7 @@ function FleetTransmission({
   const [transmissionState, setTransmissionState] = useState<'active' | 'exiting'>('active');
   const { reducedMotion } = useMotionPreference();
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 8 : 3;
+  const slideCount = isFirstTurn ? 7 : 2;
   const isPopulationSlide = !isFirstTurn ? slide === 1 : slide === 6;
   const showsPopulationLoss = isPopulationSlide && populationLossShown;
   const survivorPopulation = new Intl.NumberFormat('en-US').format(
@@ -104,8 +104,8 @@ function FleetTransmission({
     slide === 0
       ? <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
       : slide === 1
-        ? <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE</p>
-        : <p className="turn-start-announcement__survive">SURVIVE.</p>
+        ? <p className="turn-start-announcement__population">{survivorPopulation} SURVIVORS</p>
+        : null
   ) : slide === 0 ? (
     <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
   ) : slide === 1 ? (
@@ -121,8 +121,8 @@ function FleetTransmission({
       THERE ARE <span className="turn-start-announcement__traitors">TRAITORS</span> AMONG US; THAT&apos;S KIND OF SUS.
     </p>
   ) : slide === 6 ? (
-    <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE</p>
-  ) : <p className="turn-start-announcement__survive">SURVIVE.</p>;
+    <p className="turn-start-announcement__population">{survivorPopulation} SURVIVORS</p>
+  ) : null;
 
   return (
     <>

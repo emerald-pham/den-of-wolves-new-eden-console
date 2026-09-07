@@ -46,6 +46,7 @@ import {
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
   requireShipAvailabilityRequest,
@@ -144,7 +145,11 @@ function shipGalacticCoordinates(value: unknown): Record<string, string> {
 }
 
 function isConnectedPlayer(player: DocumentSnapshot): boolean {
-  return player.exists && player.get('connected') === true;
+  return player.exists && player.get('connected') === true && !player.get('kickedAt');
+}
+
+function isKickedPlayer(player: DocumentSnapshot): boolean {
+  return player.exists && player.get('kickedAt') !== undefined && player.get('kickedAt') !== null;
 }
 
 function isActivePlayer(player: DocumentSnapshot): boolean {
@@ -540,6 +545,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       if (sessionDoc.get('deletingAt')) {
         throw new HttpsError('not-found', 'That session is being retired.');
       }
+      if (isKickedPlayer(player)) {
+        throw new HttpsError(
+          'failed-precondition',
+          'This browser was kicked from that session and cannot rejoin.',
+        );
+      }
       const membershipActive = await membershipIsActive(tx, membership, uid);
       if (activeSessionConflicts(
         membership.exists ? membership.get('sessionId') as string : undefined,
@@ -648,6 +659,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   if (!playerSnap.exists) {
     throw new HttpsError('permission-denied', 'You are no longer in that session.');
   }
+  if (isKickedPlayer(playerSnap)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'This browser was kicked from that session and cannot rejoin.',
+    );
+  }
   if (sessionSnap.get('phase') === 'closed') {
     throw new HttpsError('failed-precondition', 'That session has closed.');
   }
@@ -667,6 +684,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     }
     if (!currentPlayer.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
+    }
+    if (isKickedPlayer(currentPlayer)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'This browser was kicked from that session and cannot rejoin.',
+      );
     }
     const membershipActive = await membershipIsActive(tx, membership, uid);
     if (activeSessionConflicts(
@@ -919,6 +942,80 @@ export const kickGmInstance = onCall(async (request) =>
 /** Release only the calling browser's own GM instance. */
 export const releaseGmInstance = onCall(async (request) =>
   removeGmInstance(requireUid(request.auth), request.data, false));
+
+async function removePlayer(
+  uid: string,
+  data: unknown,
+): Promise<{ targetUid: string }> {
+  const action = requirePlayerKickRequest(
+    typeof data === 'object' && data !== null ? data : {},
+  );
+  if (action.targetUid === uid) {
+    throw new HttpsError('permission-denied', 'A GM cannot kick its own browser.');
+  }
+
+  const sessionRef = db.doc(`sessions/${action.sessionId}`);
+  const players = db.collection(`sessions/${action.sessionId}/players`);
+  const callerRef = players.doc(uid);
+  const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
+  const targetRef = players.doc(action.targetUid);
+  const membershipRef = db.doc(`activeMemberships/${action.targetUid}`);
+
+  await db.runTransaction(async (tx) => {
+    const [session, caller, instance, target, membership] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(callerRef),
+      tx.get(instanceRef),
+      tx.get(targetRef),
+      tx.get(membershipRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(caller) || caller.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (!isActivePlayer(target)) {
+      throw new HttpsError('failed-precondition', 'That player is no longer connected.');
+    }
+    if (target.get('role') === 'gm') {
+      throw new HttpsError(
+        'failed-precondition',
+        'GM browsers must be removed from the GM instances panel.',
+      );
+    }
+
+    const storedSeatId = target.get('seatId');
+    const seatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
+      ? db.doc(`sessions/${action.sessionId}/seats/${storedSeatId}`)
+      : null;
+    const seat = seatRef ? await tx.get(seatRef) : null;
+
+    tx.update(targetRef, {
+      connected: false,
+      ...disconnectedRoleState(),
+      kickedAt: FieldValue.serverTimestamp(),
+      lastSeenAt: FieldValue.serverTimestamp(),
+    });
+    if (
+      seatRef && seat?.exists && seat.get('status') === 'claimed' &&
+      seat.get('holderUid') === action.targetUid
+    ) {
+      tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
+    }
+    if (membership.exists && membership.get('sessionId') === action.sessionId) {
+      tx.delete(membershipRef);
+    }
+    tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+  });
+
+  return { targetUid: action.targetUid };
+}
+
+/** Remove a player browser from this session and permanently deny its return. */
+export const kickPlayer = onCall(async (request) =>
+  removePlayer(requireUid(request.auth), request.data));
 
 /** Start one shared DRADIS transit from an active, named GM browser. */
 export const triggerDradisContact = onCall<{

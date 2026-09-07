@@ -35,6 +35,7 @@ type TickerGroupStyle = CSSProperties & {
   '--fleet-ticker-duration': string;
   '--fleet-ticker-group-width': string;
   '--fleet-ticker-start-x': string;
+  '--fleet-ticker-copy-width': string;
 };
 
 const TICKER_SPEED_PX_PER_SECOND = 48;
@@ -166,7 +167,10 @@ function MovingMessage({ message, fallback }: {
     probe: HTMLSpanElement | null,
   ): GroupGeometry => {
     const availableWidth = windowWidth();
-    const measuredWidth = probe?.scrollWidth || probe?.getBoundingClientRect().width || 0;
+    const measuredWidth = Math.max(
+      probe?.scrollWidth || 0,
+      probe?.getBoundingClientRect().width || 0,
+    );
     const separatorAllowance = nextMessage.gap === 'long'
       ? Math.min(320, availableWidth * 0.48)
       : 44;
@@ -322,6 +326,7 @@ function MovingMessage({ message, fallback }: {
               '--fleet-ticker-duration': `${distance / TICKER_SPEED_PX_PER_SECOND}s`,
               '--fleet-ticker-group-width': `${group.width}px`,
               '--fleet-ticker-start-x': `${group.startX}px`,
+              '--fleet-ticker-copy-width': `${group.width / group.copyCount}px`,
             };
             return (
               <span className="fleet-ticker__group" data-message-id={group.message.id}

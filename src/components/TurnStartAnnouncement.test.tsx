@@ -32,13 +32,13 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
 
   expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
   expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
-  expect(screen.getByText('TRANSMISSION 01 / 08')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 01 / 07')).toBeInTheDocument();
   expect(screen.queryByText('TURN 1')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('TURN 1')).toBeInTheDocument();
-  expect(screen.getByText('TRANSMISSION 02 / 08')).toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 02 / 07')).toBeInTheDocument();
   expect(screen.queryByText('Iris Authentication Confirmed')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
 
@@ -72,23 +72,22 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
-  const survivors = screen.getByText('242,500 PEOPLE');
+  const survivors = screen.getByText('242,500 SURVIVORS');
   expect(survivors).toHaveClass('turn-start-announcement__population');
-  expect(screen.queryByText('242,500 PEOPLE —')).not.toBeInTheDocument();
+  expect(screen.queryByText('242,500 SURVIVORS —')).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime((TURN_ONE_CLOSING_SLIDE_MS / 2) - 1));
-  expect(screen.getByText('242,500 PEOPLE')).toBe(survivors);
+  expect(screen.getByText('242,500 SURVIVORS')).toBe(survivors);
 
   act(() => vi.advanceTimersByTime(1));
-  expect(screen.getByText('242,499 PEOPLE')).toHaveClass('turn-start-announcement__population');
-
-  act(() => vi.advanceTimersByTime(TURN_ONE_CLOSING_SLIDE_MS));
-  expect(screen.getByText('SURVIVE.')).toBeInTheDocument();
+  expect(screen.getByText('242,499 SURVIVORS')).toHaveClass('turn-start-announcement__population');
+  expect(screen.getByText('FLEET SURVIVORS').parentElement).toHaveTextContent('242,499');
+  expect(screen.queryByText('SURVIVE.')).not.toBeInTheDocument();
 
   const overlay = document.querySelector('.intrusion--fleet');
   expect(overlay).toHaveAttribute('data-state', 'active');
 
-  act(() => vi.advanceTimersByTime(TURN_ONE_CLOSING_SLIDE_MS - 1));
+  act(() => vi.advanceTimersByTime((TURN_ONE_CLOSING_SLIDE_MS / 2) - 1));
   expect(overlay).toHaveAttribute('data-state', 'active');
 
   act(() => vi.advanceTimersByTime(1));
@@ -113,23 +112,24 @@ it('uses only the survivor-count beat on every turn after Turn 1', () => {
 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
   expect(screen.getByText('TURN 1 → TURN 2')).toBeInTheDocument();
-  expect(screen.getByText('TRANSMISSION 01 / 03')).toBeInTheDocument();
-  expect(screen.queryByText('237,000 PEOPLE')).not.toBeInTheDocument();
+  expect(screen.getByText('TRANSMISSION 01 / 02')).toBeInTheDocument();
+  expect(screen.queryByText('237,000 SURVIVORS')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText('237,000 PEOPLE')).toBeInTheDocument();
+  expect(screen.getByText('237,000 SURVIVORS')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
-  expect(screen.getByText('236,999 PEOPLE')).toBeInTheDocument();
-
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText('SURVIVE.')).toBeInTheDocument();
+  expect(screen.getByText('236,999 SURVIVORS')).toBeInTheDocument();
+  expect(screen.getByText('FLEET SURVIVORS').parentElement).toHaveTextContent('236,999');
+  expect(screen.queryByText('SURVIVE.')).not.toBeInTheDocument();
 
   const overlay = document.querySelector('.intrusion--fleet');
   expect(overlay).toHaveAttribute('data-state', 'active');
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2 - 1));
+  expect(overlay).toHaveAttribute('data-state', 'active');
+  act(() => vi.advanceTimersByTime(1));
   expect(overlay).toHaveAttribute('data-state', 'exiting');
   act(() => vi.advanceTimersByTime(TURN_START_EXIT_FADE_MS));
   expect(document.querySelector('.intrusion--fleet')).not.toBeInTheDocument();
@@ -157,8 +157,8 @@ it('eases the current beat out before the next transmission beat enters', () => 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_EXIT_MS));
-  expect(screen.getByText('237,000 PEOPLE')).toBeInTheDocument();
-  expect(screen.getByText('237,000 PEOPLE').parentElement).toHaveAttribute('data-motion', 'in');
+  expect(screen.getByText('237,000 SURVIVORS')).toBeInTheDocument();
+  expect(screen.getByText('237,000 SURVIVORS').parentElement).toHaveAttribute('data-motion', 'in');
 });
 
 it('replays a server revision of the current transmission without advancing the turn', () => {

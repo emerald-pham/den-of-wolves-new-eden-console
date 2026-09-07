@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
-import DradisRangeBands from '@/components/DradisRangeBands';
 import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
 import GmStarmapModule from '@/components/GmStarmapModule';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
@@ -31,6 +30,7 @@ import {
   assignWolfRoles,
   resetWolves,
   kickGmInstance,
+  kickPlayer,
   setCapybaraEnabled,
   setDebriefMode,
   setDioneEnabled,
@@ -219,6 +219,10 @@ export default function GmConsole() {
   const queuedKicks = new Set(
     pendingCommands.flatMap((command) =>
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
+  );
+  const queuedPlayerKicks = new Set(
+    pendingCommands.flatMap((command) =>
+      command.kind === 'kickPlayer' ? [command.payload.targetUid] : []),
   );
   const [instances, setInstances] = useState<readonly GmInstance[]>([]);
   const [connectedPlayers, setConnectedPlayers] = useState<readonly Player[]>([]);
@@ -543,6 +547,17 @@ export default function GmConsole() {
       const disposition = await kickGmInstance(instance.id);
       if (disposition !== 'queued') {
         setInstances((current) => current.filter((item) => item.id !== instance.id));
+      }
+    } catch {
+      // The shared interception notice reports the server rejection.
+    }
+  }
+
+  async function kickPlayerFromRoster(player: Player): Promise<void> {
+    try {
+      const disposition = await kickPlayer(player.uid);
+      if (disposition !== 'queued') {
+        setConnectedPlayers((current) => current.filter((item) => item.uid !== player.uid));
       }
     } catch {
       // The shared interception notice reports the server rejection.
@@ -1203,6 +1218,9 @@ export default function GmConsole() {
             <p className="gm-player-roster__count">
               Live manifest // {connectedPlayers.length} connected
             </p>
+            <p className="gm-player-roster__hint">
+              Kick removes one browser from this session only; it does not block that network or other sessions.
+            </p>
             {connectedPlayerGroups.length === 0 ? (
               <p className="gm-console__status">No connected players.</p>
             ) : (
@@ -1214,9 +1232,24 @@ export default function GmConsole() {
                       <span>{group.players.length}</span>
                     </div>
                     <ul aria-label={`${group.label} players`}>
-                      {group.players.map((player) => (
-                        <li key={player.uid}>{normalizeDisplayName(player.displayName)}</li>
-                      ))}
+                      {group.players.map((player) => {
+                        const name = normalizeDisplayName(player.displayName);
+                        const queued = queuedPlayerKicks.has(player.uid);
+                        return (
+                          <li className="gm-player-roster__player" key={player.uid}>
+                            <span>{name}</span>
+                            {player.role !== 'gm' && (
+                              <button
+                                type="button"
+                                disabled={queued}
+                                onClick={() => void kickPlayerFromRoster(player)}
+                              >
+                                {queued ? `Kick queued: ${name}` : `Kick ${name}`}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </li>
                 ))}
@@ -1333,7 +1366,6 @@ export default function GmConsole() {
               <span className="gm-dradis__label dradis-label" aria-hidden="true">
                 DRADIS // FLEET PLOT
               </span>
-              {dradisExpanded ? <DradisRangeBands className="gm-dradis__range-bands" /> : null}
               <button
                 className="gm-dradis__toggle"
                 type="button"

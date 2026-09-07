@@ -74,6 +74,7 @@ function AppRoutes() {
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
         onSession: (next) => useSessionStore.getState().setSession(next),
         onPlayer: (next) => useSessionStore.getState().setMe(next),
+        onKicked: () => useSessionStore.getState().disconnect(),
         onSeats: (next) => useSessionStore.getState().setSeats(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
       });

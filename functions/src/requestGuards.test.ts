@@ -9,6 +9,7 @@ import {
   requireDebriefModeRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requirePlayerKickRequest,
   requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
@@ -140,6 +141,16 @@ describe('callable request guards', () => {
     expect(requireGmInstanceActionRequest({
       sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2',
     })).toEqual({ sessionId: 's1', instanceId: 'i1', targetInstanceId: 'i2' });
+  });
+
+  it('requires a target browser uid for a player kick', () => {
+    expectHttpsError(
+      () => requirePlayerKickRequest({ sessionId: 's1', instanceId: 'i1', targetUid: '' }),
+      'invalid-argument',
+    );
+    expect(requirePlayerKickRequest({
+      sessionId: 's1', instanceId: 'i1', targetUid: 'u2',
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', targetUid: 'u2' });
   });
 
   it('requires a session and named GM instance for a DRADIS trigger', () => {

@@ -100,6 +100,17 @@ export function requireGmInstanceActionRequest(data: {
   };
 }
 
+export function requirePlayerKickRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  targetUid?: unknown;
+}): { sessionId: string; instanceId: string; targetUid: string } {
+  return {
+    ...requireGmInstanceRequest(data),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+  };
+}
+
 export function requireGmInstanceRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

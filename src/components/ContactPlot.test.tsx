@@ -162,6 +162,7 @@ it('tracks a far-moving unknown on the shared variable cadence and drops it afte
 
   const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
   expect(contact).toHaveTextContent('UNKNOWN CONTACT');
+  expect(contact).toHaveTextContent('LONG');
   const start = ['--x', '--y', '--z'].map((property) =>
     Number(contact?.style.getPropertyValue(property)),
   );

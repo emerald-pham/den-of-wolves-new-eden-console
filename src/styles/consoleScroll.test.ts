@@ -21,10 +21,9 @@ it('keeps narrow-phone DRADIS on the measured top used to clear the console', ()
   );
 });
 
-it('keeps the expanded GM range key above the airspace countdown on narrow screens', () => {
-  expect(css).toMatch(
-    /\.gm-console__instruments \.gm-dradis\[data-expanded='true'\] \.gm-dradis__range-bands\s*\{[^}]*bottom: calc\(max\(0\.75rem, env\(safe-area-inset-bottom\)\) \+ 4\.75rem\)/s,
-  );
+it('does not reserve a standalone combat-range key in expanded DRADIS', () => {
+  expect(css).not.toContain('dradis-range-bands');
+  expect(css).not.toContain('range-bands');
 });
 
 it('lets app-wide session chrome scroll away without freezing ship names', () => {

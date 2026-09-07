@@ -640,6 +640,21 @@ export async function kickGmInstance(targetInstanceId: string): Promise<CommandD
   });
 }
 
+export async function kickPlayer(targetUid: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before kicking a player.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'kickPlayer',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      targetUid,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
 export async function releaseGmInstance(): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) return 'applied';

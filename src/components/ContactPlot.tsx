@@ -290,7 +290,7 @@ export default function ContactPlot({
         tag: classifiedOccurrenceId === ambient.id ? ambient.classification : 'UNKNOWN CONTACT',
         ...ambient.start,
         color: 'var(--cic-cyan-hot)',
-        combatRange: 'short' as const,
+        combatRange: 'long' as const,
         transit: {
           destination: ambient.destination,
           durationMs: AMBIENT_CONTACT_LIFETIME_MS,

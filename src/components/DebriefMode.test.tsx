@@ -71,6 +71,7 @@ it('renders the finale ball as a bounded 3D DRADIS light instrument', () => {
   const { container } = render(<DebriefMode />);
 
   expect(container.querySelector('.debrief-mode__ball')).toHaveAttribute('data-dimensionality', '3d');
+  expect(container.querySelectorAll('.debrief-mode__facet-field')).toHaveLength(2);
   expect(container.querySelectorAll('.debrief-mode__sweep')).toHaveLength(2);
   expect(container.querySelector('.debrief-mode__lightfield')).toBeInTheDocument();
   expect(container.querySelectorAll('.debrief-mode__beam')).toHaveLength(6);
