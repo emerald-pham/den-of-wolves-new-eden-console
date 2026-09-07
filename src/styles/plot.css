@@ -76,6 +76,15 @@
   mask-image: none;
 }
 
+/* Compact ship and GM DRADIS share one square instrument outline. The plot
+   remains the same wireframe instrument in either console; only its owner and
+   surrounding controls change. */
+.dradis-outline {
+  border: 1px solid var(--cic-amber-dim);
+  background: var(--cic-void);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cic-cyan) 18%, transparent);
+}
+
 .contact-plot__rig {
   position: relative;
   width: var(--plot-size);

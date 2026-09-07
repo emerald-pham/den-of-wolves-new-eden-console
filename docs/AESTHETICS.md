@@ -311,6 +311,13 @@ readable without moving between sweeps. Group the returns in an isolated
 foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
 
+Compact shipboard and GM DRADIS use the shared `.dradis-outline` square
+instrument frame and `.dradis-label` treatment. The fleet display may place
+perspective controls beside or below its viewport, but the plot itself keeps
+the same amber edge, near-black ground and cyan glow as a ship console. The
+frame belongs to the viewport rather than the surrounding controls so the two
+surfaces remain visually interchangeable at every compact size.
+
 ### DRADIS contact rules
 
 DRADIS has one authoritative spatial truth and a deliberately imperfect visual
@@ -1088,3 +1095,9 @@ Alert editor, continuous ticker transition, uppercase source-prefixed warning an
 Damage-card outcomes at the maintenance riot step and the shared GM damage
 controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
 wraps without clipping or obscuring controls.
+
+The expanded GM DRADIS treats its lower edge as two stacked instruments on
+phones and short landscape screens: the live airspace countdown owns the
+bottom line, and the COMBAT RANGES key sits above it with a reserved 4.75rem
+offset. This keeps both readouts legible over the plot without changing their
+desktop placement.

@@ -15,6 +15,24 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.71',
+    changes: [
+      'GM Console DRADIS now uses the same square outlined instrument display as the ship consoles, with matching fleet-plot labeling and responsive sizing.',
+    ],
+  },
+  {
+    version: '0.2.70',
+    changes: [
+      'On phones, the expanded GM DRADIS keeps its combat-range key clear of the live airspace countdown.',
+    ],
+  },
+  {
+    version: '0.2.69',
+    changes: [
+      'GM Console now keeps the normal Advance to Turn 1 command alongside the fast Skip to Turn 1 shortcut during setup.',
+    ],
+  },
+  {
     version: '0.2.68',
     changes: [
       'The shared Finale now lowers a true 3D disco ball with twin DRADIS sweeps, sending cyan and amber beams across the console to land on live interface instruments.',

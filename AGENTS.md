@@ -7,6 +7,14 @@ and every tool — Claude Code, Codex, Cursor, Copilot, anything else.
 Key rules from it are repeated here so no agent can claim it
 only read this file:
 
+0. **Start in the checkout you will edit.** Read `CLAUDE.md`, then run
+   `pwd`, `git branch --show-current`, `git status --short --branch`, and
+   `git log -1 --oneline --decorate`. If the branch is empty, create a unique
+   short-lived branch in this same worktree before changing anything. A branch
+   that exists elsewhere does not fix a detached checkout. Run
+   `coordination:begin` from this worktree, verify its recorded path with
+   `coordination:status`, and keep its printed id for completion.
+
 1. **Test first for code.** A failing test exists and has been *run* before any
    implementation code is written. No exceptions for "small" code changes.
    Documentation-only edits are exempt; see `CLAUDE.md` for the exact boundary.
@@ -42,7 +50,10 @@ only read this file:
    high-risk security, authentication, authorization, architecture, and product
    decisions, plus all review, integration, versioning, merge, and push.
    Close each completed child with `close_agent`, because finished descendants
-   remain open and consume concurrency capacity until closed.
+   remain open and consume concurrency capacity until closed. Immediately after
+   closing an agent, reassess whether the next step has another useful,
+   independent, bounded sidecar; delegate it under the same Luna-only rules when
+   it would materially advance the work, and otherwise continue locally.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

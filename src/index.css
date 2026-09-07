@@ -1194,7 +1194,7 @@ body {
 
 .gm-dradis__viewport {
   position: relative;
-  container-type: inline-size;
+  container-type: size;
   width: 100%;
   min-height: 0;
   aspect-ratio: 1;
@@ -1234,6 +1234,8 @@ body {
 .gm-dradis[data-expanded='true'] .gm-dradis__viewport {
   min-height: calc(100dvh - 2rem);
   aspect-ratio: auto;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--cic-void) 97%, transparent);
 }
 
 .gm-dradis[data-expanded='true'] .gm-dradis__toggle { cursor: zoom-out; }
@@ -2524,7 +2526,7 @@ body {
   background: color-mix(in srgb, var(--cic-void) 97%, transparent);
 }
 
-.ship-plot__label {
+.dradis-label {
   position: absolute;
   top: 0.55rem;
   left: 0.65rem;
@@ -2532,6 +2534,7 @@ body {
   color: var(--cic-amber);
   font: 600 0.58rem/1 var(--cic-mono);
   letter-spacing: 0.12em;
+  text-transform: uppercase;
   pointer-events: none;
 }
 
@@ -3734,6 +3737,12 @@ body {
   }
   .gm-console__instruments .gm-dradis__ships {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
+  }
+  /* The countdown owns the bottom edge of the expanded plot. Keep the range
+     legend on its own line above it instead of painting both instruments over
+     the same contacts on a phone or short landscape screen. */
+  .gm-console__instruments .gm-dradis[data-expanded='true'] .gm-dradis__range-bands {
+    bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 4.75rem);
   }
 }
 @media (max-width: 42rem) {
