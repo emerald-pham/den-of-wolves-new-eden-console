@@ -97,9 +97,11 @@ npm run coordination:validate -- \
 ```
 
 Only pass the review flags when their scopes apply. The gate derives the command
-plan from committed files: documentation-only changes run the diff check, while
-code changes run lint, all tests, and both production builds. It records a
-receipt tied to the exact branch SHA, rejects rewritten baselines, stale
+plan from committed files: documentation-only changes run the diff check and
+`npm run coordination:docs`, while code changes run lint, all tests, and both
+production builds. The documentation check verifies changed Markdown/README
+links, fenced blocks, referenced npm scripts, and the canonical agent guidance.
+It records a receipt tied to the exact branch SHA, rejects rewritten baselines, stale
 versions, package/lock mismatches, and changelog replacement. The review flags
 are explicit human attestations; the receipt cannot prove that a person truly
 performed the review.

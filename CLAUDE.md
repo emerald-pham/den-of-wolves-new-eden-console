@@ -105,7 +105,9 @@ that documented outcome and explain why it could not merge.
    `--documentation-review "..."` for Markdown/README changes and
    `--visual-review "..."` for UI changes. The gate derives the required
    commands from the committed file set, records a receipt against the exact
-   branch SHA, and rejects a stale or rewritten baseline.
+   branch SHA, and rejects a stale or rewritten baseline. Documentation-only
+   changes also run `npm run coordination:docs`, which checks Markdown/README
+   links, fenced blocks, referenced npm scripts, and the canonical agent guidance.
 4. Once the required validation is green, stop other work and immediately merge
    the task branch into `main`, push `main` to `origin`, and report the resulting
    main commit. Do not leave a green worktree dirty, idle, or waiting for another
@@ -427,8 +429,9 @@ port that is already listening.
 - The required local checks are machine-recorded by
   `npm run coordination:validate -- --id <id>`. It runs `git diff --check`,
   lint, the complete test suite, and both production builds for code changes;
-  documentation-only changes use the lighter diff check. A receipt is valid
-  only for the exact final branch SHA.
+  documentation-only changes use `git diff --check` plus
+  `npm run coordination:docs`. A receipt is valid only for the exact final
+  branch SHA.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant
