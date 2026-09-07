@@ -194,7 +194,7 @@ describe('App', () => {
     expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toEqual(expect.any(String));
   });
 
-  it('lets logged-in GM access reset the completed code of conduct checklist', async () => {
+  it('keeps code of conduct reset out of the global settings dialog', async () => {
     const user = userEvent.setup();
     window.location.hash = '#/roles';
     useSessionStore.getState().setIdentity(session, player);
@@ -204,10 +204,9 @@ describe('App', () => {
     render(<App />);
 
     await user.click(screen.getByRole('button', { name: /settings/i }));
-    await user.click(screen.getByRole('button', { name: /reset code of conduct checklist/i }));
 
-    expect(await screen.findByRole('dialog', { name: /code of conduct/i })).toBeVisible();
-    expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
+    expect(screen.queryByRole('button', { name: /reset code of conduct checklist/i }))
+      .not.toBeInTheDocument();
   });
 
   it('reaches for Firebase as soon as it mounts, so the light can leave red', async () => {

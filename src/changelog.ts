@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GM reset of the Code of Conduct checklist now lives in the GM Console instead of global Settings.',
+    ],
+  },
+  {
+    version: '0.2.106',
+    changes: [
       'DRADIS contacts now brighten and ping again when a recent sweep finds them, while contacts still under the movement cooldown hold position.',
     ],
   },

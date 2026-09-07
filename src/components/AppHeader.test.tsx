@@ -381,7 +381,7 @@ it('logs out of GM access from settings', async () => {
   expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
 });
 
-it('lets logged-in GM access reset the code of conduct checklist from settings', async () => {
+it('keeps the code of conduct reset out of global settings', async () => {
   const user = userEvent.setup();
   localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
   useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
@@ -389,11 +389,8 @@ it('lets logged-in GM access reset the code of conduct checklist from settings',
 
   await user.click(screen.getByRole('button', { name: /settings/i }));
 
-  const reset = screen.getByRole('button', { name: /reset code of conduct checklist/i });
-  expect(reset).toBeVisible();
-  await user.click(reset);
-
-  expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
+  expect(screen.queryByRole('button', { name: /reset code of conduct checklist/i }))
+    .not.toBeInTheDocument();
 });
 
 it('offers reduce motion as a simple on-off setting', async () => {
