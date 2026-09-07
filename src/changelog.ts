@@ -17,6 +17,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'The ICN travel console lock is server-authorized and disables gameplay actions while engaged, with a release control for the ship’s active authority.',
       'First-time session access now opens a Code of Conduct waiver with the fleet’s ship-table role-play rule and CIC information-security regulation.',
       'The Code of Conduct waiver now requires each regulation checkbox before the final confirmation becomes available.',
+      'The Code of Conduct now reminds everyone that every role has a human behind it, and asks players to say hello and debrief after the game—even when their roles are enemies.',
       'A ten-second review timer now separates the contract popup from its final confirmation, and logged-in GMs can reset the checklist from Settings.',
       'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
       'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',

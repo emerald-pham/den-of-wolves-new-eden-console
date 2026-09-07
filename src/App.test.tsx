@@ -183,6 +183,7 @@ describe('App', () => {
     const checkboxes = screen.getAllByRole('checkbox');
     fireEvent.click(checkboxes[0]!);
     fireEvent.click(checkboxes[1]!);
+    fireEvent.click(checkboxes[2]!);
     act(() => vi.advanceTimersByTime(10_000));
     fireEvent.click(screen.getByRole('button', {
       name: 'Acknowledge regulations and continue',

@@ -325,9 +325,10 @@ code-of-conduct instrument. It borrows the reference layout's centered heading,
 stacked acknowledgement rows and single continue action, while remaining in the
 CIC profile: square `cic-frame` rules, amber structure, cyan acknowledged
 status, bone-white copy, and no depth shadow. Keep every regulation visible in
-one bounded scrolling panel so players can review the complete table convention
-and in-world information-security rule before the acknowledgement control. Each
-row has a real, keyboard-reachable checkbox; the final confirmation stays
+one bounded scrolling panel so players can review the complete table convention,
+in-world information-security rule, and human-on-the-other-side debrief reminder
+before the acknowledgement control. Each row has a real, keyboard-reachable
+checkbox; the final confirmation stays
 disabled until every row is checked and the ten-second review lock has elapsed.
 Show the remaining seconds in the same ruled instrument so the delay is legible,
 not mysterious. The acknowledgement is browser-local and global to the window
