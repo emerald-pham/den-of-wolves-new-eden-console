@@ -146,6 +146,28 @@ it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
     .not.toBeInTheDocument();
 });
 
+it('keeps the normal Turn 0 route to Turn 1 alongside the skip shortcut', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 0 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(advanceTurn).mockResolvedValue(undefined);
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const advanceToTurnOne = within(turnControls).getByRole('button', { name: /advance to turn 1/i });
+  const skipToTurnOne = within(turnControls).getByRole('button', { name: /skip to turn 1/i });
+
+  await user.click(advanceToTurnOne);
+  await user.click(skipToTurnOne);
+
+  expect(advanceTurn).toHaveBeenCalledTimes(2);
+  expect(advanceTurn).toHaveBeenNthCalledWith(1);
+  expect(advanceTurn).toHaveBeenNthCalledWith(2);
+});
+
 it('kicks another instance and removes it from the list', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
