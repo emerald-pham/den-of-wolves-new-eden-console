@@ -94,6 +94,35 @@ it('shows only the joined ship identity, nation marking, and fleet role', () => 
   expect(dockings).toHaveTextContent('S.A.N.S. Boa');
 });
 
+it('places the pursuit tracker beneath shipboard DRADIS and uses this ship position', () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 4,
+    shipGalacticCoordinates: { capybara: '8378', aegis: '0000', dione: '5143' },
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/ships/capybara']}>
+      <Routes>
+        <Route path="/roles" element={<p>Roles route</p>} />
+        <Route path="/console" element={<p>Fleet roster</p>} />
+        <Route path="/ships/:shipId" element={<ShipConsole />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
+  const instruments = screen.getByRole('complementary', { name: /capybara instruments/i });
+  expect(tracker.parentElement).toBe(instruments);
+  expect(instruments.firstElementChild).toBe(tracker);
+  expect(tracker).toHaveTextContent('Relative to Capybara // 8378');
+  expect(tracker).toHaveTextContent('Current track // 2 / 10');
+  expect(tracker).toHaveTextContent('Map depth // -6 pursuit distance');
+  expect(tracker).not.toHaveTextContent('Dione');
+});
+
 it.each([
   ['aegis', 'Old Nations of Earth // Interstellar Council Service Navy // ICN'],
   ['shepherd', 'New Nations of the Colonies // Rosal // ROSAL'],

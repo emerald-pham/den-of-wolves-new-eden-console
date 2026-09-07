@@ -2247,6 +2247,124 @@ body {
   font-family: var(--cic-mono);
 }
 
+.pursuit-tracker {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.pursuit-tracker__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.pursuit-tracker__header h2,
+.pursuit-tracker__header p,
+.pursuit-tracker__relative,
+.pursuit-tracker__metric,
+.pursuit-tracker__status,
+.pursuit-tracker__note { margin: 0; }
+
+.pursuit-tracker__header h2 {
+  color: var(--cic-ink);
+  font: 400 1.15rem/1 var(--cic-display);
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__eyebrow {
+  color: var(--ship-accent);
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__relative {
+  overflow-wrap: anywhere;
+  color: var(--cic-muted);
+  font-size: 0.62rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__readout {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.pursuit-tracker__metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.65rem;
+  color: var(--cic-muted);
+  font-size: 0.62rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__metric strong {
+  overflow-wrap: anywhere;
+  color: var(--cic-cyan-hot);
+  font-weight: 600;
+  text-align: right;
+}
+
+.pursuit-tracker__metric--map {
+  align-items: baseline;
+}
+
+.pursuit-tracker__scale {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 2px;
+  min-height: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pursuit-tracker__scale li {
+  min-width: 0;
+  border: 1px solid var(--cic-cyan-dim);
+  background: transparent;
+}
+
+.pursuit-tracker__scale li[data-active='true'] {
+  border-color: var(--cic-cyan);
+  background: var(--cic-cyan);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--cic-cyan) 70%, transparent);
+}
+
+.pursuit-tracker__status {
+  color: var(--cic-cyan);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__status--critical { color: var(--cic-amber-glow); }
+
+.pursuit-tracker[data-status='surrounded'] {
+  border-color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-blood) 30%, var(--cic-void));
+}
+
+.pursuit-tracker__status--surrounded { color: var(--cic-scream); }
+
+.pursuit-tracker__note {
+  color: var(--cic-muted);
+  font-size: 0.54rem;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
 /* Persistent status rail. Future ship mechanics belong in the pageable main
    workspace, not in this rail; the manifest consumes only the space left below
    DRADIS and scrolls no matter how many shuttlecraft visit. */
