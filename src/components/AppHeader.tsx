@@ -19,6 +19,10 @@ import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
 import FleetBroadcast from './FleetBroadcast';
+import {
+  resetSessionWaiver,
+  SESSION_WAIVER_RESET_EVENT,
+} from '@/lib/sessionWaiver';
 
 const CONNECTION_STATUS_GRACE_MS = 1_000;
 
@@ -202,6 +206,12 @@ export default function AppHeader() {
     }
   }
 
+  function resetChecklist(): void {
+    resetSessionWaiver();
+    window.dispatchEvent(new Event(SESSION_WAIVER_RESET_EVENT));
+    closeSettings();
+  }
+
   async function disconnectNow(): Promise<void> {
     const disconnecting = disconnectFromSession();
     setConfirmDisconnect(false);
@@ -323,6 +333,13 @@ export default function AppHeader() {
                     onClick={() => void logoutGm()}
                   >
                     {gmAccessBusy ? 'Logging out…' : 'Log out GM access'}
+                  </button>
+                  <button
+                    className="settings-dialog__gm-access-button"
+                    type="button"
+                    onClick={resetChecklist}
+                  >
+                    Reset code of conduct checklist
                   </button>
                 </>
               ) : (

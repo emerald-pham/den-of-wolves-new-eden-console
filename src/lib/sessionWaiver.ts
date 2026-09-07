@@ -1,6 +1,8 @@
 /** The acknowledgement is intentionally global to this browser, not tied to a session. */
 export const SESSION_WAIVER_STORAGE_KEY = 'dow-new-eden-session-waiver';
 export const SESSION_WAIVER_TTL_MS = 24 * 60 * 60 * 1000;
+export const SESSION_WAIVER_CONFIRM_DELAY_MS = 10_000;
+export const SESSION_WAIVER_RESET_EVENT = 'dow-new-eden-session-waiver-reset';
 
 type WaiverStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
@@ -31,4 +33,10 @@ export function acknowledgeSessionWaiver(
   }
   storage.setItem(SESSION_WAIVER_STORAGE_KEY, String(now));
   return now;
+}
+
+export function resetSessionWaiver(
+  storage: Pick<Storage, 'removeItem'> = window.localStorage,
+): void {
+  storage.removeItem(SESSION_WAIVER_STORAGE_KEY);
 }

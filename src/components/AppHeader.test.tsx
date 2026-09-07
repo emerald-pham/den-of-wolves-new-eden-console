@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
+import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import type { Player } from '@/types/game';
 import AppHeader from './AppHeader';
 
@@ -264,6 +265,21 @@ it('logs out of GM access from settings', async () => {
   expect(logoutGmAccess).toHaveBeenCalledOnce();
   expect(screen.getByText('🔐')).toBeVisible();
   expect(screen.getByRole('button', { name: /log in/i })).toBeDisabled();
+});
+
+it('lets logged-in GM access reset the code of conduct checklist from settings', async () => {
+  const user = userEvent.setup();
+  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
+  useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  const reset = screen.getByRole('button', { name: /reset code of conduct checklist/i });
+  expect(reset).toBeVisible();
+  await user.click(reset);
+
+  expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
 });
 
 it('offers reduce motion as a simple on-off setting', async () => {

@@ -3,6 +3,7 @@ import {
   acknowledgeSessionWaiver,
   isSessionWaiverAcknowledged,
   readSessionWaiverAcknowledgedAt,
+  resetSessionWaiver,
   SESSION_WAIVER_STORAGE_KEY,
   SESSION_WAIVER_TTL_MS,
 } from './sessionWaiver';
@@ -47,5 +48,13 @@ describe('session waiver storage', () => {
     localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(acknowledgedAt + 1_000));
 
     expect(isSessionWaiverAcknowledged(localStorage, acknowledgedAt)).toBe(false);
+  });
+
+  it('clears the browser-local acknowledgement for an authenticated GM reset', () => {
+    localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(acknowledgedAt));
+
+    resetSessionWaiver(localStorage);
+
+    expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
   });
 });

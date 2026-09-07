@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { SESSION_WAIVER_CONFIRM_DELAY_MS } from '@/lib/sessionWaiver';
 
 const REGULATIONS = [
   {
@@ -20,21 +21,35 @@ export interface SessionWaiverProps {
 }
 
 export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
-  const acknowledgeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLElement>(null);
+  const [acknowledged, setAcknowledged] = useState(() => REGULATIONS.map(() => false));
+  const [remainingMs, setRemainingMs] = useState(SESSION_WAIVER_CONFIRM_DELAY_MS);
+  const allRegulationsAcknowledged = acknowledged.every(Boolean);
+  const confirmationReady = allRegulationsAcknowledged && remainingMs <= 0;
+  const remainingSeconds = Math.ceil(remainingMs / 1_000);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    acknowledgeButton.current?.focus();
+    const getFocusableControls = () => [...(dialog.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    ) ?? [])];
+    getFocusableControls()[0]?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         return;
       }
       if (event.key !== 'Tab') return;
+      const controls = getFocusableControls();
+      if (controls.length === 0) return;
+      const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
+      const nextIndex = event.shiftKey
+        ? (currentIndex <= 0 ? controls.length - 1 : currentIndex - 1)
+        : (currentIndex === controls.length - 1 ? 0 : currentIndex + 1);
       event.preventDefault();
-      acknowledgeButton.current?.focus();
+      controls[nextIndex]?.focus();
     };
     document.addEventListener('keydown', onKeyDown);
     return () => {
@@ -43,9 +58,32 @@ export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
     };
   }, []);
 
+  useEffect(() => {
+    const startedAt = Date.now();
+    const updateRemaining = () => {
+      const remaining = Math.max(0, SESSION_WAIVER_CONFIRM_DELAY_MS - (Date.now() - startedAt));
+      setRemainingMs(remaining);
+      if (remaining === 0) window.clearInterval(timer);
+    };
+    const timer = window.setInterval(updateRemaining, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  function setRegulationAcknowledged(index: number, checked: boolean): void {
+    setAcknowledged((current) => current.map((value, currentIndex) =>
+      currentIndex === index ? checked : value,
+    ));
+  }
+
+  function acknowledge(): void {
+    if (!confirmationReady) return;
+    onAcknowledge();
+  }
+
   return (
     <div className="session-waiver-backdrop" data-waiver-gate="true">
       <section
+        ref={dialog}
         className="session-waiver cic-frame"
         role="dialog"
         aria-modal="true"
@@ -78,19 +116,31 @@ export default function SessionWaiver({ onAcknowledge }: SessionWaiverProps) {
                 <h2>{regulation.title}</h2>
                 <p>{regulation.copy}</p>
               </div>
-              <span className="session-waiver__check" role="img" aria-label="Regulation acknowledged">
-                ✓
-              </span>
+              <label className="session-waiver__check">
+                <input
+                  type="checkbox"
+                  checked={acknowledged[index] ?? false}
+                  aria-label={`Acknowledge regulation ${index + 1}: ${regulation.title}`}
+                  onChange={(event) => setRegulationAcknowledged(index, event.target.checked)}
+                />
+              </label>
             </article>
           ))}
         </div>
 
         <p className="session-waiver__thanks">Thank you for being part of the solution.</p>
+        <p className="session-waiver__countdown" role="status" aria-live="polite">
+          {remainingMs > 0
+            ? `FINAL CONFIRMATION LOCK // ${remainingSeconds} SECONDS REMAINING`
+            : allRegulationsAcknowledged
+              ? 'FINAL CONFIRMATION READY'
+              : 'CHECK EVERY REGULATION TO ENABLE FINAL CONFIRMATION'}
+        </p>
         <button
           className="session-waiver__acknowledge cic-action-button"
-          ref={acknowledgeButton}
           type="button"
-          onClick={onAcknowledge}
+          disabled={!confirmationReady}
+          onClick={acknowledge}
         >
           Acknowledge regulations and continue
         </button>

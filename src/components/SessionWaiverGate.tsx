@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { acknowledgeSessionWaiver, isSessionWaiverAcknowledged } from '@/lib/sessionWaiver';
+import {
+  acknowledgeSessionWaiver,
+  isSessionWaiverAcknowledged,
+  SESSION_WAIVER_RESET_EVENT,
+} from '@/lib/sessionWaiver';
 import { useSessionStore } from '@/store/useSessionStore';
 import SessionWaiver from './SessionWaiver';
 
@@ -17,6 +21,12 @@ export default function SessionWaiverGate() {
     if (!sessionId || !playerUid) return;
     setAcknowledged(isSessionWaiverAcknowledged());
   }, [playerUid, sessionId]);
+
+  useEffect(() => {
+    const reset = () => setAcknowledged(false);
+    window.addEventListener(SESSION_WAIVER_RESET_EVENT, reset);
+    return () => window.removeEventListener(SESSION_WAIVER_RESET_EVENT, reset);
+  }, []);
 
   if (!sessionId || !playerUid || acknowledged) return null;
 

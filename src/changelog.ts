@@ -16,6 +16,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'Ship consoles can locally hide resource stores and unrest/population independently before showing a console to another ship.',
       'The ICN travel console lock is server-authorized and disables gameplay actions while engaged, with a release control for the ship’s active authority.',
       'First-time session access now opens a Code of Conduct waiver with the fleet’s ship-table role-play rule and CIC information-security regulation.',
+      'The Code of Conduct waiver now requires each regulation checkbox before the final confirmation becomes available.',
+      'A ten-second review timer now separates the contract popup from its final confirmation, and logged-in GMs can reset the checklist from Settings.',
       'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
       'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',
       'DRADIS acquisition now follows rendered 3D sweep-plane crossings against each target’s actual rig-space XYZ position instead of its projected screen position.',

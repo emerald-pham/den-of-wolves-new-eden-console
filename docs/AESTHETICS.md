@@ -326,9 +326,14 @@ stacked acknowledgement rows and single continue action, while remaining in the
 CIC profile: square `cic-frame` rules, amber structure, cyan acknowledged
 status, bone-white copy, and no depth shadow. Keep every regulation visible in
 one bounded scrolling panel so players can review the complete table convention
-and in-world information-security rule before the acknowledgement control. The
-acknowledgement is browser-local and global to the window rather than keyed to a
-session, so switching tables within 24 hours does not repeat the prompt.
+and in-world information-security rule before the acknowledgement control. Each
+row has a real, keyboard-reachable checkbox; the final confirmation stays
+disabled until every row is checked and the ten-second review lock has elapsed.
+Show the remaining seconds in the same ruled instrument so the delay is legible,
+not mysterious. The acknowledgement is browser-local and global to the window
+rather than keyed to a session, so switching tables within 24 hours does not
+repeat the prompt. Authenticated GM access may reset that local completion from
+Settings, which closes the settings dialog and reopens the full instrument.
 
 ## Contact plot / threat board
 

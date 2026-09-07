@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -169,7 +169,7 @@ describe('App', () => {
   });
 
   it('requires a joined player to acknowledge the code of conduct before continuing', async () => {
-    const user = userEvent.setup();
+    vi.useFakeTimers();
     window.location.hash = '#/roles';
     localStorage.removeItem(SESSION_WAIVER_STORAGE_KEY);
     useSessionStore.getState().setIdentity(session, player);
@@ -177,16 +177,36 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByRole('dialog', { name: /code of conduct/i })).toBeVisible();
+    expect(screen.getByRole('dialog', { name: /code of conduct/i })).toBeVisible();
     expect(screen.getByRole('heading', { name: /connect this device/i })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', {
+    const checkboxes = screen.getAllByRole('checkbox');
+    fireEvent.click(checkboxes[0]!);
+    fireEvent.click(checkboxes[1]!);
+    act(() => vi.advanceTimersByTime(10_000));
+    fireEvent.click(screen.getByRole('button', {
       name: 'Acknowledge regulations and continue',
     }));
 
     expect(screen.queryByRole('dialog', { name: /code of conduct/i })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /connect this device/i })).toBeVisible();
     expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toEqual(expect.any(String));
+  });
+
+  it('lets logged-in GM access reset the completed code of conduct checklist', async () => {
+    const user = userEvent.setup();
+    window.location.hash = '#/roles';
+    useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setGmAccessAuthenticatedAt(Date.now());
+
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: /settings/i }));
+    await user.click(screen.getByRole('button', { name: /reset code of conduct checklist/i }));
+
+    expect(await screen.findByRole('dialog', { name: /code of conduct/i })).toBeVisible();
+    expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
   });
 
   it('reaches for Firebase as soon as it mounts, so the light can leave red', async () => {

@@ -4003,11 +4003,32 @@ body {
 .session-waiver__check {
   display: grid;
   place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.75rem;
+  min-height: 2.75rem;
   border: 1px solid var(--cic-cyan);
-  color: var(--cic-cyan-hot);
-  font: 700 1.25rem/1 var(--cic-mono);
+  cursor: pointer;
+}
+
+.session-waiver__check:focus-within {
+  outline: 2px solid var(--cic-cyan-hot);
+  outline-offset: 2px;
+}
+
+.session-waiver__check input {
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0;
+  accent-color: var(--cic-cyan-hot);
+  cursor: pointer;
+}
+
+.session-waiver__countdown {
+  margin: 1rem 0 0.75rem;
+  color: var(--cic-amber);
+  font: 0.72rem/1.5 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .session-waiver__thanks {
@@ -4025,6 +4046,14 @@ body {
   border-color: var(--cic-cyan);
   background: color-mix(in srgb, var(--cic-cyan-dim) 26%, var(--cic-void));
   color: var(--cic-cyan-hot);
+}
+
+.session-waiver__acknowledge:disabled {
+  border-color: var(--cic-rule);
+  background: var(--cic-panel);
+  color: var(--cic-muted);
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .session-waiver__retention {
