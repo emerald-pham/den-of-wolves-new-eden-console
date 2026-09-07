@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The live Finale now scrolls a full credit roll for the original Den of Wolves creators, New Eden game design, and web app lead Emerald Fleur Pham through the fleet news ticker.',
+    ],
+  },
+  {
+    version: '0.2.64',
+    changes: [
       'The New Eden Console can now be added to an iPhone or Android home screen as a standalone CIC app with a DRADIS ball icon.',
       'Mobile consoles now preserve their dark launch screen and safe-area spacing around browser and device hardware.',
     ],

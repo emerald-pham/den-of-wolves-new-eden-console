@@ -123,6 +123,26 @@ it('names the lifted window as an Airspace Control bulletin', () => {
     name: 'AIRSPACE CONTROL // AIRSPACE OPEN',
   })).toBeVisible();
 });
+it('lists the game and web app credits when the finale is live', () => {
+  act(() => {
+    const state = useSessionStore.getState();
+    state.setSession({
+      ...state.session!,
+      fleetRedAlert: { active: true, revision: 4, text: 'Wolf attack imminent' },
+      pressDispatch: {
+        dispatches: [{ id: 'dispatch-1', text: 'Fleet status update' }],
+        revision: 2,
+      },
+      debriefMode: { active: true, revision: 1 },
+    });
+  });
+
+  render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', {
+    name: 'CREDITS // BASED ON THE ORIGINAL MEGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
+  })).toBeVisible();
+});
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
   state.setSession({
