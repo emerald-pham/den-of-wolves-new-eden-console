@@ -140,7 +140,7 @@ it('lists the game and web app credits when the finale is live', () => {
   render(<FleetBroadcast />);
 
   expect(screen.getByRole('status', {
-    name: 'CREDITS // BASED ON THE ORIGINAL MEGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
+    name: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
   })).toBeVisible();
 });
 it('keeps the last press copy moving until it clears the ticker window', () => {
