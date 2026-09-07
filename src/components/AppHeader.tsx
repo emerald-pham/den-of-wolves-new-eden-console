@@ -13,6 +13,7 @@ import {
   logoutGmAccess,
   releaseConsoleRole,
   releaseGmInstance,
+  startSinglePlayerDemo,
 } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
@@ -160,6 +161,7 @@ export default function AppHeader() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
+  const [singlePlayerDemoBusy, setSinglePlayerDemoBusy] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -183,6 +185,7 @@ export default function AppHeader() {
   const rank = gmInstance
     ? ['GM', secondaryRole].filter(Boolean).join(' / ')
     : (secondaryRole ?? null);
+  const singlePlayerDemoAvailable = currentTurn === 0 && connectedPlayers === 1;
   const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'blue' : displayStatus;
 
   function openSettings(): void {
@@ -262,6 +265,19 @@ export default function AppHeader() {
       // The shared interception notice carries the actionable server error.
     } finally {
       setGmAccessBusy(false);
+    }
+  }
+
+  async function startDemo(): Promise<void> {
+    if (!singlePlayerDemoAvailable || singlePlayerDemoBusy) return;
+    setSinglePlayerDemoBusy(true);
+    closeSettings();
+    try {
+      await startSinglePlayerDemo();
+    } catch {
+      // The shared interception notice carries the actionable server error.
+    } finally {
+      setSinglePlayerDemoBusy(false);
     }
   }
 
@@ -382,6 +398,20 @@ export default function AppHeader() {
             )}
             {hasSession && <p>Disconnect this device from session {joinCode}.</p>}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
+            {singlePlayerDemoAvailable && (
+              <section className="settings-dialog__demo" aria-labelledby="single-player-demo-title">
+                <h3 id="single-player-demo-title">Single-player demo</h3>
+                <p>Start the Turn One demo for this session.</p>
+                <button
+                  className="settings-dialog__gm-access-button"
+                  type="button"
+                  disabled={singlePlayerDemoBusy}
+                  onClick={() => void startDemo()}
+                >
+                  {singlePlayerDemoBusy ? 'Starting single-player demo…' : 'Start single-player demo'}
+                </button>
+              </section>
+            )}
             <section className="settings-dialog__gm-access" aria-labelledby="gm-access-settings-title">
               <h3 id="gm-access-settings-title">
                 <span className="settings-dialog__gm-access-icon" aria-hidden="true">

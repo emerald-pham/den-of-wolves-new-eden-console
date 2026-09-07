@@ -14,6 +14,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.105',
+    changes: [
+      'Turn Zero now keeps game-state controls locked while allowing DRADIS and console viewing, and a solo session can start the Turn One demo from Settings.',
+    ],
+  },
+  {
     version: '0.2.102',
     changes: [
       'Pursuit panels now keep their apocalyptic countdown visible and sit directly beneath DRADIS on ship consoles at every screen size.',
