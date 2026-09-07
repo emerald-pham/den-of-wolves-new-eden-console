@@ -1309,7 +1309,7 @@ async function beginEntry(filePath, options) {
 export async function validateCoordinationEntry(filePath, options) {
   if (!options.id) throw new Error('coordination validate requires --id <entry-id>.');
 
-  return withCoordinationLock(filePath, async () => {
+  const preparation = await withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
@@ -1359,30 +1359,86 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
 
-    const commandRunner = options.commandRunner ?? runValidationCommand;
-    for (const command of plan.commands) {
-      try {
-        await commandRunner(command, process.cwd());
-      } catch (error) {
-        throw new Error(
-          `Validation command failed for ${entry.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error },
-        );
-      }
+    return {
+      entryStartedAt: entry.startedAt,
+      entryBranchName: entry.branchName,
+      entryVersionPlan: entry.versionPlan,
+      startBranchSha,
+      release,
+      plan,
+      documentationReview,
+      visualReview,
+    };
+  });
+
+  const commandRunner = options.commandRunner ?? runValidationCommand;
+  for (const command of preparation.plan.commands) {
+    try {
+      await commandRunner(command, process.cwd());
+    } catch (error) {
+      throw new Error(
+        `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+  }
+
+  const finalRelease = options.release ?? await readReleaseState({
+    startBranchSha: preparation.startBranchSha,
+  });
+  if (finalRelease.branchSha !== preparation.release.branchSha) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: branch SHA changed from ${preparation.release.branchSha} to ${finalRelease.branchSha} while checks ran; rerun validation.`,
+    );
+  }
+  const finalErrors = releaseMetadataErrors({
+    entry: {
+      id: options.id,
+      branchName: preparation.entryBranchName,
+      versionPlan: preparation.entryVersionPlan,
+    },
+    release: finalRelease,
+    requireMerged: false,
+  });
+  if (finalErrors.length > 0) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: ${finalErrors.join('; ')}.`,
+    );
+  }
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id} from ${process.cwd()}; ` +
+          `it belongs to ${entry.worktree}.`,
+      );
+    }
+    if (entry.startedAt !== preparation.entryStartedAt) {
+      throw new Error(
+        `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
+      );
     }
 
-    entry.startBranchSha = startBranchSha;
-    entry.startMainSha = entry.startMainSha || release.mainSha;
+    entry.startBranchSha = preparation.startBranchSha;
+    entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
     entry.validation = {
-      commitSha: release.branchSha,
+      commitSha: finalRelease.branchSha,
       completedAt: new Date().toISOString(),
       passed: true,
-      commands: plan.commands,
-      files: release.changedFiles,
-      docsOnly: plan.documentationOnly,
+      commands: preparation.plan.commands,
+      files: preparation.release.changedFiles,
+      docsOnly: preparation.plan.documentationOnly,
       reviews: {
-        ...(documentationReview ? { documentation: documentationReview } : {}),
-        ...(visualReview ? { visual: visualReview } : {}),
+        ...(preparation.documentationReview
+          ? { documentation: preparation.documentationReview }
+          : {}),
+        ...(preparation.visualReview ? { visual: preparation.visualReview } : {}),
       },
     };
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
