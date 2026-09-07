@@ -67,11 +67,9 @@ describe('fleet system reference workspaces', () => {
       expect(workspace).toHaveTextContent(
         /maintenance and damage synchronized.*upgrades and procedure outcomes are tracked at the table/i,
       );
-      if (role.id !== 'admiral' && role.id !== 'wing-commander') {
-        expect(screen.queryByRole('navigation', {
-          name: `${ship.name} ${role.name} console pages`,
-        })).not.toBeInTheDocument();
-      }
+      expect(screen.getByRole('navigation', {
+        name: `${ship.name} ${role.name} console pages`,
+      })).toBeInTheDocument();
     },
   );
 });

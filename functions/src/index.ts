@@ -54,6 +54,8 @@ import {
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireShipDamageRequest,
+  requireShipNavigationMoveRequest,
+  requireShipConsoleLockRequest,
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
@@ -67,6 +69,11 @@ import {
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
 } from './requestGuards';
+import {
+  applyShipNavigationMove,
+  type NavigationLogEntry,
+  type NavigationLogs,
+} from './navigation';
 import { chooseWolfRoles } from './wolfAssignment';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
@@ -136,12 +143,40 @@ const INITIAL_SHIP_GALACTIC_COORDINATES = {
   quellon: '0000',
   'refinery-124': '0000',
 };
+const INITIAL_SHIP_CONSOLE_LOCKS = Object.fromEntries(
+  Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, false]),
+);
+const INITIAL_SHIP_NAVIGATION_LOGS = Object.fromEntries(
+  Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, []]),
+);
 
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
   if (typeof value !== 'object' || value === null) {
     return { ...INITIAL_SHIP_GALACTIC_COORDINATES };
   }
   return { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...value as Record<string, string> };
+}
+
+function shipConsoleLocks(value: unknown): Record<string, boolean> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).map((shipId) => [
+    shipId,
+    stored[shipId] === true,
+  ]));
+}
+
+function shipNavigationLogs(value: unknown): NavigationLogs {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_NAVIGATION_LOGS).map((shipId) => [
+    shipId,
+    Array.isArray(stored[shipId])
+      ? stored[shipId] as NavigationLogEntry[]
+      : [],
+  ]));
 }
 
 function isConnectedPlayer(player: DocumentSnapshot): boolean {
@@ -428,6 +463,8 @@ export const createSession = onCall<{
           capybaraEnabled: true,
           dioneEnabled: true,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
+          shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
+          shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
           shipResources: INITIAL_SHIP_RESOURCES,
           shipDamage: {},
           shipUnrest: INITIAL_SHIP_UNREST,
@@ -475,6 +512,8 @@ export const createSession = onCall<{
             capybaraEnabled: true,
             dioneEnabled: true,
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
+            shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
+            shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
             shipResources: INITIAL_SHIP_RESOURCES,
             shipDamage: {},
             shipUnrest: INITIAL_SHIP_UNREST,
@@ -606,6 +645,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
+        shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
+        shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
         shipResources: shipResources(sessionSnap.get('shipResources')),
         shipDamage: shipDamage(sessionSnap.get('shipDamage')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -730,6 +771,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
+      shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
+      shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
       shipResources: shipResources(sessionSnap.get('shipResources')),
       shipDamage: shipDamage(sessionSnap.get('shipDamage')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -1121,6 +1164,96 @@ export const setDioneEnabled = onCall<{
   });
 
   return { dioneEnabled: setting.dioneEnabled };
+});
+
+/** Move one fleet ship on the organiser chart and write the bridge audit trail. */
+export const moveShipToLocation = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  shipId?: string;
+  destination?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipNavigationMoveRequest(request.data ?? {});
+  // Fix the event clock and ids before the transaction callback. Firestore may
+  // retry that callback, but a retry must not create a second-looking jump.
+  const now = new Date();
+  const eventIdPrefix = randomUUID();
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, true,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
+    }
+    if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Dione is not in this session.');
+    }
+    let move;
+    try {
+      move = applyShipNavigationMove({
+        shipId: change.shipId,
+        destination: change.destination,
+        now,
+        eventIdPrefix,
+        coordinates: shipGalacticCoordinates(session.get('shipGalacticCoordinates')),
+        logs: shipNavigationLogs(session.get('shipNavigationLogs')),
+        shipNames: FLEET_SHIP_NAMES,
+      });
+    } catch (cause) {
+      throw new HttpsError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The ship could not be moved.',
+      );
+    }
+    tx.update(sessionRef, {
+      shipGalacticCoordinates: move.coordinates,
+      shipNavigationLogs: move.logs,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      shipId: change.shipId,
+      origin: move.origin,
+      destination: move.destination,
+      stardate: move.stardate,
+    };
+  });
+});
+
+/** Lock one ship's command console while it is travelling. */
+export const setShipConsoleLock = onCall<{
+  sessionId?: string;
+  shipId?: string;
+  instanceId?: string;
+  locked?: boolean;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipConsoleLockRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+
+  await db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, change.shipId, change.instanceId, false,
+    );
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    tx.update(sessionRef, {
+      shipConsoleLocks: { ...shipConsoleLocks(session.get('shipConsoleLocks')), [change.shipId]: change.locked },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  return { shipId: change.shipId, locked: change.locked };
 });
 
 /** Lock or unlock subsequent GM registration. */

@@ -291,6 +291,7 @@ export default function ContactPlot({
         ...ambient.start,
         color: 'var(--cic-cyan-hot)',
         combatRange: 'long' as const,
+        showCombatRange: false,
         transit: {
           destination: ambient.destination,
           durationMs: AMBIENT_CONTACT_LIFETIME_MS,
@@ -351,6 +352,7 @@ export default function ContactPlot({
               data-ambient={String(isAmbient)}
               data-moving={String('transit' in track && Boolean(track.transit))}
               data-departing={String(spoof && exposed)}
+              data-combat-range={combatRangeLabel(track)}
               data-label-anchor={labelAnchor(track, index)}
               style={'x' in track ? placeCartesian(track) : place(track)}
             >

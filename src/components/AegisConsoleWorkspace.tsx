@@ -2,6 +2,7 @@ import MaintenanceSystems from './MaintenanceSystems';
 import AirspaceControl from './AirspaceControl';
 import JumpFailureReadout from './JumpFailureReadout';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
+import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -9,7 +10,7 @@ import {
   isImplementedAegisRole,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
-import type { DamageDraw, ShipDamageState } from '@/types/game';
+import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -17,6 +18,8 @@ interface Props {
   readonly fuel: number;
   readonly damage?: ShipDamageState | undefined;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
+  readonly navigationLogs?: ShipNavigationLogs | undefined;
+  readonly consoleLocked?: boolean | undefined;
 }
 
 function SystemCard({ system, damaged }: {
@@ -46,20 +49,30 @@ function SystemCard({ system, damaged }: {
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws }: Omit<Props, 'roleId'>) {
+function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
+  const [page, setPage] = useState<'systems' | 'navigation'>('systems');
 
   return (
     <FleetRoleConsoleTemplate
       shipName="AEGIS"
       roleName="Admiral"
-      title="Ship systems"
+      title={page === 'systems' ? 'Ship systems' : 'Navigation'}
       galacticCoordinate={galacticCoordinate}
       fuel={fuel}
       reactorCapacity={console.reactorCapacity}
       jumpCosts={[console.jumpCosts.short, console.jumpCosts.medium, console.jumpCosts.long]}
       damage={damage}
+      pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
+      activePage={page} onPageChange={setPage}
     >
+      {page === 'navigation' ? <ShipNavigationWorkspace
+        shipId="aegis"
+        shipName="AEGIS"
+        currentCoordinate={galacticCoordinate}
+        entries={navigationLogs?.aegis}
+        consoleLocked={consoleLocked}
+      /> : <>
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         damageDraws={damageDraws}
         renderSystem={system => <SystemCard key={system.id} system={system}
@@ -79,19 +92,20 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws }: Omit<
           </div>
         </>} />
       <AirspaceControl />
+      </>}
     </FleetRoleConsoleTemplate>
   );
 }
 
-function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 'roleId'>) {
-  const [page, setPage] = useState<'flight' | 'combat'>('flight');
+function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs, consoleLocked }: Omit<Props, 'roleId'>) {
+  const [page, setPage] = useState<'flight' | 'combat' | 'navigation'>('flight');
   const console = AEGIS_ROLE_CONSOLES['wing-commander'];
   const starlight = console.craft[0];
   if (!starlight) return null;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
-      title={page === 'flight' ? 'Flight group' : 'Combat doctrine'}
+      title={page === 'flight' ? 'Flight group' : page === 'combat' ? 'Combat doctrine' : 'Navigation'}
       galacticCoordinate={galacticCoordinate} fuel={fuel}
       reactorCapacity={AEGIS_ROLE_CONSOLES.admiral.reactorCapacity}
       jumpCosts={[
@@ -100,8 +114,14 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 
         AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
       ]} damage={damage}
       telemetry={<div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>}
-      pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }]} activePage={page} onPageChange={setPage}>
-      {page === 'flight' ? (
+      pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }, { id: 'navigation', label: 'Navigation' }]} activePage={page} onPageChange={setPage}>
+      {page === 'navigation' ? <ShipNavigationWorkspace
+        shipId="aegis"
+        shipName="AEGIS"
+        currentCoordinate={galacticCoordinate}
+        entries={navigationLogs?.aegis}
+        consoleLocked={consoleLocked}
+      /> : page === 'flight' ? (
         <div className="aegis-craft-grid">
           <article className="aegis-craft aegis-craft--starlight cic-frame">
             <p>Exploration shuttle // Airspace open</p>
@@ -150,9 +170,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage }: Omit<Props, 
   );
 }
 
-export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws }: Props) {
+export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked }: Props) {
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
-    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} />
-    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} />;
+    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} consoleLocked={consoleLocked} />
+    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} consoleLocked={consoleLocked} />;
 }

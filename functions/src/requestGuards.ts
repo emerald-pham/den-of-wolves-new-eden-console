@@ -2,6 +2,7 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { WOLF_ROLE_IDS } from './wolfAssignment';
 import { ROLE_IDS } from './roleConfiguration';
 import { RESOURCE_IDS, type ResourceId } from './resources';
+import { isStarSystemCoordinate } from './navigation';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -231,6 +232,42 @@ export function requireShipDamageRequest(data: {
     shipId: requiredId(data.shipId, 'shipId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
   };
+}
+
+export function requireShipNavigationMoveRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  shipId?: unknown;
+  destination?: unknown;
+}): { sessionId: string; instanceId: string; shipId: string; destination: string } {
+  const destination = requiredText(data.destination, 'destination', 4);
+  if (!isStarSystemCoordinate(destination)) {
+    throw new HttpsError('invalid-argument', 'destination must be a printed star system.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    destination,
+  };
+}
+
+export function requireShipConsoleLockRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  instanceId?: unknown;
+  locked?: unknown;
+}): { sessionId: string; shipId: string; instanceId?: string; locked: boolean } {
+  if (typeof data.locked !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'locked must be boolean.');
+  }
+  const result: { sessionId: string; shipId: string; instanceId?: string; locked: boolean } = {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    locked: data.locked,
+  };
+  if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
+  return result;
 }
 
 export function requireShipCounterRequest(data: {

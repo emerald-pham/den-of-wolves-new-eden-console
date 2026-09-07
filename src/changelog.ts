@@ -10,6 +10,11 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Ship jump consoles now include a non-GM navigation map with the current ship fix and the coordinates of that ship’s previous fixes, synced to the GM star map without exposing organiser site overlays.',
+      'GMs can select a fleet ship, click a printed system, and move that ship there; the authoritative ship log records the stardate, navigational error, and nearby fleet jump-away or jump-arrival notices.',
+      'Every ship now has a bounded, scrollable navigation log that excludes maintenance activity and uses a server-derived UTC stardate.',
+      'Ship consoles can locally hide resource stores and unrest/population independently before showing a console to another ship.',
+      'The ICN travel console lock is server-authorized and disables gameplay actions while engaged, with a release control for the ship’s active authority.',
       'First-time session access now opens a Code of Conduct waiver with the fleet’s ship-table role-play rule and CIC information-security regulation.',
       'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
       'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',

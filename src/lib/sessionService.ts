@@ -706,6 +706,91 @@ export async function setDioneEnabled(dioneEnabled: boolean): Promise<CommandDis
   });
 }
 
+export interface ShipNavigationMoveReply {
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly stardate: string;
+}
+
+/** GM-only, immediate movement; a relocation must never sit in an offline outbox. */
+export async function moveShipToLocation(
+  shipId: string,
+  destination: string,
+): Promise<ShipNavigationMoveReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before moving a ship.');
+  }
+  const payload = {
+    sessionId: store.session.id,
+    instanceId: store.gmInstance.id,
+    shipId,
+    destination,
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, ShipNavigationMoveReply>(
+      functions(),
+      'moveShipToLocation',
+    );
+    const reply = (await call(payload)).data;
+    const current = useSessionStore.getState().session;
+    if (current?.id === payload.sessionId) {
+      useSessionStore.getState().setSession({
+        ...current,
+        shipGalacticCoordinates: {
+          ...current.shipGalacticCoordinates,
+          [shipId]: reply.destination,
+        },
+      });
+    }
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Ship-role or GM control for the travel lock; this is also immediate. */
+export async function setShipConsoleLock(
+  shipId: string,
+  locked: boolean,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) {
+    throw new Error('Join a session before changing the ICN console lock.');
+  }
+  const payload = {
+    sessionId: store.session.id,
+    shipId,
+    locked,
+    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, { shipId: string; locked: boolean }>(
+      functions(),
+      'setShipConsoleLock',
+    );
+    const reply = (await call(payload)).data;
+    const current = useSessionStore.getState().session;
+    if (current?.id === payload.sessionId) {
+      useSessionStore.getState().setSession({
+        ...current,
+        shipConsoleLocks: {
+          ...current.shipConsoleLocks,
+          [reply.shipId]: reply.locked,
+        },
+      });
+    }
+    return 'applied';
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 export async function setGmControlsLocked(locked: boolean): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) {

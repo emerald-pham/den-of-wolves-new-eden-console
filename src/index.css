@@ -1971,6 +1971,44 @@ body {
   margin-top: 1rem;
 }
 
+.ship-console__travel-lock,
+.ship-console__privacy-controls {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  font-family: var(--cic-mono);
+}
+
+.ship-console__travel-lock p,
+.ship-console__privacy-controls p {
+  margin: 0;
+  color: var(--cic-muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.ship-console__travel-lock .cic-action-button {
+  justify-self: start;
+}
+
+.ship-console__privacy-controls {
+  grid-template-columns: auto auto;
+  align-items: center;
+}
+
+.ship-console__privacy-controls p {
+  grid-column: 1 / -1;
+}
+
+.ship-console__privacy-controls .cic-text-button {
+  justify-self: start;
+  text-align: left;
+}
+
 .ship-resources {
   flex: 0 0 auto;
   padding: 0.75rem;
@@ -2344,6 +2382,7 @@ body {
   .gm-union-role__station { display: block; padding-top: 0.1rem; }
   .ship-console__counters { grid-template-columns: 1fr; }
   .ship-resources ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ship-console__privacy-controls { grid-template-columns: 1fr; }
 }
 
 /* One-shot bridge morale system ---------------------------------- */

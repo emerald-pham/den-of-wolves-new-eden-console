@@ -22,6 +22,12 @@ export const ORIGIN_GALACTIC_COORDINATE = '0000';
 export const INITIAL_SHIP_GALACTIC_COORDINATES: Readonly<Record<string, string>> =
   Object.fromEntries(SHIPS.map((ship) => [ship.id, ORIGIN_GALACTIC_COORDINATE]));
 
+export const INITIAL_SHIP_CONSOLE_LOCKS: Readonly<Record<string, boolean>> =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, false]));
+
+export const INITIAL_SHIP_NAVIGATION_LOGS: Readonly<Record<string, readonly never[]>> =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, []]));
+
 export function findShip(id: string | undefined): Ship | undefined {
   return SHIPS.find((ship) => ship.id === id);
 }

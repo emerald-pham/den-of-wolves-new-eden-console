@@ -21,6 +21,7 @@ import {
   requireRolePresetRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
+  requireShipNavigationMoveRequest,
   requireSessionRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
@@ -224,6 +225,15 @@ describe('callable request guards', () => {
     expect(requireShipDamageRequest({
       sessionId: 's1', shipId: 'aegis', instanceId: 'bridge',
     })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' });
+  });
+
+  it('requires a named GM instance and a printed destination for ship movement', () => {
+    expectHttpsError(() => requireShipNavigationMoveRequest({
+      sessionId: 's1', instanceId: 'i1', shipId: 'aegis', destination: '0101',
+    }), 'invalid-argument');
+    expect(requireShipNavigationMoveRequest({
+      sessionId: 's1', instanceId: 'i1', shipId: 'aegis', destination: '5143',
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', shipId: 'aegis', destination: '5143' });
   });
 
   it('requires a known resource and a one-step counter change', () => {
