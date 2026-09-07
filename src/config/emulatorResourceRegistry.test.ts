@@ -206,7 +206,7 @@ describe('local emulator coordination', () => {
       documentationOnly: true,
       requiresDocumentationReview: true,
       requiresVisualReview: false,
-      commands: ['git diff --check'],
+      commands: ['git diff --check', 'npm run coordination:docs'],
     });
     expect(validationPlanForFiles(['src/routes/ShipConsole.tsx'])).toEqual({
       documentationOnly: false,
@@ -220,6 +220,9 @@ describe('local emulator coordination', () => {
         'npm run build --prefix functions',
       ],
     });
+    expect(validationPlanForFiles(['CLAUDE.md', 'scripts/release.mjs']).commands).toContain(
+      'npm run coordination:docs',
+    );
   });
 
   it('records a passing validation receipt against the exact branch SHA', async () => {
