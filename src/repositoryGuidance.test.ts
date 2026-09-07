@@ -63,6 +63,7 @@ describe('repository guidance', () => {
     const guidance = readFileSync(guidancePath, 'utf8');
 
     expect(guidance).toContain('coordination:validate');
+    expect(guidance).toContain('coordination:docs');
     expect(guidance).toContain('documentation-review');
     expect(guidance).toContain('visual-review');
     expect(guidance).toContain('final branch SHA');

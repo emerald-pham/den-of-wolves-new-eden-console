@@ -58,19 +58,22 @@ export function validationPlanForFiles(changedFiles = []) {
   const files = (Array.isArray(changedFiles) ? changedFiles : [])
     .filter((filePath) => typeof filePath === 'string' && filePath.trim());
   const documentationOnly = files.length > 0 && files.every(isDocumentationFile);
+  const requiresDocumentationReview = files.some(isDocumentationFile);
+  const commands = documentationOnly
+    ? ['git diff --check', 'npm run coordination:docs']
+    : [
+        'git diff --check',
+        'npm run lint',
+        'npm run test:all',
+        'npm run build',
+        'npm run build --prefix functions',
+        ...(requiresDocumentationReview ? ['npm run coordination:docs'] : []),
+      ];
   return {
     documentationOnly,
-    requiresDocumentationReview: files.some(isDocumentationFile),
+    requiresDocumentationReview,
     requiresVisualReview: files.some(isVisualFile),
-    commands: documentationOnly
-      ? ['git diff --check']
-      : [
-          'git diff --check',
-          'npm run lint',
-          'npm run test:all',
-          'npm run build',
-          'npm run build --prefix functions',
-        ],
+    commands,
   };
 }
 
@@ -406,6 +409,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
 }
 
 const VALIDATION_COMMANDS = new Map([
+  ['npm run coordination:docs', ['run', 'coordination:docs']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
   ['npm run build', ['run', 'build']],
