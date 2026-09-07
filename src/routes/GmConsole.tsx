@@ -717,14 +717,24 @@ export default function GmConsole() {
               </p>
             )}
             {currentTurn === 0 ? (
-              <button
-                className="cic-action-button"
-                type="button"
-                disabled={advancingTurn}
-                onClick={() => void moveToNextTurn()}
-              >
-                {advancingTurn ? 'Skipping to Turn 1…' : 'Skip to Turn 1'}
-              </button>
+              <div className="gm-turn-control__actions">
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={advancingTurn}
+                  onClick={() => void moveToNextTurn()}
+                >
+                  {advancingTurn ? 'Skipping to Turn 1…' : 'Skip to Turn 1'}
+                </button>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={advancingTurn}
+                  onClick={requestTurnAdvance}
+                >
+                  {advancingTurn ? 'Advancing to Turn 1…' : 'Advance to Turn 1'}
+                </button>
+              </div>
             ) : (
               <button
                 className="cic-action-button"
