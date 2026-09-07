@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The shared Finale now lowers a true 3D disco ball with twin DRADIS sweeps, sending cyan and amber beams across the console to land on live interface instruments.',
+      'The spectacle keeps its digital facet grid and scrolling confetti while using a bounded, phone-friendly light field that stays quiet and still when reduced motion is enabled.',
+    ],
+  },
+  {
+    version: '0.2.67',
+    changes: [
       'The live Finale now scrolls a full credit roll for the original Den of Wolves creators, New Eden game design, and web app lead Emerald Fleur Pham through the fleet news ticker.',
     ],
   },
