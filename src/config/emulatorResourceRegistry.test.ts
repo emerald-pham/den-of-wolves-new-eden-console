@@ -9,6 +9,7 @@ import {
   finishCoordinationEntry,
   formatCoordinationState,
   isPortFree,
+  nextApplicationVersion,
   parseCoordinationState,
   pruneOrphanedConfigurations,
   readCoordinationState,
@@ -44,7 +45,7 @@ const releaseEntry = {
   startedAt: '2026-09-07T00:00:00.000Z',
   status: 'active',
   intent: 'land a release',
-  versionPlan: 'Reserve application patch version 0.2.103.',
+  versionPlan: 'Reserve application patch version 0.3.3.',
   preemptiveChangelog: 'A player-facing release note.',
   startBranchSha: 'start-sha',
   startMainSha: 'start-main-sha',
@@ -61,16 +62,16 @@ function releaseState(overrides = {}) {
     originMainSha: 'main-sha',
     mainContainsBranch: true,
     worktreeClean: true,
-    branchVersion: '0.2.103',
-    mainVersion: '0.2.102',
-    branchLockVersion: '0.2.103',
-    mainLockVersion: '0.2.102',
+    branchVersion: '0.3.3',
+    mainVersion: '0.3.2',
+    branchLockVersion: '0.3.3',
+    mainLockVersion: '0.3.2',
     branchChangelog: [
-      { version: '0.2.103', source: 'new release' },
-      { version: '0.2.102', source: 'previous release' },
+      { version: '0.3.3', source: 'new release' },
+      { version: '0.3.2', source: 'previous release' },
     ],
     mainChangelog: [
-      { version: '0.2.102', source: 'previous release' },
+      { version: '0.3.2', source: 'previous release' },
     ],
     changedFiles: ['scripts/example.mjs'],
     ...overrides,
@@ -551,6 +552,107 @@ describe('local emulator coordination', () => {
         ],
       }),
     })).toThrow(/0\.2\.95.*older.*0\.2\.100/i);
+  });
+
+  it('rolls the patch component into the next middle component at 99', () => {
+    expect(nextApplicationVersion('0.2.98')).toBe('0.2.99');
+    expect(nextApplicationVersion('0.2.99')).toBe('0.3.0');
+  });
+
+  it('rejects a player-facing version whose patch component skips the rollover gate', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-rollover-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+          versionPlan: 'Reserve application patch version 0.2.100.',
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchVersion: '0.2.100',
+          mainVersion: '0.2.99',
+          branchLockVersion: '0.2.100',
+          mainLockVersion: '0.2.99',
+          branchChangelog: [
+            { version: '0.2.100', source: 'new release' },
+            { version: '0.2.99', source: 'previous release' },
+          ],
+          mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+        }),
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/rollover|0\.3\.0|patch component/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('allows the first release after patch 99 to use the next middle component', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-rollover-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+          versionPlan: 'Reserve application patch version 0.3.0.',
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchVersion: '0.3.0',
+          mainVersion: '0.2.99',
+          branchLockVersion: '0.3.0',
+          mainLockVersion: '0.2.99',
+          branchChangelog: [
+            { version: '0.3.0', source: 'new release' },
+            { version: '0.2.99', source: 'previous release' },
+          ],
+          mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+        }),
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({ id: releaseEntry.id });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps the rollover gate active when a branch is already merged', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        versionPlan: 'Reserve application patch version 0.2.100.',
+      },
+      release: releaseState({
+        branchVersion: '0.2.100',
+        mainVersion: '0.2.99',
+        branchLockVersion: '0.2.100',
+        mainLockVersion: '0.2.99',
+        branchChangelog: [
+          { version: '0.2.100', source: 'new release' },
+          { version: '0.2.99', source: 'previous release' },
+        ],
+        mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+      }),
+    })).toThrow(/rollover|0\.3\.0|patch component/i);
   });
 
   it('rejects a branch that would replace newer changelog entries', () => {
