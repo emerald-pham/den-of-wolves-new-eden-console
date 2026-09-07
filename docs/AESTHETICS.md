@@ -99,6 +99,16 @@ The rest is prose because the rest needs eyes: whether a screen is dense with
 real values or busy with fake ones, whether motion is a machine working or an
 interface performing, is not something a regular expression can tell you.
 
+### Installed app icon
+
+The installed New Eden Console uses a static DRADIS ball for its browser
+favicon, iOS home-screen icon and Android install icon. It keeps the existing
+wireframe-sphere language—cyan meridians and parallels, one amber scan sweep,
+and the CIC near-black ground—at icon scale. Android also receives a separate
+maskable export with the ball inside the platform-safe area. The icon is a
+bitmap export of the same simple vector master so iOS and Android do not depend
+on the live CSS/DOM DRADIS implementation being available during launch.
+
 ## CIC / default interface
 
 A worn military information terminal, seen in a dark room: black ground, amber
