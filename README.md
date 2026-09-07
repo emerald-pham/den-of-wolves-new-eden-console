@@ -68,7 +68,9 @@ Design references live in [`docs/AESTHETICS.md`](docs/AESTHETICS.md), and
 future gameplay interpretation is supported by the
 [`reference library`](docs/reference/README.md). Use the
 [`Capybara ship template`](docs/SHIP_TEMPLATE.md) for capital-ship consoles and
-the [`SNN shuttle template`](docs/SHUTTLE_TEMPLATE.md) for shuttlecraft.
+the [`SNN shuttle template`](docs/SHUTTLE_TEMPLATE.md) for shuttlecraft. Local
+worktree ownership, version planning, and preemptive changelog coordination are
+described in [`docs/WORKTREE_COORDINATION.md`](docs/WORKTREE_COORDINATION.md).
 
 ## Security model
 
@@ -109,6 +111,11 @@ npm run dev            # Normal Vite dev server on :5173
 For emulator-backed development, configure an isolated worktree slot first;
 the commands are described below.
 
+Before changing files, register the task in the shared local coordination pane
+with `npm run coordination:begin -- ...`, and use `npm run coordination:status`
+to see other worktrees' declared intent and emulator ownership. Close the entry
+with `npm run coordination:finish -- --id <id>` when the task is complete.
+
 ## Tests
 
 ```bash
@@ -132,10 +139,13 @@ npm run dev:emulators
 ```
 
 The setup command verifies the eight Firebase ports, including Firestore's
-separate WebSocket listener, and writes ignored
+separate WebSocket listener, plus the matching Vite port, and writes ignored
 `firebase.local.json` and `.env.emulators.local` files. `npm run test:rules`
 and `npm --prefix functions run serve` use the same generated Firebase config.
-Do not share a slot with another worktree; stop its emulators when finished.
+The shared coordination file records configured rows and live process leases;
+rules tests automatically choose another complete row when the configured row
+is already serving a preview. Do not share a slot with another worktree; stop
+its emulators when finished.
 
 `npm run test:rules` needs a JDK on PATH (the Firestore emulator is a Java
 process).

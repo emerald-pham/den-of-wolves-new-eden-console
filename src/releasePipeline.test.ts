@@ -7,6 +7,7 @@ const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
   scripts: Record<string, string>;
 };
 const emulatorCommand = readFileSync('scripts/run-emulator-command.mjs', 'utf8');
+const configureEmulatorCommand = readFileSync('scripts/configure-emulator-slot.mjs', 'utf8');
 const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8')) as {
   fieldOverrides: Array<{
     collectionGroup: string;
@@ -60,6 +61,20 @@ it('runs the rules emulator under the same project ID as the rules harness', () 
   expect(emulatorCommand).toMatch(
     /emulators:exec[\s\S]*?--project[\s\S]*?RULES_PROJECT_ID/,
   );
+});
+
+it('coordinates emulator commands and gives rules tests an isolated fallback slot', () => {
+  expect(emulatorCommand).toContain('reserveAvailableEmulatorSlot');
+  expect(emulatorCommand).toContain('firebaseConfigForSlot');
+  expect(emulatorCommand).toContain('releaseEmulatorSlot');
+  expect(packageJson.scripts['coordination:status']).toContain(
+    'emulator-resource-registry.mjs status',
+  );
+});
+
+it('records configured slots in the shared worktree coordination file', () => {
+  expect(configureEmulatorCommand).toContain('reserveConfiguredEmulatorSlot');
+  expect(configureEmulatorCommand).toContain('releaseConfiguredEmulatorSlot');
 });
 
 it('removes retired Cloud Functions during non-interactive deployment', () => {

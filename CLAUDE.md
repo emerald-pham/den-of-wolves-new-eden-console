@@ -8,6 +8,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Test first for code](#1-test-first-for-code)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
 - [Worktree branch bootstrap](#worktree-branch-bootstrap)
+- [Local worktree coordination and versioning agreement](#local-worktree-coordination-and-versioning-agreement)
 - [Routine task delegation](#routine-task-delegation)
 - [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
 - [Merge once done](#2-merge-once-done)
@@ -89,6 +90,35 @@ named, short-lived task branch at the current `HEAD` and do all work there.
 Never make changes or commits while detached. Confirm the branch is based on
 the intended starting point (normally current `origin/main`) before proceeding.
 
+## Local worktree coordination and versioning agreement
+
+After branch bootstrap and **before editing any file**, register the task in the
+shared local coordination pane:
+
+```bash
+npm run coordination:begin -- \
+  --intent "What this work changes or investigates." \
+  --version-plan "The planned application version, or why this is tooling-only." \
+  --preemptive-changelog "The player-facing note, or an explicit no-player-facing-change note." \
+  --resources "The emulator slot, service, or other shared resource."
+```
+
+This writes a human-readable, Git-ignored coordination file shared by local
+worktrees. `npm run coordination:status` displays the **Version agreement**,
+the active **Preemptive changelog**, configured emulator rows, and live process
+reservations so another agent can see intent before touching overlapping work.
+Close the entry with `npm run coordination:finish -- --id <id>` when the work is
+complete. The default file is in the OS temporary directory; set
+`DOW_EMULATOR_COORDINATION_FILE` to use another common local path.
+
+The version agreement is: completed player-facing product work increments the
+monotonic application version, keeps `package.json` and the root lockfile in
+sync, and adds the newest user-facing `src/changelog.ts` entry. Development
+tooling, tests, and documentation-only work explicitly record that no
+application version or player-facing changelog entry is expected. The
+preemptive changelog is a plan, not a substitute for the completed release
+entry.
+
 ## Routine task delegation
 
 The product owner gives standing authorization to delegate suitable, well-scoped
@@ -163,14 +193,19 @@ worktree-local Firebase config, and pass it explicitly with `--config` to both
 developer's port-only config.
 
 Use `npm run emulators:configure -- <slot>` after claiming a row. It checks all
-eight Firebase ports before writing ignored `firebase.local.json` and
-`.env.emulators.local` files. Then use `npm run emulators`, `npm run
-dev:emulators`, `npm run test:rules`, or `npm --prefix functions run serve`;
+eight Firebase ports plus the matching Vite port before writing ignored
+`firebase.local.json` and `.env.emulators.local` files. Then use `npm run
+emulators`, `npm run dev:emulators`, `npm run test:rules`, or `npm --prefix
+functions run serve`;
 these commands explicitly load the worktree-local config, and the Vite command
 uses the matching client ports. CI has no local config and intentionally uses
-the committed slot-0 defaults. When a task ends, stop its emulators so the slot
-becomes available. If all rows are occupied, wait for a free slot; never take a
-port that is already listening.
+the committed slot-0 defaults. The configure command records the row in the
+shared coordination file; the long-running emulator commands claim and release
+live process reservations there. `npm run test:rules` prefers the configured
+row, but automatically claims another complete free row when a preview already
+owns it, then removes its temporary config on exit. When a task ends, stop its
+emulators so the slot becomes available. If all rows are occupied, wait for a
+free slot; never take a port that is already listening.
 
 ## 2. Merge once done
 
