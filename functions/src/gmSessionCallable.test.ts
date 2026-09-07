@@ -104,7 +104,12 @@ const mock = vi.hoisted(() => {
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => ({ toMillis: () => Date.now() }) },
+  FieldValue: {
+    serverTimestamp: () => {
+      const milliseconds = Date.now();
+      return { toMillis: () => milliseconds };
+    },
+  },
   Timestamp: class {},
 }));
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
