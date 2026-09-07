@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Connection indicators now stay optimistically connected for the first five seconds before revealing the live connection state, while reconnect grace behavior remains unchanged.',
+    ],
+  },
+  {
+    version: '0.2.107',
+    changes: [
       'GM reset of the Code of Conduct checklist now lives in the GM Console instead of global Settings.',
     ],
   },
