@@ -636,3 +636,16 @@ it('gives CIC actions the same square ruled control treatment as the console', (
   expect(action).toContain('font: 0.72rem/1.2 var(--cic-mono)');
   expect(action).toContain('text-transform: uppercase');
 });
+
+it('keeps the session waiver as a square, token-based CIC instrument', () => {
+  const css = readFileSync('src/index.css', 'utf8');
+  const waiverRules = [...css.matchAll(/([^{}]*session-waiver[^{}]*)\{([^{}]*)\}/g)]
+    .map((match) => `${match[1]}{${match[2]}}`)
+    .join('\n');
+
+  expect(waiverRules).toContain('position: fixed');
+  expect(waiverRules).toContain('border: 1px solid var(--cic-cyan)');
+  expect(waiverRules).toContain('color: var(--cic-cyan-hot)');
+  expect(waiverRules).not.toContain('box-shadow:');
+  expect(waiverRules).not.toMatch(/border-radius:\s*(?!var\(--cic-radius\)|0\b|50%)/);
+});

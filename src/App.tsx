@@ -24,6 +24,7 @@ import UnrestAlert from '@/components/UnrestAlert';
 import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
 import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
+import SessionWaiverGate from '@/components/SessionWaiverGate';
 import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
@@ -147,6 +148,7 @@ function AppRoutes() {
       <TurnStartAnnouncement />
       <DebriefMode />
       <TurnPhaseCoordinator />
+      <SessionWaiverGate />
     </div>
   );
 }
