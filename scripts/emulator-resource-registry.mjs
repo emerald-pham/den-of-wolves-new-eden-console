@@ -395,6 +395,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
     mainLockVersion: parseLockfileVersion(mainLockfile, 'main:package-lock.json'),
     branchChangelog: parseChangelogSnapshot(branchChangelog, branchVersion),
     mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
+    changedFiles,
     ...(startBranchSha
       ? {
           startBranchSha,
