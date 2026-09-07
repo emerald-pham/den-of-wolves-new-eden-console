@@ -166,7 +166,13 @@
   text-shadow: 0 0 18px color-mix(in srgb, var(--cic-cyan-dim) 45%, transparent);
 }
 
-.turn-start-announcement__population,
+.turn-start-announcement__population {
+  color: var(--cic-ink);
+  font: clamp(2.25rem, 8vw, 6.2rem) / 1 var(--cic-display);
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--cic-ink) 74%, transparent);
+}
+
 .turn-start-announcement__survive {
   color: var(--cic-cyan-hot);
   font: clamp(2.25rem, 8vw, 6.2rem) / 1 var(--cic-display);

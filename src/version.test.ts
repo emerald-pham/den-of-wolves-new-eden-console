@@ -16,6 +16,18 @@ it('records the reconnection grace in the current player-facing release notes', 
   );
 });
 
+it('retains the boot-time population estimate in player-facing release notes', () => {
+  expect(CHANGELOG.some((entry) => entry.changes.includes(
+    'The landing display now begins with a population estimate while CIC connects.',
+  ))).toBe(true);
+});
+
+it('retains fleet DRADIS range behavior in player-facing release notes', () => {
+  expect(CHANGELOG.some((entry) => entry.changes.includes(
+    'Fleet ships and their shuttlecraft now stay uncluttered on DRADIS without range indicators, while every other contact keeps its range readout.',
+  ))).toBe(true);
+});
+
 it('emits uncached build metadata for live clients to discover upgrades', () => {
   const viteConfig = readFileSync('vite.config.ts', 'utf8');
   const firebaseConfig = readFileSync('firebase.json', 'utf8');

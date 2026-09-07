@@ -12,6 +12,8 @@ export interface FleetContact extends FleetPoint {
   readonly color: string;
   /** Fleet formation shares the gameplay-defined short combat range. */
   readonly combatRange: 'short';
+  /** Fleet ships and their shuttlecraft stay uncluttered on DRADIS. */
+  readonly showCombatRange: false;
 }
 
 /**
@@ -54,6 +56,7 @@ export function fleetViewFrom(
       name: ship.name,
       color: ship.dradisColor ?? ship.color,
       combatRange: 'short',
+      showCombatRange: false,
       x: round(point.x - viewer.x),
       y: round(point.y - viewer.y),
       z: round(point.z - viewer.z),

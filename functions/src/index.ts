@@ -233,7 +233,7 @@ function debriefModeState(value: unknown): DebriefMode {
   return { active: state.active, revision: state.revision };
 }
 
-function fleetSurvivorPopulation(session: DocumentSnapshot): number {
+function fleetShipSurvivorPopulation(session: DocumentSnapshot): number {
   const rawSurvivors = session.get('shipSurvivors');
   const survivors = typeof rawSurvivors === 'object' && rawSurvivors !== null &&
     !Array.isArray(rawSurvivors)
@@ -251,6 +251,15 @@ function fleetSurvivorPopulation(session: DocumentSnapshot): number {
         : initial
     );
   }, 0);
+}
+
+function fleetSurvivorPopulation(session: DocumentSnapshot): number {
+  const adjustment = session.get('fleetSurvivorPopulationAdjustment');
+  const basePopulation = fleetShipSurvivorPopulation(session);
+  const adjustedPopulation = basePopulation + (
+    typeof adjustment === 'number' && Number.isSafeInteger(adjustment) ? adjustment : 0
+  );
+  return Number.isSafeInteger(adjustedPopulation) ? Math.max(0, adjustedPopulation) : basePopulation;
 }
 
 function requireTurnOneForPlayer(session: DocumentSnapshot, player: DocumentSnapshot): void {
@@ -399,6 +408,7 @@ export const createSession = onCall<{
           shipUnrest: INITIAL_SHIP_UNREST,
           unrestAlerts: {},
           shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
+          fleetSurvivorPopulationAdjustment: 0,
           populationAlerts: {},
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
@@ -445,6 +455,7 @@ export const createSession = onCall<{
             shipUnrest: INITIAL_SHIP_UNREST,
             unrestAlerts: {},
             shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
+            fleetSurvivorPopulationAdjustment: 0,
             populationAlerts: {},
             gmControlsLocked: false,
             debriefMode: { active: false, revision: 0 },
@@ -1063,14 +1074,20 @@ export const advanceTurn = onCall<{
       );
     }
     const nextTurn = currentTurn + 1;
+    const currentFleetPopulation = fleetSurvivorPopulation(session);
+    const announcementPopulation = currentFleetPopulation % 10 === 0 || currentFleetPopulation % 10 === 5
+      ? currentFleetPopulation + 42
+      : currentFleetPopulation;
+    const nextFleetPopulation = Math.max(0, announcementPopulation - 1);
     const announcement = {
       turn: nextTurn,
-      survivorPopulation: fleetSurvivorPopulation(session),
+      survivorPopulation: announcementPopulation,
     };
     const turnPhase = startTurnPhase(nextTurn);
     tx.update(sessionRef, {
       currentTurn: nextTurn,
       turnStartAnnouncement: announcement,
+      fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
       turnPhase,
       updatedAt: FieldValue.serverTimestamp(),
     });

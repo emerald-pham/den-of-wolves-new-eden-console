@@ -34,21 +34,41 @@ function FleetTransmission({
   readonly onComplete: (completed: TurnStartTransmission) => void;
 }) {
   const [slide, setSlide] = useState(0);
+  const [delayedBeat, setDelayedBeat] = useState<'traitors' | 'population' | null>(null);
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 9 : 3;
-  const survivorPopulation = new Intl.NumberFormat('en-US').format(transmission.survivorPopulation);
+  const slideCount = isFirstTurn ? 8 : 3;
+  const isTraitorReveal = isFirstTurn && slide === 5;
+  const isPopulationSlide = !isFirstTurn ? slide === 1 : slide === 6;
+  const showsTraitors = isTraitorReveal && delayedBeat === 'traitors';
+  const showsPopulationLoss = isPopulationSlide && delayedBeat === 'population';
+  const survivorPopulation = new Intl.NumberFormat('en-US').format(
+    showsPopulationLoss ? Math.max(0, transmission.survivorPopulation - 1) : transmission.survivorPopulation,
+  );
 
   useEffect(() => {
     const isNarrativeBeat = isFirstTurn && slide >= 2 && slide <= 4;
+    const duration = isNarrativeBeat
+      ? TURN_ONE_NARRATIVE_SLIDE_MS
+      : isTraitorReveal ? TURN_START_SLIDE_MS * 2 : TURN_START_SLIDE_MS;
     const timer = window.setTimeout(() => {
       if (slide < slideCount - 1) {
         setSlide(slide + 1);
         return;
       }
       onComplete(transmission);
-    }, isNarrativeBeat ? TURN_ONE_NARRATIVE_SLIDE_MS : TURN_START_SLIDE_MS);
+    }, duration);
     return () => window.clearTimeout(timer);
-  }, [isFirstTurn, onComplete, slide, slideCount, transmission]);
+  }, [isFirstTurn, isTraitorReveal, onComplete, slide, slideCount, transmission]);
+
+  useEffect(() => {
+    const delay = isTraitorReveal
+      ? TURN_START_SLIDE_MS
+      : isPopulationSlide ? TURN_START_SLIDE_MS / 2 : null;
+    if (delay === null) return;
+    const beat = isTraitorReveal ? 'traitors' : 'population';
+    const timer = window.setTimeout(() => setDelayedBeat(beat), delay);
+    return () => window.clearTimeout(timer);
+  }, [isPopulationSlide, isTraitorReveal]);
 
   const message = !isFirstTurn ? (
     slide === 0
@@ -65,14 +85,12 @@ function FleetTransmission({
   ) : slide === 3 ? (
     <p className="turn-start-announcement__message">THE FLEET IS ALL THAT REMAINS.</p>
   ) : slide === 4 ? (
-    <p className="turn-start-announcement__message">THEY ARE PURSUING YOU THROUGH THE VOID.</p>
+    <p className="turn-start-announcement__message">THE WOLVES ARE PURSUING YOU THRU THE VOID.</p>
   ) : slide === 5 ? (
-    <p className="turn-start-announcement__message">SOME OF YOU —</p>
-  ) : slide === 6 ? (
     <p className="turn-start-announcement__message">
-      ARE <span className="turn-start-announcement__traitors">TRAITORS.</span>
+      SOME OF YOU — {showsTraitors && <>ARE <span className="turn-start-announcement__traitors">TRAITORS.</span></>}
     </p>
-  ) : slide === 7 ? (
+  ) : slide === 6 ? (
     <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
   ) : <p className="turn-start-announcement__survive">SURVIVE.</p>;
 

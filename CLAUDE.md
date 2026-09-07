@@ -103,7 +103,7 @@ each suitable task.
   medium-grain checks of what changed or where a relevant seam lies—but may not
   edit files or otherwise mutate repository state. Spark's read-only
   assignments do not require a worktree or branch.
-- GPT-5.6 Luna (`gpt-5.6-luna`) at `max` reasoning is a strict capability
+- GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning is a strict capability
   superset of Spark. Luna may do anything Spark can do and is the fallback for
   suitable bounded read-only work when Spark is unavailable. Luna also has
   standing trust and authorization for well-scoped local edits, including code,

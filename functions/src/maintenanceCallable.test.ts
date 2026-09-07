@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
+  fleetSurvivorPopulationAdjustment: 0,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
   activeConsoleRoleId: undefined as string | undefined,
   activeRoleIds: undefined as readonly string[] | undefined,
@@ -52,6 +53,7 @@ beforeEach(() => {
   mock.shipSurvivors = {};
   mock.capybaraEnabled = true;
   mock.dioneEnabled = true;
+  mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnPhase = undefined;
   mock.pressDispatch = undefined;
   mock.activeConsoleRoleId = undefined;
@@ -76,6 +78,7 @@ beforeEach(() => {
           currentTurn: mock.currentTurn,
           maintenanceCycles: mock.maintenanceCycles,
           shipSurvivors: mock.shipSurvivors,
+          fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
           capybaraEnabled: mock.capybaraEnabled,
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
@@ -210,7 +213,7 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).resolves.toEqual({
     currentTurn: 1,
-    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_000 },
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_042 },
     turnPhase: {
       turn: 1,
       teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
@@ -220,7 +223,8 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 1,
-    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_000 },
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_042 },
+    fleetSurvivorPopulationAdjustment: 41,
     turnPhase: {
       turn: 1,
       teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
@@ -230,6 +234,7 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   }));
 
   mock.currentTurn = 1;
+  mock.fleetSurvivorPopulationAdjustment = 41;
   mock.turnPhase = {
     turn: 1,
     teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
@@ -246,7 +251,7 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
   }))).resolves.toEqual({
     currentTurn: 2,
-    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_000 },
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_041 },
     turnPhase: {
       turn: 2,
       teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -256,13 +261,38 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     currentTurn: 2,
-    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_000 },
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 156_041 },
+    fleetSurvivorPopulationAdjustment: 40,
     turnPhase: expect.objectContaining({ turn: 2 }),
   }));
 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('keeps the authoritative fleet total non-negative when a turn begins at zero', async () => {
+  mock.currentTurn = 0;
+  mock.capybaraEnabled = false;
+  mock.shipSurvivors = {
+    aegis: 1_000,
+    dione: 90_000,
+    icebreaker: 30_000,
+    capybara: 20_000,
+    shepherd: 20_000,
+    quellon: 10_000,
+    'refinery-124': 5_000,
+  };
+  mock.fleetSurvivorPopulationAdjustment = -156_000;
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
+  }))).resolves.toMatchObject({
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 42 },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    fleetSurvivorPopulationAdjustment: -155_959,
+  }));
 });
 
 it('turns the ticker into an open-airspace bulletin after the team timer expires', async () => {
