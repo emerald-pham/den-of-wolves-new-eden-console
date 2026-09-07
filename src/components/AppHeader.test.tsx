@@ -194,6 +194,18 @@ it('shows the last-player warning inside settings', async () => {
   expect(screen.getByText(`Build ${APP_VERSION}`)).toBeInTheDocument();
 });
 
+it('shows the GM access request instructions inside settings', async () => {
+  const user = userEvent.setup();
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  await user.click(screen.getByRole('button', { name: /settings/i }));
+
+  expect(screen.getByRole('heading', { name: /gm access/i })).toBeVisible();
+  const contact = screen.getByRole('link', { name: /emerald\.pham@hey\.com/i });
+  expect(contact).toHaveAttribute('href', 'mailto:emerald.pham@hey.com');
+  expect(screen.getByText(/proof.*original den of wolves: new eden product/i)).toBeVisible();
+});
+
 it('offers reduce motion as a simple on-off setting', async () => {
   const user = userEvent.setup();
   render(<MemoryRouter><AppHeader /></MemoryRouter>);

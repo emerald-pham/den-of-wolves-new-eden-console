@@ -11,6 +11,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     changes: [
       'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
+      'GM registration now requires the facilitator access password before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
       'Live roster changes now immediately make removed ship and Press roles read-only, with server-side checks protecting maintenance, dispatch, alert, counter, and confetti actions.',
       'Expired presence leases no longer let stale crew block two-person confetti approvals, and legacy connected records remain consistent with session membership locking.',
       'The GM starmap now reads as a deeper tactical navigation instrument, with highlighted jump corridors, a restrained scanning pass, and clearer perspective depth.',

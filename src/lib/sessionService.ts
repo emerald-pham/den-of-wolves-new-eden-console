@@ -482,7 +482,7 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   return applySession(reply.data, sessionId);
 }
 
-export async function claimGmInstance(name: string): Promise<CommandDisposition> {
+export async function claimGmInstance(name: string, password: string): Promise<CommandDisposition> {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Join a session before claiming GM.');
   return sendOrQueue({
@@ -493,6 +493,7 @@ export async function claimGmInstance(name: string): Promise<CommandDisposition>
       instanceId: commandId(),
       name: name.trim(),
       deviceLabel: deviceLabel(),
+      password,
     },
     createdAt: new Date().toISOString(),
   });

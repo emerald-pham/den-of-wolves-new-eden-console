@@ -23,6 +23,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
+import { isGmAccessPassword } from './gmAccess';
 import {
   FLEET_SHIP_NAMES,
   canPopShipConfetti,
@@ -763,9 +764,13 @@ export const claimGmInstance = onCall<{
   instanceId?: string;
   name?: string;
   deviceLabel?: string;
+  password?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const claim = requireGmClaimRequest(request.data ?? {});
+  if (!isGmAccessPassword(claim.password)) {
+    throw new HttpsError('permission-denied', 'GM access credentials rejected.');
+  }
   const sessionRef = db.doc(`sessions/${claim.sessionId}`);
   const playerRef = db.doc(`sessions/${claim.sessionId}/players/${uid}`);
   const instancesRef = db.collection(`sessions/${claim.sessionId}/gmInstances`);
