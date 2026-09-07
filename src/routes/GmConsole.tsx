@@ -48,6 +48,10 @@ import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
 import {
+  resetSessionWaiver,
+  SESSION_WAIVER_RESET_EVENT,
+} from '@/lib/sessionWaiver';
+import {
   COUNTER_COMMAND_COALESCE_MS,
   previewPopulationChange,
   previewResourceChange,
@@ -758,6 +762,11 @@ export default function GmConsole() {
     }
   }
 
+  function resetChecklist(): void {
+    resetSessionWaiver();
+    window.dispatchEvent(new Event(SESSION_WAIVER_RESET_EVENT));
+  }
+
   function chooseRecommendedRoster(playerCount: number): void {
     setDraftRoleIds(normalizeRoleDraft(recommendedRoleIds(playerCount)));
   }
@@ -922,6 +931,22 @@ export default function GmConsole() {
                     : confirmFinale
                       ? 'ARE YOU SURE? // Enable finale'
                       : 'Finale // Enable debrief mode'}
+            </button>
+          </section>
+          <section className="gm-console__module gm-session-access cic-frame" aria-label="Session access controls">
+            <h2 className="gm-console__section-title">Session access</h2>
+            <p className="gm-console__status">
+              Code of Conduct acknowledgement // Browser-local for this device
+            </p>
+            <p>
+              Reset the local checklist to reopen the full Code of Conduct review instrument.
+            </p>
+            <button
+              className="cic-action-button"
+              type="button"
+              onClick={resetChecklist}
+            >
+              Reset code of conduct checklist
             </button>
           </section>
           <GmStarmapModule session={session} />
