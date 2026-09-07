@@ -308,9 +308,20 @@ its own complete emulator port set. This includes Firestore's separate WebSocket
 listener. The defaults in `firebase.json` belong to only one worktree at a time;
 do not let Firebase silently reuse or kill another agent's emulator processes.
 
-Coordinate a free slot with the other active agents and announce the slot in
-the task before starting emulators. Use one row as a unit—do not mix ports from
-different rows. The logging range begins at 4600, rather than the historical
+There is no single shared emulator instance. The shared resource is only the
+coordination registry; each worktree gets an isolated row of ports, and this
+repository provides 15 rows. One occupied or configured row blocks only that
+row. Never report that a “shared emulator remains reserved” or skip emulator
+validation for that reason unless every row is occupied and the status pane
+confirms that no free slot exists. If a task does not need an emulator, say so
+because its validation scope is unit/component-only, not because another task
+owns a different row.
+
+When emulator-backed validation is needed, claim a row atomically with
+`npm run emulators:configure -- auto` (or an explicitly selected free slot)
+before starting the process, and announce the selected row in the task. Do not
+scan status and choose a row in a separate step. Use one row as a unit—do not
+mix ports from different rows. The logging range begins at 4600, rather than the historical
 4500, so it cannot overlap Hub ports once all 15 slots are in use:
 
 | Slot | Auth | Functions | Firestore | Firestore WS | Hosting | UI | Hub | Logging | Vite |
