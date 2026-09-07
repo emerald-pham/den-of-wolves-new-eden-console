@@ -14,6 +14,15 @@ interface PursuitTrackerProps {
 
 const TRACK_SEGMENTS = Array.from({ length: MAX_PURSUIT }, (_, index) => index);
 
+type PursuitThreatLevel = 'tracked' | 'closing' | 'critical' | 'terminal';
+
+function pursuitThreatLevelForScore(score: number): PursuitThreatLevel {
+  if (score >= MAX_PURSUIT) return 'terminal';
+  if (score >= 8) return 'critical';
+  if (score >= 7) return 'closing';
+  return 'tracked';
+}
+
 export default function PursuitTracker({
   currentTurn,
   shipId,
@@ -24,6 +33,9 @@ export default function PursuitTracker({
   const pursuitDistance = pursuitDistanceForCoordinate(coordinate);
   const pursuitScore = pursuitScoreForPosition(currentTurn, coordinate);
   const status = pursuitStatusForScore(pursuitScore);
+  const threatLevel = pursuitThreatLevelForScore(pursuitScore);
+  const failureCountdown = MAX_PURSUIT - pursuitScore;
+  const failureCountdownLabel = `${failureCountdown} track${failureCountdown === 1 ? '' : 's'}`;
   const turnLoad = Math.max(0, Math.floor(currentTurn)) * 2;
   const mapDepth = pursuitDistance === 0 ? 'Start system' : `-${pursuitDistance} pursuit distance`;
   const statusLabel = status === 'surrounded'
@@ -40,11 +52,19 @@ export default function PursuitTracker({
       aria-label="Pursuit tracker"
       data-ship-id={shipId}
       data-status={status}
+      data-threat-level={threatLevel}
     >
       <header className="pursuit-tracker__header">
         <p className="pursuit-tracker__eyebrow">PURSUIT // SHIP-LOCAL</p>
         <h2>Pursuit</h2>
       </header>
+
+      <p className="pursuit-tracker__countdown" aria-live="polite">
+        <span>Countdown to failure // </span>
+        <strong>
+          {failureCountdown} <small>{failureCountdown === 1 ? 'track' : 'tracks'}</small>
+        </strong>
+      </p>
 
       <div className="pursuit-tracker__readout">
         <p className="pursuit-tracker__metric">
@@ -63,10 +83,11 @@ export default function PursuitTracker({
 
       <ol
         className="pursuit-tracker__scale"
-        aria-label={`${shipName} pursuit scale`}
+        aria-label={`${shipName} pursuit countdown`}
         aria-valuemin={0}
         aria-valuemax={MAX_PURSUIT}
         aria-valuenow={pursuitScore}
+        aria-valuetext={`${pursuitScore} of ${MAX_PURSUIT}; ${failureCountdownLabel} to failure`}
         role="progressbar"
       >
         {TRACK_SEGMENTS.map((segment) => (
