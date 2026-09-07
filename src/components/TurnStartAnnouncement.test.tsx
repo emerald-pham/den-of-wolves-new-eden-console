@@ -39,7 +39,7 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText(/wolves destroyed your homes/i)).toBeInTheDocument();
   expect(screen.queryByText(/fleet is all that remains/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/pursuing you through the void/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves are pursuing you thru the void/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS - 1));
@@ -48,22 +48,35 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   act(() => vi.advanceTimersByTime(1));
   expect(screen.getByText(/fleet is all that remains/i)).toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
-  expect(screen.queryByText(/pursuing you through the void/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/wolves are pursuing you thru the void/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS));
-  expect(screen.getByText(/pursuing you through the void/i)).toBeInTheDocument();
+  expect(screen.getByText('THE WOLVES ARE PURSUING YOU THRU THE VOID.')).toBeInTheDocument();
   expect(screen.queryByText(/fleet is all that remains/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS));
-  expect(screen.getByText(/some of you/i)).toBeInTheDocument();
+  const traitorMessage = screen.getByText(/some of you/i);
   expect(screen.queryByText(/traitors/i)).not.toBeInTheDocument();
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS - 1));
+  expect(screen.getByText(/some of you/i)).toBe(traitorMessage);
+  expect(screen.queryByText(/traitors/i)).not.toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(1));
   const traitors = screen.getByText('TRAITORS.');
   expect(traitors).toHaveClass('turn-start-announcement__traitors');
+  expect(traitors.parentElement).toBe(traitorMessage);
+  expect(traitorMessage).toHaveTextContent('SOME OF YOU — ARE TRAITORS.');
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText('242,500 PEOPLE —')).toBeInTheDocument();
+  const survivors = screen.getByText('242,500 PEOPLE —');
+  expect(survivors).toHaveClass('turn-start-announcement__population');
+
+  act(() => vi.advanceTimersByTime((TURN_START_SLIDE_MS / 2) - 1));
+  expect(screen.getByText('242,500 PEOPLE —')).toBe(survivors);
+
+  act(() => vi.advanceTimersByTime(1));
+  expect(screen.getByText('242,499 PEOPLE —')).toHaveClass('turn-start-announcement__population');
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('SURVIVE.')).toBeInTheDocument();
@@ -86,6 +99,9 @@ it('uses only the survivor-count beat on every turn after Turn 1', () => {
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('237,000 PEOPLE —')).toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
+  expect(screen.getByText('236,999 PEOPLE —')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('SURVIVE.')).toBeInTheDocument();

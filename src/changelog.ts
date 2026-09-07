@@ -10,6 +10,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The Turn 1 warning now identifies the Wolves and reveals “ARE TRAITORS.” in place after a tense pause.',
+      'Survivor totals in fleet transmissions now read in bone-white, fall by one midway through their display, and update the fleet-wide total at the same time.',
+    ],
+  },
+  {
+    version: '0.2.57',
+    changes: [
       'Fleet ships and their shuttlecraft now stay uncluttered on DRADIS without range indicators, while every other contact keeps its range readout.',
     ],
   },

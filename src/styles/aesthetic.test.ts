@@ -127,6 +127,15 @@ describe('the CIC frame', () => {
   });
 });
 
+describe('the fleet transmission', () => {
+  it('uses bone-white type for the survivor loss readout', () => {
+    const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';
+    const population = intrusion.match(/\.turn-start-announcement__population\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(population).toContain('color: var(--cic-ink)');
+  });
+});
+
 describe('the in-session header', () => {
   it('uses the same session readout composition in header and settings', () => {
     const header = readFileSync('src/components/AppHeader.tsx', 'utf8');

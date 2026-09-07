@@ -905,11 +905,18 @@ Each live turn transition begins with `TURN N` before any other copy, except the
 Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
 before `TURN 1`. The fleet transmission reuses the full-screen intrusion
 envelope with the neutral fleet variant: no hostile glitch treatment, amber structural overlines, bone-white
-narrative, cyan survivor count and `SURVIVE.`, and hostile red only for the
-word `TRAITORS.`. Turn 1 carries the complete destruction and traitor reveal in
-separate timed slides; later turns contain only the turn marker, the calculated
-fleet survivor count and the final survival beat. The transmission is a live
-event rather than a replay for a newly joined browser. The first Turn 1 slide is
+narrative and survivor count, cyan `SURVIVE.`, and hostile red only for the
+word `TRAITORS.`. Turn 1 carries the complete destruction briefing, then holds
+`SOME OF YOU —` on one slide before revealing `ARE TRAITORS.` after one ordinary
+2.4-second beat; it holds the completed sentence for one more beat. The white
+survivor count drops by one halfway through its display, and the server commits
+that same fleet-wide delta in the turn transaction. Before each transmission,
+the authoritative starting count rises by 42 when it would otherwise end in 0
+or 5; the resulting count is clamped at zero or above. This fleet-level
+adjustment never rewrites an individual ship's printed population track. Later
+turns contain only the turn marker, the calculated fleet survivor count and the
+final survival beat. The transmission is a live event rather than a replay for
+a newly joined browser. The first Turn 1 slide is
 the ordinary 2.4-second operational beat `IRIS AUTHENTICATION CONFIRMED`; `TURN 1`
 follows before any narrative. Turn 1's three opening briefing beats use four-second
 reading holds—rather than the ordinary 2.4-second
