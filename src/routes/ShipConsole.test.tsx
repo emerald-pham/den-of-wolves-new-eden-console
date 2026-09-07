@@ -220,9 +220,9 @@ it('breaks the unrest dial when the authoritative value is above seven', () => {
   expect(container.querySelector('.ship-console')).toHaveAttribute('data-unrest-critical', 'true');
 });
 
-it('shows the AEGIS docking history with each shuttlecraft and its shuttleport', () => {
+it('shows Dione docking history with the SNN shuttle and its shuttleport', () => {
   render(
-    <MemoryRouter initialEntries={['/ships/aegis']}>
+    <MemoryRouter initialEntries={['/ships/dione']}>
       <Routes><Route path="/ships/:shipId" element={<ShipConsole />} /></Routes>
     </MemoryRouter>,
   );

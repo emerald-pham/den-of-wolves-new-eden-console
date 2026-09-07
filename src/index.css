@@ -3903,3 +3903,152 @@ body {
 .ship-plot:has(.contact-plot__red-alert):has(.turn-phase-timer) .ship-plot__compass {
   bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 6.35rem);
 }
+
+/* Session access waiver ------------------------------------------------ */
+
+/* A required acknowledgement is a full-screen instrument: it blocks the
+   underlying console until the player has read the table convention and the
+   in-world information-security rule. */
+.session-waiver-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--cic-void) 96%, transparent);
+}
+
+.session-waiver {
+  width: min(60rem, 100%);
+  max-height: calc(100dvh - max(2rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.session-waiver__header {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  text-align: center;
+}
+
+.session-waiver__header h1 {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 700 clamp(1.5rem, 4vw, 2.5rem)/1 var(--cic-display);
+  letter-spacing: 0.08em;
+}
+
+.session-waiver__header p:last-child {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.875rem/1.5 var(--cic-mono);
+}
+
+.session-waiver__ticks {
+  margin: 1.25rem 0;
+}
+
+.session-waiver__regulations {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.session-waiver__regulation {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.session-waiver__index {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--cic-amber-dim);
+  color: var(--cic-amber);
+  font: 1rem/1 var(--cic-display);
+}
+
+.session-waiver__copy {
+  min-width: 0;
+}
+
+.session-waiver__copy .cic-overline {
+  margin: 0 0 0.35rem;
+}
+
+.session-waiver__copy h2 {
+  margin: 0;
+  color: var(--cic-amber-glow);
+  font: 500 clamp(0.9rem, 2vw, 1.25rem)/1.25 var(--cic-display);
+  letter-spacing: 0.04em;
+}
+
+.session-waiver__copy > p:last-child {
+  margin: 0.5rem 0 0;
+  color: var(--cic-ink);
+  font: 0.875rem/1.55 var(--cic-mono);
+}
+
+.session-waiver__check {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--cic-cyan);
+  color: var(--cic-cyan-hot);
+  font: 700 1.25rem/1 var(--cic-mono);
+}
+
+.session-waiver__thanks {
+  margin: 1.25rem 0 0.75rem;
+  color: var(--cic-muted);
+  font: 0.875rem/1.5 var(--cic-mono);
+  text-align: center;
+}
+
+.session-waiver__acknowledge {
+  display: block;
+  width: min(30rem, 100%);
+  min-height: 3rem;
+  margin-inline: auto;
+  border-color: var(--cic-cyan);
+  background: color-mix(in srgb, var(--cic-cyan-dim) 26%, var(--cic-void));
+  color: var(--cic-cyan-hot);
+}
+
+.session-waiver__retention {
+  margin: 0.75rem 0 0;
+  color: var(--cic-amber);
+  font: 0.65rem/1.5 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media (max-width: 42rem) {
+  .session-waiver-backdrop {
+    align-items: start;
+  }
+
+  .session-waiver {
+    margin-block: 0;
+  }
+
+  .session-waiver__regulation {
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .session-waiver__check {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

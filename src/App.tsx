@@ -24,6 +24,7 @@ import UnrestAlert from '@/components/UnrestAlert';
 import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
 import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
+import SessionWaiverGate from '@/components/SessionWaiverGate';
 import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
@@ -52,11 +53,11 @@ function AppRoutes() {
     ? location.pathname.slice('/shuttles/'.length).split('/')[0]
     : undefined;
   const shuttleHost = shuttleId ? dockingForShuttle(session ?? {}, shuttleId)?.shipId : undefined;
+  const pressDocking = dockingForShuttle(session ?? {}, 'snn-press-shuttle');
   const shipId = location.pathname.startsWith('/ships/')
     ? location.pathname.slice('/ships/'.length).split('/')[0] ?? 'aegis'
     : location.pathname === '/press'
-      ? session?.shuttleDockings?.find((docking) => docking.shuttleId === 'snn-press-shuttle')
-        ?.shipId ?? 'aegis'
+      ? pressDocking?.shipId ?? 'dione'
       : shuttleHost ?? 'aegis';
 
   useEffect(() => {
@@ -147,6 +148,7 @@ function AppRoutes() {
       <TurnStartAnnouncement />
       <DebriefMode />
       <TurnPhaseCoordinator />
+      <SessionWaiverGate />
     </div>
   );
 }

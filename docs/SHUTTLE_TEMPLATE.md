@@ -71,7 +71,7 @@ Every shuttle console has these modules:
    shuttle is not a separate contact. In flight, the shuttle is an ordinary
    sampled contact under the shared detection and ping rules.
 3. **Navigation and status.** Show the authoritative docked host or transit
-   state. The current SNN baseline reads `Shuttle location // Docked // AEGIS`.
+   state. The current SNN baseline reads `Shuttle location // Docked // Dione`.
    Do not invent speed, fuel, heading, range or ETA values.
 4. **Return navigation.** GM Observer views expose a visible `Leave shuttle`
    route to console selection. A player holding the shuttle captain role stays
@@ -132,7 +132,7 @@ Before implementing another shuttle, document:
 | Capabilities | Explicit modules, including authority and audit behavior |
 | Travel ledger | Whether one exists, who may view or lock it, and retention rules |
 
-Do not copy SNN identity, captain role, equipment or initial AEGIS docking into
+Do not copy SNN identity, captain role, equipment or initial Dione docking into
 another shuttle without a supplied design decision.
 
 ## Implementation acceptance checks

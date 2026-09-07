@@ -53,7 +53,7 @@ describe('fleet shuttlebays', () => {
       })),
     );
     expect(INITIAL_SHUTTLE_DOCKINGS).toEqual(expect.arrayContaining([
-      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'aegis' }),
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione' }),
       expect.objectContaining({ shuttleId: 'starlight', shipId: 'aegis' }),
       expect.objectContaining({ shuttleId: 'pallas', shipId: 'aegis' }),
       expect.objectContaining({ shuttleId: 'philia', shipId: 'dione' }),
@@ -93,11 +93,11 @@ describe('fleet shuttlebays', () => {
     };
 
     expect(shuttlebayForShip(session, 'aegis').dockedShuttles.map((shuttle) => shuttle.name))
-      .toEqual(['SNN Independent Press Shuttle', 'I.C.S.S. Starlight', 'I.C.S.S. Pallas']);
-    expect(shuttlebayForShip(session, 'aegis').visits).toHaveLength(3);
+      .toEqual(['I.C.S.S. Starlight', 'I.C.S.S. Pallas']);
+    expect(shuttlebayForShip(session, 'aegis').visits).toHaveLength(2);
     expect(shuttlebayForShip(session, 'dione').dockedShuttles.map((shuttle) => shuttle.name))
-      .toEqual(['F.S. Philia', 'F.S.F. Maliades']);
-    expect(shuttlebayForShip(session, 'dione').visits).toHaveLength(2);
+      .toEqual(['SNN Independent Press Shuttle', 'F.S. Philia', 'F.S.F. Maliades']);
+    expect(shuttlebayForShip(session, 'dione').visits).toHaveLength(3);
   });
 });
 
@@ -105,7 +105,9 @@ it('keeps press docking visible but outside the linked mechanical bays', () => {
   const bay = shuttlebayForShip({}, 'aegis');
   expect(bay.mechanicalBays.map(item => item.name)).toEqual(['Shuttle Bay Zeta', 'Shuttle Bay Omega']);
   expect(bay.mechanicalDockedShuttles.map((shuttle) => shuttle.id)).toEqual(['starlight', 'pallas']);
-  expect(bay.pressDockedShuttles).toHaveLength(1);
-  expect(bay.dockedShuttles).toHaveLength(3);
+  expect(bay.pressDockedShuttles).toHaveLength(0);
+  expect(bay.dockedShuttles).toHaveLength(2);
+  expect(shuttlebayForShip({}, 'dione').pressDockedShuttles.map((shuttle) => shuttle.id))
+    .toEqual(['snn-press-shuttle']);
   expect(shuttlebayForShip({}, 'capybara').mechanicalBays).toHaveLength(1);
 });
