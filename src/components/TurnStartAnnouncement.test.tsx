@@ -59,20 +59,17 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   expect(screen.queryByText(/fleet is all that remains/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_ONE_NARRATIVE_SLIDE_MS));
-  const traitorMessage = screen.getByText(/some of you/i);
-  expect(screen.queryByText(/traitors/i)).not.toBeInTheDocument();
-
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS - 1));
-  expect(screen.getByText(/some of you/i)).toBe(traitorMessage);
-  expect(screen.queryByText(/traitors/i)).not.toBeInTheDocument();
-
-  act(() => vi.advanceTimersByTime(1));
-  const traitors = screen.getByText('TRAITORS.');
+  const traitors = screen.getByText('TRAITORS');
   expect(traitors).toHaveClass('turn-start-announcement__traitors');
-  expect(traitors.parentElement).toBe(traitorMessage);
-  expect(traitorMessage).toHaveTextContent('SOME OF YOU — ARE TRAITORS.');
+  const traitorMessage = traitors.parentElement;
+  expect(traitorMessage).toHaveClass('turn-start-announcement__message');
+  expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
+  expect(traitors.parentElement).toBe(traitorMessage);
+  expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
+
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
   const survivors = screen.getByText('242,500 PEOPLE —');
   expect(survivors).toHaveClass('turn-start-announcement__population');
 

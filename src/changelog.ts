@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The Turn 1 fleet transmission now delivers “There are traitors among us; that’s kind of sus” as one complete slide.',
+    ],
+  },
+  {
+    version: '0.2.61',
+    changes: [
       'Turn transitions now arrive as a ruled fleet instrument, showing the exact handoff between turns, transmission progress, live survivor count, and the Wolf pursuit status inside the same CIC visual language as the rest of the console.',
       'The transmission frame tightens cleanly for phones, short landscape screens, and reduced motion while keeping the life-or-death briefing readable, with eased handoffs between each message beat.',
     ],
