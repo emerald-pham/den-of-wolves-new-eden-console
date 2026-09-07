@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'A returning or refreshed in-session console now keeps its Connected light steady for one second while it restores its uplink.',
+    ],
+  },
+  {
+    version: '0.2.56',
+    changes: [
       'The landing display now begins with a population estimate while CIC connects.',
     ],
   },

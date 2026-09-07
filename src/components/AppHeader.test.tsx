@@ -43,7 +43,10 @@ beforeEach(() => {
   vi.mocked(disconnectFromSession).mockResolvedValue('applied');
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 it('shows the current session personnel count in the top-right header', async () => {
   let publish: ((players: readonly Player[]) => void) | undefined;
@@ -78,6 +81,42 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
   expect(indicator).toHaveTextContent('In session');
   expect(indicator).toHaveAttribute('data-status', 'green');
+});
+
+it('keeps a cached session light green for one second while a refreshed browser reconnects', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(indicator).toHaveAttribute('data-status', 'red');
+});
+
+it('briefly restores the cached session light when a background tab returns', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  act(() => useSessionStore.getState().setConnection('offline'));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+
+  act(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(1_000));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+  Reflect.deleteProperty(document, 'visibilityState');
 });
 
 it('keeps fleet broadcasts in the same measured header row as the session code', async () => {

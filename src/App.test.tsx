@@ -177,6 +177,18 @@ describe('App', () => {
     expect(connect).toHaveBeenCalledTimes(2);
   });
 
+  it('retries Firebase as soon as a background tab becomes visible', async () => {
+    render(<App />);
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
+    vi.mocked(connect).mockClear();
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+
+    act(() => document.dispatchEvent(new Event('visibilitychange')));
+
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
+    Reflect.deleteProperty(document, 'visibilityState');
+  });
+
   it('reconciles a claimed GM instance with the server every five seconds', async () => {
     vi.useFakeTimers();
     useSessionStore.getState().setIdentity(session, player);

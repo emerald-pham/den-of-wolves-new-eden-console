@@ -10,9 +10,9 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
-it('records the boot-time population estimate in the current player-facing release notes', () => {
+it('records the reconnection grace in the current player-facing release notes', () => {
   expect(CHANGELOG[0]?.changes).toContain(
-    'The landing display now begins with a population estimate while CIC connects.',
+    'A returning or refreshed in-session console now keeps its Connected light steady for one second while it restores its uplink.',
   );
 });
 

@@ -176,9 +176,13 @@ export default function App() {
     const reconnectNow = () => {
       run(connect);
     };
+    const reconnectWhenVisible = () => {
+      if (document.visibilityState === 'visible') run(connect);
+    };
 
     window.addEventListener('offline', markOffline);
     window.addEventListener('online', reconnectNow);
+    document.addEventListener('visibilitychange', reconnectWhenVisible);
 
     return () => {
       window.clearInterval(retry);
@@ -187,6 +191,7 @@ export default function App() {
       stopVersionMonitor();
       window.removeEventListener('offline', markOffline);
       window.removeEventListener('online', reconnectNow);
+      document.removeEventListener('visibilitychange', reconnectWhenVisible);
     };
   }, []);
 

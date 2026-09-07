@@ -900,6 +900,12 @@ boot-up state clear without treating it as an offline connection. The first
 Turn 1 snapshot restores the usual green in-session light, marking CIC as fully
 uplinked and the fleet as ready to launch.
 
+When a browser restores a cached in-session identity after a refresh or returns
+from the background, its header light may retain the last green in-session
+reading for exactly one second while the real Firebase reconnect begins. This
+is visual continuity only: it never persists connection status, enables a
+command, or delays a genuine offline indication after the one-second grace.
+
 Each live turn transition begins with `TURN N` before any other copy, except the
 Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
 before `TURN 1`. The fleet transmission reuses the full-screen intrusion
