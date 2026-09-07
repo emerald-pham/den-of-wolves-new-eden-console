@@ -207,10 +207,9 @@ organiser A/B/C site-code overlay. Its CSS perspective is display-only: no third
 gameplay coordinate is implied. Coordinate nodes remain square native buttons
 with at least 44px targets, while the selected-system readout keeps the chart
 site, pursuit depth, jump links, site effect and fleet fix readable. The map
-renderer is reusable and the GM adapter is the only current mount, so a later
-ship-console attachment can be added without making the instrument player
-visible now. Chart selection and node selection stay local until an authoritative
-session field exists; the map performs no client write.
+renderer is reusable, and the GM adapter owns the only labelled organiser view.
+Chart selection and node selection stay local until an authoritative session
+field exists; ship movement itself is an explicit server-authorized GM action.
 
 The starmap may make the instrument feel space-facing with a restrained scanline,
 ruled projection planes, and a small DRADIS orientation rail. These are display
@@ -221,6 +220,19 @@ selected system's real neighbours. Fleet fixes reuse each ship's existing
 faction color as a square outer rail and marker; the accessible system name also
 announces the plotted ship names. Do not add a synthetic starfield, depth gauge,
 or other visual that suggests gameplay data the session does not hold.
+
+### Ship navigation map and log
+
+The ship jump-console map reuses the printed topology but is a deliberately
+smaller instrument than the organiser chart: it shows the current ship fix and
+the coordinates of that ship's previous fixes, while suppressing organiser
+chart letters, site names and fleet-wide markers. The adjacent ship log is a
+bounded scroll of real navigation events, with the server-derived stardate as
+its primary timestamp. Use ruled rows and cyan values for live navigation,
+amber for the stardate, and reserve the danger palette for a recorded
+navigational error. Resource/census privacy controls are local presentation
+switches, and the ICN travel lock is a state readout plus a square command
+button; neither should look like a decorative card or imply hidden authority.
 
 ### Control rows and everyday layout
 

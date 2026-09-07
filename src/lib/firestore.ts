@@ -14,10 +14,18 @@ import {
 } from 'firebase/firestore';
 import { app } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
-import type { DamageDraw, GameSession, GmInstance, Player, Seat, SessionEvent } from '@/types/game';
+import type {
+  DamageDraw,
+  GameSession,
+  GmInstance,
+  Player,
+  Seat,
+  SessionEvent,
+  ShipNavigationLogs,
+} from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
-import { INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
+import { INITIAL_SHIP_CONSOLE_LOCKS, INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
 import { shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
@@ -77,6 +85,26 @@ function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {
   return { active: state.active, revision: state.revision };
 }
 
+function shipNavigationLogs(value: unknown): ShipNavigationLogs {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).map((shipId) => [
+    shipId,
+    Array.isArray(stored[shipId]) ? stored[shipId] : [],
+  ]));
+}
+
+function shipConsoleLocks(value: unknown): NonNullable<GameSession['shipConsoleLocks']> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).map((shipId) => [
+    shipId,
+    stored[shipId] === true,
+  ]));
+}
+
 function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
@@ -95,6 +123,8 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
         : INITIAL_SHIP_GALACTIC_COORDINATES,
+    shipNavigationLogs: shipNavigationLogs(data.shipNavigationLogs),
+    shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),

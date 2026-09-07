@@ -16,6 +16,7 @@ import { shuttlebayForShip } from '@/data/shuttles';
 import {
   popShipConfetti,
   selectConsoleRole,
+  setShipConsoleLock,
 } from '@/lib/sessionService';
 import { consoleRoleRoute } from '@/lib/consoleRole';
 import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
@@ -61,9 +62,14 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)),
   );
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
+  const consoleLocked = session?.shipConsoleLocks?.[ship?.id ?? ''] === true;
+  const effectiveWritable = writable && !consoleLocked;
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [hideResources, setHideResources] = useState(false);
+  const [hideCensus, setHideCensus] = useState(false);
+  const [lockPending, setLockPending] = useState(false);
   const [burst, setBurst] = useState(0);
   const [burstSource, setBurstSource] = useState<string | null>(null);
   const [confettiActor, setConfettiActor] = useState<{
@@ -90,10 +96,15 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
 
   useEffect(() => {
     if (!consoleRole || !canClaimConsoleRole || observer || visiting) return;
-    void selectConsoleRole(consoleRole.id).catch(() => undefined);
+    void Promise.resolve(selectConsoleRole(consoleRole.id)).catch(() => undefined);
   }, [canClaimConsoleRole, consoleRole, observer, visiting]);
 
   useEffect(() => setObserverWrite(false), [ship?.id, observer]);
+
+  useEffect(() => {
+    setHideResources(false);
+    setHideCensus(false);
+  }, [ship?.id]);
 
   useEffect(() => {
     setCrew(null);
@@ -171,8 +182,20 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     }
   }
 
+  async function toggleConsoleLock(): Promise<void> {
+    if (!ship || !writable || lockPending) return;
+    setLockPending(true);
+    try {
+      await setShipConsoleLock(ship.id, !consoleLocked);
+    } catch {
+      // The shared communication notice reports a rejected or offline lock.
+    } finally {
+      setLockPending(false);
+    }
+  }
+
   return (
-    <ConsoleAccessContext.Provider value={{ writable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
+    <ConsoleAccessContext.Provider value={{ writable: effectiveWritable, ...(viewedRoleId ? { roleId: viewedRoleId } : {}) }}>
     <main
       className={`ship-console ship-console--${ship.id}${
         hasConsoleWorkspace
@@ -184,7 +207,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         '--ship-secondary': ship.secondaryColor ?? 'var(--cic-ink)',
       } as CSSProperties}
       data-observer-mode={observer ? (observerWrite ? 'write' : 'read') : undefined}
-      data-unrest-critical={unrest > 7 ? 'true' : undefined}
+      data-unrest-critical={!hideCensus && unrest > 7 ? 'true' : undefined}
     >
       <img
         className="ship-console__flag"
@@ -209,10 +232,22 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
-        <ShipSpecifications shipId={ship.id} shipName={ship.name} population={population} />
+        <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
         )}
+        <section className="ship-console__travel-lock cic-frame" aria-label="ICN console lock">
+          <p className="ship-resources__eyebrow">ICN console lock // {consoleLocked ? 'engaged' : 'clear'}</p>
+          <p>{consoleLocked ? 'Console actions are locked while travelling.' : 'Lock this console before a ship travels.'}</p>
+          <button
+            className="cic-action-button"
+            type="button"
+            disabled={!writable || lockPending}
+            onClick={() => void toggleConsoleLock()}
+          >
+            {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}
+          </button>
+        </section>
         {(visiting || (!observer && !roleEnabled)) && (
           <p>Console access // {writable ? 'Write // crew incomplete' : 'Read only'}</p>
         )}
@@ -229,6 +264,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             fuel={resources?.fuel ?? 0}
             damage={session.shipDamage?.[ship.id]}
             damageDraws={damageDraws}
+            navigationLogs={session.shipNavigationLogs}
+            consoleLocked={consoleLocked}
           />
         )}
         {damageDraws.some((draw) => draw.shipId === ship.id) && (
@@ -259,7 +296,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               aria-label={`${ship.name} resource stores`}
             >
               <p className="ship-resources__eyebrow">Resource stores</p>
-              <ul>
+              {hideResources ? <p>Resource stores // hidden from ship view</p> : <ul>
                 {RESOURCE_DEFINITIONS.map((resource) => {
                   const amount = resources[resource.id];
                   return amount === undefined ? null : (
@@ -272,30 +309,43 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                     </li>
                   );
                 })}
-              </ul>
+              </ul>}
             </section>
           )}
           <section
             className="ship-census cic-frame"
             aria-label={`${ship.name} census`}
-            data-critical={unrest > 7 ? 'true' : 'false'}
+            data-critical={!hideCensus && unrest > 7 ? 'true' : 'false'}
           >
             <p className="ship-resources__eyebrow">Census // tracked conditions</p>
-            {population !== undefined && <PopulationTrack shipId={ship.id} population={population} />}
-            <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
-              <span className="resource-label">
-                <ResourceIcon id="unrest" label="Civil Unrest" />
-                <OverflowTicker text="Civil Unrest" />
-              </span>
-              {unrest > 7 ? (
-                <div className="ship-unrest__failure">
-                  <strong>Unrest telemetry failure</strong>
-                  <span>Reading exceeds rated maximum // console functions nominal</span>
-                </div>
-              ) : <strong>{unrest} / 7</strong>}
-            </div>
+            {hideCensus ? <p>Unrest and population // hidden from ship view</p> : <>
+              {population !== undefined && <PopulationTrack shipId={ship.id} population={population} />}
+              <div className="ship-census__counter" aria-label={`Civil Unrest: ${unrest}`}>
+                <span className="resource-label">
+                  <ResourceIcon id="unrest" label="Civil Unrest" />
+                  <OverflowTicker text="Civil Unrest" />
+                </span>
+                {unrest > 7 ? (
+                  <div className="ship-unrest__failure">
+                    <strong>Unrest telemetry failure</strong>
+                    <span>Reading exceeds rated maximum // console functions nominal</span>
+                  </div>
+                ) : <strong>{unrest} / 7</strong>}
+              </div>
+            </>}
           </section>
         </div>
+        <section className="ship-console__privacy-controls cic-frame" aria-label="Ship view privacy controls">
+          <p className="ship-resources__eyebrow">Ship view privacy</p>
+          <button className="cic-text-button" type="button" aria-pressed={hideResources}
+            onClick={() => setHideResources((current) => !current)}>
+            {hideResources ? 'Show resource stores' : 'Hide resource stores'}
+          </button>
+          <button className="cic-text-button" type="button" aria-pressed={hideCensus}
+            onClick={() => setHideCensus((current) => !current)}>
+            {hideCensus ? 'Show unrest and population' : 'Hide unrest and population'}
+          </button>
+        </section>
       </section>
       <aside className="ship-console__instruments" aria-label={`${ship.name} instruments`}>
         {observer && (
@@ -342,7 +392,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                   : queued
                     ? 'Emergency Bridge Confetti Dispenser activation queued'
                     : 'Activate Emergency Bridge Confetti Dispenser'}
-                disabled={!writable || turnZeroLocked || !coverOpen || !consoleRole || spent || queued || activating}
+                disabled={!effectiveWritable || turnZeroLocked || !coverOpen || !consoleRole || spent || queued || activating}
                 onClick={() => void activate()}
               >
                 {spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'POP'}
@@ -352,7 +402,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
                 type="button"
                 aria-label={`${coverOpen ? 'Close' : 'Open'} confetti activation cover`}
                 aria-pressed={coverOpen}
-                disabled={!writable || turnZeroLocked || spent || queued}
+                disabled={!effectiveWritable || turnZeroLocked || spent || queued}
                 onClick={() => setCoverOpen((current) => !current)}
               >
                 {coverOpen ? 'COVER OPEN' : 'COMMAND LOCK'}

@@ -10,6 +10,11 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Ship jump consoles now include a non-GM navigation map with the current ship fix and the coordinates of that ship’s previous fixes, synced to the GM star map without exposing organiser site overlays.',
+      'GMs can select a fleet ship, click a printed system, and move that ship there; the authoritative ship log records the stardate, navigational error, and nearby fleet jump-away or jump-arrival notices.',
+      'Every ship now has a bounded, scrollable navigation log that excludes maintenance activity and uses a server-derived UTC stardate.',
+      'Ship consoles can locally hide resource stores and unrest/population independently before showing a console to another ship.',
+      'The ICN travel console lock is server-authorized and disables gameplay actions while engaged, with a release control for the ship’s active authority.',
       'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
       'GM access now logs in from Settings, remembers the browser login for 24 hours, shows a lock-state emoji, and provides an explicit safety logout.',
       'GM registration now requires authenticated facilitator access before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',

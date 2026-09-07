@@ -16,6 +16,29 @@ export type SessionPhase = 'lobby' | 'briefing' | 'active' | 'debrief' | 'closed
 
 export type GalacticCoordinate = string;
 export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
+
+export type ShipNavigationEventType = 'self-jump' | 'ship-jump-away' | 'ship-jump-arrival';
+
+export interface ShipNavigationLogEntry {
+  readonly id: Id;
+  /** The ship whose bridge receives this entry. */
+  readonly shipId: Id;
+  readonly type: ShipNavigationEventType;
+  readonly origin: GalacticCoordinate;
+  readonly destination: GalacticCoordinate;
+  /** Present for a notification about another ship's jump. */
+  readonly subjectShipId?: Id;
+  readonly subjectShipName?: string;
+  /** A GM relocation is deliberately visible as an error on the moved ship. */
+  readonly navigationalError?: boolean;
+  readonly occurredAt: Timestamp;
+  /** YYYY.DDD.HHMMSS, calculated from the server's UTC clock. */
+  readonly stardate: string;
+}
+
+export type ShipNavigationLogs = Readonly<Record<string, readonly ShipNavigationLogEntry[]>>;
+export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
+
 export interface ShipResourceValues {
   readonly ore: number;
   readonly fuel: number;
@@ -136,6 +159,10 @@ export interface GameSession {
   readonly dioneEnabled?: boolean;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
+  /** Server-authored navigation events, newest first, by receiving ship. */
+  readonly shipNavigationLogs?: ShipNavigationLogs;
+  /** Server-authorized travel lock state, by ship. */
+  readonly shipConsoleLocks?: ShipConsoleLocks;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
   readonly shipResources?: ShipResources;
   /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */
