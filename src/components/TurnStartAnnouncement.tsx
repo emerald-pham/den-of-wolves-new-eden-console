@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Intrusion from './Intrusion';
 import { useMotionPreference } from '@/lib/motionPreference';
+import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
+import { DradisAirspaceTimer } from './TurnPhaseTimer';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
@@ -53,9 +55,10 @@ function FleetTransmission({
   const [populationLossShown, setPopulationLossShown] = useState(false);
   const [transmissionState, setTransmissionState] = useState<'active' | 'exiting'>('active');
   const { reducedMotion } = useMotionPreference();
+  const phase = phaseForSession(useSessionStore((state) => state.session));
   const isFirstTurn = transmission.turn === 1;
-  const slideCount = isFirstTurn ? 7 : 2;
-  const isPopulationSlide = !isFirstTurn ? slide === 1 : slide === 6;
+  const slideCount = isFirstTurn ? 7 : 4;
+  const isPopulationSlide = !isFirstTurn ? slide === 2 : slide === 6;
   const showsPopulationLoss = isPopulationSlide && populationLossShown;
   const survivorPopulation = new Intl.NumberFormat('en-US').format(
     showsPopulationLoss ? Math.max(0, transmission.survivorPopulation - 1) : transmission.survivorPopulation,
@@ -106,8 +109,10 @@ function FleetTransmission({
     slide === 0
       ? <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
       : slide === 1
+        ? <p className="turn-start-announcement__message">AIRSPACE CLOSED</p>
+        : slide === 2
         ? <p className="turn-start-announcement__population">{survivorPopulation} SURVIVORS</p>
-        : null
+        : <p className="turn-start-announcement__survive">OBJECTIVE // SURVIVE.</p>
   ) : slide === 0 ? (
     <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
   ) : slide === 1 ? (
@@ -161,6 +166,7 @@ function FleetTransmission({
             </span>
           </div>
         </div>
+        {!isFirstTurn && <DradisAirspaceTimer phase={phase} />}
       </Intrusion>
       <p className="turn-start-announcement__sr" aria-live="assertive" aria-atomic="true">
         Fleet transmission for Turn {transmission.turn}.
