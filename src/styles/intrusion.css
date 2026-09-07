@@ -324,8 +324,8 @@
 }
 
 @keyframes turn-start-scan {
-  from { transform: translateY(0); }
-  to { transform: translateY(calc(100% + 15rem)); }
+  from { top: 0; }
+  to { top: 100%; }
 }
 
 @media (max-height: 31rem) {

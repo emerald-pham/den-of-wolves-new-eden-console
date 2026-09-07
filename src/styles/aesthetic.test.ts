@@ -153,6 +153,15 @@ describe('the fleet transmission', () => {
       /\.turn-start-announcement__console::after\s*\{[^}]*animation: turn-start-scan[^]*?\[data-motion='reduce'\][^]*?\.turn-start-announcement__console::after\s*\{[^}]*animation: none/,
     );
   });
+
+  it('runs the transmission scan to the frame bottom edge', () => {
+    const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';
+
+    expect(intrusion).toMatch(
+      /@keyframes turn-start-scan\s*\{[^]*?from\s*\{[^}]*top:\s*0[^}]*\}[^]*?to\s*\{[^}]*top:\s*100%[^}]*\}/,
+    );
+    expect(intrusion).not.toContain('translateY(calc(100% + 15rem))');
+  });
 });
 
 describe('the in-session header', () => {

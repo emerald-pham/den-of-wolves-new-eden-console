@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The Turn 0 → Turn 1 fleet transmission scan now travels all the way to the bottom edge of its instrument frame.',
+    ],
+  },
+  {
+    version: '0.2.65',
+    changes: [
       'GMs can now inspect the printed 22-system star chart in a 3D console projection, switch between organiser charts A, B and C, and see each fleet ship’s current chart fix without exposing the instrument to players.',
     ],
   },
