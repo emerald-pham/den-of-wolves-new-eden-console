@@ -3940,6 +3940,12 @@ body {
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
+.gm-turn-control__airspace {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--cic-rule);
+}
+.gm-turn-control__airspace > .gm-console__status { margin: 0 0 0.6rem; }
 .gm-console__instruments {
   position: absolute;
   top: var(--console-plot-top);

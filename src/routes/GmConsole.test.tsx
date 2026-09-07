@@ -20,6 +20,7 @@ vi.mock('@/lib/sessionService', () => ({
   replayTurnStartAnnouncement: vi.fn(),
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
+  extendAirspaceWindow: vi.fn(),
   setActiveRoleConfiguration: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
@@ -33,7 +34,7 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
+  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -140,7 +141,7 @@ it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
 
   const turnControls = await screen.findByRole('region', { name: /turn controls/i });
   const buttons = within(turnControls).getAllByRole('button');
-  expect(buttons).toHaveLength(4);
+  expect(buttons).toHaveLength(6);
   expect(buttons[0]).toHaveTextContent('Advance to Turn 1');
   expect(buttons[1]).toHaveTextContent('Skip to Turn 1');
   expect(buttons[2]).toBeDisabled();
@@ -1011,6 +1012,81 @@ it('requires a deliberate second GM advance while either phase timer is active',
   await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // Advance to Turn 4' }));
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith({ overridePhaseTimer: true });
+});
+
+it('requires a second click before extending the restricted airspace window', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(extendAirspaceWindow).mockResolvedValue(undefined);
+  renderConsole();
+
+  const restricted = await screen.findByRole('button', {
+    name: /add 5 minutes \/\/ airspace restricted/i,
+  });
+  const open = screen.getByRole('button', { name: /add 5 minutes \/\/ airspace open/i });
+  expect(restricted).toBeEnabled();
+  expect(open).toBeDisabled();
+
+  await user.click(restricted);
+  expect(extendAirspaceWindow).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', {
+    name: 'ARE YOU SURE? // Add 5 minutes // Airspace restricted',
+  })).toHaveClass('cic-action-button--confirm');
+
+  await user.click(screen.getByRole('button', {
+    name: 'ARE YOU SURE? // Add 5 minutes // Airspace restricted',
+  }));
+  expect(extendAirspaceWindow).toHaveBeenCalledWith('restricted');
+});
+
+it('allows the same confirmed control for the live open airspace window', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    currentTurn: 3,
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: new Date(Date.now() - 1_000).toISOString(),
+      openAirspaceEndsAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  } as never);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(extendAirspaceWindow).mockResolvedValue(undefined);
+  renderConsole();
+
+  const open = await screen.findByRole('button', {
+    name: /add 5 minutes \/\/ airspace open/i,
+  });
+  expect(open).toBeEnabled();
+  expect(screen.getByRole('button', { name: /add 5 minutes \/\/ airspace restricted/i }))
+    .toBeDisabled();
+
+  await user.click(open);
+  const confirm = screen.getByRole('button', {
+    name: 'ARE YOU SURE? // Add 5 minutes // Airspace open',
+  });
+  expect(extendAirspaceWindow).not.toHaveBeenCalled();
+  await user.click(confirm);
+  expect(extendAirspaceWindow).toHaveBeenCalledWith('open');
 });
 
 it('requires a deliberate second press to lower the finale, then lets the GM retract it', async () => {
