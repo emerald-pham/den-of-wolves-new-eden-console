@@ -157,6 +157,24 @@ describe('useSessionStore', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
+  it('does not persist a password-protected GM claim in the browser outbox', () => {
+    const command = {
+      id: 'gm-command-1',
+      kind: 'claimGmInstance' as const,
+      payload: {
+        sessionId: 's1', instanceId: 'instance-1', name: 'Bridge',
+        deviceLabel: 'Browser', password: 'bananasplit',
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    useSessionStore.getState().enqueueCommand(command);
+
+    expect(useSessionStore.getState().pendingCommands).toEqual([command]);
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state.pendingCommands)
+      .toEqual([]);
+  });
+
   it('keeps communication errors ephemeral rather than persisting them', () => {
     useSessionStore.getState().setCommunicationError({ code: 'aborted', message: 'Conflict.' });
 

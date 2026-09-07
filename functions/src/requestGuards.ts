@@ -57,12 +57,14 @@ export function requireGmClaimRequest(data: {
   instanceId?: unknown;
   name?: unknown;
   deviceLabel?: unknown;
-}): { sessionId: string; instanceId: string; name: string; deviceLabel: string } {
+  password?: unknown;
+}): { sessionId: string; instanceId: string; name: string; deviceLabel: string; password: string } {
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     name: requiredText(data.name, 'name', 40),
     deviceLabel: requiredText(data.deviceLabel, 'deviceLabel', 160),
+    password: requiredText(data.password, 'password', 128),
   };
 }
 

@@ -191,7 +191,7 @@ describe('connect', () => {
       callableRejecting({ code: 'functions/resource-exhausted', message: 'Try again shortly.' }),
     );
 
-    await expect(claimGmInstance('Bridge')).resolves.toBe('queued');
+    await expect(claimGmInstance('Bridge', 'bananasplit')).resolves.toBe('queued');
 
     expect(useSessionStore.getState().connection).toBe('offline');
     expect(useSessionStore.getState().pendingCommands).toEqual([
@@ -322,13 +322,14 @@ describe('GM instance commands', () => {
     const callable = callableReturning({ data: { instance } });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await claimGmInstance('Bridge laptop');
+    await claimGmInstance('Bridge laptop', 'bananasplit');
 
     expect(callable).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 's1',
       name: 'Bridge laptop',
       instanceId: expect.any(String),
       deviceLabel: expect.any(String),
+      password: 'bananasplit',
     }));
     expect(useSessionStore.getState().gmInstance).toEqual(instance);
     expect(useSessionStore.getState().me?.role).toBe('gm');
@@ -853,6 +854,7 @@ describe('session lifecycle commands', () => {
       id: 'old-command', kind: 'claimGmInstance',
       payload: {
         sessionId: 's1', instanceId: 'instance-1', name: 'Bridge', deviceLabel: 'Browser',
+        password: 'bananasplit',
       },
       createdAt: new Date().toISOString(),
     });

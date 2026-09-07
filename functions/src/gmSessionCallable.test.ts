@@ -214,6 +214,7 @@ describe('GM instance ownership', () => {
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
+      password: 'bananasplit',
     }))).resolves.toMatchObject({
       instance: { id: 'bridge', uid: 'u1' },
     });
@@ -232,9 +233,26 @@ describe('GM instance ownership', () => {
       instanceId: 'bridge',
       name: 'Bridge laptop',
       deviceLabel: 'Test browser',
+      password: 'bananasplit',
     }))).rejects.toMatchObject({ code: 'already-exists' });
 
     expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u2' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+  });
+
+  it('rejects an incorrect GM access password before changing session state', async () => {
+    session();
+    player('u1');
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1',
+      instanceId: 'bridge',
+      name: 'Bridge laptop',
+      deviceLabel: 'Test browser',
+      password: 'not-the-password',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
   });
 

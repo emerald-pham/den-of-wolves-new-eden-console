@@ -259,6 +259,16 @@ export default function AppHeader() {
             )}
             <p>Disconnect this device from session {joinCode}.</p>
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
+            <section className="settings-dialog__gm-access" aria-labelledby="gm-access-settings-title">
+              <h3 id="gm-access-settings-title">GM access</h3>
+              <p>
+                To run a game as GM, email{' '}
+                <a href="mailto:emerald.pham@hey.com">emerald.pham@hey.com</a>{' '}
+                to request the access password. Include proof that you have access to an
+                original Den of Wolves: New Eden product. This keeps GM secrets from being
+                spoiled and helps prevent unauthorized use.
+              </p>
+            </section>
             <section className="settings-dialog__motion" aria-labelledby="motion-settings-title">
               <h3 id="motion-settings-title">Motion</h3>
               <p>System reduced motion is {systemReducedMotion ? 'on' : 'off'}.</p>

@@ -126,9 +126,14 @@ describe('RoleSelect', () => {
     await user.type(nameInput, 'Bridge laptop');
 
     expect(nameInput).toHaveAccessibleName('Input GM Name');
+    const passwordInput = screen.getByLabelText(/gm access password/i);
+    expect(passwordInput).toHaveAttribute('type', 'password');
+    expect(claim).toBeDisabled();
+    await user.type(passwordInput, 'bananasplit');
+    expect(claim).toBeEnabled();
     await user.click(claim);
 
-    expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop');
+    expect(claimGmInstance).toHaveBeenCalledWith('Bridge laptop', 'bananasplit');
     expect(screen.getByRole('button', { name: /gm joined/i })).toBeDisabled();
     expect(nameInput).toHaveAccessibleName('Name entered');
     expect(useSessionStore.getState().gmInstance?.name).toBe('Bridge laptop');
@@ -189,11 +194,12 @@ describe('RoleSelect', () => {
 
     expect(await screen.findByText(/failsafe.*no active gm/i)).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: /^input gm name$/i }), 'Recovery');
+    await user.type(screen.getByLabelText(/gm access password/i), 'bananasplit');
     const claim = await screen.findByRole('button', { name: /^join as gm/i });
     await waitFor(() => expect(claim).toBeEnabled());
     await user.click(claim);
 
-    expect(claimGmInstance).toHaveBeenCalledWith('Recovery');
+    expect(claimGmInstance).toHaveBeenCalledWith('Recovery', 'bananasplit');
   });
 
   it('lets this GM toggle the lock from the registration and Setup controls', async () => {
