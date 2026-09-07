@@ -301,6 +301,13 @@ readable without moving between sweeps. Group the returns in an isolated
 foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
 
+Compact shipboard and GM DRADIS use the shared `.dradis-outline` square
+instrument frame and `.dradis-label` treatment. The fleet display may place
+perspective controls beside or below its viewport, but the plot itself keeps
+the same amber edge, near-black ground and cyan glow as a ship console. The
+frame belongs to the viewport rather than the surrounding controls so the two
+surfaces remain visually interchangeable at every compact size.
+
 ### DRADIS contact rules
 
 DRADIS has one authoritative spatial truth and a deliberately imperfect visual

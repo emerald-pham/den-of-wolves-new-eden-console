@@ -259,6 +259,18 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
 });
 
+it('uses the ship-console outline treatment for compact GM DRADIS', async () => {
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const { container } = renderConsole();
+
+  const dradis = await screen.findByRole('region', { name: /fleet dradis/i });
+  const viewport = container.querySelector('.gm-dradis__viewport');
+
+  expect(viewport).toHaveClass('dradis-outline');
+  expect(within(dradis).getByText('DRADIS // FLEET PLOT')).toBeInTheDocument();
+});
+
 it('shows the 3D starmap only inside the GM console and follows the organiser chart', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
