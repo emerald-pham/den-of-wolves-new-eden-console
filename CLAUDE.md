@@ -38,8 +38,11 @@ worktree.
 ### Session goal checklists
 
 Before substantive work, publish a concise `Session goals` checklist and keep
-it visible while the scope is active. At wrap-up, publish the same checklist as
-`Session wrap-up`, marking each item `[x]` or `[ ]`; explain any unchecked item.
+it visible while the scope is active. Every goal must be an explicit Markdown
+task checkbox: use `- [ ]` for an open item and `- [x]` for a completed item;
+do not use plain bullet points without the checkbox marker. At wrap-up,
+publish the same checklist as `Session wrap-up`, using `- [x]` or `- [ ]` for
+each item and explaining any unchecked item.
 
 Every `Session goals` checklist must include this release objective:
 
