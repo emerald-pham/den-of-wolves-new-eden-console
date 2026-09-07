@@ -688,11 +688,11 @@ describe('local emulator coordination', () => {
         release: releaseState({
           mainContainsBranch: false,
           branchChangelog: [
-            { version: '0.2.103', source: "version: '0.2.103' changes: ['new release']" },
-            { version: '0.2.102', source: "version: '0.2.102' changes: ['previous release']" },
+            { version: '0.3.3', source: "version: '0.3.3' changes: ['new release']" },
+            { version: '0.3.2', source: "version: '0.3.2' changes: ['previous release']" },
           ],
           mainChangelog: [
-            { version: '0.2.102', source: "version: APP_VERSION changes: ['previous release']" },
+            { version: '0.3.2', source: "version: APP_VERSION changes: ['previous release']" },
           ],
         }),
         commandRunner: async () => undefined,
