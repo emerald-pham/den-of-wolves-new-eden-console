@@ -165,6 +165,30 @@ export function requireOpenAirspacePhaseRequest(data: {
   return { sessionId: requiredId(data.sessionId, 'sessionId'), expectedTurn: data.expectedTurn as number };
 }
 
+export function requireAirspaceWindowExtensionRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  expectedTurn?: unknown;
+  window?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  expectedTurn: number;
+  window: 'restricted' | 'open';
+} {
+  if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'expectedTurn must be a positive integer.');
+  }
+  if (data.window !== 'restricted' && data.window !== 'open') {
+    throw new HttpsError('invalid-argument', 'window must be restricted or open.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    expectedTurn: data.expectedTurn as number,
+    window: data.window,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

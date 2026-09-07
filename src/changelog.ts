@@ -14,6 +14,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.95',
+    changes: [
+      'GMs can now add five minutes to the active Airspace Open or Airspace Closed window from the console after a deliberate confirmation.',
+    ],
+  },
+  {
     version: '0.2.93',
     changes: [
       'Pursuit panels now show the shared Distance from Home Systems readout without redundant coordinate or scope labels.',

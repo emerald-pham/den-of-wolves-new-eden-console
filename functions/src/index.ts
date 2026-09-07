@@ -46,6 +46,7 @@ import {
   requireGmControlsLockRequest,
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
+  requireAirspaceWindowExtensionRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -118,6 +119,7 @@ import {
 } from './joinCodeSecurity';
 import {
   isPlayerGameplayLockedAtTurnZero,
+  extendActiveTurnPhase,
   isTurnPhaseTimerActive,
   startTurnPhase,
   turnPhaseState,
@@ -1499,6 +1501,50 @@ export const beginOpenAirspacePhase = onCall<{
       ...phase,
       airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
     };
+    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+    return { turnPhase };
+  });
+});
+
+/** Add one confirmed five-minute increment to the live airspace window. */
+export const extendAirspaceWindow = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  expectedTurn?: unknown;
+  window?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const requestData = requireAirspaceWindowExtensionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
+
+  return db.runTransaction(async tx => {
+    const [session, player, instance] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (currentTurn !== requestData.expectedTurn) {
+      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+    }
+    const phase = turnPhaseState(session.get('turnPhase'));
+    if (!phase || phase.turn !== currentTurn) {
+      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+    }
+    const turnPhase = extendActiveTurnPhase(phase, requestData.window);
+    if (!turnPhase) {
+      throw new HttpsError('failed-precondition', 'The requested airspace window is no longer active.');
+    }
     tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
     return { turnPhase };
   });
