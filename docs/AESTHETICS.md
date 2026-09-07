@@ -933,6 +933,22 @@ reading holds—rather than the ordinary 2.4-second
 operational cadence—and each carries one concise thought. Keep each slide centered,
 balanced, and readable at 1440×900, 390×844, and 844×390.
 
+The transmission body is a single shared `.cic-frame` instrument rather than a
+separate splash-screen treatment. Its header reports the real transition path
+(`TURN 0 → TURN 1`, then the numbered successor) and the current slide of the
+finite transmission. A ruled tick divider separates that telemetry from the
+message; the lower readout rail keeps the authoritative fleet survivor count
+and the active Wolf pursuit status visible while the copy changes. The rail
+uses the existing amber-label, bone-white-value pairing, with no new palette or
+rounded treatment. One slow cyan scan line makes the frame feel live; the
+shared reduced-motion override removes it along with the message entrance.
+Each non-final beat eases upward out over a short 320ms handoff before the next
+beat eases upward in, using separate asymmetric curves so the transmission
+reads like a live instrument handing off a signal rather than a linear carousel.
+On narrow screens the header and readout rail stack in place, and on short
+landscape screens the message well contracts before the surrounding instrument
+is allowed to clip.
+
 The server owns the airspace timestamps and creates a fresh schedule with every
 turn advance. Turn 1 has 10 minutes of restricted airspace followed by 20
 minutes of open airspace. Every later turn has 5 minutes of restricted airspace

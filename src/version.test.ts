@@ -10,10 +10,10 @@ it('keeps the visible build reference aligned with the package version', () => {
   expect(versionModule).not.toMatch(/['"]\d+\.\d+\.\d+['"]/);
 });
 
-it('records the reconnection grace in the current player-facing release notes', () => {
-  expect(CHANGELOG[0]?.changes).toContain(
+it('retains the reconnection grace in player-facing release notes', () => {
+  expect(CHANGELOG.some((entry) => entry.changes.includes(
     'A returning or refreshed in-session console now keeps its Connected light steady for one second while it restores its uplink.',
-  );
+  ))).toBe(true);
 });
 
 it('retains the boot-time population estimate in player-facing release notes', () => {

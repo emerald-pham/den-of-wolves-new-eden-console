@@ -134,6 +134,25 @@ describe('the fleet transmission', () => {
 
     expect(population).toContain('color: var(--cic-ink)');
   });
+
+  it('keeps turn transitions inside the shared CIC instrument grammar', () => {
+    const component = readFileSync('src/components/TurnStartAnnouncement.tsx', 'utf8');
+    const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';
+
+    expect(component).toContain('className="turn-start-announcement__console cic-frame"');
+    expect(component).toContain('className="turn-start-announcement__ticks cic-ticks"');
+    expect(intrusion).toContain('box-shadow:');
+    expect(intrusion).toContain('@keyframes turn-start-scan');
+    expect(intrusion).toMatch(
+      /@media \(max-width: 34rem\)\s*\{[^]*?\.turn-start-announcement__readouts\s*\{[^}]*grid-template-columns: 1fr/,
+    );
+    expect(intrusion).toMatch(
+      /\.turn-start-announcement__console::after\s*\{[^}]*animation: turn-start-scan/,
+    );
+    expect(intrusion).toMatch(
+      /\.turn-start-announcement__console::after\s*\{[^}]*animation: turn-start-scan[^]*?\[data-motion='reduce'\][^]*?\.turn-start-announcement__console::after\s*\{[^}]*animation: none/,
+    );
+  });
 });
 
 describe('the in-session header', () => {

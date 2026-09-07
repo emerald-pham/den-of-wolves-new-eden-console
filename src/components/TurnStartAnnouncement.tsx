@@ -4,6 +4,7 @@ import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 
 export const TURN_START_SLIDE_MS = 2_400;
+export const TURN_START_EXIT_MS = 320;
 export const TURN_ONE_NARRATIVE_SLIDE_MS = 4_000;
 
 type TurnStartTransmission = {
@@ -34,6 +35,7 @@ function FleetTransmission({
   readonly onComplete: (completed: TurnStartTransmission) => void;
 }) {
   const [slide, setSlide] = useState(0);
+  const [slideMotion, setSlideMotion] = useState<'in' | 'out'>('in');
   const [delayedBeat, setDelayedBeat] = useState<'traitors' | 'population' | null>(null);
   const isFirstTurn = transmission.turn === 1;
   const slideCount = isFirstTurn ? 8 : 3;
@@ -44,20 +46,30 @@ function FleetTransmission({
   const survivorPopulation = new Intl.NumberFormat('en-US').format(
     showsPopulationLoss ? Math.max(0, transmission.survivorPopulation - 1) : transmission.survivorPopulation,
   );
+  const transitionLabel = `TURN ${transmission.turn - 1} → TURN ${transmission.turn}`;
+  const sequenceLabel = `${String(slide + 1).padStart(2, '0')} / ${String(slideCount).padStart(2, '0')}`;
 
   useEffect(() => {
     const isNarrativeBeat = isFirstTurn && slide >= 2 && slide <= 4;
     const duration = isNarrativeBeat
       ? TURN_ONE_NARRATIVE_SLIDE_MS
       : isTraitorReveal ? TURN_START_SLIDE_MS * 2 : TURN_START_SLIDE_MS;
-    const timer = window.setTimeout(() => {
-      if (slide < slideCount - 1) {
-        setSlide(slide + 1);
+    const isLastSlide = slide === slideCount - 1;
+    const transitionTimer = window.setTimeout(() => {
+      if (isLastSlide) {
+        onComplete(transmission);
         return;
       }
-      onComplete(transmission);
+      setSlideMotion('out');
+    }, isLastSlide ? duration : duration - TURN_START_EXIT_MS);
+    const nextSlideTimer = isLastSlide ? undefined : window.setTimeout(() => {
+      setSlide(slide + 1);
+      setSlideMotion('in');
     }, duration);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(transitionTimer);
+      if (nextSlideTimer !== undefined) window.clearTimeout(nextSlideTimer);
+    };
   }, [isFirstTurn, isTraitorReveal, onComplete, slide, slideCount, transmission]);
 
   useEffect(() => {
@@ -100,7 +112,34 @@ function FleetTransmission({
         variant="fleet"
         overlines={['FLEET TRANSMISSION // TURN INITIALIZATION', 'FLEET STATUS // STAND BY']}
       >
-        <div className="turn-start-announcement__slide" key={slide}>{message}</div>
+        <div
+          className="turn-start-announcement__console cic-frame"
+          data-slide={slide}
+          data-slide-count={slideCount}
+        >
+          <div className="turn-start-announcement__header">
+            <span className="turn-start-announcement__transition">{transitionLabel}</span>
+            <span className="turn-start-announcement__sequence">TRANSMISSION {sequenceLabel}</span>
+          </div>
+          <div className="turn-start-announcement__ticks cic-ticks" aria-hidden="true" />
+          <div
+            className="turn-start-announcement__slide"
+            data-motion={slideMotion}
+            key={slide}
+          >
+            {message}
+          </div>
+          <div className="turn-start-announcement__readouts">
+            <span className="turn-start-announcement__readout">
+              <span className="turn-start-announcement__readout-label">FLEET SURVIVORS</span>
+              <strong className="turn-start-announcement__readout-value">{survivorPopulation}</strong>
+            </span>
+            <span className="turn-start-announcement__readout">
+              <span className="turn-start-announcement__readout-label">WOLF PURSUIT</span>
+              <strong className="turn-start-announcement__readout-value">ACTIVE</strong>
+            </span>
+          </div>
+        </div>
       </Intrusion>
       <p className="turn-start-announcement__sr" aria-live="assertive" aria-atomic="true">
         Fleet transmission for Turn {transmission.turn}.
