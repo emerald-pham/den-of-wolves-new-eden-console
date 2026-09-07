@@ -135,11 +135,82 @@
   text-shadow: 0 0 12px color-mix(in srgb, var(--cic-amber-glow) 72%, transparent);
 }
 
+.intrusion--fleet .intrusion__signal {
+  width: min(1100px, 100%);
+}
+
+.turn-start-announcement__console {
+  position: relative;
+  display: grid;
+  gap: clamp(0.75rem, 2vw, 1.25rem);
+  width: min(100%, 72rem);
+  padding: clamp(1rem, 3vw, 2rem);
+  overflow: hidden;
+  box-shadow:
+    0 0 18px color-mix(in srgb, var(--cic-amber-dim) 46%, transparent),
+    inset 0 0 36px color-mix(in srgb, var(--cic-cyan-dim) 12%, transparent);
+}
+
+.turn-start-announcement__console::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--cic-cyan-hot) 78%, transparent) 48%,
+    transparent
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cic-cyan) 65%, transparent);
+  animation: turn-start-scan 5.2s linear infinite;
+}
+
+.turn-start-announcement__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--cic-rule);
+  text-align: left;
+}
+
+.turn-start-announcement__transition,
+.turn-start-announcement__sequence {
+  font-family: var(--cic-mono);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-start-announcement__transition {
+  color: var(--cic-amber);
+  font-size: clamp(0.7rem, 1.4vw, 0.9rem);
+  letter-spacing: 0.16em;
+}
+
+.turn-start-announcement__sequence {
+  color: var(--cic-cyan);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.turn-start-announcement__ticks {
+  margin-inline: 0.25rem;
+}
+
 .turn-start-announcement__slide {
   display: grid;
-  min-height: min(16rem, 55dvh);
+  min-height: min(15rem, 38dvh);
   place-items: center;
-  animation: turn-start-message 400ms ease-out both;
+  animation: turn-start-message-in 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform;
+}
+
+.turn-start-announcement__slide[data-motion='out'] {
+  animation: turn-start-message-out 320ms cubic-bezier(0.7, 0, 0.84, 0) both;
 }
 
 .turn-start-announcement__turn,
@@ -180,6 +251,36 @@
   text-shadow: 0 0 18px color-mix(in srgb, var(--cic-cyan) 74%, transparent);
 }
 
+.turn-start-announcement__readouts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--cic-rule);
+  text-align: left;
+}
+
+.turn-start-announcement__readout {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.turn-start-announcement__readout-label {
+  color: var(--cic-amber);
+  font: 0.62rem/1.4 var(--cic-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.turn-start-announcement__readout-value {
+  color: var(--cic-ink);
+  font: clamp(0.85rem, 2vw, 1.15rem)/1.1 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
 .turn-start-announcement__traitors {
   color: var(--cic-hostile);
   text-shadow: 0 0 14px color-mix(in srgb, var(--cic-hostile) 86%, transparent);
@@ -196,10 +297,14 @@
   border: 0;
 }
 
-@keyframes turn-start-message {
+@keyframes turn-start-message-in {
   from {
     opacity: 0;
     transform: translateY(0.75rem);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-0.08rem);
   }
   to {
     opacity: 1;
@@ -207,10 +312,40 @@
   }
 }
 
+@keyframes turn-start-message-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-0.65rem);
+  }
+}
+
+@keyframes turn-start-scan {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(100% + 15rem)); }
+}
+
 @media (max-height: 31rem) {
   .intrusion--fleet { padding-block: 0.75rem; }
-  .turn-start-announcement__slide { min-height: 9rem; }
+  .turn-start-announcement__console { padding-block: 0.85rem; }
+  .turn-start-announcement__slide { min-height: 8rem; }
   .turn-start-announcement__message { font-size: clamp(1rem, 4.3vh, 1.7rem); }
+}
+
+@media (max-width: 34rem) {
+  .turn-start-announcement__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .turn-start-announcement__readouts {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+  }
 }
 
 @keyframes cic-transmission {
@@ -258,7 +393,8 @@
   .intrusion::after,
   .intrusion__message::before,
   .intrusion__message::after,
-  .turn-start-announcement__slide {
+  .turn-start-announcement__slide,
+  .turn-start-announcement__console::after {
     animation: none;
   }
 }

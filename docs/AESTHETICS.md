@@ -916,10 +916,9 @@ Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
 before `TURN 1`. The fleet transmission reuses the full-screen intrusion
 envelope with the neutral fleet variant: no hostile glitch treatment, amber structural overlines, bone-white
 narrative and survivor count, cyan `SURVIVE.`, and hostile red only for the
-word `TRAITORS.`. Turn 1 carries the complete destruction briefing, then holds
-`SOME OF YOU —` on one slide before revealing `ARE TRAITORS.` after one ordinary
-2.4-second beat; it holds the completed sentence for one more beat. The white
-survivor count drops by one halfway through its display, and the server commits
+word `TRAITORS`. Turn 1 carries the complete destruction briefing, then shows
+`THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.` as one ordinary 2.4-second
+slide. The white survivor count drops by one halfway through its display, and the server commits
 that same fleet-wide delta in the turn transaction. Before each transmission,
 the authoritative starting count rises by 42 when it would otherwise end in 0
 or 5; the resulting count is clamped at zero or above. This fleet-level
@@ -932,6 +931,22 @@ follows before any narrative. Turn 1's three opening briefing beats use four-sec
 reading holds—rather than the ordinary 2.4-second
 operational cadence—and each carries one concise thought. Keep each slide centered,
 balanced, and readable at 1440×900, 390×844, and 844×390.
+
+The transmission body is a single shared `.cic-frame` instrument rather than a
+separate splash-screen treatment. Its header reports the real transition path
+(`TURN 0 → TURN 1`, then the numbered successor) and the current slide of the
+finite transmission. A ruled tick divider separates that telemetry from the
+message; the lower readout rail keeps the authoritative fleet survivor count
+and the active Wolf pursuit status visible while the copy changes. The rail
+uses the existing amber-label, bone-white-value pairing, with no new palette or
+rounded treatment. One slow cyan scan line makes the frame feel live; the
+shared reduced-motion override removes it along with the message entrance.
+Each non-final beat eases upward out over a short 320ms handoff before the next
+beat eases upward in, using separate asymmetric curves so the transmission
+reads like a live instrument handing off a signal rather than a linear carousel.
+On narrow screens the header and readout rail stack in place, and on short
+landscape screens the message well contracts before the surrounding instrument
+is allowed to clip.
 
 The server owns the airspace timestamps and creates a fresh schedule with every
 turn advance. Turn 1 has 10 minutes of restricted airspace followed by 20
