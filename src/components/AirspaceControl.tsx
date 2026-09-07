@@ -1,21 +1,24 @@
 import { useState } from 'react';
 import { unlockPressAirspace } from '@/lib/airspaceService';
 import { useConsoleAccess } from '@/lib/consoleAccess';
+import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { phaseForSession } from '@/lib/turnPhase';
-import { useSessionStore } from '@/store/useSessionStore';
+import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { AirspaceTimerControls } from './TurnPhaseTimer';
 
 /** A deliberately recessed AEGIS system control for the Press-only exception. */
 export default function AirspaceControl() {
   const session = useSessionStore((state) => state.session);
+  const isGm = useSessionStore(selectIsGm);
   const connection = useSessionStore((state) => state.connection);
   const access = useConsoleAccess();
   const phase = phaseForSession(session);
+  const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
   const [unlocking, setUnlocking] = useState(false);
   const restricted = phase?.airspace.state === 'restricted';
   const pressAccess = phase?.airspace.pressAccess === true;
   const canUnlock = restricted && !pressAccess && access.writable && connection === 'live' &&
-    !unlocking;
+    !turnZeroLocked && !unlocking;
 
   async function unlock(): Promise<void> {
     if (!canUnlock) return;

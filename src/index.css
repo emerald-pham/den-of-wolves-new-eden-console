@@ -2252,13 +2252,72 @@ body {
 }
 
 .pursuit-tracker {
+  --pursuit-red: var(--cic-danger);
   display: grid;
   min-width: 0;
   gap: 0.65rem;
   padding: 0.75rem;
-  border-color: color-mix(in srgb, var(--ship-accent) 55%, var(--cic-rule));
-  background: color-mix(in srgb, var(--cic-void) 94%, transparent);
+  border-color: var(--cic-danger);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cic-blood) 22%, transparent), transparent 78%),
+    var(--cic-void);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--cic-danger) 28%, transparent);
   font-family: var(--cic-mono);
+}
+
+.pursuit-tracker::before {
+  background:
+    linear-gradient(var(--cic-danger) 0 0) 0 0 / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 0 0 / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 100% 0 / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 100% 0 / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 0 100% / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 0 100% / 2px var(--cic-bracket) no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 100% 100% / var(--cic-bracket) 2px no-repeat,
+    linear-gradient(var(--cic-danger) 0 0) 100% 100% / 2px var(--cic-bracket) no-repeat;
+}
+
+.pursuit-tracker[data-threat-level='tracked'] {
+  --pursuit-red: var(--cic-danger);
+}
+
+.pursuit-tracker[data-threat-level='closing'] {
+  --pursuit-red: var(--cic-ember);
+  border-color: var(--cic-ember);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cic-blood) 34%, transparent), transparent 82%),
+    var(--cic-void);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--cic-danger) 42%, transparent);
+  animation: pursuit-threat-pulse 2600ms ease-in-out infinite;
+}
+
+.pursuit-tracker[data-threat-level='critical'] {
+  --pursuit-red: var(--cic-ember);
+  border-color: var(--cic-ember);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cic-blood) 48%, transparent), transparent 88%),
+    var(--cic-void);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--cic-ember) 52%, transparent);
+  animation: pursuit-threat-pulse 1800ms ease-in-out infinite;
+}
+
+.pursuit-tracker[data-threat-level='terminal'] {
+  --pursuit-red: var(--cic-scream);
+  border-color: var(--cic-scream);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--cic-blood) 66%, transparent), transparent 92%),
+    var(--cic-void);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cic-danger) 68%, transparent);
+  animation: none;
+}
+
+@keyframes pursuit-threat-pulse {
+  0%, 100% {
+    box-shadow: 0 0 12px color-mix(in srgb, var(--cic-danger) 36%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 26px color-mix(in srgb, var(--cic-ember) 64%, transparent);
+  }
 }
 
 .pursuit-tracker__header {
@@ -2267,7 +2326,7 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   padding-bottom: 0.55rem;
-  border-bottom: 1px solid var(--cic-rule);
+  border-bottom: 1px solid color-mix(in srgb, var(--cic-danger) 62%, var(--cic-rule));
 }
 
 .pursuit-tracker__header h2,
@@ -2276,13 +2335,13 @@ body {
 .pursuit-tracker__status { margin: 0; }
 
 .pursuit-tracker__header h2 {
-  color: var(--cic-ink);
+  color: var(--pursuit-red);
   font: 400 1.15rem/1 var(--cic-display);
   text-transform: uppercase;
 }
 
 .pursuit-tracker__eyebrow {
-  color: var(--ship-accent);
+  color: var(--cic-danger);
   font-size: 0.55rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -2291,6 +2350,38 @@ body {
 .pursuit-tracker__readout {
   display: grid;
   gap: 0.35rem;
+}
+
+.pursuit-tracker__countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--cic-danger) 72%, var(--cic-rule));
+  background: color-mix(in srgb, var(--cic-blood) 26%, var(--cic-void));
+  color: var(--cic-scream);
+  font-size: 0.62rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.pursuit-tracker__countdown strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  color: var(--pursuit-red);
+  font: 400 clamp(2rem, 5vw, 3.1rem)/0.9 var(--cic-display);
+  letter-spacing: -0.03em;
+  text-align: right;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--cic-danger) 62%, transparent);
+  white-space: nowrap;
+}
+
+.pursuit-tracker__countdown small {
+  font: 400 0.52rem/1 var(--cic-mono);
+  letter-spacing: 0.08em;
 }
 
 .pursuit-tracker__metric {
@@ -2305,10 +2396,12 @@ body {
 
 .pursuit-tracker__metric strong {
   overflow-wrap: anywhere;
-  color: var(--cic-cyan-hot);
+  color: var(--pursuit-red);
   font-weight: 600;
   text-align: right;
 }
+
+.pursuit-tracker__metric--map strong { color: var(--cic-cyan-hot); }
 
 .pursuit-tracker__metric--map {
   align-items: baseline;
@@ -2326,31 +2419,37 @@ body {
 
 .pursuit-tracker__scale li {
   min-width: 0;
-  border: 1px solid var(--cic-cyan-dim);
+  border: 1px solid color-mix(in srgb, var(--cic-danger) 68%, var(--cic-rule));
   background: transparent;
 }
 
 .pursuit-tracker__scale li[data-active='true'] {
-  border-color: var(--cic-cyan);
-  background: var(--cic-cyan);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--cic-cyan) 70%, transparent);
+  border-color: var(--pursuit-red);
+  background: var(--pursuit-red);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--pursuit-red) 74%, transparent);
 }
 
 .pursuit-tracker__status {
-  color: var(--cic-cyan);
+  color: var(--pursuit-red);
   font-size: 0.58rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
-.pursuit-tracker__status--critical { color: var(--cic-amber-glow); }
+.pursuit-tracker__status--critical { color: var(--cic-ember); }
 
 .pursuit-tracker[data-status='surrounded'] {
-  border-color: var(--cic-danger);
-  background: color-mix(in srgb, var(--cic-blood) 30%, var(--cic-void));
+  border-color: var(--cic-scream);
 }
 
 .pursuit-tracker__status--surrounded { color: var(--cic-scream); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pursuit-tracker[data-threat-level='closing'],
+  .pursuit-tracker[data-threat-level='critical'] {
+    animation: none;
+  }
+}
 
 /* Persistent status rail. Future ship mechanics belong in the pageable main
    workspace, not in this rail; the manifest consumes only the space left below
@@ -3809,6 +3908,10 @@ body {
     inset: auto;
     width: 100%;
     min-height: min(32rem, 75dvh);
+  }
+
+  .ship-console:not(.shuttle-console) .ship-console__instruments {
+    order: -1;
   }
 }
 

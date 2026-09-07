@@ -826,6 +826,46 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
   });
 }
 
+interface TurnAdvanceReply {
+  readonly currentTurn: number;
+  readonly turnStartAnnouncement?: { turn: number; survivorPopulation: number };
+  readonly turnPhase?: unknown;
+  readonly maintenanceCycles?: GameSession['maintenanceCycles'];
+  readonly shuttleFuelled?: GameSession['shuttleFuelled'];
+}
+
+function applyTurnAdvanceReply(
+  sessionId: string,
+  reply: TurnAdvanceReply,
+  skipTurnStartAnnouncement: boolean,
+): void {
+  const activeSession = useSessionStore.getState().session;
+  const announcement = reply.turnStartAnnouncement;
+  const hasAnnouncement = Boolean(
+    announcement && Number.isSafeInteger(announcement.turn) && announcement.turn >= 1 &&
+    Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0,
+  );
+  const phaseClock = turnPhaseState(reply.turnPhase);
+  if (
+    activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
+    reply.currentTurn < 0
+  ) return;
+  const nextSession = {
+    ...activeSession,
+    currentTurn: reply.currentTurn,
+    ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
+    ...(phaseClock ? { turnPhase: phaseClock } : {}),
+    ...(reply.maintenanceCycles
+      ? { maintenanceCycles: reply.maintenanceCycles }
+      : {}),
+    ...(reply.shuttleFuelled
+      ? { shuttleFuelled: reply.shuttleFuelled }
+      : {}),
+  };
+  if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
+  useSessionStore.getState().setSession(nextSession);
+}
+
 export async function advanceTurn({
   overridePhaseTimer = false,
   skipTurnStartAnnouncement = false,
@@ -845,13 +885,7 @@ export async function advanceTurn({
       overridePhaseTimer?: boolean;
       skipTurnStartAnnouncement?: boolean;
     },
-    {
-      currentTurn: number;
-      turnStartAnnouncement?: { turn: number; survivorPopulation: number };
-      turnPhase?: unknown;
-      maintenanceCycles?: GameSession['maintenanceCycles'];
-      shuttleFuelled?: GameSession['shuttleFuelled'];
-    }
+    TurnAdvanceReply
   >(functions(), 'advanceTurn');
   try {
     const reply = await call({
@@ -861,32 +895,29 @@ export async function advanceTurn({
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
       ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),
     });
-    const activeSession = useSessionStore.getState().session;
-    const announcement = reply.data.turnStartAnnouncement;
-    const hasAnnouncement = Boolean(
-      announcement && Number.isSafeInteger(announcement.turn) && announcement.turn >= 1 &&
-      Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0,
-    );
-    const phaseClock = turnPhaseState(reply.data.turnPhase);
-    if (
-      activeSession?.id === store.session.id && Number.isSafeInteger(reply.data.currentTurn) &&
-      reply.data.currentTurn >= 0
-    ) {
-      const nextSession = {
-        ...activeSession,
-        currentTurn: reply.data.currentTurn,
-        ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
-        ...(phaseClock ? { turnPhase: phaseClock } : {}),
-        ...(reply.data.maintenanceCycles
-          ? { maintenanceCycles: reply.data.maintenanceCycles }
-          : {}),
-        ...(reply.data.shuttleFuelled
-          ? { shuttleFuelled: reply.data.shuttleFuelled }
-          : {}),
-      };
-      if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
-      useSessionStore.getState().setSession(nextSession);
-    }
+    applyTurnAdvanceReply(store.session.id, reply.data, skipTurnStartAnnouncement);
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Start the Turn 1 demo when this browser is the session's only connected player. */
+export async function startSinglePlayerDemo(): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session) throw new Error('Join a session before starting the demo.');
+  if (store.connection !== 'live') throw new Error('Reconnect before starting the demo.');
+  if (store.session.currentTurn !== 0) {
+    throw new Error('The single-player demo is only available from Turn 0.');
+  }
+  await ensureSignedIn();
+  const call = httpsCallable<{ sessionId: string }, TurnAdvanceReply>(
+    functions(),
+    'startSinglePlayerDemo',
+  );
+  try {
+    const reply = await call({ sessionId: store.session.id });
+    applyTurnAdvanceReply(store.session.id, reply.data, false);
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;

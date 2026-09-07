@@ -35,6 +35,7 @@ import {
   extendAirspaceWindow,
   setEmergencyTimerPaused,
   runMaintenance,
+  setShipConsoleLock,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   unlockPressAirspace,
@@ -653,6 +654,30 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     }),
   }));
+});
+
+it('holds the player ICN travel lock at Turn 0', async () => {
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.currentTurn = 0;
+
+  await expect(setShipConsoleLock.run(request({
+    sessionId: 's1', shipId: 'aegis', locked: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn 1/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('holds every maintenance cycle at Turn 0, including the GM path', async () => {
+  mock.currentTurn = 0;
+
+  await expect(runMaintenance.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn 1/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('denies turn advancement without an active GM instance', async () => {

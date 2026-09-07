@@ -19,12 +19,65 @@ export interface CoordinationEntry {
   readonly pid?: number;
   readonly startedAt: string;
   readonly status?: string;
+  readonly branchName?: string;
+  readonly startBranchSha?: string;
+  readonly startMainSha?: string;
   readonly intent: string;
   readonly versionPlan: string;
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
   readonly completedAt?: string;
   readonly result?: string;
+  readonly finalBranchName?: string;
+  readonly finalBranchSha?: string;
+  readonly mainSha?: string;
+  readonly originMainSha?: string;
+  readonly mainContainsBranch?: boolean;
+  readonly pushed?: boolean;
+  readonly validation?: ValidationReceipt;
+}
+
+export interface ValidationReceipt {
+  readonly commitSha: string;
+  readonly completedAt: string;
+  readonly passed: boolean;
+  readonly commands: readonly string[];
+  readonly files: readonly string[];
+  readonly docsOnly: boolean;
+  readonly reviews?: {
+    readonly documentation?: string;
+    readonly visual?: string;
+  };
+}
+
+export interface ValidationPlan {
+  readonly documentationOnly: boolean;
+  readonly requiresDocumentationReview: boolean;
+  readonly requiresVisualReview: boolean;
+  readonly commands: readonly string[];
+}
+
+export interface ChangelogSnapshotEntry {
+  readonly version: string;
+  readonly source: string;
+}
+
+export interface ReleaseState {
+  readonly branchName: string;
+  readonly branchSha: string;
+  readonly mainSha: string;
+  readonly originMainSha: string;
+  readonly mainContainsBranch: boolean;
+  readonly worktreeClean: boolean;
+  readonly startBranchSha?: string;
+  readonly branchBaselineIsAncestor?: boolean;
+  readonly changedFiles?: readonly string[];
+  readonly branchVersion: string;
+  readonly mainVersion: string;
+  readonly branchLockVersion: string;
+  readonly mainLockVersion: string;
+  readonly branchChangelog: readonly ChangelogSnapshotEntry[];
+  readonly mainChangelog: readonly ChangelogSnapshotEntry[];
 }
 
 export interface ConfiguredEmulatorSlot {
@@ -49,6 +102,41 @@ export function coordinationFilePath(
 ): string;
 export function emptyCoordinationState(): CoordinationState;
 export function parseCoordinationState(content: string): CoordinationState;
+export function compareApplicationVersions(left: string, right: string): -1 | 0 | 1;
+export function validationPlanForFiles(
+  changedFiles?: readonly string[],
+): ValidationPlan;
+export function parseChangelogSnapshot(
+  source: string,
+  applicationVersion: string,
+): readonly ChangelogSnapshotEntry[];
+export function validateReleaseCompletion(options: {
+  entry: CoordinationEntry;
+  release: ReleaseState;
+}): { pushed: boolean };
+export function readReleaseState(options?: {
+  cwd?: string;
+  startBranchSha?: string;
+}): Promise<ReleaseState>;
+export function validateCoordinationEntry(
+  filePath: string,
+  options: {
+    id: string;
+    'start-sha'?: string;
+    'documentation-review'?: string;
+    'visual-review'?: string;
+    release?: ReleaseState;
+    commandRunner?: (command: string, cwd: string) => Promise<void>;
+  },
+): Promise<CoordinationEntry>;
+export function finishCoordinationEntry(
+  filePath: string,
+  options: {
+    id: string;
+    result?: string;
+    release?: ReleaseState;
+  },
+): Promise<CoordinationEntry>;
 export function pruneDeadReservations(
   state: CoordinationState,
   isAlive?: (pid: number) => boolean,

@@ -6,6 +6,10 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import {
+  SESSION_WAIVER_RESET_EVENT,
+  SESSION_WAIVER_STORAGE_KEY,
+} from '@/lib/sessionWaiver';
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
@@ -125,6 +129,27 @@ it('returns to role selection', async () => {
   await user.click(screen.getByRole('link', { name: /back to role selection/i }));
 
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
+});
+
+it('lets the active GM reset the code of conduct checklist from the GM Console', async () => {
+  const user = userEvent.setup();
+  const resetEvent = vi.fn();
+  localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
+  window.addEventListener(SESSION_WAIVER_RESET_EVENT, resetEvent);
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const access = await screen.findByRole('region', { name: /session access controls/i });
+  const reset = within(access).getByRole('button', {
+    name: /reset code of conduct checklist/i,
+  });
+
+  await user.click(reset);
+
+  expect(localStorage.getItem(SESSION_WAIVER_STORAGE_KEY)).toBeNull();
+  expect(resetEvent).toHaveBeenCalledOnce();
+  window.removeEventListener(SESSION_WAIVER_RESET_EVENT, resetEvent);
 });
 
 it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {

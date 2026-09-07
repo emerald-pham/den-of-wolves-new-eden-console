@@ -13,16 +13,13 @@ import {
   logoutGmAccess,
   releaseConsoleRole,
   releaseGmInstance,
+  startSinglePlayerDemo,
 } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
 import { findConsoleRole } from '@/data/roles';
 import { CHANGELOG } from '@/changelog';
 import FleetBroadcast from './FleetBroadcast';
-import {
-  resetSessionWaiver,
-  SESSION_WAIVER_RESET_EVENT,
-} from '@/lib/sessionWaiver';
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
 const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
@@ -160,6 +157,7 @@ export default function AppHeader() {
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
+  const [singlePlayerDemoBusy, setSinglePlayerDemoBusy] = useState(false);
   const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
@@ -183,6 +181,7 @@ export default function AppHeader() {
   const rank = gmInstance
     ? ['GM', secondaryRole].filter(Boolean).join(' / ')
     : (secondaryRole ?? null);
+  const singlePlayerDemoAvailable = currentTurn === 0 && connectedPlayers === 1;
   const indicatorStatus = displayStatus === 'green' && currentTurn === 0 ? 'blue' : displayStatus;
 
   function openSettings(): void {
@@ -265,6 +264,19 @@ export default function AppHeader() {
     }
   }
 
+  async function startDemo(): Promise<void> {
+    if (!singlePlayerDemoAvailable || singlePlayerDemoBusy) return;
+    setSinglePlayerDemoBusy(true);
+    closeSettings();
+    try {
+      await startSinglePlayerDemo();
+    } catch {
+      // The shared interception notice carries the actionable server error.
+    } finally {
+      setSinglePlayerDemoBusy(false);
+    }
+  }
+
   async function logoutGm(): Promise<void> {
     const wasGm = gmInstance !== null;
     setGmAccessBusy(true);
@@ -280,12 +292,6 @@ export default function AppHeader() {
     } finally {
       setGmAccessBusy(false);
     }
-  }
-
-  function resetChecklist(): void {
-    resetSessionWaiver();
-    window.dispatchEvent(new Event(SESSION_WAIVER_RESET_EVENT));
-    closeSettings();
   }
 
   async function disconnectNow(): Promise<void> {
@@ -382,6 +388,20 @@ export default function AppHeader() {
             )}
             {hasSession && <p>Disconnect this device from session {joinCode}.</p>}
             <p className="settings-dialog__version">Build {APP_VERSION}</p>
+            {singlePlayerDemoAvailable && (
+              <section className="settings-dialog__demo" aria-labelledby="single-player-demo-title">
+                <h3 id="single-player-demo-title">Single-player demo</h3>
+                <p>Start the Turn One demo for this session.</p>
+                <button
+                  className="settings-dialog__gm-access-button"
+                  type="button"
+                  disabled={singlePlayerDemoBusy}
+                  onClick={() => void startDemo()}
+                >
+                  {singlePlayerDemoBusy ? 'Starting single-player demo…' : 'Start single-player demo'}
+                </button>
+              </section>
+            )}
             <section className="settings-dialog__gm-access" aria-labelledby="gm-access-settings-title">
               <h3 id="gm-access-settings-title">
                 <span className="settings-dialog__gm-access-icon" aria-hidden="true">
@@ -409,13 +429,6 @@ export default function AppHeader() {
                     onClick={() => void logoutGm()}
                   >
                     {gmAccessBusy ? 'Logging out…' : 'Log out GM access'}
-                  </button>
-                  <button
-                    className="settings-dialog__gm-access-button"
-                    type="button"
-                    onClick={resetChecklist}
-                  >
-                    Reset code of conduct checklist
                   </button>
                 </>
               ) : (

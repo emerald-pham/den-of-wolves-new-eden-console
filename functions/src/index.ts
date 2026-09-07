@@ -14,6 +14,7 @@ import {
   FieldValue,
   Timestamp,
   getFirestore,
+  type DocumentReference,
   type DocumentSnapshot,
   type Transaction,
 } from 'firebase-admin/firestore';
@@ -334,6 +335,75 @@ function requireTurnOneForPlayer(session: DocumentSnapshot, player: DocumentSnap
       'Turn 0 is for GM setup. Wait for the GM to advance to Turn 1.',
     );
   }
+}
+
+function requireTurnOneForGameplay(session: DocumentSnapshot): void {
+  if (sessionTurn(session.get('currentTurn')) === 0) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Turn 0 is for setup. Wait for the GM to advance to Turn 1.',
+    );
+  }
+}
+
+type TurnAdvanceResult = {
+  readonly currentTurn: number;
+  readonly turnStartAnnouncement?: TurnStartAnnouncement;
+  readonly turnPhase: ReturnType<typeof startTurnPhase>;
+  readonly maintenanceCycles?: Record<string, MaintenanceCycle>;
+  readonly shuttleFuelled?: Record<string, boolean>;
+};
+
+function advanceTurnInTransaction(
+  tx: Transaction,
+  sessionRef: DocumentReference,
+  session: DocumentSnapshot,
+  skipTurnStartAnnouncement: boolean,
+): TurnAdvanceResult {
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  const nextTurn = currentTurn + 1;
+  const currentFleetPopulation = fleetSurvivorPopulation(session);
+  const announcementPopulation = currentFleetPopulation % 10 === 0 || currentFleetPopulation % 10 === 5
+    ? currentFleetPopulation + 42
+    : currentFleetPopulation;
+  const nextFleetPopulation = Math.max(0, announcementPopulation - 1);
+  const announcement = {
+    turn: nextTurn,
+    survivorPopulation: announcementPopulation,
+  };
+  const turnPhase = startTurnPhase(nextTurn);
+  const expiredTurnResources = currentTurn >= 1
+    ? expireTurnScopedResources(
+      (session.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>,
+      (session.get('shuttleFuelled') ?? {}) as Record<string, boolean>,
+    )
+    : undefined;
+  tx.update(sessionRef, {
+    currentTurn: nextTurn,
+    turnStartAnnouncement: skipTurnStartAnnouncement
+      ? FieldValue.delete()
+      : announcement,
+    fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
+    turnPhase,
+    ...(expiredTurnResources
+      ? {
+        maintenanceCycles: expiredTurnResources.maintenanceCycles,
+        shuttleFuelled: expiredTurnResources.shuttleFuelled,
+      }
+      : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return {
+    currentTurn: nextTurn,
+    ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
+    turnPhase,
+    ...(expiredTurnResources
+      ? {
+        maintenanceCycles: expiredTurnResources.maintenanceCycles,
+        shuttleFuelled: expiredTurnResources.shuttleFuelled,
+      }
+      : {}),
+  };
 }
 
 async function membershipIsActive(
@@ -1243,16 +1313,19 @@ export const setShipConsoleLock = onCall<{
   const uid = requireUid(request.auth);
   const change = requireShipConsoleLockRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
 
   await db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, false,
     );
     const session = await tx.get(sessionRef);
+    const player = await tx.get(playerRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
+    requireTurnOneForPlayer(session, player);
     tx.update(sessionRef, {
       shipConsoleLocks: { ...shipConsoleLocks(session.get('shipConsoleLocks')), [change.shipId]: change.locked },
       updatedAt: FieldValue.serverTimestamp(),
@@ -1381,49 +1454,49 @@ export const advanceTurn = onCall<{
         'A turn phase timer is still active. Confirm the override to advance early.',
       );
     }
-    const nextTurn = currentTurn + 1;
-    const currentFleetPopulation = fleetSurvivorPopulation(session);
-    const announcementPopulation = currentFleetPopulation % 10 === 0 || currentFleetPopulation % 10 === 5
-      ? currentFleetPopulation + 42
-      : currentFleetPopulation;
-    const nextFleetPopulation = Math.max(0, announcementPopulation - 1);
-    const announcement = {
-      turn: nextTurn,
-      survivorPopulation: announcementPopulation,
-    };
-    const turnPhase = startTurnPhase(nextTurn);
-    const expiredTurnResources = currentTurn >= 1
-      ? expireTurnScopedResources(
-        (session.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>,
-        (session.get('shuttleFuelled') ?? {}) as Record<string, boolean>,
-      )
-      : undefined;
-    tx.update(sessionRef, {
-      currentTurn: nextTurn,
-      turnStartAnnouncement: advance.skipTurnStartAnnouncement
-        ? FieldValue.delete()
-        : announcement,
-      fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
-      turnPhase,
-      ...(expiredTurnResources
-        ? {
-          maintenanceCycles: expiredTurnResources.maintenanceCycles,
-          shuttleFuelled: expiredTurnResources.shuttleFuelled,
-        }
-        : {}),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    return {
-      currentTurn: nextTurn,
-      ...(advance.skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
-      turnPhase,
-      ...(expiredTurnResources
-        ? {
-          maintenanceCycles: expiredTurnResources.maintenanceCycles,
-          shuttleFuelled: expiredTurnResources.shuttleFuelled,
-        }
-        : {}),
-    };
+    return advanceTurnInTransaction(
+      tx,
+      sessionRef,
+      session,
+      advance.skipTurnStartAnnouncement === true,
+    );
+  });
+});
+
+/** Allow the sole connected player to enter Turn 1 for a demo session. */
+export const startSinglePlayerDemo = onCall<{
+  sessionId?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const { sessionId } = requireSessionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const connectedPlayersQuery = db.collection(`sessions/${sessionId}/players`)
+    .where('connected', '==', true);
+
+  return db.runTransaction(async (tx) => {
+    const [session, player, connectedPlayers] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(connectedPlayersQuery),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) {
+      throw new HttpsError('permission-denied', 'Join the session first.');
+    }
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    if (sessionTurn(session.get('currentTurn')) !== 0) {
+      throw new HttpsError('failed-precondition', 'The single-player demo is only available from Turn 0.');
+    }
+    if (connectedPlayers.docs.length !== 1 || connectedPlayers.docs[0]?.id !== uid) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The single-player demo requires this to be the only connected player.',
+      );
+    }
+    return advanceTurnInTransaction(tx, sessionRef, session, false);
   });
 });
 
@@ -2842,6 +2915,7 @@ export const runMaintenance = onCall<{
       throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
     }
     if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    requireTurnOneForGameplay(snapshot);
     const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
     const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;

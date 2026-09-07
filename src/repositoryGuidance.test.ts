@@ -58,6 +58,28 @@ describe('repository guidance', () => {
     expect(guidance).toContain('coordination:status');
   });
 
+  it('requires the executable coordination validation and completion gate', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('coordination:validate');
+    expect(guidance).toContain('documentation-review');
+    expect(guidance).toContain('visual-review');
+    expect(guidance).toContain('final branch SHA');
+    expect(guidance).toContain('origin/main');
+    expect(guidance).toContain('machine-checked');
+  });
+
+  it('keeps AGENTS.md as a pointer to the canonical executable gate', () => {
+    const agentsPath = resolve(process.cwd(), 'AGENTS.md');
+    const agents = readFileSync(agentsPath, 'utf8');
+
+    expect(agents).toContain('CLAUDE.md');
+    expect(agents).toContain('coordination:validate');
+    expect(agents).toContain('coordination:finish');
+    expect(agents).toContain('machine-checked');
+  });
+
   it('makes startup recovery authoritative when end cleanup was skipped', () => {
     const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
     const guidance = readFileSync(guidancePath, 'utf8');

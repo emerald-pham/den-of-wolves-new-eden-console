@@ -12,7 +12,7 @@ import {
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
@@ -30,6 +30,7 @@ const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
+const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const execFileAsync = promisify(execFile);
 
 function objectRecord(value) {
@@ -40,6 +41,390 @@ function objectRecord(value) {
 
 function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function isDocumentationFile(filePath) {
+  const fileName = basename(filePath);
+  return /\.mdx?$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
+}
+
+function isVisualFile(filePath) {
+  return /\.(css|html|jsx|scss|tsx)$/i.test(filePath) ||
+    /(^|\/)src\/(components|routes|styles)\//.test(filePath);
+}
+
+/** Derive the checks and explicit human attestations required by changed files. */
+export function validationPlanForFiles(changedFiles = []) {
+  const files = (Array.isArray(changedFiles) ? changedFiles : [])
+    .filter((filePath) => typeof filePath === 'string' && filePath.trim());
+  const documentationOnly = files.length > 0 && files.every(isDocumentationFile);
+  return {
+    documentationOnly,
+    requiresDocumentationReview: files.some(isDocumentationFile),
+    requiresVisualReview: files.some(isVisualFile),
+    commands: documentationOnly
+      ? ['git diff --check']
+      : [
+          'git diff --check',
+          'npm run lint',
+          'npm run test:all',
+          'npm run build',
+          'npm run build --prefix functions',
+        ],
+  };
+}
+
+function normalizeChangelogSource(source) {
+  return source.replace(/\s+/g, ' ').trim();
+}
+
+function parseApplicationVersion(source, ref) {
+  const match = source.match(/"version"\s*:\s*"([^"]+)"/);
+  const version = match?.[1];
+  if (!version || !APPLICATION_VERSION_PATTERN.test(version)) {
+    throw new Error(`Cannot read a valid application version from ${ref}.`);
+  }
+  return version;
+}
+
+function parseLockfileVersion(source, ref) {
+  let lockfile;
+  try {
+    lockfile = JSON.parse(source);
+  } catch (error) {
+    throw new Error(`Cannot read ${ref} as JSON.`, { cause: error });
+  }
+  const version = lockfile?.packages?.['']?.version;
+  if (typeof version !== 'string' || !APPLICATION_VERSION_PATTERN.test(version)) {
+    throw new Error(`Cannot read a valid root package version from ${ref}.`);
+  }
+  return version;
+}
+
+export function compareApplicationVersions(left, right) {
+  const leftParts = left.match(APPLICATION_VERSION_PATTERN);
+  const rightParts = right.match(APPLICATION_VERSION_PATTERN);
+  if (!leftParts || !rightParts) {
+    throw new Error(`Cannot compare invalid application versions: ${left} and ${right}.`);
+  }
+
+  for (let index = 1; index <= 3; index += 1) {
+    const difference = Number(leftParts[index]) - Number(rightParts[index]);
+    if (difference !== 0) return difference > 0 ? 1 : -1;
+  }
+  return 0;
+}
+
+export function parseChangelogSnapshot(source, applicationVersion) {
+  const versionPattern = /version:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/g;
+  const matches = [...source.matchAll(versionPattern)];
+  if (matches.length === 0) {
+    throw new Error('Cannot read any release entries from src/changelog.ts.');
+  }
+
+  return matches.map((match, index) => {
+    const version = match[1] === 'APP_VERSION' ? applicationVersion : match[2];
+    if (!version || !APPLICATION_VERSION_PATTERN.test(version)) {
+      throw new Error(`Cannot read a valid changelog version near ${match[0]}.`);
+    }
+    const start = match.index ?? 0;
+    const end = matches[index + 1]?.index ?? source.length;
+    return {
+      version,
+      source: normalizeChangelogSource(source.slice(start, end)),
+    };
+  });
+}
+
+function isToolingOnlyVersionPlan(versionPlan) {
+  return /tooling-only|documentation-only|no application version|no[- ]player[- ]facing change/i
+    .test(versionPlan ?? '');
+}
+
+function plannedApplicationVersion(versionPlan) {
+  const matches = [...(versionPlan ?? '').matchAll(/\b\d+\.\d+\.\d+\b/g)];
+  return matches.at(-1)?.[0];
+}
+
+function changelogPreservationErrors(mainChangelog, branchChangelog) {
+  const branchEntries = new Map();
+  const errors = [];
+
+  for (const entry of branchChangelog) {
+    if (branchEntries.has(entry.version)) {
+      errors.push(`branch changelog repeats version ${entry.version}`);
+    }
+    branchEntries.set(entry.version, entry);
+  }
+
+  for (const mainEntry of mainChangelog) {
+    const branchEntry = branchEntries.get(mainEntry.version);
+    if (!branchEntry) {
+      errors.push(
+        `branch changelog is missing main's ${mainEntry.version} entry and would replace newer release notes`,
+      );
+      continue;
+    }
+    if (branchEntry.source !== mainEntry.source) {
+      errors.push(
+        `branch changelog would replace main's ${mainEntry.version} entry`,
+      );
+    }
+  }
+
+  return errors;
+}
+
+function releaseMetadataErrors({ entry, release, requireMerged }) {
+  const errors = [];
+
+  if (!release.branchName || release.branchName === 'HEAD') {
+    errors.push('the checkout is detached');
+  } else if (release.branchName === 'main') {
+    errors.push('the task is running directly on main');
+  }
+  if (entry.branchName && release.branchName !== entry.branchName) {
+    errors.push(
+      `the checkout branch ${release.branchName} does not match the coordination branch ${entry.branchName}`,
+    );
+  }
+
+  if (requireMerged && !release.mainContainsBranch) {
+    errors.push(
+      `main (${release.mainSha}) does not contain the task branch commit ${release.branchSha}`,
+    );
+  }
+
+  if (release.originMainSha !== release.mainSha) {
+    errors.push(
+      `origin/main (${release.originMainSha}) does not match local main (${release.mainSha}); push or reconcile the main branch`,
+    );
+  }
+
+  if (!release.worktreeClean) {
+    errors.push('the checkout has uncommitted changes');
+  }
+
+  if (release.branchVersion !== release.branchLockVersion) {
+    errors.push(
+      `branch package.json version ${release.branchVersion} does not match package-lock.json version ${release.branchLockVersion}`,
+    );
+  }
+  if (release.mainVersion !== release.mainLockVersion) {
+    errors.push(
+      `main package.json version ${release.mainVersion} does not match package-lock.json version ${release.mainLockVersion}`,
+    );
+  }
+
+  if (release.branchChangelog[0]?.version !== release.branchVersion) {
+    errors.push(
+      `branch changelog newest entry does not match package.json version ${release.branchVersion}`,
+    );
+  }
+  if (release.mainChangelog[0]?.version !== release.mainVersion) {
+    errors.push(
+      `main changelog newest entry does not match package.json version ${release.mainVersion}`,
+    );
+  }
+
+  const versionOrder = compareApplicationVersions(
+    release.branchVersion,
+    release.mainVersion,
+  );
+  if (versionOrder < 0 && !release.mainContainsBranch) {
+    errors.push(
+      `branch application version ${release.branchVersion} is older than main ${release.mainVersion}`,
+    );
+  }
+  if (
+    isToolingOnlyVersionPlan(entry.versionPlan) &&
+    versionOrder !== 0 &&
+    !release.mainContainsBranch
+  ) {
+    errors.push(
+      `tooling-only work must not change the application version from ${release.mainVersion} to ${release.branchVersion}`,
+    );
+  }
+  if (!release.mainContainsBranch && !isToolingOnlyVersionPlan(entry.versionPlan)) {
+    const plannedVersion = plannedApplicationVersion(entry.versionPlan);
+    if (release.branchVersion === release.mainVersion) {
+      errors.push('player-facing work must increment the application version');
+    }
+    if (plannedVersion !== release.branchVersion) {
+      errors.push(
+        `version plan ${plannedVersion ?? 'does not name a version'} does not match branch application version ${release.branchVersion}`,
+      );
+    }
+  }
+
+  if (!release.mainContainsBranch) {
+    errors.push(...changelogPreservationErrors(
+      release.mainChangelog,
+      release.branchChangelog,
+    ));
+  }
+
+  return errors;
+}
+
+function validationReceiptErrors(entry, release) {
+  const errors = [];
+  const receipt = entry.validation;
+  const changedFiles = Array.isArray(receipt?.files) ? receipt.files : release.changedFiles;
+  const plan = validationPlanForFiles(changedFiles);
+
+  if (!Array.isArray(changedFiles) || changedFiles.length === 0) {
+    errors.push('no committed task changes were found from the coordination start SHA');
+  }
+  if (!receipt) {
+    errors.push('no validation receipt is recorded; run coordination:validate first');
+    return errors;
+  }
+  if (receipt.commitSha !== release.branchSha) {
+    errors.push(
+      `validation receipt commit ${receipt.commitSha} does not match final branch SHA ${release.branchSha}`,
+    );
+  }
+  if (receipt.passed !== true) {
+    errors.push('the recorded validation receipt is not passing');
+  }
+  if (!Array.isArray(receipt.files) || receipt.files.length === 0) {
+    errors.push('validation receipt does not record the changed files it checked');
+  }
+  if (receipt.docsOnly !== plan.documentationOnly) {
+    errors.push('validation receipt scope does not match the current changed files');
+  }
+  const recordedCommands = Array.isArray(receipt.commands) ? receipt.commands : [];
+  for (const command of plan.commands) {
+    if (!recordedCommands.includes(command)) {
+      errors.push(`validation receipt is missing required command ${command}`);
+    }
+  }
+  if (plan.requiresDocumentationReview && !text(receipt.reviews?.documentation)) {
+    errors.push('documentation changes require a documentation review receipt');
+  }
+  if (plan.requiresVisualReview && !text(receipt.reviews?.visual)) {
+    errors.push('UI changes require a visual review receipt');
+  }
+  return errors;
+}
+
+/**
+ * Validate the Git/release state before a coordination entry can become
+ * historical. This is intentionally pure so the failure contract is tested
+ * without depending on a particular checkout or network remote.
+ */
+export function validateReleaseCompletion({ entry, release }) {
+  const errors = releaseMetadataErrors({ entry, release, requireMerged: true });
+  errors.push(...validationReceiptErrors(entry, release));
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Cannot complete coordination entry ${entry.id}: ${errors.join('; ')}.`,
+    );
+  }
+
+  return {
+    pushed: release.originMainSha === release.mainSha,
+  };
+}
+
+async function runGit(args, cwd = process.cwd()) {
+  const result = await execFileAsync('git', args, {
+    cwd,
+    encoding: 'utf8',
+  });
+  return result.stdout.trim();
+}
+
+async function gitIsAncestor(ancestor, descendant, cwd) {
+  try {
+    await runGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd);
+    return true;
+  } catch (error) {
+    if (error?.status === 1 || error?.code === 1) return false;
+    throw error;
+  }
+}
+
+async function readGitFile(ref, path, cwd) {
+  return runGit(['show', `${ref}:${path}`], cwd);
+}
+
+async function readTaskChangedFiles(branchSha, cwd) {
+  const output = await runGit(['diff', '--name-only', `main...${branchSha}`], cwd);
+  return output.split('\n').map((filePath) => filePath.trim()).filter(Boolean);
+}
+
+/** Read the live checkout and remote state used by the completion gate. */
+export async function readReleaseState({ cwd = process.cwd(), startBranchSha } = {}) {
+  const [branchName, branchSha, mainSha, remoteMainLine] = await Promise.all([
+    runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
+    runGit(['rev-parse', 'HEAD'], cwd),
+    runGit(['rev-parse', 'main'], cwd),
+    runGit(['ls-remote', '--exit-code', 'origin', 'refs/heads/main'], cwd),
+  ]);
+  const originMainSha = remoteMainLine.split(/\s+/)[0];
+  if (!originMainSha) {
+    throw new Error('Cannot verify pushed state: origin/main returned no commit.');
+  }
+
+  const [branchPackage, mainPackage, branchLockfile, mainLockfile, branchChangelog, mainChangelog, status] = await Promise.all([
+    readGitFile('HEAD', 'package.json', cwd),
+    readGitFile('main', 'package.json', cwd),
+    readGitFile('HEAD', 'package-lock.json', cwd),
+    readGitFile('main', 'package-lock.json', cwd),
+    readGitFile('HEAD', 'src/changelog.ts', cwd),
+    readGitFile('main', 'src/changelog.ts', cwd),
+    runGit(['status', '--porcelain'], cwd),
+  ]);
+  const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
+  const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
+  const changedFiles = await readTaskChangedFiles(branchSha, cwd);
+
+  return {
+    branchName,
+    branchSha,
+    mainSha,
+    originMainSha,
+    mainContainsBranch: await gitIsAncestor(branchSha, mainSha, cwd),
+    worktreeClean: status.length === 0,
+    branchVersion,
+    mainVersion,
+    branchLockVersion: parseLockfileVersion(branchLockfile, 'HEAD:package-lock.json'),
+    mainLockVersion: parseLockfileVersion(mainLockfile, 'main:package-lock.json'),
+    branchChangelog: parseChangelogSnapshot(branchChangelog, branchVersion),
+    mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
+    changedFiles,
+    ...(startBranchSha
+      ? {
+          startBranchSha,
+          branchBaselineIsAncestor: await gitIsAncestor(startBranchSha, branchSha, cwd),
+        }
+      : {}),
+  };
+}
+
+const VALIDATION_COMMANDS = new Map([
+  ['npm run lint', ['run', 'lint']],
+  ['npm run test:all', ['run', 'test:all']],
+  ['npm run build', ['run', 'build']],
+  ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
+]);
+
+async function runValidationCommand(command, cwd) {
+  if (command === 'git diff --check') {
+    await runGit(['diff', '--check', 'main...HEAD'], cwd);
+    return;
+  }
+  const args = VALIDATION_COMMANDS.get(command);
+  if (!args) throw new Error(`No executable validation mapping exists for ${command}.`);
+  await execFileAsync('npm', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: 32 * 1024 * 1024,
+    timeout: 60 * 60 * 1000,
+  });
 }
 
 function validPid(value) {
@@ -755,13 +1140,29 @@ function formatEntry(entry) {
   const resources = Array.isArray(entry.resources) && entry.resources.length > 0
     ? entry.resources.join(', ')
     : 'none declared';
-  return [
+  const lines = [
     `- [${status}] ${entry.id} — ${text(entry.intent, 'No intent recorded.')}`,
     `  worktree: ${text(entry.worktree, 'unknown')}`,
     `  started: ${text(entry.startedAt, 'unknown')} | version plan: ${text(entry.versionPlan, 'not recorded')}`,
     `  preemptive changelog: ${text(entry.preemptiveChangelog, 'not recorded')}`,
     `  resources: ${resources}`,
-  ].join('\n');
+  ];
+  if (entry.startBranchSha || entry.startMainSha) {
+    lines.push(
+      `  start state: branch ${text(entry.startBranchSha, 'unknown')} | main ${text(entry.startMainSha, 'unknown')}`,
+    );
+  }
+  if (entry.validation) {
+    lines.push(
+      `  validation: ${entry.validation.passed === true ? 'passed' : 'failed'} @ ${text(entry.validation.commitSha, 'unknown')} | commands ${Array.isArray(entry.validation.commands) ? entry.validation.commands.length : 0}`,
+    );
+  }
+  if (entry.finalBranchSha || entry.mainSha || entry.originMainSha) {
+    lines.push(
+      `  release state: ${text(entry.finalBranchName, 'unknown')} @ ${text(entry.finalBranchSha, 'unknown')} | main ${text(entry.mainSha, 'unknown')} | origin/main ${text(entry.originMainSha, 'unknown')} | pushed ${entry.pushed === true ? 'yes' : 'no'}`,
+    );
+  }
+  return lines.join('\n');
 }
 
 function formatReservation(reservation) {
@@ -838,20 +1239,47 @@ function parseOptions(args) {
   return options;
 }
 
+async function readGitStartState(cwd = process.cwd()) {
+  const [branchName, branchSha, mainSha] = await Promise.all([
+    runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
+    runGit(['rev-parse', 'HEAD'], cwd),
+    runGit(['rev-parse', 'main'], cwd),
+  ]);
+  if (branchName === 'HEAD') {
+    throw new Error('coordination begin requires an attached branch; create one before editing.');
+  }
+  if (branchName === 'main') {
+    throw new Error('coordination begin refuses to register work directly on main.');
+  }
+  return { branchName, branchSha, mainSha };
+}
+
 async function beginEntry(filePath, options) {
   const required = ['intent', 'version-plan', 'preemptive-changelog'];
   for (const name of required) {
     if (!options[name]) throw new Error(`coordination begin requires --${name} <text>.`);
   }
 
+  const start = await readGitStartState();
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const existing = state.entries.find(
+      (candidate) => candidate.status === 'active' && candidate.worktree === process.cwd(),
+    );
+    if (existing) {
+      throw new Error(
+        `An active coordination entry already exists for this worktree: ${existing.id}.`,
+      );
+    }
     const entry = {
       id: `${Date.now()}-${process.pid}-${randomUUID().slice(0, 8)}`,
       worktree: process.cwd(),
       pid: process.pid,
       startedAt: new Date().toISOString(),
       status: 'active',
+      branchName: start.branchName,
+      startBranchSha: start.branchSha,
+      startMainSha: start.mainSha,
       intent: options.intent,
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
@@ -859,22 +1287,196 @@ async function beginEntry(filePath, options) {
         ? options.resources.split(',').map((resource) => resource.trim()).filter(Boolean)
         : [],
     };
+    const plannedVersion = plannedApplicationVersion(entry.versionPlan);
+    if (plannedVersion) {
+      const conflictingEntry = state.entries.find(
+        (candidate) =>
+          candidate.status === 'active' &&
+          plannedApplicationVersion(candidate.versionPlan) === plannedVersion,
+      );
+      if (conflictingEntry) {
+        throw new Error(
+          `Application version ${plannedVersion} is already reserved by active entry ${conflictingEntry.id}.`,
+        );
+      }
+    }
     state.entries.push(entry);
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
 }
 
-async function finishEntry(filePath, options) {
+export async function validateCoordinationEntry(filePath, options) {
+  if (!options.id) throw new Error('coordination validate requires --id <entry-id>.');
+
+  const preparation = await withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id} from ${process.cwd()}; ` +
+          `it belongs to ${entry.worktree}.`,
+      );
+    }
+
+    const startBranchSha = entry.startBranchSha || options['start-sha'];
+    if (!startBranchSha) {
+      throw new Error(
+        `Coordination entry ${entry.id} has no start branch SHA; rerun with --start-sha <commit> once to backfill it.`,
+      );
+    }
+    const release = options.release ?? await readReleaseState({ startBranchSha });
+    const errors = releaseMetadataErrors({ entry, release, requireMerged: false });
+    if (release.branchBaselineIsAncestor === false) {
+      errors.push(
+        `start branch SHA ${startBranchSha} is not an ancestor of branch ${release.branchSha}; do not rewrite the task history`,
+      );
+    }
+    if (!Array.isArray(release.changedFiles) || release.changedFiles.length === 0) {
+      errors.push('no committed task changes were found from the coordination start SHA');
+    }
+    if (errors.length > 0) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id}: ${errors.join('; ')}.`,
+      );
+    }
+
+    const plan = validationPlanForFiles(release.changedFiles);
+    const documentationReview = text(options['documentation-review']);
+    const visualReview = text(options['visual-review']);
+    if (plan.requiresDocumentationReview && !documentationReview) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id}: documentation changes require --documentation-review <summary>.`,
+      );
+    }
+    if (plan.requiresVisualReview && !visualReview) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id}: UI changes require --visual-review <summary>.`,
+      );
+    }
+
+    return {
+      entryStartedAt: entry.startedAt,
+      entryBranchName: entry.branchName,
+      entryVersionPlan: entry.versionPlan,
+      startBranchSha,
+      release,
+      plan,
+      documentationReview,
+      visualReview,
+    };
+  });
+
+  const commandRunner = options.commandRunner ?? runValidationCommand;
+  for (const command of preparation.plan.commands) {
+    try {
+      await commandRunner(command, process.cwd());
+    } catch (error) {
+      throw new Error(
+        `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+  }
+
+  const finalRelease = options.release ?? await readReleaseState({
+    startBranchSha: preparation.startBranchSha,
+  });
+  if (finalRelease.branchSha !== preparation.release.branchSha) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: branch SHA changed from ${preparation.release.branchSha} to ${finalRelease.branchSha} while checks ran; rerun validation.`,
+    );
+  }
+  const finalErrors = releaseMetadataErrors({
+    entry: {
+      id: options.id,
+      branchName: preparation.entryBranchName,
+      versionPlan: preparation.entryVersionPlan,
+    },
+    release: finalRelease,
+    requireMerged: false,
+  });
+  if (finalErrors.length > 0) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: ${finalErrors.join('; ')}.`,
+    );
+  }
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot validate coordination entry ${entry.id} from ${process.cwd()}; ` +
+          `it belongs to ${entry.worktree}.`,
+      );
+    }
+    if (entry.startedAt !== preparation.entryStartedAt) {
+      throw new Error(
+        `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
+      );
+    }
+
+    entry.startBranchSha = preparation.startBranchSha;
+    entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
+    entry.validation = {
+      commitSha: finalRelease.branchSha,
+      completedAt: new Date().toISOString(),
+      passed: true,
+      commands: preparation.plan.commands,
+      files: preparation.release.changedFiles,
+      docsOnly: preparation.plan.documentationOnly,
+      reviews: {
+        ...(preparation.documentationReview
+          ? { documentation: preparation.documentationReview }
+          : {}),
+        ...(preparation.visualReview ? { visual: preparation.visualReview } : {}),
+      },
+    };
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return entry;
+  });
+}
+
+export async function finishCoordinationEntry(filePath, options) {
   if (!options.id) throw new Error('coordination finish requires --id <entry-id>.');
 
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot complete coordination entry ${entry.id} from ${process.cwd()}; ` +
+          `it belongs to ${entry.worktree}.`,
+      );
+    }
+
+    const release = options.release ?? await readReleaseState({
+      startBranchSha: entry.startBranchSha,
+    });
+    const validation = validateReleaseCompletion({ entry, release });
     entry.status = 'complete';
     entry.completedAt = new Date().toISOString();
     if (options.result) entry.result = options.result;
+    entry.finalBranchName = release.branchName;
+    entry.finalBranchSha = release.branchSha;
+    entry.mainSha = release.mainSha;
+    entry.originMainSha = release.originMainSha;
+    entry.mainContainsBranch = release.mainContainsBranch;
+    entry.pushed = validation.pushed;
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
@@ -907,14 +1509,19 @@ async function main() {
     console.log(`Registered preemptive work entry ${entry.id} in ${filePath}.`);
     return;
   }
+  if (command === 'validate') {
+    const entry = await validateCoordinationEntry(filePath, options);
+    console.log(`Validated coordination entry ${entry.id} in ${filePath}.`);
+    return;
+  }
   if (command === 'finish') {
-    const entry = await finishEntry(filePath, options);
+    const entry = await finishCoordinationEntry(filePath, options);
     console.log(`Completed coordination entry ${entry.id} in ${filePath}.`);
     return;
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|validate|finish> [options]',
   );
 }
 

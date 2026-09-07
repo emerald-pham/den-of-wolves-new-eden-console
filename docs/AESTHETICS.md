@@ -334,7 +334,7 @@ Show the remaining seconds in the same ruled instrument so the delay is legible,
 not mysterious. The acknowledgement is browser-local and global to the window
 rather than keyed to a session, so switching tables within 24 hours does not
 repeat the prompt. Authenticated GM access may reset that local completion from
-Settings, which closes the settings dialog and reopens the full instrument.
+the GM Console, which reopens the full instrument.
 
 ## Contact plot / threat board
 
@@ -578,8 +578,16 @@ history can never grow underneath or overlap DRADIS. It is a plain ledger: each 
 names the shuttlecraft and the shuttleport where it docked. Do not mix current
 occupancy, maintenance rules, or departure events into this panel. The Press
 shuttle's port is the civilian access hatch.
+The pursuit panel is a standing threat instrument: keep its frame and countdown
+danger red even at the start of the track, intensify the readout as the real
+0–10 limit approaches, and reserve `SURROUNDED // GAME OVER` for the terminal
+value. Freeze the escalation pulse when reduced motion is enabled.
 On narrow screens the identity/workspace and rail enter document flow and the
 whole console scrolls; controls must never be compressed out of reach.
+When that flow starts, the instrument rail is ordered before the identity so
+the first route content after the reserved DRADIS space is the ship-local
+pursuit reading; preserve the rail's child order as pursuit, observer access,
+shuttlebay and command instruments.
 
 On phones and short landscape screens, session controls, compact DRADIS, vessel
 identity and instruments all remain in document flow and scroll fully out of

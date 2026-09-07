@@ -14,6 +14,30 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.107',
+    changes: [
+      'GM reset of the Code of Conduct checklist now lives in the GM Console instead of global Settings.',
+    ],
+  },
+  {
+    version: '0.2.106',
+    changes: [
+      'DRADIS contacts now brighten and ping again when a recent sweep finds them, while contacts still under the movement cooldown hold position.',
+    ],
+  },
+  {
+    version: '0.2.105',
+    changes: [
+      'Turn Zero now keeps game-state controls locked while allowing DRADIS and console viewing, and a solo session can start the Turn One demo from Settings.',
+    ],
+  },
+  {
+    version: '0.2.102',
+    changes: [
+      'Pursuit panels now keep their apocalyptic countdown visible and sit directly beneath DRADIS on ship consoles at every screen size.',
+    ],
+  },
+  {
     version: '0.2.100',
     changes: [
       'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
