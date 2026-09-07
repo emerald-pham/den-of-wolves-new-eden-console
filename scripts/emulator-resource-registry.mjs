@@ -342,7 +342,7 @@ async function gitIsAncestor(ancestor, descendant, cwd) {
     await runGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd);
     return true;
   } catch (error) {
-    if (error?.status === 1) return false;
+    if (error?.status === 1 || error?.code === 1) return false;
     throw error;
   }
 }
