@@ -5,6 +5,7 @@ import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
 import DradisRangeBands from '@/components/DradisRangeBands';
 import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
+import GmStarmapModule from '@/components/GmStarmapModule';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
 import { DRADIS_RESIZE_MS } from '@/components/dradisMotion';
@@ -767,6 +768,7 @@ export default function GmConsole() {
                       : 'Finale // Enable debrief mode'}
             </button>
           </section>
+          <GmStarmapModule session={session} />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"
             aria-label="Fleet resource controls"

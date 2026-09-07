@@ -1,0 +1,356 @@
+/*
+ * The printed chart supplies the topology and the two-dimensional positions.
+ * This panel adds perspective as an instrument treatment only; it does not
+ * claim a third gameplay coordinate.
+ */
+.starmap {
+  min-width: 0;
+  color: var(--cic-ink);
+}
+
+.starmap__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.starmap__header h2 {
+  margin: 0.15rem 0 0;
+  color: var(--cic-ink);
+  font: 1.25rem/1.1 var(--cic-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.starmap__chart-readout,
+.starmap__ground-truth,
+.starmap__fleet-fix {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.starmap__chart-readout {
+  text-align: right;
+}
+
+.starmap__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.8rem 1.25rem;
+  border-bottom: 1px solid var(--cic-rule);
+}
+
+.starmap__chart-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.starmap__toolbar-label {
+  color: var(--cic-amber);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.starmap__chart-button {
+  min-width: 5rem;
+}
+
+.starmap__chart-button:hover,
+.starmap__chart-button[aria-pressed='true'] {
+  border-color: var(--cic-cyan);
+  color: var(--cic-cyan-hot);
+  background: color-mix(in srgb, var(--cic-cyan-dim) 18%, transparent);
+  box-shadow: 0 0 0.8rem var(--cic-cyan-dim);
+}
+
+.starmap__chart-button:focus-visible,
+.starmap__node:focus-visible {
+  outline: 2px solid var(--cic-amber);
+  outline-offset: 2px;
+}
+
+.starmap__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(16rem, 0.75fr);
+  align-items: start;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.starmap__viewport {
+  position: relative;
+  min-width: 0;
+  height: clamp(28rem, 52vw, 42rem);
+  overflow: hidden;
+  border: 1px solid var(--cic-rule);
+  background: var(--cic-void);
+  perspective: 1100px;
+  perspective-origin: 50% 42%;
+}
+
+.starmap__viewport::before,
+.starmap__viewport::after {
+  position: absolute;
+  pointer-events: none;
+  content: '';
+}
+
+.starmap__viewport::before {
+  inset: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--cic-amber-dim) 70%, transparent);
+}
+
+.starmap__viewport::after {
+  top: 0.7rem;
+  bottom: 0.7rem;
+  left: 50%;
+  border-left: 1px solid color-mix(in srgb, var(--cic-amber-dim) 35%, transparent);
+}
+
+.starmap__scene {
+  position: absolute;
+  top: 2%;
+  left: 50%;
+  width: min(90%, 42rem);
+  height: 75%;
+  transform: translateX(-50%) rotateX(34deg) rotateZ(-2deg);
+  transform-style: preserve-3d;
+}
+
+.starmap__network,
+.starmap__nodes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.starmap__network {
+  overflow: visible;
+  transform: translateZ(0);
+  transform-style: preserve-3d;
+}
+
+.starmap__link {
+  stroke: var(--cic-amber);
+  stroke-width: 0.32;
+  opacity: 0.48;
+  vector-effect: non-scaling-stroke;
+}
+
+.starmap__nodes {
+  transform-style: preserve-3d;
+}
+
+.starmap__node {
+  position: absolute;
+  display: grid;
+  grid-template-rows: auto auto;
+  place-items: center;
+  width: clamp(3rem, 6vw, 4.25rem);
+  min-height: 44px;
+  aspect-ratio: 1;
+  padding: 0.3rem;
+  border: 1px solid var(--cic-amber);
+  border-radius: var(--cic-radius);
+  background: var(--cic-panel);
+  color: var(--cic-cyan);
+  font-family: var(--cic-mono);
+  cursor: pointer;
+  transform: translate(-50%, -50%) translateZ(calc(var(--starmap-depth) * 2px));
+  transform-style: preserve-3d;
+}
+
+.starmap__node:hover {
+  border-color: var(--cic-cyan-hot);
+  box-shadow: 0 0 0.8rem var(--cic-cyan-dim);
+}
+
+.starmap__node[data-selected='true'] {
+  z-index: 2;
+  border-color: var(--cic-cyan-hot);
+  box-shadow: 0 0 1rem var(--cic-cyan-dim);
+}
+
+.starmap__node[data-candidate='true'] {
+  border-style: double;
+  border-width: 3px;
+}
+
+.starmap__node-coordinate {
+  color: var(--cic-cyan-hot);
+  font: 0.6875rem/1.1 var(--cic-mono);
+  letter-spacing: 0.06em;
+}
+
+.starmap__node-code {
+  color: var(--cic-amber-glow);
+  font: 0.82rem/1.1 var(--cic-display);
+  letter-spacing: 0.1em;
+}
+
+.starmap__node-fleet {
+  position: absolute;
+  top: calc(100% + 0.15rem);
+  left: 50%;
+  color: var(--cic-cyan);
+  font: 0.52rem/1.1 var(--cic-mono);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.starmap__projection-note {
+  position: absolute;
+  right: 0.8rem;
+  bottom: 0.8rem;
+  left: 0.8rem;
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-top: 1px solid var(--cic-rule);
+  background: color-mix(in srgb, var(--cic-void) 92%, transparent);
+  color: var(--cic-muted);
+  font: 0.68rem/1.4 var(--cic-mono);
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.starmap__readout {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.starmap__readout h3 {
+  margin: 0.2rem 0 0;
+  color: var(--cic-ink);
+  font: 1.05rem/1.2 var(--cic-display);
+  letter-spacing: 0.08em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.starmap__readout-site {
+  margin: 0.75rem 0 0;
+  color: var(--cic-cyan-hot);
+  font: 0.75rem/1.45 var(--cic-mono);
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.starmap__readout-summary {
+  margin: 0.55rem 0 0;
+  color: var(--cic-ink);
+  font: 0.875rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.starmap__readout dl {
+  margin: 1rem 0 0;
+}
+
+.starmap__readout dl > div {
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--cic-rule);
+}
+
+.starmap__readout dt {
+  color: var(--cic-amber);
+  font: 0.68rem/1.3 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.starmap__readout dd {
+  margin: 0.25rem 0 0;
+  color: var(--cic-ink);
+  font: 0.875rem/1.45 var(--cic-mono);
+  overflow-wrap: anywhere;
+}
+
+.starmap__readout-empty {
+  margin: 1rem 0 0;
+  color: var(--cic-muted);
+  font: 0.875rem/1.5 var(--cic-mono);
+}
+
+.starmap__fleet-fix {
+  margin: 0 1rem 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--cic-rule);
+}
+
+@media (max-width: 62rem) {
+  .starmap__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .starmap__readout {
+    order: -1;
+  }
+}
+
+@media (max-width: 42rem), (max-height: 42rem) {
+  .starmap__header,
+  .starmap__toolbar,
+  .starmap__body {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+
+  .starmap__viewport {
+    height: clamp(26rem, 92vw, 34rem);
+  }
+
+  .starmap__node {
+    width: 3.2rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .starmap__header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .starmap__chart-readout {
+    text-align: left;
+  }
+
+  .starmap__toolbar {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .starmap__viewport {
+    height: 30rem;
+  }
+
+  .starmap__scene {
+    width: 96%;
+  }
+
+  .starmap__node {
+    width: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .starmap__chart-button,
+  .starmap__node {
+    transition: none;
+  }
+}

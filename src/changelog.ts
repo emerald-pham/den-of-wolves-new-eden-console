@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'GMs can now inspect the printed 22-system star chart in a 3D console projection, switch between organiser charts A, B and C, and see each fleet ship’s current chart fix without exposing the instrument to players.',
+    ],
+  },
+  {
+    version: '0.2.64',
+    changes: [
       'The New Eden Console can now be added to an iPhone or Android home screen as a standalone CIC app with a DRADIS ball icon.',
       'Mobile consoles now preserve their dark launch screen and safe-area spacing around browser and device hardware.',
     ],

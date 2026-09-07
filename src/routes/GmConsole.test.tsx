@@ -97,6 +97,7 @@ function streamInstances(instances: readonly typeof local[]) {
 it('redirects browsers without a local GM claim', () => {
   renderConsole();
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: /gm starmap/i })).not.toBeInTheDocument();
 });
 
 it('lists every GM instance and only offers to kick other instances', async () => {
@@ -234,6 +235,27 @@ it('shows fleet DRADIS and jumps between ship perspectives', async () => {
   expect(screen.getByRole('button', { name: /view dradis from shepherd/i }))
     .toHaveAttribute('aria-pressed', 'true');
   expect(container.querySelector('.gm-dradis .contact-plot__rig')).not.toBe(aegisScan);
+});
+
+it('shows the 3D starmap only inside the GM console and follows the organiser chart', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const gmMap = await screen.findByRole('region', { name: /gm starmap/i });
+  expect(within(gmMap).getByRole('region', { name: '3D starmap' })).toBeInTheDocument();
+  expect(within(gmMap).getByText(/FLEET FIX \/\/ 0000/i)).toBeInTheDocument();
+  expect(within(gmMap).getByRole('button', { name: 'Chart A' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(gmMap).getAllByRole('button', { name: /system /i })).toHaveLength(22);
+
+  await user.click(within(gmMap).getByRole('button', { name: 'Chart C' }));
+  expect(within(gmMap).getByRole('button', { name: 'Chart C' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(gmMap).getByRole('button', { name: /system 8378.*deep nebula/i })).toBeInTheDocument();
+
+  await user.click(within(gmMap).getByRole('button', { name: /system 8378.*deep nebula/i }));
+  expect(within(gmMap).getByRole('region', { name: /selected system readout/i }))
+    .toHaveTextContent(/8378.*deep nebula.*new eden candidate/i);
 });
 
 it('forwards the fleet range-display policy into the GM DRADIS without recalculating coordinates', () => {

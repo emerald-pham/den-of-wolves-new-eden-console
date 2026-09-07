@@ -199,6 +199,19 @@ tests, and `src/styles/aesthetic.test.ts`. Extend those shared checks when
 changing system presentation; retain distinct vessel configurations, row orders,
 and actual versus hypothetical damage states.
 
+### GM starmap instrument
+
+The GM-only starmap is a ruled navigation instrument in the main GM workspace.
+It renders the printed 22-system, 40-link topology and swaps only the selected
+organiser A/B/C site-code overlay. Its CSS perspective is display-only: no third
+gameplay coordinate is implied. Coordinate nodes remain square native buttons
+with at least 44px targets, while the selected-system readout keeps the chart
+site, pursuit depth, jump links, site effect and fleet fix readable. The map
+renderer is reusable and the GM adapter is the only current mount, so a later
+ship-console attachment can be added without making the instrument player
+visible now. Chart selection and node selection stay local until an authoritative
+session field exists; the map performs no client write.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
