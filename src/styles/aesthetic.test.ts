@@ -455,6 +455,52 @@ describe('ship console instrument layout', () => {
     expect(bay).toContain('min-height: 0');
   });
 
+  it('keeps the pursuit rail directly below DRADIS when a ship console enters narrow document flow', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /\.ship-console:not\(\.shuttle-console\) \.ship-console__instruments\s*\{[^}]*order:\s*-1/,
+    );
+  });
+
+  it('keeps pursuit panels in the danger palette and escalates their countdown without unsafe motion', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+    const tracker = index.match(/\n\.pursuit-tracker \{([^}]*)\}/)?.[1] ?? '';
+
+    expect(tracker).toContain('border-color: var(--cic-danger)');
+    expect(index).toMatch(/\.pursuit-tracker::before\s*\{[^}]*var\(--cic-danger\)/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='tracked'\]/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='closing'\]/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='critical'\]/);
+    expect(index).toMatch(/\.pursuit-tracker\[data-threat-level='terminal'\]/);
+    expect(index).toMatch(/@keyframes pursuit-threat-pulse/);
+    expect(index).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.pursuit-tracker[^}]*animation:\s*none/,
+    );
+  });
+
+  it('lets the pursuit frame override the shared amber frame in computed styles', () => {
+    const cic = readFileSync('src/styles/cic.css', 'utf8');
+    const index = readFileSync('src/index.css', 'utf8').replace(/@import[^;]+;/g, '');
+    const sharedBorder = cic.match(/\.cic-frame\s*\{[^}]*border:\s*([^;]+);/)?.[1] ?? '';
+    const pursuitBody = index.match(/\n\.pursuit-tracker \{([^}]*)\}/)?.[1] ?? '';
+    const pursuitBorder = pursuitBody.match(/border-color:\s*([^;]+);/)?.[1] ?? '';
+    const style = document.createElement('style');
+    style.textContent = `.cic-frame { border: ${sharedBorder}; } .pursuit-tracker { border-color: ${pursuitBorder}; }`;
+    document.head.append(style);
+    const tracker = document.createElement('section');
+    tracker.className = 'pursuit-tracker cic-frame';
+    tracker.dataset.threatLevel = 'tracked';
+    document.body.append(tracker);
+
+    try {
+      expect(getComputedStyle(tracker).borderColor).toBe('var(--cic-danger)');
+    } finally {
+      tracker.remove();
+      style.remove();
+    }
+  });
+
   it('gives census conditions more width and scrolls only overflowing labels', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
     const counters = index.match(/\.ship-console__counters\s*\{([^}]*)\}/)?.[1] ?? '';

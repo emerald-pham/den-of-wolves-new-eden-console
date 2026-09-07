@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Pursuit panels now keep their apocalyptic countdown visible and sit directly beneath DRADIS on ship consoles at every screen size.',
+    ],
+  },
+  {
+    version: '0.2.100',
+    changes: [
       'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
     ],
   },
