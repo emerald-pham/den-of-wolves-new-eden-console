@@ -6,6 +6,7 @@ import TurnStartAnnouncement, {
   TURN_START_EXIT_FADE_MS,
   TURN_ONE_CLOSING_SLIDE_MS,
   TURN_ONE_NARRATIVE_SLIDE_MS,
+  TURN_ONE_TRAITORS_SLIDE_MS,
   TURN_START_SLIDE_MS,
 } from './TurnStartAnnouncement';
 
@@ -67,11 +68,11 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   expect(traitorMessage).toHaveClass('turn-start-announcement__message');
   expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(traitors.parentElement).toBe(traitorMessage);
   expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
+  act(() => vi.advanceTimersByTime(TURN_ONE_TRAITORS_SLIDE_MS - TURN_START_SLIDE_MS));
   const survivors = screen.getByText('242,500 SURVIVORS');
   expect(survivors).toHaveClass('turn-start-announcement__population');
   expect(screen.queryByText('242,500 SURVIVORS —')).not.toBeInTheDocument();
@@ -203,7 +204,7 @@ it('replays a GM-only local transmission and clears the local trigger when it co
     TURN_ONE_NARRATIVE_SLIDE_MS,
     TURN_ONE_NARRATIVE_SLIDE_MS,
     TURN_ONE_NARRATIVE_SLIDE_MS,
-    TURN_START_SLIDE_MS,
+    TURN_ONE_TRAITORS_SLIDE_MS,
     TURN_ONE_CLOSING_SLIDE_MS,
     TURN_ONE_CLOSING_SLIDE_MS,
     TURN_START_EXIT_FADE_MS,
