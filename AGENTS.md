@@ -7,6 +7,14 @@ and every tool — Claude Code, Codex, Cursor, Copilot, anything else.
 Key rules from it are repeated here so no agent can claim it
 only read this file:
 
+0. **Start in the checkout you will edit.** Read `CLAUDE.md`, then run
+   `pwd`, `git branch --show-current`, `git status --short --branch`, and
+   `git log -1 --oneline --decorate`. If the branch is empty, create a unique
+   short-lived branch in this same worktree before changing anything. A branch
+   that exists elsewhere does not fix a detached checkout. Run
+   `coordination:begin` from this worktree, verify its recorded path with
+   `coordination:status`, and keep its printed id for completion.
+
 1. **Test first for code.** A failing test exists and has been *run* before any
    implementation code is written. No exceptions for "small" code changes.
    Documentation-only edits are exempt; see `CLAUDE.md` for the exact boundary.

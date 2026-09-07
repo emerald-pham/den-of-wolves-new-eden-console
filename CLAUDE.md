@@ -5,6 +5,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 
 ## Contents
 
+- [Agent fast path](#agent-fast-path)
 - [Test first for code](#1-test-first-for-code)
 - [Shared test-runner contention](#shared-test-runner-contention)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
@@ -24,6 +25,46 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Layout](#layout)
 - [Definition of done](#definition-of-done)
 - [Aesthetic profiles and responsive UI](#aesthetic-profiles-and-responsive-ui)
+
+## Agent fast path
+
+Use this short sequence at the start and end of every task. It keeps the
+checkout, branch, coordination entry, and final handoff tied to the same
+worktree.
+
+1. Read this file and `AGENTS.md`, then inspect the checkout you will actually
+   edit:
+
+   ```bash
+   pwd
+   git branch --show-current
+   git status --short --branch
+   git log -1 --oneline --decorate
+   git worktree list --porcelain
+   ```
+
+   If the checkout already has changes, preserve them and establish whether
+   they belong to this task before touching an overlapping file.
+2. If `git branch --show-current` is empty, stop and create a unique,
+   short-lived branch in this checkout with
+   `git switch -c <type>/<short-slug>-<yyyymmdd>`. Verify the branch again
+   afterward. A branch listed by Git or checked out in another worktree does
+   not attach this checkout.
+3. Before editing, run `npm run coordination:begin -- ...` from this same
+   worktree, save the printed entry id, and immediately run
+   `npm run coordination:status`. Confirm that the entry's `worktree` path
+   equals the current `pwd` and that no active entry overlaps the intent. If it
+   points elsewhere, do not edit or finish that entry; reconcile the worktrees
+   first.
+4. Load dependencies only when the validation command needs them. Follow the
+   test-first, emulator-slot, and product-reference rules below; documentation-
+   only work uses the lighter review path described in [Test first for code](#1-test-first-for-code).
+5. Finish from the same worktree. At minimum, run `git diff --check`, inspect
+   `git status --short --branch`, report the verification evidence, and close
+   the coordination entry with
+   `npm run coordination:finish -- --id <id>`. For documentation-only work,
+   review rendered text, links, examples, and the final diff instead of
+   running application tests.
 
 ## 1. Test first for code
 
@@ -115,6 +156,12 @@ nothing, the worktree has a detached `HEAD`; immediately create a uniquely
 named, short-lived task branch at the current `HEAD` and do all work there.
 Never make changes or commits while detached. Confirm the branch is based on
 the intended starting point (normally current `origin/main`) before proceeding.
+Treat this branch check as a hard gate for coordination: run it in the checkout
+that will be edited, and do not run `coordination:begin` while it is detached.
+The branch must be attached to that same checkout; a branch that exists in
+`git branch -a` or is attached to another worktree is not sufficient. If the
+branch is behind newer `main` work because another task landed first, reconcile
+it before merging rather than silently shipping from an old base.
 
 ## Local worktree coordination and versioning agreement
 
@@ -133,6 +180,10 @@ This writes a human-readable, Git-ignored coordination file shared by local
 worktrees. `npm run coordination:status` displays the **Version agreement**,
 the active **Preemptive changelog**, configured emulator rows, and live process
 reservations so another agent can see intent before touching overlapping work.
+The entry records the directory from which `coordination:begin` ran. Always run
+it from the worktree you will edit, then compare the recorded `worktree` path
+with `pwd`; do not assume that a similarly named branch or entry belongs to
+this checkout. Keep the printed id, and finish only your own entry.
 Close the entry with `npm run coordination:finish -- --id <id>` when the work is
 complete. The default file is in the OS temporary directory; set
 `DOW_EMULATOR_COORDINATION_FILE` to use another common local path.
@@ -166,6 +217,19 @@ children surfaced from inactive chats, retrieve any result still needed, and
 close every completed, errored, or interrupted child. Leave pending or running
 children from any chat alone; close them only after they reach a terminal state
 unless they are still needed for the current task.
+
+Keep delegation economical:
+
+- Delegate only a bounded sidecar with a concrete output and acceptance
+  criteria. If no independent sidecar exists, continue locally; do not create
+  an agent merely to satisfy a quota.
+- Start independent sidecars in parallel, do non-overlapping work while they
+  run, and do not repeat their assigned investigation in the parent.
+- Wait only when the result is needed for the next critical-path decision;
+  otherwise collect it once it reaches a terminal state.
+- Ask every child to return changed paths (if any), commands run, and observed
+  results. Review that evidence before integration, then close the child
+  immediately.
 
 - Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
   is not an approved delegation model for this codebase.
@@ -447,6 +511,8 @@ tests/rules/      assertions against the emulator
 
 ## Definition of done
 
+- [ ] The current checkout is on the intended short-lived branch; the branch
+  and coordination entry refer to the same worktree.
 - [ ] For code changes, a test was written first and observed failing.
 - [ ] Every completed product edit updated the player-facing changelog in user terms.
 - [ ] For changes that are not documentation-only, local lint and tests were
@@ -462,6 +528,8 @@ tests/rules/      assertions against the emulator
 - [ ] No new client write path to server-authoritative data.
 - [ ] No secret, key or service-account JSON added to the repo.
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
+- [ ] The task's coordination entry was closed with a concise result, and every
+  completed delegated child was closed.
 - [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys
   the affected Firebase surfaces, including Hosting for visible product edits).
 - [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.

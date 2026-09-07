@@ -26,6 +26,18 @@ npm run coordination:begin -- \
   --resources "emulator-slot-4,shared-coordination-file"
 ```
 
+When following or recovering another entry, match its absolute `worktree:` path
+with its Git identity before editing:
+
+```bash
+git -C "<worktree-path>" branch --show-current
+git -C "<worktree-path>" rev-parse --short HEAD
+git worktree list --porcelain
+```
+
+A blank branch, a path mismatch, or an unexpected commit is an unresolved
+handoff. Do not edit or finish that entry until it is reconciled.
+
 The three required fields are deliberately explicit. Product work states the
 planned application version and its player-facing release note before coding;
 tooling, documentation, and test-only work state that no application version or
@@ -36,6 +48,9 @@ Inspect the shared status pane at any time:
 ```bash
 npm run coordination:status
 ```
+
+Only `[active]` entries represent current work claims. `[complete]` entries are
+historical and do not reserve a worktree, branch, or emulator resource.
 
 The emulator commands also claim their configured slot in the same file. Rules
 tests prefer the worktree's configured row, but automatically claim another
@@ -50,6 +65,10 @@ npm run coordination:finish -- \
   --result "Merged after the local gate passed."
 ```
 
-The registry prunes dead process reservations. A configured row remains visible
-until that worktree configures another row, so an abandoned worktree cannot be
-silently reused by a different worktree.
+From the same checkout that began the task, close the entry using the exact id
+printed by `coordination:begin`, then run `npm run coordination:status` once to
+confirm it is no longer active. Do this before deleting the branch or worktree;
+never finish an entry copied from another worktree. The registry prunes dead
+process reservations. A configured row remains visible until that worktree
+configures another row, so an abandoned worktree cannot be silently reused by a
+different worktree.
