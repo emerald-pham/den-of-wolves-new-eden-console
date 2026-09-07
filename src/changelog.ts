@@ -11,36 +11,117 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     changes: [
       'Pursuit panels now show the shared Distance from Home Systems readout without redundant coordinate or scope labels.',
+    ],
+  },
+  {
+    version: '0.2.92',
+    changes: [
+      'Turn handoffs now clear unused console charges and shuttle fuel after Coordination Phase, keep overrunning missions and their docking state in place, and show the numbered successor turn with an AIRSPACE CLOSED, survivor, and OBJECTIVE // SURVIVE. transmission.',
       'GM fleet resource cards now show each ship’s current ship-relative pursuit tracker beneath its resource and census controls, using the shared galactic map even when the fleet is split.',
+    ],
+  },
+  {
+    version: '0.2.87',
+    changes: [
       'Ship consoles now show a ship-relative pursuit tracker directly beneath shipboard DRADIS, using each ship’s live coordinate and the shared galactic map pursuit depth without exposing split-fleet positions.',
+    ],
+  },
+  {
+    version: '0.2.86',
+    changes: [
       'GM Console now requires a second click to advance from Turn 0, while Skip to Turn 1 bypasses the fullscreen transmission and keeps its own wording independent.',
       'The former launcher hacking transmissions are restored as a future-ready capability, but remain disabled in the current opening experience until Wolf gameplay provides the context.',
+    ],
+  },
+  {
+    version: '0.2.85',
+    changes: [
       'The Turn 1 traitor reveal now lingers longer for a clearer read, and the final survivors slide fades out more deliberately.',
+    ],
+  },
+  {
+    version: '0.2.84',
+    changes: [
+      'The Code of Conduct now reminds everyone that every role has a human behind it, and asks players to say hello and debrief after the game—even when their roles are enemies.',
+      'DRADIS contact acquisition is back on the established visible sweep rim, restoring predictable detections across the display.',
+    ],
+  },
+  {
+    version: '0.2.83',
+    changes: [
+      'DRADIS acquisition now follows the exact visible scan-disc radius, so the viewport sweep and its 3D contact boundary stay aligned at every display size.',
+    ],
+  },
+  {
+    version: '0.2.82',
+    changes: [
+      'DRADIS sweeps now use their finite 3D scan discs, so a contact is acquired only when its actual position intersects the scan volume—not when its screen projection merely overlaps it.',
+    ],
+  },
+  {
+    version: '0.2.81',
+    changes: [
+      'The Code of Conduct waiver now requires each regulation checkbox before the final confirmation becomes available.',
+      'A ten-second review timer now separates the contract popup from its final confirmation, and logged-in GMs can reset the checklist from Settings.',
+    ],
+  },
+  {
+    version: '0.2.78',
+    changes: [
+      'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',
+      'DRADIS acquisition now follows rendered 3D sweep-plane crossings against each target’s actual rig-space XYZ position instead of its projected screen position.',
+    ],
+  },
+  {
+    version: '0.2.77',
+    changes: [
       'Ship jump consoles now include a non-GM navigation map with the current ship fix and the coordinates of that ship’s previous fixes, synced to the GM star map without exposing organiser site overlays.',
       'GMs can select a fleet ship, click a printed system, and move that ship there; the authoritative ship log records the stardate, navigational error, and nearby fleet jump-away or jump-arrival notices.',
       'Every ship now has a bounded, scrollable navigation log that excludes maintenance activity and uses a server-derived UTC stardate.',
       'Ship consoles can locally hide resource stores and unrest/population independently before showing a console to another ship.',
       'The ICN travel console lock is server-authorized and disables gameplay actions while engaged, with a release control for the ship’s active authority.',
       'First-time session access now opens a Code of Conduct waiver with the fleet’s ship-table role-play rule and CIC information-security regulation.',
-      'The Code of Conduct waiver now requires each regulation checkbox before the final confirmation becomes available.',
-      'The Code of Conduct now reminds everyone that every role has a human behind it, and asks players to say hello and debrief after the game—even when their roles are enemies.',
-      'A ten-second review timer now separates the contract popup from its final confirmation, and logged-in GMs can reset the checklist from Settings.',
       'Acknowledging the waiver keeps it cleared across sessions for 24 hours on the same device.',
-      'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',
-      'DRADIS contact acquisition is back on the established visible sweep rim, restoring predictable detections across the display.',
-      'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
-      'GM access now logs in from Settings, remembers the browser login for 24 hours, shows a lock-state emoji, and provides an explicit safety logout.',
       'The launcher now keeps Settings available, and creating or joining a session lands at the pre-role device connection screen after any current session has been disconnected.',
       'GMs can kick connected player browsers from the roster; the kicked browser is blocked from returning to that session, while its identity remains free to join another session.',
-      'GM registration now requires authenticated facilitator access before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
-      'Live roster changes now immediately make removed ship and Press roles read-only, with server-side checks protecting maintenance, dispatch, alert, counter, and confetti actions.',
-      'Expired presence leases no longer let stale crew block two-person confetti approvals, and legacy connected records remain consistent with session membership locking.',
-      'The GM starmap now reads as a deeper tactical navigation instrument, with highlighted jump corridors, a restrained scanning pass, and clearer perspective depth.',
-      'Fleet fixes now carry their existing ship colors into the chart, while the live plot strip and accessible system labels make plotted ships easier to track.',
       'Turn transmissions now close on one survivor-count beat before fading out, and the fleet survivor readout stays at the reduced total through the next turn transition.',
       'Unknown ambient contacts now enter at LONG range, the expanded DRADIS view no longer carries a standalone range key, and the disco ball renders an illuminated rear facet surface.',
       'The mobile fleet ticker reserves the measured wrapped header height and keeps repeated copy in a single centred line box.',
+    ],
+  },
+  {
+    version: '0.2.76',
+    changes: [
+      'GM access now logs in from Settings, remembers the browser login for 24 hours, shows a lock-state emoji, and provides an explicit safety logout.',
+      'GM registration now requires authenticated facilitator access before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
+    ],
+  },
+  {
+    version: '0.2.75',
+    changes: [
+      'GM registration now requires the facilitator access password before a device can enter the GM console, while Settings explains how legitimate product holders can request access.',
+      'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
+    ],
+  },
+  {
+    version: '0.2.74',
+    changes: [
+      'Live roster changes now immediately make removed ship and Press roles read-only, with server-side checks protecting maintenance, dispatch, alert, counter, and confetti actions.',
+      'Expired presence leases no longer let stale crew block two-person confetti approvals, and legacy connected records remain consistent with session membership locking.',
+    ],
+  },
+  {
+    version: '0.2.73',
+    changes: [
+      'The Turn 0 → Turn 1 transmission now gives its closing PEOPLE and SURVIVE. beats more room to land, removes the stray dash, and fades out over a full second.',
       'GM Console can replay the latest transmission locally or across every connected console, with a codified danger-red second press for the setup skip command.',
+    ],
+  },
+  {
+    version: '0.2.72',
+    changes: [
+      'The GM starmap now reads as a deeper tactical navigation instrument, with highlighted jump corridors, a restrained scanning pass, and clearer perspective depth.',
+      'Fleet fixes now carry their existing ship colors into the chart, while the live plot strip and accessible system labels make plotted ships easier to track.',
     ],
   },
   {

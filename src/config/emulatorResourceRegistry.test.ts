@@ -111,6 +111,37 @@ describe('local emulator coordination', () => {
     expect(output).toContain('Live emulator reservations');
   });
 
+  it('reports free isolated emulator slots instead of implying one shared emulator', () => {
+    const output = formatCoordinationState({
+      version: 1,
+      versionAgreement: 'agreement',
+      entries: [],
+      reservations: [
+        {
+          slot: 3,
+          worktree: '/worktrees/live',
+          kind: 'emulators',
+          pid: 456,
+          command: 'npm run emulators',
+          claimedAt: '2026-09-06T20:00:00.000Z',
+        },
+      ],
+      configurations: [
+        {
+          id: 'configured-slot',
+          slot: 1,
+          worktree: '/worktrees/configured',
+          configuredAt: '2026-09-06T20:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(output).toContain('15 isolated emulator slots');
+    expect(output).toContain('available slots: 0, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14');
+    expect(output).toContain('occupied slots: 1, 3');
+    expect(output).toContain('npm run emulators:configure -- auto');
+  });
+
   it('atomically assigns distinct rows when worktrees auto-configure concurrently', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-registry-test-${randomUUID()}.json`);
 

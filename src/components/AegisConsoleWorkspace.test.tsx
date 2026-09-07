@@ -34,9 +34,9 @@ it('keeps the Press airspace exception under AEGIS systems control and makes tim
   await user.click(screen.getByText('Systems control'));
   const control = screen.getByRole('region', { name: 'Airspace control' });
   expect(screen.getByRole('button', { name: /unlock airspace.*press/i })).toBeEnabled();
-  expect(screen.getByRole('button', { name: /airspace restricted timer.*no manual control/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /airspace closed timer.*no manual control/i })).toBeDisabled();
   expect(screen.getByRole('button', { name: /airspace open timer.*no manual control/i })).toBeDisabled();
-  expect(control).toHaveTextContent(/non-affiliated vessels.*restricted/i);
+  expect(control).toHaveTextContent(/non-affiliated vessels.*closed/i);
   await user.click(screen.getByRole('button', { name: /unlock airspace.*press/i }));
   expect(unlockPressAirspace).toHaveBeenCalledOnce();
 });

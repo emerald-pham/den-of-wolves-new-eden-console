@@ -197,6 +197,34 @@ it('requires confirmation for Advance to Turn 1 without changing Skip wording', 
   });
 });
 
+it('keeps Advance and Skip available for every numbered turn', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 2 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(advanceTurn).mockResolvedValue(undefined);
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  const advance = within(turnControls).getByRole('button', { name: 'Advance to Turn 3' });
+  const skip = within(turnControls).getByRole('button', { name: 'Skip to Turn 3' });
+  expect(advance).toBeEnabled();
+  expect(skip).toBeEnabled();
+
+  await user.click(skip);
+  expect(advanceTurn).not.toHaveBeenCalled();
+  expect(within(turnControls).getByRole('button', {
+    name: 'ARE YOU SURE? // Skip to Turn 3',
+  })).toBeVisible();
+  await user.click(within(turnControls).getByRole('button', {
+    name: 'ARE YOU SURE? // Skip to Turn 3',
+  }));
+
+  expect(advanceTurn).toHaveBeenCalledWith({ skipTurnStartAnnouncement: true });
+});
+
 it('offers local and shared replay controls for the current turn transmission', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
@@ -591,11 +619,11 @@ it('keeps each airspace-window countdown in compact and expanded fleet DRADIS', 
   renderConsole();
 
   expect(await screen.findByRole('status', {
-    name: /Airspace restricted \/\/ \d{2}:\d{2} remaining/i,
+    name: /Airspace closed \/\/ \d{2}:\d{2} remaining/i,
   })).toHaveAttribute('data-tone', 'blue');
   fireEvent.click(screen.getByRole('button', { name: /expand dradis display/i }));
   expect(screen.getByRole('status', {
-    name: /Airspace restricted \/\/ \d{2}:\d{2} remaining/i,
+    name: /Airspace closed \/\/ \d{2}:\d{2} remaining/i,
   })).toHaveAttribute('data-tone', 'blue');
 
   act(() => useSessionStore.getState().setSession({

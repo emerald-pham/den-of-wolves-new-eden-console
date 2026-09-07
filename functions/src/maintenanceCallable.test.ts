@@ -4,6 +4,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
+  shuttleFuelled: {} as Record<string, boolean>,
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
@@ -51,6 +52,7 @@ beforeEach(() => {
   mock.damage = {};
   mock.currentTurn = 1;
   mock.maintenanceCycles = {};
+  mock.shuttleFuelled = {};
   mock.shipSurvivors = {};
   mock.capybaraEnabled = true;
   mock.dioneEnabled = true;
@@ -79,6 +81,7 @@ beforeEach(() => {
           shipDamage: mock.damage,
           currentTurn: mock.currentTurn,
           maintenanceCycles: mock.maintenanceCycles,
+          shuttleFuelled: mock.shuttleFuelled,
           shipSurvivors: mock.shipSurvivors,
           fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
           turnStartAnnouncement: mock.turnStartAnnouncement,
@@ -268,6 +271,8 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   }))).resolves.toEqual({
     currentTurn: 2,
     turnStartAnnouncement: { turn: 2, survivorPopulation: 156_041 },
+    maintenanceCycles: {},
+    shuttleFuelled: {},
     turnPhase: {
       turn: 2,
       teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -285,6 +290,50 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+});
+
+it('expires charged consoles and shuttle fuel when a numbered turn hands off', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
+  mock.currentTurn = 2;
+  mock.maintenanceCycles = {
+    aegis: {
+      step: 0,
+      revision: 8,
+      turn: 2,
+      results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive', 'fighter-bay-alpha'],
+      refuelled: ['starlight'],
+      completedAt: '2026-09-06T12:10:00.000Z',
+    },
+  };
+  mock.shuttleFuelled = { starlight: true, pallas: false };
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2,
+  }))).resolves.toMatchObject({ currentTurn: 3 });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    maintenanceCycles: {
+      aegis: expect.objectContaining({
+        step: 0,
+        revision: 8,
+        charges: [],
+        refuelled: [],
+      }),
+    },
+    shuttleFuelled: { starlight: false, pallas: false },
+  }));
+  const patch = mock.update.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+  expect(patch).not.toHaveProperty('shuttleDockings');
+  expect(patch).not.toHaveProperty('shuttleCargo');
+  expect(patch).not.toHaveProperty('shipResources');
 });
 
 it('keeps the authoritative fleet total non-negative when a turn begins at zero', async () => {

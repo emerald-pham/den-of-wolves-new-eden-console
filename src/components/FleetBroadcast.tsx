@@ -51,7 +51,7 @@ export default function FleetBroadcast() {
     ? {
         id: `${session.id}:airspace:${phase.turn}:${phase.airspace.state}`,
         text: sourceBulletin('AIRSPACE CONTROL', phase.airspace.state === 'restricted'
-          ? 'AIRSPACE RESTRICTED'
+          ? 'AIRSPACE CLOSED'
           : 'AIRSPACE OPEN'),
         tone: 'normal' as const,
         gap: 'long' as const,

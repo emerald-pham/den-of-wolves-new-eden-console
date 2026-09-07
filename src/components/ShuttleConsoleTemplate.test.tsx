@@ -21,7 +21,7 @@ it('renders a second craft through the base with its own identity and opt-in equ
   expect(screen.getByRole('heading', { name: 'Survey Console' })).toBeInTheDocument();
   expect(screen.getByText('Survey Officer // Captain')).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent('In transit');
-  expect(screen.getByText('Airspace restricted')).toBeInTheDocument();
+  expect(screen.getByText('Airspace closed')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Leave shuttle' })).toHaveAttribute('href', '/console');
   expect(screen.queryByText('SNN')).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
