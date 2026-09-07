@@ -31,6 +31,9 @@ npm run coordination:status
 Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
 attached to that checkout, and no active entry claims overlapping work. A blank
 branch, path mismatch, or unexpected commit is an unresolved handoff.
+The begin command records the attached branch, starting branch SHA, and starting
+`main` SHA; it refuses detached checkouts, direct work on `main`, and duplicate
+active entries for this worktree.
 
 For player-facing work, the preemptive changelog is the first release step, not
 a roll-up written at the end. Claim one unused release version for this task,
@@ -80,6 +83,27 @@ a listening port from another worktree.
 The full slot matrix, port checks, and concurrent-test guidance are in
 [`CLAUDE.md`](../CLAUDE.md#concurrent-worktrees-and-emulator-ports).
 
+## Machine validation
+
+After committing the task changes, reconcile the task branch with current
+`main`, commit any conflict resolution, and then run the executable gate from
+the same checkout before merging:
+
+```bash
+npm run coordination:validate -- \
+  --id "<id printed by coordination:begin>" \
+  --documentation-review "Rendered text, links, examples, and final diff reviewed." \
+  --visual-review "Narrow, wide, and short-landscape states reviewed."
+```
+
+Only pass the review flags when their scopes apply. The gate derives the command
+plan from committed files: documentation-only changes run the diff check, while
+code changes run lint, all tests, and both production builds. It records a
+receipt tied to the exact branch SHA, rejects rewritten baselines, stale
+versions, package/lock mismatches, and changelog replacement. The review flags
+are explicit human attestations; the receipt cannot prove that a person truly
+performed the review.
+
 ## Finish
 
 From the same checkout that began the work, close only its own entry:
@@ -100,6 +124,10 @@ missing worktrees. End cleanup is still required—stop processes started by the
 task, release its live reservation, finish its entry, close completed children,
 and perform the final status check—but startup cleanup is the recovery boundary
 when any of those steps were skipped.
-The final status should show the entry as historical rather than active, with
-no live process reservation left behind. Do not finish an id copied from
-another worktree.
+`coordination:finish` refuses completion until `main` contains the task commit,
+local `main` equals `origin/main`, the worktree is clean, package metadata and
+changelog state are safe, and the validation receipt matches the final branch
+SHA. It records the final branch SHA, main SHA, remote SHA, and pushed state.
+The final status should show the entry as historical rather than active, with no
+live process reservation left behind. Do not finish an id copied from another
+worktree.

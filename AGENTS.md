@@ -9,6 +9,9 @@ This file is intentionally only a pointer. Do not duplicate those rules here:
 when guidance appears to differ, `CLAUDE.md` wins. Its session checklist must
 include the immediate green-validation merge objective: commit, reconcile with
 `main`, merge, push, and close coordination before going idle.
+The executable `coordination:validate` and `coordination:finish` commands are
+the machine-checked release gate; do not mark an entry complete by editing the
+ledger or supplying an unverified result.
 
 ## Start-of-run priority
 
