@@ -39,7 +39,6 @@ it('emits uncached build metadata for live clients to discover upgrades', () => 
 
 it('documents the release-maturity gates for later version numbers', () => {
   const agreement = readFileSync('CLAUDE.md', 'utf8');
-  const agentEntry = readFileSync('AGENTS.md', 'utf8');
   expect(agreement).toContain('reserved for builds genuinely close to release readiness');
   expect(agreement).toContain('complete 20-player set');
   expect(agreement).toContain('full, complex gameplay');
@@ -52,5 +51,5 @@ it('documents the release-maturity gates for later version numbers', () => {
   expect(agreement).toContain('state the exact version in the user-facing chat');
   expect(agreement).toContain('local tests always run before');
   expect(agreement).toContain('Documentation-only changes');
-  expect(agentEntry).toContain('Version every completed product edit');
+  expect(agreement).toContain('Increment the application version with every completed product edit');
 });

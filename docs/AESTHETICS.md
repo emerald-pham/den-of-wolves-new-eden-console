@@ -561,8 +561,12 @@ system on the same canvas. New mechanics belong in a pageable main workspace;
 do not add placeholder tabs until their destination mechanics exist.
 
 The right status rail is persistent across those pages. Compact DRADIS owns the
-top-right square. Directly beneath it, the rail uses the remaining viewport for
-the shuttlebay manifest and compact command controls. The manifest is the only
+top-right square. Directly beneath it, the ship-local pursuit tracker reports
+the current ship's coordinate, turn load and pursuit value. Its depth comes
+from the shared printed galactic map (`src/data/starChart.ts`); it never
+enumerates other ship positions, because a split fleet keeps independent
+ship-relative tracks. The rail then uses the remaining viewport for the
+shuttlebay manifest and compact command controls. The manifest is the only
 flexible-height item and scrolls internally, so an unbounded docking history
 can never grow underneath or overlap DRADIS. It is a plain ledger: each row
 names the shuttlecraft and the shuttleport where it docked. Do not mix current
@@ -936,6 +940,10 @@ screens it enters document flow before the workspace; both scroll with the page.
 Expanded DRADIS retains its full-screen view and existing perspective controls.
 Resource rows stack their label above the counter when the ship panel is narrow,
 so nested workspace frames never reduce a resource name to an ellipsis.
+Each fleet resource card keeps that ship's current ship-local pursuit tracker
+directly beneath its resource and census controls, using the shared galactic
+map depth without coupling the readout to GM DRADIS or exposing another ship's
+position.
 
 ### GM roster confirmation
 
