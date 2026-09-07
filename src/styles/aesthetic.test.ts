@@ -312,6 +312,19 @@ describe('the GM console', () => {
 
 });
 
+describe('the GM starmap instrument', () => {
+  it('keeps the spatial treatment ruled, square, and still in reduced motion', () => {
+    const starmap = SHEETS.find(({ name }) => name === 'src/styles/starmap.css')?.css ?? '';
+
+    expect(starmap).toContain('.starmap__scanline');
+    expect(starmap).toMatch(/@keyframes starmap-scan\s*\{[^]*?from\s*\{[^}]*left:\s*0[^}]*\}[^]*?to\s*\{[^}]*left:\s*calc\(100% - 1px\)/);
+    expect(starmap).toContain('rotateX(40deg) rotateZ(-3deg)');
+    expect(starmap).toMatch(/\.starmap__node\s*\{[^}]*min-height:\s*44px/);
+    expect(starmap).toMatch(/\[data-motion='reduce'\][^}]*\.starmap__scanline[^}]*animation:\s*none/);
+    expect(starmap).toMatch(/\[data-motion='reduce'\][^}]*\.starmap__link--selected[^}]*animation:\s*none/);
+  });
+});
+
 describe('the shuttlecraft console template', () => {
   it('uses the ship console viewport and stacks real instruments on phones', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';

@@ -26,14 +26,25 @@ export interface StarmapProps {
   readonly className?: string;
 }
 
-type StarmapNodeStyle = CSSProperties & { readonly '--starmap-depth': string };
+type StarmapNodeStyle = CSSProperties & {
+  readonly '--starmap-depth': string;
+  readonly '--starmap-faction': string;
+};
 
-function systemAccessibleName(system: StarSystem, chart: StarChartId): string {
+function systemAccessibleName(
+  system: StarSystem,
+  chart: StarChartId,
+  fleetLabels: readonly string[],
+): string {
   const code = system.chartCodes[chart];
-  if (code === null) return `System ${system.coordinate} // Start`;
-  const site = EXPLORATION_SITES[code];
-  return `System ${system.coordinate} // ${code} // ${site.name}` +
-    (site.candidate ? ' // New Eden candidate' : '');
+  const chartLabel = code === null
+    ? 'Start'
+    : `${code} // ${EXPLORATION_SITES[code].name}` +
+      (EXPLORATION_SITES[code].candidate ? ' // New Eden candidate' : '');
+  const fleetLabel = fleetLabels.length > 0
+    ? ` // Fleet ${fleetLabels.length === 1 ? 'ship' : 'ships'}: ${fleetLabels.join(', ')}`
+    : '';
+  return `System ${system.coordinate} // ${chartLabel}${fleetLabel}`;
 }
 
 function depthLabel(distance: number): string {
@@ -51,6 +62,11 @@ function fleetFixLabel(fleetMarkers: readonly StarmapFleetMarker[]): string {
   const label = coordinates.length === 1 ? 'FLEET FIX' : 'FLEET FIXES';
   const plotted = fleetMarkers.length > 1 ? ` // ${fleetMarkers.length} ships plotted` : '';
   return `${label} // ${coordinates.join(' // ')}${plotted}`;
+}
+
+function fleetPlotLabel(fleetMarkers: readonly StarmapFleetMarker[]): string {
+  const count = fleetMarkers.length;
+  return `Fleet plot // ${count} ${count === 1 ? 'ship' : 'ships'} plotted`;
 }
 
 export default function Starmap({
@@ -84,6 +100,23 @@ export default function Starmap({
         <p className="starmap__chart-readout">Chart {chart} // labelled overlay</p>
       </header>
 
+      <div className="starmap__instrument-strip" role="group" aria-label="Starmap instrument status">
+        <p>
+          <span className="starmap__instrument-label">Plot status</span>
+          <strong>{fleetMarkers.length > 0 ? 'Fleet fix acquired' : 'Awaiting fleet fix'}</strong>
+        </p>
+        <p>
+          <span className="starmap__instrument-label">Fleet plot</span>
+          <strong>{fleetPlotLabel(fleetMarkers)}</strong>
+        </p>
+        <p>
+          <span className="starmap__instrument-label">Display depth</span>
+          <strong>Perspective overlay // display only</strong>
+        </p>
+      </div>
+
+      <div className="starmap__ticks cic-ticks" aria-hidden="true" />
+
       <div className="starmap__toolbar">
         {onChartChange && (
           <div className="starmap__chart-selector" role="group" aria-label="Organiser chart">
@@ -106,7 +139,13 @@ export default function Starmap({
 
       <div className="starmap__body">
         <div className="starmap__viewport">
+          <div className="starmap__viewport-chrome" aria-hidden="true">
+            <span>DRADIS // tactical plot</span>
+            <span>Depth // pursuit</span>
+          </div>
+          <div className="starmap__scanline" aria-hidden="true" />
           <div className="starmap__scene">
+            <div className="starmap__depth-plane" aria-hidden="true" />
             <svg
               className="starmap__network"
               viewBox="0 0 100 100"
@@ -118,9 +157,12 @@ export default function Starmap({
                 const from = systemForCoordinate(connection[0]);
                 const to = systemForCoordinate(connection[1]);
                 if (!from || !to) return null;
+                const isSelectedRoute = connection[0] === selectedCoordinate ||
+                  connection[1] === selectedCoordinate;
                 return (
                   <line
-                    className="starmap__link"
+                    className={`starmap__link${isSelectedRoute ? ' starmap__link--selected' : ''}`}
+                    data-route-state={isSelectedRoute ? 'selected' : 'network'}
                     key={linkKey(connection)}
                     x1={from.position.x}
                     y1={from.position.y}
@@ -136,20 +178,23 @@ export default function Starmap({
                 const code = system.chartCodes[chart];
                 const site = code === null ? undefined : EXPLORATION_SITES[code];
                 const markers = fleetMarkers.filter((marker) => marker.coordinate === system.coordinate);
+                const markerColor = markers[0]?.color ?? 'var(--cic-cyan)';
                 const style: StarmapNodeStyle = {
                   left: `${system.position.x}%`,
                   top: `${system.position.y}%`,
                   '--starmap-depth': `${system.pursuitDistance}`,
+                  '--starmap-faction': markerColor,
                 };
                 return (
                   <button
                     className="starmap__node"
                     key={system.coordinate}
                     type="button"
-                    aria-label={systemAccessibleName(system, chart)}
+                    aria-label={systemAccessibleName(system, chart, markers.map((marker) => marker.label))}
                     aria-pressed={selectedCoordinate === system.coordinate}
                     data-candidate={String(site?.candidate === true)}
                     data-selected={String(selectedCoordinate === system.coordinate)}
+                    data-fleet-count={String(markers.length)}
                     data-system-coordinate={system.coordinate}
                     style={style}
                     onClick={() => onSystemSelect?.(system.coordinate)}

@@ -10,7 +10,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
-      'GM Console now keeps the normal Advance to Turn 1 command alongside the fast Skip to Turn 1 shortcut during setup.',
+      'The GM starmap now reads as a deeper tactical navigation instrument, with highlighted jump corridors, a restrained scanning pass, and clearer perspective depth.',
+      'Fleet fixes now carry their existing ship colors into the chart, while the live plot strip and accessible system labels make plotted ships easier to track.',
     ],
   },
   {

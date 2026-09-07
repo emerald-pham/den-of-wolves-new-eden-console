@@ -212,6 +212,16 @@ ship-console attachment can be added without making the instrument player
 visible now. Chart selection and node selection stay local until an authoritative
 session field exists; the map performs no client write.
 
+The starmap may make the instrument feel space-facing with a restrained scanline,
+ruled projection planes, and a small DRADIS orientation rail. These are display
+chrome only: they must use existing amber/cyan tokens, keep square corners, and
+freeze under the app's reduced-motion setting. Selected jump links are the only
+animated topology treatment and are cyan because they report the currently
+selected system's real neighbours. Fleet fixes reuse each ship's existing
+faction color as a square outer rail and marker; the accessible system name also
+announces the plotted ship names. Do not add a synthetic starfield, depth gauge,
+or other visual that suggests gameplay data the session does not hold.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
