@@ -14,6 +14,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 - [Routine task delegation](#routine-task-delegation)
 - [Concurrent worktrees and emulator ports](#concurrent-worktrees-and-emulator-ports)
 - [Merge once done](#2-merge-once-done)
+- [Worktree retention and cleanup](#worktree-retention-and-cleanup)
 - [Version references](#version-references)
 - [Player-facing changelog](#player-facing-changelog)
 - [Game-rule references](#game-rule-references)
@@ -348,8 +349,11 @@ free slot; never take a port that is already listening.
 - The main-branch deployment workflow does not repeat `npm test`; it relies on
   the required local pre-push gate and the branch or pull-request CI run. It
   continues to run lint, Firestore rule tests, and both production builds.
-- Do not stack unfinished work. Do not leave a branch open "for later." If it is
-  not going to land, delete it.
+- Do not stack unfinished work. Do not leave a task open "for later." If a
+  change is not going to land, make an explicit preserve-or-discard decision.
+  Preserved work must have its commits or artifacts recorded and, if it must
+  survive worktree cleanup, pushed or archived outside the worktree. Discarded
+  work does not require a push.
 - Never force-push `main`. Never commit directly to `main` for anything that
   changes behavior.
 - Push to `main` deploys the affected Firebase surfaces. Every completed product
@@ -360,6 +364,47 @@ free slot; never take a port that is already listening.
 
 Commit messages: imperative subject under 72 characters, and a body that says
 *why* when the why is not obvious. Reference the behavior, not the file list.
+
+## Worktree retention and cleanup
+
+Keep a completed task's worktree and its attached short-lived branch for at
+least 48 hours after the task's completion time. Completion means one of these
+outcomes, plus coordination finish and resource release:
+
+- Landed work is merged to `main` and pushed.
+- Preserved unmerged work is committed and pushed or archived outside the
+  worktree, with that destination recorded.
+- Discarded work has been reviewed and explicitly confirmed unnecessary; it
+  does not require a push.
+
+This retention window must not delay merging or pushing a green, complete
+branch.
+
+During the retention window, do not reuse the checkout for unrelated work or
+remove its branch. If work resumes, treat the task as active again and start a
+new 48-hour window when it finishes.
+
+After the window, remove the worktree only after confirming that the Codex task
+is terminal, no child agent or process uses it, the coordination pane has no
+active entry or emulator reservation for it, and the checkout is clean with no
+untracked files. For landed work, its commits must be merged and pushed. For
+preserved work, the recorded archive or destination must be usable without the
+worktree. For discarded work, the discard decision must be explicit. Then
+remove the checkout from another worktree:
+
+```bash
+git worktree remove /absolute/path/to/worktree
+```
+
+Delete the attached local branch only when its outcome permits deletion: use
+`git branch -d <merged-branch>` for landed work, delete a discarded branch only
+after its discard decision, and retain a preserved branch when it is the
+recorded preservation destination.
+
+Never use force removal merely to shorten the worktree list. A detached or clean
+worktree is not automatically stale; reconcile Codex task state, coordination
+state, and Git state first. `git worktree prune` only addresses missing
+administrative records and does not replace this 48-hour review.
 
 ## Version references
 
@@ -544,9 +589,13 @@ tests/rules/      assertions against the emulator
 - [ ] Every affected screen has a visible, tested route back to its logical parent.
 - [ ] The task's coordination entry was closed with a concise result, and every
   completed delegated child was closed.
-- [ ] Branch merged to `main`, deleted, and **pushed to origin** (pushing deploys
-  the affected Firebase surfaces, including Hosting for visible product edits).
-- [ ] Pushed immediately; do not leave commits sitting locally waiting for a separate push.
+- [ ] For landed work, the branch is merged to `main` and **pushed to origin**
+  (pushing deploys the affected Firebase surfaces, including Hosting for
+  visible product edits); for preserved or discarded work, the decision and
+  preservation destination or discard evidence are recorded.
+- [ ] Record completion time and retain the completed worktree and attached
+  branch for 48 hours before cleanup; landed commits are pushed immediately,
+  while discarded work does not require a push.
 
 ## Aesthetic profiles and responsive UI
 

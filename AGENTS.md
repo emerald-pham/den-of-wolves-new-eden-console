@@ -18,9 +18,11 @@ only read this file:
 1. **Test first for code.** A failing test exists and has been *run* before any
    implementation code is written. No exceptions for "small" code changes.
    Documentation-only edits are exempt; see `CLAUDE.md` for the exact boundary.
-2. **Merge once done.** Work happens on a branch and lands on `main` the moment
-   it is green and complete. No long-lived branches, no stacked half-finished
-   work, no "I'll merge it later."
+2. **Merge once done; retain briefly.** Work that will land happens on a branch
+   and reaches `main` the moment it is green and complete. Preserved or
+   discarded work must have an explicit recorded decision. Keep the completed
+   worktree and attached short-lived branch for 48 hours after completion before
+   cleanup. No stacked half-finished work and no "I'll merge it later" branches.
 
 3. **Version every completed product edit.** Keep the monotonic application
    version in sync and visible. Documentation-only edits do not change the
