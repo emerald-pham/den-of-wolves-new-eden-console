@@ -646,6 +646,58 @@ it('uses canonical 3D coordinates without projecting contacts through viewport l
   );
 });
 
+it('uses the rendered sweep-disc radius instead of a fixed logical radius', () => {
+  let frame: FrameRequestCallback = () => undefined;
+  let normal = { x: 0.8, y: 0, z: 0.6 };
+  let sweepDiameter = 100;
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    frame = callback;
+    return 1;
+  }));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('DOMMatrixReadOnly', class {
+    constructor(private value: string) {}
+    transformPoint(point: DOMPointInit) {
+      return this.value === 'sweep' ? normal : point;
+    }
+  });
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+    const sweep = element.classList.contains('contact-plot__sweep');
+    const rig = element.classList.contains('contact-plot__rig');
+    const size = rig ? 200 : sweep ? sweepDiameter : 0;
+    return {
+      transform: sweep ? 'sweep' : 'none',
+      width: `${size}px`,
+      height: `${size}px`,
+      boxSizing: 'border-box',
+      borderLeftWidth: '0px',
+      borderRightWidth: '0px',
+      borderTopWidth: '0px',
+      borderBottomWidth: '0px',
+      paddingLeft: '0px',
+      paddingRight: '0px',
+      paddingTop: '0px',
+      paddingBottom: '0px',
+    } as CSSStyleDeclaration;
+  });
+
+  const { container } = render(
+    <ContactPlot contacts={[{ tag: 'EDGE', x: 0.1, y: 0.75, z: 0, color: 'white' }]} />,
+  );
+  const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
+
+  act(() => frame(0));
+  normal = { x: -0.8, y: 0, z: 0.6 };
+  act(() => frame(16));
+  expect(apparent).not.toHaveAttribute('data-acquired', 'true');
+
+  sweepDiameter = 200;
+  act(() => frame(32));
+  normal = { x: 0.8, y: 0, z: 0.6 };
+  act(() => frame(48));
+  expect(apparent).toHaveAttribute('data-acquired', 'true');
+});
+
 it('shows a bottom-left warning for active fleet alerts and clears it on stand-down', () => {
   useSessionStore.setState({ session: { id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '', fleetRedAlert: { active: true, revision: 1 } } });
   const { container } = render(<ContactPlot placement="widget" />);

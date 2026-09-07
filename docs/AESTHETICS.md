@@ -666,6 +666,9 @@ that is a different, flatter instrument.
    and the display-only projected return cannot change acquisition. Acquisition,
    a one-shot blip/altitude-line fade, and the display bearing step share that
    event; there are no independent repeating contact timers.
+   The finite collision radius comes from that sweep element's own unprojected
+   border box, not a fixed logical constant or a screen-space bound, so the
+   visible viewport disc and its 3D acquisition boundary are the same geometry.
    Stationary returns use a bearing walk spanning -1 to +1 degrees around the
    vertical axis while retaining canonical formation coordinates. Moving
    contacts advance an invisible actual-position marker continuously, but copy

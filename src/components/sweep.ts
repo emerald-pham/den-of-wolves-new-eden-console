@@ -21,7 +21,7 @@ export function rimDistance(point: Vector, normal: Vector, camera: Vector): numb
 }
 
 const SWEEP_EPSILON = 1e-8;
-const SWEEP_DISC_RADIUS = 1;
+const DEFAULT_SWEEP_DISC_RADIUS = 1;
 
 const dot = (a: Vector, b: Vector): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
@@ -58,6 +58,8 @@ export function crossedSweepDisc(
   point: Vector,
   previousNormal: Vector | null,
   currentNormal: Vector,
+  previousRadius = DEFAULT_SWEEP_DISC_RADIUS,
+  currentRadius = DEFAULT_SWEEP_DISC_RADIUS,
 ): boolean {
   const currentUnitNormal = normalize(currentNormal);
   const previousUnitNormal = previousNormal === null ? null : normalize(previousNormal);
@@ -74,7 +76,13 @@ export function crossedSweepDisc(
     : normalize(interpolate(previousUnitNormal, currentUnitNormal, progress));
   const signedDistance = dot(crossingPoint, crossingNormal);
   const radialDistanceSquared = Math.max(0, lengthSquared(crossingPoint) - signedDistance ** 2);
-  return radialDistanceSquared <= SWEEP_DISC_RADIUS ** 2 + SWEEP_EPSILON;
+  const radius = Math.max(
+    0,
+    previousNormal === null
+      ? currentRadius
+      : previousRadius + (currentRadius - previousRadius) * progress,
+  );
+  return radialDistanceSquared <= radius ** 2 + SWEEP_EPSILON;
 }
 
 /** Backward-compatible stationary-point helper for geometry callers. */
@@ -103,6 +111,46 @@ type ReturnState = {
   paint: Animation[];
   freshTimer: number | undefined;
 };
+
+type SweepFrame = {
+  readonly normal: Vector;
+  /** In rig-coordinate units: exactly the visible disc's local border radius. */
+  readonly radius: number;
+};
+
+function pixels(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function borderBoxSize(
+  style: CSSStyleDeclaration,
+  axis: 'width' | 'height',
+): number {
+  const size = pixels(style[axis]);
+  if (style.boxSizing === 'border-box') return size;
+  const horizontal = axis === 'width';
+  return size
+    + pixels(horizontal ? style.paddingLeft : style.paddingTop)
+    + pixels(horizontal ? style.paddingRight : style.paddingBottom)
+    + pixels(horizontal ? style.borderLeftWidth : style.borderTopWidth)
+    + pixels(horizontal ? style.borderRightWidth : style.borderBottomWidth);
+}
+
+/** Read a sweep's own unprojected border box. This is the same circular plane
+ * CSS paints in the viewport, expressed in the rig's coordinate units. */
+function sweepFrame(disc: HTMLElement, rigRadius: number): SweepFrame {
+  const style = getComputedStyle(disc);
+  const matrix = new DOMMatrixReadOnly(style.transform);
+  const diameter = Math.min(borderBoxSize(style, 'width'), borderBoxSize(style, 'height'));
+  const radius = Number.isFinite(diameter) && diameter > 0
+    ? diameter / (2 * rigRadius)
+    : DEFAULT_SWEEP_DISC_RADIUS;
+  return {
+    normal: matrix.transformPoint({ x: 0, y: 0, z: 1, w: 0 }),
+    radius,
+  };
+}
 
 function actualPoint(actual: HTMLElement, fallback: Vector, radius: number): Vector {
   const transform = getComputedStyle(actual).transform;
@@ -137,17 +185,14 @@ export function followSweeps(plot: HTMLElement): () => void {
   // Live collection includes new/removed tracks without a new NodeList per frame.
   const contacts = plot.getElementsByClassName('contact-plot__contact');
   const returns = new Map<HTMLElement, ReturnState>();
-  let previous: Vector[] = [];
+  let previous: SweepFrame[] = [];
   let lastFrame = -Infinity;
   let frame = 0;
   const tick = (now: number) => {
     const measuredRadius = parseFloat(getComputedStyle(rig).width) / 2;
     const radius = Number.isFinite(measuredRadius) && measuredRadius > 0 ? measuredRadius : 1;
     const suspended = now - lastFrame > 250;
-    const normals = discs.map((disc) => {
-      const matrix = new DOMMatrixReadOnly(getComputedStyle(disc).transform);
-      return matrix.transformPoint({ x: 0, y: 0, z: 1, w: 0 });
-    });
+    const sweeps = discs.map((disc) => sweepFrame(disc, radius));
     // A suspended tab may skip whole turns. Resume from what is visible now,
     // without inventing a refresh for an intersection that happened offscreen.
     if (suspended) previous = [];
@@ -187,10 +232,17 @@ export function followSweeps(plot: HTMLElement): () => void {
       returns.set(element, state);
       const moving = element.dataset.moving === 'true';
       const point = moving ? actualPoint(actual, canonical, radius) : canonical;
-      const crossed = normals.some((normal, i) => {
-        const beforeNormal = existing && !suspended ? previous[i] ?? null : null;
+      const crossed = sweeps.some((sweep, i) => {
+        const beforeSweep = existing && !suspended ? previous[i] ?? null : null;
         const beforePoint = existing && !suspended ? state.point : null;
-        return crossedSweepDisc(beforePoint, point, beforeNormal, normal);
+        return crossedSweepDisc(
+          beforePoint,
+          point,
+          beforeSweep?.normal ?? null,
+          sweep.normal,
+          beforeSweep?.radius ?? sweep.radius,
+          sweep.radius,
+        );
       });
       state.point = point;
       if (!crossed) continue;
@@ -239,7 +291,7 @@ export function followSweeps(plot: HTMLElement): () => void {
       ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
     }
-    previous = normals;
+    previous = sweeps;
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);

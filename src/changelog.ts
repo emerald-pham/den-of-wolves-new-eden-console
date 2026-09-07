@@ -22,6 +22,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       'The SNN Press Shuttle now starts docked to Dione in both client and server session manifests, including its initial visit history and DRADIS center.',
       'DRADIS acquisition now follows rendered 3D sweep-plane crossings against each target’s actual rig-space XYZ position instead of its projected screen position.',
       'DRADIS sweeps now use their finite 3D scan discs, so a contact is acquired only when its actual position intersects the scan volume—not when its screen projection merely overlaps it.',
+      'DRADIS acquisition now follows the exact visible scan-disc radius, so the viewport sweep and its 3D contact boundary stay aligned at every display size.',
       'During Turn 0, the fleet ticker now warns that consoles remain locked out until Iris authentication is complete, then drops that bulletin when Turn 1 begins.',
       'GM access now logs in from Settings, remembers the browser login for 24 hours, shows a lock-state emoji, and provides an explicit safety logout.',
       'The launcher now keeps Settings available, and creating or joining a session lands at the pre-role device connection screen after any current session has been disconnected.',
