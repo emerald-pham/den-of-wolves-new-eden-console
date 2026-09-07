@@ -9,6 +9,46 @@ named `den-of-wolves-new-eden-coordination.json`. It records worktree intent,
 version/changelog agreements, configured emulator rows, and live process
 reservations. Set `DOW_EMULATOR_COORDINATION_FILE` to use another shared path.
 
+## Coordination hardening objectives
+
+Coordination changes are evaluated against these objectives before tests or
+implementation begin:
+
+1. Preserve release truth without false positives. Historical changelog entries
+   are identified by their resolved release version and entry body; changing a
+   former top entry from `APP_VERSION` to that explicit version must not look
+   like a release-note rewrite.
+2. Keep the normal path short. A correctly attached, registered, clean task
+   should not need new manual confirmations merely to begin, validate, land, or
+   finish.
+3. Fail at ownership boundaries. Setup and teardown gates should reject the
+   wrong worktree, branch, coordination entry, version claim, or live resource
+   before another task can be disturbed.
+4. Recover only state the repository can prove is stale. Repository tooling may
+   prune dead process leases and orphaned emulator rows; Codex child-agent
+   cleanup remains a runtime responsibility because the repository cannot
+   enumerate or close agents from other tasks.
+5. Make the release sequence auditable. The final receipt must stay bound to the
+   tested branch commit, merged local `main`, matching `origin/main`, and the
+   task's own released resources.
+
+The executable tests are the acceptance criteria for these objectives. This
+section states the intended invariants; a newly described gate is not considered
+implemented until its failing regression test and implementation land together.
+
+The current hardening slice has four acceptance conditions:
+
+- Changelog preservation canonicalizes the resolved `version:` declaration so
+  an unchanged historical entry remains unchanged after `APP_VERSION` moves to
+  the next release.
+- Validation refuses to record a receipt until current local `main` is an
+  ancestor of the task branch.
+- Finish refuses to close an entry while that entry's worktree owns a live
+  emulator reservation; it never stops or releases another worktree's process.
+- Default status is active-first and compact. Full ledger history stays
+  available on request, while status recovery may release a configured row for
+  a worktree that no longer exists only when no live reservation still owns it.
+
 ## Before editing
 
 After attaching a short-lived branch—and before changing any file—register the
@@ -31,6 +71,9 @@ npm run coordination:status
 Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
 attached to that checkout, and no active entry claims overlapping work. A blank
 branch, path mismatch, or unexpected commit is an unresolved handoff.
+The default pane shows active work and a count of hidden completed entries so
+startup review stays concise. Use `npm run coordination:status -- --history`
+only when a historical validation or release receipt is needed.
 The begin command records the attached branch, starting branch SHA, and starting
 `main` SHA; it refuses detached checkouts, direct work on `main`, and duplicate
 active entries for this worktree.
@@ -102,9 +145,12 @@ plan from committed files: documentation-only changes run the diff check and
 production builds. The documentation check verifies changed Markdown/README
 links, fenced blocks, referenced npm scripts, and the canonical agent guidance.
 It records a receipt tied to the exact branch SHA, rejects rewritten baselines, stale
-versions, package/lock mismatches, and changelog replacement. The review flags
-are explicit human attestations; the receipt cannot prove that a person truly
-performed the review.
+versions, package/lock mismatches, changelog replacement, and validation before
+the task branch contains current local `main`. Historical changelog comparison
+resolves `APP_VERSION` before comparing entry bodies, so moving an unchanged
+former top entry to its explicit version does not create a false replacement.
+The review flags are explicit human attestations; the receipt cannot prove that
+a person truly performed the review.
 
 ## Finish
 
@@ -128,8 +174,14 @@ and perform the final status check—but startup cleanup is the recovery boundar
 when any of those steps were skipped.
 `coordination:finish` refuses completion until `main` contains the task commit,
 local `main` equals `origin/main`, the worktree is clean, package metadata and
-changelog state are safe, and the validation receipt matches the final branch
-SHA. It records the final branch SHA, main SHA, remote SHA, and pushed state.
-The final status should show the entry as historical rather than active, with no
-live process reservation left behind. Do not finish an id copied from another
-worktree.
+changelog state are safe, the validation receipt matches the final branch SHA,
+and this worktree owns no live emulator reservation. It reports the owned lease
+instead of killing or releasing it; stop this task's process and rerun finish.
+The command records the final branch SHA, main SHA, remote SHA, and pushed state.
+The final status should omit the entry from the active view and show no live
+process reservation left behind; use `--history` when the historical receipt is
+needed. Do not finish an id copied from another worktree.
+
+Codex child agents are outside the repository process model. Inspect and close
+terminal children with the collaboration runtime at startup and teardown; no
+repository flag can enumerate them or replace that cleanup.

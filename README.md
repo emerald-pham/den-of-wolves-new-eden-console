@@ -89,6 +89,12 @@ Functions inside transactions. The rules suite tests those denials.
 
 ## Emulator-backed development
 
+Agents and concurrent worktrees must attach their task branch and complete
+`coordination:begin` plus the active-first `coordination:status` check from the
+same checkout before configuring a row. See the
+[coordination quick reference](docs/WORKTREE_COORDINATION.md) for the required
+intent, version, changelog, and resource fields.
+
 ```bash
 npm run emulators:configure -- auto
 npm run emulators
@@ -119,10 +125,11 @@ Check, capacity evidence, monitoring, and rollback guidance belong in the
 
 ## Deployment
 
-Non-documentation pushes to `main` run the required local/CI gates and deploy
-only affected Firebase surfaces. Product edits also update the visible
-application version and player-facing changelog. Documentation-only pushes do
-not deploy.
+Before merging, agents record the required local checks with
+`coordination:validate`; the main-branch workflow then runs its deployment
+checks and deploys only affected Firebase surfaces. Product edits also update
+the visible application version and player-facing changelog. Documentation-only
+pushes do not deploy.
 
 For Workload Identity Federation setup and repository variables, see the
 [deployment setup handoff](docs/ci-deploy-setup.md). Manual deployment uses:
