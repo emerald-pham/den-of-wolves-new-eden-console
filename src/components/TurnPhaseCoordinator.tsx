@@ -14,7 +14,10 @@ export default function TurnPhaseCoordinator() {
   const phase = phaseForSession(session);
 
   useEffect(() => {
-    if (!session || !phase || phase.airspace.state === 'lifted' || connection !== 'live') {
+    if (
+      !session || !phase || phase.airspace.state === 'lifted' || phase.timerPause ||
+      connection !== 'live'
+    ) {
       return undefined;
     }
     let cancelled = false;

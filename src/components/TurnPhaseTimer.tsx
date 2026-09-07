@@ -9,7 +9,14 @@ import type { TurnPhase } from '@/types/game';
 function useTurnPhaseReadout(phase: TurnPhase | undefined): TurnPhaseReadout | undefined {
   const [now, setNow] = useState(() => Date.now());
   const identity = phase
-    ? `${phase.turn}:${phase.teamPhaseEndsAt}:${phase.openAirspaceEndsAt}`
+    ? [
+        phase.turn,
+        phase.teamPhaseEndsAt,
+        phase.openAirspaceEndsAt,
+        phase.timerPause?.window ?? '',
+        phase.timerPause?.remainingMs ?? '',
+        phase.timerPause?.pausedAt ?? '',
+      ].join(':')
     : '';
   useEffect(() => {
     setNow(Date.now());
@@ -25,14 +32,17 @@ export function DradisAirspaceTimer({ phase }: { readonly phase: TurnPhase | und
   const readout = useTurnPhaseReadout(phase);
   const closed = readout?.kind === 'team';
   const open = readout?.kind === 'open' && phase?.airspace.state === 'lifted';
+  const paused = phase?.timerPause !== undefined;
   if (!closed && !open) return null;
   const time = formatTurnPhaseCountdown(readout.remainingMs);
   const label = closed ? 'Airspace closed' : 'Airspace open';
   return (
     <div className="turn-phase-timer" role="status" aria-live="off"
-      aria-label={`${label} // ${time} remaining`} data-tone="blue">
-      <span>{label}</span>
+      aria-label={`${label} // ${time} remaining${paused ? ' // emergency timer paused' : ''}`}
+      data-tone={paused ? 'red' : 'blue'}>
+      <span>{label}{paused ? ' // Emergency hold' : ''}</span>
       <strong>{time}</strong>
+      {paused && <small>GM resume required</small>}
     </div>
   );
 }
@@ -46,15 +56,16 @@ export function AirspaceTimerControls({ phase }: { readonly phase: TurnPhase | u
   const openTime = readout?.kind === 'open'
     ? formatTurnPhaseCountdown(readout.remainingMs)
     : readout?.kind === 'complete' ? 'COMPLETE' : 'STANDBY';
+  const pauseSuffix = phase?.timerPause ? ' // emergency hold' : '';
   return (
     <div className="airspace-control__timers" aria-label="Automated phase timers">
       <button className="airspace-control__timer" type="button" disabled data-tone="red"
-        aria-label={`Airspace closed timer // ${teamTime} // no manual control`}>
-        Airspace closed // {teamTime} // no manual control
+        aria-label={`Airspace closed timer // ${teamTime}${pauseSuffix} // no manual control`}>
+        Airspace closed // {teamTime}{pauseSuffix} // no manual control
       </button>
       <button className="airspace-control__timer" type="button" disabled data-tone="blue"
-        aria-label={`Airspace open timer // ${openTime} // no manual control`}>
-        Airspace open // {openTime} // no manual control
+        aria-label={`Airspace open timer // ${openTime}${pauseSuffix} // no manual control`}>
+        Airspace open // {openTime}{pauseSuffix} // no manual control
       </button>
     </div>
   );

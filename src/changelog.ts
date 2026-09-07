@@ -14,6 +14,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.2.108',
+    changes: [
+      'GMs can now pause the game timer for emergencies only after completing a deliberate three-click disarm sequence, with the paused state clearly broadcast to the room.',
+    ],
+  },
+  {
     version: '0.2.107',
     changes: [
       'GM reset of the Code of Conduct checklist now lives in the GM Console instead of global Settings.',
