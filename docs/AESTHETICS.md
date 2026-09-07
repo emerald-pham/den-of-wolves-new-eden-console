@@ -1035,6 +1035,11 @@ second, followed by `REPLAY LAST TRANSMISSION // GM ONLY` and `REPLAY LAST
 TRANSMISSION // EVERYONE`. The first replay is browser-local to that GM; the
 second increments the server-owned transmission revision so every connected
 console replays the same current-turn briefing without changing the game turn.
+The two Turn 0 commands remain independent: Advance to Turn 1 uses the same
+danger-red second-press `ARE YOU SURE? // ADVANCE TO TURN 1` confirmation as
+other high-impact commands and plays the normal fullscreen transmission, while
+Skip to Turn 1 has its own confirmation and suppresses that transmission.
+Advance's in-flight state must not rewrite Skip's `SKIP TO TURN 1` wording.
 
 During a live Turn 0 session, the top-right connection light uses cyan-blue
 instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's

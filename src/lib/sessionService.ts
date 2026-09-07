@@ -825,15 +825,25 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
   });
 }
 
-export async function advanceTurn({ overridePhaseTimer = false }: {
+export async function advanceTurn({
+  overridePhaseTimer = false,
+  skipTurnStartAnnouncement = false,
+}: {
   readonly overridePhaseTimer?: boolean;
+  readonly skipTurnStartAnnouncement?: boolean;
 } = {}): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
   await ensureSignedIn();
   const expectedTurn = store.session.currentTurn ?? 1;
   const call = httpsCallable<
-    { sessionId: string; instanceId: string; expectedTurn: number; overridePhaseTimer?: boolean },
+    {
+      sessionId: string;
+      instanceId: string;
+      expectedTurn: number;
+      overridePhaseTimer?: boolean;
+      skipTurnStartAnnouncement?: boolean;
+    },
     {
       currentTurn: number;
       turnStartAnnouncement?: { turn: number; survivorPopulation: number };
@@ -846,6 +856,7 @@ export async function advanceTurn({ overridePhaseTimer = false }: {
       instanceId: store.gmInstance.id,
       expectedTurn,
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
+      ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),
     });
     const activeSession = useSessionStore.getState().session;
     const announcement = reply.data.turnStartAnnouncement;
@@ -858,12 +869,14 @@ export async function advanceTurn({ overridePhaseTimer = false }: {
       activeSession?.id === store.session.id && Number.isSafeInteger(reply.data.currentTurn) &&
       reply.data.currentTurn >= 0
     ) {
-      useSessionStore.getState().setSession({
+      const nextSession = {
         ...activeSession,
         currentTurn: reply.data.currentTurn,
         ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
-      });
+      };
+      if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
+      useSessionStore.getState().setSession(nextSession);
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
