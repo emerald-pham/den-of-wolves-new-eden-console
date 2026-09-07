@@ -212,6 +212,16 @@ ship-console attachment can be added without making the instrument player
 visible now. Chart selection and node selection stay local until an authoritative
 session field exists; the map performs no client write.
 
+The starmap may make the instrument feel space-facing with a restrained scanline,
+ruled projection planes, and a small DRADIS orientation rail. These are display
+chrome only: they must use existing amber/cyan tokens, keep square corners, and
+freeze under the app's reduced-motion setting. Selected jump links are the only
+animated topology treatment and are cyan because they report the currently
+selected system's real neighbours. Fleet fixes reuse each ship's existing
+faction color as a square outer rail and marker; the accessible system name also
+announces the plotted ship names. Do not add a synthetic starfield, depth gauge,
+or other visual that suggests gameplay data the session does not hold.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
@@ -308,6 +318,13 @@ origin and alternate them near a centreline so neighboring names remain
 readable without moving between sweeps. Group the returns in an isolated
 foreground layer: their signed Z values still drive perspective, but far-side
 ships must not sort underneath the rotating scan planes and disappear.
+
+Compact shipboard and GM DRADIS use the shared `.dradis-outline` square
+instrument frame and `.dradis-label` treatment. The fleet display may place
+perspective controls beside or below its viewport, but the plot itself keeps
+the same amber edge, near-black ground and cyan glow as a ship console. The
+frame belongs to the viewport rather than the surrounding controls so the two
+surfaces remain visually interchangeable at every compact size.
 
 ### DRADIS contact rules
 
@@ -1098,3 +1115,9 @@ Alert editor, continuous ticker transition, uppercase source-prefixed warning an
 Damage-card outcomes at the maintenance riot step and the shared GM damage
 controls were reviewed at 1440×900, 390×844 and 844×390; the cyan status copy
 wraps without clipping or obscuring controls.
+
+The expanded GM DRADIS treats its lower edge as two stacked instruments on
+phones and short landscape screens: the live airspace countdown owns the
+bottom line, and the COMBAT RANGES key sits above it with a reserved 4.75rem
+offset. This keeps both readouts legible over the plot without changing their
+desktop placement.

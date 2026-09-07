@@ -90,6 +90,7 @@ it('opens the shipboard DRADIS with a discrete control and closes it explicitly'
   const plot = container.querySelector('.ship-plot');
 
   expect(plot).toHaveAttribute('data-expanded', 'false');
+  expect(plot).toHaveClass('dradis-outline');
   await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
 
   expect(plot).toHaveAttribute('data-expanded', 'true');

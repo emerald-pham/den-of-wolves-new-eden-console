@@ -111,10 +111,12 @@ npm run dev            # Normal Vite dev server on :5173
 For emulator-backed development, configure an isolated worktree slot first;
 the commands are described below.
 
-Before changing files, register the task in the shared local coordination pane
-with `npm run coordination:begin -- ...`, and use `npm run coordination:status`
-to see other worktrees' declared intent and emulator ownership. Close the entry
-with `npm run coordination:finish -- --id <id>` when the task is complete.
+Before changing files, complete the named-branch bootstrap in
+[`CLAUDE.md`](CLAUDE.md#worktree-branch-bootstrap); run `coordination:begin`
+only after the checkout is no longer detached. Run it from the worktree you
+will edit, use `npm run coordination:status` to confirm the recorded path and
+review other worktrees' declared intent and emulator ownership, and close the
+entry with `npm run coordination:finish -- --id <id>` when the task is complete.
 
 ## Tests
 

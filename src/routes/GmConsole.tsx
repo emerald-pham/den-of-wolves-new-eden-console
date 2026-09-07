@@ -1316,20 +1316,23 @@ export default function GmConsole() {
       <aside className="gm-console__instruments" aria-label="GM instruments">
           <section
             ref={dradisRef}
-            className="gm-console__module gm-dradis cic-frame"
+            className="gm-console__module gm-dradis"
             aria-label="Fleet DRADIS"
             data-expanded={String(dradisExpanded)}
           >
-            <div className="gm-dradis__viewport">
+            <div className="gm-dradis__viewport dradis-outline">
               <ContactPlot
                 key={`${viewer?.id ?? 'aegis'}-${String(capybaraEnabled)}-${String(dioneEnabled)}`}
                 placement="inset"
-                size={dradisExpanded ? 'min(94vmin, 128vw)' : '92cqi'}
+                size={dradisExpanded ? 'min(92vmin, 128vw)' : 'min(92cqi, 92cqb)'}
                 contacts={contacts}
                 ambientSession={session}
                 centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
               />
               <DradisAirspaceTimer phase={currentPhase} />
+              <span className="gm-dradis__label dradis-label" aria-hidden="true">
+                DRADIS // FLEET PLOT
+              </span>
               {dradisExpanded ? <DradisRangeBands className="gm-dradis__range-bands" /> : null}
               <button
                 className="gm-dradis__toggle"

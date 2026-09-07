@@ -133,7 +133,7 @@ export default function ShipPlot({
 
   return (
     <div
-      className="ship-plot"
+      className={`ship-plot${aboard ? ' dradis-outline' : ''}`}
       data-aboard={String(aboard)}
       data-expanded={String(expanded)}
       data-rotation-enabled={String(SHIP_PLOT_ROTATION_ENABLED)}
@@ -152,7 +152,7 @@ export default function ShipPlot({
       {aboard ? (
         <>
           <DradisAirspaceTimer phase={turnPhase} />
-          <span className="ship-plot__label" aria-hidden="true">
+          <span className="ship-plot__label dradis-label" aria-hidden="true">
             {expanded ? 'DRADIS // ORIENTATION LOCKED' : 'DRADIS // LOCAL PLOT'}
           </span>
           {expanded ? (
