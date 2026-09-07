@@ -1068,11 +1068,14 @@ boot-up state clear without treating it as an offline connection. The first
 Turn 1 snapshot restores the usual green in-session light, marking CIC as fully
 uplinked and the fleet as ready to launch.
 
-When a browser restores a cached in-session identity after a refresh or returns
-from the background, its header light may retain the last green in-session
-reading for exactly one second while the real Firebase reconnect begins. This
-is visual continuity only: it never persists connection status, enables a
-command, or delays a genuine offline indication after the one-second grace.
+When a browser restores a cached in-session identity after a refresh, loses page
+context, or returns from the background, its header light may retain the last
+known in-session reading for up to 30 seconds while the real Firebase reconnect
+begins. This is visual continuity only: it never persists connection status,
+enables a command, or delays a genuine offline indication after the grace. If
+the player has interacted with the app within the previous 30 seconds, disclose
+the offline reading immediately; older activity is treated as passive so stale
+chrome does not overreact to an interaction that is no longer current.
 
 Each live turn transition begins with `TURN N` before any other copy, except the
 Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`
