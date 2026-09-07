@@ -1068,8 +1068,9 @@ context, or returns from the background, its header light may retain the last
 known in-session reading for up to 30 seconds while the real Firebase reconnect
 begins. This is visual continuity only: it never persists connection status,
 enables a command, or delays a genuine offline indication after the grace. If
-the player has interacted with the app, disclose the offline reading
-immediately rather than letting stale chrome imply that an action is live.
+the player has interacted with the app within the previous 30 seconds, disclose
+the offline reading immediately; older activity is treated as passive so stale
+chrome does not overreact to an interaction that is no longer current.
 
 Each live turn transition begins with `TURN N` before any other copy, except the
 Turn 0-to-1 initialization, which begins with `IRIS AUTHENTICATION CONFIRMED`

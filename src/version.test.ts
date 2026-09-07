@@ -12,7 +12,7 @@ it('keeps the visible build reference aligned with the package version', () => {
 
 it('retains the reconnection grace in player-facing release notes', () => {
   expect(CHANGELOG[0]?.changes).toContain(
-    'Connection indicators now give passive reconnects and page returns up to 30 seconds to recover, while an active player sees a disconnect immediately.',
+    'Connection indicators now show a disconnect immediately when the player was active within the previous 30 seconds; older activity keeps the last connected state during the 30-second reconnect window.',
   );
   expect(CHANGELOG.some((entry) => entry.changes.includes(
     'A returning or refreshed in-session console now keeps its Connected light steady for one second while it restores its uplink.',

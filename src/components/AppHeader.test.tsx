@@ -170,6 +170,24 @@ it('shows the disconnected state immediately after player interaction', async ()
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
 });
 
+it('returns to passive grace after player activity has been idle for thirty seconds', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  fireEvent.click(screen.getByRole('button', { name: /settings/i }));
+  act(() => vi.advanceTimersByTime(30_000));
+  act(() => useSessionStore.getState().setConnection('offline'));
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(30_000));
+  expect(indicator).toHaveAttribute('data-status', 'red');
+});
+
 it('treats a page re-entry event as passive reconnect context', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));

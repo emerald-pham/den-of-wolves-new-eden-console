@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Connection indicators now show a disconnect immediately when the player was active within the previous 30 seconds; older activity keeps the last connected state during the 30-second reconnect window.',
+    ],
+  },
+  {
+    version: '0.2.98',
+    changes: [
       'Connection indicators now give passive reconnects and page returns up to 30 seconds to recover, while an active player sees a disconnect immediately.',
     ],
   },

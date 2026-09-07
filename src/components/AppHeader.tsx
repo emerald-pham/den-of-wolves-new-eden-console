@@ -25,6 +25,7 @@ import {
 } from '@/lib/sessionWaiver';
 
 const CONNECTION_STATUS_GRACE_MS = 30_000;
+const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
 
 /**
  * Keep the last known connection light steady while a passive reconnect has a
@@ -41,7 +42,7 @@ function useConnectionStatusGrace(
   );
   const statusRef = useRef(status);
   const cachedSessionRef = useRef(hasCachedSession);
-  const playerInteracted = useRef(false);
+  const lastPlayerActivityAt = useRef<number | null>(null);
   const previousStatus = useRef(status);
   const previousHasCachedSession = useRef(hasCachedSession);
   const lastConnectedStatus = useRef<ReturnType<typeof selectConnectionStatus>>(
@@ -52,7 +53,7 @@ function useConnectionStatusGrace(
   if (status !== 'red') lastConnectedStatus.current = status;
 
   const startPassiveGrace = () => {
-    playerInteracted.current = false;
+    lastPlayerActivityAt.current = null;
     if (cachedSessionRef.current && statusRef.current === 'red') {
       setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
     }
@@ -69,7 +70,12 @@ function useConnectionStatusGrace(
       return;
     }
     if (status !== 'red') return;
-    if (playerInteracted.current) {
+    const lastActivityAt = lastPlayerActivityAt.current;
+    const activityAge = lastActivityAt === null ? null : Date.now() - lastActivityAt;
+    const playerWasRecentlyActive = activityAge !== null
+      && activityAge >= 0
+      && activityAge < CONNECTION_ACTIVITY_WINDOW_MS;
+    if (playerWasRecentlyActive) {
       setGraceDeadline(null);
       return;
     }
@@ -90,7 +96,7 @@ function useConnectionStatusGrace(
   useEffect(() => {
     const markInteraction = () => {
       if (!cachedSessionRef.current) return;
-      playerInteracted.current = true;
+      lastPlayerActivityAt.current = Date.now();
       if (statusRef.current === 'red') setGraceDeadline(null);
     };
     const restorePassiveContext = () => {
