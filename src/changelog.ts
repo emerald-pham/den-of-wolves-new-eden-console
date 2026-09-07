@@ -10,6 +10,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Pursuit panels now show the shared Distance from Home Systems readout without redundant coordinate or scope labels.',
       'GM fleet resource cards now show each ship’s current ship-relative pursuit tracker beneath its resource and census controls, using the shared galactic map even when the fleet is split.',
       'Ship consoles now show a ship-relative pursuit tracker directly beneath shipboard DRADIS, using each ship’s live coordinate and the shared galactic map pursuit depth without exposing split-fleet positions.',
       'GM Console now requires a second click to advance from Turn 0, while Skip to Turn 1 bypasses the fullscreen transmission and keeps its own wording independent.',
