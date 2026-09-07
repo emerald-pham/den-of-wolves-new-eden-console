@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">DRADIS ball</title>
+  <desc id="desc">A cyan wireframe sphere with a scanning amber sweep.</desc>
+  <rect width="512" height="512" fill="#04070a"/>
+  <g fill="none" stroke-linecap="round">
+    <circle cx="256" cy="256" r="184" stroke="#46c8de" stroke-width="6"/>
+    <ellipse cx="256" cy="256" rx="74" ry="184" stroke="#1d5f6d" stroke-width="5"/>
+    <ellipse cx="256" cy="256" rx="142" ry="184" transform="rotate(48 256 256)" stroke="#1d5f6d" stroke-width="5"/>
+    <ellipse cx="256" cy="256" rx="142" ry="184" transform="rotate(-48 256 256)" stroke="#1d5f6d" stroke-width="5"/>
+    <ellipse cx="256" cy="256" rx="184" ry="76" stroke="#1d5f6d" stroke-width="5"/>
+    <ellipse cx="256" cy="256" rx="184" ry="142" transform="rotate(48 256 256)" stroke="#1d5f6d" stroke-width="5"/>
+    <ellipse cx="256" cy="256" rx="184" ry="142" transform="rotate(-48 256 256)" stroke="#1d5f6d" stroke-width="5"/>
+    <path d="M 96 177 A 184 184 0 0 1 421 207" stroke="#e8892b" stroke-width="7"/>
+    <path d="M 256 72 A 184 184 0 0 1 435 256" stroke="#8ceaf8" stroke-width="3" opacity=".8"/>
+    <circle cx="256" cy="256" r="12" stroke="#8ceaf8" stroke-width="4"/>
+  </g>
+  <circle cx="256" cy="256" r="4" fill="#e8892b"/>
+  <g stroke="#e8892b" stroke-width="4">
+    <path d="M256 46v14M256 452v14M46 256h14M452 256h14"/>
+  </g>
+</svg>
