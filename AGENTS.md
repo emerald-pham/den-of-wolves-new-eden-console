@@ -25,7 +25,7 @@ only read this file:
    GPT-5.3 Codex Spark is strictly read-only and should be preferred for every
    suitable bounded read-only subtask so available Spark usage is consumed; it
    may not edit files or otherwise mutate repository state. GPT-5.6 Luna at
-   `max` reasoning is a strict capability superset: Luna may do anything Spark
+   `xhigh` reasoning is a strict capability superset: Luna may do anything Spark
    can do and is the fallback for read-only work, with standing trust and
    authorization for well-scoped local edits—including code, tests, docs,
    refactors, UI, and routine implementation. Any delegated agent that changes
