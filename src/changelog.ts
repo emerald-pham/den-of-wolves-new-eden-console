@@ -11,6 +11,8 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     changes: [
       'GM Console now keeps the normal Advance to Turn 1 command alongside the fast Skip to Turn 1 shortcut during setup.',
+      'The Turn 0 → Turn 1 transmission now gives its closing PEOPLE and SURVIVE. beats more room to land, removes the stray dash, and fades out over a full second.',
+      'GM Console can replay the latest transmission locally or across every connected console, with a codified danger-red second press for the setup skip command.',
     ],
   },
   {

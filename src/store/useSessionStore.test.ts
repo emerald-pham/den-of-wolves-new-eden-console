@@ -74,6 +74,24 @@ describe('useSessionStore', () => {
     expect(saved.state).not.toHaveProperty('connection');
   });
 
+  it('keeps a GM-only transmission replay local and ephemeral', () => {
+    useSessionStore.getState().setTurnStartReplay({
+      sessionId: 's1',
+      turn: 1,
+      survivorPopulation: 242_500,
+      token: 1,
+    });
+
+    expect(useSessionStore.getState().turnStartReplay).toEqual({
+      sessionId: 's1',
+      turn: 1,
+      survivorPopulation: 242_500,
+      token: 1,
+    });
+    expect(JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) ?? '{}').state)
+      .not.toHaveProperty('turnStartReplay');
+  });
+
   it('rehydrates a saved session as soon as the store is reopened', async () => {
     localStorage.setItem(
       SESSION_STORAGE_KEY,

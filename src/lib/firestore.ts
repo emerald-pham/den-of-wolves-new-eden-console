@@ -49,12 +49,19 @@ function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnounceme
   const announcement = value as Readonly<Record<string, unknown>>;
   const turn = announcement.turn;
   const survivorPopulation = announcement.survivorPopulation;
+  const revision = announcement.revision;
   if (
     typeof turn !== 'number' || !Number.isSafeInteger(turn) || turn < 1 ||
     typeof survivorPopulation !== 'number' || !Number.isSafeInteger(survivorPopulation) ||
-    survivorPopulation < 0
+    survivorPopulation < 0 ||
+    (revision !== undefined &&
+      (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0))
   ) return undefined;
-  return { turn, survivorPopulation };
+  return {
+    turn,
+    survivorPopulation,
+    ...(revision === undefined ? {} : { revision }),
+  };
 }
 
 function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {

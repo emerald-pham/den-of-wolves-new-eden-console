@@ -221,6 +221,14 @@ Maintenance-cycle commands use `.cic-action-button` at every step so disabled
 future actions retain the same control silhouette as the active command.
 The GM turn control uses a regular ruled instrument module: show the current
 turn as a real status value and use `.cic-action-button` for the advance action.
+Its four-command setup row uses equal flexible widths at wide sizes and wraps
+in reading order when a phone cannot hold all four targets; long replay labels
+may wrap inside the same-height square controls rather than shrinking the type.
+Any irreversible or high-impact command that requires a deliberate second press
+uses `.cic-action-button--confirm`: keep the same square target and mono type,
+but switch its border and text to the danger-red confirmation treatment with a
+subtle blood-toned ground. The first press changes the same control to explicit
+`ARE YOU SURE? // ...` copy; only the second press performs the command.
 The launcher uses a 48px minimum for Create, Session code, Join, and the motion
 button. The motion button follows Join in both visual and keyboard order;
 both Reduce motion and Restore motion use the same height. Secondary emphasis
@@ -940,6 +948,11 @@ is disabled with a concise `TURN 0 // AWAITING GM START` readout. The GM remains
 able to set up the table. The GM Console belongs in the Independent stations
 roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.
+The Turn 0 GM control row puts `ADVANCE TO TURN 1` first and `SKIP TO TURN 1`
+second, followed by `REPLAY LAST TRANSMISSION // GM ONLY` and `REPLAY LAST
+TRANSMISSION // EVERYONE`. The first replay is browser-local to that GM; the
+second increments the server-owned transmission revision so every connected
+console replays the same current-turn briefing without changing the game turn.
 
 During a live Turn 0 session, the top-right connection light uses cyan-blue
 instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's
@@ -986,6 +999,13 @@ shared reduced-motion override removes it along with the message entrance.
 Each non-final beat eases upward out over a short 320ms handoff before the next
 beat eases upward in, using separate asymmetric curves so the transmission
 reads like a live instrument handing off a signal rather than a linear carousel.
+The final two Turn 0 → Turn 1 beats—`PEOPLE` without a trailing dash and
+`SURVIVE.`—hold for three seconds each so the closing instruction has room to
+land. When the final `SURVIVE.` beat completes, the whole fleet transmission
+fades to transparent over one full second before it leaves the stage, revealing
+the live console without an abrupt cut. This exit applies to Turn 0 → Turn 1
+and every later turn transition; reduced motion removes the fade and clears the
+transmission immediately.
 On narrow screens the header and readout rail stack in place, and on short
 landscape screens the message well contracts before the surrounding instrument
 is allowed to clip.

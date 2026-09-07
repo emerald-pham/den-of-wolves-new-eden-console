@@ -90,9 +90,26 @@
   color: var(--cic-cyan-hot);
 }
 
+/* Deliberate second press for an irreversible or high-impact command. */
+.cic-action-button--confirm {
+  border-color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-blood) 42%, var(--cic-void));
+  color: var(--cic-scream);
+}
+
+.cic-action-button--confirm:hover:not(:disabled) {
+  border-color: var(--cic-ember);
+  background: color-mix(in srgb, var(--cic-danger) 24%, var(--cic-void));
+  color: var(--cic-scream);
+}
+
 .cic-action-button:focus-visible {
   outline: 2px solid var(--cic-amber);
   outline-offset: 2px;
+}
+
+.cic-action-button--confirm:focus-visible {
+  outline-color: var(--cic-danger);
 }
 
 .cic-action-button:disabled {

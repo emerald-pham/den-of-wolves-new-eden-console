@@ -161,6 +161,12 @@ describe('session header', () => {
     await assertFails(updateDoc(session, { debriefMode: { active: false, revision: 2 } }));
   });
 
+  it('cannot replay a turn transmission from the client', async () => {
+    await assertFails(updateDoc(doc(as('gm1'), SESSION), {
+      turnStartAnnouncement: { turn: 1, survivorPopulation: 222_500, revision: 1 },
+    }));
+  });
+
   it('cannot change active role availability from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), {
       activeRoleIds: ['admiral'],

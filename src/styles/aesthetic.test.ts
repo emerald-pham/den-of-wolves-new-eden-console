@@ -162,6 +162,20 @@ describe('the fleet transmission', () => {
     );
     expect(intrusion).not.toContain('translateY(calc(100% + 15rem))');
   });
+
+  it('codifies the danger-red second-press confirmation treatment', () => {
+    const cic = SHEETS.find(({ name }) => name === 'src/styles/cic.css')?.css ?? '';
+    const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';
+    const aesthetics = readFileSync('docs/AESTHETICS.md', 'utf8');
+
+    expect(cic).toMatch(
+      /\.cic-action-button--confirm\s*\{[^}]*border-color:\s*var\(--cic-danger\)[^}]*color:\s*var\(--cic-scream\)/,
+    );
+    expect(intrusion).toMatch(
+      /\.intrusion--fleet\[data-state='exiting'\]\s*\{[^}]*animation:\s*turn-start-announcement-fade-out 1000ms/,
+    );
+    expect(aesthetics).toContain('.cic-action-button--confirm');
+  });
 });
 
 describe('the in-session header', () => {

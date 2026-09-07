@@ -114,6 +114,10 @@
   animation: none;
 }
 
+.intrusion--fleet[data-state='exiting'] {
+  animation: turn-start-announcement-fade-out 1000ms ease-in forwards;
+}
+
 .intrusion--fleet::before {
   opacity: 0.14;
   background:
@@ -323,6 +327,11 @@
   }
 }
 
+@keyframes turn-start-announcement-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @keyframes turn-start-scan {
   from { top: 0; }
   to { top: 100%; }
@@ -395,6 +404,10 @@
   .intrusion__message::after,
   .turn-start-announcement__slide,
   .turn-start-announcement__console::after {
+    animation: none;
+  }
+
+  .intrusion--fleet[data-state='exiting'] {
     animation: none;
   }
 }

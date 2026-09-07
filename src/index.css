@@ -3692,7 +3692,8 @@ body {
   gap: 0.75rem;
 }
 .gm-turn-control__actions .cic-action-button {
-  flex: 1 1 12rem;
+  flex: 1 1 8.75rem;
+  min-width: 0;
 }
 .gm-turn-control__override {
   margin: 0.5rem 0;

@@ -38,6 +38,21 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
 ]);
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
 export type CommandDisposition = 'applied' | 'queued' | 'awaiting-officer';
+export type TurnStartReplayAudience = 'gm' | 'everyone';
+
+let localTurnStartReplayToken = 0;
+
+function isTurnStartAnnouncement(value: unknown): value is NonNullable<GameSession['turnStartAnnouncement']> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const announcement = value as Readonly<Record<string, unknown>>;
+  return (
+    typeof announcement.turn === 'number' && Number.isSafeInteger(announcement.turn) && announcement.turn >= 1 &&
+    typeof announcement.survivorPopulation === 'number' &&
+    Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0 &&
+    (announcement.revision === undefined ||
+      (typeof announcement.revision === 'number' && Number.isSafeInteger(announcement.revision) && announcement.revision >= 0))
+  );
+}
 
 function errorCode(cause: unknown): string | undefined {
   if (typeof cause !== 'object' || cause === null || !('code' in cause)) return undefined;
@@ -689,6 +704,50 @@ export async function advanceTurn({ overridePhaseTimer = false }: {
         currentTurn: reply.data.currentTurn,
         ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
+      });
+    }
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Replay the latest turn transmission locally or across the connected fleet. */
+export async function replayTurnStartAnnouncement(audience: TurnStartReplayAudience): Promise<void> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before replaying a turn transmission.');
+  const currentTurn = store.session.currentTurn ?? 1;
+  const current = store.session.turnStartAnnouncement;
+  if (!current || current.turn !== currentTurn || currentTurn < 1) {
+    throw new Error('No current turn transmission is available to replay.');
+  }
+
+  if (audience === 'gm') {
+    useSessionStore.getState().setTurnStartReplay({
+      sessionId: store.session.id,
+      turn: current.turn,
+      survivorPopulation: current.survivorPopulation,
+      token: ++localTurnStartReplayToken,
+    });
+    return;
+  }
+
+  await ensureSignedIn();
+  const call = httpsCallable<
+    { sessionId: string; instanceId: string },
+    { turnStartAnnouncement?: { turn: number; survivorPopulation: number; revision?: number } }
+  >(functions(), 'replayTurnStartAnnouncement');
+  try {
+    const reply = await call({
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+    });
+    const announcement = reply.data.turnStartAnnouncement;
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession?.id === store.session.id && isTurnStartAnnouncement(announcement)) {
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        turnStartAnnouncement: announcement,
       });
     }
   } catch (cause) {

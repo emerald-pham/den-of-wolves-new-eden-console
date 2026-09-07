@@ -3,6 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
 import TurnStartAnnouncement, {
   TURN_START_EXIT_MS,
+  TURN_START_EXIT_FADE_MS,
+  TURN_ONE_CLOSING_SLIDE_MS,
   TURN_ONE_NARRATIVE_SLIDE_MS,
   TURN_START_SLIDE_MS,
 } from './TurnStartAnnouncement';
@@ -70,17 +72,33 @@ it('opens the Turn 1 briefing with iris authentication confirmation', () => {
   expect(traitorMessage).toHaveTextContent("THERE ARE TRAITORS AMONG US; THAT'S KIND OF SUS.");
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
-  const survivors = screen.getByText('242,500 PEOPLE —');
+  const survivors = screen.getByText('242,500 PEOPLE');
   expect(survivors).toHaveClass('turn-start-announcement__population');
+  expect(screen.queryByText('242,500 PEOPLE —')).not.toBeInTheDocument();
 
-  act(() => vi.advanceTimersByTime((TURN_START_SLIDE_MS / 2) - 1));
-  expect(screen.getByText('242,500 PEOPLE —')).toBe(survivors);
+  act(() => vi.advanceTimersByTime((TURN_ONE_CLOSING_SLIDE_MS / 2) - 1));
+  expect(screen.getByText('242,500 PEOPLE')).toBe(survivors);
 
   act(() => vi.advanceTimersByTime(1));
-  expect(screen.getByText('242,499 PEOPLE —')).toHaveClass('turn-start-announcement__population');
+  expect(screen.getByText('242,499 PEOPLE')).toHaveClass('turn-start-announcement__population');
 
-  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  act(() => vi.advanceTimersByTime(TURN_ONE_CLOSING_SLIDE_MS));
   expect(screen.getByText('SURVIVE.')).toBeInTheDocument();
+
+  const overlay = document.querySelector('.intrusion--fleet');
+  expect(overlay).toHaveAttribute('data-state', 'active');
+
+  act(() => vi.advanceTimersByTime(TURN_ONE_CLOSING_SLIDE_MS - 1));
+  expect(overlay).toHaveAttribute('data-state', 'active');
+
+  act(() => vi.advanceTimersByTime(1));
+  expect(overlay).toHaveAttribute('data-state', 'exiting');
+
+  act(() => vi.advanceTimersByTime(TURN_START_EXIT_FADE_MS - 1));
+  expect(document.querySelector('.intrusion--fleet')).toBeInTheDocument();
+
+  act(() => vi.advanceTimersByTime(1));
+  expect(document.querySelector('.intrusion--fleet')).not.toBeInTheDocument();
 });
 
 it('uses only the survivor-count beat on every turn after Turn 1', () => {
@@ -96,18 +114,25 @@ it('uses only the survivor-count beat on every turn after Turn 1', () => {
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
   expect(screen.getByText('TURN 1 → TURN 2')).toBeInTheDocument();
   expect(screen.getByText('TRANSMISSION 01 / 03')).toBeInTheDocument();
-  expect(screen.queryByText('237,000 PEOPLE —')).not.toBeInTheDocument();
+  expect(screen.queryByText('237,000 PEOPLE')).not.toBeInTheDocument();
   expect(screen.queryByText(/wolves destroyed your homes/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/some of you/i)).not.toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
-  expect(screen.getByText('237,000 PEOPLE —')).toBeInTheDocument();
+  expect(screen.getByText('237,000 PEOPLE')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS / 2));
-  expect(screen.getByText('236,999 PEOPLE —')).toBeInTheDocument();
+  expect(screen.getByText('236,999 PEOPLE')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
   expect(screen.getByText('SURVIVE.')).toBeInTheDocument();
+
+  const overlay = document.querySelector('.intrusion--fleet');
+  expect(overlay).toHaveAttribute('data-state', 'active');
+  act(() => vi.advanceTimersByTime(TURN_START_SLIDE_MS));
+  expect(overlay).toHaveAttribute('data-state', 'exiting');
+  act(() => vi.advanceTimersByTime(TURN_START_EXIT_FADE_MS));
+  expect(document.querySelector('.intrusion--fleet')).not.toBeInTheDocument();
 });
 
 it('eases the current beat out before the next transmission beat enters', () => {
@@ -132,8 +157,58 @@ it('eases the current beat out before the next transmission beat enters', () => 
   expect(screen.getByText('TURN 2')).toBeInTheDocument();
 
   act(() => vi.advanceTimersByTime(TURN_START_EXIT_MS));
-  expect(screen.getByText('237,000 PEOPLE —')).toBeInTheDocument();
-  expect(screen.getByText('237,000 PEOPLE —').parentElement).toHaveAttribute('data-motion', 'in');
+  expect(screen.getByText('237,000 PEOPLE')).toBeInTheDocument();
+  expect(screen.getByText('237,000 PEOPLE').parentElement).toHaveAttribute('data-motion', 'in');
+});
+
+it('replays a server revision of the current transmission without advancing the turn', () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500, revision: 0 },
+  });
+  render(<TurnStartAnnouncement />);
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500, revision: 1 },
+  }));
+
+  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
+});
+
+it('replays a GM-only local transmission and clears the local trigger when it completes', () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+  });
+  render(<TurnStartAnnouncement />);
+
+  act(() => useSessionStore.getState().setTurnStartReplay({
+    sessionId: 's1',
+    turn: 1,
+    survivorPopulation: 242_500,
+    token: 1,
+  }));
+
+  expect(screen.getByText('Iris Authentication Confirmed')).toBeInTheDocument();
+  expect(screen.getByText('TURN 0 → TURN 1')).toBeInTheDocument();
+  for (const duration of [
+    TURN_START_SLIDE_MS,
+    TURN_START_SLIDE_MS,
+    TURN_ONE_NARRATIVE_SLIDE_MS,
+    TURN_ONE_NARRATIVE_SLIDE_MS,
+    TURN_ONE_NARRATIVE_SLIDE_MS,
+    TURN_START_SLIDE_MS,
+    TURN_ONE_CLOSING_SLIDE_MS,
+    TURN_ONE_CLOSING_SLIDE_MS,
+    TURN_START_EXIT_FADE_MS,
+  ]) act(() => vi.advanceTimersByTime(duration));
+  expect(useSessionStore.getState().turnStartReplay).toBeNull();
 });
 
 it('does not replay the arrival transmission when a session first opens after Turn 1', () => {

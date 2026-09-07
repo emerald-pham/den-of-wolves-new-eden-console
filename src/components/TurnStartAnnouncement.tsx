@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Intrusion from './Intrusion';
+import { useMotionPreference } from '@/lib/motionPreference';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 
 export const TURN_START_SLIDE_MS = 2_400;
 export const TURN_START_EXIT_MS = 320;
+export const TURN_START_EXIT_FADE_MS = 1_000;
+export const TURN_ONE_CLOSING_SLIDE_MS = 3_000;
 export const TURN_ONE_NARRATIVE_SLIDE_MS = 4_000;
 
 type TurnStartTransmission = {
   readonly sessionId: string;
   readonly turn: number;
   readonly survivorPopulation: number;
+  readonly revision: number;
+  readonly localReplayToken?: number;
 };
 
 function currentAnnouncement(session: GameSession | null | undefined): TurnStartTransmission | null {
@@ -24,7 +29,14 @@ function currentAnnouncement(session: GameSession | null | undefined): TurnStart
     sessionId: session.id,
     turn: announcement.turn,
     survivorPopulation: announcement.survivorPopulation,
+    revision: announcement.revision ?? 0,
   };
+}
+
+function slideDuration(isFirstTurn: boolean, slide: number): number {
+  if (isFirstTurn && slide >= 6) return TURN_ONE_CLOSING_SLIDE_MS;
+  if (isFirstTurn && slide >= 2 && slide <= 4) return TURN_ONE_NARRATIVE_SLIDE_MS;
+  return TURN_START_SLIDE_MS;
 }
 
 function FleetTransmission({
@@ -37,6 +49,8 @@ function FleetTransmission({
   const [slide, setSlide] = useState(0);
   const [slideMotion, setSlideMotion] = useState<'in' | 'out'>('in');
   const [populationLossShown, setPopulationLossShown] = useState(false);
+  const [transmissionState, setTransmissionState] = useState<'active' | 'exiting'>('active');
+  const { reducedMotion } = useMotionPreference();
   const isFirstTurn = transmission.turn === 1;
   const slideCount = isFirstTurn ? 8 : 3;
   const isPopulationSlide = !isFirstTurn ? slide === 1 : slide === 6;
@@ -48,14 +62,11 @@ function FleetTransmission({
   const sequenceLabel = `${String(slide + 1).padStart(2, '0')} / ${String(slideCount).padStart(2, '0')}`;
 
   useEffect(() => {
-    const isNarrativeBeat = isFirstTurn && slide >= 2 && slide <= 4;
-    const duration = isNarrativeBeat
-      ? TURN_ONE_NARRATIVE_SLIDE_MS
-      : TURN_START_SLIDE_MS;
+    const duration = slideDuration(isFirstTurn, slide);
     const isLastSlide = slide === slideCount - 1;
     const transitionTimer = window.setTimeout(() => {
       if (isLastSlide) {
-        onComplete(transmission);
+        setTransmissionState('exiting');
         return;
       }
       setSlideMotion('out');
@@ -71,17 +82,29 @@ function FleetTransmission({
   }, [isFirstTurn, onComplete, slide, slideCount, transmission]);
 
   useEffect(() => {
+    if (transmissionState !== 'exiting') return undefined;
+    const completionTimer = window.setTimeout(
+      () => onComplete(transmission),
+      reducedMotion ? 0 : TURN_START_EXIT_FADE_MS,
+    );
+    return () => window.clearTimeout(completionTimer);
+  }, [onComplete, reducedMotion, transmission, transmissionState]);
+
+  useEffect(() => {
     if (!isPopulationSlide) return;
     setPopulationLossShown(false);
-    const timer = window.setTimeout(() => setPopulationLossShown(true), TURN_START_SLIDE_MS / 2);
+    const timer = window.setTimeout(
+      () => setPopulationLossShown(true),
+      slideDuration(isFirstTurn, slide) / 2,
+    );
     return () => window.clearTimeout(timer);
-  }, [isPopulationSlide]);
+  }, [isFirstTurn, isPopulationSlide, slide]);
 
   const message = !isFirstTurn ? (
     slide === 0
       ? <p className="turn-start-announcement__turn">TURN {transmission.turn}</p>
       : slide === 1
-        ? <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
+        ? <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE</p>
         : <p className="turn-start-announcement__survive">SURVIVE.</p>
   ) : slide === 0 ? (
     <p className="turn-start-announcement__message">Iris Authentication Confirmed</p>
@@ -98,13 +121,14 @@ function FleetTransmission({
       THERE ARE <span className="turn-start-announcement__traitors">TRAITORS</span> AMONG US; THAT&apos;S KIND OF SUS.
     </p>
   ) : slide === 6 ? (
-    <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE —</p>
+    <p className="turn-start-announcement__population">{survivorPopulation} PEOPLE</p>
   ) : <p className="turn-start-announcement__survive">SURVIVE.</p>;
 
   return (
     <>
       <Intrusion
         variant="fleet"
+        state={transmissionState}
         overlines={['FLEET TRANSMISSION // TURN INITIALIZATION', 'FLEET STATUS // STAND BY']}
       >
         <div
@@ -146,8 +170,29 @@ function FleetTransmission({
 /** Shows a server-authorized transmission only when this browser sees a turn advance live. */
 export default function TurnStartAnnouncement() {
   const session = useSessionStore((state) => state.session);
-  const previous = useRef<{ readonly sessionId: string; readonly turn: number } | null>(null);
+  const localReplay = useSessionStore((state) => state.turnStartReplay);
+  const setTurnStartReplay = useSessionStore((state) => state.setTurnStartReplay);
+  const previous = useRef<{
+    readonly sessionId: string;
+    readonly turn: number;
+    readonly revision: number;
+  } | null>(null);
   const [transmission, setTransmission] = useState<TurnStartTransmission | null>(null);
+
+  const complete = useCallback((completed: TurnStartTransmission) => {
+    setTransmission((current) =>
+      current?.sessionId === completed.sessionId &&
+      current.turn === completed.turn &&
+      current.revision === completed.revision &&
+      current.localReplayToken === completed.localReplayToken
+        ? null
+        : current,
+    );
+    if (
+      completed.localReplayToken !== undefined &&
+      useSessionStore.getState().turnStartReplay?.token === completed.localReplayToken
+    ) setTurnStartReplay(null);
+  }, [setTurnStartReplay]);
 
   useEffect(() => {
     if (!session) {
@@ -158,21 +203,36 @@ export default function TurnStartAnnouncement() {
     const announcement = currentAnnouncement(session);
     const wasLiveTurnAdvance = Boolean(
       previous.current && previous.current.sessionId === session.id && announcement &&
-      announcement.turn > previous.current.turn,
+      (
+        announcement.turn > previous.current.turn ||
+        (
+          announcement.turn === previous.current.turn &&
+          announcement.revision > previous.current.revision
+        )
+      ),
     );
-    previous.current = { sessionId: session.id, turn: session.currentTurn ?? 1 };
+    previous.current = {
+      sessionId: session.id,
+      turn: announcement?.turn ?? session.currentTurn ?? 1,
+      revision: announcement?.revision ?? 0,
+    };
     if (wasLiveTurnAdvance && announcement) setTransmission(announcement);
   }, [session]);
 
-  const complete = useCallback((completed: TurnStartTransmission) => {
-    setTransmission((current) => current?.sessionId === completed.sessionId && current.turn === completed.turn
-      ? null
-      : current);
-  }, []);
+  useEffect(() => {
+    if (!localReplay || localReplay.sessionId !== session?.id) return;
+    setTransmission({
+      sessionId: localReplay.sessionId,
+      turn: localReplay.turn,
+      survivorPopulation: localReplay.survivorPopulation,
+      revision: localReplay.token,
+      localReplayToken: localReplay.token,
+    });
+  }, [localReplay, session?.id]);
 
   if (!transmission || transmission.sessionId !== session?.id) return null;
   return <FleetTransmission
-    key={`${transmission.sessionId}-${transmission.turn}`}
+    key={`${transmission.sessionId}-${transmission.turn}-${transmission.revision}-${transmission.localReplayToken ?? 'server'}`}
     transmission={transmission}
     onComplete={complete}
   />;

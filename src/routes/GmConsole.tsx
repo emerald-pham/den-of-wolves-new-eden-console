@@ -38,7 +38,9 @@ import {
   setActiveRoleConfiguration,
   applyShipCounterSteps,
   advanceTurn,
+  replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
+  type TurnStartReplayAudience,
 } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
@@ -242,6 +244,9 @@ export default function GmConsole() {
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [confirmTurnOverride, setConfirmTurnOverride] = useState(false);
+  const [confirmTurnSkip, setConfirmTurnSkip] = useState(false);
+  const [replayingTurnAnnouncement, setReplayingTurnAnnouncement] =
+    useState<TurnStartReplayAudience | null>(null);
   const [changingDebrief, setChangingDebrief] = useState(false);
   const [confirmFinale, setConfirmFinale] = useState(false);
   const [assigningWolves, setAssigningWolves] = useState(false);
@@ -261,6 +266,9 @@ export default function GmConsole() {
   const controlsLocked = session?.gmControlsLocked === true;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
+  const canReplayTurnAnnouncement = Boolean(
+    session?.turnStartAnnouncement && session.turnStartAnnouncement.turn === currentTurn && currentTurn >= 1,
+  );
   const currentPhase = phaseForSession(session);
   const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
   const lockQueued = pendingCommands.some(
@@ -455,6 +463,7 @@ export default function GmConsole() {
 
   useEffect(() => {
     setConfirmTurnOverride(false);
+    setConfirmTurnSkip(false);
   }, [currentTurn]);
 
   if (!session || !me) return <Navigate to="/" replace />;
@@ -601,6 +610,7 @@ export default function GmConsole() {
   }
 
   async function moveToNextTurn(overridePhaseTimer = false): Promise<void> {
+    setConfirmTurnSkip(false);
     setAdvancingTurn(true);
     try {
       await (overridePhaseTimer ? advanceTurn({ overridePhaseTimer: true }) : advanceTurn());
@@ -619,6 +629,25 @@ export default function GmConsole() {
     const override = activeTurnTimer && confirmTurnOverride;
     setConfirmTurnOverride(false);
     void moveToNextTurn(override);
+  }
+
+  function requestTurnOneSkip(): void {
+    if (!confirmTurnSkip) {
+      setConfirmTurnSkip(true);
+      return;
+    }
+    void moveToNextTurn();
+  }
+
+  async function replayTurnAnnouncement(audience: TurnStartReplayAudience): Promise<void> {
+    setReplayingTurnAnnouncement(audience);
+    try {
+      await replayTurnStartAnnouncement(audience);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setReplayingTurnAnnouncement(null);
+    }
   }
 
   async function randomizeWolves(count: 1 | 2): Promise<void> {
@@ -716,39 +745,69 @@ export default function GmConsole() {
                 ARE YOU SURE? // ACTIVE PHASE TIMER WILL BE OVERRIDDEN
               </p>
             )}
-            {currentTurn === 0 ? (
-              <div className="gm-turn-control__actions">
+            <div className="gm-turn-control__actions">
+              {currentTurn === 0 ? (
+                <>
+                  <button
+                    className="cic-action-button"
+                    type="button"
+                    disabled={advancingTurn || replayingTurnAnnouncement !== null}
+                    onClick={requestTurnAdvance}
+                  >
+                    {advancingTurn ? 'Advancing to Turn 1…' : 'Advance to Turn 1'}
+                  </button>
+                  <button
+                    className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
+                    type="button"
+                    disabled={advancingTurn || replayingTurnAnnouncement !== null}
+                    onClick={requestTurnOneSkip}
+                  >
+                    {advancingTurn
+                      ? 'Skipping to Turn 1…'
+                      : confirmTurnSkip
+                        ? 'ARE YOU SURE? // Skip to Turn 1'
+                        : 'Skip to Turn 1'}
+                  </button>
+                </>
+              ) : (
                 <button
-                  className="cic-action-button"
+                  className={`cic-action-button${confirmTurnOverride && activeTurnTimer ? ' cic-action-button--confirm' : ''}`}
                   type="button"
-                  disabled={advancingTurn}
-                  onClick={() => void moveToNextTurn()}
-                >
-                  {advancingTurn ? 'Skipping to Turn 1…' : 'Skip to Turn 1'}
-                </button>
-                <button
-                  className="cic-action-button"
-                  type="button"
-                  disabled={advancingTurn}
+                  disabled={advancingTurn || replayingTurnAnnouncement !== null}
                   onClick={requestTurnAdvance}
                 >
-                  {advancingTurn ? 'Advancing to Turn 1…' : 'Advance to Turn 1'}
+                  {advancingTurn
+                    ? 'Advancing turn…'
+                    : confirmTurnOverride && activeTurnTimer
+                      ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
+                      : `Advance to Turn ${currentTurn + 1}`}
                 </button>
-              </div>
-            ) : (
+              )}
               <button
                 className="cic-action-button"
                 type="button"
-                disabled={advancingTurn}
-                onClick={requestTurnAdvance}
+                disabled={
+                  !canReplayTurnAnnouncement || advancingTurn || replayingTurnAnnouncement !== null
+                }
+                onClick={() => void replayTurnAnnouncement('gm')}
               >
-                {advancingTurn
-                  ? 'Advancing turn…'
-                  : confirmTurnOverride && activeTurnTimer
-                    ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
-                    : `Advance to Turn ${currentTurn + 1}`}
+                {replayingTurnAnnouncement === 'gm'
+                  ? 'Replaying transmission // GM only…'
+                  : 'Replay last transmission // GM only'}
               </button>
-            )}
+              <button
+                className="cic-action-button"
+                type="button"
+                disabled={
+                  !canReplayTurnAnnouncement || advancingTurn || replayingTurnAnnouncement !== null
+                }
+                onClick={() => void replayTurnAnnouncement('everyone')}
+              >
+                {replayingTurnAnnouncement === 'everyone'
+                  ? 'Replaying transmission // Everyone…'
+                  : 'Replay last transmission // Everyone'}
+              </button>
+            </div>
           </section>
           <section className="gm-console__module gm-finale cic-frame" aria-label="Finale controls">
             <h2 className="gm-console__section-title">Finale</h2>
@@ -761,7 +820,7 @@ export default function GmConsole() {
               </p>
             )}
             <button
-              className="cic-action-button"
+              className={`cic-action-button${confirmFinale && !debriefMode.active ? ' cic-action-button--confirm' : ''}`}
               type="button"
               aria-pressed={debriefMode.active}
               disabled={changingDebrief || debriefQueued}
