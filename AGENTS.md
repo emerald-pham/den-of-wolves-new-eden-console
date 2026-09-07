@@ -21,8 +21,12 @@ only read this file:
    20-player set has full, complex gameplay across interacting systems and a
    clear game end. See `CLAUDE.md` for the full policy.
 
-4. **Delegate suitable routine tasks to Luna only.**
+4. **Maximize suitable subagent use with Luna only.**
    Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository.
+   Fan out independent, bounded reconnaissance, implementation, and verification
+   tracks early so the parent stays focused on coordination and integration;
+   prefer this to growing or compressing the parent context. Keep the split
+   concrete and skip it when no safe sidecar exists.
    Delegated subagents have full read/write access to their assigned worktree:
    they may inspect, create, edit, rename, and delete files, run commands and
    tests, and perform well-scoped implementation work. No read-only restriction
@@ -33,6 +37,8 @@ only read this file:
    worktree and does not authorize merging or pushing. The primary agent retains
    high-risk security, authentication, authorization, architecture, and product
    decisions, plus all review, integration, versioning, merge, and push.
+   Close each completed child with `close_agent`, because finished descendants
+   remain open and consume concurrency capacity until closed.
    Follow [Routine task delegation](./CLAUDE.md#routine-task-delegation) for
    scope, model availability, review, and integration requirements.
 

@@ -152,6 +152,14 @@ tasks when doing so is expected to save total effort and tokens after accounting
 for setup, context transfer, and review. No separate confirmation is needed for
 each suitable task.
 
+Subagent-maxing is the default for suitable work. As soon as a task has
+independent, bounded reconnaissance, implementation, or verification tracks,
+fan them out to Luna and keep the parent focused on coordination and
+integration. Prefer delegation when it keeps unrelated file output out of the
+parent context and avoids growing or compressing that context. If no safe,
+independent sidecar exists, continue locally and record why rather than forcing
+an artificial split.
+
 - Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
   is not an approved delegation model for this codebase.
 - Delegated subagents have full read/write access to their assigned worktree.
@@ -168,6 +176,10 @@ each suitable task.
   edit the primary agent's checkout or another agent's files. Full read/write
   access is scoped to that assigned worktree and does not authorize merging or
   pushing.
+- Treat child-agent lifecycle as part of delegation: after collecting a
+  completed result, close the child with `close_agent`. Completed descendants
+  remain open and count toward the concurrency limit until closed, so do not
+  leave finished children occupying capacity.
 - No code change has zero risk. Keep security, authentication, authorization,
   authoritative state mutations, complex gameplay, architectural decisions, and
   other high-risk security or product decisions with the primary agent. The
