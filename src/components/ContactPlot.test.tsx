@@ -295,7 +295,7 @@ it('separates a moving contact true position from its sampled visible fix', () =
   expect(actual).not.toContainElement(apparent as HTMLElement);
 });
 
-it('holds a moving return at its sampled fix while it stays on one side of a sweep, then refreshes on a later crossing', () => {
+it('holds a moving return at its sampled fix until another sweep crosses its true position', () => {
   vi.useFakeTimers();
   let frame: FrameRequestCallback = () => undefined;
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -308,7 +308,7 @@ it('holds a moving return at its sampled fix while it stays on one side of a swe
     writable: true,
     value: vi.fn(() => ({ cancel: vi.fn() }) as unknown as Animation),
   });
-  let normal = { x: 0, y: 1, z: 0 };
+  let normal = { x: 0, y: 0, z: 1 };
   let actualPosition = { x: 80, y: 10, z: 20 };
   vi.stubGlobal('DOMMatrixReadOnly', class {
     constructor(private value: string) {}
@@ -342,22 +342,23 @@ it('holds a moving return at its sampled fix while it stays on one side of a swe
   const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
 
   act(() => frame(0));
-  normal = { x: 0, y: -1, z: 0 };
+  normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(16));
   const firstFix = apparent?.style.cssText;
   expect(firstFix).toContain('--fix-x: 0.8');
   expect(firstFix).toContain('--fix-y: 0.1');
   expect(firstFix).toContain('--fix-z: 0.2');
 
-  actualPosition = { x: 40, y: 30, z: 60 };
+  actualPosition = { x: 40, y: -30, z: 60 };
   act(() => frame(32));
   expect(apparent?.style.cssText).toBe(firstFix);
 
-  normal = { x: 0, y: 1, z: 0 };
+  normal = { x: 0, y: 0, z: 1 };
   act(() => frame(48));
+  normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(64));
   expect(apparent?.style.cssText).toContain('--fix-x: 0.4');
-  expect(apparent?.style.cssText).toContain('--fix-y: 0.3');
+  expect(apparent?.style.cssText).toContain('--fix-y: -0.3');
   expect(apparent?.style.cssText).toContain('--fix-z: 0.6');
   unmount();
 });
@@ -483,9 +484,14 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
     transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
     width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
   }) as CSSStyleDeclaration);
-  // The foreground return layer is a display-only projection. Acquisition
-  // follows the contact's canonical position in the rig's 3D coordinate space.
-  const contact = { tag: 'AHEAD', x: 0.8, y: 0, z: 0.2, color: 'white' };
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    return (this.classList.contains('contact-plot__actual')
+      ? { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 }
+      : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
+  });
+  // The displayed position can differ from a full 3D projection because the
+  // foreground return layer is flattened by CSS. Follow the actual anchor.
+  const contact = { tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' };
   const { container, rerender, unmount } = render(<ContactPlot contacts={[contact]} />);
   const apparent = () => container.querySelector<HTMLElement>('.contact-plot__apparent');
   const findMany = vi.spyOn(plotIn(container)!, 'querySelectorAll');
@@ -495,14 +501,14 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   findMany.mockClear();
   findParts.mockClear();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
-  normal = { x: 1, y: 0, z: 0 };
+  normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
   // Stable tracks reuse their DOM handles instead of allocating query results
-  // on every animation frame. Sweep matrices are still sampled at full frame rate.
+  // on every animation frame. Positions are still measured at full frame rate.
   expect(findMany).not.toHaveBeenCalled();
   expect(findParts).not.toHaveBeenCalled();
   expect(apparent()).not.toHaveAttribute('data-acquired', 'true');
-  normal = { x: 0, y: 0, z: -1 };
+  normal = { x: 0.996, y: 0, z: 0.087 };
   act(() => frame(32));
   expect(apparent()).toHaveAttribute('data-acquired', 'true');
   expect(apparent()?.parentElement).toHaveAttribute('data-scan-fresh', 'true');
@@ -521,23 +527,19 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(1);
   normal = { x: 0, y: 0, z: 1 };
   act(() => frame(80));
-  expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(1);
-  expect(apparent()?.style.cssText).toBe(fix);
-  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(1)');
-  normal = { x: 0, y: 0, z: -1 };
-  act(() => frame(96));
   expect(container.querySelectorAll('[data-acquired="true"]')).toHaveLength(2);
   expect(apparent()?.style.cssText).toBe(fix);
-  normal = { x: 0, y: 0, z: -1 };
-  act(() => frame(112));
+  expect(painted[2]?.keyframes[0]?.transform).toBe('scale(1)');
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(96));
   expect(apparent()?.style.cssText).toBe(fix);
   // Keep sampling while both returns fade; expiry alone must never move one.
-  for (let now = 128; now < 96 + SCAN_FRESH_MS; now += 16) {
+  for (let now = 112; now < 96 + SCAN_FRESH_MS; now += 16) {
     act(() => frame(now));
   }
   expect(apparent()?.style.cssText).toBe(fix);
   normal = { x: 0, y: 0, z: 1 };
-  act(() => frame(96 + SCAN_FRESH_MS + 1));
+  act(() => frame(96 + SCAN_FRESH_MS));
   expect(apparent()?.style.cssText).not.toBe(fix);
   // Removing tracks must also release their cached handles, animations and timers.
   rerender(<ContactPlot contacts={[]} />);
@@ -553,71 +555,23 @@ it('acquires and refreshes only when a rendered sweep crosses, including late-ad
   expect(cancel).toHaveBeenCalled();
 });
 
-it('acquires a target when the sweep crosses its true 3D position, not its 2D projection', () => {
+it('reuses stationary return projections until DRADIS geometry changes', () => {
   let frame: FrameRequestCallback = () => undefined;
-  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
-    frame = callback;
-    return 1;
-  }));
-  vi.stubGlobal('cancelAnimationFrame', vi.fn());
-  Object.defineProperty(Element.prototype, 'animate', {
-    configurable: true,
-    writable: true,
-    value: vi.fn(() => ({ cancel: vi.fn() }) as unknown as Animation),
-  });
-  let normal = { x: 0, y: 1, z: 0 };
-  vi.stubGlobal('DOMMatrixReadOnly', class {
-    constructor(private value: string) {}
-    inverse() { return this; }
-    transformPoint(point: DOMPointInit) {
-      if (this.value === 'sweep') return normal;
-      if (this.value === 'actual') return { x: 50, y: 60, z: 40, w: 1 };
-      return point;
-    }
-  });
-  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => ({
-    transform: element.classList.contains('contact-plot__sweep')
-      ? 'sweep'
-      : element.classList.contains('contact-plot__actual') ? 'actual' : 'none',
-    width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
-  }) as CSSStyleDeclaration);
-  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
-    return (this.classList.contains('contact-plot__actual')
-      ? { x: 120, y: 120, left: 120, top: 120, width: 0, height: 0 }
-      : { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 }) as DOMRect;
-  });
-
-  const moving = {
-    tag: '3D TARGET', x: 0.5, y: 0.6, z: 0.4, color: 'white',
-    transit: {
-      destination: { x: -0.2, y: 0.3, z: -0.5 },
-      durationMs: 120_000,
-      elapsedMs: 10_000,
-    },
-  };
-  const { container, unmount } = render(<ContactPlot contacts={[moving]} />);
-  const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
-
-  act(() => frame(0));
-  expect(apparent).not.toHaveAttribute('data-acquired', 'true');
-  normal = { x: 0, y: -1, z: 0 };
-  act(() => frame(16));
-
-  expect(apparent).toHaveAttribute('data-acquired', 'true');
-  expect(apparent?.style.cssText).toContain('--fix-x: 0.5');
-  expect(apparent?.style.cssText).toContain('--fix-y: 0.6');
-  expect(apparent?.style.cssText).toContain('--fix-z: 0.4');
-  unmount();
-});
-
-it('uses canonical 3D coordinates without projecting contacts through viewport layout', () => {
-  let frame: FrameRequestCallback = () => undefined;
+  let notifyResize: (() => void) | undefined;
   let normal = { x: 0, y: 0, z: 1 };
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
     frame = callback;
     return 1;
   }));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('ResizeObserver', class {
+    constructor(callback: ResizeObserverCallback) {
+      notifyResize = () => callback([], this as unknown as ResizeObserver);
+    }
+
+    observe() {}
+    disconnect() {}
+  });
   vi.stubGlobal('DOMMatrixReadOnly', class {
     constructor(private value: string) {}
     inverse() { return this; }
@@ -629,73 +583,35 @@ it('uses canonical 3D coordinates without projecting contacts through viewport l
     transform: element.classList.contains('contact-plot__sweep') ? 'sweep' : 'none',
     width: '200px', height: '200px', perspective: '300px', perspectiveOrigin: '100px 100px',
   }) as CSSStyleDeclaration);
-  const bounds = vi.spyOn(Element.prototype, 'getBoundingClientRect');
+  const actualBounds = vi.fn();
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot__actual')) {
+      actualBounds();
+      return { x: 150, y: 100, left: 150, top: 100, width: 0, height: 0 } as DOMRect;
+    }
+    return { x: 0, y: 0, left: 0, top: 0, width: 200, height: 200 } as DOMRect;
+  });
 
   const { container } = render(
-    <ContactPlot contacts={[{ tag: 'AHEAD', x: 0.2, y: 0, z: 0.6, color: 'white' }]} />,
+    <ContactPlot contacts={[{ tag: 'AHEAD', x: 0.8, y: 0, z: 0, color: 'white' }]} />,
   );
 
   act(() => frame(0));
-  normal = { x: 0, y: 0, z: -1 };
+  normal = { x: 0.5, y: 0, z: 0.866 };
   act(() => frame(16));
-
-  expect(bounds).not.toHaveBeenCalled();
+  normal = { x: 0.996, y: 0, z: 0.087 };
+  act(() => frame(32));
+  // The sweep itself is still sampled on each animation frame. A stationary
+  // return's screen projection only changes when the plot's geometry changes.
+  expect(actualBounds).toHaveBeenCalledTimes(1);
   expect(container.querySelector('.contact-plot__apparent')).toHaveAttribute(
     'data-acquired',
     'true',
   );
-});
 
-it('uses the rendered sweep-disc radius instead of a fixed logical radius', () => {
-  let frame: FrameRequestCallback = () => undefined;
-  let normal = { x: 0.8, y: 0, z: 0.6 };
-  let sweepDiameter = 100;
-  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
-    frame = callback;
-    return 1;
-  }));
-  vi.stubGlobal('cancelAnimationFrame', vi.fn());
-  vi.stubGlobal('DOMMatrixReadOnly', class {
-    constructor(private value: string) {}
-    transformPoint(point: DOMPointInit) {
-      return this.value === 'sweep' ? normal : point;
-    }
-  });
-  vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
-    const sweep = element.classList.contains('contact-plot__sweep');
-    const rig = element.classList.contains('contact-plot__rig');
-    const size = rig ? 200 : sweep ? sweepDiameter : 0;
-    return {
-      transform: sweep ? 'sweep' : 'none',
-      width: `${size}px`,
-      height: `${size}px`,
-      boxSizing: 'border-box',
-      borderLeftWidth: '0px',
-      borderRightWidth: '0px',
-      borderTopWidth: '0px',
-      borderBottomWidth: '0px',
-      paddingLeft: '0px',
-      paddingRight: '0px',
-      paddingTop: '0px',
-      paddingBottom: '0px',
-    } as CSSStyleDeclaration;
-  });
-
-  const { container } = render(
-    <ContactPlot contacts={[{ tag: 'EDGE', x: 0.1, y: 0.75, z: 0, color: 'white' }]} />,
-  );
-  const apparent = container.querySelector<HTMLElement>('.contact-plot__apparent');
-
-  act(() => frame(0));
-  normal = { x: -0.8, y: 0, z: 0.6 };
-  act(() => frame(16));
-  expect(apparent).not.toHaveAttribute('data-acquired', 'true');
-
-  sweepDiameter = 200;
-  act(() => frame(32));
-  normal = { x: 0.8, y: 0, z: 0.6 };
+  act(() => notifyResize?.());
   act(() => frame(48));
-  expect(apparent).toHaveAttribute('data-acquired', 'true');
+  expect(actualBounds).toHaveBeenCalledTimes(2);
 });
 
 it('shows a bottom-left warning for active fleet alerts and clears it on stand-down', () => {

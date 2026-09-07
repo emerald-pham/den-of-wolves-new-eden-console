@@ -7,11 +7,13 @@ export interface Vector {
 /** Fired by a return whenever a rendered DRADIS sweep crosses its position. */
 export const CONTACT_SCAN_EVENT = 'dradis-contact-scan';
 
-/** Signed screen-space rim test retained for geometry-level callers. DRADIS
- * acquisition uses the rendered disc's actual 3D plane below instead of this
- * projected viewport test. */
+/** Signed screen-space rim test. Cast the viewing ray through the contact
+ * onto the sweep disc, then compare its radius with the unit circumference.
+ * Multiplying out the denominator keeps edge-on discs finite. Negative is
+ * inside the projected circle; positive is outside, at any contact depth. */
 export function rimDistance(point: Vector, normal: Vector, camera: Vector): number {
   const ray = { x: point.x - camera.x, y: point.y - camera.y, z: point.z - camera.z };
+  const dot = (a: Vector, b: Vector) => a.x * b.x + a.y * b.y + a.z * b.z;
   const denominator = dot(normal, ray);
   const origin = dot(normal, camera);
   const x = camera.x * denominator - origin * ray.x;
@@ -20,84 +22,16 @@ export function rimDistance(point: Vector, normal: Vector, camera: Vector): numb
   return x * x + y * y + z * z - denominator * denominator;
 }
 
-const SWEEP_EPSILON = 1e-8;
-const DEFAULT_SWEEP_DISC_RADIUS = 1;
-
-const dot = (a: Vector, b: Vector): number => a.x * b.x + a.y * b.y + a.z * b.z;
-
-const lengthSquared = (vector: Vector): number => dot(vector, vector);
-
-function normalize(vector: Vector): Vector {
-  const length = Math.sqrt(lengthSquared(vector));
-  return length > SWEEP_EPSILON
-    ? { x: vector.x / length, y: vector.y / length, z: vector.z / length }
-    : vector;
-}
-
-function interpolate(start: Vector, end: Vector, progress: number): Vector {
-  return {
-    x: start.x + (end.x - start.x) * progress,
-    y: start.y + (end.y - start.y) * progress,
-    z: start.z + (end.z - start.z) * progress,
-  };
-}
-
-function crossingProgress(previous: number | null, current: number): number | null {
-  if (previous === null) return Math.abs(current) < SWEEP_EPSILON ? 1 : null;
-  if (Math.abs(previous) < SWEEP_EPSILON) return null;
-  if (Math.abs(current) < SWEEP_EPSILON) return 1;
-  if ((previous < 0) === (current < 0)) return null;
-  return previous / (previous - current);
-}
-
-/** A rendered sweep is a finite circular plane through the rig origin. Sample
- * both moving pieces of geometry, then check the crossing point against the
- * disc itself—not an infinite plane or a 2D screen projection. */
-export function crossedSweepDisc(
-  previousPoint: Vector | null,
-  point: Vector,
-  previousNormal: Vector | null,
-  currentNormal: Vector,
-  previousRadius = DEFAULT_SWEEP_DISC_RADIUS,
-  currentRadius = DEFAULT_SWEEP_DISC_RADIUS,
-): boolean {
-  const currentUnitNormal = normalize(currentNormal);
-  const previousUnitNormal = previousNormal === null ? null : normalize(previousNormal);
-  const previousDistance = previousPoint === null || previousUnitNormal === null
-    ? null
-    : dot(previousPoint, previousUnitNormal);
-  const currentDistance = dot(point, currentUnitNormal);
-  const progress = crossingProgress(previousDistance, currentDistance);
-  if (progress === null) return false;
-
-  const crossingPoint = previousPoint === null ? point : interpolate(previousPoint, point, progress);
-  const crossingNormal = previousUnitNormal === null
-    ? currentUnitNormal
-    : normalize(interpolate(previousUnitNormal, currentUnitNormal, progress));
-  const signedDistance = dot(crossingPoint, crossingNormal);
-  const radialDistanceSquared = Math.max(0, lengthSquared(crossingPoint) - signedDistance ** 2);
-  const radius = Math.max(
-    0,
-    previousNormal === null
-      ? currentRadius
-      : previousRadius + (currentRadius - previousRadius) * progress,
-  );
-  return radialDistanceSquared <= radius ** 2 + SWEEP_EPSILON;
-}
-
-/** Backward-compatible stationary-point helper for geometry callers. */
-export function crossedPlane(
-  point: Vector,
-  previousNormal: Vector | null,
-  currentNormal: Vector,
-): boolean {
-  return crossedSweepDisc(point, point, previousNormal, currentNormal);
-}
-
 const BEARING_WALK = [-1, -0.5, 1, 0.5, 0];
 
 /** The paint flare reaches its first dimmed keyframe 16% into a 7s fade. */
 export const SCAN_FRESH_MS = 1120;
+
+type SweepGeometry = {
+  readonly radius: number;
+  readonly inverseRig: DOMMatrixReadOnly;
+  readonly camera: Vector;
+};
 
 type ReturnState = {
   readonly actual: HTMLElement;
@@ -105,66 +39,15 @@ type ReturnState = {
   readonly blip: HTMLElement;
   readonly drop: HTMLElement | null;
   fix: Vector;
-  point: Vector | null;
+  /** The static return's projected position, valid for this plot geometry. */
+  displayed: Vector | null;
+  geometryVersion: number;
+  moving: boolean;
   scans: number;
   scannedAt: number;
   paint: Animation[];
   freshTimer: number | undefined;
 };
-
-type SweepFrame = {
-  readonly normal: Vector;
-  /** In rig-coordinate units: exactly the visible disc's local border radius. */
-  readonly radius: number;
-};
-
-function pixels(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function borderBoxSize(
-  style: CSSStyleDeclaration,
-  axis: 'width' | 'height',
-): number {
-  const size = pixels(style[axis]);
-  if (style.boxSizing === 'border-box') return size;
-  const horizontal = axis === 'width';
-  return size
-    + pixels(horizontal ? style.paddingLeft : style.paddingTop)
-    + pixels(horizontal ? style.paddingRight : style.paddingBottom)
-    + pixels(horizontal ? style.borderLeftWidth : style.borderTopWidth)
-    + pixels(horizontal ? style.borderRightWidth : style.borderBottomWidth);
-}
-
-/** Read a sweep's own unprojected border box. This is the same circular plane
- * CSS paints in the viewport, expressed in the rig's coordinate units. */
-function sweepFrame(disc: HTMLElement, rigRadius: number): SweepFrame {
-  const style = getComputedStyle(disc);
-  const matrix = new DOMMatrixReadOnly(style.transform);
-  const diameter = Math.min(borderBoxSize(style, 'width'), borderBoxSize(style, 'height'));
-  const radius = Number.isFinite(diameter) && diameter > 0
-    ? diameter / (2 * rigRadius)
-    : DEFAULT_SWEEP_DISC_RADIUS;
-  return {
-    normal: matrix.transformPoint({ x: 0, y: 0, z: 1, w: 0 }),
-    radius,
-  };
-}
-
-function actualPoint(actual: HTMLElement, fallback: Vector, radius: number): Vector {
-  const transform = getComputedStyle(actual).transform;
-  if (transform === 'none') return fallback;
-  const translated = new DOMMatrixReadOnly(transform).transformPoint({
-    x: 0, y: 0, z: 0, w: 1,
-  });
-  const w = typeof translated.w === 'number' && translated.w !== 0 ? translated.w : 1;
-  return {
-    x: translated.x / (radius * w),
-    y: translated.y / (radius * w),
-    z: translated.z / (radius * w),
-  };
-}
 
 /** Display-only error, spanning two degrees around the real Y-axis bearing. */
 export function apparentFix(point: Vector, scan: number): Vector {
@@ -185,17 +68,82 @@ export function followSweeps(plot: HTMLElement): () => void {
   // Live collection includes new/removed tracks without a new NodeList per frame.
   const contacts = plot.getElementsByClassName('contact-plot__contact');
   const returns = new Map<HTMLElement, ReturnState>();
-  let previous: SweepFrame[] = [];
+  let geometry: SweepGeometry | null = null;
+  let geometryVersion = 0;
+
+  // The scan still evaluates each animation frame. This cache only avoids
+  // re-reading layout for fixed returns whose projected position cannot change
+  // until the plot is resized, reoriented, or given a new contact position.
+  const invalidateGeometry = () => {
+    if (geometry !== null) geometryVersion += 1;
+    geometry = null;
+  };
+  const resizeObserver = typeof ResizeObserver === 'undefined'
+    ? undefined
+    : new ResizeObserver(invalidateGeometry);
+  resizeObserver?.observe(plot);
+  resizeObserver?.observe(rig);
+  const mutationObserver = typeof MutationObserver === 'undefined'
+    ? undefined
+    : new MutationObserver((records) => {
+      if (records.some(({ target }) => (
+        target === plot || target === rig ||
+        (target instanceof HTMLElement && target.classList.contains('contact-plot__contact'))
+      ))) {
+        invalidateGeometry();
+      }
+    });
+  mutationObserver?.observe(plot, {
+    attributes: true,
+    subtree: true,
+    attributeFilter: ['style', 'data-placement'],
+  });
+  window.addEventListener('resize', invalidateGeometry);
+
+  const geometryFor = (): SweepGeometry => {
+    if (geometry) return geometry;
+    const plotStyle = getComputedStyle(plot);
+    const rigStyle = getComputedStyle(rig);
+    const radius = parseFloat(rigStyle.width) / 2;
+    const [originX = 0, originY = 0] = plotStyle.perspectiveOrigin.split(' ').map(parseFloat);
+    const inverseRig = new DOMMatrixReadOnly(rigStyle.transform).inverse();
+    const transformedCamera = inverseRig.transformPoint({
+      x: (originX - parseFloat(plotStyle.width) / 2) / radius,
+      y: (originY - parseFloat(plotStyle.height) / 2) / radius,
+      z: parseFloat(plotStyle.perspective) / radius,
+      w: 0,
+    });
+    geometry = {
+      radius,
+      inverseRig,
+      camera: {
+        x: transformedCamera.x,
+        y: transformedCamera.y,
+        z: transformedCamera.z,
+      },
+    };
+    return geometry;
+  };
+  let previous: Vector[] = [];
   let lastFrame = -Infinity;
   let frame = 0;
   const tick = (now: number) => {
-    const measuredRadius = parseFloat(getComputedStyle(rig).width) / 2;
-    const radius = Number.isFinite(measuredRadius) && measuredRadius > 0 ? measuredRadius : 1;
-    const suspended = now - lastFrame > 250;
-    const sweeps = discs.map((disc) => sweepFrame(disc, radius));
+    // Browsers without ResizeObserver retain the original conservative path:
+    // re-measure every frame rather than risk using a stale projection while a
+    // container is changing size.
+    if (!resizeObserver) invalidateGeometry();
+    const currentGeometry = geometryFor();
+    // Position can change without a resize (for example, measured header
+    // chrome wrapping). The shared origin must stay current for moving returns;
+    // fixed returns already hold the same plot-relative projection.
+    const currentBounds = plot.getBoundingClientRect();
+    const normals = discs.map((disc) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(disc).transform);
+      return matrix.transformPoint({ x: 0, y: 0, z: 1, w: 0 });
+    });
     // A suspended tab may skip whole turns. Resume from what is visible now,
     // without inventing a refresh for an intersection that happened offscreen.
-    if (suspended) previous = [];
+    if (now - lastFrame > 250) previous = [];
     lastFrame = now;
     for (const [element, state] of returns) {
       if (!plot.contains(element)) {
@@ -223,7 +171,9 @@ export function followSweeps(plot: HTMLElement): () => void {
         blip,
         drop: element.querySelector<HTMLElement>('.contact-plot__drop'),
         fix: canonical,
-        point: null,
+        displayed: null,
+        geometryVersion: -1,
+        moving: false,
         scans: index,
         scannedAt: -Infinity,
         paint: [],
@@ -231,25 +181,34 @@ export function followSweeps(plot: HTMLElement): () => void {
       };
       returns.set(element, state);
       const moving = element.dataset.moving === 'true';
-      const point = moving ? actualPoint(actual, canonical, radius) : canonical;
-      const crossed = sweeps.some((sweep, i) => {
-        const beforeSweep = existing && !suspended ? previous[i] ?? null : null;
-        const beforePoint = existing && !suspended ? state.point : null;
-        return crossedSweepDisc(
-          beforePoint,
-          point,
-          beforeSweep?.normal ?? null,
-          sweep.normal,
-          beforeSweep?.radius ?? sweep.radius,
-          sweep.radius,
-        );
-      });
-      state.point = point;
-      if (!crossed) continue;
+      if (
+        moving || state.displayed === null || state.geometryVersion !== geometryVersion ||
+        state.moving !== moving
+      ) {
+        const anchor = actual.getBoundingClientRect();
+        const projected = currentGeometry.inverseRig.transformPoint({
+          x: (anchor.x - currentBounds.x - currentBounds.width / 2)
+            / currentGeometry.radius,
+          y: (anchor.y - currentBounds.y - currentBounds.height / 2)
+            / currentGeometry.radius,
+          z: 0, w: 0,
+        });
+        state.displayed = { x: projected.x, y: projected.y, z: projected.z };
+        state.geometryVersion = geometryVersion;
+        state.moving = moving;
+      }
+      const displayed = state.displayed;
+      if (!normals.some((normal, i) => {
+        const next = rimDistance(displayed, normal, currentGeometry.camera);
+        const beforeNormal = existing ? previous[i] : undefined;
+        if (!beforeNormal) return Math.abs(next) < 1e-8;
+        const before = rimDistance(displayed, beforeNormal, currentGeometry.camera);
+        return Math.abs(before) >= 1e-8 && (Math.abs(next) < 1e-8 || (before < 0) !== (next < 0));
+      })) continue;
       // The first return gets a larger acquisition flash. Refreshes confirm a
       // known track and should preserve its normal apparent size.
       const firstAcquisition = apparent.dataset.acquired !== 'true';
-      // Both sweep planes can cross within a few frames. Confirm the existing fix
+      // Both rims can cross within a few frames. Confirm the existing fix
       // while its paint is fresh; only a later crossing of a dimmed return
       // may choose another bearing, before starting its new flash.
       if (firstAcquisition || moving || now - state.scannedAt >= SCAN_FRESH_MS) {
@@ -257,7 +216,13 @@ export function followSweeps(plot: HTMLElement): () => void {
           // The true-position marker follows the CSS trajectory continuously.
           // Sample its current 3D translation only when a sweep reaches it;
           // the separate visible return then holds this fix until another hit.
-          state.fix = point;
+          const actualTransform = new DOMMatrixReadOnly(getComputedStyle(actual).transform);
+          const sampled = actualTransform.transformPoint({ x: 0, y: 0, z: 0, w: 1 });
+          state.fix = {
+            x: sampled.x / currentGeometry.radius,
+            y: sampled.y / currentGeometry.radius,
+            z: sampled.z / currentGeometry.radius,
+          };
         } else {
           state.fix = apparentFix(canonical, state.scans);
         }
@@ -291,12 +256,15 @@ export function followSweeps(plot: HTMLElement): () => void {
       ].filter((animation): animation is Animation => animation !== undefined);
       element.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
     }
-    previous = sweeps;
+    previous = normals;
     frame = requestAnimationFrame(tick);
   };
   frame = requestAnimationFrame(tick);
   return () => {
     cancelAnimationFrame(frame);
+    resizeObserver?.disconnect();
+    mutationObserver?.disconnect();
+    window.removeEventListener('resize', invalidateGeometry);
     returns.forEach((state) => {
       state.paint.forEach((animation) => animation.cancel());
       if (state.freshTimer !== undefined) window.clearTimeout(state.freshTimer);
