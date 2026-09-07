@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Turn Zero now keeps game-state controls locked while allowing DRADIS and console viewing, and a solo session can start the Turn One demo from Settings.',
+    ],
+  },
+  {
+    version: '0.2.100',
+    changes: [
       'DRADIS contacts now show their gameplay range beneath each contact name, while unknown contacts recalculate that range from the viewing ship’s origin.',
     ],
   },
