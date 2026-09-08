@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [18],
+    changes: [
+      'One-shot bridge confetti now rejects stale console authority and stale officer approvals before a dispenser can fire.',
+    ],
+  },
+  {
+    version: '0.3.5',
     implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],
     changes: [
       'Players and facilitators now receive stable, nonsecret command errors for authentication, permission, phase, revision, conflict, malformed input, service, and terminal-session failures.',
