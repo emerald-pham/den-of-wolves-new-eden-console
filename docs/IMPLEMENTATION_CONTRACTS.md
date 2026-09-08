@@ -1,8 +1,9 @@
-# Implementation Contract Ledger — Prompts 003, 005, 006, and 009–011
+# Implementation Contract Ledger — Prompts 003–011 and 051
 
-This is a documentation-only contract ledger for the first 100 prompts in
+This is a documentation-only contract ledger for Prompts 003–011 and 051 in
+the first 100 prompts of
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). It describes the
-current repository as inspected on 2026-09-07. It does not change the plan,
+current repository as inspected on 2026-09-08. It does not change the plan,
 mark plan items complete, or claim that a contract is playable merely because
 it is described here.
 
