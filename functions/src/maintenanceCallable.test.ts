@@ -43,7 +43,7 @@ import {
   setDioneEnabled,
   unlockPressAirspace,
 } from './index';
-import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{
