@@ -1237,8 +1237,9 @@ gameplay-specific requirements:
 1. Name the exact printed source and the Given/When/Then player or facilitator
    result before writing code.
 2. For `[PRESERVE]`, close from current evidence when it already satisfies the
-   acceptance. For `[EXTEND]`/`[NEW]`, observe the smallest missing production-
-   path acceptance fail before implementation.
+   acceptance. For `[REPAIR]`, `[EXTEND]`, or `[NEW]`, observe the smallest
+   missing production-path acceptance fail before implementation. A
+   `[DEFERRED-OWNER]` prompt cannot begin until the recorded owner gate opens.
 3. Exercise server authority, direct-write denial, audience projection,
    idempotent retry/reconnect, visible success/failure, and stable audit output
    wherever the selected mechanic uses those boundaries.
@@ -1301,6 +1302,10 @@ visual are real, but candidate resolution and a durable outcome are not.
 - **`[EXTEND]`** — production scaffolding or part of the behavior exists. Add
   the smallest missing authoritative edge while retaining every passing test,
   ID, route, template, and player-facing contract.
+- **`[REPAIR]`** — current production behavior or green evidence conflicts with
+  known working behavior or an owner-set contract. Complete the provenance and
+  contract-drift gate, replace the misleading test, and preserve unrelated
+  behavior through the narrowest compatible correction.
 - **`[NEW]`** — no complete production behavior or dedicated acceptance test
   was found. Add it as one failing-first vertical slice on top of the existing
   architecture.
@@ -1309,6 +1314,10 @@ visual are real, but candidate resolution and a durable outcome are not.
   prompt does not authorize a rewrite to make the fixture easier.
 - **`[DECISION]`** — resolve a genuine printed-rule or product ambiguity before
   exposing the affected action. Record the source and chosen policy.
+- **`[DEFERRED-OWNER]`** — the owner has explicitly postponed the surface. Keep
+  it missing and out of dependent exit gates until the prerequisite contract
+  is proven and the owner authorizes activation; do not implement it as an
+  unsolicited enhancement.
 
 At selection time, reconcile the chosen prompt with current `main`, active
 coordination claims, its progress row, and the relevant rule-matrix row. Do

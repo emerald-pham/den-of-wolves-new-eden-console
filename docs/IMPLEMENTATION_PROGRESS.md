@@ -17,7 +17,7 @@ session can resume at the first unresolved acceptance.
 
 **61 / 710 prompts complete (9%)**
 
-Status breakdown: **61 done · 34 partial · 614 missing · 1 in-progress**.
+Status breakdown: **61 done · 35 partial · 613 missing · 1 in-progress**.
 
 Active prompt: **Prompt 275a**.
 
@@ -746,14 +746,14 @@ release classification and evidence.
 | 595 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 598 | partial | feature | 0.3.6 | Release 0.3.6 proves the existing connected/offline grace primitive, but the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline state matrix are part of active Prompt 275a work and are not complete evidence until the reconciled release lands. |
+| 598 | partial | feature | 0.3.6, 0.3.10 | Release 0.3.6 proves the existing connected/offline grace primitive, but the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline state matrix are part of active Prompt 275a work and are not complete evidence until the reconciled 0.3.10 release lands. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 605 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 605 | partial | feature | 0.3.10 | Prompt 275a now targets complete-name containment at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |
 | 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

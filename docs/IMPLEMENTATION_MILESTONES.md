@@ -47,7 +47,7 @@ This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **62 / 710 prompts done, 33 partial, 614 missing, and 1
+- The ledger reports **61 / 710 prompts done, 35 partial, 613 missing, and 1
   in progress** after reopening stale staffing/roster evidence and adding the
   five dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
@@ -56,10 +56,10 @@ progress ledger as work lands; it supersedes this dated summary.
   attack/boarding sequence, crisis, New Eden candidate attempt, or durable
   success/failure/closed transition. Existing catalogs and debrief presentation
   are foundations for those loops.
-- Authoritative session setup currently accepts the base 8–18 range, while the
-  target and some catalog rows describe a 20-player expansion scenario. Prompt
-  638 must resolve and implement that policy before capacity proof can claim
-  20-player support.
+- Authoritative session setup currently accepts 8–18 and a 20-player expansion
+  row but omits the owner-set 19-player row. The target is inclusive 8–20 with
+  Capybara, so Prompt 638 must implement and prove the full matrix before
+  capacity evidence can claim 8–20 support.
 - No repeatable 60-browser gameplay harness or commit/deployment-tied capacity
   artifact exists yet. Runtime instance limits and deployment automation are
   configuration, not capacity or live-game proof.
@@ -189,17 +189,25 @@ rejoin without losing pursuit, resources, passengers, or history.
 
 ### Milestone 9 — Resolve a Wolf attack and aftermath
 
-**Outcome:** private preparation, targeting, all ranges, simultaneous actions,
-fighters, boarding, damage, casualties, retreat/return, salvage, repair, and
-post-attack state use server-owned outcomes and correct audience projections.
+**Outcome:** one GM prepares and triggers the attack from the GM console;
+affected players resolve every eligible choice from their consoles; targeting,
+all ranges, simultaneous actions, fighters, boarding, damage, casualties,
+timeouts, retreat/return, salvage, repair, and aftermath use server-owned
+outcomes, calculation receipts, intervention controls, and correct audience
+projections.
 
-**Depends on:** Milestones 2–3 and 6, damage authority, and Wolf card data.
+**Depends on:** Milestones 2–3 and 6, authoritative group pursuit, damage
+authority, and Wolf card data.
 
-**Primary prompt neighborhood:** 425–484.
+**Primary prompt neighborhood:** 425–484 plus 432a, 433a, 433b, 434a, recovery
+621, and proof 645. Prompt 433a produces stable DRADIS-ready endpoints/events;
+owner-deferred Prompt 605a visualization is not a playable-attack dependency.
 
-**Exit fixture:** a complete attack reaches a usable aftermath; different
-destruction ranges produce their printed results and no client supplies target,
-roll, composition, or damage.
+**Exit fixture:** one GM and the affected player consoles complete an attack
+through a usable aftermath with automatic routine math, reasoned recovery, and
+correct privacy. Different destruction ranges produce their printed results,
+a concurrent-GM race commits once, no client supplies target/roll/composition/
+damage, and the DRADIS-ready schema passes without adding the deferred visual.
 
 ### Milestone 10 — Make hidden loyalties and deduction playable
 
