@@ -79,7 +79,9 @@ that documented outcome and explain why it could not merge.
    equals the current `pwd` and that no active entry overlaps the intent. If it
    points elsewhere, do not edit or finish that entry; reconcile the worktrees
    first. Treat this status pass as startup recovery: an earlier task may have
-   skipped its end cleanup.
+   skipped its end cleanup. Status shows active work by default; use
+   `npm run coordination:status -- --history` only when historical receipts are
+   needed.
 4. For player-facing product work, complete the changelog preflight immediately:
    reserve one unused release version for this task, record that exact version
    in `--version-plan`, update `package.json` and the root lockfile to it, and
@@ -105,9 +107,10 @@ that documented outcome and explain why it could not merge.
    `--documentation-review "..."` for Markdown/README changes and
    `--visual-review "..."` for UI changes. The gate derives the required
    commands from the committed file set, records a receipt against the exact
-   branch SHA, and rejects a stale or rewritten baseline. Documentation-only
-   changes also run `npm run coordination:docs`, which checks Markdown/README
-   links, fenced blocks, referenced npm scripts, and the canonical agent guidance.
+   branch SHA, and rejects a stale or rewritten baseline or a branch that does
+   not contain current local `main`. Documentation-only changes also run
+   `npm run coordination:docs`, which checks Markdown/README links, fenced
+   blocks, referenced npm scripts, and the canonical agent guidance.
 4. Once the required validation is green, stop other work and immediately merge
    the task branch into `main`, push `main` to `origin`, and report the resulting
    main commit. Do not leave a green worktree dirty, idle, or waiting for another
@@ -116,8 +119,9 @@ that documented outcome and explain why it could not merge.
    `npm run coordination:finish -- --id <id>` and confirm it is no longer active.
    Completion is machine-checked: `main` must contain the task commit, local
    `main` must equal `origin/main`, the worktree and package metadata must be
-   clean, newer versions and changelog entries must be preserved, and the final
-   branch SHA, main SHA, remote SHA, and pushed state are recorded.
+   clean, this worktree must own no live emulator reservation, newer versions
+   and changelog entries must be preserved, and the final branch SHA, main SHA,
+   remote SHA, and pushed state are recorded.
 
 ## 1. Test first for code
 
@@ -269,11 +273,6 @@ or verification tracks to GPT-5.6 Luna at `high` reasoning; do not use GPT-5.3
 Codex Spark. If no safe sidecar exists, continue locally rather than creating
 one to satisfy a quota.
 
-Before substantive work or new delegation, inspect child IDs owned by this
-parent and terminal children surfaced from inactive chats. Retrieve any needed
-result and close every completed, errored, or interrupted child; leave pending
-children alone until they are terminal unless they are still needed.
-
 Start cleanup is authoritative because end cleanup may be skipped. Before
 substantive work or new delegation, inspect the child IDs owned by the current
 parent and any terminal children surfaced from inactive chats, retrieve any
@@ -287,6 +286,11 @@ or release another active worktree's row based only on age or a missing live
 reservation. Leave pending or running children from any chat alone; close them
 only after they reach a terminal state unless they are still needed for the
 current task.
+
+Child-agent cleanup is enforced through the Codex collaboration runtime, not a
+repository command: repository scripts cannot enumerate or close Codex tasks.
+Do not substitute a coordination flag or text attestation for actually closing
+terminal children with the runtime controls available to the parent task.
 
 Keep delegation economical:
 
@@ -412,9 +416,10 @@ are unavailable to other worktrees while their entry is active or a process
 lease is live, even when the live-reservations section is empty. At startup,
 inspect the status pane for terminal children, dead process reservations, and
 configured rows whose worktree is missing; status cleanup releases rows tied
-only to completed worktrees. Reconcile only resources confirmed not to be used
-by a live task. If all rows are occupied, wait for a free slot; never take a
-port that is already listening.
+only to completed or missing worktrees when no live reservation still owns the
+row. Reconcile only resources confirmed not to be used by a live task. If all
+rows are occupied, wait for a free slot; never take a port that is already
+listening.
 
 ## 2. Merge once done
 
@@ -431,7 +436,8 @@ port that is already listening.
   lint, the complete test suite, and both production builds for code changes;
   documentation-only changes use `git diff --check` plus
   `npm run coordination:docs`. A receipt is valid only for the exact final
-  branch SHA.
+  branch SHA, and validation refuses an unreconciled branch that does not yet
+  contain current local `main`.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant

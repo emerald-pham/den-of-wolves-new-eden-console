@@ -10,6 +10,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
@@ -205,7 +206,7 @@ function changelogPreservationErrors(mainChangelog, branchChangelog) {
   return errors;
 }
 
-function releaseMetadataErrors({ entry, release, requireMerged }) {
+function releaseMetadataErrors({ entry, release, requireMerged, requireReconciled = false }) {
   const errors = [];
 
   if (!release.branchName || release.branchName === 'HEAD') {
@@ -222,6 +223,11 @@ function releaseMetadataErrors({ entry, release, requireMerged }) {
   if (requireMerged && !release.mainContainsBranch) {
     errors.push(
       `main (${release.mainSha}) does not contain the task branch commit ${release.branchSha}`,
+    );
+  }
+  if (requireReconciled && release.mainIsAncestorOfBranch === false) {
+    errors.push(
+      `the task branch does not contain current main (${release.mainSha}); reconcile main before validation`,
     );
   }
 
@@ -438,6 +444,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
     mainSha,
     originMainSha,
     mainContainsBranch: await gitIsAncestor(branchSha, mainSha, cwd),
+    mainIsAncestorOfBranch: await gitIsAncestor(mainSha, branchSha, cwd),
     worktreeClean: status.length === 0,
     branchVersion,
     mainVersion,
@@ -571,10 +578,15 @@ export function pruneDeadReservations(state, isAlive = processIsAlive) {
  * worktrees with no live lease must not permanently consume the finite slot
  * pool. This deliberately does not infer liveness from age.
  */
-export function pruneOrphanedConfigurations(state) {
+export function pruneOrphanedConfigurations(state, worktreeExists = () => true) {
   const activeWorktrees = new Set(
     (Array.isArray(state.entries) ? state.entries : [])
-      .filter((entry) => entry?.status === 'active' && typeof entry.worktree === 'string')
+      .filter(
+        (entry) =>
+          entry?.status === 'active' &&
+          typeof entry.worktree === 'string' &&
+          worktreeExists(entry.worktree),
+      )
       .map((entry) => entry.worktree),
   );
   const liveReservationWorktrees = new Set(
@@ -1222,8 +1234,14 @@ function formatReservation(reservation) {
 }
 
 /** Render the coordination file as a compact, agent-readable status pane. */
-export function formatCoordinationState(state) {
-  const entries = Array.isArray(state.entries) ? state.entries : [];
+export function formatCoordinationState(state, { includeHistory = false } = {}) {
+  const allEntries = Array.isArray(state.entries) ? state.entries : [];
+  const entries = includeHistory
+    ? allEntries
+    : allEntries.filter((entry) => text(entry.status, 'active') !== 'complete');
+  const hiddenCompletedEntries = includeHistory
+    ? 0
+    : allEntries.filter((entry) => text(entry.status, 'active') === 'complete').length;
   const reservations = Array.isArray(state.reservations) ? state.reservations : [];
   const configurations = Array.isArray(state.configurations) ? state.configurations : [];
   const occupiedSlots = new Set(
@@ -1244,11 +1262,16 @@ export function formatCoordinationState(state) {
     '## Version agreement',
     text(state.versionAgreement, DEFAULT_VERSION_AGREEMENT),
     '',
-    '## Preemptive changelog / active work',
+    includeHistory ? '## Work history' : '## Active work',
   ];
 
   if (entries.length === 0) lines.push('- none');
   else lines.push(...entries.map(formatEntry));
+  if (hiddenCompletedEntries > 0) {
+    lines.push(
+      `- ${hiddenCompletedEntries} completed ${hiddenCompletedEntries === 1 ? 'entry' : 'entries'} hidden; run \`npm run coordination:status -- --history\` to show full history.`,
+    );
+  }
 
   lines.push(
     '',
@@ -1381,7 +1404,12 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
     const release = options.release ?? await readReleaseState({ startBranchSha });
-    const errors = releaseMetadataErrors({ entry, release, requireMerged: false });
+    const errors = releaseMetadataErrors({
+      entry,
+      release,
+      requireMerged: false,
+      requireReconciled: true,
+    });
     if (release.branchBaselineIsAncestor === false) {
       errors.push(
         `start branch SHA ${startBranchSha} is not an ancestor of branch ${release.branchSha}; do not rewrite the task history`,
@@ -1450,6 +1478,7 @@ export async function validateCoordinationEntry(filePath, options) {
     },
     release: finalRelease,
     requireMerged: false,
+    requireReconciled: true,
   });
   if (finalErrors.length > 0) {
     throw new Error(
@@ -1470,6 +1499,7 @@ export async function validateCoordinationEntry(filePath, options) {
           `it belongs to ${entry.worktree}.`,
       );
     }
+
     if (entry.startedAt !== preparation.entryStartedAt) {
       throw new Error(
         `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
@@ -1515,6 +1545,18 @@ export async function finishCoordinationEntry(filePath, options) {
       );
     }
 
+    const liveReservations = state.reservations.filter(
+      (reservation) => reservation.worktree === entry.worktree,
+    );
+    if (liveReservations.length > 0) {
+      const leases = liveReservations
+        .map((reservation) => `${reservation.kind} slot ${reservation.slot} (pid ${reservation.pid})`)
+        .join(', ');
+      throw new Error(
+        `Cannot complete coordination entry ${entry.id}: live reservations remain for this worktree: ${leases}. Stop this task's processes before finish.`,
+      );
+    }
+
     const release = options.release ?? await readReleaseState({
       startBranchSha: entry.startBranchSha,
     });
@@ -1533,16 +1575,17 @@ export async function finishCoordinationEntry(filePath, options) {
   });
 }
 
-async function status(filePath) {
+async function status(filePath, { includeHistory = false } = {}) {
   const state = await withCoordinationLock(filePath, async () => {
     const cleanState = pruneOrphanedConfigurations(
       pruneDeadReservations(await readStateUnlocked(filePath)),
+      existsSync,
     );
     await writeStateUnlocked(filePath, cleanState);
     return cleanState;
   });
   console.log(`Coordination file: ${filePath}`);
-  console.log(formatCoordinationState(state));
+  console.log(formatCoordinationState(state, { includeHistory }));
 }
 
 async function main() {
@@ -1550,7 +1593,11 @@ async function main() {
   const filePath = coordinationFilePath();
 
   if (command === 'status') {
-    await status(filePath);
+    const unexpectedArguments = args.filter((argument) => argument !== '--history');
+    if (unexpectedArguments.length > 0) {
+      throw new Error('coordination status accepts only the optional --history flag.');
+    }
+    await status(filePath, { includeHistory: args.includes('--history') });
     return;
   }
 

@@ -68,6 +68,7 @@ export interface ReleaseState {
   readonly mainSha: string;
   readonly originMainSha: string;
   readonly mainContainsBranch: boolean;
+  readonly mainIsAncestorOfBranch?: boolean;
   readonly worktreeClean: boolean;
   readonly startBranchSha?: string;
   readonly branchBaselineIsAncestor?: boolean;
@@ -144,6 +145,7 @@ export function pruneDeadReservations(
 ): CoordinationState;
 export function pruneOrphanedConfigurations(
   state: CoordinationState,
+  worktreeExists?: (worktree: string) => boolean,
 ): CoordinationState;
 export function chooseAvailableEmulatorSlot(options: {
   preferredSlot?: number;
@@ -196,4 +198,7 @@ export function releaseEmulatorSlot(
   reservation: CoordinationReservation,
   filePath?: string,
 ): Promise<void>;
-export function formatCoordinationState(state: CoordinationState): string;
+export function formatCoordinationState(
+  state: CoordinationState,
+  options?: { includeHistory?: boolean },
+): string;

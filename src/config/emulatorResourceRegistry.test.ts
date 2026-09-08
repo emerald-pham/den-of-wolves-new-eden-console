@@ -202,6 +202,42 @@ describe('local emulator coordination', () => {
     expect(output).toContain('npm run emulators:configure -- auto');
   });
 
+  it('keeps default status focused on active work while retaining opt-in history', () => {
+    const state = {
+      version: 1,
+      versionAgreement: 'agreement',
+      entries: [
+        {
+          id: 'active-task',
+          worktree: '/worktrees/active',
+          startedAt: '2026-09-07T00:00:00.000Z',
+          status: 'active',
+          intent: 'Current coordination work.',
+          versionPlan: 'tooling-only',
+          preemptiveChangelog: 'none',
+        },
+        {
+          id: 'complete-task',
+          worktree: '/worktrees/complete',
+          startedAt: '2026-09-06T00:00:00.000Z',
+          status: 'complete',
+          intent: 'Historical coordination work.',
+          versionPlan: 'tooling-only',
+          preemptiveChangelog: 'none',
+        },
+      ],
+      reservations: [],
+      configurations: [],
+    };
+
+    const activeOutput = formatCoordinationState(state);
+    expect(activeOutput).toContain('Current coordination work.');
+    expect(activeOutput).not.toContain('Historical coordination work.');
+    expect(activeOutput).toContain('1 completed entry hidden');
+    expect(formatCoordinationState(state, { includeHistory: true }))
+      .toContain('Historical coordination work.');
+  });
+
   it('derives the documented validation plan from changed files', () => {
     expect(validationPlanForFiles(['README.md', 'docs/WORKTREE_COORDINATION.md'])).toEqual({
       documentationOnly: true,
@@ -257,6 +293,39 @@ describe('local emulator coordination', () => {
         passed: true,
         docsOnly: false,
       });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects validation until the task branch contains current main', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-validation-${randomUUID()}.json`);
+    const commands: string[] = [];
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          mainIsAncestorOfBranch: false,
+        }),
+        commandRunner: async (command) => {
+          commands.push(command);
+        },
+      })).rejects.toThrow(/reconcile.*main|main.*ancestor/i);
+      expect(commands).toEqual([]);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -380,6 +449,34 @@ describe('local emulator coordination', () => {
 
     expect(pruneOrphanedConfigurations(state).configurations.map((configuration) => configuration.id))
       .toEqual(['active-config', 'live-config']);
+  });
+
+  it('reclaims a configured row when its active worktree no longer exists', () => {
+    const state = {
+      version: 1,
+      versionAgreement: 'agreement',
+      entries: [{
+        id: 'missing-entry',
+        worktree: '/worktrees/missing',
+        startedAt: '2026-09-07T00:00:00.000Z',
+        status: 'active',
+        intent: 'abandoned worktree',
+        versionPlan: 'tooling-only',
+        preemptiveChangelog: 'none',
+      }],
+      reservations: [],
+      configurations: [{
+        id: 'missing-config',
+        slot: 4,
+        worktree: '/worktrees/missing',
+        configuredAt: '2026-09-07T00:00:00.000Z',
+      }],
+    };
+
+    expect(pruneOrphanedConfigurations(
+      state,
+      (worktree) => worktree !== '/worktrees/missing',
+    ).configurations).toEqual([]);
   });
 
   it('does not remove a replacement lock while releasing its own lease', async () => {
@@ -731,6 +828,36 @@ describe('local emulator coordination', () => {
         originMainSha: 'main-sha',
         pushed: true,
       });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects completion while the worktree owns a live emulator reservation', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-release-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [releaseEntry],
+        reservations: [{
+          id: 'live-rules-reservation',
+          slot: 4,
+          worktree: process.cwd(),
+          kind: 'rules',
+          pid: process.pid,
+          command: 'npm run test:rules',
+          claimedAt: '2026-09-07T00:05:00.000Z',
+        }],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(finishCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState(),
+      })).rejects.toThrow(/live.*reservation|stop.*process|teardown/i);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
