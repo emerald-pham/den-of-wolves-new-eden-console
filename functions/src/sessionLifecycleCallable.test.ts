@@ -383,6 +383,18 @@ describe('stale-player cleanup', () => {
 });
 
 describe('inactive-session reaper', () => {
+  it('retires the join code with an expired empty session', async () => {
+    session({ deleteAfter: mock.Timestamp.fromDate(new Date(NOW.getTime() - 1)) });
+    put('joinCodes/482109', { sessionId: 's1' });
+
+    await deleteInactiveSessions.run({});
+
+    expect(mock.recursiveDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1' }),
+    );
+    expect(read('joinCodes/482109')).toBeUndefined();
+  });
+
   it.each([
     ['a renewed deadline', () => session({
       deleteAfter: mock.Timestamp.fromDate(new Date(NOW.getTime() + 1)),

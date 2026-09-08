@@ -5,10 +5,15 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   delete: vi.fn(),
+  randomInt: vi.fn(() => 1234),
   sessionId: 'generated-session',
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
+vi.mock('node:crypto', () => ({
+  randomInt: mock.randomInt,
+  randomUUID: vi.fn(() => 'session-event'),
+}));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
@@ -45,6 +50,8 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.set.mockReset();
   mock.delete.mockReset();
+  mock.randomInt.mockReset();
+  mock.randomInt.mockReturnValue(1234);
   mock.get.mockResolvedValue(snapshot({}, false));
 });
 
@@ -90,6 +97,27 @@ it('creates one configured lobby and persists a replayable creation result atomi
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: expect.stringMatching(/^sessionCreationRequests\/u1_create-1$/) }),
     expect.objectContaining({ sessionId: 'generated-session', requestId: 'create-1' }),
+  );
+});
+
+it('does not claim a code already owned by another session', async () => {
+  mock.randomInt.mockReset();
+  mock.randomInt.mockReturnValueOnce(1234).mockReturnValue(5678);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'joinCodes/001234') return snapshot({ sessionId: 'existing-session' });
+    return snapshot({}, false);
+  });
+
+  await expect(createSession.run(request({ requestId: 'create-2', joinCodeVersion: 2 })))
+    .resolves.toMatchObject({ session: { joinCode: '005678' } });
+
+  expect(mock.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'joinCodes/001234' }),
+    expect.anything(),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'joinCodes/005678' }),
+    expect.objectContaining({ sessionId: 'generated-session' }),
   );
 });
 

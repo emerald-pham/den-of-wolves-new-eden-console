@@ -13,9 +13,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**64 / 100 prompts complete (64%)**
+**65 / 100 prompts complete (65%)**
 
-Status breakdown: **64 done · 28 partial · 8 missing**.
+Status breakdown: **65 done · 27 partial · 8 missing**.
 
 Active prompt: **none**.
 
@@ -71,7 +71,7 @@ not be listed in changelog coverage metadata.
 | 008 | done | non-feature | — | `functions/src/lifecycle.ts` and `lifecycle.test.ts`. |
 | 009 | done | non-feature | — | Deterministic fixture seams in `functions/src/atddFixtures.ts` with five focused tests. |
 | 010 | done | non-feature | — | Prompt-by-prompt audit in `docs/IMPLEMENTATION_CONTRACTS.md` §5. |
-| 011 | partial | non-feature | — | `joinCodeSecurity.ts` validates/throttles codes; lifetime/alphabet policy still needs a single contract. |
+| 011 | done | non-feature | — | `functions/src/joinCodeSecurity.ts` exports immutable `JOIN_CODE_POLICY` for legacy/current lengths, digits-only format, session-until-retirement lifetime, non-enumerating lookup, and transactional `joinCodes` collision ownership. `joinCodeSecurity.test.ts`, `joinSessionCallable.test.ts`, `createSessionCallable.test.ts`, and `sessionLifecycleCallable.test.ts` prove the contract, malformed-input boundary, both code formats, duplicate-code skip, and retirement deletion; focused run: 4 files, 29 tests passed. |
 | 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
 | 013 | done | non-feature | — | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
 | 014 | partial | non-feature | — | Revision fields/parsing exist; universal stale-mutation semantics remain open. |
@@ -176,3 +176,8 @@ not be listed in changelog coverage metadata.
 - Application version `0.3.5` is reserved for this first-100 slice. If the
   final work is documentation-only, the version reservation must be reconciled
   before closeout rather than left as an unearned release.
+- Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to
+  the non-feature join-code policy contract on branch
+  `chore/prompt-011-join-code-policy-20260908`.
+- Prompt 011 proof is complete on the focused function tests; full release
+  gates and reconciled-branch validation remain part of the closeout receipt.

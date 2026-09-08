@@ -4,6 +4,19 @@ export const LEGACY_JOIN_CODE_LENGTH = 4;
 export const JOIN_CODE_LENGTH = 6;
 export const JOIN_CODE_VERSION = 2;
 
+/**
+ * The product contract for session codes. Keep this beside the validators so
+ * callers and acceptance tests cannot drift from the implemented policy.
+ */
+export const JOIN_CODE_POLICY = {
+  legacyLengths: [LEGACY_JOIN_CODE_LENGTH],
+  currentLengths: [JOIN_CODE_LENGTH],
+  alphabet: 'digits',
+  lifetime: 'session-until-retirement',
+  lookup: 'non-enumerating',
+  collision: 'transactional-joinCodes-document',
+} as const;
+
 /** Six guesses per identity every ten minutes keeps ordinary mistypes painless. */
 export const JOIN_CODE_ATTEMPT_LIMIT = 6;
 export const JOIN_CODE_ATTEMPT_WINDOW_MS = 10 * 60 * 1_000;
