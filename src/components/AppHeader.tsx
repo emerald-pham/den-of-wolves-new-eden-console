@@ -51,20 +51,25 @@ function useStartupConnectionStatusLie(
 }
 
 /**
- * Keep the last known connection light steady while a passive reconnect has a
- * chance to complete. This is presentation-only: commands still read the
- * authoritative connection state from the session store. Any player input
- * immediately ends the grace so stale chrome cannot hide a failed action.
+ * Keep the last known connection light steady while a reconnect has a chance
+ * to complete. The offline icon is deliberately hard to earn: the player
+ * must have been continuously active for more than the activity window before
+ * the outage, and the outage must then outlast a second full grace window.
+ * Interaction after the outage never changes that decision. This is
+ * presentation-only: commands still read the authoritative connection state
+ * from the session store.
  */
 function useConnectionStatusGrace(
   status: ReturnType<typeof selectConnectionStatus>,
   hasCachedSession: boolean,
 ): ReturnType<typeof selectConnectionStatus> {
-  const [graceDeadline, setGraceDeadline] = useState<number | null>(() =>
-    hasCachedSession && status === 'red' ? Date.now() + CONNECTION_STATUS_GRACE_MS : null,
+  const [graceDeadline, setGraceDeadline] = useState<number | null>(null);
+  const [offlineDisplayMode, setOfflineDisplayMode] = useState<'eligible' | 'hidden' | null>(() =>
+    hasCachedSession && status === 'red' ? 'hidden' : null,
   );
   const statusRef = useRef(status);
   const cachedSessionRef = useRef(hasCachedSession);
+  const activityStartedAt = useRef<number | null>(null);
   const lastPlayerActivityAt = useRef<number | null>(null);
   const previousStatus = useRef(status);
   const previousHasCachedSession = useRef(hasCachedSession);
@@ -75,11 +80,9 @@ function useConnectionStatusGrace(
   cachedSessionRef.current = hasCachedSession;
   if (status !== 'red') lastConnectedStatus.current = status;
 
-  const startPassiveGrace = () => {
+  const resetActivity = () => {
+    activityStartedAt.current = null;
     lastPlayerActivityAt.current = null;
-    if (cachedSessionRef.current && statusRef.current === 'red') {
-      setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
-    }
   };
 
   useLayoutEffect(() => {
@@ -90,20 +93,29 @@ function useConnectionStatusGrace(
 
     if (!hasCachedSession) {
       setGraceDeadline(null);
+      setOfflineDisplayMode(null);
       return;
     }
-    if (status !== 'red') return;
-    const lastActivityAt = lastPlayerActivityAt.current;
-    const activityAge = lastActivityAt === null ? null : Date.now() - lastActivityAt;
-    const playerWasRecentlyActive = activityAge !== null
-      && activityAge >= 0
-      && activityAge < CONNECTION_ACTIVITY_WINDOW_MS;
-    if (playerWasRecentlyActive) {
+    if (status !== 'red') {
       setGraceDeadline(null);
+      setOfflineDisplayMode(null);
       return;
     }
     if (becameOffline || gainedCachedSession) {
-      setGraceDeadline(Date.now() + CONNECTION_STATUS_GRACE_MS);
+      const now = Date.now();
+      const activityStart = activityStartedAt.current;
+      const lastActivityAt = lastPlayerActivityAt.current;
+      const activityDuration = activityStart === null ? null : now - activityStart;
+      const activityAge = lastActivityAt === null ? null : now - lastActivityAt;
+      const wasContinuouslyActive = activityDuration !== null
+        && activityDuration > CONNECTION_ACTIVITY_WINDOW_MS
+        && activityAge !== null
+        && activityAge >= 0
+        && activityAge <= CONNECTION_ACTIVITY_WINDOW_MS;
+      setOfflineDisplayMode(wasContinuouslyActive ? 'eligible' : 'hidden');
+      setGraceDeadline(
+        wasContinuouslyActive ? now + CONNECTION_STATUS_GRACE_MS : null,
+      );
     }
   }, [hasCachedSession, status]);
 
@@ -118,12 +130,16 @@ function useConnectionStatusGrace(
 
   useEffect(() => {
     const markInteraction = () => {
-      if (!cachedSessionRef.current) return;
-      lastPlayerActivityAt.current = Date.now();
-      if (statusRef.current === 'red') setGraceDeadline(null);
+      if (!cachedSessionRef.current || statusRef.current === 'red') return;
+      const now = Date.now();
+      const lastActivityAt = lastPlayerActivityAt.current;
+      if (lastActivityAt === null || now - lastActivityAt > CONNECTION_ACTIVITY_WINDOW_MS) {
+        activityStartedAt.current = now;
+      }
+      lastPlayerActivityAt.current = now;
     };
     const restorePassiveContext = () => {
-      startPassiveGrace();
+      resetActivity();
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' || document.visibilityState === 'visible') {
@@ -155,9 +171,12 @@ function useConnectionStatusGrace(
     };
   }, []);
 
-  return hasCachedSession && status === 'red' && graceDeadline !== null
-    ? lastConnectedStatus.current
-    : status;
+  if (hasCachedSession && status === 'red') {
+    if (offlineDisplayMode !== 'eligible' || graceDeadline !== null) {
+      return lastConnectedStatus.current;
+    }
+  }
+  return status;
 }
 
 export default function AppHeader() {
