@@ -34,6 +34,7 @@ import {
   isReusableConfettiSource,
   isOfficerRoleForShip,
   isShipDispenserSignal,
+  liveConfettiApprovals,
   shouldLogShipConfettiEvent,
 } from './shipConfetti';
 import {
@@ -2792,10 +2793,24 @@ export const popShipConfetti = onCall<{
     }
     const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;
+    const connectedOfficerRoles = connectedPlayers.docs
+      .filter((connectedPlayer) => isActivePlayer(connectedPlayer) &&
+        ['player', 'gm'].includes(String(connectedPlayer.get('role'))) &&
+        activeRoleIds.includes(String(connectedPlayer.get('activeConsoleRoleId'))) &&
+        isOfficerRoleForShip(connectedPlayer.get('activeConsoleRoleId'), shipId))
+      .map((connectedPlayer) => ({
+        uid: connectedPlayer.id,
+        roleId: String(connectedPlayer.get('activeConsoleRoleId')),
+      }));
+    const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
     if (shipForRole(activation.roleId) && player.get('role') !== 'gm') {
-      if (!activeRoleIds.includes(activation.roleId) || player.get('role') !== 'player' ||
+      const ownRoleId = player.get('activeConsoleRoleId');
+      if (!activeRoleIds.includes(activation.roleId) ||
+          player.get('role') !== 'player' ||
+          typeof ownRoleId !== 'string' ||
+          !activeRoleIds.includes(ownRoleId) ||
           !canOperateRole(
-            player.get('activeConsoleRoleId'),
+            ownRoleId,
             activation.roleId,
             connectedPlayers.docs
               .filter(member => isActivePlayer(member) && ['player', 'gm'].includes(String(member.get('role'))))
@@ -2809,18 +2824,21 @@ export const popShipConfetti = onCall<{
     if (!shipForRole(activation.roleId) && !activeRoleIds.includes(activation.roleId)) {
       throw new HttpsError('failed-precondition', 'That role is not active in this session.');
     }
+    if (shipId !== 'aegis' && !canPopShipConfetti(used, shipId)) {
+      throw new HttpsError('already-exists', 'That dispenser has already been used.');
+    }
     let decision;
     try {
       decision = confettiActivationDecision(
         shipId,
         activation.roleId,
         uid,
-        (approval.get('approvals') as Array<{ uid: string; roleId: string }> | undefined) ?? [],
-        [uid, ...connectedPlayers.docs
-          .filter((connectedPlayer) => isActivePlayer(connectedPlayer) &&
-            activeRoleIds.includes(String(connectedPlayer.get('activeConsoleRoleId'))) &&
-            isOfficerRoleForShip(connectedPlayer.get('activeConsoleRoleId'), shipId))
-          .map((connectedPlayer) => connectedPlayer.id)],
+        liveConfettiApprovals(
+          shipId,
+          (approval.get('approvals') as Array<{ uid: string; roleId: string }> | undefined) ?? [],
+          connectedOfficerRoles,
+        ),
+        [uid, ...connectedOfficerRoles.map((operator) => operator.uid)],
       );
     } catch {
       throw new HttpsError('permission-denied', 'That role cannot fire this ship dispenser.');
@@ -2837,7 +2855,6 @@ export const popShipConfetti = onCall<{
       `sessions/${activation.sessionId}/shipConfetti/${targetShipId}`,
     ));
     const signals = await Promise.all(signalRefs.map((signalRef) => tx.get(signalRef)));
-    const used = (session.get('confettiUsedShipIds') as string[] | undefined) ?? [];
     const reusable = isReusableConfettiSource(shipId);
     const existingSignalIsOwn = Boolean(
       signals[0]?.exists && isShipDispenserSignal(String(signals[0].get('shipId')), shipId),

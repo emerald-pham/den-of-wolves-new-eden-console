@@ -80,7 +80,7 @@ release classification and evidence.
 | 015 | partial | feature | 0.3.5 | Callable error codes are tested, but no centralized taxonomy yet. |
 | 016 | done | non-feature | — | Resume/lifecycle tests and rules identity boundary. |
 | 017 | partial | non-feature | — | Stable string IDs exist; unified typed IDs for all entities remain open. |
-| 018 | done | feature | 0.3.5 | `actionMetadata.ts` plus wrong-phase maintenance/jump tests and callable gates. |
+| 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
 | 021 | done | feature | 0.3.5 | `requestGuards.test.ts`, `gameSetup.test.ts`, and `createSessionCallable.test.ts`. |
