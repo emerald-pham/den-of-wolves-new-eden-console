@@ -26,7 +26,9 @@ Default reading path for one prompt:
    [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) completion
    route, including its dependencies and exit fixture.
 2. Read [Product objectives](#product-objectives), the relevant part of
-   [Scope and baseline](#scope-and-baseline), and the affected row in
+   [Scope and baseline](#scope-and-baseline),
+   [Existing behavior is the design baseline](#existing-behavior-is-the-design-baseline),
+   and the affected row in
    [Source-of-truth and decision policy](#source-of-truth-and-decision-policy).
 3. Read [Prompt status legend](#prompt-status-legend),
    [Contract carried by every numbered prompt](#contract-carried-by-every-numbered-prompt),
@@ -53,6 +55,7 @@ Contents:
 
 - [Product objectives](#product-objectives)
 - [Scope and baseline](#scope-and-baseline)
+- [Existing-behavior design baseline](#existing-behavior-is-the-design-baseline)
 - [Detailed player stories and exit gates](#player-story-milestones-and-atdd-exit-gates)
 - [Source and decision policy](#source-of-truth-and-decision-policy)
 - [Coverage lanes](#staged-implementation-plan)
@@ -84,9 +87,11 @@ The implementation is complete only when all of these objectives are met:
 4. **Make every role useful.** All supported player counts have a valid role
    configuration, every selected role has meaningful work during the game,
    replacement roles can be used before the game ends, and the Capybara
-   expansion is distinct from the base-game small-ship Capybara. SNN Press is
-   an independent added station: its Press Officer and shuttle remain
-   selectable without changing the exact printed 8–18 player roster.
+   expansion is distinct from the base-game small-ship Capybara. The supported
+   Capybara-expanded core roster reaches 8–20 players. SNN Press is a deliberate
+   New Eden Console extension outside the original reference documentation: an
+   enabled Press Officer may be the twenty-first player without changing core
+   roster, readiness, loyalty, Wolf, or facilitator math.
 5. **Preserve the shared console system.** New ships, shuttles, roles, and
    instruments extend the existing typed definitions and shared templates.
    Per-vessel exceptions are explicit configuration or modules, never copied
@@ -115,7 +120,15 @@ The implementation is complete only when all of these objectives are met:
 - Expansion path: the S.A.N.S. Capybara as a separately enabled two-player
   ship, with Scrap, Macaw, Boa, Captain, and Recycler. It replaces the base
   extra small-ship Capybara when enabled; the two versions must never be
-  merged by name alone.
+  merged by name alone. The Capybara-expanded core casting target is 8–20
+  players; its detailed role matrices remain a source-authoritative roster
+  slice rather than a reason to count an optional Press station as core crew.
+- Product extension: SNN Press is not defined by the original printed
+  references. It is an independently configurable New Eden Console station,
+  outside the core roster and facilitator population. When enabled, exactly one
+  player may hold Press authority as an optional twenty-first role holder;
+  multiple authorized GM instances remain separate and consume neither a core
+  nor Press seat.
 - Operating target: one table/game with up to 20 players and up to 60
   concurrent browser clients. The load target is a validation requirement,
   not permission to weaken per-session authority or rate limits.
@@ -147,6 +160,48 @@ work should extend rather than replace:
 - Existing player, GM, DRADIS/starmap, maintenance, population, fleet ticker,
   turn announcement, and debrief surfaces under `src/routes/` and
   `src/components/`.
+
+### Existing behavior is the design baseline
+
+Working functionality is the default design baseline for every roadmap slice.
+Do not modify it unless the selected acceptance story makes that change
+absolutely necessary. Before designing, inventory the current production path,
+tests, release notes, and relevant Git history; reuse its identifiers, routes,
+authority, state transitions, copy, accessibility, and visual language through
+the narrowest compatible extension.
+
+Apply these gates before implementation:
+
+1. Write characterization or regression coverage for the known working
+   behavior before adding the new acceptance. For an owner-reported regression,
+   locate the last known working commit and the regression diff before choosing
+   a repair.
+2. Treat green tests as evidence, not infallible intent. When known or
+   owner-reported behavior is missing while current gates remain green, classify
+   it as contract drift: review provenance, revise the plan, contracts, and
+   progress ledger first, correct or replace any test that blesses the
+   regression, and add a composed regression test that would have caught the
+   real user path. Do not preserve a passing fixture that enshrines the defect.
+3. Any intentional departure from working behavior must record why it is
+   necessary and list every affected player, authority, data, accessibility,
+   security, and operations contract. Prefer a narrow compatible extension;
+   preserve unrelated behavior.
+4. When a departure changes durable state or compatibility, document migration
+   and rollback before implementation. The final gate must exercise both the
+   retained old acceptance and the new acceptance, including their composed
+   user journey.
+
+For the Press restoration, history is the required starting point. Commit
+`71b5ad7` added the unconditional independent station, `9c48e5d` made it
+toggleable through `activeRoleIds`, and `dced782` retained that behavior. The
+parent of release 0.3.4, `1418146`, is the last default-working release point.
+Commit `9d68158` regressed discovery when session creation switched to the
+8–18 `recommendedRoleIds` presets, and `e5aca326` cemented the conflicting
+readiness model. A narrow `SessionMode` fixture that expected Press to hide,
+combined with no create-session-to-role-picker composition test, allowed the
+regression to stay green. Recovery must preserve the proven station and action
+paths while replacing the counted-role toggle with dedicated optional
+`pressEnabled` authority outside `activeRoleIds` and readiness.
 
 ### Known planned or incomplete areas
 
@@ -188,9 +243,10 @@ the jump authority.
 ### Release objective — SNN Press and operational readout regressions
 
 This bounded release completes Prompt 275a while strengthening the connected
-Prompt 598 and Prompt 605 contracts. The four outcomes are inseparable because
-they restore how a player discovers the independent station and reads the
-shared header/DRADIS instrumentation on the way into it.
+Prompt 598 and Prompt 605 contracts. It restores the previously working Press
+station through the history/provenance gate above and repairs how a player
+discovers the station and reads shared header/DRADIS instrumentation on the way
+into it.
 
 - **Given** a browser that has not joined a session, **when** the shared header
   renders its optimistic default connection state, **then** the player-facing
@@ -205,30 +261,57 @@ shared header/DRADIS instrumentation on the way into it.
   viewed at 320×844, 1440×900, or 844×390, **then** its complete visible name
   stays inside the DRADIS viewport. Reduced motion preserves the same name and
   containment while removing nonessential movement.
-- **Given** a joined supported session whose exact printed roster does not
-  include optional Press, **when** a player opens `Independent stations`,
-  **then** the SNN Press Shuttle and Press Officer remain selectable as one
-  independent added station, the shared shuttle route loads, and its visible
-  return control reaches the roster without altering the printed roster or
-  setup-readiness count.
+- **Given** an authorized GM has enabled the optional Press extension for a
+  joined supported session, **when** a player opens `Independent stations`,
+  **then** the SNN Press Shuttle and Press Officer are selectable as one added
+  station, the shared shuttle route loads, and its visible return control
+  reaches the roster. **Given** Press is disabled, **when** any client discovers,
+  claims, resumes, publishes, dismisses, or reports presence for Press, **then**
+  the UI hides the station and the server rejects new Press authority or action
+  without changing shared state.
 - **Given** one connected player has authoritatively claimed Press Officer,
   **when** that player publishes or dismisses an SNN dispatch, **then** the
   server still enforces membership, exclusive live console ownership, Turn 1,
   session, and revision checks; another player cannot impersonate Press and a
   rejected action makes no shared-state change. The dispatch, shuttle console,
   live status, focus, and reduced-motion presentation remain accessible.
+- **Given** a Capybara-expanded 20-player core roster, **when** Press is enabled
+  and claimed, **then** the Press Officer is a valid optional twenty-first
+  player-role holder while all core roster, start/readiness, loyalty, Wolf, and
+  capacity calculations remain unchanged. Multiple simultaneous authorized GMs
+  remain valid and consume neither core nor Press occupancy. Disabling Press
+  invalidates new Press authority consistently without collapsing unrelated GM
+  instances or mutating core assignments.
 
-**Dependencies:** preserve the exact Prompt 004/051 printed roster and setup
-readiness; extend the existing typed `press-officer`/`snn-press-shuttle`
-catalog, `/press` shared shuttle route, server-owned presence claim, guarded
-Press dispatch callable, and shared `ContactPlot`. This objective does not add
-general shuttle movement or claim Prompt 605 complete beyond the viewport-safe
-contact-name regression.
+**Dependencies:** preserve the exact base-roster Prompt 004/051 casting and
+setup-readiness contracts while keeping the planned 8–20 Capybara-expanded core
+distinct from Press. Recover the existing typed
+`press-officer`/`snn-press-shuttle` catalog, `/press` shared shuttle route,
+server-owned presence claim, guarded Press dispatch callable, and shared
+`ContactPlot`; add dedicated `pressEnabled` session authority instead of
+encoding Press inside counted `activeRoleIds`. This objective does not add
+general shuttle movement, define the remaining Capybara roster matrices, or
+claim Prompt 605 complete beyond the viewport-safe contact-name regression.
 
-**Exit gate:** focused tests first fail on all four regressions and then pass;
-the authoritative Press claim/dispatch denial cases remain green; responsive
-and reduced-motion visual review finds no clipped contact name or trapped
-route; the complete reconciled product release gate passes.
+**Compatibility and rollback:** this is an additive session field, not a
+counted-roster migration. New sessions persist Press enabled by default, and a
+legacy session with no `pressEnabled` field reads as enabled on both client and
+server to preserve the last working default. The GM transaction materializes
+the field and, when disabling Press, revokes any live Press claim without
+deleting core assignments or dispatch history. Deploy authoritative function
+denials before exposing the client toggle. Retain the additive field during a
+rollback; do not roll server authority back to a version that would honor Press
+actions while a session is explicitly disabled.
+
+**Exit gate:** characterization and focused tests first fail on the recovered
+Press/default-discovery, configuration, create-session-to-role-picker,
+disabled-denial, reconnect/stale-claim, 20-core-plus-Press, multi-GM, header,
+and DRADIS regressions, then pass. Misleading fixtures that blessed counted
+Press or hidden-by-default behavior are corrected rather than preserved. The
+authoritative Press claim/dispatch denial cases remain green; responsive and
+reduced-motion visual review finds no clipped contact name or trapped route;
+both retained and new acceptance stories pass the complete reconciled product
+release gate.
 
 ### Milestone 1 — Cast and start a real game
 
@@ -498,6 +581,10 @@ Apply these rules to every slice:
   validation, persistence, visible result, audit behavior, and failure path.
 - Preserve the known errata and conflicts below in the rule matrix so a future
   implementation cannot accidentally regress to a generic value.
+- Label a deliberate product extension explicitly when no printed rule defines
+  it. SNN Press is one such New Eden Console extension: history and product
+  contracts govern its optional station behavior, while printed roster,
+  loyalty, Wolf, Capybara, and facilitator math remain unchanged.
 
 ### Decisions required before affected implementation
 
@@ -505,8 +592,10 @@ These are not reasons to stop planning, but they are explicit gates for the
 first code slice that depends on them:
 
 - **Game scope:** whether a session may switch between base-only, Capybara
-  expansion, and other extra-ship configurations after creation; how the
-  product presents 8–18 base players versus the 20-player expansion target.
+  expansion, and other extra-ship configurations after creation. The count
+  policy is settled: core casting supports 8–20 players with Capybara roles in
+  the source-authoritative expansion path; optional Press may add a twenty-first
+  role holder, and multiple GM instances remain outside both counts.
 - **Randomness:** the server-side random source, audit shape, replay policy,
   and facilitator visibility for dice, damage draws, Wolf composition,
   suspicion clues, mission cards, and uncertain outcomes.
@@ -992,6 +1081,12 @@ or evidence assertion rather than a fictional product control. Each product
 prompt should leave `main` releasable on its own; later prompts must not be
 required to make an earlier exposed control truthful. Existing tests are the
 regression floor throughout this queue, not disposable scaffolding.
+
+That floor does not make stale intent canonical. If history or an owner report
+shows that a green fixture blesses a regression, follow
+[Existing behavior is the design baseline](#existing-behavior-is-the-design-baseline):
+correct the contract and misleading test, add the missing composed regression,
+then preserve the repaired old and new acceptances together.
 
 ### Build order
 
@@ -2042,7 +2137,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 249 — [NEW] Admit Voyage 33-0 through the crisis path.** Acceptance: facilitator acceptance creates the damaged cruiser with 40,000 survivors and its required fleet commitments.
 - **Prompt 250 — [NEW] Resolve Voyage 33-0 maintenance.** Acceptance: host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.
 - **Prompt 251 — [NEW] Resolve Voyage 33-0 movement.** Acceptance: it docks during Team and jumps for 1/1/2 host fuel without being treated as a base small ship in population logic.
-- **Prompt 252 — [PRESERVE] Gate the expansion Capybara.** Acceptance: immutable configuration replaces, never combines with, the base Capybara across roster, catalogs, targeting, resources, and damage.
+- **Prompt 252 — [PRESERVE] Gate the expansion Capybara.** Acceptance: immutable configuration replaces, never combines with, the base Capybara across the 8–20 core roster, catalogs, targeting, resources, and damage; optional Press and multiple GM instances remain orthogonal to that configuration.
 - **Prompt 253 — [EXTEND] Complete expansion Capybara identity.** Acceptance: 20,000 survivors, three charges, steps 1–6, 3/6/12 jump, and its own ration/population tracks render from one full-ship definition.
 - **Prompt 254 — [EXTEND] Resolve expansion Capybara Storage and Reactor.** Acceptance: Storage halves correct stores and the Reactor applies exact charge, damage, and upgrade behavior.
 - **Prompt 255 — [NEW] Resolve Capybara Advanced Hydroponics.** Acceptance: two water makes six food, optional one Scrap adds six, and upgrade/damage states apply once.
@@ -2066,7 +2161,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 273 — [PRESERVE] Register the PDF Escort Fighter Wing.** Acceptance: four-fighter cap, independent mission participation, combat launch, bonuses, and Colonel ownership are distinct.
 - **Prompt 274 — [PRESERVE] Register J.E.U. Wobbly completely.** Acceptance: its cargo and fuelled recharge belong to Wobbly despite copied Condor text and follow the active Union assignment.
 - **Prompt 275 — [PRESERVE] Register J.E.U. Ally completely.** Acceptance: cargo, repair, dismantle, permission, and fuel rule belong to Ally despite copied Chacau/Philia text.
-- **Prompt 275a — [NEW] Register the SNN Independent Press Shuttle.** Acceptance: given any joined supported session, when a player opens Independent stations, then SNN Press remains an independently selectable Press Officer/shuttle console without changing the exact printed roster; exclusive server-owned console claim, current host, movement exception, dispatch authority, equipment, return route, and enabled-session behavior remain distinct from printed fleet craft.
+- **Prompt 275a — [EXTEND] Restore the optional SNN Independent Press Shuttle.** Acceptance: recover the proven independent station from commits `71b5ad7`, `9c48e5d`, and `dced782` without retaining the `9d68158`/`e5aca326` counted-roster regression; an authorized GM controls dedicated `pressEnabled` state, enabled Press exposes one exclusive server-owned Press Officer/shuttle console and may be the twenty-first player beside a 20-player Capybara core, disabled Press is hidden and denied across claim/reconnect/presence/actions, multiple GM instances remain independent, and core readiness, loyalty, Wolf, roster, host, movement exception, dispatch authority, equipment, and return behavior stay truthful.
 - **Prompt 275b — [PROVE] Verify Press dispatch and bridge presentation.** Acceptance: an authorized dispatch reaches the intended audience and newspaper/confetti presentation follows current dock, accessibility, and reduced-motion rules without becoming authority.
 - **Prompt 276 — [PRESERVE] Assign the Quellon/Refinery Union pair.** Acceptance: the engineer runs only those two maintenance lanes and their configured craft during allowed movement.
 - **Prompt 277 — [PRESERVE] Assign the Shepherd/Icebreaker Union pair.** Acceptance: the alternate engineer receives only those two lanes and corresponding craft.
@@ -2398,7 +2493,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 566 — [NEW] Read debrief after closure.** Acceptance: members regain the outcome and allowed audit while loyalties, hidden chart, cards, and notes keep their privacy policy.
 - **Prompt 567 — [PROVE] Reverify Capybara mode selection.** Acceptance: base-only, base extras, or crewed expansion remains immutable and no route/catalog conflates the two Capybaras.
 - **Prompt 568 — [NEW] Isolate Scrap reads and writes.** Acceptance: only enabled Capybara, Macaw, and Boa ledgers can create, carry, or spend Scrap.
-- **Prompt 569 — [NEW] Cast Capybara Captain and Recycler.** Acceptance: both roles appear exactly once in expansion mode with private briefs and distinct authority.
+- **Prompt 569 — [NEW] Cast Capybara Captain and Recycler.** Acceptance: both roles appear atomically and exactly once in the source-authoritative 8–20 expansion roster with private briefs and distinct authority; neither optional Press nor any GM instance consumes or substitutes for them.
 - **Prompt 570 — [NEW] Apply d8 Capybara targeting.** Acceptance: 7 selects the full ship, 8 rerolls, and base d6 sessions never target the hybrid.
 - **Prompt 571 — [PROVE] Run full Capybara maintenance.** Acceptance: steps 1–6, rations, population, three charges, storage, production, bay, and jump all resolve in order.
 - **Prompt 572 — [NEW] Resolve Capybara population thresholds.** Acceptance: exact discrete values swap ration tables and population zero adds two unrest once.
@@ -2412,9 +2507,9 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 580 — [DECISION] Resolve Boa combat ambiguity.** Acceptance: each range Scrap attack follows the recorded policy for destroyed/invalid targets and never spends on denial.
 - **Prompt 581 — [NEW] Create post-damage Scrap pickups.** Acceptance: each ship taking at least three attack damage yields exactly one collectible Scrap per attack.
 - **Prompt 582 — [NEW] Expose Capybara objectives privately.** Acceptance: Captain and Recycler see their distinct duties and shared S.A.N. goal without broad brief access.
-- **Prompt 583 — [DECISION] Apply the Capybara balance dial.** Acceptance: facilitators see the documented +6 attack-capacity consideration as guidance, never an automatic hidden mutation.
-- **Prompt 584 — [PROVE] Run the Capybara vertical scenario.** Acceptance: casting, maintenance, production, one bay, Macaw, Boa, Scrap, d8 targeting, combat, mission, and jump work end to end.
-- **Prompt 585 — [PROVE] Run the base/expansion isolation scenario.** Acceptance: identical display names cannot cross-load roles, stores, damage, jump, targeting, or craft behavior.
+- **Prompt 583 — [DECISION] Apply the Capybara balance dial.** Acceptance: facilitators see the documented +6 attack-capacity consideration as guidance, never an automatic hidden mutation; Press occupancy and the number of GM instances do not alter it.
+- **Prompt 584 — [PROVE] Run the Capybara vertical scenario.** Acceptance: a 20-player core cast, maintenance, production, one bay, Macaw, Boa, Scrap, d8 targeting, combat, mission, jump, and reconnect work end to end, with an enabled optional twenty-first Press role remaining independent.
+- **Prompt 585 — [PROVE] Run the base/expansion isolation scenario.** Acceptance: identical display names cannot cross-load roles, stores, damage, jump, targeting, or craft behavior; toggling Press and connecting multiple GM instances cannot change either roster or its readiness, loyalty, and Wolf math.
 
 #### Onboarding, help, settings, and operational truth (Prompts 586–600)
 
@@ -2475,7 +2570,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 635 — [EXTEND] Standardize action audit records.** Acceptance: actor, session, action, phase, request, revision, outcome, random/facilitator source, and redaction policy are queryable.
 - **Prompt 636 — [PROVE] Measure callable and snapshot health.** Acceptance: latency, listener delay, retries, denials, 429/unavailable responses, and contention have privacy-safe metrics.
 - **Prompt 637 — [PROVE] Establish render-performance baselines.** Acceptance: landing bundle, route startup, DRADIS, attack updates, mission hands, and mobile frame behavior have measured thresholds.
-- **Prompt 638 — [EXTEND] Support and exercise the 20-player target.** Acceptance: resolve the 8–18 base versus expansion-count policy, align authoritative session validation, roster/Wolf/vessel setup, client configuration, and start transactions, then record one deterministic 20-player expansion run covering join, cast, heartbeat, listeners, a real action, and reconnect without claiming support beforehand.
+- **Prompt 638 — [EXTEND] Support and exercise the 20-player core target.** Acceptance: align authoritative session validation, the source-authoritative 8–20 Capybara roster, Wolf/vessel setup, client configuration, and start transactions, then record one deterministic 20-player expansion run covering join, cast, heartbeat, listeners, a real action, and reconnect. Repeat with enabled and claimed Press as a twenty-first player-role holder plus multiple simultaneous authorized GMs; Press and GM occupancy must not change core readiness, loyalty, Wolf, or capacity math, and the evidence must not claim support before the measured run passes.
 - **Prompt 639 — [PROVE] Exercise the 60-browser target.** Acceptance: a committed repeatable capacity command runs an isolated 15-minute production-shaped scenario and records the tested commit/environment, heartbeats, listeners, concurrent real actions, contention, reconnect, 429/unavailable recovery, latency/error thresholds, usage, and cost in a reviewable artifact.
 - **Prompt 640 — [PROVE] Publish capacity conclusions.** Acceptance: supported envelope, failed thresholds, retry guidance, cost, and follow-up work reflect measurements rather than the nominal target.
 - **Prompt 641 — [PROVE] Run a complete base-game playthrough.** Acceptance: six core ships and two facilitators progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief.
