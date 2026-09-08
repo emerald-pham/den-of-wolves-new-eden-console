@@ -839,11 +839,11 @@ A roadmap slice is complete only when:
 
 This is an incremental queue from the tested application that exists now to a
 complete game. It is not a greenfield specification. The inventory below was
-checked against the current production modules and all 126 test files. The
-ordinary Vitest run was also executed while preparing this plan: **125 test
-files and 1,115 tests passed**. Its separate Firestore emulator suite also
+checked against the current production modules and all 128 test files. The
+ordinary Vitest run was also executed while preparing this plan: **127 test
+files and 1,126 tests passed**. Its separate Firestore emulator suite also
 passed **52 rules tests in one file**, for a current evidence snapshot of
-**1,167 passing tests across 126 files**.
+**1,178 passing tests across 128 files**.
 
 ### Current tested foundation
 
@@ -857,7 +857,7 @@ passed **52 rules tests in one file**, for a current evidence snapshot of
 | Typed vessel, role, shuttle, fighter, Union, resource, Capybara, initial-docking, and console-workspace catalogs | `src/data/vesselTemplates.test.ts`, `src/data/roles.test.ts`, `src/data/rolePresets.test.ts`, `src/data/shuttles.test.ts`, `functions/src/shuttlecraft.test.ts`, `src/data/shipConsoleWorkspaces.test.ts` | Preserve the IDs and shared templates. Treat printed operation cards as scaffold until an authoritative action test proves them executable. |
 | Jump button, coordinate lock/power interaction, printed fuel bands, fuel/charge consumption, one-ship movement, one-hour integrity lockout, navigation events, and jump transition presentation | `src/components/JumpDriveConsole.test.tsx`, `functions/src/jumpDrive.test.ts`, `functions/src/jumpCallable.test.ts`, `functions/src/navigation.test.ts` | Preserve. Add valid end-to-end, all-vessel, damaged/upgraded, concurrent, group, arrival-hook, and reconnect coverage. |
 | Printed 22-system/40-link chart, candidate overlays, GM starmap/relocation, pursuit calculation, fixed fleet formation, coordinate-based contact filtering, DRADIS sweep/sampling, blackout, range, and reduced motion | `src/data/starChart.test.ts`, `src/data/pursuit.test.ts`, `src/data/fleetFormation.test.ts`, `src/components/GmStarmapModule.test.tsx`, `src/components/ContactPlot.test.tsx`, `src/components/ShipPlot.test.tsx` | Preserve presentation and data. Add authoritative chart choice, fleet groups, group-local projections, pursuit state, arrival effects, and shuttle contacts. |
-| Shared shuttle console, initial dock/visit history, role routing, SNN Press dispatch, confetti/evidence shredder, settings, PWA shell, responsive CIC styling, and accessible failure/read-only states | `src/components/ShuttleConsoleTemplate.test.tsx`, `src/routes/ShuttleConsole.test.tsx`, `functions/src/pressDispatchCallable.test.ts`, `functions/src/shipConfetti.test.ts`, `src/pwa.test.ts`, `src/styles/aesthetic.test.ts` | Preserve. Add movement and capability modules to the existing shell; never create parallel shuttle routes or duplicate Press controls. |
+| Shared shuttle console, initial dock/visit history, role routing, SNN Press dispatch, confetti/evidence shredder, motion-safety gate, settings, PWA shell, responsive CIC styling, and accessible failure/read-only states | `src/components/ShuttleConsoleTemplate.test.tsx`, `src/routes/ShuttleConsole.test.tsx`, `functions/src/pressDispatchCallable.test.ts`, `functions/src/shipConfetti.test.ts`, `src/components/MotionSafetyGate.test.tsx`, `src/pwa.test.ts`, `src/styles/aesthetic.test.ts` | Preserve. Add movement and capability modules to the existing shell; never create parallel shuttle routes or duplicate Press controls. |
 | Wolf role-ID assignment and finale/debrief visual mode | `functions/src/wolfAssignment.test.ts`, `src/routes/GmConsole.test.tsx`, `functions/src/debriefModeCallable.test.ts`, `src/components/DebriefMode.test.tsx` | Preserve these setup/presentation primitives. Wolf actions, attacks, loyalties, outcomes, and durable debrief records are new work. |
 | Current Firestore authority and App Check boundaries | `tests/rules/firestore.rules.test.ts`, `functions/src/runtimeOptions.test.ts`, `src/lib/firebase.test.ts` | Preserve every current allow/deny contract. Extend the matrix for each new collection or projection. |
 
@@ -1602,7 +1602,7 @@ regression floor throughout this queue, not disposable scaffolding.
 - **Prompt 587 — [EXTEND] Present private casting assignments.** Acceptance: players see only their ship, role, device mode, and allowed route; facilitators see the complete roster.
 - **Prompt 588 — [EXTEND] Present private loyalty assignment.** Acceptance: the entitled player sees exact card/suspicion and unrelated clients receive no serialized secret.
 - **Prompt 589 — [EXTEND] Teach the table ground rules.** Acceptance: onboarding covers private briefs, no out-of-game communication/photos, Wolf humanity, and resource components with exact approved copy.
-- **Prompt 589a — [PROVE] Audit the motion-safety gate.** Acceptance: every browser is blocked until normal or reduced motion is chosen, the choice applies globally, and a fresh acknowledgement is required after 24 hours.
+- **Prompt 589a — [PRESERVE] Audit the motion-safety gate.** Acceptance: every browser is blocked until normal or reduced motion is chosen, the choice applies globally, and a fresh acknowledgement is required after 24 hours.
 - **Prompt 589b — [PRESERVE] Audit the authenticated-session waiver.** Acceptance: exact safety/privacy/game expectations gate entry for the documented lifetime and remain distinct from GM access expiry.
 - **Prompt 590 — [EXTEND] Teach the core game loop.** Acceptance: help explains Team, Coordination, pursuit failure, jump announcements, attack docking, and away missions without unsupported mechanics.
 - **Prompt 591 — [EXTEND] Show vessel-specific maintenance help.** Acceptance: the active ship sees its exact numbered steps, rations, unrest, damage, charging, and fuel expiry.
@@ -1672,8 +1672,8 @@ regression floor throughout this queue, not disposable scaffolding.
 
 The backlog contains **703 independently executable prompts** in this
 snapshot: 651 base IDs plus 52 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **167 `[PRESERVE]`, 83
-`[EXTEND]`, 377 `[NEW]`, 53 `[PROVE]`, and 23 `[DECISION]`**. That distribution
+dependency. The current evidence classification is **168 `[PRESERVE]`, 83
+`[EXTEND]`, 377 `[NEW]`, 52 `[PROVE]`, and 23 `[DECISION]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:
 reclassify prompts as `main` advances, retain completed IDs, add a suffix when a
