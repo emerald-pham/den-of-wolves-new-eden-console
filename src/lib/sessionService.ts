@@ -32,6 +32,16 @@ interface SessionReply {
   readonly player: Player;
 }
 
+export interface SetupConfirmationInput {
+  readonly playerCount: number;
+  readonly chartId: 'A' | 'B' | 'C';
+  readonly expansion: 'base' | 'capybara' | 'none';
+  readonly turnLimit: 6 | 7 | 8;
+  readonly dioneEnabled: boolean;
+  readonly capybaraEnabled: boolean;
+  readonly activeRoleIds: readonly string[];
+}
+
 export interface CreateSessionOptions {
   readonly playerCount?: number;
   readonly chartId?: 'A' | 'B' | 'C';
@@ -96,6 +106,12 @@ function commandId(): string {
   return window.crypto.randomUUID();
 }
 
+function expectedSetupRevision(session: GameSession): number {
+  return Number.isSafeInteger(session.setupRevision) && (session.setupRevision ?? 0) >= 0
+    ? session.setupRevision ?? 0
+    : 0;
+}
+
 function queue(command: PendingCommand): void {
   useSessionStore.getState().enqueueCommand(command);
 }
@@ -136,6 +152,55 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     store.setLastRoute('/roles');
   }
   if (command.kind === 'disconnectFromSession') store.disconnect();
+  if (
+    command.kind === 'confirmSetup' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextSession = {
+      ...store.session,
+      ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0
+        ? { setupRevision: reply.setupRevision } : {}),
+      ...(Array.isArray(reply.activeRoleIds)
+        ? { activeRoleIds: reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string') }
+        : {}),
+    } as GameSession & Record<string, unknown>;
+    if (typeof reply.setup === 'object' && reply.setup !== null) nextSession.setup = reply.setup;
+    if (Array.isArray(reply.activeVesselIds)) {
+      nextSession.activeVesselIds = reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string');
+    }
+    store.setSession(nextSession);
+  }
+  if (
+    (command.kind === 'claimSeat' || command.kind === 'releaseSeat') &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextRevision = reply.setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+    if (reply.seatId === command.payload.seatId) {
+      const me = store.me;
+      if (command.kind === 'claimSeat' && me && me.sessionId === command.payload.sessionId) {
+        store.setMe({ ...me, seatId: command.payload.seatId });
+      } else if (command.kind === 'releaseSeat' && me?.seatId === command.payload.seatId) {
+        store.setMe({ ...me, seatId: null });
+      }
+      store.setSeats(store.seats.map((seat) => seat.id === command.payload.seatId
+        ? {
+          ...seat,
+          status: command.kind === 'claimSeat' ? 'claimed' : 'open',
+          holderUid: command.kind === 'claimSeat' && typeof reply.holderUid === 'string'
+            ? reply.holderUid
+            : command.kind === 'claimSeat' ? store.me?.uid ?? seat.holderUid : null,
+          claimedAt: command.kind === 'claimSeat' ? seat.claimedAt : null,
+        }
+        : seat));
+    }
+  }
   if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
     const enabled =
       typeof result === 'object' && result !== null && 'capybaraEnabled' in result &&
@@ -551,6 +616,62 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   );
   const reply = await call({ sessionId });
   return applySession(reply.data, sessionId);
+}
+
+/** Confirm the entire setup tuple through one replay-safe authoritative command. */
+export async function confirmSetup(setup: SetupConfirmationInput): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before confirming setup.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'confirmSetup',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      setup: { ...setup, activeRoleIds: [...setup.activeRoleIds] },
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Claim a stable role seat through the server-owned CAS transaction. */
+export async function claimSeat(seatId: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before claiming a seat.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'claimSeat',
+    payload: {
+      sessionId: store.session.id,
+      seatId,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Release a held seat, optionally carrying the active GM audit reason. */
+export async function releaseSeat(seatId: string, reason?: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before releasing a seat.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'releaseSeat',
+    payload: {
+      sessionId: store.session.id,
+      seatId,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
 }
 
 export async function loginGmAccess(password: string): Promise<CommandDisposition> {

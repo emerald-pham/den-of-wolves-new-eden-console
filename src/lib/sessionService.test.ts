@@ -50,6 +50,19 @@ const {
   triggerDradisContact,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
+const authorityService = await import('./sessionService') as unknown as {
+  confirmSetup: (setup: {
+    playerCount: number;
+    chartId: 'A' | 'B' | 'C';
+    expansion: 'base' | 'capybara' | 'none';
+    turnLimit: 6 | 7 | 8;
+    dioneEnabled: boolean;
+    capybaraEnabled: boolean;
+    activeRoleIds: readonly string[];
+  }) => Promise<unknown>;
+  claimSeat: (seatId: string) => Promise<unknown>;
+  releaseSeat: (seatId: string, reason: string) => Promise<unknown>;
+};
 
 const session = {
   id: 's1',
@@ -1225,4 +1238,94 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   });
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
   expect(result).toEqual({ amount: 8, alertRaised: false });
+});
+
+describe('authoritative setup and seating wrappers', () => {
+  const setup = {
+    playerCount: 8,
+    chartId: 'A' as const,
+    expansion: 'base' as const,
+    turnLimit: 6 as const,
+    dioneEnabled: true,
+    capybaraEnabled: false,
+    activeRoleIds: [
+      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+      'quellon-explorer', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+    ],
+  };
+
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session,
+      setupRevision: 4,
+      playerCount: setup.playerCount,
+      chartId: setup.chartId,
+      expansion: setup.expansion,
+      turnLimit: setup.turnLimit,
+      dioneEnabled: setup.dioneEnabled,
+      capybaraEnabled: setup.capybaraEnabled,
+      activeRoleIds: setup.activeRoleIds,
+    }, player);
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.mocked(httpsCallable).mockReset();
+  });
+
+  it('confirms the complete tuple with a request id and setup-revision CAS', async () => {
+    const call = callableReturning({
+      data: { status: 'committed', requestId: 'setup-1', setupRevision: 5 },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await authorityService.confirmSetup(setup);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'confirmSetup');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      instanceId: 'bridge',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+      setup,
+    });
+  });
+
+  it('claims a stable seat with a revision-bound idempotency request', async () => {
+    const call = callableReturning({
+      data: { status: 'replayed', requestId: 'claim-1', setupRevision: 5, seatId: 'admiral', holderUid: 'u1' },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await expect(authorityService.claimSeat('admiral')).resolves.toBe('applied');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'claimSeat');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+    });
+  });
+
+  it('releases a seat through the active GM instance and preserves replay-safe acknowledgement', async () => {
+    const call = callableReturning({
+      data: { status: 'replayed', requestId: 'release-1', setupRevision: 5, seatId: 'admiral' },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await expect(authorityService.releaseSeat('admiral', 'Roster correction')).resolves.toBe('applied');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'releaseSeat');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+      instanceId: 'bridge',
+      reason: 'Roster correction',
+    });
+  });
 });

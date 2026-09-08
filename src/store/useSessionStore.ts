@@ -140,6 +140,50 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'confirmSetup';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly setup: {
+          readonly playerCount: number;
+          readonly chartId: 'A' | 'B' | 'C';
+          readonly expansion: 'base' | 'capybara' | 'none';
+          readonly turnLimit: 6 | 7 | 8;
+          readonly dioneEnabled: boolean;
+          readonly capybaraEnabled: boolean;
+          readonly activeRoleIds: readonly string[];
+        };
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'claimSeat';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly seatId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'releaseSeat';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly seatId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly instanceId?: string;
+        readonly reason?: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'popShipConfetti';
       readonly payload: {
         readonly sessionId: string;
