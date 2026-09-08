@@ -27,7 +27,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 66/705 complete; 27 partial; 612 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 66/705 complete; 28 partial; 611 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -185,7 +185,7 @@ describe('implementation progress integrity gate', () => {
 
   it('allows a feature prompt to carry coverage into a later release', () => {
     const laterEntry = `  {
-    version: '0.3.8',
+    version: '0.3.99',
     implementationPrompts: [15],
     changes: [
       'Command errors now explain the remaining retry path without exposing private state.',
@@ -196,7 +196,7 @@ describe('implementation progress integrity gate', () => {
       ...validationInputs,
       progressSource: progressSource.replace(
         '| 015 | partial | feature | 0.3.5 |',
-        '| 015 | partial | feature | 0.3.5, 0.3.8 |',
+        '| 015 | partial | feature | 0.3.5, 0.3.99 |',
       ),
       changelogSource: changelogSource.replace(
         "  {\n    version: '0.3.4',",

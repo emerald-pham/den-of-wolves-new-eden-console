@@ -11,6 +11,12 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    changes: [
+      'Wolf Pursuit Track countdowns now describe the remaining cycles instead of tracks.',
+    ],
+  },
+  {
+    version: '0.3.7',
     implementationPrompts: [18],
     changes: [
       'One-shot bridge confetti now rejects stale console authority and stale officer approvals before a dispenser can fire.',

@@ -45,7 +45,7 @@ it('rebases the score when a split ship has a different position', () => {
   expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 2 / 10');
 });
 
-it('keeps the wolf pursuit track visible even at the lower end of the track', () => {
+it('keeps the wolf pursuit countdown visible at the lower end of the cycle', () => {
   render(
     <PursuitTracker
       currentTurn={1}
@@ -57,12 +57,30 @@ it('keeps the wolf pursuit track visible even at the lower end of the track', ()
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
   expect(tracker).toHaveAttribute('data-threat-level', 'tracked');
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 8 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 8 cycles');
   expect(tracker).not.toHaveTextContent('COUNTDOWN TO FAILURE');
-  expect(tracker.querySelector('[aria-live="polite"]')).toHaveTextContent('8 tracks');
+  expect(tracker.querySelector('[aria-live="polite"]')).toHaveTextContent('8 cycles');
   expect(tracker.querySelector('[role="progressbar"]')).toHaveAttribute(
     'aria-valuetext',
-    '2 of 10; 8 tracks to failure',
+    '2 of 10; 8 cycles to failure',
+  );
+});
+
+it('calls the full Wolf Pursuit countdown ten cycles', () => {
+  render(
+    <PursuitTracker
+      currentTurn={0}
+      shipId="shepherd"
+      shipName="Shepherd"
+      shipCoordinate="0000"
+    />,
+  );
+
+  const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 10 cycles');
+  expect(tracker.querySelector('[role="progressbar"]')).toHaveAttribute(
+    'aria-valuetext',
+    '0 of 10; 10 cycles to failure',
   );
 });
 
@@ -78,7 +96,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
   expect(tracker).toHaveAttribute('data-threat-level', 'closing');
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 3 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 3 cycles');
 
   rerender(
     <PursuitTracker
@@ -89,7 +107,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'critical');
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 2 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 2 cycles');
 
   rerender(
     <PursuitTracker
@@ -100,6 +118,6 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'terminal');
-  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 0 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 0 cycles');
   expect(tracker).toHaveTextContent('SURROUNDED // GAME OVER');
 });
