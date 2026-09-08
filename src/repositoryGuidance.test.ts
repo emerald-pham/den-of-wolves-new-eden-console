@@ -58,6 +58,16 @@ describe('repository guidance', () => {
     expect(guidance).toContain('coordination:status');
   });
 
+  it('requires implementation-plan features to carry real changelog coverage', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('--implementation-prompt NNN');
+    expect(guidance).toContain('implementationPrompts');
+    expect(guidance).toContain('concrete player-facing change');
+    expect(guidance).toMatch(/preemptive changelog\s+field is only a draft/i);
+  });
+
   it('requires the executable coordination validation and completion gate', () => {
     const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
     const guidance = readFileSync(guidancePath, 'utf8');

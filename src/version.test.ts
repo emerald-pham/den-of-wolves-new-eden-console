@@ -31,12 +31,14 @@ it('retains fleet DRADIS range behavior in player-facing release notes', () => {
   ))).toBe(true);
 });
 
-it('keeps each release entry focused instead of creating a megachangelog', () => {
+it('keeps implementation-plan features mapped to dedicated release notes', () => {
   const versions = CHANGELOG.map((entry) => entry.version);
   const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(new Set(versions).size).toBe(versions.length);
-  expect(currentEntry?.changes.length).toBeLessThanOrEqual(3);
+  expect(currentEntry?.implementationPrompts?.length).toBe(currentEntry?.changes.length);
+  expect(new Set(currentEntry?.implementationPrompts ?? []).size)
+    .toBe(currentEntry?.implementationPrompts?.length);
 });
 
 it('emits uncached build metadata for live clients to discover upgrades', () => {

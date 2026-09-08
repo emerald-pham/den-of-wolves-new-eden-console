@@ -88,6 +88,13 @@ that documented outcome and explain why it could not merge.
    in `--version-plan`, update `package.json` and the root lockfile to it, and
    add the planned note as a new, standalone top-level entry in
    `src/changelog.ts` before the test-first implementation sequence begins.
+   Product work driven by the implementation plan must also pass
+   `--implementation-prompt NNN`, set that prompt to `in-progress` in
+   `docs/IMPLEMENTATION_PROGRESS.md`, and classify its ledger row as
+   `feature` or `non-feature`. A feature cannot close until its row names the
+   release version or versions and each matching changelog entry contains prompt coverage
+   metadata plus a concrete player-facing change. The preemptive changelog
+   field is only a draft and cannot satisfy this requirement.
    Never append the note to another task's current-version entry. Tooling,
    test, and documentation-only work records an explicit
    no-player-facing-change note and does not add an entry. The lighter
@@ -111,7 +118,9 @@ that documented outcome and explain why it could not merge.
    branch SHA, and rejects a stale or rewritten baseline or a branch that does
    not contain current local `main`. Documentation-only changes also run
    `npm run coordination:docs`, which checks Markdown/README links, fenced
-   blocks, referenced npm scripts, and the canonical agent guidance.
+   blocks, referenced npm scripts, and the canonical agent guidance. Code
+   changes also run `npm run validate:implementation-progress`, so a
+   plan-backed feature cannot pass on the coordination sentence alone.
 4. Once the required validation is green, stop other work and immediately merge
    the task branch into `main`, push `main` to `origin`, and report the resulting
    main commit. Do not leave a green worktree dirty, idle, or waiting for another
@@ -262,6 +271,11 @@ it reserves no shared resource or file area. These fields remain in historical
 entries so cleanup can identify ownership without guessing from free-form intent.
 `--resources` remains the human-readable emulator/service detail and does not
 replace structured claims.
+Product work must also provide `--implementation-prompt NNN`; this binds the
+coordination entry to the progress ledger and prevents a feature task from
+closing without its prompt being marked. The executable progress gate checks
+that the ledger row, source-plan checkbox, release version, and real
+`src/changelog.ts` coverage agree.
 
 Run `npm run coordination:status` before overlapping work and after finishing
 to confirm the entry and any resource reservations are clear.
@@ -280,6 +294,16 @@ task and one release version; if the version is already claimed or `main` has
 advanced, reconcile the claim before editing.
 The final release note may refine that same entry, but it must never append to
 another task's entry or roll several tasks into a single version.
+The one controlled exception is a tooling-only implementation-plan gate task
+that expands the current release's aggregate plan summary into prompt-level
+coverage; it may not rewrite older release entries or claim new behavior.
+For implementation-plan work, the final release note is not the one-sentence
+coordination draft: every ledger row marked `feature` names its release or
+releases, and each matching changelog entry lists the prompt in
+`implementationPrompts` with at least one concrete player-facing change for
+that prompt. The move-on gate
+rejects an open `in-progress` row and the coordination gate reruns this
+coverage check before validation is recorded.
 
 The executable release gate covers the deterministic part of this agreement:
 it compares branch and `main` package/lock versions, checks the newest changelog

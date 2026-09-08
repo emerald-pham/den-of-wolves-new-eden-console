@@ -28,11 +28,12 @@ const codeValidation = {
   commitSha: 'branch-sha',
   completedAt: '2026-09-07T00:05:00.000Z',
   passed: true,
-  commands: [
-    'git diff --check',
-    'npm run lint',
-    'npm run test:all',
-    'npm run build',
+          commands: [
+            'git diff --check',
+            'npm run validate:implementation-progress',
+            'npm run lint',
+            'npm run test:all',
+            'npm run build',
     'npm run build --prefix functions',
   ],
   files: ['scripts/example.mjs'],
@@ -261,9 +262,10 @@ describe('local emulator coordination', () => {
       documentationOnly: false,
       requiresDocumentationReview: false,
       requiresVisualReview: true,
-      commands: [
-        'git diff --check',
-        'npm run lint',
+  commands: [
+    'git diff --check',
+    'npm run validate:implementation-progress',
+    'npm run lint',
         'npm run test:all',
         'npm run build',
         'npm run build --prefix functions',
@@ -780,6 +782,46 @@ describe('local emulator coordination', () => {
     })).toThrow(/0\.2\.102.*changelog/i);
   });
 
+  it('allows tooling-only enrichment of the current release coverage entry', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-current-changelog-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{
+          ...releaseEntry,
+          workType: 'tooling',
+          versionPlan: 'Tooling-only; no application version bump.',
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchVersion: '0.3.5',
+          mainVersion: '0.3.5',
+          branchLockVersion: '0.3.5',
+          mainLockVersion: '0.3.5',
+          branchChangelog: [
+            { version: '0.3.5', source: 'detailed current release coverage' },
+            { version: '0.3.4', source: 'previous release' },
+          ],
+          mainChangelog: [
+            { version: '0.3.5', source: 'generic current release summary' },
+            { version: '0.3.4', source: 'previous release' },
+          ],
+        }),
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({ id: releaseEntry.id });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('preserves a previous APP_VERSION entry across a new release', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-release-preservation-${randomUUID()}.json`);
 
@@ -972,6 +1014,7 @@ describe('local emulator coordination', () => {
       entry: {
         ...releaseEntry,
         workType: 'product',
+        implementationPrompt: 15,
         versionPlan: 'Product change; no application version bump was written yet.',
       },
       release: releaseState({
@@ -979,7 +1022,67 @@ describe('local emulator coordination', () => {
         branchVersion: '0.3.2',
         branchLockVersion: '0.3.2',
         branchChangelog: [{ version: '0.3.2', source: 'previous release' }],
+        changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md'],
       }),
     })).toThrow(/player-facing work must increment|version plan/i);
+  });
+
+  it('requires product work to identify a plan prompt', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'product',
+        versionPlan: 'Reserve application patch version 0.3.3.',
+      },
+      release: releaseState({
+        changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md'],
+      }),
+    })).toThrow(/implementation prompt/i);
+  });
+
+  it('requires plan-backed product work to update the progress ledger', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'product',
+        implementationPrompt: 15,
+        versionPlan: 'Reserve application patch version 0.3.3.',
+      },
+      release: releaseState({
+        changedFiles: ['src/App.tsx'],
+      }),
+    })).toThrow(/IMPLEMENTATION_PROGRESS/i);
+  });
+
+  it('runs the required prompt through the progress gate before validation commands', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-plan-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{
+          ...releaseEntry,
+          workType: 'product',
+          implementationPrompt: 999,
+          scopes: ['docs/'],
+          validation: undefined,
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md'],
+        }),
+        commandRunner: async () => {
+          throw new Error('validation commands should not run');
+        },
+      })).rejects.toThrow(/required implementation-plan Prompt 999/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
   });
 });

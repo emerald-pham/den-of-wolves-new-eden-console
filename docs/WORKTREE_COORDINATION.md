@@ -117,6 +117,14 @@ writing implementation tests or code. Each versioned entry belongs to one task;
 never append a second agent's note to the existing current-version object. If an
 active entry already claims the version, or `main` advances before merge,
 reconcile the version and preserve each task's separate entry.
+When the task comes from the implementation plan, also pass
+`--implementation-prompt NNN`, set that row to `in-progress` in
+`docs/IMPLEMENTATION_PROGRESS.md`, and declare `feature` or `non-feature` in
+the ledger. A feature row must name its release or releases, and each real
+changelog entry must list the prompt in `implementationPrompts` with a concrete
+player-facing change; the preemptive sentence alone does not pass the gate.
+Only a tooling-only gate task may expand the current release's aggregate plan
+summary into prompt-level notes; older release entries remain protected.
 
 ## Emulator rows
 
@@ -191,13 +199,15 @@ npm run coordination:validate -- \
 Only pass the review flags when their scopes apply. The gate derives the command
 plan from committed files: documentation-only changes run the diff check and
 `npm run coordination:docs`, while code changes run lint, all tests, and both
-production builds. The documentation check verifies changed Markdown/README
+production builds plus `npm run validate:implementation-progress`. The documentation check verifies changed Markdown/README
 links, fenced blocks, referenced npm scripts, and the canonical agent guidance.
 It records a receipt tied to the exact branch SHA, rejects rewritten baselines, stale
 versions, package/lock mismatches, changelog replacement, and validation before
 the task branch contains current local `main`. Historical changelog comparison
 resolves `APP_VERSION` before comparing entry bodies, so moving an unchanged
 former top entry to its explicit version does not create a false replacement.
+Implementation-plan product validation also requires the progress ledger to be
+committed and reruns its changelog-coverage gate before recording the receipt.
 The review flags are explicit human attestations; the receipt cannot prove that
 a person truly performed the review.
 

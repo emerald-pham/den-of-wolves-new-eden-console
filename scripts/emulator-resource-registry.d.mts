@@ -31,6 +31,7 @@ export interface CoordinationEntry {
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
   readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
+  readonly implementationPrompt?: number;
   readonly scopes?: readonly string[];
   readonly claims?: readonly string[];
   readonly outcome?: 'landed' | 'preserved' | 'discarded';

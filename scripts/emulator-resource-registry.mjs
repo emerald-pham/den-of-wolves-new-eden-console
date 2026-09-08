@@ -21,6 +21,10 @@ import {
   emulatorPortsForSlot,
   vitePortForSlot,
 } from './emulator-slots.js';
+import {
+  readImplementationProgress,
+  validateImplementationProgress,
+} from './validate-implementation-progress.mjs';
 
 export const CODEX_COORDINATION_FILE_ENV = 'CODEX_COORDINATION_FILE';
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
@@ -67,6 +71,7 @@ export function validationPlanForFiles(changedFiles = []) {
     ? ['git diff --check', 'npm run coordination:docs']
     : [
         'git diff --check',
+        'npm run validate:implementation-progress',
         'npm run lint',
         'npm run test:all',
         'npm run build',
@@ -176,7 +181,7 @@ function plannedApplicationVersion(versionPlan) {
   return matches.at(-1)?.[0];
 }
 
-function changelogPreservationErrors(mainChangelog, branchChangelog) {
+function changelogPreservationErrors(mainChangelog, branchChangelog, { allowVersion } = {}) {
   const branchEntries = new Map();
   const errors = [];
 
@@ -199,6 +204,7 @@ function changelogPreservationErrors(mainChangelog, branchChangelog) {
       normalizeChangelogEntrySource(branchEntry.source) !==
       normalizeChangelogEntrySource(mainEntry.source)
     ) {
+      if (mainEntry.version === allowVersion) continue;
       errors.push(
         `branch changelog would replace main's ${mainEntry.version} entry`,
       );
@@ -206,6 +212,37 @@ function changelogPreservationErrors(mainChangelog, branchChangelog) {
   }
 
   return errors;
+}
+
+function implementationPlanMetadataErrors(entry, release) {
+  if (entry.workType !== 'product') return [];
+
+  const errors = [];
+  if (!Number.isInteger(entry.implementationPrompt) || entry.implementationPrompt < 1) {
+    errors.push('product work must record an implementation prompt with --implementation-prompt <number>');
+  }
+  const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
+  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md')) {
+    errors.push(
+      'implementation-plan product work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
+    );
+  }
+  return errors;
+}
+
+function implementationPlanGateErrors(entry) {
+  if (entry.workType !== 'product') return [];
+  try {
+    const result = validateImplementationProgress({
+      ...readImplementationProgress({ cwd: process.cwd() }),
+      requiredPrompt: entry.implementationPrompt,
+    });
+    return result.errors.map((error) => `implementation progress gate: ${error}`);
+  } catch (error) {
+    return [
+      `implementation progress gate could not run: ${error instanceof Error ? error.message : String(error)}`,
+    ];
+  }
 }
 
 function releaseMetadataErrors({ entry, release, requireMerged, requireReconciled = false }) {
@@ -321,8 +358,13 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
     errors.push(...changelogPreservationErrors(
       release.mainChangelog,
       release.branchChangelog,
+      toolingOnly && release.branchVersion === release.mainVersion
+        ? { allowVersion: release.mainVersion }
+        : undefined,
     ));
   }
+
+  errors.push(...implementationPlanMetadataErrors(entry, release));
 
   return errors;
 }
@@ -1264,8 +1306,11 @@ function formatEntry(entry) {
     `  resources: ${resources}`,
   ];
   if (entry.workType || entry.scopes || entry.claims) {
+    const implementationPrompt = Number.isInteger(entry.implementationPrompt)
+      ? ` | implementation prompt: ${String(entry.implementationPrompt).padStart(3, '0')}`
+      : '';
     lines.push(
-      `  work type: ${text(entry.workType, 'legacy')} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
+      `  work type: ${text(entry.workType, 'legacy')}${implementationPrompt} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
     );
   }
   if (entry.outcome) lines.push(`  outcome: ${entry.outcome}`);
@@ -1405,6 +1450,12 @@ async function beginEntry(filePath, options) {
   if (!['product', 'tooling', 'documentation', 'investigation'].includes(workType)) {
     throw new Error('coordination begin requires --work-type product|tooling|documentation|investigation.');
   }
+  const implementationPrompt = options['implementation-prompt'];
+  if (workType === 'product' && !/^\d{3}$/.test(implementationPrompt ?? '')) {
+    throw new Error(
+      'coordination begin requires product work to record an implementation prompt with --implementation-prompt NNN.',
+    );
+  }
   const scopes = normalizedList(options.scope).map(normalizeScope);
   const claims = [...new Set(normalizedList(options.claims ?? options.claim)
     .map((claim) => claim.toLowerCase()))].sort();
@@ -1432,6 +1483,7 @@ async function beginEntry(filePath, options) {
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
       workType,
+      ...(workType === 'product' ? { implementationPrompt: Number(implementationPrompt) } : {}),
       scopes,
       claims,
       resources: options.resources
@@ -1508,6 +1560,7 @@ export async function validateCoordinationEntry(filePath, options) {
     if (outsideScopes.length > 0) {
       errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
     }
+    errors.push(...implementationPlanGateErrors(entry));
     if (errors.length > 0) {
       throw new Error(
         `Cannot validate coordination entry ${entry.id}: ${errors.join('; ')}.`,

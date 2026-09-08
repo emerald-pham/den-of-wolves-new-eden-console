@@ -3,14 +3,39 @@ import { APP_VERSION } from './version';
 export interface ChangelogEntry {
   readonly version: string;
   readonly changes: readonly string[];
+  /** Prompt IDs whose player-facing changes are described by this release. */
+  readonly implementationPrompts?: readonly number[];
 }
 
 /** Release notes written for the people playing and facilitating the game. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],
     changes: [
-      'The first implementation-plan slice strengthens the session, casting, start, and phase foundations used by players and facilitators.',
+      'Players and facilitators now receive stable, nonsecret command errors for authentication, permission, phase, revision, conflict, malformed input, service, and terminal-session failures.',
+      'Actions now carry phase eligibility metadata, so a stale control cannot authorize a valid command in the wrong phase.',
+      'Session setup rejects unsupported player counts, charts, expansions, turn limits, duplicate options, and malformed fields before creating state.',
+      'Creating a session now writes its lobby, facilitator metadata, configuration, join code, and opening event through one authoritative transaction.',
+      'Setup now locks base Capybara, expansion Capybara, or neither as an explicit vessel mode before casting.',
+      'Expansion setup now loads the Capybara Captain, Recycler, Scrap, Macaw, Boa, and full-ship rules without mixing base definitions.',
+      'Players can now record nonbinding ship preferences while oversubscription and tie-breaking remain facilitator decisions.',
+      'Facilitators can now assign eligible players to open ship roles while casting is unlocked.',
+      'Casting now prevents duplicate role holders and multi-role players except for the printed Union pairing.',
+      'Facilitators can now release and reassign pre-start roles without orphaning seats, craft, or private records.',
+      'Private loyalty cards now initialize for players while the facilitator receives the authorized census view.',
+      'Loyalty suspicion now initializes from the printed card rules for Loyalists, Wolves, Intelligence Agents, Arbour, Cult, Android, and Friend.',
+      'Friend loyalties now pair privately so partners can identify one another without exposing unrelated links.',
+      'Android players can now deliberately disclose their own proof without opening another player\'s loyalty record.',
+      'Start readiness now reports precise nonsecret blockers for missing facilitators, seats, roles, loyalties, craft ownership, or configuration.',
+      'Starting the game now locks casting and rejects lobby mutations after the authoritative start transaction.',
+      'Setup now reports the two physical facilitator responsibilities independently of local GM mode.',
+      'Only an active eligible facilitator or GM instance can authorize a ready game start.',
+      'The start transaction now initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, and the opening event together.',
+      'Turn 1 now initializes one server-owned pursuit value at 2 for each initial fleet group.',
+      'Sessions now lock the printed six-to-eight-turn limit and reject unsupported durations.',
+      'Crew snapshots now expose permitted shared vessel state without another crew\'s private role or loyalty facts.',
+      'Authorized facilitators can now regain census, suspicion, notes, and hidden resolution state while members remain denied.',
     ],
   },
   {

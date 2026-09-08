@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const FINAL_STATUSES = ['done', 'partial', 'missing', 'blocked'];
 const ALL_STATUSES = [...FINAL_STATUSES, 'in-progress'];
+const CHANGE_CLASSES = ['feature', 'non-feature'];
+const APPLICATION_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 
 function promptNumber(value) {
   return Number.parseInt(value, 10);
@@ -29,9 +31,17 @@ function parseHeadline(source, errors) {
 
 function parseLedger(source, errors) {
   const rows = [];
-  const pattern = /^\|\s*(\d{3})\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|/gm;
+  const pattern = /^\|\s*(\d{3})\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|\s*(feature|non-feature)\s*\|\s*((?:—|\d+\.\d+\.\d+)(?:\s*,\s*\d+\.\d+\.\d+)*)\s*\|/gm;
   for (const match of source.matchAll(pattern)) {
-    rows.push({ prompt: promptNumber(match[1]), status: match[2] });
+    const changelogCell = match[4].trim();
+    rows.push({
+      prompt: promptNumber(match[1]),
+      status: match[2],
+      changeClass: match[3],
+      changelogVersions: changelogCell === '—'
+        ? []
+        : changelogCell.split(',').map((version) => version.trim()),
+    });
   }
   if (rows.length === 0) errors.push('progress ledger contains no prompt rows');
   return rows;
@@ -69,6 +79,140 @@ function parseStatusBreakdown(source, errors) {
     .trim();
   if (remainder) errors.push(`status breakdown contains unrecognized text: ${remainder}`);
   return counts;
+}
+
+function countStringLiterals(source) {
+  return [...source.matchAll(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g)].length;
+}
+
+function parseChangelogEntries(source, applicationVersion, errors) {
+  if (typeof source !== 'string' || !source.trim()) {
+    errors.push('implementation progress gate requires src/changelog.ts text');
+    return [];
+  }
+  if (typeof applicationVersion !== 'string' || !APPLICATION_VERSION_PATTERN.test(applicationVersion)) {
+    errors.push('implementation progress gate requires a valid application version');
+    return [];
+  }
+
+  const versionPattern = /version:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/g;
+  const matches = [...source.matchAll(versionPattern)];
+  if (matches.length === 0) {
+    errors.push('src/changelog.ts contains no release entries');
+    return [];
+  }
+
+  return matches.map((match, index) => {
+    const version = match[1] === 'APP_VERSION' ? applicationVersion : match[2];
+    const start = match.index ?? 0;
+    const end = matches[index + 1]?.index ?? source.length;
+    const body = source.slice(start, end);
+    const promptMatch = body.match(/implementationPrompts:\s*\[([^\]]*)\]/);
+    const promptIds = promptMatch
+      ? [...promptMatch[1].matchAll(/\b\d+\b/g)].map((prompt) => promptNumber(prompt[0]))
+      : [];
+    const changesMatch = body.match(/changes:\s*\[([\s\S]*?)\]/);
+
+    return {
+      version,
+      promptIds,
+      changeCount: changesMatch ? countStringLiterals(changesMatch[1]) : 0,
+    };
+  });
+}
+
+function validateChangelogCoverage({
+  ledgerRows,
+  changelogSource,
+  applicationVersion,
+  errors,
+}) {
+  const entries = parseChangelogEntries(changelogSource, applicationVersion, errors);
+  const entriesByVersion = new Map();
+  const coveredPrompts = new Map();
+
+  for (const entry of entries) {
+    if (entriesByVersion.has(entry.version)) {
+      errors.push(`src/changelog.ts repeats version ${entry.version}`);
+    }
+    entriesByVersion.set(entry.version, entry);
+    const uniquePromptIds = new Set(entry.promptIds);
+    if (uniquePromptIds.size !== entry.promptIds.length) {
+      errors.push(`changelog ${entry.version} repeats an implementation-plan prompt`);
+    }
+    if (entry.promptIds.length > 0 && entry.changeCount < entry.promptIds.length) {
+      errors.push(
+        `changelog ${entry.version} covers ${entry.promptIds.length} implementation-plan feature prompts ` +
+        `but has only ${entry.changeCount} player-facing changes`,
+      );
+    }
+    for (const prompt of entry.promptIds) {
+      const promptEntries = coveredPrompts.get(prompt) ?? [];
+      promptEntries.push(entry);
+      coveredPrompts.set(prompt, promptEntries);
+    }
+  }
+
+  for (const row of ledgerRows) {
+    if (!CHANGE_CLASSES.includes(row.changeClass)) {
+      errors.push(`Prompt ${promptLabel(row.prompt)} has an unknown change class ${row.changeClass}`);
+      continue;
+    }
+
+    if (row.changeClass === 'non-feature') {
+      if (row.changelogVersions.length > 0) {
+        errors.push(
+          `non-feature Prompt ${promptLabel(row.prompt)} must use — instead of changelog ${row.changelogVersions.join(', ')}`,
+        );
+      }
+      if (coveredPrompts.has(row.prompt)) {
+        const versions = coveredPrompts.get(row.prompt).map((entry) => entry.version).join(', ');
+        errors.push(`non-feature Prompt ${promptLabel(row.prompt)} is listed in changelog ${versions}`);
+      }
+      continue;
+    }
+
+    if (row.changelogVersions.length === 0) {
+      errors.push(`feature Prompt ${promptLabel(row.prompt)} must name a changelog version`);
+      continue;
+    }
+    if (new Set(row.changelogVersions).size !== row.changelogVersions.length) {
+      errors.push(`feature Prompt ${promptLabel(row.prompt)} repeats a changelog version`);
+    }
+    for (const version of row.changelogVersions) {
+      const entry = entriesByVersion.get(version);
+      if (!entry) {
+        errors.push(
+          `feature Prompt ${promptLabel(row.prompt)} names changelog ${version}, but that entry does not exist`,
+        );
+        continue;
+      }
+      if (!entry.promptIds.includes(row.prompt)) {
+        errors.push(
+          `Prompt ${promptLabel(row.prompt)} names changelog ${version}, but that entry does not cover it`,
+        );
+      }
+    }
+  }
+
+  for (const [prompt, entries] of coveredPrompts) {
+    const row = ledgerRows.find((candidate) => candidate.prompt === prompt);
+    if (!row) {
+      errors.push(`changelog ${entries.map((entry) => entry.version).join(', ')} references unknown Prompt ${promptLabel(prompt)}`);
+    } else if (row.changeClass !== 'feature') {
+      errors.push(
+        `changelog ${entries.map((entry) => entry.version).join(', ')} references Prompt ${promptLabel(prompt)}, but the ledger marks it non-feature`,
+      );
+    } else {
+      for (const entry of entries) {
+        if (!row.changelogVersions.includes(entry.version)) {
+          errors.push(
+            `Prompt ${promptLabel(prompt)} is mapped to changelog ${row.changelogVersions.join(', ')}, not ${entry.version}`,
+          );
+        }
+      }
+    }
+  }
 }
 
 function parseActivePrompt(source, errors) {
@@ -117,7 +261,13 @@ function comparePromptSets(rows, expectedTotal, label, errors) {
   return byPrompt;
 }
 
-export function validateImplementationProgress({ progressSource, planSource } = {}) {
+export function validateImplementationProgress({
+  progressSource,
+  planSource,
+  changelogSource,
+  applicationVersion,
+  requiredPrompt = null,
+} = {}) {
   const errors = [];
   if (typeof progressSource !== 'string' || typeof planSource !== 'string') {
     return { errors: ['progressSource and planSource must be text'], summary: null };
@@ -135,6 +285,13 @@ export function validateImplementationProgress({ progressSource, planSource } = 
   const ledgerByPrompt = comparePromptSets(ledgerRows, headline.total, 'progress ledger', errors);
   const planByPrompt = comparePromptSets(planRows, headline.total, 'source plan checklist', errors);
   const statusCounts = countStatuses(ledgerRows);
+
+  validateChangelogCoverage({
+    ledgerRows,
+    changelogSource,
+    applicationVersion,
+    errors,
+  });
 
   if (ledgerRows.length !== headline.total) {
     errors.push(`headline total is ${headline.total}, but the ledger has ${ledgerRows.length} prompt rows`);
@@ -219,6 +376,13 @@ export function validateImplementationProgress({ progressSource, planSource } = 
     }
   }
 
+  if (requiredPrompt !== null && requiredPrompt !== undefined) {
+    const prompt = promptNumber(requiredPrompt);
+    if (!ledgerByPrompt.has(prompt)) {
+      errors.push(`required implementation-plan Prompt ${promptLabel(prompt)} is not in the progress ledger`);
+    }
+  }
+
   return {
     errors,
     summary: {
@@ -249,9 +413,12 @@ export function formatImplementationProgress(summary) {
 }
 
 export function readImplementationProgress({ cwd = process.cwd() } = {}) {
+  const packageSource = readFileSync(resolve(cwd, 'package.json'), 'utf8');
   return {
     progressSource: readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8'),
     planSource: readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8'),
+    changelogSource: readFileSync(resolve(cwd, 'src/changelog.ts'), 'utf8'),
+    applicationVersion: JSON.parse(packageSource).version,
   };
 }
 
