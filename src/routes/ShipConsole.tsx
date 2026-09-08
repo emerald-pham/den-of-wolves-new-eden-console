@@ -436,7 +436,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               </button>
             </div>
             <p className="confetti-dispenser__status">
-              ONE USE // {turnZeroLocked ? 'TURN 0 // AWAITING GM START' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+              ONE USE // {turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
             </p>
             {confettiActor && (
               <p className="confetti-dispenser__notice" role="status">

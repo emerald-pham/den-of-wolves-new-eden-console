@@ -25,8 +25,9 @@ import TurnStartAnnouncement from '@/components/TurnStartAnnouncement';
 import DebriefMode from '@/components/DebriefMode';
 import TurnPhaseCoordinator from '@/components/TurnPhaseCoordinator';
 import SessionWaiverGate from '@/components/SessionWaiverGate';
+import MotionSafetyGate from '@/components/MotionSafetyGate';
 import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
-import { useMotionPreference } from '@/lib/motionPreference';
+import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
 
@@ -161,10 +162,21 @@ function AppRoutes() {
  * config and GitHub Pages give you.
  */
 export default function App() {
+  return (
+    <MotionSafetyGate>
+      <AppRuntime />
+    </MotionSafetyGate>
+  );
+}
+
+function AppRuntime() {
+  const motionSafetyPending = useMotionSafetyGatePending();
+
   // The status light starts red and only goes yellow once this resolves, so a
   // misconfigured or unreachable Firebase shows as red rather than as a page
   // that looks fine and silently does nothing.
   useEffect(() => {
+    if (motionSafetyPending) return;
     // Slow mobile connections must not accumulate another request on every tick.
     // Keep independent leases so a slow GM check cannot delay presence renewal.
     const pending = new Set<() => Promise<void>>();
@@ -220,7 +232,7 @@ export default function App() {
       window.removeEventListener('online', reconnectNow);
       document.removeEventListener('visibilitychange', reconnectWhenVisible);
     };
-  }, []);
+  }, [motionSafetyPending]);
 
   return (
     <HashRouter>

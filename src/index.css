@@ -4369,6 +4369,136 @@ body {
   bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 6.35rem);
 }
 
+/* Motion safety ------------------------------------------------------- */
+
+/* The first screen is a safety instrument, not a welcome screen. It owns the
+   whole viewport and keeps the underlying console inert until a choice is
+   made. */
+.motion-safety-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--cic-void) 97%, transparent);
+}
+
+.motion-safety-content[aria-hidden='true'] {
+  pointer-events: none;
+  user-select: none;
+}
+
+.motion-safety-dialog {
+  width: min(64rem, 100%);
+  max-height: calc(100dvh - max(2rem, env(safe-area-inset-top) + env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  padding: clamp(1rem, 4vw, 3rem);
+}
+
+.motion-safety-dialog__header {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  text-align: center;
+}
+
+.motion-safety-dialog__header h1 {
+  margin: 0;
+  color: var(--cic-ink);
+  font: 700 clamp(1.5rem, 5vw, 3rem)/1 var(--cic-display);
+  letter-spacing: 0.08em;
+}
+
+.motion-safety-dialog__header p:last-child {
+  max-width: 48rem;
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.875rem/1.55 var(--cic-mono);
+}
+
+.motion-safety-dialog__ticks {
+  margin: 1.5rem 0;
+}
+
+.motion-safety-dialog__warning {
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--cic-amber-dim);
+  color: var(--cic-amber-glow);
+  font: 0.8rem/1.65 var(--cic-mono);
+  letter-spacing: 0.08em;
+}
+
+.motion-safety-dialog__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.motion-safety-dialog__choice {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  min-height: 11rem;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.motion-safety-dialog__choice:hover,
+.motion-safety-dialog__choice:focus-visible {
+  background: color-mix(in srgb, var(--cic-cyan-dim) 24%, var(--cic-void));
+}
+
+.motion-safety-dialog__choice-title {
+  color: var(--cic-cyan-hot);
+  font: 700 1.1rem/1.2 var(--cic-display);
+  letter-spacing: 0.08em;
+}
+
+.motion-safety-dialog__choice-note {
+  margin-top: 0.45rem;
+  color: var(--cic-amber);
+  font: 0.7rem/1.3 var(--cic-mono);
+  letter-spacing: 0.14em;
+}
+
+.motion-safety-dialog__choice-copy {
+  margin-top: 1rem;
+  color: var(--cic-ink);
+  font: 0.8rem/1.55 var(--cic-mono);
+}
+
+.motion-safety-dialog__retention {
+  margin: 1.25rem 0 0;
+  color: var(--cic-muted);
+  font: 0.7rem/1.5 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media (max-width: 42rem) {
+  .motion-safety-backdrop {
+    place-items: start center;
+  }
+
+  .motion-safety-dialog {
+    margin-block: 0;
+  }
+
+  .motion-safety-dialog__choices {
+    grid-template-columns: 1fr;
+  }
+
+  .motion-safety-dialog__choice {
+    min-height: 0;
+  }
+}
+
 /* Session access waiver ------------------------------------------------ */
 
 /* A required acknowledgement is a full-screen instrument: it blocks the

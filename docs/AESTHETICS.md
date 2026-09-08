@@ -166,6 +166,13 @@ Shared utilities, all in src/styles/cic.css:
   and a 44px minimum target; use `.cic-text-button` for link-like navigation
   and low-emphasis controls instead.
 
+The first-load motion-safety gate is a full-viewport CIC instrument rather than
+a welcome card. It keeps the underlying console reduced and inert until the
+player chooses a mode, uses an amber warning with cyan square choices, and has
+no decorative motion of its own. Its two-choice grid collapses to a readable
+single column on narrow screens; the warning and both 44px-plus controls stay
+visible without relying on colour or movement alone.
+
 Arrival readouts show a value with its descriptive label underneath: SHIPS IN
 CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, WOLVES AMONG US, and POPULATION
 ESTIMATE AFTER INITIAL STARVATION, in that order. PERSONNEL GRANTED CIC DATA
@@ -1071,7 +1078,7 @@ dimensions, including return navigation.
 
 A new table is in **Turn 0** until an active GM advances it. Players may still
 use role selection and browse stations, but every control that changes gameplay
-is disabled with a concise `TURN 0 // AWAITING GM START` readout. The GM remains
+is disabled with a concise `TURN 0 // AWAITING IRIS AUTHENTICATION` readout. The GM remains
 able to set up the table. The GM Console belongs in the Independent stations
 roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.

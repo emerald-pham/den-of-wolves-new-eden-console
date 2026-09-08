@@ -83,7 +83,7 @@ export default function FleetAlertControl() {
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      FLEET COMMAND // {turnZeroLocked ? 'TURN 0 // AWAITING GM START' : pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
+      FLEET COMMAND // {turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
     </p>
     {cooldownNotice && <p className="confetti-dispenser__notice">{cooldownNotice}</p>}
     <p className="confetti-dispenser__notice">
