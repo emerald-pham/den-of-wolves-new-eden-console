@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error The executable validator is intentionally plain JavaScript.
 import { formatImplementationProgress, validateImplementationProgress } from '../../scripts/validate-implementation-progress.mjs';
+import { validateImplementationPromptClaims } from '../../scripts/emulator-resource-registry.mjs';
 
 const progressPath = resolve(process.cwd(), 'docs/IMPLEMENTATION_PROGRESS.md');
 const planPath = resolve(process.cwd(), 'docs/IMPLEMENTATION_PLAN.md');
@@ -26,20 +27,60 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 67/100 complete; 25 partial; 8 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 68/705 complete; 26 partial; 611 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
+  });
+
+  it('accepts the landed connectivity change as Prompt 598 without remapping Prompt 041', () => {
+    const result = validateImplementationProgress(validationInputs);
+
+    expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
+    expect(result.summary).toMatchObject({ complete: 68, total: 705 });
+    expect(progressSource).toContain('| 004 | done | feature | 0.3.9 |');
+    expect(progressSource).toContain('| 051 | done | feature | 0.3.9 |');
+    expect(progressSource).toContain('| 041 | done | non-feature | — |');
+    expect(progressSource).toContain('| 598 | done | feature | 0.3.6 |');
+  });
+
+  it('rejects an unknown or duplicate prompt row', () => {
+    const unknown = validateImplementationProgress({
+      ...validationInputs,
+      progressSource: progressSource.replace('| 001 | done |', '| 999 | done |'),
+    });
+    expect(unknown.errors.join('\n')).toContain('unknown Prompt 999');
+
+    const duplicate = validateImplementationProgress({
+      ...validationInputs,
+      progressSource: progressSource.replace('| 002 | done |', '| 001 | done |'),
+    });
+    expect(duplicate.errors.join('\n')).toContain('lists Prompt 001 more than once');
+  });
+
+  it('allows distinct active base and lettered prompt claims but rejects duplicates', () => {
+    expect(validateImplementationPromptClaims([
+      { id: 'agent-base', status: 'active', implementationPrompt: '598' },
+      { id: 'agent-lettered', status: 'active', implementationPrompt: '598a' },
+    ])).toEqual(new Map([
+      ['598', 'agent-base'],
+      ['598a', 'agent-lettered'],
+    ]));
+
+    expect(() => validateImplementationPromptClaims([
+      { id: 'agent-one', status: 'active', implementationPrompt: '598' },
+      { id: 'agent-two', status: 'active', implementationPrompt: '598' },
+    ])).toThrow(/Prompt 598 is already claimed by agent-one/);
   });
 
   it('rejects a headline that disagrees with the done rows', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**67 / 100 prompts complete (67%)**',
-        '**68 / 100 prompts complete (68%)**',
+        '**68 / 705 prompts complete (10%)**',
+        '**69 / 705 prompts complete (10%)**',
       ),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 68, but the ledger has 67 done prompts');
+    expect(result.errors.join('\n')).toContain('headline complete count is 69, but the ledger has 68 done prompts');
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
@@ -74,8 +115,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 012**.')
         .replace('| 012 | partial | non-feature | — |', '| 012 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **67 done · 25 partial · 8 missing**.',
-          'Status breakdown: **67 done · 24 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **68 done · 26 partial · 611 missing**.',
+          'Status breakdown: **68 done · 25 partial · 611 missing · 1 in-progress**.',
         ),
     });
 
@@ -91,8 +132,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 013**.')
         .replace('| 013 | done | non-feature | — |', '| 013 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **67 done · 25 partial · 8 missing**.',
-          'Status breakdown: **66 done · 25 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **68 done · 26 partial · 611 missing**.',
+          'Status breakdown: **67 done · 26 partial · 611 missing · 1 in-progress**.',
         ),
       planSource: planSource.replace('- [x] Prompt 013', '- [ ] Prompt 013'),
     });
@@ -146,7 +187,7 @@ describe('implementation progress integrity gate', () => {
 
   it('allows a feature prompt to carry coverage into a later release', () => {
     const laterEntry = `  {
-    version: '0.3.10',
+    version: '0.3.99',
     implementationPrompts: [15],
     changes: [
       'Command errors now explain the remaining retry path without exposing private state.',
@@ -157,7 +198,7 @@ describe('implementation progress integrity gate', () => {
       ...validationInputs,
       progressSource: progressSource.replace(
         '| 015 | partial | feature | 0.3.5 |',
-        '| 015 | partial | feature | 0.3.5, 0.3.10 |',
+        '| 015 | partial | feature | 0.3.5, 0.3.99 |',
       ),
       changelogSource: changelogSource.replace(
         "  {\n    version: '0.3.4',",

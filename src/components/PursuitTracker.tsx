@@ -35,7 +35,7 @@ export default function PursuitTracker({
   const status = pursuitStatusForScore(pursuitScore);
   const threatLevel = pursuitThreatLevelForScore(pursuitScore);
   const failureCountdown = MAX_PURSUIT - pursuitScore;
-  const failureCountdownLabel = `${failureCountdown} track${failureCountdown === 1 ? '' : 's'}`;
+  const failureCountdownLabel = `${failureCountdown} cycle${failureCountdown === 1 ? '' : 's'}`;
   const turnLoad = Math.max(0, Math.floor(currentTurn)) * 2;
   const mapDepth = pursuitDistance === 0 ? 'Start system' : `-${pursuitDistance} pursuit distance`;
   const statusLabel = status === 'surrounded'
@@ -62,7 +62,7 @@ export default function PursuitTracker({
       <p className="pursuit-tracker__countdown" aria-live="polite">
         <span>WOLF PURSUIT TRACK // </span>
         <strong>
-          {failureCountdown} <small>{failureCountdown === 1 ? 'track' : 'tracks'}</small>
+          {failureCountdown} <small>{failureCountdown === 1 ? 'cycle' : 'cycles'}</small>
         </strong>
       </p>
 

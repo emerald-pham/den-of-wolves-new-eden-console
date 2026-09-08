@@ -7,13 +7,31 @@ const FINAL_STATUSES = ['done', 'partial', 'missing', 'blocked'];
 const ALL_STATUSES = [...FINAL_STATUSES, 'in-progress'];
 const CHANGE_CLASSES = ['feature', 'non-feature'];
 const APPLICATION_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
+const PROMPT_ID_PATTERN = /^\d{3}[a-z]*$/i;
 
-function promptNumber(value) {
-  return Number.parseInt(value, 10);
+export function normalizePromptId(value) {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    value = String(value).padStart(3, '0');
+  }
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (PROMPT_ID_PATTERN.test(normalized)) return normalized;
+  const legacy = normalized.match(/^(\d{1,3})([a-z]*)$/i);
+  return legacy ? `${legacy[1].padStart(3, '0')}${legacy[2].toLowerCase()}` : null;
 }
 
 function promptLabel(value) {
-  return String(value).padStart(3, '0');
+  return normalizePromptId(value) ?? String(value);
+}
+
+function comparePromptIds(left, right) {
+  const leftId = normalizePromptId(left) ?? String(left);
+  const rightId = normalizePromptId(right) ?? String(right);
+  const leftBase = Number.parseInt(leftId.slice(0, 3), 10);
+  const rightBase = Number.parseInt(rightId.slice(0, 3), 10);
+  if (leftBase !== rightBase) return leftBase - rightBase;
+  if (leftId.length !== rightId.length) return leftId.length - rightId.length;
+  return leftId.localeCompare(rightId);
 }
 
 function parseHeadline(source, errors) {
@@ -23,19 +41,19 @@ function parseHeadline(source, errors) {
     return null;
   }
   return {
-    complete: promptNumber(match[1]),
-    total: promptNumber(match[2]),
-    percentage: promptNumber(match[3]),
+    complete: Number.parseInt(match[1], 10),
+    total: Number.parseInt(match[2], 10),
+    percentage: Number.parseInt(match[3], 10),
   };
 }
 
 function parseLedger(source, errors) {
   const rows = [];
-  const pattern = /^\|\s*(\d{3})\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|\s*(feature|non-feature)\s*\|\s*((?:—|\d+\.\d+\.\d+)(?:\s*,\s*\d+\.\d+\.\d+)*)\s*\|/gm;
+  const pattern = /^\|\s*(\d{3}[a-z]*)\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|\s*(feature|non-feature)\s*\|\s*((?:—|\d+\.\d+\.\d+)(?:\s*,\s*\d+\.\d+\.\d+)*)\s*\|/gim;
   for (const match of source.matchAll(pattern)) {
     const changelogCell = match[4].trim();
     rows.push({
-      prompt: promptNumber(match[1]),
+      prompt: normalizePromptId(match[1]),
       status: match[2],
       changeClass: match[3],
       changelogVersions: changelogCell === '—'
@@ -49,12 +67,35 @@ function parseLedger(source, errors) {
 
 function parsePlanChecklist(source, errors) {
   const rows = [];
-  const pattern = /^-\s+\[([ xX])\]\s+Prompt\s+(\d{3})\s*$/gm;
+  const pattern = /^-\s+\[([ xX])\]\s+Prompt\s+(\d{3}[a-z]*)\s*$/gim;
   for (const match of source.matchAll(pattern)) {
-    rows.push({ prompt: promptNumber(match[2]), checked: match[1].toLowerCase() === 'x' });
+    rows.push({ prompt: normalizePromptId(match[2]), checked: match[1].toLowerCase() === 'x' });
   }
   if (rows.length === 0) errors.push('source plan contains no prompt checklist rows');
   return rows;
+}
+
+function parseCanonicalPromptIds(source, errors) {
+  const rows = [];
+  const pattern = /^-\s+\*\*Prompt\s+(\d{3}[a-z]*)\s+—\s+\[([^\]]+)\]/gim;
+  for (const match of source.matchAll(pattern)) {
+    const prompt = normalizePromptId(match[1]);
+    if (!prompt) {
+      errors.push(`source plan contains an invalid prompt ID ${match[1]}`);
+      continue;
+    }
+    rows.push({ prompt, tag: match[2].toUpperCase() });
+  }
+  if (rows.length === 0) errors.push('source plan contains no canonical prompt headings');
+
+  const byPrompt = new Set();
+  for (const row of rows) {
+    if (byPrompt.has(row.prompt)) {
+      errors.push(`source plan lists Prompt ${promptLabel(row.prompt)} more than once`);
+    }
+    byPrompt.add(row.prompt);
+  }
+  return rows.sort((left, right) => comparePromptIds(left.prompt, right.prompt));
 }
 
 function parseStatusBreakdown(source, errors) {
@@ -71,7 +112,7 @@ function parseStatusBreakdown(source, errors) {
     if (counts[status] !== undefined) {
       errors.push(`status breakdown lists ${status} more than once`);
     }
-    counts[status] = promptNumber(entry[1]);
+    counts[status] = Number.parseInt(entry[1], 10);
   }
   const remainder = match[1]
     .replace(entryPattern, '')
@@ -109,7 +150,9 @@ function parseChangelogEntries(source, applicationVersion, errors) {
     const body = source.slice(start, end);
     const promptMatch = body.match(/implementationPrompts:\s*\[([^\]]*)\]/);
     const promptIds = promptMatch
-      ? [...promptMatch[1].matchAll(/\b\d+\b/g)].map((prompt) => promptNumber(prompt[0]))
+      ? [...promptMatch[1].matchAll(/['"]?(\d{1,3}[a-z]*)['"]?/gi)]
+        .map((prompt) => normalizePromptId(prompt[1]))
+        .filter(Boolean)
       : [];
     const changesMatch = body.match(/changes:\s*\[([\s\S]*?)\]/);
 
@@ -216,23 +259,23 @@ function validateChangelogCoverage({
 }
 
 function parseActivePrompt(source, errors) {
-  const match = source.match(/Active prompt:\s+\*\*(none|Prompt\s+\d{3})\*\*/i);
+  const match = source.match(/Active prompts?:\s+\*\*(none|Prompt\s+\d{3}[a-z]*)\*\*/i);
   if (!match) {
-    errors.push('progress document must declare “Active prompt: **none**” or a prompt number');
+    errors.push('progress document must declare “Active prompt: **none**” or a prompt ID');
     return null;
   }
   return match[1].toLowerCase() === 'none'
     ? null
-    : promptNumber(match[1].match(/\d{3}/)[0]);
+    : normalizePromptId(match[1].match(/\d{3}[a-z]*/i)[0]);
 }
 
 function parseResumePrompt(source, errors) {
-  const match = source.match(/Resume pointer:\s*Prompt\s+(\d{3})\s+is the lowest-numbered unchecked acceptance/);
+  const match = source.match(/Resume pointer:\s*Prompt\s+(\d{3}[a-z]*)\s+is the lowest-numbered unchecked acceptance/i);
   if (!match) {
     errors.push('progress document must state the lowest-numbered resume pointer');
     return null;
   }
-  return promptNumber(match[1]);
+  return normalizePromptId(match[1]);
 }
 
 function countStatuses(rows) {
@@ -241,7 +284,7 @@ function countStatuses(rows) {
   return counts;
 }
 
-function comparePromptSets(rows, expectedTotal, label, errors) {
+function comparePromptSets(rows, expectedPromptIds, label, errors) {
   const byPrompt = new Map();
   for (const row of rows) {
     if (byPrompt.has(row.prompt)) {
@@ -250,12 +293,13 @@ function comparePromptSets(rows, expectedTotal, label, errors) {
     byPrompt.set(row.prompt, row);
   }
 
-  for (let prompt = 1; prompt <= expectedTotal; prompt += 1) {
+  const expected = new Set(expectedPromptIds);
+  for (const prompt of expected) {
     if (!byPrompt.has(prompt)) errors.push(`${label} is missing Prompt ${promptLabel(prompt)}`);
   }
   for (const row of rows) {
-    if (row.prompt < 1 || row.prompt > expectedTotal) {
-      errors.push(`${label} contains out-of-range Prompt ${promptLabel(row.prompt)}`);
+    if (!expected.has(row.prompt)) {
+      errors.push(`${label} contains unknown Prompt ${promptLabel(row.prompt)}`);
     }
   }
   return byPrompt;
@@ -275,6 +319,8 @@ export function validateImplementationProgress({
 
   const headline = parseHeadline(progressSource, errors);
   const ledgerRows = parseLedger(progressSource, errors);
+  const canonicalRows = parseCanonicalPromptIds(planSource, errors);
+  const canonicalPromptIds = canonicalRows.map((row) => row.prompt);
   const planRows = headline ? parsePlanChecklist(planSource, errors) : [];
   const breakdown = parseStatusBreakdown(progressSource, errors);
   const activePrompt = parseActivePrompt(progressSource, errors);
@@ -282,8 +328,8 @@ export function validateImplementationProgress({
 
   if (!headline) return { errors, summary: null };
 
-  const ledgerByPrompt = comparePromptSets(ledgerRows, headline.total, 'progress ledger', errors);
-  const planByPrompt = comparePromptSets(planRows, headline.total, 'source plan checklist', errors);
+  const ledgerByPrompt = comparePromptSets(ledgerRows, canonicalPromptIds, 'progress ledger', errors);
+  const planByPrompt = comparePromptSets(planRows, canonicalPromptIds, 'source plan checklist', errors);
   const statusCounts = countStatuses(ledgerRows);
 
   validateChangelogCoverage({
@@ -295,6 +341,11 @@ export function validateImplementationProgress({
 
   if (ledgerRows.length !== headline.total) {
     errors.push(`headline total is ${headline.total}, but the ledger has ${ledgerRows.length} prompt rows`);
+  }
+  if (headline.total !== canonicalPromptIds.length) {
+    errors.push(
+      `headline total is ${headline.total}, but the canonical plan contains ${canonicalPromptIds.length} prompt IDs`,
+    );
   }
   if (statusCounts.done !== headline.complete) {
     errors.push(
@@ -323,6 +374,11 @@ export function validateImplementationProgress({
 
   for (const [prompt, row] of ledgerByPrompt) {
     const planRow = planByPrompt.get(prompt);
+    if (row.status === 'done' && (!planRow || !planRow.checked)) {
+      errors.push(
+        `Prompt ${promptLabel(prompt)} is done in the ledger but lacks checked source-plan evidence`,
+      );
+    }
     if (!planRow) continue;
     const shouldBeChecked = row.status === 'done';
     if (planRow.checked !== shouldBeChecked) {
@@ -333,8 +389,11 @@ export function validateImplementationProgress({
     }
   }
 
-  const unresolvedPrompts = ledgerRows.filter((row) => row.status !== 'done');
-  const firstUnresolvedPrompt = unresolvedPrompts[0]?.prompt ?? null;
+  const unresolvedPrompts = ledgerRows
+    .filter((row) => row.status !== 'done')
+    .map((row) => row.prompt)
+    .sort(comparePromptIds);
+  const firstUnresolvedPrompt = unresolvedPrompts[0] ?? null;
   if (resumePrompt !== firstUnresolvedPrompt) {
     errors.push(
       `resume pointer is Prompt ${promptLabel(resumePrompt)}, but the first unresolved prompt is ` +
@@ -377,8 +436,10 @@ export function validateImplementationProgress({
   }
 
   if (requiredPrompt !== null && requiredPrompt !== undefined) {
-    const prompt = promptNumber(requiredPrompt);
-    if (!ledgerByPrompt.has(prompt)) {
+    const prompt = normalizePromptId(requiredPrompt);
+    if (!prompt || !canonicalPromptIds.includes(prompt)) {
+      errors.push(`required implementation-plan Prompt ${promptLabel(requiredPrompt)} is not in the canonical plan`);
+    } else if (!ledgerByPrompt.has(prompt)) {
       errors.push(`required implementation-plan Prompt ${promptLabel(prompt)} is not in the progress ledger`);
     }
   }

@@ -31,7 +31,7 @@ export interface CoordinationEntry {
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
   readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
-  readonly implementationPrompt?: number;
+  readonly implementationPrompt?: number | string;
   readonly scopes?: readonly string[];
   readonly claims?: readonly string[];
   readonly outcome?: 'landed' | 'preserved' | 'discarded';
@@ -126,6 +126,11 @@ export function emptyCoordinationState(): CoordinationState;
 export function parseCoordinationState(content: string): CoordinationState;
 export function compareApplicationVersions(left: string, right: string): -1 | 0 | 1;
 export function nextApplicationVersion(version: string): string;
+export function changedFilesBaseRef(options: {
+  readonly mainSha: string;
+  readonly startBranchSha?: string;
+  readonly mainContainsBranch: boolean;
+}): string;
 export function validationPlanForFiles(
   changedFiles?: readonly string[],
 ): ValidationPlan;
@@ -137,6 +142,9 @@ export function validateReleaseCompletion(options: {
   entry: CoordinationEntry;
   release: ReleaseState;
 }): { pushed: boolean };
+export function validateImplementationPromptClaims(
+  entries?: readonly Pick<CoordinationEntry, 'id' | 'status' | 'implementationPrompt'>[],
+): ReadonlyMap<string, string>;
 export function readReleaseState(options?: {
   cwd?: string;
   startBranchSha?: string;

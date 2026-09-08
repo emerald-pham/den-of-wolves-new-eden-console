@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
+  changedFilesBaseRef,
   finishCoordinationEntry,
   formatCoordinationState,
   isPortFree,
@@ -20,6 +21,7 @@ import {
   reserveConfiguredEmulatorSlot,
   reserveEmulatorSlot,
   validationPlanForFiles,
+  validateImplementationPromptClaims,
   validateCoordinationEntry,
   validateReleaseCompletion,
 } from '../../scripts/emulator-resource-registry.mjs';
@@ -81,6 +83,36 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('retains the task baseline when evaluating changed files after merge', () => {
+    expect(changedFilesBaseRef({
+      mainSha: 'main-sha',
+      startBranchSha: 'start-sha',
+      mainContainsBranch: true,
+    })).toBe('start-sha');
+    expect(changedFilesBaseRef({
+      mainSha: 'main-sha',
+      startBranchSha: 'start-sha',
+      mainContainsBranch: false,
+    })).toBe('main-sha');
+  });
+
+  it('keeps distinct base and lettered prompt claims independent', () => {
+    expect(validateImplementationPromptClaims([
+      { id: 'base-agent', status: 'active', implementationPrompt: '598' },
+      { id: 'lettered-agent', status: 'active', implementationPrompt: '598a' },
+    ])).toEqual(new Map([
+      ['598', 'base-agent'],
+      ['598a', 'lettered-agent'],
+    ]));
+  });
+
+  it('rejects duplicate active prompt claims after normalization', () => {
+    expect(() => validateImplementationPromptClaims([
+      { id: 'first-agent', status: 'active', implementationPrompt: 598 },
+      { id: 'second-agent', status: 'active', implementationPrompt: '598' },
+    ])).toThrow(/Prompt 598 is already claimed by first-agent/);
+  });
+
   it('keeps a reservation while either its wrapper or child process remains alive', () => {
     const state = {
       ...parseCoordinationState(JSON.stringify({ entries: [], reservations: [{
@@ -820,6 +852,36 @@ describe('local emulator coordination', () => {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
+  });
+
+  it('allows tooling-only enrichment of historical release coverage metadata', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        versionPlan: 'Tooling-only; correct historical prompt coverage metadata.',
+      },
+      release: releaseState({
+        branchVersion: '0.3.5',
+        mainVersion: '0.3.5',
+        branchLockVersion: '0.3.5',
+        mainLockVersion: '0.3.5',
+        branchChangelog: [
+          { version: '0.3.5', source: 'generic current release summary' },
+          {
+            version: '0.3.4',
+            source: "version: '0.3.4' implementationPrompts: [598] changes: ['historical change']",
+          },
+        ],
+        mainChangelog: [
+          { version: '0.3.5', source: 'generic current release summary' },
+          {
+            version: '0.3.4',
+            source: "version: '0.3.4' changes: ['historical change']",
+          },
+        ],
+      }),
+    })).not.toThrow();
   });
 
   it('preserves a previous APP_VERSION entry across a new release', async () => {
