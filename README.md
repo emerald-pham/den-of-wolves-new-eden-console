@@ -53,6 +53,10 @@ work. Shared vessel composition belongs to the
 surfaces. Do not treat the documents under `docs/reference/` as editable design
 guidance: they are the source library for game rules.
 
+The [preserved-in-amber rollback anchor](docs/PRESERVED_IN_AMBER.md) is an
+immutable recovery ref for automated changes to `main`. It must not be deleted
+or moved.
+
 ## Quick start
 
 ```bash
