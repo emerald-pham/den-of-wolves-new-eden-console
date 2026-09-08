@@ -16,6 +16,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.3.6',
+    changes: [
+      'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',
+    ],
+  },
+  {
     version: '0.3.5',
     implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],
     changes: [
