@@ -6,6 +6,7 @@ import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
+import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -88,6 +89,10 @@ describe('App', () => {
     window.location.hash = '#/';
     useSessionStore.getState().reset();
     localStorage.clear();
+    localStorage.setItem(MOTION_SAFETY_STORAGE_KEY, JSON.stringify({
+      acknowledgedAt: Date.now(),
+      choice: 'reduce',
+    }));
     localStorage.setItem(SESSION_WAIVER_STORAGE_KEY, String(Date.now()));
     vi.mocked(startVersionUpgradeMonitor).mockClear();
     vi.mocked(disconnectFromSession).mockImplementation(async () => {
@@ -107,6 +112,24 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: /Den of Wolves: New Eden/i }),
     ).toBeInTheDocument();
+  });
+
+  it('requires a motion choice before exposing the game interface', async () => {
+    localStorage.removeItem(MOTION_SAFETY_STORAGE_KEY);
+    render(<App />);
+
+    expect(screen.getByRole('dialog', { name: /motion safety check/i })).toBeVisible();
+    expect(screen.getByRole('heading', {
+      name: /Den of Wolves: New Eden/i,
+      hidden: true,
+    }).closest('[aria-hidden="true"]')).not.toBeNull();
+    expect(connect).not.toHaveBeenCalled();
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /normal motion/i }));
+
+    expect(screen.queryByRole('dialog', { name: /motion safety check/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Den of Wolves: New Eden/i })).toBeVisible();
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
   });
 
   it('automatically logs out GM access after the safety timeout', async () => {

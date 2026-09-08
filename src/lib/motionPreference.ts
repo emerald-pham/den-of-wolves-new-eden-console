@@ -1,13 +1,51 @@
-import { useEffect, useState } from 'react';
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
 
 export type MotionOverride = 'system' | 'reduce' | 'full';
 
 const STORAGE_KEY = 'new-eden-motion-override';
 const CHANGE_EVENT = 'new-eden-motion-preference';
 
+interface MotionPreferenceScopeValue {
+  readonly forceReducedMotion: boolean;
+  readonly safetyOverride: MotionOverride | null;
+}
+
+const MotionPreferenceScope = createContext<MotionPreferenceScopeValue>({
+  forceReducedMotion: false,
+  safetyOverride: null,
+});
+
+export function MotionPreferenceProvider({
+  children,
+  forceReducedMotion = false,
+  safetyOverride = null,
+}: MotionPreferenceScopeValue & { readonly children: ReactNode }) {
+  return createElement(
+    MotionPreferenceScope.Provider,
+    { value: { forceReducedMotion, safetyOverride } },
+    children,
+  );
+}
+
+export function useMotionSafetyGatePending(): boolean {
+  return useContext(MotionPreferenceScope).forceReducedMotion;
+}
+
 const readOverride = (): MotionOverride => {
   const value = window.localStorage.getItem(STORAGE_KEY);
   return value === 'reduce' || value === 'full' ? value : 'system';
+};
+
+export const hasMotionOverride = (): boolean => {
+  const value = window.localStorage.getItem(STORAGE_KEY);
+  return value === 'reduce' || value === 'full';
 };
 
 export const systemPrefersReducedMotion = (): boolean =>
@@ -24,6 +62,7 @@ export const useMotionPreference = (): {
   readonly systemReducedMotion: boolean;
   readonly reducedMotion: boolean;
 } => {
+  const { forceReducedMotion, safetyOverride } = useContext(MotionPreferenceScope);
   const [override, setOverride] = useState<MotionOverride>(readOverride);
   const [systemReducedMotion, setSystemReducedMotion] = useState(systemPrefersReducedMotion);
 
@@ -39,9 +78,13 @@ export const useMotionPreference = (): {
     };
   }, []);
 
+  const effectiveOverride = safetyOverride ?? override;
+
   return {
-    override,
+    override: effectiveOverride,
     systemReducedMotion,
-    reducedMotion: override === 'reduce' || (override === 'system' && systemReducedMotion),
+    reducedMotion: forceReducedMotion
+      || effectiveOverride === 'reduce'
+      || (effectiveOverride === 'system' && systemReducedMotion),
   };
 };
