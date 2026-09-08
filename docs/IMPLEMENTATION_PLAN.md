@@ -235,9 +235,10 @@ private card visibility and resource/reward persistence.
 
 ### Milestone 8 — Operate and reunite a split fleet safely
 
-**Given** one or more ships jump away while others remain behind, **then** each
-group has its own location and pursuit state, local DRADIS shows only the
-contacts that have arrived in that group, cross-group communication is blocked,
+**Given** one or more ships jump away while others remain behind, **when** the
+split state is created, **then** each group has its own location and pursuit
+state, local DRADIS shows only the contacts that have arrived in that group,
+cross-group communication is blocked,
 and no view silently exposes the other group's position. A legal scout taxi can
 carry at most two players or two strytium fuel for a round trip, and a later
 rejoin is authoritative, logged and visible to the reunited group.
