@@ -23,6 +23,86 @@ Evidence paths are repository-relative. A test target names the test that must
 be added or extended when the current evidence is not enough. `index.ts`
 below means `functions/src/index.ts`.
 
+## Preserve-first, aesthetic, and interaction gate
+
+Every new or changed slice must carry an existing-app evidence dossier and
+reuse map before design: current routes and UI flows; reusable components,
+styles, and tokens; domain/schema and canonical IDs; callable, rules,
+authentication, and audit paths; tests, fixtures, emulator stories, printed
+references, changelog/Git provenance; responsive, keyboard, screen-reader, and
+reduced-motion behavior; and all affected cross-system data/control flows.
+Record assumptions and unresolved questions, add characterization coverage for
+retained behavior, and prove the composed user journey before introducing a
+new surface. The Press recovery dossier specifically preserves the history
+`71b5ad7` → `9c48e5d` → `dced782`, identifies release 0.3.4 at `1418146` as
+the last default-working point and direct parent of `9d68158`, and records
+`e5aca326` as the counted-readiness conflict.
+
+The Capybara rules and roster rows are source-derived from printed v1.1
+material; their CIC presentation remains a product contract. Press is the
+separate New Eden Console product extension outside that printed source and
+must never be used to fill a Capybara core row. The aesthetic gate maps every
+affected surface to `docs/AESTHETICS.md` before
+tests are called complete. It preserves CIC hierarchy, state colors and exact
+copy semantics, complete DRADIS viewport containment, 44px controls,
+keyboard/screen-reader behavior, motion safety, and `prefers-reduced-motion`,
+with representative evidence at 320x844, 1440x900, 844x390, and reduced
+motion. Prompt 275a applies this to ConnectionIndicator, the Independent
+Stations Press toggle/card/console, and DRADIS labels; an intentional visual
+deviation requires a necessity rationale.
+
+The minimum interaction-contract matrix is recorded in the plan and is
+repeated here as a ledger rule: Press must explicitly mark its participation
+or exclusion for star maps/navigation/routes/distance, docking/transit/
+airspace, DRADIS naming/projection/privacy, Turn 0/Turn 1/phases/timing,
+canonical role/session/ship/shuttle names and IDs, authoritative callables/
+rules/auth/audit, broadcasts/transmissions, damage/resources/capacity,
+reconnect/replay, accessibility/aesthetics, and multiple GMs. Capybara's
+future slice must make the same matrix for full ship/stations integration.
+No feature may ship as an isolated widget: each participating row needs a
+composed acceptance/regression story and authoritative evidence, while each
+intentional exclusion names the preserved behavior and reason.
+
+For Press readiness specifically, an enabled but unclaimed Press never blocks
+start. A claimed Press holder has a separate Press assignment/private loyalty
+and remains eligible for the preserved Wolf assignment contract, but does not
+change core N or add a third Wolf. A GM player may also claim Press while
+holding a core role; a GM-only instance is not a Press holder. Multiple GM
+instances consume neither core nor Press occupancy.
+
+## Automation-first, intervention-rich facilitator contract
+
+The printed source assumes two fixed facilitator responsibilities. The New
+Eden Console deliberately extends that operating model: one authorized GM must
+be able to run every routine path, while multiple simultaneous GMs remain
+optional collaborators. Readiness, alerts, acknowledgements, or workload may
+not require a second person or a stale additional GM instance.
+
+Whenever a player would hand a facilitator a value, roll, count, distance,
+damage, resource, time, or modifier, the authoritative server owns all
+deterministic arithmetic, validation, randomness, mutation, and reconciliation.
+The audience-correct calculation receipt records entered inputs, cited
+source/rule and version, ordered modifiers, computed result, resulting
+before/after deltas, command/idempotency key, expected/committed revision,
+actor, turn/phase, server time, and linked audit event. A facilitator never has
+to duplicate a calculation or transcribe a result between screens.
+
+The automatic happy path is paired with intervention-rich GM controls: pause,
+inspect, reasoned override, correction, and recovery where the rules allow it.
+Every intervention is a server-authorized command with a required reason,
+scoped before/after delta, expected revision, idempotency key, audit/replay,
+and bounded rollback/recovery. High-impact changes use the existing danger-red
+second-click `ARE YOU SURE?` confirmation. Competing GM commands commit once
+and return a safe stale/idempotent result. Genuine hidden choices and rule
+ambiguities remain player/facilitator decisions until explicitly configured;
+automation must not invent or leak them.
+
+Each receipt/intervention surface maps to `docs/AESTHETICS.md`: CIC hierarchy
+and semantics, 44px controls, keyboard and screen-reader operation, live
+pending/rejected/committed state, non-color cues, narrow/short viewports, and
+reduced motion. The one-GM fixture is mandatory before the optional multi-GM
+race fixture.
+
 ## 1. Source and ambiguity ledger — Prompt 003
 
 The source map in the plan is authoritative for routing. Printed ship,
@@ -35,13 +115,13 @@ and resulting state.
 
 | ID | Source evidence | Decision or block | Implementation consequence |
 |---|---|---|---|
-| `AMB-01` | `docs/IMPLEMENTATION_PLAN.md` known-reference-ambiguities section; `docs/reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_SHIPS.md`; `REFERENCE_ONLY_CAPYBARA_EXPANSION.md` | Treat Refinery 124 Water Reclamation as `5♦` by elimination. Treat the Capybara Scrap Refinery as `7♠`; retain the stray `5♦` as errata. | Do not infer either card from a generic card-number lookup. Catalog entries and tests must carry the decision/errata note. |
+| `AMB-01` | `docs/IMPLEMENTATION_PLAN.md` known-reference-ambiguities section; rendered visual reference; `docs/reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_SHIPS.md`; `REFERENCE_ONLY_CAPYBARA_EXPANSION.md` | Treat Refinery 124 Water Reclamation as `5♦` by elimination. The Capybara Scrap Refinery is visibly and authoritatively `7♠`; the extracted `5♦` is a hidden OCR/text-layer overlap with the Damage label, not printed gameplay text. | Do not infer either card from a generic card-number lookup. Catalog entries and tests carry the Water Reclamation decision; the hidden extraction remains provenance-only and cannot create a Scrap rules ambiguity. |
 | `AMB-02` | `docs/IMPLEMENTATION_PLAN.md`; `REFERENCE_ONLY_SHUTTLES.md` | Copied shuttle names on Wobbly/Condor and Ally/Philia/Chacau sheets are not identity evidence. The ability belongs to the actual sheet and vessel ID. | Resolve by stable vessel/shuttle ID and printed sheet, not display-name matching. Add a fixture with copied names and distinct IDs. |
 | `AMB-03` | `docs/IMPLEMENTATION_PLAN.md`; `REFERENCE_ONLY_WOLF_ATTACKS.md` | Wolf Commander Boarding Action text is incomplete. The consequence is a facilitator adjudication, not an invented automatic effect. | Block a fully automatic boarding resolution. Expose a facilitator decision record with source excerpt/reference, chosen consequence, actor, and audit event. |
 | `AMB-04` | `docs/IMPLEMENTATION_PLAN.md`; `REFERENCE_ONLY_SHIPS.md` | AEGIS Omega badge/order conflicts with a body label. Numbered order and the 1–7 maintenance flow win. | Keep the conflict in errata. Tests should assert numbered order and reject a body-label-only implementation. |
 | `AMB-05` | `REFERENCE_ONLY_SHIPS.md`; `REFERENCE_ONLY_CAPYBARA_EXPANSION.md`; `src/data/vessels/capybara.ts`; `src/data/rolePresets.ts` | Base Capybara and expansion Capybara are different modes. They must not share population, damage, jump, resource, targeting, maintenance, role, or shuttle rules by convenience. | Configuration must select one mode before casting and persist that mode. A mixed-mode payload is invalid. |
 | `AMB-06` | `docs/IMPLEMENTATION_PLAN.md`; `REFERENCE_ONLY_CAPYBARA_EXPANSION.md` | Empty expansion damage deck, Boa targeting after destruction, and Macaw dismantling its own console are under-specified. | These remain blocked until a facilitator/product decision is recorded. No UI control may imply an automatic result. |
-| `AMB-07` | `docs/IMPLEMENTATION_PLAN.md` “Decisions required before affected implementation” | Game scope for base/Capybara/other extra ships and the 8–18 versus 20-player presentation is unresolved. | Treat supported player count, expansion mode, and active roster as immutable setup inputs. Reject unsupported combinations before writes. |
+| `AMB-07` | `docs/IMPLEMENTATION_PLAN.md` “Decisions required before affected implementation”; owner decision 2026-09-08 | Core casting supports 8–20 with the source-authoritative Capybara expansion. Rows 19/20 are settled as printed base-17/base-18 plus the atomic Captain/Recycler pair and both have two Wolves; exact lower-count 8–18 Capybara substitution rows remain unresolved. Optional Press may be the non-counting twenty-first player and GM instances count toward neither. | Persist player count, expansion mode, active core roster, optional `pressEnabled`, and GM authority separately. Reject stale counted-Press 19/21 presets and unsupported lower-count expansion combinations; never invent a substitution matrix. |
 | `AMB-08` | Same plan section; `functions/src/index.ts` event-writing paths | Random source, audit shape, replay policy, and facilitator visibility for dice, damage, Wolf composition, suspicion, and mission cards are not one shared contract. | Existing random calls are not evidence of a complete random/replay contract. Add a server-owned random seam and event envelope before broadening hidden-state actions. |
 | `AMB-09` | Same plan section; `src/lib/firestore.ts`; `firestore.rules` | Hidden-information visibility across loyalty, investigation, Wolf, chart, mission, candidate, GM, observer, and facilitator views is not fully centralized. | Use the projection table below as the target contract. Until implemented, a new secret collection or snapshot field needs an explicit rules test. |
 | `AMB-10` | Same plan section; `functions/src/turnZero.ts`; navigation/pursuit tests | Split-fleet pursuit, communication restriction, rescue taxi, and rejoin semantics are not defined as one state model. | Do not expose split-fleet controls based only on coordinate filtering. Add group-local projections and a rejoin decision first. |
@@ -206,10 +286,10 @@ composition or hidden-state story is complete.
 | 048 | verified | `src/routes/GmConsole.test.tsx`, `functions/src/gmSessionCallable.test.ts`, and GM controls tests. |
 | 049 | verified | `functions/src/gmControlsLock.test.ts` and GM route behavior. |
 | 050 | verified | `src/routes/RoleSelect.test.tsx`, `src/routes/GmConsole.test.tsx`, and navigation/session tests. |
-| 051 | verified | `src/data/rolePresets.test.ts` and `functions/src/roleConfiguration.test.ts` assert exact ordered printed rows for every supported count 8–18, reject Press/Capybara convenience roles, and preserve 19–21 expansion rows separately; `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts` prove the selected roster reaches authoritative readiness/start. |
+| 051 | partial | Existing client/server preset and start tests prove the printed 8–18 base rows only. Earlier green 19/21 counted-Press rows are contract drift and cannot satisfy the owner-set 19/20 Capybara core contract. Target production-path creation, hydration, casting, readiness, start, and reconnect proof with exact high rows, optional non-counting Press, and one/optional-multiple GMs. |
 | 052 | verified | Dione role/data gating in `functions/src/roleConfiguration.ts`, `src/data/rolePresets.test.ts`, and Dione-related callable tests. |
 | 053 | verified | `functions/src/roleConfiguration.test.ts` and role preset tests cover Union substitutions. |
-| 054 | verified | `functions/src/wolfAssignment.test.ts` and `functions/src/wolfAssignment.ts`. |
+| 054 | partial | `functions/src/wolfAssignment.test.ts` and `functions/src/wolfAssignment.ts` prove a helper/assignment primitive, not an automatic production-path count. Target server derivation from locked 8–20 core state, two Wolves for 19/20, optional claimed-Press eligibility without a third Wolf, and a setup calculation receipt. |
 | 055 | missing | No dedicated Intelligence Agent setup authority/private projection was found. Target `loyaltySetupCallable.test.ts`. |
 | 056 | missing | No complete Universal Arbour/Wolf Cult setup authority was found. Target optional-loyalty configuration test. |
 | 057 | partial | `functions/src/gameSetup.ts`, `functions/src/gameSetup.test.ts`, `functions/src/requestGuards.ts`, and `src/types/game.ts` validate/store modes; casting lock and base/expansion setup composition remain absent. |
@@ -226,9 +306,9 @@ composition or hidden-state story is complete.
 | 068 | verified | `functions/src/shuttlecraft.test.ts`, `src/data/shuttles.test.ts`, and role/vessel catalogs provide printed ownership primitives; full start composition remains a target. |
 | 069 | partial | `src/data/printedPopulation.test.ts`, `functions/src/resources.test.ts`, and ship population callables cover catalogs/current state; one authoritative start initializer for every active mode is missing. |
 | 070 | partial | security/resource primitives exist in `functions/src/resources.ts` and callable tests; printed start initialization across all rosters is not composed. |
-| 071 | verified | `readinessForSetup` and `startGame` consume connected players, assignments, loyalty records, facilitator responsibilities, active roles, and vessels; `functions/src/startCallable.test.ts` covers precise blocked reasons. |
+| 071 | partial | `readinessForSetup` and `startGame` provide precise base blocked reasons, but current proof encodes obsolete separate main/assistant staffing and does not compose the owner-set 8–20 core, optional Press, or single-facilitator readiness. Target one-GM start plus optional multi-GM/non-counting Press fixtures. |
 | 072 | verified | `startGame` sets `configurationLocked`; `requireCastingWindow` makes preference, assignment, release, and loyalty callables reject afterward. Preference lock and start tests cover the boundary. |
-| 073 | verified | `setFacilitatorResponsibility` and `startGame` require distinct `main` and `assistant` responsibilities; `functions/src/startCallable.test.ts` covers the representation. |
+| 073 | partial | `setFacilitatorResponsibility` and current start tests encode the obsolete requirement for distinct main/assistant holders. Preserve the responsibility labels but repair authority/readiness so one GM may assume both and optional additional GMs can claim or hand off lanes without blocking play. |
 | 074 | verified | `startGame` requires an active GM instance owned by the authenticated caller through `requireFacilitatorInstance`; the start callable test exercises the authorized path. |
 | 075 | partial | `startGame` atomically transitions to active Turn 1, locks setup, starts timers, initializes pursuit, writes the start result and event; full deck/craft/resource composition remains a target. |
 | 076 | verified | `sessionStartRequests/{sessionId}_{requestId}` stores the start reply and `functions/src/startCallable.test.ts` proves a retry returns it without another mutation. |

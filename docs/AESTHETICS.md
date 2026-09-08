@@ -99,6 +99,55 @@ The rest is prose because the rest needs eyes: whether a screen is dense with
 real values or busy with fake ones, whether motion is a machine working or an
 interface performing, is not something a regular expression can tell you.
 
+### Slice conformance gate
+
+Before tests are treated as complete for any new or changed feature, the
+implementation record must map the affected surfaces to this document and
+include representative visual and accessibility evidence. Preserve the CIC
+hierarchy, state colors, exact copy semantics, viewport containment, keyboard,
+touch, screen-reader and non-color cues, 44px touch targets, and
+motion/reduced-motion behavior at `320x844`, `390x844` where the ship gate
+uses it, `1440x900`, and `844x390`, including a
+`prefers-reduced-motion` pass. Review intact/damaged and pending/rejected
+states plus reconnect and return paths. An intentional deviation needs a
+necessity rationale and a named interaction contract; a new control is not
+complete as an isolated widget.
+
+For the Prompt 275a Press recovery, the required mapping is concrete:
+ConnectionIndicator uses the established connection copy/state treatment;
+Independent Stations Press toggle, card, and console reuse the shared CIC and
+shuttle patterns; and DRADIS labels keep complete fleet/shuttle names inside
+the plot at every edge. The evidence must also show the composed route,
+projection/privacy, reconnect, multiple-GM, and reduced-motion behavior rather
+than only a static component rendering.
+
+### Calculation receipts and facilitator interventions
+
+The New Eden Console is automation-first and intervention-rich. A single
+facilitator can run routine deterministic play without doing arithmetic or
+copying results between screens; additional GMs remain optional collaborators.
+Every automatic result uses the established CIC instrument language: amber
+structure, cyan measured values, bone explanatory copy, square hairline rows,
+and explicit non-color state. Show entered inputs, cited rule/source, ordered
+modifiers, computed result, and before/after mutations in one readable receipt;
+do not hide required arithmetic behind hover, animation, another screen, or an
+uncited total.
+
+Keep the automatic happy path visually primary. `PAUSE`, `INSPECT`, `OVERRIDE`,
+and `CORRECT` are distinct GM controls with a required reason, visible scoped
+delta, revision/idempotency status, and audit/recovery result. High-impact
+interventions reuse the danger-red second-click `ARE YOU SURE?` pattern. Show
+pending, rejected/stale, committed, and recovered states with text and icons as
+well as color; concurrent-GM conflicts identify the committed result without
+discarding the losing GM's input.
+
+Receipt and intervention evidence includes a one-GM keyboard/screen-reader
+walkthrough and a two-GM race, 44px targets, visible focus, concise live status,
+and complete content at `320x844`, `390x844` where applicable, `1440x900`, and
+`844x390` under normal and reduced motion. Genuine hidden choices and
+facilitator rulings remain clearly labeled decisions rather than fake
+automation.
+
 ### Installed app icon
 
 The installed New Eden Console uses a static DRADIS ball for its browser
@@ -176,7 +225,9 @@ visible without relying on colour or movement alone.
 Arrival readouts show a value with its descriptive label underneath: SHIPS IN
 CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, WOLVES AMONG US, and POPULATION
 ESTIMATE AFTER INITIAL STARVATION, in that order. PERSONNEL GRANTED CIC DATA
-ACCESS is the 8–21 player-held posts—not the roughly 200,000 souls in the fleet.
+ACCESS is the 8–20 core player-held posts, plus a separate optional Press
+Officer post when Press is enabled and claimed—not the roughly 200,000 souls
+in the fleet.
 Keep these labels visible at every viewport size. Hide the sequences of possible
 numbers; do not confuse those sequences with the descriptive labels. Do not
 show a SCENARIO SIGNAL footer. Avoid other franchise-specific terminology
@@ -579,6 +630,12 @@ ships. It specifies identity statistics, census survivor steps, capacity
 warnings and GM threshold alerts, implemented for Capybara and reusable as
 other ships receive their own specifications.
 
+The Capybara rules and labels follow the printed v1.1 source; their CIC
+presentation follows this product contract. Future Macaw and Boa surfaces may
+show only authoritative values that the domain and printed sheet actually
+hold. Do not invent speed, fuel, heading, ETA, occupancy, or other telemetry
+to fill an unfinished module.
+
 Capacity-warning triangles are compact visual marks with 44px interaction
 targets. Hover, keyboard focus and tap reveal the same bordered CIC tooltip;
 crew-side copy opens inward from the left and passenger-side copy opens inward
@@ -870,7 +927,8 @@ assistive technology.
 Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 5/6.5/8 seconds.
 SHIPS IN CONVOY alternates between 6 and 7, while PERSONNEL GRANTED CIC DATA
-ACCESS draws from 8–21;
+ACCESS draws from 8–20 core posts; an enabled/claimed Press Officer is a
+separate extension and does not change the core readout;
 WOLVES AMONG US walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
 is already showing: a readout that "changes" to what it already reads looks like
 a panel that has stopped working.
@@ -998,7 +1056,9 @@ than the ordinary ship-role checklist. It appears only in its printed low-count
 roster rows (8/9/14/15 as applicable) after both paired Engineer roles are
 absent, and it disappears again when the replacement condition no longer
 holds. Wobbly and Ally are reported as part of that confirmed Union station,
-never as ordinary 20/21-player craft. While a draft is unconfirmed,
+never as ordinary Capybara-expanded roster entries. The core roster ends at 20;
+an enabled and claimed Press station is a separate optional twenty-first
+extension, not a core craft. While a draft is unconfirmed,
 wolf-assignment controls remain visibly unavailable so a GM cannot assign
 against a roster that has not yet reached the server.
 
@@ -1053,12 +1113,15 @@ compact: SNN’s monospaced lettering must never be clipped at the bottom edge.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. SNN Press is an added independent station rather than a printed
-roster slot, so the `Independent stations` group always presents its shuttle
-and Press Officer route after a player joins without changing the printed
-setup count. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
-and publishes through server authority with exclusive live role ownership and
-revision checks. The current copy remains visible on the desk; other shuttle
-viewers may see the instrument but cannot transmit from it.
+roster slot. New and legacy missing-field sessions enable it by default; the
+`Independent stations` group presents its shuttle and Press Officer route only
+while authoritative `pressEnabled` is true, without changing the printed
+setup count. When disabled, discovery, role claim/presence/reconnect, and Press
+actions are absent or truthfully denied. When enabled, the desk presents a
+fixed `SNN //` prefix, accepts a concise dispatch, and publishes through server
+authority with exclusive live role ownership and revision checks. The current
+copy remains visible on the desk; other shuttle viewers may see the instrument
+but cannot transmit from it.
 
 Press, stand-down, and the Admiral’s active warning remain uppercase. Every
 active Admiral warning starts `ICSN ADMIRAL //`, including edited copy; the

@@ -47,7 +47,9 @@ This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **68 / 705 prompts done, 26 partial, and 611 missing**.
+- The ledger reports **62 / 710 prompts done, 33 partial, 614 missing, and 1
+  in progress** after reopening stale staffing/roster evidence and adding the
+  five dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.
 - No complete production route currently resolves an away mission, Wolf
@@ -271,9 +273,9 @@ to the first slice that exposes each surface:
 
 ## Review budget and evidence reuse
 
-The 2026-09-08 audit found 219 evidence-oriented prompts (168 `[PRESERVE]` plus
-51 `[PROVE]`) in the 705-prompt catalog. They protect real contracts, but they
-must not create 219 independent review ceremonies.
+The 2026-09-08 audit found 213 evidence-oriented prompts (163 `[PRESERVE]` plus
+50 `[PROVE]`) in the 710-prompt catalog. They protect real contracts, but they
+must not create 213 independent review ceremonies.
 
 Use this review budget for a normal slice:
 

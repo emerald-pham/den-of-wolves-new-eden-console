@@ -1,9 +1,11 @@
-# Implementation Plan Progress — All 705 Prompts
+# Implementation Plan Progress — All 710 Prompts
 
-This tracker records all 705 canonical prompt IDs in
+This tracker records all 710 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[NEW]`, `[PROVE]`, or
-`[DECISION]` acceptance has been fully satisfied with named evidence. The
+`[DECISION]` acceptance has been fully satisfied with named evidence. A
+`[DEFERRED-OWNER]` prompt remains missing until the owner explicitly activates
+and accepts it. The
 completed count is deliberately non-sequential: later prompts may be complete
 while an earlier prompt remains partial or missing.
 
@@ -13,15 +15,15 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**68 / 705 prompts complete (10%)**
+**62 / 710 prompts complete (9%)**
 
-Status breakdown: **68 done · 26 partial · 610 missing · 1 in-progress**.
+Status breakdown: **62 done · 33 partial · 614 missing · 1 in-progress**.
 
-Active prompt: **275a**.
+Active prompt: **Prompt 275a**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
-that only that many prompts have been completed. In this snapshot, Prompt 012
+that only that many prompts have been completed. In this snapshot, Prompt 004
 is the first unresolved prompt even though later prompts are already complete.
 
 `[██░░░░░░░░░░░░░░░░░░]`
@@ -94,7 +96,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | done | feature | 0.3.9 | Supported-count policy: printed artifact decision `AMB-13` plus the exact ordered 8–18 role, vessel, Union, Dione, and Wolf matrix in `src/data/rolePresets.test.ts`, `functions/src/roleConfiguration.test.ts`, and `functions/src/gameSetup.test.ts`. |
+| 004 | partial | feature | 0.3.9 | The printed artifact decision `AMB-13` and exact ordered 8–18 base role, vessel, Union, Dione, and Wolf matrix remain evidenced in existing tests. The target is now settled but not implemented: 19 = printed base-17 plus atomic Capybara Captain/Recycler, 20 = printed base-18 plus the pair, both with two Wolves; lower-count expansion substitutions remain undecided, and Press/GM instances must not count. Current runtime omits 19 and therefore cannot claim inclusive 8–20 support. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -111,7 +113,7 @@ release classification and evidence.
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
-| 021 | done | feature | 0.3.5 | `requestGuards.test.ts`, `gameSetup.test.ts`, and `createSessionCallable.test.ts`. |
+| 021 | partial | feature | 0.3.5 | Existing request guards cover the printed/base 8–18 inputs in `requestGuards.test.ts`, `gameSetup.test.ts`, and `createSessionCallable.test.ts`; owner-revised 8–20 Capybara core validation, optional Press separation, and multiple-GM composition require a new migration-safe contract. |
 | 022 | partial | feature | 0.3.5 | Atomic creation path and direct test exist; standardized envelope event is still open. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
 | 024 | done | non-feature | — | `joinSessionCallable.test.ts` and rules tests. |
@@ -141,10 +143,10 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | done | feature | 0.3.9 | Production-path use of the Prompt 004 matrix: create/apply/start persists the selected row, rejects a convenience or short roster, and requires one assignment per active role in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; the combined focused Prompt 004/051 run passed 46 tests across five files. |
+| 051 | partial | feature | 0.3.9 | Production-path create/apply/start evidence still covers the exact printed 8–18 base matrix and rejects convenience/short rosters in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; owner-revised 8–20 Capybara core composition remains open, so the earlier 46-test green run is not completion evidence for that target. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
-| 054 | done | non-feature | — | Wolf count/assignment tests. |
+| 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover a helper and the printed 8–18 base matrix, not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
 | 055 | missing | non-feature | — | Intelligence Agent gating is not yet explicit. |
 | 056 | missing | non-feature | — | Universal Arbour/Wolf Cult setup is not yet explicit. |
 | 057 | partial | feature | 0.3.5 | Base/expansion/none configuration validation exists; full lock/composition remains open. |
@@ -161,11 +163,11 @@ release classification and evidence.
 | 068 | partial | non-feature | — | Printed craft ownership primitives exist; start composition remains open. |
 | 069 | partial | non-feature | — | Population/resource catalogs exist; one start initializer is still open. |
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
-| 071 | done | feature | 0.3.5 | Readiness policy and `startCallable.test.ts` precise reasons. |
+| 071 | partial | feature | 0.3.5 | Existing readiness policy and `startCallable.test.ts` precise reasons cover the printed/base matrix but encode stale staffing assumptions. One-GM readiness, owner-set 8–20 core, optional enabled/claimed/unclaimed Press, and optional multiple GM instances need composed evidence. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
-| 073 | done | feature | 0.3.5 | Main/assistant responsibility callable and readiness test. |
+| 073 | partial | feature | 0.3.5 | Main/assistant responsibility storage exists, but current tests enshrine the obsolete requirement for distinct holders. Repair readiness so one GM can assume both while optional additional GMs can collaborate without blocking start. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
-| 075 | partial | feature | 0.3.5 | Atomic Turn 1/lock/timer/pursuit/event start exists; decks/craft/resources remain open. |
+| 075 | partial | feature | 0.3.5 | Atomic Turn 1/lock/timer/pursuit/event start exists; automatic Wolf/loyalty composition, complete decks/craft/resources, one-GM setup receipt, and alert ownership remain open. |
 | 076 | done | non-feature | — | Durable start request replay test. |
 | 077 | partial | feature | 0.3.5 | Start initializes fleet pursuit at 2; split-group pursuit remains open. |
 | 078 | done | feature | 0.3.5 | Six-to-eight validation and start configuration lock. |
@@ -226,7 +228,7 @@ release classification and evidence.
 | 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 132 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 133 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 134 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 134 | missing | non-feature | — | Planned [REPAIR] prompt: current alerts can require every GM instance and let a stale optional GM deadlock maintenance. One-GM ownership/unblock, informational additional-GM delivery, stale-instance expiry, and one-winner acknowledgement remain open. |
 | 135 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 136 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 137 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -368,7 +370,7 @@ release classification and evidence.
 | 249 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 250 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 251 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 252 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 252 | missing | non-feature | — | Planned [EXTEND]/[REPAIR] prompt; no production-path evidence has been recorded yet. The owner-revised 8–20 Capybara core target, source-defined substitution matrices, and Press/multiple-GM orthogonality must be composed without relying on stale 19/21 presets. |
 | 253 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 254 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 255 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -392,7 +394,7 @@ release classification and evidence.
 | 273 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 275a | in-progress | feature | 0.3.10 | Delivering the independent SNN Press role and shuttle selection with the same release's required connection-copy and DRADIS-label regressions. |
+| 275a | in-progress | feature | 0.3.10 | Failing-first surface records Press/default-discovery, dedicated enable/disable, server denial/unique stale claim, 20-core-plus-Press/multiple-GM separation, exact connection copy, and DRADIS containment. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. |
 | 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -470,7 +472,7 @@ release classification and evidence.
 | 349 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 350 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 351 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 352 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 352 | partial | non-feature | — | Current transition presentation/data exists, but no composed authoritative departure/arrival projection proves it. Planned [EXTEND] prompt. |
 | 353 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 354 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 355 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -558,8 +560,12 @@ release classification and evidence.
 | 430 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 431 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 432 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 432a | missing | non-feature | — | Planned [EXTEND] one-GM GM-console declare/advance/pause/inspect/resume prompt; no playable attack control composition exists yet. |
 | 433 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 433a | missing | non-feature | — | Planned [NEW] stable DRADIS-ready attack endpoint/event schema, privacy, reconnect, and projection contract; no attack visualization is implied. |
+| 433b | missing | non-feature | — | Planned [EXTEND] affected-player-console choices/results prompt; existing consoles do not yet resolve a playable attack. |
 | 434 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 434a | missing | non-feature | — | Planned [EXTEND] reasoned CAS/idempotent danger-confirmed intervention/recovery/audit prompt; no composed attack override path exists yet. |
 | 435 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 436 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 437 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -604,18 +610,18 @@ release classification and evidence.
 | 471 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 472 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 473 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 474 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 475 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 476 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 477 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 474 | missing | non-feature | — | Planned [EXTEND] crew/broadcast projection prompt; existing surfaces are not composed with attack results. |
+| 475 | missing | non-feature | — | Planned [EXTEND] prompt reusing the authoritative damage primitive for combat. |
+| 476 | missing | non-feature | — | Planned [EXTEND] prompt reusing authoritative deck-exhaustion catastrophe handling. |
+| 477 | missing | non-feature | — | Planned [EXTEND] prompt reusing population/threshold primitives for combat casualties. |
 | 478 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 479 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 480 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 481 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 482 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 482 | missing | non-feature | — | Planned [EXTEND] prompt: existing damage/correction and craft catalogs do not yet compose ordinary post-attack repair. |
 | 483 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 484 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 485 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 484 | missing | non-feature | — | Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. |
+| 485 | missing | non-feature | — | Planned [REPAIR]/[EXTEND] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure. |
 | 486 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 488 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
@@ -655,7 +661,7 @@ release classification and evidence.
 | 521 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 521b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 522 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 522 | missing | non-feature | — | Planned [REPAIR] prompt: current distinct main/assistant staffing must become one-GM ownership with optional multi-GM lanes/handoff and no stale-instance deadlock. |
 | 523 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523a | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 523b | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
@@ -702,7 +708,7 @@ release classification and evidence.
 | 559 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 560 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 561 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 562 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 562 | missing | non-feature | — | Planned [NEW] prompt: aggregate only authoritative survivor ledgers and exclude theatrical announcement adjustments. |
 | 563 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 564 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 565 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -741,13 +747,14 @@ release classification and evidence.
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 598 | done | feature | 0.3.6 | `src/components/AppHeader.tsx` and focused tests now derive connected/offline/stale state from real signals; this landed behavior is tracked directly under Prompt 598. |
-| 599 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 605 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |
 | 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 608 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -780,11 +787,11 @@ release classification and evidence.
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 637 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 638 | missing | non-feature | — | Planned [EXTEND] prompt: authoritative session setup still supports only 8–18, so the base/expansion count policy and a real 20-player run both remain open. |
+| 638 | missing | non-feature | — | Planned [EXTEND] prompt: current runtime supports 8–18 and 20 but omits owner-set 19, so it cannot claim inclusive 8–20. One-GM 20-core, optional Press-21, multiple-GM, reconnect/action, and measured evidence remain open. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 641 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 642 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 641 | missing | non-feature | — | Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races. |
+| 642 | missing | non-feature | — | Planned [PROVE] one-GM complete Capybara playthrough with optional independent Press and multi-GM race proof. |
 | 643 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 644 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 645 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
@@ -792,19 +799,19 @@ release classification and evidence.
 | 647 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 648 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 649 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 650 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 650 | missing | non-feature | — | Planned [PROVE] prompt: authoritative pursuit/outcome must drive terminal failure; current client presentation cannot freeze or end play. |
 | 651 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 652 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 
 ## Working notes
 
-- Started from commit `1418146` on branch
-  `chore/execute-plan-100-prompts-20260907`.
+- Historical audit records release 0.3.4 at commit `1418146` as the last
+  default-working release point and direct parent of regression `9d68158`.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and
+- Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance and
   the default triage suggestion, not a dependency or concurrency lock. Prompt
   020 is the first missing production-path composition proof after the
   documented preserve contracts.
