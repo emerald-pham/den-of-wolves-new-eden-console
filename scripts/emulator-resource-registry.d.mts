@@ -10,6 +10,7 @@ export interface CoordinationReservation {
   readonly worktree: string;
   readonly kind: string;
   readonly pid: number;
+  readonly childPid?: number;
   readonly command: string;
   readonly claimedAt: string;
   readonly ports?: readonly number[];
@@ -24,10 +25,26 @@ export interface CoordinationEntry {
   readonly branchName?: string;
   readonly startBranchSha?: string;
   readonly startMainSha?: string;
+  readonly repositoryRoot?: string;
   readonly intent: string;
   readonly versionPlan: string;
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
+  readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
+  readonly scopes?: readonly string[];
+  readonly claims?: readonly string[];
+  readonly outcome?: 'landed' | 'preserved' | 'discarded';
+  readonly preservation?: {
+    readonly kind: 'remote-ref';
+    readonly destination: string;
+    readonly commitSha: string;
+    readonly verifiedAt: string;
+  };
+  readonly discard?: {
+    readonly reason: string;
+    readonly branchSha: string;
+    readonly changedFiles: readonly string[];
+  };
   readonly completedAt?: string;
   readonly result?: string;
   readonly finalBranchName?: string;
@@ -139,6 +156,10 @@ export function finishCoordinationEntry(
   options: {
     id: string;
     result?: string;
+    outcome?: 'landed' | 'preserved' | 'discarded';
+    reason?: string;
+    'preserve-ref'?: string;
+    preservedRefSha?: string;
     release?: ReleaseState;
   },
 ): Promise<CoordinationEntry>;
@@ -201,6 +222,11 @@ export function releaseEmulatorSlot(
   reservation: CoordinationReservation,
   filePath?: string,
 ): Promise<void>;
+export function updateReservationChildPid(
+  reservation: CoordinationReservation,
+  childPid: number,
+  filePath?: string,
+): Promise<CoordinationReservation>;
 export function formatCoordinationState(
   state: CoordinationState,
   options?: { includeHistory?: boolean },

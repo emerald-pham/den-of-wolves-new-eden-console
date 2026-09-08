@@ -12,6 +12,7 @@ import {
   nextApplicationVersion,
   parseCoordinationState,
   pruneOrphanedConfigurations,
+  pruneDeadReservations,
   readCoordinationState,
   releaseEmulatorSlot,
   reserveAvailableEmulatorSlot,
@@ -79,6 +80,17 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('keeps a reservation while either its wrapper or child process remains alive', () => {
+    const state = {
+      ...parseCoordinationState(JSON.stringify({ entries: [], reservations: [{
+        slot: 4, worktree: '/worktrees/current', kind: 'rules', pid: 101,
+        childPid: 202, command: 'rules', claimedAt: 'now',
+      }], configurations: [] })),
+    };
+
+    expect(pruneDeadReservations(state, (pid) => pid === 202).reservations).toHaveLength(1);
+    expect(pruneDeadReservations(state, () => false).reservations).toHaveLength(0);
+  });
   it('routes rules tests to another slot when the preview owns the preferred slot', () => {
     expect(
       chooseAvailableEmulatorSlot({
@@ -821,6 +833,7 @@ describe('local emulator coordination', () => {
       const state = await readCoordinationState(filePath);
       expect(state.entries[0]).toMatchObject({
         status: 'complete',
+        outcome: 'landed',
         result: 'landed and pushed',
         finalBranchName: 'fix/release-task',
         finalBranchSha: 'branch-sha',
@@ -832,6 +845,79 @@ describe('local emulator coordination', () => {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
+  });
+
+  it('preserves committed work only after its remote destination is verified', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-preserve-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify({ version: 1, entries: [releaseEntry], reservations: [], configurations: [] }));
+      await finishCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        outcome: 'preserved',
+        'preserve-ref': 'origin/fix/release-task',
+        release: releaseState({ mainContainsBranch: false }),
+        preservedRefSha: 'branch-sha',
+      });
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        status: 'complete', outcome: 'preserved', pushed: false,
+        preservation: { kind: 'remote-ref', destination: 'origin/fix/release-task', commitSha: 'branch-sha' },
+      });
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('rejects an unverified preservation destination without closing the entry', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-preserve-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify({ version: 1, entries: [releaseEntry], reservations: [], configurations: [] }));
+      await expect(finishCoordinationEntry(filePath, {
+        id: releaseEntry.id, outcome: 'preserved', 'preserve-ref': 'origin/fix/release-task',
+        release: releaseState({ mainContainsBranch: false }), preservedRefSha: 'other-sha',
+      })).rejects.toThrow(/destination does not contain branch commit/i);
+      expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('records an explicit clean discard without implying a merge or push', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-discard-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify({ version: 1, entries: [releaseEntry], reservations: [], configurations: [] }));
+      await finishCoordinationEntry(filePath, {
+        id: releaseEntry.id, outcome: 'discarded', reason: 'Superseded by another implementation.',
+        release: releaseState({ mainContainsBranch: false }),
+      });
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        status: 'complete', outcome: 'discarded', pushed: false,
+        discard: { reason: 'Superseded by another implementation.', branchSha: 'branch-sha' },
+      });
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('rejects discard when the checkout is dirty or no reason is supplied', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-discard-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify({ version: 1, entries: [releaseEntry], reservations: [], configurations: [] }));
+      await expect(finishCoordinationEntry(filePath, {
+        id: releaseEntry.id, outcome: 'discarded', release: releaseState(),
+      })).rejects.toThrow(/reason is required/i);
+      await expect(finishCoordinationEntry(filePath, {
+        id: releaseEntry.id, outcome: 'discarded', reason: 'Stop work',
+        release: releaseState({ worktreeClean: false }),
+      })).rejects.toThrow(/uncommitted changes/i);
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('rejects changed files outside a declared scope before validation runs', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-scope-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify({ version: 1, entries: [{
+        ...releaseEntry, workType: 'tooling', scopes: ['scripts/'],
+      }], reservations: [], configurations: [] }));
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({ mainContainsBranch: false, mainIsAncestorOfBranch: true, changedFiles: ['src/App.tsx'] }),
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/outside declared scope.*src\/App\.tsx/i);
+    } finally { await unlink(filePath).catch(() => undefined); }
   });
 
   it('rejects completion while the worktree owns a live emulator reservation', async () => {
@@ -879,5 +965,21 @@ describe('local emulator coordination', () => {
         mainChangelog: [{ version: '0.2.106', source: 'newer main release' }],
       }),
     })).not.toThrow();
+  });
+
+  it('uses structured work type instead of free-text wording for version gates', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'product',
+        versionPlan: 'Product change; no application version bump was written yet.',
+      },
+      release: releaseState({
+        mainContainsBranch: false,
+        branchVersion: '0.3.2',
+        branchLockVersion: '0.3.2',
+        branchChangelog: [{ version: '0.3.2', source: 'previous release' }],
+      }),
+    })).toThrow(/player-facing work must increment|version plan/i);
   });
 });

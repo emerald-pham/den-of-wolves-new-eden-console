@@ -224,6 +224,9 @@ shared local coordination pane:
 ```bash
 npm run coordination:begin -- \
   --intent "What this work changes or investigates." \
+  --work-type "tooling" \
+  --scope "scripts,src/config,docs" \
+  --claims "coordination-registry,emulator-slot" \
   --version-plan "The planned application version, or why this is tooling-only." \
   --preemptive-changelog "The player-facing note, or an explicit no-player-facing-change note." \
   --resources "The emulator slot, service, or other shared resource."
@@ -246,6 +249,19 @@ the path in use.
 `coordination:begin` also records the attached branch, its starting SHA, and the
 starting `main` SHA; it refuses detached checkouts, direct work on `main`, and a
 duplicate active entry for the same worktree.
+
+`--work-type`, `--scope`, and `--claims` are structured ownership metadata.
+Use a stable work type such as `product`, `tooling`, `documentation`, or
+`investigation`; use comma-separated repository-relative files/directories (or
+`*`) naming the repository area; and
+list comma-separated exclusive claims for shared resources or overlapping areas.
+Claims are normalized before comparison, and a new active entry is rejected if
+it claims an already-active exclusive claim, naming the owning entry, worktree,
+and claim. Read-only investigation may omit claims only when it declares that
+it reserves no shared resource or file area. These fields remain in historical
+entries so cleanup can identify ownership without guessing from free-form intent.
+`--resources` remains the human-readable emulator/service detail and does not
+replace structured claims.
 
 Run `npm run coordination:status` before overlapping work and after finishing
 to confirm the entry and any resource reservations are clear.
@@ -433,6 +449,24 @@ row. Reconcile only resources confirmed not to be used by a live task. If all
 rows are occupied, wait for a free slot; never take a port that is already
 listening.
 
+### Wrapper process ownership and signal teardown
+
+`run-emulator-command.mjs` owns the reservation it creates and is the only
+process allowed to release it. The reservation records the wrapper owner and
+the spawned child PID; the child is not an independent worktree owner. On
+normal exit, error, `SIGINT`, or `SIGTERM`, the wrapper forwards the signal to
+that child process group, waits for the child exit path, and releases exactly
+its own reservation. Repeated signals share one teardown path. A signal or
+cleanup handler must never release a reservation by slot, PID, or worktree
+unless the reservation ID belongs to that wrapper.
+
+The wrapper preserves the child's exit code or terminating signal after cleanup.
+If escalation is needed, it is limited to that child process group; it must not
+target another task's PID. A status pass may prune a dead wrapper reservation,
+but it must not infer that a still-live child is safe to stop. Diagnose a stuck
+process with the reservation's owner PID, child PID, command, and worktree
+together.
+
 ## 2. Merge once done
 
 - Branch from `main`. Short-lived, one concern per branch.
@@ -484,6 +518,52 @@ current `main`. It must add one new top-level entry for the task's reserved
 version, with only that task's notes. If the diff instead adds bullets to an
 existing version entry, stop, allocate a separate version, and preserve every
 task as its own entry before merging.
+
+### Truthful closeout outcomes
+
+`coordination:finish` closes only the entry named by the exact `--id` from
+`coordination:begin`. The normal outcome is `landed` (the existing command may
+omit `--outcome` for this path): it requires a passing receipt for the final
+branch SHA, current local `main` contained by the branch, local `main` equal to
+`origin/main`, a clean checkout, and no live reservation owned by this
+worktree. It records the final branch/main/remote SHAs and `pushed: true`.
+
+If work cannot land but must remain usable, close it as preserved and provide
+exactly one machine-verifiable destination:
+
+```bash
+npm run coordination:finish -- --id "<id>" \
+  --outcome preserved \
+  --preserve-ref "origin/feature/coordination-follow-up" \
+  --result "Preserved for the next coordination slice."
+```
+
+The remote ref must resolve with `git ls-remote` to the final branch SHA.
+Generic text such as a commit hash or an unverified path is not preservation
+evidence. The current executable gate does not verify a generic archive path;
+do not mark one as preserved through this command unless a future gate adds an
+explicit archive verifier. Preserved work must have committed changes after its
+start SHA and a clean worktree. It does not require merge, a release validation
+receipt, or a push to `main`; record `outcome: preserved`, destination
+kind/value, verified commit SHA, and verification time. `pushed` is false (or
+absent) for the `main` release even if the preservation ref itself was pushed.
+
+If work is reviewed and no longer needed, close it as discarded:
+
+```bash
+npm run coordination:finish -- --id "<id>" \
+  --outcome discarded \
+  --reason "Superseded by the merged implementation."
+```
+
+Discard requires a non-empty reason and a clean worktree, but not a task commit,
+validation receipt, merge, or push. It never deletes files, branches, or
+worktrees. Record `outcome: discarded`, the reason, observed branch SHA, and
+task changed-file summary with `pushed: false`; never record merge or remote
+push success. Reject a missing destination/reason or conflicting outcome flags
+before changing the entry. Any invalid outcome or evidence leaves the entry
+active. Terminal entries retain work type, scope, claims, outcome, evidence, and
+timestamps for history and later cleanup.
 
 ## Worktree retention and cleanup
 

@@ -35,12 +35,16 @@ implementation begin:
 5. Make the release sequence auditable. The final receipt must stay bound to the
    tested branch commit, merged local `main`, matching `origin/main`, and the
    task's own released resources.
+6. Make every closeout truthful and recoverable. Landed work must prove its
+   merge and push; preserved work must prove an addressable commit or archive;
+   discarded work must record an explicit review decision without implying a
+   merge or push.
 
 The executable tests are the acceptance criteria for these objectives. This
 section states the intended invariants; a newly described gate is not considered
 implemented until its failing regression test and implementation land together.
 
-The current hardening slice has four acceptance conditions:
+The current hardening slice has the following acceptance conditions:
 
 - Changelog preservation canonicalizes the resolved `version:` declaration so
   an unchanged historical entry remains unchanged after `APP_VERSION` moves to
@@ -52,6 +56,12 @@ The current hardening slice has four acceptance conditions:
 - Default status is active-first and compact. Full ledger history stays
   available on request, while status recovery may release a configured row for
   a worktree that no longer exists only when no live reservation still owns it.
+- Closeout records one explicit outcome (`landed`, `preserved`, or `discarded`)
+  and leaves the entry active when its outcome or evidence is invalid.
+- Wrapper-owned child processes have one recorded owner and receive signal
+  teardown; a wrapper must not release another worktree's reservation.
+- Structured work type, scope, and resource claims reject overlapping intent
+  before setup, validation, or teardown can disturb another task.
 
 ## Before editing
 
@@ -61,6 +71,9 @@ work from the exact checkout you will edit:
 ```bash
 npm run coordination:begin -- \
   --intent "Prevent rules tests from colliding with preview emulators." \
+  --work-type "tooling" \
+  --scope "scripts,src/config,docs" \
+  --claims "coordination-registry,emulator-slot" \
   --version-plan "No application version bump: development tooling only." \
   --preemptive-changelog "No player-facing change; rules validation remains reliable during preview." \
   --resources "emulator-slot-4,shared-coordination-file"
@@ -82,6 +95,19 @@ only when a historical validation or release receipt is needed.
 The begin command records the attached branch, starting branch SHA, and starting
 `main` SHA; it refuses detached checkouts, direct work on `main`, and duplicate
 active entries for this worktree.
+
+`--work-type`, `--scope`, and `--claims` make the ownership boundary explicit.
+Use a stable work type such as `product`, `tooling`, `documentation`, or
+`investigation`; use comma-separated repository-relative files/directories (or
+`*`) naming the repository area;
+and list comma-separated exclusive claims for shared resources or overlapping
+areas. Claims are normalized before comparison. A new active entry is rejected
+when it claims an already-active exclusive claim, with the owning entry,
+worktree, and claim named in the error. Read-only investigation may omit claims
+only when it declares that no shared resource or file area is being reserved.
+The entry retains these fields in history so later cleanup can identify what was
+owned without guessing from free-form intent text. `--resources` remains the
+human-readable emulator/service detail; it does not replace structured claims.
 
 For player-facing work, the preemptive changelog is the first release step, not
 a roll-up written at the end. Claim one unused release version for this task,
@@ -131,6 +157,24 @@ a listening port from another worktree.
 The full slot matrix, port checks, and concurrent-test guidance are in
 [`CLAUDE.md`](../CLAUDE.md#concurrent-worktrees-and-emulator-ports).
 
+### Wrapper process ownership and signal teardown
+
+`run-emulator-command.mjs` owns the reservation it creates and is the only
+process allowed to release it. The reservation records the wrapper owner and
+the spawned child PID; the child is not an independent worktree owner. On
+normal exit, error, `SIGINT`, or `SIGTERM`, the wrapper forwards the signal to
+that child process group, waits for the child exit path, and releases exactly
+its own reservation. Repeated signals share one teardown path. A signal or
+cleanup handler must never release a reservation by slot, PID, or worktree
+unless the reservation ID belongs to that wrapper.
+
+The wrapper preserves the child's exit code or terminating signal after cleanup.
+If escalation is needed, it is limited to that child process group; it must not
+target another task's PID. A status pass may prune a dead wrapper reservation,
+but it must not infer that a still-live child is safe to stop. When diagnosing a
+stuck process, use the reservation's owner PID, child PID, command, and worktree
+together.
+
 ## Machine validation
 
 After committing the task changes, reconcile the task branch with current
@@ -164,6 +208,7 @@ From the same checkout that began the work, close only its own entry:
 ```bash
 npm run coordination:finish -- \
   --id "<id printed by coordination:begin>" \
+  --outcome landed \
   --result "Merged after the local gate passed."
 npm run coordination:status
 ```
@@ -186,6 +231,59 @@ The command records the final branch SHA, main SHA, remote SHA, and pushed state
 The final status should omit the entry from the active view and show no live
 process reservation left behind; use `--history` when the historical receipt is
 needed. Do not finish an id copied from another worktree.
+
+Every closeout has one explicit outcome. `landed` is the normal path (and may
+remain the default when `--outcome` is omitted); it requires the existing
+validation receipt, merge into current local `main`, equality between local and
+remote `main`, a clean checkout, and no owned live reservation. It records
+`outcome: landed`, the final branch/main/remote SHAs, and `pushed: true`.
+
+Use `preserved` only when the work will not merge now but must remain usable:
+
+```bash
+npm run coordination:finish -- \
+  --id "<id>" \
+  --outcome preserved \
+  --preserve-ref "origin/feature/coordination-follow-up" \
+  --result "Preserved for the next coordination slice."
+```
+
+Exactly one remote preservation ref is required. It is verified with
+`git ls-remote` and must point to the final branch SHA. Generic text such as a
+commit hash or an unverified path is not preservation evidence.
+The current executable gate does not verify a generic archive path; do not mark
+an archive as preserved through this command unless a future gate adds an
+explicit archive verifier.
+Preserved work must have committed changes after the recorded start SHA and a
+clean worktree. It does not require merge, a release validation receipt, or a
+push to `main`; record `outcome: preserved`, the destination kind/value,
+verified commit SHA, and verification time. `pushed` must be false (or absent)
+for the `main` release, even when the preservation ref itself was pushed.
+
+Use `discarded` only after reviewing the work and deciding it is unnecessary:
+
+```bash
+npm run coordination:finish -- \
+  --id "<id>" \
+  --outcome discarded \
+  --reason "Superseded by the merged implementation."
+```
+
+The reason and a clean worktree are required. Discarding does not require a
+task commit, validation, merge, or push, and never deletes files, branches, or
+worktrees. Record `outcome: discarded`, the reason, the observed branch SHA,
+the task's changed-file summary, and `pushed: false`; do not record merge or
+remote-push success. Reject preservation flags with `discarded`, and reject a
+missing destination or reason before changing the entry.
+
+For every outcome, an invalid claim, dirty checkout, wrong worktree, live
+reservation, missing preservation evidence, or changed entry leaves the entry
+`active`. Typical failures are explicit: `--outcome` must be one of
+`landed|preserved|discarded`; preserved work must specify exactly one verified
+destination; discarded work requires `--reason`; and a live owned reservation
+must be stopped by its wrapper before retrying finish. The command never kills
+or releases another worktree's process. Terminal entries retain their work
+type, scope, claims, outcome, evidence, and timestamps for history and cleanup.
 
 Codex child agents are outside the repository process model. Inspect and close
 terminal children with the collaboration runtime at startup and teardown; no

@@ -265,7 +265,9 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
     );
   }
 
-  const toolingOnly = isToolingOnlyVersionPlan(entry.versionPlan);
+  const toolingOnly = entry.workType
+    ? entry.workType !== 'product'
+    : isToolingOnlyVersionPlan(entry.versionPlan);
   if (!toolingOnly) {
     const branchParts = release.branchVersion.match(APPLICATION_VERSION_PATTERN);
     const mainParts = release.mainVersion.match(APPLICATION_VERSION_PATTERN);
@@ -573,8 +575,35 @@ export function parseCoordinationState(content) {
 export function pruneDeadReservations(state, isAlive = processIsAlive) {
   return {
     ...state,
-    reservations: state.reservations.filter((reservation) => isAlive(reservation.pid)),
+    reservations: state.reservations.filter(
+      (reservation) => isAlive(reservation.pid) ||
+        (validPid(reservation.childPid) && isAlive(reservation.childPid)),
+    ),
   };
+}
+
+function normalizedList(value) {
+  return text(value).split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function normalizeScope(scope) {
+  const normalized = scope.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/+$/, '');
+  if (!normalized || normalized.startsWith('/') || normalized.split('/').includes('..')) {
+    throw new Error(`Invalid repository-relative scope: ${scope}.`);
+  }
+  return normalized;
+}
+
+function scopesOverlap(left, right) {
+  return left === '*' || right === '*' || left === right ||
+    left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+function filesOutsideScopes(files, scopes) {
+  if (!Array.isArray(scopes) || scopes.length === 0) return [];
+  return files.filter((file) => !scopes.some((scope) =>
+    scope === '*' || file === scope || file.startsWith(`${scope}/`),
+  ));
 }
 
 /**
@@ -1205,6 +1234,23 @@ export async function releaseEmulatorSlot(
   });
 }
 
+/** Attach a spawned process to its lease so cleanup cannot free a live tree. */
+export async function updateReservationChildPid(
+  reservation,
+  childPid,
+  filePath = coordinationFilePath(),
+) {
+  if (!validPid(childPid)) throw new Error(`Invalid emulator child PID: ${childPid}.`);
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const current = state.reservations.find((candidate) => candidate.id === reservation.id);
+    if (!current) throw new Error(`Cannot attach child PID: reservation ${reservation.id} is not active.`);
+    current.childPid = childPid;
+    await writeStateUnlocked(filePath, state);
+    return current;
+  });
+}
+
 function formatEntry(entry) {
   const status = text(entry.status, 'active');
   const resources = Array.isArray(entry.resources) && entry.resources.length > 0
@@ -1217,6 +1263,16 @@ function formatEntry(entry) {
     `  preemptive changelog: ${text(entry.preemptiveChangelog, 'not recorded')}`,
     `  resources: ${resources}`,
   ];
+  if (entry.workType || entry.scopes || entry.claims) {
+    lines.push(
+      `  work type: ${text(entry.workType, 'legacy')} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
+    );
+  }
+  if (entry.outcome) lines.push(`  outcome: ${entry.outcome}`);
+  if (entry.preservation) {
+    lines.push(`  preserved: ${entry.preservation.destination} @ ${entry.preservation.commitSha}`);
+  }
+  if (entry.discard) lines.push(`  discarded: ${entry.discard.reason}`);
   if (entry.startBranchSha || entry.startMainSha) {
     lines.push(
       `  start state: branch ${text(entry.startBranchSha, 'unknown')} | main ${text(entry.startMainSha, 'unknown')}`,
@@ -1237,7 +1293,8 @@ function formatEntry(entry) {
 
 function formatReservation(reservation) {
   const ports = Array.isArray(reservation.ports) ? reservation.ports.join(', ') : 'unknown';
-  return `- slot ${reservation.slot} — ${reservation.kind} — ${reservation.worktree} — pid ${reservation.pid} — ports ${ports}`;
+  const child = validPid(reservation.childPid) ? ` / child ${reservation.childPid}` : '';
+  return `- slot ${reservation.slot} — ${reservation.kind} — ${reservation.worktree} — pid ${reservation.pid}${child} — ports ${ports}`;
 }
 
 /** Render the coordination file as a compact, agent-readable status pane. */
@@ -1322,10 +1379,11 @@ function parseOptions(args) {
 }
 
 async function readGitStartState(cwd = process.cwd()) {
-  const [branchName, branchSha, mainSha] = await Promise.all([
+  const [branchName, branchSha, mainSha, repositoryRoot] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
     runGit(['rev-parse', 'main'], cwd),
+    runGit(['rev-parse', '--show-toplevel'], cwd),
   ]);
   if (branchName === 'HEAD') {
     throw new Error('coordination begin requires an attached branch; create one before editing.');
@@ -1333,16 +1391,23 @@ async function readGitStartState(cwd = process.cwd()) {
   if (branchName === 'main') {
     throw new Error('coordination begin refuses to register work directly on main.');
   }
-  return { branchName, branchSha, mainSha };
+  return { branchName, branchSha, mainSha, repositoryRoot: resolve(repositoryRoot) };
 }
 
 async function beginEntry(filePath, options) {
-  const required = ['intent', 'version-plan', 'preemptive-changelog'];
+  const required = ['intent', 'version-plan', 'preemptive-changelog', 'work-type'];
   for (const name of required) {
     if (!options[name]) throw new Error(`coordination begin requires --${name} <text>.`);
   }
 
   const start = await readGitStartState();
+  const workType = options['work-type'];
+  if (!['product', 'tooling', 'documentation', 'investigation'].includes(workType)) {
+    throw new Error('coordination begin requires --work-type product|tooling|documentation|investigation.');
+  }
+  const scopes = normalizedList(options.scope).map(normalizeScope);
+  const claims = [...new Set(normalizedList(options.claims ?? options.claim)
+    .map((claim) => claim.toLowerCase()))].sort();
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const existing = state.entries.find(
@@ -1362,9 +1427,13 @@ async function beginEntry(filePath, options) {
       branchName: start.branchName,
       startBranchSha: start.branchSha,
       startMainSha: start.mainSha,
+      repositoryRoot: start.repositoryRoot,
       intent: options.intent,
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
+      workType,
+      scopes,
+      claims,
       resources: options.resources
         ? options.resources.split(',').map((resource) => resource.trim()).filter(Boolean)
         : [],
@@ -1381,6 +1450,15 @@ async function beginEntry(filePath, options) {
           `Application version ${plannedVersion} is already reserved by active entry ${conflictingEntry.id}.`,
         );
       }
+    }
+    const conflict = state.entries.find((candidate) => candidate.status === 'active' && (
+      claims.some((claim) => candidate.claims?.includes(claim) &&
+        (claim.startsWith('emulator-slot-') || candidate.repositoryRoot === start.repositoryRoot)) ||
+      (candidate.repositoryRoot === start.repositoryRoot && candidate.worktree !== process.cwd() && scopes.some((scope) =>
+        candidate.scopes?.some((candidateScope) => scopesOverlap(scope, candidateScope))))
+    ));
+    if (conflict) {
+      throw new Error(`Declared scope or exclusive claim overlaps active entry ${conflict.id}. Coordinate ownership before starting.`);
     }
     state.entries.push(entry);
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
@@ -1425,6 +1503,10 @@ export async function validateCoordinationEntry(filePath, options) {
     }
     if (!Array.isArray(release.changedFiles) || release.changedFiles.length === 0) {
       errors.push('no committed task changes were found from the coordination start SHA');
+    }
+    const outsideScopes = filesOutsideScopes(release.changedFiles ?? [], entry.scopes);
+    if (outsideScopes.length > 0) {
+      errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
     }
     if (errors.length > 0) {
       throw new Error(
@@ -1568,16 +1650,74 @@ export async function finishCoordinationEntry(filePath, options) {
     const release = options.release ?? await readReleaseState({
       startBranchSha: entry.startBranchSha,
     });
-    const validation = validateReleaseCompletion({ entry, release });
+    const outcome = options.outcome ?? 'landed';
+    if (!['landed', 'preserved', 'discarded'].includes(outcome)) {
+      throw new Error('coordination finish requires --outcome landed|preserved|discarded.');
+    }
+    if (outcome !== 'preserved' && options['preserve-ref']) {
+      throw new Error('Cannot complete coordination entry: --preserve-ref may only be used with --outcome preserved.');
+    }
+    if (!release.branchName || release.branchName === 'HEAD' || release.branchName === 'main') {
+      throw new Error(`Cannot complete coordination entry ${entry.id}: closeout requires its attached task branch.`);
+    }
+    if (entry.branchName && release.branchName !== entry.branchName) {
+      throw new Error(
+        `Cannot complete coordination entry ${entry.id}: checkout branch ${release.branchName} does not match ${entry.branchName}.`,
+      );
+    }
+    if (!release.worktreeClean) {
+      throw new Error(`Cannot ${outcome === 'discarded' ? 'discard' : 'complete'} coordination entry ${entry.id}: the checkout has uncommitted changes.`);
+    }
+    if (release.branchBaselineIsAncestor === false) {
+      throw new Error(`Cannot complete coordination entry ${entry.id}: task history was rewritten after coordination began.`);
+    }
+    let pushed = false;
+    if (outcome === 'landed') {
+      pushed = validateReleaseCompletion({ entry, release }).pushed;
+    } else if (outcome === 'preserved') {
+      const preserveRef = text(options['preserve-ref']);
+      if (!preserveRef) throw new Error(`Cannot preserve coordination entry ${entry.id}: --preserve-ref is required.`);
+      if (!Array.isArray(release.changedFiles) || release.changedFiles.length === 0) {
+        throw new Error(`Cannot preserve coordination entry ${entry.id}: preserved work must contain committed changes after start SHA.`);
+      }
+      const separator = preserveRef.indexOf('/');
+      if (separator < 1 || separator === preserveRef.length - 1) {
+        throw new Error(`Cannot preserve coordination entry ${entry.id}: --preserve-ref must be remote/branch.`);
+      }
+      const remote = preserveRef.slice(0, separator);
+      const branch = preserveRef.slice(separator + 1);
+      const remoteLine = options.preservedRefSha === undefined
+        ? await runGit(['ls-remote', '--exit-code', remote, `refs/heads/${branch}`], process.cwd())
+        : options.preservedRefSha;
+      const destinationSha = remoteLine.split(/\s+/)[0];
+      if (destinationSha !== release.branchSha) {
+        throw new Error(`Cannot preserve coordination entry ${entry.id}: destination does not contain branch commit ${release.branchSha}.`);
+      }
+      entry.preservation = {
+        kind: 'remote-ref', destination: preserveRef, commitSha: release.branchSha,
+        verifiedAt: new Date().toISOString(),
+      };
+    } else {
+      const reason = text(options.reason);
+      if (!reason) throw new Error(`Cannot discard coordination entry ${entry.id}: --reason is required.`);
+      entry.discard = {
+        reason, branchSha: release.branchSha,
+        changedFiles: Array.isArray(release.changedFiles) ? [...release.changedFiles] : [],
+      };
+      entry.discardedAt = new Date().toISOString();
+    }
     entry.status = 'complete';
+    entry.outcome = outcome;
     entry.completedAt = new Date().toISOString();
     if (options.result) entry.result = options.result;
     entry.finalBranchName = release.branchName;
     entry.finalBranchSha = release.branchSha;
-    entry.mainSha = release.mainSha;
-    entry.originMainSha = release.originMainSha;
-    entry.mainContainsBranch = release.mainContainsBranch;
-    entry.pushed = validation.pushed;
+    if (outcome === 'landed') {
+      entry.mainSha = release.mainSha;
+      entry.originMainSha = release.originMainSha;
+      entry.mainContainsBranch = release.mainContainsBranch;
+    }
+    entry.pushed = pushed;
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
