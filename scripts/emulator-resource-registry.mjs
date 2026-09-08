@@ -22,6 +22,7 @@ import {
   vitePortForSlot,
 } from './emulator-slots.js';
 import {
+  normalizePromptId,
   readImplementationProgress,
   validateImplementationProgress,
 } from './validate-implementation-progress.mjs';
@@ -39,7 +40,32 @@ const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const MAX_APPLICATION_PATCH_VERSION = 99;
+const IMPLEMENTATION_PROMPT_CLAIM_PATTERN = /^\d{3}[a-z]*$/i;
 const execFileAsync = promisify(execFile);
+
+/**
+ * Validate active plan-prompt ownership before a coordination entry is saved.
+ * Different base/lettered IDs are independent claims; the same normalized ID
+ * can have only one active owner across the shared coordination registry.
+ */
+export function validateImplementationPromptClaims(entries = []) {
+  const owners = new Map();
+  for (const entry of entries) {
+    if (entry?.status !== 'active' || entry?.implementationPrompt === undefined) continue;
+    const prompt = normalizePromptId(entry.implementationPrompt);
+    if (!prompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(prompt)) {
+      throw new Error(
+        `active entry ${text(entry.id, 'unknown')} has an invalid implementation prompt ${String(entry.implementationPrompt)}`,
+      );
+    }
+    const owner = text(entry.id, 'unknown');
+    if (owners.has(prompt)) {
+      throw new Error(`Prompt ${prompt} is already claimed by ${owners.get(prompt)}; active entry ${owner} cannot claim it.`);
+    }
+    owners.set(prompt, owner);
+  }
+  return owners;
+}
 
 function objectRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -218,8 +244,9 @@ function implementationPlanMetadataErrors(entry, release) {
   if (entry.workType !== 'product') return [];
 
   const errors = [];
-  if (!Number.isInteger(entry.implementationPrompt) || entry.implementationPrompt < 1) {
-    errors.push('product work must record an implementation prompt with --implementation-prompt <number>');
+  const implementationPrompt = normalizePromptId(entry.implementationPrompt);
+  if (!implementationPrompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(implementationPrompt)) {
+    errors.push('product work must record an implementation prompt with --implementation-prompt NNN or NNN<letter>');
   }
   const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
   if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md')) {
@@ -233,9 +260,10 @@ function implementationPlanMetadataErrors(entry, release) {
 function implementationPlanGateErrors(entry) {
   if (entry.workType !== 'product') return [];
   try {
+    const implementationPrompt = normalizePromptId(entry.implementationPrompt);
     const result = validateImplementationProgress({
       ...readImplementationProgress({ cwd: process.cwd() }),
-      requiredPrompt: entry.implementationPrompt,
+      requiredPrompt: implementationPrompt,
     });
     return result.errors.map((error) => `implementation progress gate: ${error}`);
   } catch (error) {
@@ -1307,8 +1335,9 @@ function formatEntry(entry) {
     `  resources: ${resources}`,
   ];
   if (entry.workType || entry.scopes || entry.claims) {
-    const implementationPrompt = Number.isInteger(entry.implementationPrompt)
-      ? ` | implementation prompt: ${String(entry.implementationPrompt).padStart(3, '0')}`
+    const normalizedPrompt = normalizePromptId(entry.implementationPrompt);
+    const implementationPrompt = normalizedPrompt
+      ? ` | implementation prompt: ${normalizedPrompt}`
       : '';
     lines.push(
       `  work type: ${text(entry.workType, 'legacy')}${implementationPrompt} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
@@ -1452,9 +1481,9 @@ async function beginEntry(filePath, options) {
     throw new Error('coordination begin requires --work-type product|tooling|documentation|investigation.');
   }
   const implementationPrompt = options['implementation-prompt'];
-  if (workType === 'product' && !/^\d{3}$/.test(implementationPrompt ?? '')) {
+  if (workType === 'product' && !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(implementationPrompt ?? '')) {
     throw new Error(
-      'coordination begin requires product work to record an implementation prompt with --implementation-prompt NNN.',
+      'coordination begin requires product work to record an implementation prompt with --implementation-prompt NNN or NNN<letter>.',
     );
   }
   const scopes = normalizedList(options.scope).map(normalizeScope);
@@ -1484,7 +1513,9 @@ async function beginEntry(filePath, options) {
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
       workType,
-      ...(workType === 'product' ? { implementationPrompt: Number(implementationPrompt) } : {}),
+      ...(workType === 'product'
+        ? { implementationPrompt: implementationPrompt.toLowerCase() }
+        : {}),
       scopes,
       claims,
       resources: options.resources
@@ -1513,6 +1544,7 @@ async function beginEntry(filePath, options) {
     if (conflict) {
       throw new Error(`Declared scope or exclusive claim overlaps active entry ${conflict.id}. Coordinate ownership before starting.`);
     }
+    validateImplementationPromptClaims([...state.entries, entry]);
     state.entries.push(entry);
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;

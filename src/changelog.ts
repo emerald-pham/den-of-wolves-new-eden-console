@@ -4,13 +4,14 @@ export interface ChangelogEntry {
   readonly version: string;
   readonly changes: readonly string[];
   /** Prompt IDs whose player-facing changes are described by this release. */
-  readonly implementationPrompts?: readonly number[];
+  readonly implementationPrompts?: readonly (number | string)[];
 }
 
 /** Release notes written for the people playing and facilitating the game. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [598],
     changes: [
       'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',
     ],

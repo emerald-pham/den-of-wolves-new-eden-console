@@ -118,9 +118,11 @@ never append a second agent's note to the existing current-version object. If an
 active entry already claims the version, or `main` advances before merge,
 reconcile the version and preserve each task's separate entry.
 When the task comes from the implementation plan, also pass
-`--implementation-prompt NNN`, set that row to `in-progress` in
-`docs/IMPLEMENTATION_PROGRESS.md`, and declare `feature` or `non-feature` in
-the ledger. A feature row must name its release or releases, and each real
+`--implementation-prompt NNN` or `NNN<letter>`, set that row to `in-progress`
+in `docs/IMPLEMENTATION_PROGRESS.md`, and declare `feature` or `non-feature`
+in the ledger. The shared registry rejects duplicate active claims for one
+normalized prompt ID while allowing distinct base and lettered IDs to proceed
+concurrently. A feature row must name its release or releases, and each real
 changelog entry must list the prompt in `implementationPrompts` with a concrete
 player-facing change; the preemptive sentence alone does not pass the gate.
 Only a tooling-only gate task may expand the current release's aggregate plan
