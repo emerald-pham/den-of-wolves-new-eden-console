@@ -137,6 +137,7 @@ import {
 import { pressDispatchState } from './pressDispatchState';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
+import { buildAuthoritativeEventEnvelope, EventVisibility } from './eventEnvelope';
 import {
   isJoinCode,
   joinCodeLengthForCreateRequest,
@@ -616,6 +617,7 @@ export const createSession = onCall<{
       const joinCode = makeJoinCode(joinCodeLength);
       const codeRef = db.doc(`joinCodes/${joinCode}`);
       const sessionRef = db.collection('sessions').doc();
+      const eventRef = db.doc(`sessions/${sessionRef.id}/events/create-${creation.requestId}`);
       const now = new Date().toISOString();
       // The expansion mode is persisted now, but its two-role composition is
       // deliberately resolved by the casting/start slice. Adding both roles
@@ -757,6 +759,21 @@ export const createSession = onCall<{
           sessionId: sessionRef.id,
           requestId: creation.requestId,
           reply,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(eventRef, {
+          ...buildAuthoritativeEventEnvelope({
+            sessionId: sessionRef.id,
+            actorUid: uid,
+            actorRoleId: null,
+            turn: 0,
+            phase: 'lobby',
+            type: 'session.created',
+            requestId: creation.requestId,
+            revision: 0,
+            serverTime: now,
+            visibility: EventVisibility.Member,
+          }),
           createdAt: FieldValue.serverTimestamp(),
         });
         return reply;
