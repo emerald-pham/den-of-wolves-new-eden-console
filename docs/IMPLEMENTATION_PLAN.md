@@ -953,9 +953,9 @@ GPT-5.6 Luna (`gpt-5.6-luna`) agents. Non-coding work,
 including reconnaissance, planning, documentation review, evidence collation,
 and read-only verification, may use Luna at any supported reasoning level. Any
 agent that writes or changes application code, Cloud Functions, Firestore
-rules, configuration, scripts, or tests must use Luna at `xhigh` or `max`
-reasoning. A merge or conflict-resolution task that edits any of those files
-also counts as coding and has the same `xhigh`/`max` requirement.
+rules, configuration, scripts, or tests must use Luna at `max` reasoning. A
+merge or conflict-resolution task that edits any of those files also counts as
+coding and has the same `max` requirement.
 
 This is an implementation-plan-scoped override of the routine `high`-reasoning
 default and primary-agent implementation/integration ownership in `CLAUDE.md`;
@@ -968,12 +968,14 @@ use its own worktree and short-lived branch, and follow the test-first contract
 above, including observing the failing test before implementation. Each slice
 must satisfy the applicable reference, authority, denial, retry, audit,
 accessibility, responsive-review, version, and standalone changelog contracts.
-An independent Luna `xhigh` or `max` agent may perform final review and gate
-verification. A prompt may move to `done` only after its proof is current on the
-reconciled branch, every applicable executable gate passes, the slice is merged
-to `main`, `origin/main` is verified at that merge, and the slice's coordination
-entry is closed. No partial implementation, local-only result, unmerged green
-branch, or unchecked release obligation counts toward the campaign finish.
+An independent Luna agent at any supported reasoning level may perform final
+read-only review and gate verification. If that review or release work changes
+code, rules, configuration, scripts, or tests, the agent must use `max`. A
+prompt may move to `done` only after its proof is current on the reconciled
+branch, every applicable executable gate passes, the slice is merged to `main`,
+`origin/main` is verified at that merge, and the slice's coordination entry is
+closed. No partial implementation, local-only result, unmerged green branch,
+or unchecked release obligation counts toward the campaign finish.
 
 #### Execution checklist — prompts 001–100
 
