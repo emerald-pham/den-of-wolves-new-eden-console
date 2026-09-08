@@ -26,7 +26,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 64/100 complete; 28 partial; 8 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 66/100 complete; 26 partial; 8 missing; resume at Prompt 011 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -34,25 +34,25 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**64 / 100 prompts complete (64%)**',
-        '**65 / 100 prompts complete (65%)**',
+        '**66 / 100 prompts complete (66%)**',
+        '**67 / 100 prompts complete (67%)**',
       ),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 65, but the ledger has 64 done prompts');
+    expect(result.errors.join('\n')).toContain('headline complete count is 67, but the ledger has 66 done prompts');
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        'Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;',
+        'Resume pointer: Prompt 011 is the lowest-numbered unchecked acceptance;',
         'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;',
       ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'resume pointer is Prompt 012, but the first unresolved prompt is 004',
+      'resume pointer is Prompt 012, but the first unresolved prompt is 011',
     );
   });
 
@@ -72,10 +72,10 @@ describe('implementation progress integrity gate', () => {
         ...validationInputs,
         progressSource: progressSource
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 004**.')
-        .replace('| 004 | partial | non-feature | — |', '| 004 | in-progress | non-feature | — |')
+        .replace('| 004 | done | non-feature | — |', '| 004 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **64 done · 28 partial · 8 missing**.',
-          'Status breakdown: **64 done · 27 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **66 done · 26 partial · 8 missing**.',
+          'Status breakdown: **65 done · 26 partial · 8 missing · 1 in-progress**.',
         ),
     });
 
@@ -89,10 +89,11 @@ describe('implementation progress integrity gate', () => {
         ...validationInputs,
         progressSource: progressSource
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 005**.')
+        .replace('| 004 | done | non-feature | — |', '| 004 | partial | non-feature | — |')
         .replace('| 005 | done | non-feature | — |', '| 005 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **64 done · 28 partial · 8 missing**.',
-          'Status breakdown: **63 done · 28 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **66 done · 26 partial · 8 missing**.',
+          'Status breakdown: **65 done · 27 partial · 8 missing · 1 in-progress**.',
         ),
       planSource: planSource.replace('- [x] Prompt 005', '- [ ] Prompt 005'),
     });

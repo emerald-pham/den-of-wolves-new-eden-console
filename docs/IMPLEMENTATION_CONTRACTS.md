@@ -46,6 +46,7 @@ and resulting state.
 | `AMB-10` | Same plan section; `functions/src/turnZero.ts`; navigation/pursuit tests | Split-fleet pursuit, communication restriction, rescue taxi, and rejoin semantics are not defined as one state model. | Do not expose split-fleet controls based only on coordinate filtering. Add group-local projections and a rejoin decision first. |
 | `AMB-11` | Same plan section; `REFERENCE_ONLY_FACILITATION.md` | Endgame success/failure for candidates N/O/P, lost ships, survivors, and closure timing is not complete. | Keep success/failure/debrief/closed transitions as blocked lifecycle edges until the product decision is recorded. |
 | `AMB-12` | Same plan section; repository coordination/load guidance | The 60-client target is an unverified capacity target. | No load or deployment claim belongs in a prompt audit until measured with latency, errors, contention, retry, reconnect, and resource results. |
+| `AMB-13` | `REFERENCE_ONLY_ROLES_AND_LOYALTIES.md`, “Casting by player count” table and “Minimum viable roster” prose | The specific casting-by-count table controls roster composition. The generic minimum-roster prose does not add a Wing Commander to counts 8–10; those printed rows intentionally omit that role. | Client and server presets must agree that Wing Commander/Starlight is absent at 8–10 and present only from 11 onward. Do not invent a low-count substitution or expose Fighter Wings for an unavailable Wing Commander. |
 
 ## 2. First-100 capability matrix — Prompt 005
 
