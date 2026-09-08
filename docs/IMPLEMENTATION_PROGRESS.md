@@ -15,11 +15,11 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**61 / 710 prompts complete (9%)**
+**63 / 710 prompts complete (9%)**
 
-Status breakdown: **61 done · 35 partial · 613 missing · 1 in-progress**.
+Status breakdown: **63 done · 34 partial · 613 missing**.
 
-Active prompt: **Prompt 275a**.
+Active prompt: **none**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -394,7 +394,7 @@ release classification and evidence.
 | 273 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 275a | in-progress | feature | 0.3.10 | Failing-first coverage now closes the recovered Press/default-discovery, dedicated CAS enable/disable, server denial/unique stale claim, distinct Press loyalty/Wolf eligibility and disable cleanup, 20-core-plus-Press/multiple-GM separation, exact connection copy, roster-derived SNN host, and measured DRADIS containment boundaries. The changed unit/Functions matrix is **418/418**, the dedicated readiness matrix is **61/61**, and Firestore rules denial is **53/53**; final independent review, complete release gates, merge/push, and coordination closure remain before this row can become done. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. `4703e43` introduced blanket Dione; compatibility coverage derives AEGIS at 8/11 and Dione at 12/18/20 plus legacy missing-docking hydration. This release does not claim the still-missing owner-set 19-player Capybara runtime row. |
+| 275a | done | feature | 0.3.10 | Failing-first and production-path coverage restores the default-enabled, authoritatively toggleable SNN Press station outside the counted core roster: dedicated CAS/audit state, unique stale-safe claim/reconnect, distinct private loyalty and Wolf eligibility, release/disconnect/disable cleanup, server action denial, multiple-GM/core-readiness separation, visible return navigation, roster-derived AEGIS-at-8/11 and Dione-at-12/18/20 hosting, exact connection copy, and viewport-safe DRADIS names are composed. Final focused evidence is **469/469** changed-surface tests plus **53/53** Firestore rules. Real Chrome review at 1440×900, 320×844, and 844×390 found no horizontal overflow and kept measured routed DRADIS labels in bounds; 320×844 reduced motion, keyboard return/focus, AEGIS/Dione host projection, the connection matrix, the GM Press revision/status surface, and the corrected 44×44 mobile Settings target also passed. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; `1418146` is the last default-working release point and direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`; `4703e43` introduced the blanket-Dione drift. This release does not claim the still-missing owner-set 19-player Capybara runtime row. Literal field placement, an instant pre-acquisition capture, reduced-motion desktop/landscape, and live Firebase mutation were not part of the local browser fixture; deterministic geometry, authority, and emulator suites cover those non-live seams without claiming deployment proof. |
 | 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -746,7 +746,7 @@ release classification and evidence.
 | 595 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 598 | partial | feature | 0.3.6, 0.3.10 | Release 0.3.6 proves the existing connected/offline grace primitive. Prompt 275a's focused component/composition matrix now proves the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and live/offline-after-grace cases; this row remains partial until the reconciled 0.3.10 release gates and merge/push receipt land. |
+| 598 | done | feature | 0.3.6, 0.3.10 | Release 0.3.6 provides the connected/offline grace primitive; release 0.3.10 repairs the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline-after-grace matrix. Focused component/AppHeader coverage and the real-browser no-session/Turn-0 matrix provide the current evidence without remapping Prompt 041. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -838,7 +838,6 @@ release classification and evidence.
 
 - Full-range migration note: Prompt 041 remains the existing `done`/`non-feature`
   local-disconnect evidence. Prompt 598 carries the 0.3.6 primitive and the
-  active 0.3.10 copy/composition repair as a `partial`/`feature` row until the
-  current release is reconciled. The old first-100 validator could not represent
+  0.3.10 copy/composition repair as a `done`/`feature` row. The old first-100 validator could not represent
   Prompt 598 and forced the earlier behavior to be associated with Prompt 041;
   no behavior or release was rewritten here.

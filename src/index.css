@@ -3479,6 +3479,11 @@ body {
     gap: 0.4rem;
   }
 
+  .settings-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .role-select,
   .session-mode {
     padding-top: max(

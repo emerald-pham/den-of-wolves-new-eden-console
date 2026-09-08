@@ -47,8 +47,8 @@ This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **61 / 710 prompts done, 35 partial, 613 missing, and 1
-  in progress** after reopening stale staffing/roster evidence and adding the
+- The ledger reports **63 / 710 prompts done, 34 partial, and 613 missing**
+  after reopening stale staffing/roster evidence and adding the
   five dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.

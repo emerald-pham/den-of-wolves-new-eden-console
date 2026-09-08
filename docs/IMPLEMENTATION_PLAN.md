@@ -1710,7 +1710,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 273
 - [ ] Prompt 274
 - [ ] Prompt 275
-- [ ] Prompt 275a
+- [x] Prompt 275a
 - [ ] Prompt 275b
 - [ ] Prompt 276
 - [ ] Prompt 277
@@ -2062,7 +2062,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 595
 - [ ] Prompt 596
 - [ ] Prompt 597
-- [ ] Prompt 598
+- [x] Prompt 598
 - [ ] Prompt 599
 - [ ] Prompt 600
 - [ ] Prompt 601

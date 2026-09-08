@@ -116,7 +116,7 @@ describe('Landing', () => {
 
     const indicator = screen.getByRole('status');
     expect(indicator).toHaveAttribute('data-status', 'yellow');
-    expect(indicator).toHaveTextContent('Connected');
+    expect(indicator).toHaveTextContent('CONNECTED');
 
     act(() => vi.advanceTimersByTime(4_999));
     expect(indicator).toHaveAttribute('data-status', 'yellow');
