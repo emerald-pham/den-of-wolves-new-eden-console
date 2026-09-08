@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [18],
+    changes: [
+      'One-shot bridge confetti now rejects stale console authority and stale officer approvals before a dispenser can fire.',
+    ],
+  },
+  {
+    version: '0.3.6',
     changes: [
       'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',
     ],
