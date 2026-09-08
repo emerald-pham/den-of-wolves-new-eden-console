@@ -510,6 +510,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
 
 const VALIDATION_COMMANDS = new Map([
   ['npm run coordination:docs', ['run', 'coordination:docs']],
+  ['npm run validate:implementation-progress', ['run', 'validate:implementation-progress']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
   ['npm run build', ['run', 'build']],
