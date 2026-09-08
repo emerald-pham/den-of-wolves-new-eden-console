@@ -41,14 +41,15 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Audited baseline — 2026-09-08 (after Prompt 004)
+## Audited baseline — 2026-09-08 (after Prompt 004 and roadmap addenda)
 
 This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **63 / 710 prompts done, 34 partial, no active prompt, and
-  613 missing** after completing the Prompt 004 catalog slice while retaining
+- The ledger reports **63 / 713 prompts done, 33 partial, one active prompt,
+  and 616 missing** after completing the Prompt 004 catalog slice, activating
+  Prompt 021, and recording the two owner-requested regression children while retaining
   the deliberately reopened Prompt 030 seat evidence and the five
   dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
@@ -72,6 +73,51 @@ progress ledger as work lands; it supersedes this dated summary.
 - The detailed plan's test totals are a historical snapshot. Current proof is
   the selected prompt's focused evidence plus the reconciled release gate, not
   an old aggregate count.
+
+### Active dependency slice — release 0.3.12
+
+The active Prompt 021 release is limited to authoritative configuration,
+production seating, and one-GM staffing. It repairs Prompt 030's uncomposed
+seat primitive and Prompt 073's obsolete two-holder representation in the same
+dependency slice. Prompt 051 gains production configuration evidence but stays
+partial: this release does not evaluate readiness, assign Wolves, initialize a
+setup receipt, start Turn 1, or close the Milestone 1 fixture.
+
+The slice exits only when creation produces the exact 8–20 configuration and
+stable core-seat documents; one compare-and-set command cannot split count,
+mode, role, vessel, or expansion state; client-visible claim/release composes
+seat, player pointer, revision, receipt, and event; one active GM can carry both
+facilitator labels while optional GMs share/handoff; legacy singular staffing
+normalizes deterministically; Press remains a distinct optional non-counted
+21st player; and chronological red-first, emulator/rules, responsive/a11y,
+reconnect, race, full build/test, reconcile, merge, and push evidence is
+recorded. The next dependency slice consumes this authority for readiness,
+automatic private setup, and Turn 1.
+
+Prompt 275b is a separately queued regression repair after the current
+dependency slice. It must recover the last working SNN Dispatch Desk from git
+history, restore its complete production composition, and prove that the desk
+remains available and actionable during Turn Zero despite generic Turn Zero
+locks. It does not change Press's separate optional/non-counted identity and is
+not evidence for the Milestone 1 start gate.
+
+Prompt 122a is a separate maintenance safety repair after its Reactor capacity,
+damage/upgrade, console-eligibility, expiry, and atomicity dependencies. It must
+reuse the existing authoritative maintenance transaction and exact danger-red
+`ARE YOU SURE?` convention, adding confirmation-before-mutation and idempotent
+accepted-only audit without claiming the wider vessel maintenance matrix.
+
+Prompt 603a is a separate responsive-shell regression repair after shared
+session chrome and Role Select. It requires the measured session ticket to own
+real layout space so routed content reflows and never intersects it at phone or
+short-landscape sizes; z-index coverage, hiding, and clipping are not fixes.
+
+Prompt 602a is a separate return-navigation repair after authoritative shuttle
+docking/association and console-route entitlement. It must give each ordinary
+shuttle an explicit deterministic path back to its permitted associated ship
+without releasing or rewriting the player's session, seat, active console, or
+shuttle state. Press, Joint Engineering, and GM exit semantics remain distinct;
+universal Prompt 602 cannot close until this composed regression is green.
 
 These are roadmap inputs, not invitations to bypass dependencies. First prove a
 base walking skeleton, then broaden roles/configurations and measure capacity
