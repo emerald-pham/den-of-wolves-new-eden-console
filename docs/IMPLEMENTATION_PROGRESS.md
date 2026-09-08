@@ -167,7 +167,7 @@ release classification and evidence.
 | 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 103 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
+| 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106b | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
