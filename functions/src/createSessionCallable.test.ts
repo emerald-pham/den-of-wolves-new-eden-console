@@ -46,6 +46,10 @@ function snapshot(fields: Record<string, unknown> = {}, exists = true) {
   return { exists, get: (field: string) => fields[field] };
 }
 
+function eventWrites(requestId: string) {
+  return mock.set.mock.calls.filter(([ref]) => ref?.path === `sessions/generated-session/events/create-${requestId}`);
+}
+
 beforeEach(() => {
   mock.get.mockReset();
   mock.set.mockReset();
@@ -100,6 +104,44 @@ it('creates one configured lobby and persists a replayable creation result atomi
   );
 });
 
+it('emits exactly one member-safe session.created envelope in the creation transaction', async () => {
+  await createSession.run(request({
+    requestId: 'create-event-1',
+    name: 'Private setup name',
+    displayName: 'Private facilitator name',
+    playerCount: 8,
+    chartId: 'B',
+    expansion: 'capybara',
+    turnLimit: 7,
+  }));
+
+  const writes = eventWrites('create-event-1');
+  expect(writes).toHaveLength(1);
+  const event = writes[0][1] as Record<string, unknown>;
+  expect(event).toMatchObject({
+    sessionId: 'generated-session',
+    actorUid: 'u1',
+    actorRoleId: null,
+    turn: 0,
+    phase: 'lobby',
+    type: 'session.created',
+    requestId: 'create-event-1',
+    revision: 0,
+    visibility: 'member',
+    createdAt: 'server-time',
+  });
+  expect(event.serverTime).toEqual(expect.stringMatching(/^\d{4}-\d{2}-\d{2}T.*Z$/));
+  expect(Object.keys(event).sort()).toEqual([
+    'actorRoleId', 'actorUid', 'createdAt', 'phase', 'requestId', 'revision',
+    'serverTime', 'sessionId', 'turn', 'type', 'visibility',
+  ].sort());
+  expect(event).not.toHaveProperty('joinCode');
+  expect(event).not.toHaveProperty('name');
+  expect(event).not.toHaveProperty('displayName');
+  expect(event).not.toHaveProperty('configuration');
+  expect(event).not.toHaveProperty('reply');
+});
+
 it('does not claim a code already owned by another session', async () => {
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValueOnce(1234).mockReturnValue(5678);
@@ -133,4 +175,25 @@ it('replays the same session and join code for a retried request', async () => {
 
   await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(reply);
   expect(mock.set).not.toHaveBeenCalled();
+  expect(eventWrites('retry-1')).toHaveLength(0);
+});
+
+it('does not emit an event for an unauthenticated request', async () => {
+  await expect(createSession.run({
+    data: { requestId: 'unauthenticated-1', playerCount: 8 },
+    auth: undefined,
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'unauthenticated' });
+  expect(eventWrites('unauthenticated-1')).toHaveLength(0);
+});
+
+it('does not emit an event when every candidate join code collides', async () => {
+  mock.get.mockImplementation(async (ref: { path: string }) => (
+    ref.path === 'joinCodes/1234'
+      ? snapshot({ sessionId: 'existing-session' })
+      : snapshot({}, false)
+  ));
+
+  await expect(createSession.run(request({ requestId: 'collision-1' })))
+    .rejects.toMatchObject({ code: 'resource-exhausted' });
+  expect(eventWrites('collision-1')).toHaveLength(0);
 });

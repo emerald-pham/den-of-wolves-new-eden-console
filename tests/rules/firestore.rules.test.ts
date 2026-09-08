@@ -264,15 +264,34 @@ describe('session header', () => {
 });
 
 describe('events', () => {
-  it('can be read by members but not forged by clients', async () => {
+  it('allows members to read a creation envelope but never to forge one', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), `${SESSION}/events/confetti-1`), {
-        type: 'ship-confetti', shipId: 'aegis', shipName: 'AEGIS', actorName: 'Alice',
+      await setDoc(doc(ctx.firestore(), `${SESSION}/events/create-create-1`), {
+        sessionId: SESSION,
+        actorUid: 'alice',
+        actorRoleId: null,
+        turn: 0,
+        phase: 'lobby',
+        type: 'session.created',
+        requestId: 'create-1',
+        revision: 0,
+        serverTime: '2026-09-07T12:00:00.000Z',
+        visibility: 'member',
+        createdAt: new Date(),
       });
     });
-    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/events/confetti-1`)));
-    await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/confetti-2`), {
-      type: 'ship-confetti', shipId: 'aegis',
+    await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/events/create-create-1`)));
+    await assertFails(setDoc(doc(as('alice'), `${SESSION}/events/create-create-2`), {
+      sessionId: SESSION,
+      actorUid: 'alice',
+      actorRoleId: null,
+      turn: 0,
+      phase: 'lobby',
+      type: 'session.created',
+      requestId: 'create-2',
+      revision: 0,
+      serverTime: '2026-09-07T12:00:00.000Z',
+      visibility: 'member',
     }));
   });
 });

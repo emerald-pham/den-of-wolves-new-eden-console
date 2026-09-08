@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [22],
+    changes: [
+      'New lobbies now record a safe creation event for their members, and retrying the same creation request reuses the original lobby without exposing private setup details.',
+    ],
+  },
+  {
+    version: '0.3.8',
     changes: [
       'Wolf Pursuit Track countdowns now describe the remaining cycles instead of tracks.',
     ],

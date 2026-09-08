@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 **66 / 705 prompts complete (9%)**
 
-Status breakdown: **66 done · 28 partial · 611 missing**.
+Status breakdown: **66 done · 27 partial · 611 missing · 1 in-progress**.
 
-Active prompt: **none**.
+Active prompt: **Prompt 022**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -84,7 +84,7 @@ release classification and evidence.
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
 | 021 | done | feature | 0.3.5 | `requestGuards.test.ts`, `gameSetup.test.ts`, and `createSessionCallable.test.ts`. |
-| 022 | partial | feature | 0.3.5 | Atomic creation path and direct test exist; standardized envelope event is still open. |
+| 022 | in-progress | feature | 0.3.10 | Implementing the member-visible `session.created` envelope in the atomic creation transaction with replay-safe event identity and strict payload redaction. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
 | 024 | done | non-feature | — | `joinSessionCallable.test.ts` and rules tests. |
 | 025 | done | non-feature | — | Join-code lookup/security tests and denied listing. |
