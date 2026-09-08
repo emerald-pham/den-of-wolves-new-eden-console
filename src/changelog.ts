@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The pursuit tracker now identifies its warning readout as WOLF PURSUIT TRACK for a clearer view of the approaching threat.',
+    ],
+  },
+  {
+    version: '0.3.0',
+    changes: [
       'Connection indicators now stay optimistically connected for the first five seconds before revealing the live connection state, while reconnect grace behavior remains unchanged.',
     ],
   },
