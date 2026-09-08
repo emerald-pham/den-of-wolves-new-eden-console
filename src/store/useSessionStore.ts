@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { GameSession, GmInstance, Player, Seat, TurnStartReplay } from '@/types/game';
+import { normalizeShuttleManifest } from '@/data/shuttles';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -209,6 +210,21 @@ const initial = {
   'communicationError' | 'mode' | 'lastRoute' | 'connection'
 >;
 
+function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
+  if (!session) return null;
+  const manifest = normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  );
+  return {
+    ...session,
+    shuttleDockings: manifest.dockings,
+    shuttleVisitLog: manifest.visits,
+  };
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -265,6 +281,18 @@ export const useSessionStore = create<SessionState>()(
         mode,
         lastRoute,
       }),
+      merge: (persisted, current) => {
+        const restored = persisted && typeof persisted === 'object'
+          ? persisted as Partial<SessionState>
+          : {};
+        return {
+          ...current,
+          ...restored,
+          session: Object.hasOwn(restored, 'session')
+            ? normalizePersistedSession(restored.session)
+            : current.session,
+        };
+      },
     },
   ),
 );

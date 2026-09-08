@@ -196,6 +196,7 @@ import {
   disconnectFromSession,
   expireStalePlayers,
   refreshPresence,
+  resumeSession,
 } from './index';
 
 const NOW = new Date('2026-09-06T20:00:00.000Z');
@@ -297,8 +298,8 @@ describe('presence lease', () => {
     await expect(refreshPresence.run(request({
       sessionId: 's1', activeConsoleRoleId: 'press-officer',
     }))).rejects.toMatchObject({
-      code: 'failed-precondition',
-      message: expect.stringMatching(/core role|assigned|Press/i),
+      code: 'permission-denied',
+      message: expect.stringMatching(/Press|player station/i),
     });
 
     put('sessions/s1/players/u2', {
@@ -315,6 +316,16 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: 'press-officer',
     }, 'u2'))).resolves.toEqual({ sessionId: 's1' });
     expect(read('sessions/s1/players/u2')).toMatchObject({ activeConsoleRoleId: 'press-officer' });
+  });
+
+  it('keeps an unassigned GM as a Press observer instead of granting station authority', async () => {
+    session({ pressEnabled: true, activeRoleIds: ['admiral'] });
+    player({ role: 'gm', assignedRoleId: null });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'press-officer',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
   });
 
   it('allows an enabled Press claim outside active core roles, but reclaims a stale holder', async () => {
@@ -339,6 +350,34 @@ describe('presence lease', () => {
       sessionId: 's1', activeConsoleRoleId: 'press-officer',
     }))).resolves.toEqual({ sessionId: 's1' });
     expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: 'press-officer' });
+  });
+
+  it('does not let a stale Press holder reclaim authority after a replacement claims it', async () => {
+    session({
+      pressEnabled: true,
+      activeRoleIds: ['admiral'],
+      createdAt: mock.Timestamp.fromDate(NOW),
+      updatedAt: mock.Timestamp.fromDate(NOW),
+    });
+    player({
+      activeConsoleRoleId: 'press-officer',
+      joinedAt: mock.Timestamp.fromDate(NOW),
+      lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS),
+    });
+    put('sessions/s1/players/u2', {
+      uid: 'u2', sessionId: 's1', displayName: 'Replacement', role: 'player',
+      seatId: null, assignedRoleId: null, activeConsoleRoleId: null, connected: true,
+      joinedAt: mock.Timestamp.fromDate(NOW),
+      lastSeenAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: 'press-officer',
+    }, 'u2'))).resolves.toEqual({ sessionId: 's1' });
+    await expect(resumeSession.run(request({ sessionId: 's1' }))).resolves.toBeDefined();
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({ activeConsoleRoleId: null });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ activeConsoleRoleId: 'press-officer' });
   });
 
   it('denies Press presence when the authoritative toggle is disabled', async () => {
@@ -372,6 +411,38 @@ describe('presence lease', () => {
       activeConsoleRoleId: null,
       lastSeenAt: 'server-time',
     });
+    expect(read('sessions/s1')?.pressDispatch).toEqual({
+      dispatches: [{ id: 'dispatch-1', text: 'SNN // Earlier copy' }],
+      revision: 3,
+    });
+  });
+
+  it('removes Press-only private state on release while preserving dispatch history', async () => {
+    session({
+      pressEnabled: true,
+      pressDispatch: {
+        dispatches: [{ id: 'dispatch-1', text: 'SNN // Earlier copy' }],
+        revision: 3,
+      },
+    });
+    player({ activeConsoleRoleId: 'press-officer', assignedRoleId: 'press-officer' });
+    put('sessions/s1/secrets/loyalty-u1', {
+      visibleToUids: ['u1'], payload: { type: 'loyalty', kind: 'wolf-agent' },
+    });
+    put('sessions/s1/secrets/wolf-assignment', {
+      payload: { type: 'wolf-assignment', roleIds: ['press-officer'] },
+    });
+
+    await expect(refreshPresence.run(request({
+      sessionId: 's1', activeConsoleRoleId: null,
+    }))).resolves.toEqual({ sessionId: 's1' });
+
+    expect(read('sessions/s1/players/u1')).toMatchObject({
+      activeConsoleRoleId: null,
+      assignedRoleId: null,
+    });
+    expect(read('sessions/s1/secrets/loyalty-u1')).toBeUndefined();
+    expect(read('sessions/s1/secrets/wolf-assignment')).toBeUndefined();
     expect(read('sessions/s1')?.pressDispatch).toEqual({
       dispatches: [{ id: 'dispatch-1', text: 'SNN // Earlier copy' }],
       revision: 3,

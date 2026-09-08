@@ -281,6 +281,61 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+function hasCoreAssignment(player: DocumentSnapshot): boolean {
+  const assignedRoleId = player.get('assignedRoleId');
+  return typeof assignedRoleId === 'string' && assignedRoleId.trim().length > 0 &&
+    assignedRoleId !== 'press-officer';
+}
+
+function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
+  return isActivePlayer(player) && player.get('role') === 'player' &&
+    player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreAssignment(player);
+}
+
+function hasPressState(player: DocumentSnapshot): boolean {
+  return player.get('activeConsoleRoleId') === 'press-officer' ||
+    player.get('assignedRoleId') === 'press-officer';
+}
+
+function releasedPressFields(player: DocumentSnapshot): Record<string, unknown> {
+  return {
+    activeConsoleRoleId: null,
+    ...(player.get('assignedRoleId') === 'press-officer' ? { assignedRoleId: null } : {}),
+  };
+}
+
+function removePressWolfRole(
+  tx: Transaction,
+  wolfSecretRef: DocumentReference,
+  wolfSecret: DocumentSnapshot,
+): void {
+  const payload = wolfSecret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return;
+  const roleIds = (payload as { roleIds?: unknown }).roleIds;
+  if (!Array.isArray(roleIds) || !roleIds.includes('press-officer')) return;
+  const remainingRoleIds = roleIds.filter((roleId) => roleId !== 'press-officer');
+  if (remainingRoleIds.length === 0) tx.delete(wolfSecretRef);
+  else {
+    tx.update(wolfSecretRef, {
+      payload: { ...(payload as Record<string, unknown>), roleIds: remainingRoleIds },
+    });
+  }
+}
+
+function clearPressPrivateState(
+  tx: Transaction,
+  sessionId: string,
+  player: DocumentSnapshot,
+  wolfSecretRef: DocumentReference,
+  wolfSecret: DocumentSnapshot,
+  removeWolfRole: boolean,
+): void {
+  if (!hasCoreAssignment(player)) {
+    tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${player.id}`));
+  }
+  if (removeWolfRole) removePressWolfRole(tx, wolfSecretRef, wolfSecret);
+}
+
 type ReturningSeat = Readonly<{
   seatId: string | null;
   clearPointer: boolean;
@@ -648,6 +703,7 @@ export const createSession = onCall<{
           dioneEnabled: creation.configuration.dioneEnabled,
           pressEnabled: true,
           pressAvailabilityRevision: 0,
+          pressHolderUid: null,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -729,6 +785,7 @@ export const createSession = onCall<{
           dioneEnabled: creation.configuration.dioneEnabled,
           pressEnabled: true,
           pressAvailabilityRevision: 0,
+          pressHolderUid: null,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -890,8 +947,14 @@ export const startGame = onCall<{
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
     const connectedPlayers = players.docs.filter(isActivePlayer).map((player) => player.id);
-    const pressPlayerUids = players.docs
-      .filter((player) => isActivePlayer(player) && player.get('activeConsoleRoleId') === 'press-officer')
+    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
+    const storedPressHolderUid = authority.session.get('pressHolderUid');
+    const pressPlayerUids = (typeof storedPressHolderUid === 'string'
+      ? activePressHolders.filter((player) => player.id === storedPressHolderUid)
+      : activePressHolders.length === 1 ? activePressHolders : [])
+      .map((player) => player.id);
+    const facilitatorPlayerUids = players.docs
+      .filter((player) => isActivePlayer(player) && player.get('role') === 'gm')
       .map((player) => player.id);
     const assignments = players.docs.flatMap((player) => {
       const roleId = player.get('assignedRoleId');
@@ -918,6 +981,7 @@ export const startGame = onCall<{
       activeRoleIds,
       activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
       pressPlayerUids,
+      facilitatorPlayerUids,
     });
     if (!readiness.ready) {
       throw new HttpsError(
@@ -1304,12 +1368,32 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
       if (player.exists) {
         const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
+        const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
+        const storedPressHolderUid = sessionDoc.get('pressHolderUid');
+        const releasePress = hasPressState(player) && (
+          !currentPressAuthority || sessionDoc.get('pressEnabled') === false ||
+          player.get('role') !== 'player' || hasCoreAssignment(player) ||
+          (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
+        );
         tx.update(playerRef, {
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
+          ...(releasePress ? releasedPressFields(player) : {}),
+          ...(!releasePress && currentPressAuthority && player.get('assignedRoleId') === 'press-officer'
+            ? { assignedRoleId: null } : {}),
           ...(returningSeat.clearPointer ? { seatId: null } : {}),
         });
-        tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+        tx.update(sessionRef, {
+          deleteAfter: null,
+          updatedAt: FieldValue.serverTimestamp(),
+          ...(currentPressAuthority
+            ? {
+              pressHolderUid: releasePress && typeof storedPressHolderUid === 'string'
+                ? storedPressHolderUid
+                : releasePress ? null : uid,
+            }
+            : {}),
+        });
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
         return returningSeat.seatId;
       } else {
@@ -1466,16 +1550,30 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
     const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
+    const currentPressAuthority = currentPlayer.get('activeConsoleRoleId') === 'press-officer';
+    const storedPressHolderUid = currentSession.get('pressHolderUid');
+    const releasePress = hasPressState(currentPlayer) && (
+      !currentPressAuthority || currentSession.get('pressEnabled') === false ||
+      currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
+      (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
+    );
     tx.update(playerRef, {
       connected: true,
       lastSeenAt: FieldValue.serverTimestamp(),
-      ...(currentSession.get('pressEnabled') === false &&
-        currentPlayer.get('activeConsoleRoleId') === 'press-officer'
-        ? { activeConsoleRoleId: null }
-        : {}),
+      ...(releasePress ? releasedPressFields(currentPlayer) : {}),
+      ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
+        ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
     });
-    tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(sessionRef, {
+      deleteAfter: null,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(currentPressAuthority ? {
+        pressHolderUid: releasePress && typeof storedPressHolderUid === 'string'
+          ? storedPressHolderUid
+          : releasePress ? null : uid,
+      } : {}),
+    });
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
     return returningSeat.seatId;
   });
@@ -1665,7 +1763,18 @@ export const claimGmInstance = onCall<{
       deviceLabel: claim.deviceLabel,
       claimedAt: existing.get('claimedAt') ?? FieldValue.serverTimestamp(),
     });
-    tx.update(playerRef, { role: 'gm' });
+    tx.update(playerRef, {
+      role: 'gm',
+      ...(hasPressState(player) ? releasedPressFields(player) : {}),
+    });
+    if (hasPressState(player)) {
+      if (!hasCoreAssignment(player)) {
+        tx.delete(db.doc(`sessions/${claim.sessionId}/secrets/loyalty-${uid}`));
+      }
+      if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
+        tx.update(sessionRef, { pressHolderUid: null });
+      }
+    }
   });
 
   const instance = await instanceRef.get();
@@ -1950,37 +2059,21 @@ export const setPressEnabled = onCall<{
     tx.update(sessionRef, {
       pressEnabled: setting.pressEnabled,
       pressAvailabilityRevision: result.revision,
+      ...(!setting.pressEnabled ? { pressHolderUid: null } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (!setting.pressEnabled) {
       // Revoke live and stale station authority, while preserving assignments,
       // dispatch history, and every counted/core roster field.
       players.docs
-        .filter((candidate) => candidate.get('activeConsoleRoleId') === 'press-officer')
+        .filter(hasPressState)
         .forEach((candidate) => {
-          tx.update(candidate.ref, { activeConsoleRoleId: null });
-          const assignedRoleId = candidate.get('assignedRoleId');
-          const carriesCoreAssignment = typeof assignedRoleId === 'string' &&
-            assignedRoleId.trim().length > 0 && assignedRoleId !== 'press-officer';
-          if (!carriesCoreAssignment) {
+          tx.update(candidate.ref, releasedPressFields(candidate));
+          if (!hasCoreAssignment(candidate)) {
             tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
           }
         });
-
-      const payload = wolfSecret.get('payload');
-      if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
-        const roleIds = (payload as { roleIds?: unknown }).roleIds;
-        if (Array.isArray(roleIds)) {
-          const remainingRoleIds = roleIds.filter((roleId) => roleId !== 'press-officer');
-          if (remainingRoleIds.length === 0) {
-            tx.delete(wolfSecretRef);
-          } else {
-            tx.update(wolfSecretRef, {
-              payload: { ...(payload as Record<string, unknown>), roleIds: remainingRoleIds },
-            });
-          }
-        }
-      }
+      removePressWolfRole(tx, wolfSecretRef, wolfSecret);
     }
     tx.set(eventRef, {
       type: 'press-availability',
@@ -2829,8 +2922,7 @@ export const assignWolves = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const enabledRoleIds = [...configuredRoleIds(session)];
-    const activePressHolders = players.docs.filter((candidate) =>
-      isActivePlayer(candidate) && candidate.get('activeConsoleRoleId') === 'press-officer');
+    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
     if (session.get('pressEnabled') !== false && activePressHolders.length === 1) {
       enabledRoleIds.push('press-officer');
     }
@@ -2876,8 +2968,8 @@ export const assignWolfRoles = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const active = configuredRoleIds(session);
-    const pressClaimed = session.get('pressEnabled') !== false && players.docs.some((candidate) =>
-      isActivePlayer(candidate) && candidate.get('activeConsoleRoleId') === 'press-officer');
+    const pressClaimed = session.get('pressEnabled') !== false &&
+      players.docs.some(isAuthoritativePressHolder);
     if (assignment.roleIds.some((roleId) =>
       roleId === 'press-officer' ? !pressClaimed : !active.includes(roleId))) {
       throw new HttpsError('failed-precondition', 'Every selected wolf must be active.');
@@ -2959,7 +3051,12 @@ export const popShipConfetti = onCall<{
         activation.roleId !== 'press-officer' ||
         !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('connected') !== true ||
-        player.get('activeConsoleRoleId') !== 'press-officer'
+        player.get('activeConsoleRoleId') !== 'press-officer' ||
+        hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid) ||
+        connectedPlayers.docs.some((candidate) =>
+          candidate.id !== uid && isAuthoritativePressHolder(candidate))
       )
     ) {
       throw new HttpsError(
@@ -3091,8 +3188,12 @@ export const refreshPresence = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
+  const pressHoldersRef = db.collection(`sessions/${sessionId}/players`)
+    .where('activeConsoleRoleId', '==', 'press-officer');
+  const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   await db.runTransaction(async (tx) => {
     const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
       ? request.data.activeConsoleRoleId
@@ -3101,10 +3202,12 @@ export const refreshPresence = onCall<{
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, holders] = await Promise.all([
+    const [player, session, holders, pressHolders, wolfSecret] = await Promise.all([
       tx.get(playerRef),
-      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(sessionRef),
       roleHolders ? tx.get(roleHolders) : null,
+      tx.get(pressHoldersRef),
+      tx.get(wolfSecretRef),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
@@ -3113,18 +3216,46 @@ export const refreshPresence = onCall<{
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
-    if (
-      session.get('pressEnabled') === false &&
-      player.get('activeConsoleRoleId') === 'press-officer'
-    ) {
-      presenceUpdate.activeConsoleRoleId = null;
+    let pressHolderUidUpdate: string | null | undefined;
+    const otherActivePressHolders = pressHolders.docs.filter((holder) =>
+      holder.id !== uid && isAuthoritativePressHolder(holder));
+    const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
+    const invalidCurrentPressAuthority = currentPressAuthority && (
+      session.get('pressEnabled') === false || player.get('role') !== 'player' ||
+      hasCoreAssignment(player) || otherActivePressHolders.length > 0
+    );
+    const explicitRelease = request.data?.activeConsoleRoleId === null;
+    const orphanedPressAssignment = player.get('assignedRoleId') === 'press-officer' &&
+      !currentPressAuthority;
+    if (explicitRelease || invalidCurrentPressAuthority || orphanedPressAssignment) {
+      Object.assign(presenceUpdate, releasedPressFields(player));
+      if (hasPressState(player)) {
+        clearPressPrivateState(
+          tx,
+          sessionId,
+          player,
+          wolfSecretRef,
+          wolfSecret,
+          otherActivePressHolders.length === 0,
+        );
+        const storedPressHolderUid = session.get('pressHolderUid');
+        pressHolderUidUpdate = otherActivePressHolders[0]?.id ??
+          (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid
+            ? storedPressHolderUid
+            : null);
+      }
+    } else if (currentPressAuthority && player.get('assignedRoleId') === 'press-officer') {
+      presenceUpdate.assignedRoleId = null;
+      pressHolderUidUpdate = uid;
     }
-    if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
       const requestedRoleId = request.data.activeConsoleRoleId;
       const isPressRequest = requestedRoleId === 'press-officer';
       if (isPressRequest && session.get('pressEnabled') === false) {
         throw new HttpsError('failed-precondition', 'Press is disabled.');
+      }
+      if (isPressRequest && player.get('role') !== 'player') {
+        throw new HttpsError('permission-denied', 'Press is a player station.');
       }
       const assignedRoleId = player.get('assignedRoleId');
       if (
@@ -3147,7 +3278,9 @@ export const refreshPresence = onCall<{
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
       const heldByAnotherPlayer = holders?.docs.some(
-        (holder) => holder.id !== uid && isActivePlayer(holder),
+        (holder) => holder.id !== uid && (
+          isPressRequest ? isAuthoritativePressHolder(holder) : isActivePlayer(holder)
+        ),
       ) ?? false;
       if (!canSelectConsoleRole(
         player.get('activeConsoleRoleId') as string | null | undefined,
@@ -3163,9 +3296,32 @@ export const refreshPresence = onCall<{
           'Release your current role in settings before selecting another.',
         );
       }
+      if (isPressRequest) {
+        for (const holder of pressHolders.docs) {
+          if (holder.id === uid || isAuthoritativePressHolder(holder)) continue;
+          tx.update(holder.ref, releasedPressFields(holder));
+          clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false);
+        }
+        if (player.get('assignedRoleId') === 'press-officer') {
+          presenceUpdate.assignedRoleId = null;
+        }
+        pressHolderUidUpdate = uid;
+      }
       presenceUpdate.activeConsoleRoleId = requestedRoleId;
     }
+    if (
+      currentPressAuthority && !invalidCurrentPressAuthority &&
+      request.data?.activeConsoleRoleId !== null
+    ) {
+      pressHolderUidUpdate = uid;
+    }
     tx.update(playerRef, presenceUpdate);
+    if (pressHolderUidUpdate !== undefined) {
+      tx.update(sessionRef, {
+        pressHolderUid: pressHolderUidUpdate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
   return { sessionId };
@@ -3180,14 +3336,16 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const players = db.collection(`sessions/${sessionId}/players`);
   const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
+  const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
 
   await db.runTransaction(async (tx) => {
-    const [sessionDoc, player, membership, connected, ownedInstances] = await Promise.all([
+    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(players.where('connected', '==', true)),
       tx.get(gmInstances.where('uid', '==', uid)),
+      tx.get(wolfSecretRef),
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -3196,8 +3354,24 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
     tx.update(playerRef, {
       connected: false,
       ...disconnectedRoleState(),
+      ...(hasPressState(player) ? releasedPressFields(player) : {}),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
+    if (hasPressState(player)) {
+      const anotherPressHolder = connected.docs.some((candidate) =>
+        candidate.id !== uid && isAuthoritativePressHolder(candidate));
+      clearPressPrivateState(
+        tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
+      );
+      if (sessionDoc.get('pressHolderUid') === uid || sessionDoc.get('pressHolderUid') === undefined) {
+        const successor = connected.docs.find((candidate) =>
+          candidate.id !== uid && isAuthoritativePressHolder(candidate));
+        tx.update(sessionRef, {
+          pressHolderUid: successor?.id ?? null,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
     for (const instance of ownedInstances.docs) tx.delete(instance.ref);
     if (membership.exists && membership.get('sessionId') === sessionId) {
       tx.delete(membershipRef);
@@ -3253,13 +3427,15 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const players = db.collection(`sessions/${sessionId}/players`);
     const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
+    const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
     await db.runTransaction(async (tx) => {
-      const [session, player, membership, connected, ownedInstances] = await Promise.all([
+      const [session, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(players.where('connected', '==', true)),
         tx.get(gmInstances.where('uid', '==', uid)),
+        tx.get(wolfSecretRef),
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
@@ -3274,8 +3450,24 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       tx.update(playerRef, {
         connected: false,
         ...disconnectedRoleState(),
+        ...(hasPressState(player) ? releasedPressFields(player) : {}),
         lastSeenAt: FieldValue.serverTimestamp(),
       });
+      if (hasPressState(player)) {
+        const anotherPressHolder = connected.docs.some((connectedPlayer) =>
+          connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+        clearPressPrivateState(
+          tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
+        );
+        if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
+          const successor = connected.docs.find((connectedPlayer) =>
+            connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+          tx.update(sessionRef, {
+            pressHolderUid: successor?.id ?? null,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
       if (
         seatRef &&
         seat?.exists &&
@@ -4103,15 +4295,19 @@ export const publishPressDispatch = onCall<{
   const dispatchId = randomUUID();
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
-    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(ref),
+    ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer') {
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(
         'permission-denied',
         'Only the active Press Officer may publish a fleet dispatch.',
       );
     }
-    const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');
@@ -4156,15 +4352,19 @@ export const dismissPressDispatch = onCall<{
   const data = requirePressDispatchDismissalRequest(request.data ?? {});
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
-    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(ref),
+    ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer') {
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(
         'permission-denied',
         'Only the active Press Officer may dismiss a fleet dispatch.',
       );
     }
-    const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');

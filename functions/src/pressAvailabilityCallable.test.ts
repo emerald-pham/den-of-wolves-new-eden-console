@@ -234,6 +234,29 @@ it('clears a legacy Press console claim without deleting a core assignment or it
   });
 });
 
+it('clears a disconnected legacy Press-only assignment even when no live console claim remains', async () => {
+  session({ activeRoleIds: ['admiral'] });
+  gm();
+  put('sessions/s1/players/u2', {
+    uid: 'u2', role: 'player', connected: false,
+    activeConsoleRoleId: null, assignedRoleId: 'press-officer',
+  });
+  put('sessions/s1/secrets/loyalty-u2', {
+    visibleToUids: ['u2'], payload: { type: 'loyalty', kind: 'wolf-agent' },
+  });
+
+  await expect(setPressEnabled.run(request({
+    ...baseData,
+    requestId: 'press-legacy-assignment-off',
+  }))).resolves.toEqual({ pressEnabled: false, revision: 1 });
+
+  expect(mock.documents.get('sessions/s1/players/u2')).toMatchObject({
+    activeConsoleRoleId: null,
+    assignedRoleId: null,
+  });
+  expect(mock.documents.get('sessions/s1/secrets/loyalty-u2')).toBeUndefined();
+});
+
 it('rejects a stale opposite GM command without overwriting the newer choice', async () => {
   session();
   gm();

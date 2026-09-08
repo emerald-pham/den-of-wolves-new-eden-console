@@ -153,11 +153,19 @@ export function normalizeShuttleManifest(
 interface ShuttleSessionState {
   readonly shuttleDockings?: readonly ShuttleDocking[];
   readonly shuttleVisitLog?: readonly ShuttleVisit[];
+  readonly activeRoleIds?: readonly string[];
+  readonly playerCount?: number;
 }
 
 export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) {
-  const dockings = session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS;
-  const visits = session.shuttleVisitLog ?? INITIAL_SHUTTLE_VISITS;
+  const manifest = normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  );
+  const dockings = manifest.dockings;
+  const visits = manifest.visits;
   const dockedShuttles = dockings.filter((item) => item.shipId === shipId).flatMap((docking) => {
       const shuttle = SHUTTLECRAFT.find((item) => item.id === docking.shuttleId);
       return shuttle ? [{ ...shuttle, dockedAt: docking.dockedAt }] : [];
@@ -175,6 +183,11 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
 }
 
 export function dockingForShuttle(session: ShuttleSessionState, shuttleId: string): ShuttleDocking | undefined {
-  return (session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS)
+  return normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  ).dockings
     .find((docking) => docking.shuttleId === shuttleId);
 }

@@ -198,6 +198,16 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
       activeConsoleRoleId: 'press-officer',
     },
   });
+  mock.playerDocs.push(
+    {
+      id: 'gm-observer-1',
+      fields: { connected: true, role: 'gm', assignedRoleId: null, activeConsoleRoleId: null },
+    },
+    {
+      id: 'gm-observer-2',
+      fields: { connected: true, role: 'gm', assignedRoleId: null, activeConsoleRoleId: null },
+    },
+  );
   mock.instanceDocs = [
     { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
     { id: 'desk', fields: { uid: 'u9', responsibility: 'assistant' } },
@@ -213,7 +223,7 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
     message: expect.stringMatching(/loyalties/i),
   });
 
-  mock.secretDocs.push(`loyalty-${pressUid}`);
+  mock.secretDocs.push(`loyalty-${pressUid}`, 'loyalty-former-press');
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-press-with-loyalty',
     expectedSetupRevision: 0,

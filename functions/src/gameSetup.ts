@@ -265,6 +265,8 @@ export interface SetupReadinessInput {
   readonly activeVesselIds: readonly string[];
   /** Optional Press holders are live station occupancy, never core roster members. */
   readonly pressPlayerUids?: readonly string[];
+  /** Connected GM-only observers do not consume a player or Press station. */
+  readonly facilitatorPlayerUids?: readonly string[];
 }
 
 function vesselIdsForRole(roleId: string): readonly string[] {
@@ -283,10 +285,16 @@ export function readinessForSetup(input: SetupReadinessInput): {
   if (input.phase !== 'casting') reasons.push('wrong-phase');
   if (!isOneOf(input.playerCount, SUPPORTED_PLAYER_COUNTS)) reasons.push('player-count');
   const pressPlayerUids = new Set(input.pressPlayerUids ?? []);
-  const coreConnectedPlayers = input.connectedPlayers.filter((uid) => !pressPlayerUids.has(uid));
+  const assignedCorePlayerUids = new Set(input.assignments
+    .filter((assignment) => assignment.roleId !== 'press-officer')
+    .map((assignment) => assignment.uid));
+  const facilitatorOnlyUids = new Set((input.facilitatorPlayerUids ?? [])
+    .filter((uid) => !assignedCorePlayerUids.has(uid)));
+  const coreConnectedPlayers = input.connectedPlayers.filter((uid) =>
+    !pressPlayerUids.has(uid) && !facilitatorOnlyUids.has(uid));
   const coreAssignments = input.assignments.filter((assignment) =>
-    !pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
-  const coreLoyaltyUids = input.loyaltyUids.filter((uid) => !pressPlayerUids.has(uid));
+    !pressPlayerUids.has(assignment.uid) && !facilitatorOnlyUids.has(assignment.uid) &&
+    assignment.roleId !== 'press-officer');
   const pressHasCoreAssignment = input.assignments.some((assignment) =>
     pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
   if (coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
@@ -309,12 +317,13 @@ export function readinessForSetup(input: SetupReadinessInput): {
     coreAssignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
   ) reasons.push('roles');
 
-  const loyaltyIds = new Set(coreLoyaltyUids);
+  const expectedLoyaltyUids = new Set([...coreConnectedPlayers, ...pressPlayerUids]);
+  const relevantLoyaltyUids = input.loyaltyUids.filter((uid) => expectedLoyaltyUids.has(uid));
+  const loyaltyIds = new Set(relevantLoyaltyUids);
   if (
-    [...pressPlayerUids].some((uid) => !input.loyaltyUids.includes(uid)) ||
-    loyaltyIds.size !== coreLoyaltyUids.length ||
-    loyaltyIds.size !== coreConnectedPlayers.length ||
-    coreConnectedPlayers.some((uid) => !loyaltyIds.has(uid))
+    loyaltyIds.size !== relevantLoyaltyUids.length ||
+    expectedLoyaltyUids.size !== loyaltyIds.size ||
+    [...expectedLoyaltyUids].some((uid) => !loyaltyIds.has(uid))
   ) reasons.push('loyalties');
 
   if (!input.facilitatorResponsibilities.main) reasons.push('main-facilitator');

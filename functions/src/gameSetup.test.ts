@@ -236,6 +236,44 @@ describe('start readiness', () => {
     expect(activeVesselIdsForRoles(coreRoleIds)).not.toContain('snn-press-shuttle');
   });
 
+  it('excludes connected GM-only observers from core and Press readiness counts', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const gmOnlyUids = ['gm-observer-1', 'gm-observer-2'];
+    const input = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid, ...gmOnlyUids],
+      assignments: coreRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId })),
+      loyaltyUids: [...corePlayers, pressUid],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+      facilitatorPlayerUids: gmOnlyUids,
+    } as Parameters<typeof readinessForSetup>[0] & { facilitatorPlayerUids: string[] };
+
+    expect(readinessForSetup(input)).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('ignores orphaned Press loyalty after the station is unclaimed', () => {
+    const coreRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+
+    expect(readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments: coreRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId })),
+      loyaltyUids: [...corePlayers, 'former-press'],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [],
+    })).toEqual({ ready: true, reasons: [] });
+  });
+
   it('requires a claimed Press holder to carry private loyalty without changing core readiness', () => {
     const coreRoleIds = [...recommendedRoleIds(20)];
     const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);

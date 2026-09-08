@@ -8,6 +8,7 @@ import ShuttleConsole from './ShuttleConsole';
 
 vi.mock('@/lib/sessionService', () => ({
   popShipConfetti: vi.fn(),
+  releaseConsoleRole: vi.fn().mockResolvedValue(undefined),
   selectConsoleRole: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/pressDispatchService', () => ({
@@ -15,11 +16,13 @@ vi.mock('@/lib/pressDispatchService', () => ({
   publishPressDispatch: vi.fn(),
 }));
 const { dismissPressDispatch, publishPressDispatch } = await import('@/lib/pressDispatchService');
-const { selectConsoleRole } = await import('@/lib/sessionService');
+const { releaseConsoleRole, selectConsoleRole } = await import('@/lib/sessionService');
 
 beforeEach(() => {
   vi.mocked(selectConsoleRole).mockReset();
   vi.mocked(selectConsoleRole).mockResolvedValue(undefined);
+  vi.mocked(releaseConsoleRole).mockReset();
+  vi.mocked(releaseConsoleRole).mockResolvedValue(undefined);
   vi.mocked(publishPressDispatch).mockReset();
   vi.mocked(publishPressDispatch).mockResolvedValue(undefined);
   vi.mocked(dismissPressDispatch).mockReset();
@@ -43,12 +46,16 @@ beforeEach(() => {
   useSessionStore.getState().setMode('console');
 });
 
-it('keeps the newspaper dispenser locked when the Press Officer claim is rejected', async () => {
+it('keeps a rejected Press claim locked and provides a keyboard return to Independent Stations', async () => {
+  const user = userEvent.setup();
   vi.mocked(selectConsoleRole).mockRejectedValueOnce(new Error('Role already held.'));
 
   render(
     <MemoryRouter initialEntries={['/press']}>
-      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+      <Routes>
+        <Route path="/console" element={<p>Independent Stations</p>} />
+        <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -56,6 +63,12 @@ it('keeps the newspaper dispenser locked when the Press Officer claim is rejecte
   expect(cover).toBeDisabled();
   await waitFor(() => expect(selectConsoleRole).toHaveBeenCalledWith('press-officer'));
   expect(cover).toBeDisabled();
+  const back = screen.getByRole('link', { name: /back to independent stations/i });
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Independent Stations')).toBeInTheDocument();
+  expect(releaseConsoleRole).not.toHaveBeenCalled();
 });
 
 it('does not claim the Press role while another console is held', async () => {
@@ -220,20 +233,30 @@ it('lets a GM return from the shuttle console to role selection', async () => {
 
   await user.click(screen.getByRole('link', { name: /leave shuttle/i }));
   expect(screen.getByText('Role selection')).toBeInTheDocument();
+  expect(selectConsoleRole).not.toHaveBeenCalled();
 });
 
-it('keeps a non-GM press officer aboard until settings releases the role', () => {
+it('lets a non-GM Press holder release authority through a keyboard return', async () => {
+  const user = userEvent.setup();
   const me = useSessionStore.getState().me;
   if (!me) throw new Error('Expected the test player.');
   useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'press-officer' });
 
   render(
     <MemoryRouter initialEntries={['/press']}>
-      <Routes><Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} /></Routes>
+      <Routes>
+        <Route path="/console" element={<p>Independent Stations</p>} />
+        <Route path="/press" element={<ShuttleConsole shuttleId="snn-press-shuttle" />} />
+      </Routes>
     </MemoryRouter>,
   );
 
-  expect(screen.queryByRole('link', { name: /leave shuttle/i })).not.toBeInTheDocument();
+  const back = screen.getByRole('button', { name: /back to independent stations/i });
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(releaseConsoleRole).toHaveBeenCalledOnce();
+  expect(await screen.findByText('Independent Stations')).toBeInTheDocument();
 });
 
 it('returns a Press holder to role selection when the GM disables Press', () => {

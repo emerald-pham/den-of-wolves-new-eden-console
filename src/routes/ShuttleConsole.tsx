@@ -1,20 +1,22 @@
-import { useEffect } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import ShuttleConsoleTemplate from '@/components/ShuttleConsoleTemplate';
 import { DEFAULT_ACTIVE_ROLE_IDS, findConsoleRole } from '@/data/roles';
 import { SHUTTLECRAFT, dockingForShuttle, isShuttleEnabled } from '@/data/shuttles';
 import { isJointEngineeringRoleId } from '@/data/rolePresets';
 import { consoleRoleRoute } from '@/lib/consoleRole';
-import { selectConsoleRole } from '@/lib/sessionService';
+import { releaseConsoleRole, selectConsoleRole } from '@/lib/sessionService';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 
 export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shuttleId?: string }) {
+  const navigate = useNavigate();
   const { shuttleId: routeShuttleId } = useParams();
   const shuttleId = providedShuttleId ?? routeShuttleId ?? '';
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const mode = useSessionStore((state) => state.mode);
   const isGm = useSessionStore(selectIsGm);
+  const [returningToStations, setReturningToStations] = useState(false);
   const shuttle = SHUTTLECRAFT.find((item) => item.id === shuttleId);
   const activeRoles = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const captainRole = findConsoleRole(shuttle?.captainRoleId);
@@ -26,6 +28,7 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const canClaimCaptainRole = Boolean(
     session && me && shuttle && (mode === 'console' || mode === 'press') &&
     shuttleEnabled &&
+    (!isPressShuttle || !isGm) &&
     (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === shuttle.captainRoleId),
   );
 
@@ -49,7 +52,30 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
     return <Navigate to="/console" replace />;
   }
 
-  const returnTo = isJointEngineeringRoleId(shuttle.captainRoleId)
+  async function returnPressToIndependentStations(): Promise<void> {
+    if (returningToStations) return;
+    setReturningToStations(true);
+    try {
+      await releaseConsoleRole();
+      navigate('/console', { replace: true });
+    } catch {
+      setReturningToStations(false);
+    }
+  }
+
+  const returnTo = isPressShuttle && !isGm
+    ? me.activeConsoleRoleId === shuttle.captainRoleId
+      ? {
+          to: '/console',
+          label: returningToStations ? 'Returning to Independent Stations…' : 'Back to Independent Stations',
+          onClick: () => void returnPressToIndependentStations(),
+          busy: returningToStations,
+        }
+      : {
+          to: '/console',
+          label: 'Back to Independent Stations',
+        }
+    : isJointEngineeringRoleId(shuttle.captainRoleId)
     ? {
         to: consoleRoleRoute(shuttle.captainRoleId),
         label: 'Back to Joint Engineering Union',
