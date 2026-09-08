@@ -24,6 +24,14 @@ const A = 'admiral';
 const W = 'wing-commander';
 const QR = 'joint-engineering-quellon-refinery';
 const SI = 'joint-engineering-shepherd-icebreaker';
+const CORE_17 = [
+  A, 'executive-officer', W, 'dione-captain', 'dione-president',
+  'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
+  'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist',
+  'quellon-captain', 'quellon-engineer', 'quellon-explorer',
+  'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+] as const;
+const CAPYBARA_PAIR = ['capybara-captain', 'capybara-recycler'] as const;
 
 export const JOINT_ENGINEERING_ROLE_IDS = [QR, SI] as const;
 export type JointEngineeringRoleId = typeof JOINT_ENGINEERING_ROLE_IDS[number];
@@ -57,9 +65,10 @@ const PRESETS: Readonly<Record<number, readonly string[]>> = {
   14: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   15: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   16: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
-  17: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+  17: CORE_17,
   18: CORE_18,
-  20: [...CORE_18, 'capybara-captain', 'capybara-recycler'],
+  19: [...CORE_17, ...CAPYBARA_PAIR],
+  20: [...CORE_18, ...CAPYBARA_PAIR],
 };
 
 export function recommendedRoleIds(playerCount: number): readonly string[] {

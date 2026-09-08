@@ -15,15 +15,15 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**62 / 710 prompts complete (9%)**
+**63 / 710 prompts complete (9%)**
 
-Status breakdown: **62 done · 34 partial · 613 missing · 1 in-progress**.
+Status breakdown: **63 done · 34 partial · 613 missing**.
 
-Active prompt: **Prompt 004**.
+Active prompt: **none**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
-that only that many prompts have been completed. In this snapshot, Prompt 004
+that only that many prompts have been completed. In this snapshot, Prompt 012
 is the first unresolved prompt even though later prompts are already complete.
 
 `[██░░░░░░░░░░░░░░░░░░]`
@@ -36,29 +36,37 @@ product decision is required. Only `done` prompts are checked in the source plan
 
 ### Prompt 004/051 failing-first evidence
 
-Before changing production roster code, the underlying printed artifact was
-inspected at `/Users/emeraldpham/Documents/DoWNE v1.1/Home Printing/DoWNE - Facilitator Guide v1.1.pdf`, PDF page 5 (printed page 3), and the new
-matrix/readiness and production-path acceptance tests were run from the
-dedicated Prompt 004 worktree with:
+The underlying printed artifact was inspected at `/Users/emeraldpham/Documents/DoWNE v1.1/Home Printing/DoWNE - Facilitator Guide v1.1.pdf`, PDF page 5 (printed page 3). The chronological red run was missed before production edits. A separate retrospective baseline reconstruction applied only the nine intended test diffs to the old runtime and ran the focused matrix/readiness and production-path suite from the dedicated Prompt 004 worktree with:
 
 ```text
-npx vitest run --project unit --project functions src/data/rolePresets.test.ts functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/createSessionCallable.test.ts functions/src/startCallable.test.ts
+npx vitest run --project unit --project functions src/data/rolePresets.test.ts src/data/shuttles.test.ts src/lib/firestore.test.ts src/routes/GmConsole.test.tsx functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/requestGuards.test.ts functions/src/createSessionCallable.test.ts functions/src/shuttlecraft.test.ts
 ```
 
-Observed red result (Vitest start `09:16:59`, recorded from that run; this
-summary is evidence of the run and is not being presented as a rerun): 5 test
-files failed, with 11 failed and 35 passed tests. The client and server exact
-ordered-roster assertions failed first at player count 8 because the current
-implementation returned 7 roles instead of the required 8. The readiness
-matrix failed at counts 8, 9, 10, and 11 because the current presets returned
-7, 8, 9, and 10 roles respectively; the count-18 vessel-order assertion also
-observed `quellon` before `shepherd` instead of the canonical order. The
-negative readiness test showed the current production readiness accepted an
-out-of-preset `press-officer`, and the production-path tests showed creation
-and `applyRolePreset` persisted/returned the short 8-player roster while the
-start test was blocked on `players` when it used that roster. This is the
-durable preimplementation red evidence for the Prompt 004/051 production
-change.
+The retrospective red result was 9 failed files, 13 failed tests, and 171
+passed tests. It covered the missing client/server 19-role rows, 19 wolf and
+readiness rejection, invalid-guard rejection of newly valid 19, 19 creation
+rejection, SNN 19 resolving to AEGIS instead of Dione, and missing GM 19
+staging. This establishes regression sensitivity only; it is not a
+chronological preimplementation TDD receipt.
+
+### Prompt 004 completion evidence — version 0.3.11
+
+The reconciled Prompt 004 focused proof passed with 9 test files and 184 tests:
+
+```text
+npx vitest run --project unit --project functions src/data/rolePresets.test.ts src/data/shuttles.test.ts src/lib/firestore.test.ts src/routes/GmConsole.test.tsx functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/requestGuards.test.ts functions/src/createSessionCallable.test.ts functions/src/shuttlecraft.test.ts
+```
+
+The client and server catalogs now prove the exact ordered, unique rows for
+every integer count 8–20; the 19/20 rows are the exact base-17/base-18 rows
+followed by the atomic Capybara Captain/Recycler pair. The same focused matrix
+proves invalid count boundaries, two Wolves at 19/20, Press/GM exclusion,
+Dione-derived SNN hosting at 19, and the existing GM surface's local 19-role
+staging without a command before confirmation. Creation guards and hydration
+tests cover only inherent shared-count propagation; this release does not claim
+production configuration persistence, casting, readiness, start, or seat
+provisioning, and does not close Prompts 021, 030, 051, 054, 071, 073, 075, or
+020. Lower-count Capybara substitutions remain unresolved.
 
 ## Progress integrity gate
 
@@ -96,7 +104,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | in-progress | feature | 0.3.9 | Active Prompt 004 catalog slice: preserve the exact ordered 8–18 base matrix, add 19 = printed base-17 plus atomic Capybara Captain/Recycler, retain 20 = base-18 plus the pair, and prove client/server parity, invalid boundaries, Dione/SNN-host derivation, and two Wolves for both high rows without counting Press or GM instances. Production creation, casting, readiness, private setup, and Turn 1 remain separate prompt evidence; lower-count expansion substitutions remain undecided and must not be invented. |
+| 004 | done | feature | 0.3.9, 0.3.11 | Prompt 004 catalog slice complete: client/server tests prove exact ordered, unique 8–20 rows; 19 = base-17 plus Capybara Captain/Recycler and 20 = base-18 plus the same pair; invalid boundaries, Dione/SNN host at 19, vessels/Union, two Wolves, Press/GM exclusion, and GM-local 19 staging are covered. Creation/guard/hydration parity is inherited shared-count propagation only. Prompt 030 remains partial; no claims are made for Prompts 021, 030, 051, 054, 071, 073, 075, or 020; lower-count Capybara substitutions remain unresolved. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -787,7 +795,7 @@ release classification and evidence.
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 637 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 638 | missing | non-feature | — | Planned [EXTEND] prompt: current runtime supports 8–18 and 20 but omits owner-set 19, so it cannot claim inclusive 8–20. One-GM 20-core, optional Press-21, multiple-GM, reconnect/action, and measured evidence remain open. |
+| 638 | missing | non-feature | — | Planned [EXTEND] prompt: the catalog now contains the owner-set 8–20 rows, but one-GM 20-core production setup, optional Press-21, multiple-GM, reconnect/action, and measured capacity evidence remain open. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 641 | missing | non-feature | — | Planned [PROVE] one-GM complete base playthrough followed by optional multi-GM mutation races. |
@@ -811,12 +819,12 @@ release classification and evidence.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance and
+- Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and
   the default triage suggestion, not a dependency or concurrency lock. Prompt
   020 is the first missing production-path composition proof after the
   documented preserve contracts.
-- Application version `0.3.9` is reserved for and used by the Prompt 004/051
-  player-facing roster slice, with matching changelog coverage.
+- Application versions `0.3.9` and `0.3.11` cover the Prompt 004 player-facing
+  roster slice, with matching changelog coverage; Prompt 051 remains partial.
 - Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to
   the non-feature join-code policy contract on branch
   `chore/prompt-011-join-code-policy-20260908`.

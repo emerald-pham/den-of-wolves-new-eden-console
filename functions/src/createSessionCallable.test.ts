@@ -121,11 +121,34 @@ it('creates an eight-player lobby with one legal role per player', async () => {
   );
 });
 
+it('creates a nineteen-player lobby with the atomic Capybara pair and Dione-hosted SNN', async () => {
+  await expect(createSession.run(request({ requestId: 'create-roster-19', playerCount: 19 })))
+    .resolves.toMatchObject({ session: { playerCount: 19 } });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/generated-session' }),
+    expect.objectContaining({
+      activeRoleIds: [
+        'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+        'dione-president', 'icebreaker-captain', 'icebreaker-engineer',
+        'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer',
+        'shepherd-scientist', 'quellon-captain', 'quellon-engineer',
+        'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer',
+        'refinery-124-pdf-colonel', 'capybara-captain', 'capybara-recycler',
+      ],
+      shuttleDockings: expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione' }),
+      ]),
+    }),
+  );
+});
+
 it.each([
   [8, 'aegis'],
   [11, 'aegis'],
   [12, 'dione'],
   [18, 'dione'],
+  [19, 'dione'],
   [20, 'dione'],
 ] as const)('persists the authoritative SNN host for the %i-player session', async (playerCount, shipId) => {
   const reply = await createSession.run(request({

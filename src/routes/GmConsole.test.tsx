@@ -901,6 +901,14 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
     expect(switchControl).not.toBeChecked();
   }
 
+  await user.selectOptions(playerCount, '19');
+  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(screen.getByText('Unconfirmed changes // 19 roles staged')).toBeInTheDocument();
+  expect(screen.getByRole('switch', { name: /capybara captain role availability/i }))
+    .toBeChecked();
+  expect(screen.getByRole('switch', { name: /capybara recycler role availability/i }))
+    .toBeChecked();
+
   await user.selectOptions(playerCount, '20');
   expect(screen.queryByRole('switch', {
     name: /quellon \/ refinery engineer role availability/i,

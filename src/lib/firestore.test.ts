@@ -39,6 +39,7 @@ it.each([
   [11, 'aegis'],
   [12, 'dione'],
   [18, 'dione'],
+  [19, 'dione'],
   [20, 'dione'],
 ] as const)('hydrates the persisted %i-player SNN host from Firestore data', (playerCount, shipId) => {
   const session = sessionFrom(`s-${playerCount}`, sessionData(playerCount));

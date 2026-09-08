@@ -39,6 +39,7 @@ it.each([
   [11, 'aegis'],
   [12, 'dione'],
   [18, 'dione'],
+  [19, 'dione'],
   [20, 'dione'],
 ] as const)('derives the SNN host from the locked %i-player core roster', (playerCount, shipId) => {
   expect(initialShuttleDockingsForRoles(recommendedRoleIds(playerCount))).toEqual(

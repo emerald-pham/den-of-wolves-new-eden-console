@@ -32,6 +32,9 @@ describe('authoritative setup configuration', () => {
 
   it.each([
     ['playerCount', { playerCount: 7 }],
+    ['playerCount', { playerCount: 21 }],
+    ['playerCount', { playerCount: 19.5 }],
+    ['playerCount', { playerCount: '19' }],
     ['chartId', { chartId: 'D' }],
     ['expansion', { expansion: 'mixed' }],
     ['turnLimit', { turnLimit: 9 }],
@@ -45,6 +48,8 @@ describe('authoritative setup configuration', () => {
     expect(wolfCountForPlayerCount(13)).toBe(1);
     expect(wolfCountForPlayerCount(14)).toBe(2);
     expect(wolfCountForPlayerCount(18)).toBe(2);
+    expect(wolfCountForPlayerCount(19)).toBe(2);
+    expect(wolfCountForPlayerCount(20)).toBe(2);
   });
 });
 
@@ -105,7 +110,7 @@ describe('casting and private setup policy', () => {
 });
 
 describe('start readiness', () => {
-  it.each([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])(
+  it.each([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])(
     'accepts one unique legal assignment for every printed %s-player roster',
     (playerCount) => {
       const activeRoleIds = [...recommendedRoleIds(playerCount)];
@@ -116,13 +121,20 @@ describe('start readiness', () => {
       }));
       const expectedVessels = playerCount < 12
         ? ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124']
-        : ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+        : [
+          'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+          ...(playerCount >= 19 ? ['capybara'] : []),
+        ];
 
       expect(activeRoleIds).toHaveLength(playerCount);
       expect(new Set(activeRoleIds).size).toBe(playerCount);
       expect(activeRoleIds).not.toContain('press-officer');
-      expect(activeRoleIds).not.toContain('capybara-captain');
-      expect(activeRoleIds).not.toContain('capybara-recycler');
+      if (playerCount < 19) {
+        expect(activeRoleIds).not.toContain('capybara-captain');
+        expect(activeRoleIds).not.toContain('capybara-recycler');
+      } else {
+        expect(activeRoleIds.slice(-2)).toEqual(['capybara-captain', 'capybara-recycler']);
+      }
       expect(activeRoleIds.some((roleId) => roleId.startsWith('dione-'))).toBe(playerCount >= 12);
       expect(activeRoleIds.includes('joint-engineering-quellon-refinery'))
         .toBe([8, 9, 14, 15].includes(playerCount));

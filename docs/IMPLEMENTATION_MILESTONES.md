@@ -41,25 +41,26 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Audited baseline — 2026-09-08
+## Audited baseline — 2026-09-08 (after Prompt 004)
 
 This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **62 / 710 prompts done, 34 partial, 1 in progress, and
-  613 missing** after reopening stale staffing/roster/seat evidence and adding the
-  five dependency-placed Wolf/DRADIS lettered prompts.
+- The ledger reports **63 / 710 prompts done, 34 partial, no active prompt, and
+  613 missing** after completing the Prompt 004 catalog slice while retaining
+  the deliberately reopened Prompt 030 seat evidence and the five
+  dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.
 - No complete production route currently resolves an away mission, Wolf
   attack/boarding sequence, crisis, New Eden candidate attempt, or durable
   success/failure/closed transition. Existing catalogs and debrief presentation
   are foundations for those loops.
-- Authoritative session setup currently accepts 8–18 and a 20-player expansion
-  row but omits the owner-set 19-player row. The target is inclusive 8–20 with
-  Capybara, so Prompt 638 must implement and prove the full matrix before
-  capacity evidence can claim 8–20 support.
+- The authoritative client/server catalogs now accept the settled 8–20 matrix,
+  including the owner-set 19-player row. Production configuration, one-GM
+  readiness/start, and Prompt 638's measured capacity evidence remain open;
+  catalog support is not a live-game or 60-client claim.
 - Seat claim/release primitives have isolated transaction tests, but session
   creation does not provision a production seat catalog, the client does not
   expose the claim/release path, and readiness ignores seat authority. Prompt

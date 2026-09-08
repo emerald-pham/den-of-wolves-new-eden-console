@@ -493,11 +493,18 @@ reduced-motion behavior; and the shared CIC controls in `cic.css`. Do not add a
 parallel setup wizard, callable behavior, client-owned random choice, second
 roster catalog, or start-path change under Prompt 004.
 
-The current Prompt 004 evidence is incomplete in one material way and must be
-made to fail before implementation: both catalogs omit count 19. Existing exact
-base 8–18 and 20 catalog tests, Union/Dione/vessel derivation, Press exclusion,
-Wolf-count thresholds, SNN host derivation, and the GM's locally staged
-Recommended player count control are the characterization floor.
+The chronological red-first proof was missed before implementation. A separate
+retrospective baseline reconstruction applied only the nine intended test diffs
+to the old runtime and produced 9 failed files, 13 failed tests, and 171 passed
+tests; that establishes regression sensitivity but is not a chronological TDD
+receipt. The reconciled 0.3.11 evidence now completes this catalog slice.
+Client/server tests prove exact ordered and unique rows for all 8–20 counts,
+invalid boundaries, Union/vessel and Dione derivation, two Wolves at 19/20,
+Press/GM exclusion, Dione-derived SNN hosting at 19, and the GM's locally
+staged 19-role Recommended player count. Creation guards and hydration prove
+only inherent shared-count propagation; production configuration persistence,
+casting, readiness, start, seat provisioning, and Turn 1 remain their
+follow-on prompt evidence.
 
 #### Prompt 004 acceptance stories
 
@@ -1652,7 +1659,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
-- [ ] Prompt 004
+- [x] Prompt 004
 - [x] Prompt 005
 - [x] Prompt 006
 - [x] Prompt 007

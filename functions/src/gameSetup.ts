@@ -4,7 +4,7 @@ import {
   recommendedRoleIds,
 } from './roleConfiguration';
 
-export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20] as const;
+export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 export const SUPPORTED_CHART_IDS = ['A', 'B', 'C'] as const;
 export const SUPPORTED_EXPANSION_MODES = ['base', 'capybara', 'none'] as const;
 export const SUPPORTED_TURN_LIMITS = [6, 7, 8] as const;

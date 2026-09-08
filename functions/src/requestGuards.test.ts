@@ -435,6 +435,14 @@ describe('callable request guards', () => {
     expectHttpsError(() => requireRolePresetRequest({
       sessionId: 's1', instanceId: 'i1', playerCount: 22,
     }), 'invalid-argument');
+    for (const playerCount of [7, 21, 19.5, '19', null]) {
+      expectHttpsError(() => requireRolePresetRequest({
+        sessionId: 's1', instanceId: 'i1', playerCount,
+      }), 'invalid-argument');
+    }
+    expect(requireRolePresetRequest({
+      sessionId: 's1', instanceId: 'i1', playerCount: 19,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 19 });
     expect(requireRolePresetRequest({
       sessionId: 's1', instanceId: 'i1', playerCount: 14,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 14 });

@@ -70,7 +70,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 63/710 complete; 34 partial; 613 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 63/710 complete; 34 partial; 613 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -78,8 +78,8 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 63, total: 710, resumePrompt: '004' });
-    expect(progressSource).toContain('| 004 | partial | feature | 0.3.9 |');
+    expect(result.summary).toMatchObject({ complete: 63, total: 710, resumePrompt: '012' });
+    expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | partial | feature | 0.3.9 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
     expect(progressSource).toContain('| 598 | done | feature | 0.3.6, 0.3.10 |');
@@ -179,7 +179,7 @@ describe('implementation progress integrity gate', () => {
     });
 
     expect(result.errors.join('\n')).not.toContain(
-      'active prompt is 020, but the first unresolved prompt is 004',
+      'active prompt is 020, but the first unresolved prompt is 012',
     );
     expect(result.errors.join('\n')).toContain(
       'Prompt 020 is still in-progress; mark it done, partial, missing, or blocked before moving on',

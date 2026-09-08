@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [4],
+    changes: [
+      'Facilitators can now stage an exact core-role roster for every player count from 8 through 20, including the source-authoritative Capybara Captain and Recycler pair at 19 and 20.',
+    ],
+  },
+  {
+    version: '0.3.10',
     implementationPrompts: ['275a', 598, 605],
     changes: [
       'SNN Press is default-enabled as an optional, authoritatively toggleable Independent Station: its distinct twenty-first player console stays outside the counted core roster, and its roster-derived starting host is AEGIS at 8–11 players or Dione at 12+ (the 19-player matrix remains open).',
