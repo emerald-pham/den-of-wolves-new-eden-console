@@ -936,11 +936,44 @@ regression floor throughout this queue, not disposable scaffolding.
 
 #### Execution state
 
-The first 100 prompts are being executed from the current tested `main` in
-order. A completed prompt is marked with a checked task box in the execution
-checklist below and recorded with evidence in
-[`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md). Unchecked
-prompts remain open for the next execution slice.
+The complete 703-ID queue (Prompts 001–651 plus the lettered prompts) is in
+scope for the active completion campaign. The first 100 prompts are tracked in
+the checklist below; later batches must receive equivalent execution tracking
+in [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before
+their implementation begins. A completed prompt is marked with a checked task
+box and recorded with current evidence. Unchecked, `partial`, and `missing`
+prompts remain open; none of those states may be treated as completion.
+
+#### Implementation-plan agent authorization
+
+When working on numbered prompts from this implementation plan, the product
+owner specifically authorizes the coordinator to assign implementation, tests,
+verification, integration, release, merge, push, and coordination closeout to
+GPT-5.6 Luna (`gpt-5.6-luna`) agents. Non-coding work,
+including reconnaissance, planning, documentation review, evidence collation,
+and read-only verification, may use Luna at any supported reasoning level. Any
+agent that writes or changes application code, Cloud Functions, Firestore
+rules, configuration, scripts, or tests must use Luna at `xhigh` or `max`
+reasoning. A merge or conflict-resolution task that edits any of those files
+also counts as coding and has the same `xhigh`/`max` requirement.
+
+This is an implementation-plan-scoped override of the routine `high`-reasoning
+default and primary-agent implementation/integration ownership in `CLAUDE.md`;
+it does not change the repository-wide default for unrelated work. GPT-5.3
+Codex Spark remains prohibited.
+
+Each modifying delegate must receive one bounded prompt or an inseparable,
+dependency-safe prompt slice with explicit Given/When/Then acceptance criteria,
+use its own worktree and short-lived branch, and follow the test-first contract
+above, including observing the failing test before implementation. Each slice
+must satisfy the applicable reference, authority, denial, retry, audit,
+accessibility, responsive-review, version, and standalone changelog contracts.
+An independent Luna `xhigh` or `max` agent may perform final review and gate
+verification. A prompt may move to `done` only after its proof is current on the
+reconciled branch, every applicable executable gate passes, the slice is merged
+to `main`, `origin/main` is verified at that merge, and the slice's coordination
+entry is closed. No partial implementation, local-only result, unmerged green
+branch, or unchecked release obligation counts toward the campaign finish.
 
 #### Execution checklist — prompts 001–100
 
