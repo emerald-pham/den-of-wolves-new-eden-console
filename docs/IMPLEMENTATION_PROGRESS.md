@@ -179,5 +179,18 @@ not be listed in changelog coverage metadata.
 - Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to
   the non-feature join-code policy contract on branch
   `chore/prompt-011-join-code-policy-20260908`.
+- Prompt 011 failing-first receipt (recorded before the policy export was
+  implemented; this historical result was not rerun for this documentation
+  amendment):
+
+  ```text
+  npm test -- --run functions/src/joinCodeSecurity.test.ts
+  ```
+
+  Observed red result: **1 failed / 4 passed (5 total)**. The new policy
+  assertion reported `JOIN_CODE_POLICY` as `undefined` instead of the
+  expected contract object. The subsequent focused green run covered four
+  files and 29 tests, as recorded above.
 - Prompt 011 proof is complete on the focused function tests; full release
-  gates and reconciled-branch validation remain part of the closeout receipt.
+  gates and reconciled-branch validation are recorded in the coordination
+  receipt, with merge/push/close paused for independent review.
