@@ -936,8 +936,8 @@ regression floor throughout this queue, not disposable scaffolding.
 
 #### Execution state
 
-The complete 703-ID queue (Prompts 001–651 plus the lettered prompts) is in
-scope for the active completion campaign. All 703 canonical prompt IDs (001–651
+The complete 705-ID queue (Prompts 001–653 plus the lettered prompts) is in
+scope for the active completion campaign. All 705 canonical prompt IDs (001–653
 plus the lettered prompts) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -977,7 +977,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 703 prompts (001–651 plus lettered IDs)
+#### Execution checklist — all 705 prompts (001–653 plus lettered IDs)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -1685,6 +1685,8 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 649
 - [ ] Prompt 650
 - [ ] Prompt 651
+- [ ] Prompt 652
+- [ ] Prompt 653
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -2421,10 +2423,12 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 649 — [PROVE] Prove Ancient Space Station success.** Acceptance: arrival pressure, repeated attacks, liberation, 18 Reactor power, activation, and debrief complete.
 - **Prompt 650 — [PROVE] Prove terminal failure and recovery paths.** Acceptance: pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play.
 - **Prompt 651 — [PROVE] Run the final release-readiness audit.** Acceptance: every prompt has evidence/status; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, capacity, version, changelog, and docs gates are green; no placeholder control remains.
+- **Prompt 652 — [EXTEND] Prevent FleetTicker messages from overlapping.** Acceptance: when standing/broadcast copy changes, outgoing text drains and queued replacement enters without two strings covering each other; urgent FleetBroadcast precedence and replacement ordering remain intact; rapid updates serialize without duplicate tracks; screen-reader announcements are not duplicated; reduced-motion mode remains readable; and narrow phone, wide desktop, and short landscape layouts show one legible lane with no overlap/clipping.
+- **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
-The backlog contains **703 independently executable prompts** in this
-snapshot: 651 base IDs plus 52 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **168 `[PRESERVE]`, 83
+The backlog contains **705 independently executable prompts** in this
+snapshot: 653 base IDs plus 52 lettered child IDs placed beside their closest
+dependency. The current evidence classification is **168 `[PRESERVE]`, 85
 `[EXTEND]`, 377 `[NEW]`, 52 `[PROVE]`, and 23 `[DECISION]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

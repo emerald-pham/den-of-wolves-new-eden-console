@@ -27,7 +27,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 66/703 complete; 27 partial; 610 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 66/705 complete; 27 partial; 612 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -35,7 +35,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 66, total: 703 });
+    expect(result.summary).toMatchObject({ complete: 66, total: 705 });
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
     expect(progressSource).toContain('| 598 | done | feature | 0.3.6 |');
   });
@@ -73,8 +73,8 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**66 / 703 prompts complete (9%)**',
-        '**67 / 703 prompts complete (10%)**',
+        '**66 / 705 prompts complete (9%)**',
+        '**67 / 705 prompts complete (10%)**',
       ),
     });
 
@@ -113,8 +113,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 004**.')
         .replace('| 004 | partial | non-feature | — |', '| 004 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **66 done · 27 partial · 610 missing**.',
-          'Status breakdown: **66 done · 26 partial · 610 missing · 1 in-progress**.',
+          'Status breakdown: **66 done · 27 partial · 612 missing**.',
+          'Status breakdown: **66 done · 26 partial · 612 missing · 1 in-progress**.',
         ),
     });
 
@@ -130,8 +130,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 005**.')
         .replace('| 005 | done | non-feature | — |', '| 005 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **66 done · 27 partial · 610 missing**.',
-          'Status breakdown: **65 done · 27 partial · 610 missing · 1 in-progress**.',
+          'Status breakdown: **66 done · 27 partial · 612 missing**.',
+          'Status breakdown: **65 done · 27 partial · 612 missing · 1 in-progress**.',
         ),
       planSource: planSource.replace('- [x] Prompt 005', '- [ ] Prompt 005'),
     });

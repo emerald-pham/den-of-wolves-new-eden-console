@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 703 Prompts
+# Implementation Plan Progress — All 705 Prompts
 
-This tracker records all 703 canonical prompt IDs in
+This tracker records all 705 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[NEW]`, `[PROVE]`, or
 `[DECISION]` acceptance has been fully satisfied with named evidence. The
@@ -13,9 +13,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**66 / 703 prompts complete (9%)**
+**66 / 705 prompts complete (9%)**
 
-Status breakdown: **66 done · 27 partial · 610 missing**.
+Status breakdown: **66 done · 27 partial · 612 missing**.
 
 Active prompt: **none**.
 
@@ -766,6 +766,8 @@ release classification and evidence.
 | 649 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 650 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 651 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 652 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 
 ## Working notes
 
