@@ -25,13 +25,14 @@ import {
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
 export const COORDINATION_SCHEMA_VERSION = 1;
 export const DEFAULT_VERSION_AGREEMENT =
-  'Increment the patch version for each completed player-facing fix; do not bump tooling-only work.';
+  'Increment the patch version for each completed player-facing fix; roll 0.x.99 over to 0.(x+1).0; do not bump tooling-only work.';
 
 const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
+const MAX_APPLICATION_PATCH_VERSION = 99;
 const execFileAsync = promisify(execFile);
 
 function objectRecord(value) {
@@ -82,6 +83,13 @@ function normalizeChangelogSource(source) {
   return source.replace(/\s+/g, ' ').trim();
 }
 
+function normalizeChangelogEntrySource(source) {
+  return normalizeChangelogSource(source).replace(
+    /^version:\s*(?:APP_VERSION|['"]\d+\.\d+\.\d+['"])/,
+    'version: <VERSION>',
+  );
+}
+
 function parseApplicationVersion(source, ref) {
   const match = source.match(/"version"\s*:\s*"([^"]+)"/);
   const version = match?.[1];
@@ -119,6 +127,22 @@ export function compareApplicationVersions(left, right) {
   return 0;
 }
 
+/** Return the next release version, rolling a patch of 99 into the middle component. */
+export function nextApplicationVersion(version) {
+  const parts = version.match(APPLICATION_VERSION_PATTERN);
+  if (!parts) {
+    throw new Error(`Cannot calculate the next application version from invalid version: ${version}.`);
+  }
+
+  const major = Number(parts[1]);
+  const middle = Number(parts[2]);
+  const patch = Number(parts[3]);
+  if (patch >= MAX_APPLICATION_PATCH_VERSION) {
+    return `${major}.${middle + 1}.0`;
+  }
+  return `${major}.${middle}.${patch + 1}`;
+}
+
 export function parseChangelogSnapshot(source, applicationVersion) {
   const versionPattern = /version:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/g;
   const matches = [...source.matchAll(versionPattern)];
@@ -133,10 +157,9 @@ export function parseChangelogSnapshot(source, applicationVersion) {
     }
     const start = match.index ?? 0;
     const end = matches[index + 1]?.index ?? source.length;
-    const bodyStart = start + match[0].length;
     return {
       version,
-      source: normalizeChangelogSource(`version: ${version}${source.slice(bodyStart, end)}`),
+      source: normalizeChangelogSource(source.slice(start, end)),
     };
   });
 }
@@ -170,7 +193,10 @@ function changelogPreservationErrors(mainChangelog, branchChangelog) {
       );
       continue;
     }
-    if (branchEntry.source !== mainEntry.source) {
+    if (
+      normalizeChangelogEntrySource(branchEntry.source) !==
+      normalizeChangelogEntrySource(mainEntry.source)
+    ) {
       errors.push(
         `branch changelog would replace main's ${mainEntry.version} entry`,
       );
@@ -237,6 +263,26 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
     );
   }
 
+  const toolingOnly = isToolingOnlyVersionPlan(entry.versionPlan);
+  if (!toolingOnly) {
+    const branchParts = release.branchVersion.match(APPLICATION_VERSION_PATTERN);
+    const mainParts = release.mainVersion.match(APPLICATION_VERSION_PATTERN);
+    if (branchParts && Number(branchParts[3]) > MAX_APPLICATION_PATCH_VERSION) {
+      errors.push(
+        `player-facing application version ${release.branchVersion} exceeds patch component 99; roll over to ${nextApplicationVersion(release.mainVersion)}`,
+      );
+    }
+    if (
+      mainParts &&
+      Number(mainParts[3]) >= MAX_APPLICATION_PATCH_VERSION &&
+      release.branchVersion !== nextApplicationVersion(release.mainVersion)
+    ) {
+      errors.push(
+        `application version must roll over from ${release.mainVersion} to ${nextApplicationVersion(release.mainVersion)} when the patch component reaches 99; received ${release.branchVersion}`,
+      );
+    }
+  }
+
   const versionOrder = compareApplicationVersions(
     release.branchVersion,
     release.mainVersion,
@@ -247,7 +293,7 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
     );
   }
   if (
-    isToolingOnlyVersionPlan(entry.versionPlan) &&
+    toolingOnly &&
     versionOrder !== 0 &&
     !release.mainContainsBranch
   ) {
@@ -255,7 +301,7 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
       `tooling-only work must not change the application version from ${release.mainVersion} to ${release.branchVersion}`,
     );
   }
-  if (!release.mainContainsBranch && !isToolingOnlyVersionPlan(entry.versionPlan)) {
+  if (!release.mainContainsBranch && !toolingOnly) {
     const plannedVersion = plannedApplicationVersion(entry.versionPlan);
     if (release.branchVersion === release.mainVersion) {
       errors.push('player-facing work must increment the application version');

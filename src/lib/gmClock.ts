@@ -20,7 +20,10 @@ export function nextGmClockUpdate(
   now = Date.now(),
 ): number | undefined {
   let next: number | undefined;
-  const phaseEndsAt = Date.parse(phaseForSession(session)?.openAirspaceEndsAt ?? '');
+  const phase = phaseForSession(session);
+  const phaseEndsAt = phase?.timerPause
+    ? Number.NaN
+    : Date.parse(phase?.openAirspaceEndsAt ?? '');
   if (Number.isFinite(phaseEndsAt) && phaseEndsAt > now) {
     next = phaseEndsAt;
   }

@@ -326,6 +326,21 @@ export function subscribeSessionEvents(
         action: data.action,
         createdAt: iso(data.createdAt),
       }];
+      if (
+        data.type === 'timer-pause' &&
+        (data.action === 'paused' || data.action === 'resumed') &&
+        (data.window === 'restricted' || data.window === 'open') &&
+        typeof data.turn === 'number' && Number.isSafeInteger(data.turn) && data.turn >= 1
+      ) return [{
+        id: event.id,
+        sessionId,
+        type: 'timer-pause' as const,
+        action: data.action,
+        turn: data.turn,
+        window: data.window,
+        actorName: typeof data.actorName === 'string' ? data.actorName : 'GM',
+        createdAt: iso(data.createdAt),
+      }];
       if (data.type !== 'ship-confetti') return [];
       return [{
         id: event.id,

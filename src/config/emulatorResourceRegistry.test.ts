@@ -9,7 +9,7 @@ import {
   finishCoordinationEntry,
   formatCoordinationState,
   isPortFree,
-  parseChangelogSnapshot,
+  nextApplicationVersion,
   parseCoordinationState,
   pruneOrphanedConfigurations,
   readCoordinationState,
@@ -45,7 +45,7 @@ const releaseEntry = {
   startedAt: '2026-09-07T00:00:00.000Z',
   status: 'active',
   intent: 'land a release',
-  versionPlan: 'Reserve application patch version 0.2.103.',
+  versionPlan: 'Reserve application patch version 0.3.3.',
   preemptiveChangelog: 'A player-facing release note.',
   startBranchSha: 'start-sha',
   startMainSha: 'start-main-sha',
@@ -62,16 +62,16 @@ function releaseState(overrides = {}) {
     originMainSha: 'main-sha',
     mainContainsBranch: true,
     worktreeClean: true,
-    branchVersion: '0.2.103',
-    mainVersion: '0.2.102',
-    branchLockVersion: '0.2.103',
-    mainLockVersion: '0.2.102',
+    branchVersion: '0.3.3',
+    mainVersion: '0.3.2',
+    branchLockVersion: '0.3.3',
+    mainLockVersion: '0.3.2',
     branchChangelog: [
-      { version: '0.2.103', source: 'new release' },
-      { version: '0.2.102', source: 'previous release' },
+      { version: '0.3.3', source: 'new release' },
+      { version: '0.3.2', source: 'previous release' },
     ],
     mainChangelog: [
-      { version: '0.2.102', source: 'previous release' },
+      { version: '0.3.2', source: 'previous release' },
     ],
     changedFiles: ['scripts/example.mjs'],
     ...overrides,
@@ -651,6 +651,107 @@ describe('local emulator coordination', () => {
     })).toThrow(/0\.2\.95.*older.*0\.2\.100/i);
   });
 
+  it('rolls the patch component into the next middle component at 99', () => {
+    expect(nextApplicationVersion('0.2.98')).toBe('0.2.99');
+    expect(nextApplicationVersion('0.2.99')).toBe('0.3.0');
+  });
+
+  it('rejects a player-facing version whose patch component skips the rollover gate', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-rollover-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+          versionPlan: 'Reserve application patch version 0.2.100.',
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchVersion: '0.2.100',
+          mainVersion: '0.2.99',
+          branchLockVersion: '0.2.100',
+          mainLockVersion: '0.2.99',
+          branchChangelog: [
+            { version: '0.2.100', source: 'new release' },
+            { version: '0.2.99', source: 'previous release' },
+          ],
+          mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+        }),
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/rollover|0\.3\.0|patch component/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('allows the first release after patch 99 to use the next middle component', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-rollover-gate-${randomUUID()}.json`);
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{
+          ...releaseEntry,
+          validation: undefined,
+          versionPlan: 'Reserve application patch version 0.3.0.',
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          mainContainsBranch: false,
+          branchVersion: '0.3.0',
+          mainVersion: '0.2.99',
+          branchLockVersion: '0.3.0',
+          mainLockVersion: '0.2.99',
+          branchChangelog: [
+            { version: '0.3.0', source: 'new release' },
+            { version: '0.2.99', source: 'previous release' },
+          ],
+          mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+        }),
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({ id: releaseEntry.id });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps the rollover gate active when a branch is already merged', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        versionPlan: 'Reserve application patch version 0.2.100.',
+      },
+      release: releaseState({
+        branchVersion: '0.2.100',
+        mainVersion: '0.2.99',
+        branchLockVersion: '0.2.100',
+        mainLockVersion: '0.2.99',
+        branchChangelog: [
+          { version: '0.2.100', source: 'new release' },
+          { version: '0.2.99', source: 'previous release' },
+        ],
+        mainChangelog: [{ version: '0.2.99', source: 'previous release' }],
+      }),
+    })).toThrow(/rollover|0\.3\.0|patch component/i);
+  });
+
   it('rejects a branch that would replace newer changelog entries', () => {
     expect(() => validateReleaseCompletion({
       entry: releaseEntry,
@@ -667,31 +768,14 @@ describe('local emulator coordination', () => {
     })).toThrow(/0\.2\.102.*changelog/i);
   });
 
-  it('preserves a prior changelog entry when APP_VERSION becomes explicit', async () => {
-    const filePath = resolve(tmpdir(), `den-of-wolves-changelog-gate-${randomUUID()}.json`);
-    const mainChangelog = parseChangelogSnapshot(`
-      export const CHANGELOG = [
-        { version: APP_VERSION, changes: ['Existing player-facing note.'] },
-        { version: '0.2.106', changes: ['Earlier note.'] },
-      ];
-    `, '0.2.107');
-    const branchChangelog = parseChangelogSnapshot(`
-      export const CHANGELOG = [
-        { version: APP_VERSION, changes: ['New player-facing note.'] },
-        { version: '0.2.107', changes: ['Existing player-facing note.'] },
-        { version: '0.2.106', changes: ['Earlier note.'] },
-      ];
-    `, '0.2.108');
+  it('preserves a previous APP_VERSION entry across a new release', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-release-preservation-${randomUUID()}.json`);
 
     try {
       await writeFile(filePath, JSON.stringify({
         version: 1,
         versionAgreement: 'agreement',
-        entries: [{
-          ...releaseEntry,
-          validation: undefined,
-          versionPlan: 'Reserve application patch version 0.2.108.',
-        }],
+        entries: [releaseEntry],
         reservations: [],
         configurations: [],
       }), 'utf8');
@@ -700,13 +784,13 @@ describe('local emulator coordination', () => {
         id: releaseEntry.id,
         release: releaseState({
           mainContainsBranch: false,
-          branchVersion: '0.2.108',
-          mainVersion: '0.2.107',
-          branchLockVersion: '0.2.108',
-          mainLockVersion: '0.2.107',
-          branchChangelog,
-          mainChangelog,
-          changedFiles: ['src/changelog.ts'],
+          branchChangelog: [
+            { version: '0.3.3', source: "version: '0.3.3' changes: ['new release']" },
+            { version: '0.3.2', source: "version: '0.3.2' changes: ['previous release']" },
+          ],
+          mainChangelog: [
+            { version: '0.3.2', source: "version: APP_VERSION changes: ['previous release']" },
+          ],
         }),
         commandRunner: async () => undefined,
       })).resolves.toMatchObject({ id: releaseEntry.id });

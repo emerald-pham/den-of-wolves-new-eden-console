@@ -41,6 +41,25 @@ describe('GM clock scheduling', () => {
       .toBe(Date.parse('2026-01-01T00:07:00.000Z'));
   });
 
+  it('does not wake on the original deadline while the emergency hold is active', () => {
+    const session: ClockSession = {
+      currentTurn: 2,
+      turnPhase: {
+        turn: 2,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+        timerPause: {
+          window: 'restricted',
+          remainingMs: 180_000,
+          pausedAt: '2026-01-01T00:02:00.000Z',
+        },
+      },
+    };
+
+    expect(nextGmClockUpdate(session, Date.parse('2026-01-01T00:25:00.000Z'))).toBeUndefined();
+  });
+
   it('does not wake when neither the turn control nor maintenance alert can change', () => {
     expect(nextGmClockUpdate({}, Date.parse('2026-01-01T00:00:00.000Z'))).toBeUndefined();
   });

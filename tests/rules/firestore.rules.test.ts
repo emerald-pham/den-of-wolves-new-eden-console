@@ -147,6 +147,10 @@ describe('session header', () => {
         teamPhaseEndsAt: new Date(Date.now() + 10 * 60_000).toISOString(),
         openAirspaceEndsAt: new Date(Date.now() + 30 * 60_000).toISOString(),
         airspace: { state: 'lifted', tickerActive: false, pressAccess: true },
+        timerPause: {
+          window: 'open', remainingMs: 120_000,
+          pausedAt: new Date().toISOString(),
+        },
       },
     }));
   });

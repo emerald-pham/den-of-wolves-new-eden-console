@@ -10,6 +10,7 @@ import {
   requireGmInstanceActionRequest,
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
+  requireEmergencyTimerPauseRequest,
   requirePlayerKickRequest,
   requireDioneAvailabilityRequest,
   requireShipAvailabilityRequest,
@@ -70,6 +71,20 @@ describe('callable request guards', () => {
       sessionId: 's1', instanceId: 'i1', expectedTurn: 2, window: 'open',
     })).toEqual({
       sessionId: 's1', instanceId: 'i1', expectedTurn: 2, window: 'open',
+    });
+  });
+
+  it('requires a positive current turn and boolean desired emergency pause state', () => {
+    expectHttpsError(() => requireEmergencyTimerPauseRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 0, paused: true,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireEmergencyTimerPauseRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, paused: 'yes',
+    }), 'invalid-argument');
+    expect(requireEmergencyTimerPauseRequest({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, paused: false,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'i1', expectedTurn: 2, paused: false,
     });
   });
 

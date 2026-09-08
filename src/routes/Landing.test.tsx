@@ -110,8 +110,18 @@ describe('Landing', () => {
     expect(screen.getByRole('button', { name: /restore motion/i })).toHaveTextContent('Restore motion 😀');
   });
 
-  it('shows the status light as red before Firebase connects', () => {
+  it('lies optimistically for five seconds before showing the real disconnected state', () => {
+    vi.useFakeTimers();
     renderLanding();
+
+    const indicator = screen.getByRole('status');
+    expect(indicator).toHaveAttribute('data-status', 'yellow');
+    expect(indicator).toHaveTextContent('Connected');
+
+    act(() => vi.advanceTimersByTime(4_999));
+    expect(indicator).toHaveAttribute('data-status', 'yellow');
+
+    act(() => vi.advanceTimersByTime(1));
     expect(screen.getByRole('status', { name: 'No connection to Firebase' }))
       .toHaveAttribute('data-status', 'red');
   });

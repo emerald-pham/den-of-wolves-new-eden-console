@@ -99,6 +99,38 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
+it('defaults to a connected light for five seconds before revealing offline reality', async () => {
+  vi.useFakeTimers();
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'yellow');
+  expect(indicator).toHaveTextContent('Connected');
+
+  act(() => vi.advanceTimersByTime(4_999));
+  expect(indicator).toHaveAttribute('data-status', 'yellow');
+
+  act(() => vi.advanceTimersByTime(1));
+  expect(indicator).toHaveAttribute('data-status', 'red');
+  expect(indicator).toHaveTextContent('Offline');
+});
+
+it('does not replace an already connected status with the startup default', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(5_000));
+  expect(indicator).toHaveAttribute('data-status', 'green');
+});
+
 it('keeps a cached session light green for thirty seconds while a refreshed browser reconnects', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
