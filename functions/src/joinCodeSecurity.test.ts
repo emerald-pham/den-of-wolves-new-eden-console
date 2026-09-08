@@ -2,17 +2,31 @@ import { describe, expect, it } from 'vitest';
 import {
   JOIN_CODE_ATTEMPT_LIMIT,
   JOIN_CODE_ATTEMPT_WINDOW_MS,
+  JOIN_CODE_POLICY,
   isJoinCode,
   joinCodeLengthForCreateRequest,
   takeJoinCodeAttempt,
 } from './joinCodeSecurity';
 
 describe('join-code security policy', () => {
+  it('records the accepted formats, lifetime, lookup, and collision contract', () => {
+    expect(JOIN_CODE_POLICY).toEqual({
+      legacyLengths: [4],
+      currentLengths: [6],
+      alphabet: 'digits',
+      lifetime: 'session-until-retirement',
+      lookup: 'non-enumerating',
+      collision: 'transactional-joinCodes-document',
+    });
+  });
+
   it('accepts existing four-digit codes and issues a six-digit-compatible format', () => {
     expect(isJoinCode('4821')).toBe(true);
     expect(isJoinCode('482109')).toBe(true);
     expect(isJoinCode('48210')).toBe(false);
     expect(isJoinCode('4821090')).toBe(false);
+    expect(isJoinCode('48a1')).toBe(false);
+    expect(isJoinCode('１２３４')).toBe(false);
   });
 
   it('only issues six-digit codes to clients that have declared support', () => {

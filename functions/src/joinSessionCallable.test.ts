@@ -82,6 +82,36 @@ it('records an allowed code attempt before looking up the code', async () => {
   expect(mock.get).toHaveBeenCalledWith(expect.objectContaining({ path: 'joinCodes/482109' }));
 });
 
+it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (joinCode) => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === `joinCodes/${joinCode}`) return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  await expect(joinSession.run(request(joinCode))).resolves.toMatchObject({
+    session: { id: 's1', joinCode },
+  });
+});
+
+it('does not redeem a code while its session is being retired', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/4821') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({ phase: 'lobby', deletingAt: 'server-time' });
+    return snapshot({}, false);
+  });
+
+  await expect(joinSession.run(request('4821'))).rejects.toMatchObject({
+    code: 'not-found',
+    message: 'That session is being retired.',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('does not reveal another code after the identity bucket is exhausted', async () => {
   const now = new Date();
   mock.get.mockImplementation(({ path }: { path: string }) => {

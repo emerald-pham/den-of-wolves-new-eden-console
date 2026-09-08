@@ -1,4 +1,4 @@
-# Implementation Contract Ledger — Prompts 003, 005, 006, and 009–010
+# Implementation Contract Ledger — Prompts 003, 005, 006, and 009–011
 
 This is a documentation-only contract ledger for the first 100 prompts in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). It describes the
@@ -164,7 +164,7 @@ composition or hidden-state story is complete.
 | 008 | verified | `functions/src/lifecycle.ts` and `functions/src/lifecycle.test.ts` define and reject the explicit lobby/casting/briefing/active/success/failure/debrief/closed/retained-empty edges. Callable migration for every edge remains future work. |
 | 009 | partial | `functions/src/atddFixtures.ts` and `functions/src/atddFixtures.test.ts` provide deterministic members, roles, vessels, shuttles, clocks, random sources, snapshots, readers, configurations, and requests; the full rules-emulator composition remains a target. |
 | 010 | verified-contract-only | This table audits 001–100 with status and named evidence/targets; it is an audit artifact, not green runtime proof. |
-| 011 | partial | `functions/src/joinCodeSecurity.ts`, `functions/src/joinCodeSecurity.test.ts`, and join callable tests cover validation/throttling; lifetime/alphabet/collision policy is not one recorded callable contract. Target session-code contract test. |
+| 011 | verified | `functions/src/joinCodeSecurity.ts` exports immutable `JOIN_CODE_POLICY` covering legacy/current lengths, digits-only alphabet, session-until-retirement lifetime, non-enumerating lookup, and transactional `joinCodes` collision ownership. `joinCodeSecurity.test.ts`, `joinSessionCallable.test.ts`, `createSessionCallable.test.ts`, and `sessionLifecycleCallable.test.ts` prove malformed-input short-circuit, both valid formats, duplicate-code skip, and retired-code deletion. |
 | 012 | partial | Retry-safe behavior exists in selected callables such as `functions/src/maintenanceCallable.test.ts` and `functions/src/sessionLifecycleCallable.test.ts`; no universal command idempotency contract covers all first-100 mutations. Target command replay matrix. |
 | 013 | verified | `functions/src/turnZero.ts`, `functions/src/sessionLifecycle.ts`, and server timestamp use in `functions/src/index.ts`; target emulator clock-skew/reconnect test. |
 | 014 | partial | revision fields and client parsing in `src/lib/firestore.ts` exist, but stale snapshots are not one universal mutation guard. Target stale-revision projection and callable test. |

@@ -26,7 +26,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 64/100 complete; 28 partial; 8 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 65/100 complete; 27 partial; 8 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -34,12 +34,12 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**64 / 100 prompts complete (64%)**',
         '**65 / 100 prompts complete (65%)**',
+        '**66 / 100 prompts complete (66%)**',
       ),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 65, but the ledger has 64 done prompts');
+    expect(result.errors.join('\n')).toContain('headline complete count is 66, but the ledger has 65 done prompts');
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
@@ -74,8 +74,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 004**.')
         .replace('| 004 | partial | non-feature | — |', '| 004 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **64 done · 28 partial · 8 missing**.',
-          'Status breakdown: **64 done · 27 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **65 done · 27 partial · 8 missing**.',
+          'Status breakdown: **65 done · 26 partial · 8 missing · 1 in-progress**.',
         ),
     });
 
@@ -91,8 +91,8 @@ describe('implementation progress integrity gate', () => {
         .replace('Active prompt: **none**.', 'Active prompt: **Prompt 005**.')
         .replace('| 005 | done | non-feature | — |', '| 005 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **64 done · 28 partial · 8 missing**.',
-          'Status breakdown: **63 done · 28 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **65 done · 27 partial · 8 missing**.',
+          'Status breakdown: **64 done · 27 partial · 8 missing · 1 in-progress**.',
         ),
       planSource: planSource.replace('- [x] Prompt 005', '- [ ] Prompt 005'),
     });

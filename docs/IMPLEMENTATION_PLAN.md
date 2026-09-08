@@ -992,7 +992,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 008
 - [x] Prompt 009
 - [x] Prompt 010
-- [ ] Prompt 011
+- [x] Prompt 011
 - [ ] Prompt 012
 - [x] Prompt 013
 - [ ] Prompt 014
