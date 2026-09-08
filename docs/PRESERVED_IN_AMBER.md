@@ -26,9 +26,14 @@ normal task branch so this anchor remains an exact snapshot.
 GitHub branch protection was attempted for this exact branch on 2026-09-07,
 with deletion and force-pushes disabled, but the available personal access
 token was rejected with HTTP 403 (`Resource not accessible by personal access
-token`). Until a repository administrator installs the equivalent GitHub
-branch protection or ruleset, this file is the repository policy rather than
-technical enforcement. An administrator must protect the exact
+token`). The logged-in GitHub settings pages were then checked in Chrome and
+report that neither rulesets nor classic branch protection will be enforced on
+this private repository until it is moved to a GitHub Team or Enterprise
+organization account. No non-enforcing rule was created.
+
+Until the repository is eligible for enforced protection and an administrator
+installs the rule, this file is the repository policy rather than technical
+enforcement. To turn the policy into a gate, protect the exact
 `preserved-in-amber` branch with at least:
 
 - branch deletion disabled;
