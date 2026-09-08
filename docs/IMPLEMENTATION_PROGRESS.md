@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**62 / 710 prompts complete (9%)**
+**61 / 710 prompts complete (9%)**
 
-Status breakdown: **62 done · 33 partial · 614 missing · 1 in-progress**.
+Status breakdown: **61 done · 34 partial · 614 missing · 1 in-progress**.
 
 Active prompt: **Prompt 275a**.
 
@@ -394,7 +394,7 @@ release classification and evidence.
 | 273 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 275a | in-progress | feature | 0.3.10 | Failing-first surface records Press/default-discovery, dedicated enable/disable, server denial/unique stale claim, 20-core-plus-Press/multiple-GM separation, exact connection copy, and DRADIS containment. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. |
+| 275a | in-progress | feature | 0.3.10 | Failing-first surface records Press/default-discovery, dedicated enable/disable, server denial/unique stale claim, 20-core-plus-Press/multiple-GM separation, exact connection copy, and DRADIS containment. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. Host compatibility is also under repair: `9c48e5d`/`dced782` used AEGIS, `4703e43` introduced blanket Dione despite Dione being absent below 12; target coverage derives AEGIS at 8/11 and Dione at 12/18/20 plus legacy missing-docking hydration. |
 | 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -746,7 +746,7 @@ release classification and evidence.
 | 595 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 598 | done | feature | 0.3.6 | `src/components/AppHeader.tsx` and focused tests now derive connected/offline/stale state from real signals; this landed behavior is tracked directly under Prompt 598. |
+| 598 | partial | feature | 0.3.6 | Release 0.3.6 proves the existing connected/offline grace primitive, but the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline state matrix are part of active Prompt 275a work and are not complete evidence until the reconciled release lands. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

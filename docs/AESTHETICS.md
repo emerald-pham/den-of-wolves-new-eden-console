@@ -1123,6 +1123,13 @@ authority with exclusive live role ownership and revision checks. The current
 copy remains visible on the desk; other shuttle viewers may see the instrument
 but cannot transmit from it.
 
+The SNN identity block renders its authoritative current host, never a blanket
+decorative dock. Preserve the historic product-extension default: AEGIS at
+8–11 core players, where printed authority removes Dione entirely, and Dione
+at 12+ when it is present. At every viewport the host/docking line remains
+complete and agrees with the server snapshot; legacy missing-docking sessions
+use the same roster-derived fallback without rewriting valid visit history.
+
 Press, stand-down, and the Admiral’s active warning remain uppercase. Every
 active Admiral warning starts `ICSN ADMIRAL //`, including edited copy; the
 provided warning continues `RED ALERT //` before its Wolf-attack instructions.
@@ -1166,6 +1173,13 @@ has not yet occurred, the light uses cyan-blue instrumentation and says
 restores the usual green in-session light, marking CIC as fully uplinked and the
 fleet as ready to launch. These labels describe the player-facing game uplink;
 they do not grant or withhold command authority by themselves.
+
+The indicator's accessible name/title describes the same live state as its
+visible label. Pre-session startup optimism may show `CONNECTED` only while no
+explicit offline signal exists; joined Turn 0 offline after the grace window is
+announced as offline, never as “Connected to Firebase” beside a visible
+`NOT CONNECTED` label. Turn 1 and legacy `currentTurn` snapshots retain the
+same live/offline/grace semantics.
 
 When a browser restores a cached in-session identity after a refresh, loses page
 context, or returns from the background, its header light keeps the last known

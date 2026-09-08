@@ -66,9 +66,11 @@ intentional exclusion names the preserved behavior and reason.
 For Press readiness specifically, an enabled but unclaimed Press never blocks
 start. A claimed Press holder has a separate Press assignment/private loyalty
 and remains eligible for the preserved Wolf assignment contract, but does not
-change core N or add a third Wolf. A GM player may also claim Press while
-holding a core role; a GM-only instance is not a Press holder. Multiple GM
-instances consume neither core nor Press occupancy.
+change core N or add a third Wolf. Press is one distinct optional player role
+and cannot be a second console role for a core-role holder; preserve Prompt
+061's one-role assignment gate. GM facilitator instances consume neither core
+nor Press occupancy and do not automatically exempt a person's player
+assignment or loyalty from the ordinary player rules.
 
 ## Automation-first, intervention-rich facilitator contract
 
@@ -128,6 +130,7 @@ and resulting state.
 | `AMB-11` | Same plan section; `REFERENCE_ONLY_FACILITATION.md` | Endgame success/failure for candidates N/O/P, lost ships, survivors, and closure timing is not complete. | Keep success/failure/debrief/closed transitions as blocked lifecycle edges until the product decision is recorded. |
 | `AMB-12` | Same plan section; repository coordination/load guidance | The 60-client target is an unverified capacity target. | No load or deployment claim belongs in a prompt audit until measured with latency, errors, contention, retry, reconnect, and resource results. |
 | `AMB-13` | Printed source artifact `DoWNE - Facilitator Guide v1.1.pdf`, Home Printing, PDF page 5 (printed page 3), `Game Roles` table and minimum-roster paragraph; the routed transcription in `docs/reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_ROLES_AND_LOYALTIES.md` matches the artifact. | Decision actor: implementation owner under product-owner authorization, recorded 2026-09-08. The printed table itself omits Wing Commander at counts 8–10 and leaves count 11 one role short, while the same artifact's minimum-roster paragraph explicitly requires Admiral, Wing Commander, Miner, Scientist, Scout, PDF Colonel, and two JEU Engineers. Preserve the printed roles and resolve the contradiction by adding Wing Commander at 8–10; resolve the remaining 11-player slot with Executive Officer, following the printed AEGIS odd/even composition shown at 13, 15, 17, and 18. Do not add Press Officer or another convenience role. | The authoritative 8–18 presets must use this decision layer: exact player-count length, canonical role order, no Press/Capybara roles, Dione only at 12+, and Union roles only in their printed replacement rows. Production start readiness must require one unique assignment per active preset role and derive the matching active-vessel set. |
+| `AMB-14` | `REFERENCE_ONLY_ROLES_AND_LOYALTIES.md` and `REFERENCE_ONLY_SHIPS.md` remove Dione entirely below 12; product-extension history `9c48e5d`/`dced782` used AEGIS for SNN, while `4703e43` introduced blanket Dione. | Preservation-first compatibility decision, recorded 2026-09-08: derive SNN's initial host from the locked core roster—AEGIS at 8–11 where Dione is absent; Dione at 12+ when active. This is product-extension behavior, not a printed SNN rule. | The server creates the authoritative initial docking; client hydration/defaults use the same derived policy for legacy missing-docking sessions. Test 8/11/12/18/20, preserve valid stored visit history, and reject a blanket-Dione or client-only default. |
 
 ## 2. First-100 capability matrix — Prompt 005
 

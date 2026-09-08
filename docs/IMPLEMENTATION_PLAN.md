@@ -124,6 +124,59 @@ The implementation is complete only when all of these objectives are met:
    do not perform mental arithmetic, duplicate a calculation, or transcribe a
    result between screens.
 
+### Active goal addendum — owner-set completion contract
+
+Bind every roadmap slice and review to these explicit product goals:
+
+1. Start with the existing-app evidence dossier, history, characterization
+   tests, and narrowest compatible extension; repair stale green gates instead
+   of allowing them to redefine known working behavior.
+2. One facilitator can run the whole game through automation-first routine
+   paths and intervention-rich controls; multiple GMs remain supported but
+   optional.
+3. Core casting is the Capybara-expanded 8–20 target. The 19/20 rows are the
+   owner-set base-17/base-18 plus atomic Captain/Recycler pair; lower-count
+   Capybara substitutions remain undecided. Optional Press is a distinct,
+   non-counting twenty-first player station.
+4. Press is a deliberate product extension outside the printed references,
+   enabled by default but authoritatively toggleable. It remains isolated from
+   core roster/readiness/Wolf-count math, preserves the one-player-role rule,
+   and gives its distinct claimant a private loyalty and normal Wolf eligibility
+   without adding a third Wolf.
+5. Connection copy, Press controls, and complete DRADIS contact names satisfy
+   the mapped CIC/aesthetic, viewport, keyboard/screen-reader, touch, privacy,
+   and reduced-motion contracts.
+6. Every feature carries the interaction-contract matrix across navigation,
+   docking/transit/airspace, DRADIS, turns, canonical IDs, callables/audit,
+   broadcasts, damage/resources, reconnect/replay, accessibility, and optional
+   multiple GMs.
+7. Wolf attacks become fully playable from the GM console through affected
+   player consoles with authoritative automation, calculation receipts,
+   interventions, and stable DRADIS-ready projections/events. Ultimate DRADIS
+   attack visualization remains explicitly owner-deferred.
+8. SNN initial host is derived from the locked roster: preserve AEGIS at 8–11,
+   where Dione is absent, and use Dione at 12+ when present; legacy missing-
+   docking hydration follows the same compatibility rule.
+9. The Capybara printed v1.1 source and provenance are routed into every
+   affected prompt. The Scrap Refinery visual authority is `7♠`; hidden `5♦`
+   extraction text is provenance-only, not a gameplay ambiguity.
+10. Carry the full roadmap through failing-first and composed acceptance,
+    security, visual/accessibility, focused, and full release gates. Each
+    completed slice is committed, reconciled with current `main`, merged,
+    pushed, closed in coordination, and reported with verified local and remote
+    SHAs; no local or partial result counts as roadmap completion.
+11. For this active completion campaign, the root coordinator remains
+    read-only for product code and owns orchestration/documentation. All
+    application, Functions, rules, configuration, script, and test changes are
+    delegated to authorized implementation subagents under the plan's scoped
+    Luna-max contract below; integration conflicts that touch those files are
+    delegated too.
+
+Validation must prove this list is still represented in the applicable plan,
+contract, progress, aesthetic, test, and acceptance records. A bounded release
+may implement only its declared slice, but it must not contradict or falsely
+claim completion of the remaining 710-prompt roadmap.
+
 ## Scope and baseline
 
 ### Intended product scope
@@ -349,14 +402,23 @@ into it.
   session, and revision checks; another player cannot impersonate Press and a
   rejected action makes no shared-state change. The dispatch, shuttle console,
   live status, focus, and reduced-motion presentation remain accessible.
+- **Given** the locked core roster excludes Dione below 12 players, **when** a
+  new 8- or 11-player session initializes SNN, **then** its product-extension
+  initial host is AEGIS, preserving the working `9c48e5d`/`dced782` behavior.
+  **Given** Dione is present at 12, 18, or 20, **then** SNN starts at Dione. The
+  server derives the host from the locked core roster and the client hydrates
+  that authority; neither side hard-codes blanket Dione. Legacy missing-docking
+  sessions normalize by the same rule without rewriting valid visit history.
 - **Given** a Capybara-expanded 20-player core roster, **when** Press is enabled
   and claimed, **then** the Press Officer is a valid optional twenty-first
   player-role holder while all core roster, start/readiness, loyalty, Wolf, and
   capacity calculations remain unchanged. The claimed Press holder has its own
   Press assignment/private loyalty and remains eligible for the preserved Wolf
-  assignment rules, but Press never adds a third Wolf or changes core N. A GM
-  player who also claims Press/core counts for that station; GM-only instances
-  do not, and an enabled but unclaimed Press never blocks start. Multiple
+  assignment rules, but Press never adds a third Wolf or changes core N. Press
+  remains one distinct player console role and cannot be a second role for a
+  core-role holder; the existing one-role assignment gate remains authoritative.
+  GM facilitator instances do not consume a player seat, and an enabled but
+  unclaimed Press never blocks start. Multiple
   simultaneous authorized GMs remain valid and consume neither core nor Press
   occupancy. Disabling Press invalidates new Press authority consistently
   without collapsing unrelated GM instances or mutating core assignments.
@@ -379,12 +441,17 @@ the field and, when disabling Press, revokes any live Press claim without
 deleting core assignments or dispatch history. Deploy authoritative function
 denials before exposing the client toggle. Retain the additive field during a
 rollback; do not roll server authority back to a version that would honor Press
-actions while a session is explicitly disabled.
+actions while a session is explicitly disabled. SNN host migration is a narrow
+compatibility repair: `9c48e5d`/`dced782` used AEGIS, `4703e43` introduced
+blanket Dione even though printed authority removes Dione below 12. Preserve
+stored valid docking/visit history; derive only creation and legacy missing-
+docking defaults from the locked roster.
 
 **Exit gate:** characterization and focused tests first fail on the recovered
 Press/default-discovery, configuration, create-session-to-role-picker,
 disabled-denial, reconnect/stale-claim, 20-core-plus-Press, multi-GM, header,
-and DRADIS regressions, then pass. Misleading fixtures that blessed counted
+8/11/12/18/20 SNN-host compatibility, and DRADIS regressions, then pass.
+Misleading fixtures that blessed counted
 Press or hidden-by-default behavior are corrected rather than preserved. The
 authoritative Press claim/dispatch denial cases remain green; responsive and
 reduced-motion visual review finds no clipped contact name or trapped route;
@@ -1986,7 +2053,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 595
 - [ ] Prompt 596
 - [ ] Prompt 597
-- [x] Prompt 598
+- [ ] Prompt 598
 - [ ] Prompt 599
 - [ ] Prompt 600
 - [ ] Prompt 601
