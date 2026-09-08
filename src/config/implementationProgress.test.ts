@@ -27,7 +27,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 66/705 complete; 27 partial; 612 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 66/705 complete; 28 partial; 611 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
     );
   });
 
