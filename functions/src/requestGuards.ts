@@ -314,6 +314,25 @@ export function requireShipNavigationMoveRequest(data: {
   };
 }
 
+export function requireShipJumpRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  shipId?: unknown;
+  destination?: unknown;
+}): { sessionId: string; instanceId?: string; shipId: string; destination: string } {
+  const destination = requiredText(data.destination, 'destination', 4);
+  if (!/^\d{4}$/.test(destination)) {
+    throw new HttpsError('invalid-argument', 'destination must be exactly four digits.');
+  }
+  const result: { sessionId: string; instanceId?: string; shipId: string; destination: string } = {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    destination,
+  };
+  if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
+  return result;
+}
+
 export function requireShipConsoleLockRequest(data: {
   sessionId?: unknown;
   shipId?: unknown;

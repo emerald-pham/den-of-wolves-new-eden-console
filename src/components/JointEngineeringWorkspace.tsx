@@ -24,7 +24,7 @@ export default function JointEngineeringWorkspace({ roleId }: { readonly roleId:
       ship={ship}
       role={role}
       fuel={resourcesForShip(ship.id, session.shipResources)?.fuel ?? 0}
-      galacticCoordinate="Refer to ship console"
+      galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
       includeAssignedShuttlecraft={false}
     />
   </>;

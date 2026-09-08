@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -131,6 +131,40 @@ it('shows the current galactic coordinate only in the expanded display', async (
   await user.click(zoom);
   expect(screen.getByText('GALACTIC COORDINATES').parentElement)
     .toHaveTextContent('GALACTIC COORDINATES // 0042');
+});
+
+it('blinds DRADIS during a jump, then restores only ships that arrived at the destination', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-07T20:00:00.000Z'));
+  const { container } = render(
+    <ShipPlot
+      hostile={false}
+      aboard
+      viewerId="aegis"
+      shipGalacticCoordinates={{ aegis: '5143', dione: '5143', icebreaker: '0000' }}
+      shipJumpTransitions={{
+        aegis: {
+          id: 'jump-1',
+          shipId: 'aegis',
+          origin: '0000',
+          destination: '5143',
+          occurredAt: '2026-09-07T20:00:00.000Z',
+        },
+      }}
+    />,
+  );
+
+  const plot = container.querySelector('.ship-plot');
+  expect(plot).toHaveAttribute('data-jump-transit', 'true');
+  expect(screen.getByRole('status', { name: /contacts lost/i })).toHaveTextContent(/ftl transit/i);
+  expect(container.querySelectorAll('.contact-plot__contact')).toHaveLength(0);
+
+  act(() => { vi.advanceTimersByTime(2_000); });
+
+  expect(plot).toHaveAttribute('data-jump-transit', 'false');
+  expect(screen.queryByRole('status', { name: /contacts lost/i })).not.toBeInTheDocument();
+  expect(container.querySelectorAll('.contact-plot__contact')).toHaveLength(1);
+  expect(container.querySelector('.contact-plot__contact')).toHaveTextContent('DIONE');
 });
 
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {
