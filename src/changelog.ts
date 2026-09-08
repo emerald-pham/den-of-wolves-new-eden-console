@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'The first implementation-plan slice strengthens the session, casting, start, and phase foundations used by players and facilitators.',
+    ],
+  },
+  {
+    version: '0.3.4',
+    changes: [
       'Turn 0 status messages now say Awaiting Iris Authentication so players see the actual authentication gate.',
     ],
   },

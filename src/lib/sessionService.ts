@@ -31,6 +31,15 @@ interface SessionReply {
   readonly player: Player;
 }
 
+export interface CreateSessionOptions {
+  readonly playerCount?: number;
+  readonly chartId?: 'A' | 'B' | 'C';
+  readonly expansion?: 'base' | 'capybara' | 'none';
+  readonly turnLimit?: 6 | 7 | 8;
+  readonly dioneEnabled?: boolean;
+  readonly capybaraEnabled?: boolean;
+}
+
 const TERMINAL_RESUME_ERRORS = new Set([
   'functions/not-found',
   'functions/permission-denied',
@@ -323,18 +332,24 @@ export async function connect(): Promise<void> {
   }
 }
 
-export async function createSession(name?: string): Promise<void> {
+export async function createSession(name?: string, options: CreateSessionOptions = {}): Promise<void> {
   if (useSessionStore.getState().session) {
     throw new Error('Disconnect from the current session first.');
   }
   await ensureSignedIn();
-  const call = httpsCallable<{ name?: string; joinCodeVersion: 2 }, SessionReply>(
+  const call = httpsCallable<{
+    name?: string;
+    joinCodeVersion: 2;
+    requestId: string;
+  } & CreateSessionOptions, SessionReply>(
     functions(),
     'createSession',
   );
   const reply = await call({
     ...(name === undefined ? {} : { name }),
     joinCodeVersion: 2,
+    requestId: commandId(),
+    ...options,
   });
   applySession(reply.data);
 }

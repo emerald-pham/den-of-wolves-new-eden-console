@@ -307,7 +307,10 @@ describe('createSession', () => {
 
     await createSession();
 
-    expect(callable).toHaveBeenCalledWith({ joinCodeVersion: 2 });
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      joinCodeVersion: 2,
+      requestId: expect.any(String),
+    }));
   });
 });
 

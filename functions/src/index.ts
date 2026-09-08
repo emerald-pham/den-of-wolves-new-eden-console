@@ -63,6 +63,14 @@ import {
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
+  requireSessionCreationRequest,
+  requireCastingPreferenceRequest,
+  requireRoleAssignmentRequest,
+  requireRoleReleaseRequest,
+  requireLoyaltyAssignmentRequest,
+  requireAndroidDisclosureRequest,
+  requireFacilitatorResponsibilityRequest,
+  requireGameStartRequest,
   requireSessionSeatRequest,
   requireUid,
   requireWolfAssignmentRequest,
@@ -95,6 +103,14 @@ import {
   ROLE_IDS,
   recommendedRoleIds,
 } from './roleConfiguration';
+import {
+  activeVesselIdsForRoles,
+  defaultSuspicionForLoyalty,
+  loyaltyAssignmentDecision,
+  readinessForSetup,
+  roleAssignmentDecision,
+  type LoyaltyKind,
+} from './gameSetup';
 import {
   INITIAL_SHIP_RESOURCES,
   INITIAL_SHIP_UNREST,
@@ -135,6 +151,12 @@ import {
   startTurnPhase,
   turnPhaseState,
 } from './turnZero';
+import {
+  ACTION_METADATA,
+  decideActionAuthorization,
+  type ActionId,
+  type ActorScope,
+} from './actionMetadata';
 
 /**
  * Server-side authority for the companion console.
@@ -395,6 +417,33 @@ function requireTurnOneForGameplay(session: DocumentSnapshot): void {
   }
 }
 
+/**
+ * Enforce the shared Team/Coordination policy when a session has a phase
+ * clock. Legacy sessions predate that field and retain their existing
+ * callable behavior until the next authoritative turn transition supplies it.
+ */
+function requireActionPhase(
+  session: DocumentSnapshot,
+  action: ActionId,
+  actorScope: ActorScope,
+): void {
+  if (session.get('turnPhase') === undefined) return;
+  const decision = decideActionAuthorization({
+    action,
+    actorScope,
+    turnPhase: session.get('turnPhase'),
+  });
+  if (decision.allowed) return;
+  if (decision.reason === 'unknown-phase') {
+    throw new HttpsError('failed-precondition', 'No current server phase is available.');
+  }
+  const label = ACTION_METADATA[action].requiredPhase === 'team' ? 'Team' : 'Coordination';
+  throw new HttpsError(
+    'failed-precondition',
+    `${action} is only available during ${label} Phase.`,
+  );
+}
+
 type TurnAdvanceResult = {
   readonly currentTurn: number;
   readonly turnStartAnnouncement?: TurnStartAnnouncement;
@@ -544,49 +593,47 @@ export const createSession = onCall<{
   name?: string;
   displayName?: string;
   joinCodeVersion?: unknown;
+  requestId?: unknown;
+  playerCount?: unknown;
+  chartId?: unknown;
+  expansion?: unknown;
+  turnLimit?: unknown;
+  dioneEnabled?: unknown;
+  capybaraEnabled?: unknown;
+  options?: unknown;
 }>(
   async (request) => {
     const uid = requireUid(request.auth);
+    const creation = requireSessionCreationRequest(request.data ?? {});
     const name = cleanName(request.data?.name, 'New session', 80);
     const displayName = cleanName(request.data?.displayName, 'GM', 40);
     const joinCodeLength = joinCodeLengthForCreateRequest(request.data?.joinCodeVersion);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
+    const creationRequestRef = db.doc(`sessionCreationRequests/${uid}_${creation.requestId}`);
 
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
       const joinCode = makeJoinCode(joinCodeLength);
       const codeRef = db.doc(`joinCodes/${joinCode}`);
       const sessionRef = db.collection('sessions').doc();
-
-      const claimed = await db.runTransaction(async (tx) => {
-        const [code, membership] = await Promise.all([
-          tx.get(codeRef),
-          tx.get(membershipRef),
-        ]);
-        const membershipActive = await membershipIsActive(tx, membership, uid);
-        if (activeSessionConflicts(
-          membership.exists ? membership.get('sessionId') as string : undefined,
-          sessionRef.id,
-          membershipActive,
-        )) {
-          throw new HttpsError(
-            'failed-precondition',
-            'Disconnect from the current session before creating another.',
-          );
-        }
-        if (membership.exists && !membershipActive) tx.delete(membershipRef);
-        if (code.exists) return false;
-
-        tx.set(codeRef, {
-          sessionId: sessionRef.id,
-          createdAt: FieldValue.serverTimestamp(),
-        });
-        tx.set(sessionRef, {
+      const now = new Date().toISOString();
+      // The expansion mode is persisted now, but its two-role composition is
+      // deliberately resolved by the casting/start slice. Adding both roles
+      // here would silently create more role holders than configured players
+      // and would mix base and expansion Capybara rules.
+      const activeRoleIds = [...recommendedRoleIds(creation.configuration.playerCount)];
+      const reply = {
+        session: {
+          id: sessionRef.id,
           name,
           joinCode,
           phase: 'lobby',
           currentTurn: 0,
-          capybaraEnabled: true,
-          dioneEnabled: true,
+          playerCount: creation.configuration.playerCount,
+          chartId: creation.configuration.chartId,
+          expansion: creation.configuration.expansion,
+          turnLimit: creation.configuration.turnLimit,
+          capybaraEnabled: creation.configuration.capybaraEnabled,
+          dioneEnabled: creation.configuration.dioneEnabled,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -601,7 +648,86 @@ export const createSession = onCall<{
           populationAlerts: {},
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
-          activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
+          activeRoleIds,
+          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
+          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          confettiUsedShipIds: [],
+          ownerUid: uid,
+          createdAt: now,
+          updatedAt: now,
+        },
+        player: {
+          uid,
+          sessionId: sessionRef.id,
+          displayName,
+          role: 'player',
+          seatId: null,
+          activeConsoleRoleId: null,
+          assignedRoleId: null,
+          shipPreferenceId: null,
+          joinedAt: now,
+        },
+      };
+
+      const created = await db.runTransaction(async (tx) => {
+        const [code, membership, priorRequest] = await Promise.all([
+          tx.get(codeRef),
+          tx.get(membershipRef),
+          tx.get(creationRequestRef),
+        ]);
+        if (priorRequest.exists) {
+          const priorReply = priorRequest.get('reply');
+          if (typeof priorReply !== 'object' || priorReply === null) {
+            throw new HttpsError('failed-precondition', 'This creation request has no replayable result.');
+          }
+          return priorReply as typeof reply;
+        }
+        const membershipActive = await membershipIsActive(tx, membership, uid);
+        if (activeSessionConflicts(
+          membership.exists ? membership.get('sessionId') as string : undefined,
+          sessionRef.id,
+          membershipActive,
+        )) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Disconnect from the current session before creating another.',
+          );
+        }
+        if (membership.exists && !membershipActive) tx.delete(membershipRef);
+        if (code.exists) return false as const;
+
+        tx.set(codeRef, {
+          sessionId: sessionRef.id,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(sessionRef, {
+          name,
+          joinCode,
+          phase: 'lobby',
+          currentTurn: 0,
+          playerCount: creation.configuration.playerCount,
+          chartId: creation.configuration.chartId,
+          expansion: creation.configuration.expansion,
+          turnLimit: creation.configuration.turnLimit,
+          configurationLocked: false,
+          setupRevision: 0,
+          capybaraEnabled: creation.configuration.capybaraEnabled,
+          dioneEnabled: creation.configuration.dioneEnabled,
+          shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
+          shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
+          shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
+          shipJumpStates: INITIAL_SHIP_JUMP_STATES,
+          shipJumpTransitions: {},
+          shipResources: INITIAL_SHIP_RESOURCES,
+          shipDamage: {},
+          shipUnrest: INITIAL_SHIP_UNREST,
+          unrestAlerts: {},
+          shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
+          fleetSurvivorPopulationAdjustment: 0,
+          populationAlerts: {},
+          gmControlsLocked: false,
+          debriefMode: { active: false, revision: 0 },
+          activeRoleIds,
           shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
           shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
           confettiUsedShipIds: [],
@@ -619,58 +745,23 @@ export const createSession = onCall<{
           role: 'player',
           seatId: null,
           activeConsoleRoleId: null,
+          assignedRoleId: null,
+          shipPreferenceId: null,
           joinedAt: FieldValue.serverTimestamp(),
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
         });
         tx.set(membershipRef, { sessionId: sessionRef.id, connectedAt: FieldValue.serverTimestamp() });
-        return true;
+        tx.set(creationRequestRef, {
+          sessionId: sessionRef.id,
+          requestId: creation.requestId,
+          reply,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
       });
 
-      if (claimed) {
-        const now = new Date().toISOString();
-        return {
-          session: {
-            id: sessionRef.id,
-            name,
-            joinCode,
-            phase: 'lobby',
-            currentTurn: 0,
-            capybaraEnabled: true,
-            dioneEnabled: true,
-            shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
-            shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
-            shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
-            shipJumpStates: INITIAL_SHIP_JUMP_STATES,
-            shipJumpTransitions: {},
-            shipResources: INITIAL_SHIP_RESOURCES,
-            shipDamage: {},
-            shipUnrest: INITIAL_SHIP_UNREST,
-            unrestAlerts: {},
-            shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
-            fleetSurvivorPopulationAdjustment: 0,
-            populationAlerts: {},
-            gmControlsLocked: false,
-            debriefMode: { active: false, revision: 0 },
-            activeRoleIds: [...DEFAULT_ACTIVE_ROLE_IDS],
-            shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
-            shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
-            confettiUsedShipIds: [],
-            ownerUid: uid,
-            createdAt: now,
-            updatedAt: now,
-          },
-          player: {
-            uid,
-            sessionId: sessionRef.id,
-            displayName,
-            role: 'player',
-            seatId: null,
-            activeConsoleRoleId: null,
-            joinedAt: now,
-          },
-        };
-      }
+      if (created !== false) return created;
     }
 
     throw new HttpsError(
@@ -679,6 +770,466 @@ export const createSession = onCall<{
     );
   },
 );
+
+type CastingMutationResult = {
+  readonly sessionId: string;
+  readonly setupRevision: number;
+};
+
+function setupRevision(session: DocumentSnapshot): number {
+  const value = session.get('setupRevision');
+  return Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : 0;
+}
+
+function requireCastingWindow(session: DocumentSnapshot): void {
+  if (session.get('configurationLocked') === true ||
+      !['lobby', 'casting'].includes(String(session.get('phase')))) {
+    throw new HttpsError('failed-precondition', 'Casting is locked after setup begins.');
+  }
+}
+
+async function requireFacilitatorInstance(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  instanceId: string,
+): Promise<{ session: DocumentSnapshot; player: DocumentSnapshot }> {
+  const [session, player, instance] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}`)),
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  if (
+    !isActivePlayer(player) || player.get('role') !== 'gm' ||
+    !instance.exists || instance.get('uid') !== uid
+  ) {
+    throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+  }
+  return { session, player };
+}
+
+/** Record which of the two physical facilitator responsibilities an instance owns. */
+export const setFacilitatorResponsibility = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  responsibility?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
+  const instanceRef = db.doc(`sessions/${responsibility.sessionId}/gmInstances/${responsibility.instanceId}`);
+  const instancesRef = db.collection(`sessions/${responsibility.sessionId}/gmInstances`);
+  return db.runTransaction(async (tx) => {
+    const [authority, instance, instances] = await Promise.all([
+      requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
+      tx.get(instanceRef),
+      tx.get(instancesRef),
+    ]);
+    requireCastingWindow(authority.session);
+    if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
+    const claimedByAnother = instances.docs.some((candidate) =>
+      candidate.id !== responsibility.instanceId &&
+      candidate.get('responsibility') === responsibility.responsibility,
+    );
+    if (claimedByAnother) {
+      throw new HttpsError('already-exists', 'That facilitator responsibility is already staffed.');
+    }
+    tx.update(instanceRef, { responsibility: responsibility.responsibility });
+    return { responsibility: responsibility.responsibility };
+  });
+});
+
+/** Start a ready casting roster exactly once through an active facilitator. */
+export const startGame = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const start = requireGameStartRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${start.sessionId}`);
+  const startRequestRef = db.doc(`sessionStartRequests/${start.sessionId}_${start.requestId}`);
+  const eventRef = db.doc(`sessions/${start.sessionId}/events/start-${start.requestId}`);
+  const playersRef = db.collection(`sessions/${start.sessionId}/players`);
+  const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
+  const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
+
+  return db.runTransaction(async (tx) => {
+    const [prior, authority, players, instances, secrets] = await Promise.all([
+      tx.get(startRequestRef),
+      requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
+      tx.get(playersRef),
+      tx.get(instancesRef),
+      tx.get(secretsRef),
+    ]);
+    if (prior.exists) {
+      const result = prior.get('reply');
+      if (typeof result === 'object' && result !== null) return result;
+      throw new HttpsError('failed-precondition', 'This start request has no replayable result.');
+    }
+    if (setupRevision(authority.session) !== start.expectedSetupRevision) {
+      throw new HttpsError('failed-precondition', 'Setup changed. Refresh the roster before starting.');
+    }
+    requireCastingWindow(authority.session);
+    const activeRoleIds = configuredRoleIds(authority.session);
+    const connectedPlayers = players.docs.filter(isActivePlayer).map((player) => player.id);
+    const assignments = players.docs.flatMap((player) => {
+      const roleId = player.get('assignedRoleId');
+      return typeof roleId === 'string' ? [{ uid: player.id, roleId }] : [];
+    });
+    const loyaltyUids = secrets.docs
+      .map((secret) => secret.id)
+      .filter((id) => id.startsWith('loyalty-'))
+      .map((id) => id.slice('loyalty-'.length));
+    const responsibilities = {
+      main: instances.docs.some((instance) => instance.get('responsibility') === 'main'),
+      assistant: instances.docs.some((instance) => instance.get('responsibility') === 'assistant'),
+    };
+    const playerCount = typeof authority.session.get('playerCount') === 'number'
+      ? authority.session.get('playerCount') as number
+      : connectedPlayers.length;
+    const readiness = readinessForSetup({
+      phase: String(authority.session.get('phase')),
+      playerCount,
+      connectedPlayers,
+      assignments,
+      loyaltyUids,
+      facilitatorResponsibilities: responsibilities,
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+    });
+    if (!readiness.ready) {
+      throw new HttpsError(
+        'failed-precondition',
+        `Start blocked: ${readiness.reasons.join(', ')}.`,
+      );
+    }
+
+    const transition = advanceTurnInTransaction(tx, sessionRef, authority.session, false);
+    const result = {
+      sessionId: start.sessionId,
+      currentTurn: transition.currentTurn,
+      setupRevision: start.expectedSetupRevision + 1,
+      turnStartAnnouncement: transition.turnStartAnnouncement,
+      turnPhase: transition.turnPhase,
+    };
+    tx.update(sessionRef, {
+      phase: 'active',
+      configurationLocked: true,
+      setupRevision: result.setupRevision,
+      pursuitGroups: { fleet: 2 },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(startRequestRef, {
+      sessionId: start.sessionId,
+      requestId: start.requestId,
+      reply: result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'game-started',
+      actorUid: uid,
+      requestId: start.requestId,
+      turn: 1,
+      phase: 'active',
+      revision: result.setupRevision,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/** Save a nonbinding vessel preference without implying an assignment. */
+export const setShipPreference = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+  shipId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const preference = requireCastingPreferenceRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${preference.sessionId}`);
+  const playerRef = db.doc(`sessions/${preference.sessionId}/players/${uid}`);
+  const eventRef = db.doc(`sessions/${preference.sessionId}/events/${preference.requestId}`);
+
+  return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
+    const [session, player, prior] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(eventRef),
+    ]);
+    if (prior.exists) {
+      const result = prior.get('result');
+      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
+      throw new HttpsError('failed-precondition', 'This preference request has no replayable result.');
+    }
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    requireCastingWindow(session);
+    const activeVessels = configuredRoleIds(session)
+      .map((roleId) => roleShipId(roleId))
+      .filter((shipId): shipId is string => typeof shipId === 'string');
+    if (!activeVessels.includes(preference.shipId)) {
+      throw new HttpsError('failed-precondition', 'That vessel is not active in this roster.');
+    }
+    const result = {
+      sessionId: preference.sessionId,
+      setupRevision: setupRevision(session) + 1,
+    } satisfies CastingMutationResult;
+    tx.update(playerRef, { shipPreferenceId: preference.shipId });
+    tx.update(sessionRef, {
+      phase: 'casting',
+      setupRevision: result.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'casting-preference',
+      actorUid: uid,
+      shipId: preference.shipId,
+      requestId: preference.requestId,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/** Assign one printed role during the unlocked casting window. */
+export const assignRole = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  roleId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireRoleAssignmentRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
+
+  return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
+    const [prior, authority, target, players] = await Promise.all([
+      tx.get(eventRef),
+      requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
+      tx.get(db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`)),
+      tx.get(playersRef),
+    ]);
+    if (prior.exists) {
+      const result = prior.get('result');
+      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
+      throw new HttpsError('failed-precondition', 'This assignment request has no replayable result.');
+    }
+    requireCastingWindow(authority.session);
+    if (!isActivePlayer(target) || target.get('role') === 'observer') {
+      throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
+    }
+    const activeRoleIds = configuredRoleIds(authority.session);
+    const assignments = players.docs.flatMap((member) => {
+      const roleId = member.get('assignedRoleId');
+      return typeof roleId === 'string' ? [{ uid: member.id, roleId }] : [];
+    });
+    const decision = roleAssignmentDecision(
+      assignments,
+      assignment.targetUid,
+      assignment.roleId,
+      activeRoleIds,
+    );
+    if (!decision.allowed) {
+      throw new HttpsError('failed-precondition', `Role assignment rejected: ${decision.reason}.`);
+    }
+    const result = {
+      sessionId: assignment.sessionId,
+      setupRevision: setupRevision(authority.session) + 1,
+    } satisfies CastingMutationResult;
+    tx.update(target.ref, { assignedRoleId: assignment.roleId, activeConsoleRoleId: null });
+    tx.update(sessionRef, {
+      phase: 'casting',
+      setupRevision: result.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'role-assignment',
+      actorUid: uid,
+      targetUid: assignment.targetUid,
+      roleId: assignment.roleId,
+      requestId: assignment.requestId,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/** Release a role before start so the facilitator can reassign it cleanly. */
+export const releaseRole = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const release = requireRoleReleaseRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${release.sessionId}`);
+  const eventRef = db.doc(`sessions/${release.sessionId}/events/${release.requestId}`);
+
+  return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
+    const [prior, authority, target] = await Promise.all([
+      tx.get(eventRef),
+      requireFacilitatorInstance(tx, release.sessionId, uid, release.instanceId),
+      tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
+    ]);
+    if (prior.exists) {
+      const result = prior.get('result');
+      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
+      throw new HttpsError('failed-precondition', 'This release request has no replayable result.');
+    }
+    requireCastingWindow(authority.session);
+    if (!isActivePlayer(target)) throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
+    const result = {
+      sessionId: release.sessionId,
+      setupRevision: setupRevision(authority.session) + 1,
+    } satisfies CastingMutationResult;
+    tx.update(target.ref, { assignedRoleId: null, activeConsoleRoleId: null });
+    tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(eventRef, {
+      type: 'role-release',
+      actorUid: uid,
+      targetUid: release.targetUid,
+      requestId: release.requestId,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/** Assign a private loyalty card through the facilitator boundary. */
+export const assignLoyalty = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  kind?: unknown;
+  suspicion?: unknown;
+  partnerUid?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const assignment = requireLoyaltyAssignmentRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
+  const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
+  const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
+  const partnerRef = assignment.partnerUid
+    ? db.doc(`sessions/${assignment.sessionId}/players/${assignment.partnerUid}`)
+    : undefined;
+  const partnerSecretRef = assignment.partnerUid
+    ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.partnerUid}`)
+    : undefined;
+
+  return db.runTransaction(async (tx): Promise<CastingMutationResult & { assignedUids: readonly string[] }> => {
+    const [prior, authority, target, partner] = await Promise.all([
+      tx.get(eventRef),
+      requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
+      tx.get(targetRef),
+      partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
+    ]);
+    if (prior.exists) {
+      const result = prior.get('result');
+      if (typeof result === 'object' && result !== null) {
+        return result as CastingMutationResult & { assignedUids: readonly string[] };
+      }
+      throw new HttpsError('failed-precondition', 'This loyalty request has no replayable result.');
+    }
+    requireCastingWindow(authority.session);
+    if (!isActivePlayer(target)) throw new HttpsError('failed-precondition', 'That player is not eligible for loyalty setup.');
+    if (assignment.partnerUid && assignment.partnerUid === assignment.targetUid) {
+      throw new HttpsError('invalid-argument', 'A Friend partner must be another player.');
+    }
+    if (assignment.partnerUid && (!partner || !isActivePlayer(partner))) {
+      throw new HttpsError('failed-precondition', 'The Friend partner is not an active player.');
+    }
+    const kind = assignment.kind as LoyaltyKind;
+    const decision = loyaltyAssignmentDecision(kind, assignment.suspicion);
+    if (!decision.allowed) {
+      throw new HttpsError('invalid-argument', `Loyalty assignment rejected: ${decision.reason}.`);
+    }
+    if (kind === 'friend' && !assignment.partnerUid) {
+      throw new HttpsError('invalid-argument', 'Friend loyalty requires a private partner.');
+    }
+    if (kind !== 'friend' && assignment.partnerUid) {
+      throw new HttpsError('invalid-argument', 'Only Friend loyalty may name a partner.');
+    }
+    const validSuspicion = kind === 'android'
+      ? null
+      : (defaultSuspicionForLoyalty(kind).includes(decision.suspicion as number)
+        ? decision.suspicion : null);
+    const result = {
+      sessionId: assignment.sessionId,
+      setupRevision: setupRevision(authority.session) + 1,
+      assignedUids: assignment.partnerUid
+        ? [assignment.targetUid, assignment.partnerUid]
+        : [assignment.targetUid],
+    } satisfies CastingMutationResult & { assignedUids: readonly string[] };
+    tx.set(targetSecretRef, {
+      visibleToUids: [assignment.targetUid],
+      payload: {
+        type: 'loyalty',
+        kind,
+        suspicion: validSuspicion,
+        ...(assignment.partnerUid ? { partnerUid: assignment.partnerUid } : {}),
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    if (assignment.partnerUid && partnerSecretRef) {
+      tx.set(partnerSecretRef, {
+        visibleToUids: [assignment.partnerUid],
+        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: assignment.targetUid },
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    tx.update(sessionRef, {
+      phase: 'casting',
+      setupRevision: result.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'loyalty-assignment',
+      actorUid: uid,
+      assignedUids: result.assignedUids,
+      requestId: assignment.requestId,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+});
+
+/** Let only the Android holder disclose its own proof to the shared table. */
+export const revealAndroidProof = onCall<{
+  sessionId?: unknown;
+  requestId?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const disclosure = requireAndroidDisclosureRequest(request.data ?? {});
+  const secretRef = db.doc(`sessions/${disclosure.sessionId}/secrets/loyalty-${uid}`);
+  const eventRef = db.doc(`sessions/${disclosure.sessionId}/events/${disclosure.requestId}`);
+  return db.runTransaction(async (tx) => {
+    const [secret, prior] = await Promise.all([tx.get(secretRef), tx.get(eventRef)]);
+    if (prior.exists) return { disclosed: true as const };
+    if (!secret.exists) throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
+    const payload = secret.get('payload');
+    if (typeof payload !== 'object' || payload === null || payload.kind !== 'android') {
+      throw new HttpsError('permission-denied', 'Only the Android holder may disclose Android proof.');
+    }
+    tx.update(secretRef, { payload: { ...payload as Record<string, unknown>, proofRevealed: true } });
+    tx.set(eventRef, {
+      type: 'android-proof-disclosed',
+      actorUid: uid,
+      requestId: disclosure.requestId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { disclosed: true as const };
+  });
+});
 
 /** Redeem a legacy four-digit or current six-digit code and register presence. */
 export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
@@ -769,6 +1320,17 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         joinCode,
         phase: sessionSnap.get('phase') as string,
         currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+        ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
+        ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
+          ? { chartId: sessionSnap.get('chartId') } : {}),
+        ...(sessionSnap.get('expansion') === 'base' || sessionSnap.get('expansion') === 'capybara' || sessionSnap.get('expansion') === 'none'
+          ? { expansion: sessionSnap.get('expansion') } : {}),
+        ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
+          ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+        ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
+          ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
+        ...(typeof sessionSnap.get('setupRevision') === 'number'
+          ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
@@ -809,6 +1371,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
         role: playerSnap.get('role') as string,
         seatId: resumedSeatId,
+        ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
+          ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
+        ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
+          ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
         activeConsoleRoleId:
           (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
         joinedAt: isoOf(playerSnap.get('joinedAt')),
@@ -897,6 +1463,17 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       joinCode: sessionSnap.get('joinCode') as string,
       phase: sessionSnap.get('phase') as string,
       currentTurn: sessionTurn(sessionSnap.get('currentTurn')),
+      ...(typeof sessionSnap.get('playerCount') === 'number' ? { playerCount: sessionSnap.get('playerCount') } : {}),
+      ...(sessionSnap.get('chartId') === 'A' || sessionSnap.get('chartId') === 'B' || sessionSnap.get('chartId') === 'C'
+        ? { chartId: sessionSnap.get('chartId') } : {}),
+      ...(sessionSnap.get('expansion') === 'base' || sessionSnap.get('expansion') === 'capybara' || sessionSnap.get('expansion') === 'none'
+        ? { expansion: sessionSnap.get('expansion') } : {}),
+      ...(sessionSnap.get('turnLimit') === 6 || sessionSnap.get('turnLimit') === 7 || sessionSnap.get('turnLimit') === 8
+        ? { turnLimit: sessionSnap.get('turnLimit') } : {}),
+      ...(typeof sessionSnap.get('configurationLocked') === 'boolean'
+        ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
+      ...(typeof sessionSnap.get('setupRevision') === 'number'
+        ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
@@ -937,6 +1514,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       displayName: cleanName(playerSnap.get('displayName'), 'Player', 40),
       role: playerSnap.get('role') as string,
       seatId: resumedSeatId,
+      ...(typeof playerSnap.get('assignedRoleId') === 'string' || playerSnap.get('assignedRoleId') === null
+        ? { assignedRoleId: playerSnap.get('assignedRoleId') } : {}),
+      ...(typeof playerSnap.get('shipPreferenceId') === 'string' || playerSnap.get('shipPreferenceId') === null
+        ? { shipPreferenceId: playerSnap.get('shipPreferenceId') } : {}),
       activeConsoleRoleId:
         (playerSnap.get('activeConsoleRoleId') as string | null) ?? null,
       joinedAt: isoOf(playerSnap.get('joinedAt')),
@@ -955,6 +1536,8 @@ function gmInstanceFrom(
     uid: data.uid as string,
     name: cleanName(data.name, 'GM instance', 40),
     deviceLabel: cleanName(data.deviceLabel, 'Unknown device', 160),
+    ...(data.responsibility === 'main' || data.responsibility === 'assistant'
+      ? { responsibility: data.responsibility } : {}),
     claimedAt: isoOf(data.claimedAt),
   };
 }
@@ -1323,6 +1906,7 @@ export const moveShipToLocation = onCall<{
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
+    requireActionPhase(session, 'movement', 'facilitator');
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
     }
@@ -1382,6 +1966,7 @@ export const jumpShip = onCall<{
       throw new HttpsError('failed-precondition', 'This session is closed.');
     }
     requireTurnOneForPlayer(session, player);
+    requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
     }
@@ -3111,6 +3696,7 @@ export const runMaintenance = onCall<{
     }
     if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
     requireTurnOneForGameplay(snapshot);
+    requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
     const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
     const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;

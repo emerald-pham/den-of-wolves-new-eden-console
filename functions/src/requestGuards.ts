@@ -3,6 +3,7 @@ import { WOLF_ROLE_IDS } from './wolfAssignment';
 import { ROLE_IDS } from './roleConfiguration';
 import { RESOURCE_IDS, type ResourceId } from './resources';
 import { isStarSystemCoordinate } from './navigation';
+import { normalizeSessionConfiguration, type SessionConfiguration } from './gameSetup';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -15,6 +16,155 @@ export function requireSessionRequest(data: {
   sessionId?: unknown;
 }): { sessionId: string } {
   return { sessionId: requiredId(data.sessionId, 'sessionId') };
+}
+
+export function requireSessionCreationRequest(data: {
+  requestId?: unknown;
+  playerCount?: unknown;
+  chartId?: unknown;
+  expansion?: unknown;
+  turnLimit?: unknown;
+  dioneEnabled?: unknown;
+  capybaraEnabled?: unknown;
+  options?: unknown;
+}): { requestId: string; configuration: SessionConfiguration } {
+  let configuration: SessionConfiguration;
+  try {
+    configuration = normalizeSessionConfiguration(data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid session configuration.';
+    throw new HttpsError('invalid-argument', message);
+  }
+  return {
+    requestId: requiredId(data.requestId, 'requestId'),
+    configuration,
+  };
+}
+
+export function requireCastingPreferenceRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+  shipId?: unknown;
+}): { sessionId: string; requestId: string; shipId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+  };
+}
+
+export function requireRoleAssignmentRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  roleId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  targetUid: string;
+  roleId: string;
+} {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    roleId: requiredId(data.roleId, 'roleId'),
+  };
+}
+
+export function requireRoleReleaseRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+}): { sessionId: string; instanceId: string; requestId: string; targetUid: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+  };
+}
+
+export function requireLoyaltyAssignmentRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  targetUid?: unknown;
+  kind?: unknown;
+  suspicion?: unknown;
+  partnerUid?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  targetUid: string;
+  kind: string;
+  suspicion: number | null;
+  partnerUid?: string;
+} {
+  if (data.suspicion !== null && data.suspicion !== undefined &&
+      (!Number.isSafeInteger(data.suspicion) || (data.suspicion as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'suspicion must be a non-negative integer or null.');
+  }
+  const partnerUid = data.partnerUid === undefined || data.partnerUid === null
+    ? undefined
+    : requiredId(data.partnerUid, 'partnerUid');
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    kind: requiredId(data.kind, 'kind'),
+    suspicion: data.suspicion === undefined || data.suspicion === null
+      ? null : data.suspicion as number,
+    ...(partnerUid === undefined ? {} : { partnerUid }),
+  };
+}
+
+export function requireAndroidDisclosureRequest(data: {
+  sessionId?: unknown;
+  requestId?: unknown;
+}): { sessionId: string; requestId: string } {
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+  };
+}
+
+export function requireFacilitatorResponsibilityRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  responsibility?: unknown;
+}): { sessionId: string; instanceId: string; responsibility: 'main' | 'assistant' } {
+  if (data.responsibility !== 'main' && data.responsibility !== 'assistant') {
+    throw new HttpsError('invalid-argument', 'responsibility must be main or assistant.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    responsibility: data.responsibility,
+  };
+}
+
+export function requireGameStartRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+}): { sessionId: string; instanceId: string; requestId: string; expectedSetupRevision: number } {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+  };
 }
 
 export function requireSessionSeatRequest(data: {

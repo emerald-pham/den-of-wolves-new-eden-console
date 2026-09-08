@@ -12,7 +12,19 @@ export type Id = string;
 /** ISO-8601 instant, as written by the server. */
 export type Timestamp = string;
 
-export type SessionPhase = 'lobby' | 'briefing' | 'active' | 'debrief' | 'closed';
+export type SessionPhase =
+  | 'lobby'
+  | 'casting'
+  | 'briefing'
+  | 'active'
+  | 'success'
+  | 'failure'
+  | 'debrief'
+  | 'closed'
+  | 'retained-empty';
+
+export type SessionChartId = 'A' | 'B' | 'C';
+export type SessionExpansionMode = 'base' | 'capybara' | 'none';
 
 export type GalacticCoordinate = string;
 export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate>>;
@@ -184,6 +196,13 @@ export interface GameSession {
   /** Short human-shareable code players type to join. */
   readonly joinCode: string;
   readonly phase: SessionPhase;
+  /** Immutable setup choices captured before casting begins. */
+  readonly playerCount?: number;
+  readonly chartId?: SessionChartId;
+  readonly expansion?: SessionExpansionMode;
+  readonly turnLimit?: 6 | 7 | 8;
+  readonly configurationLocked?: boolean;
+  readonly setupRevision?: number;
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
@@ -197,6 +216,8 @@ export interface GameSession {
   readonly shipJumpStates?: ShipJumpStates;
   /** Latest completed jump, used for fleetwide presentation and DRADIS blackout. */
   readonly shipJumpTransitions?: ShipJumpTransitions;
+  /** Server-owned pursuit value per initial fleet group. */
+  readonly pursuitGroups?: Readonly<Record<string, number>>;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
   readonly shipResources?: ShipResources;
   /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */
@@ -256,6 +277,10 @@ export interface Player {
   readonly displayName: string;
   readonly role: PlayerRole;
   readonly seatId: Id | null;
+  /** Server-assigned printed role, separate from local device authority. */
+  readonly assignedRoleId?: string | null;
+  /** Nonbinding casting preference; it never grants a role or vessel. */
+  readonly shipPreferenceId?: string | null;
   /** Server-authoritative command post held by this device until explicitly released. */
   readonly activeConsoleRoleId?: string | null;
   readonly joinedAt: Timestamp;
@@ -268,6 +293,7 @@ export interface GmInstance {
   readonly uid: Id;
   readonly name: string;
   readonly deviceLabel: string;
+  readonly responsibility?: 'main' | 'assistant';
   readonly claimedAt: Timestamp;
 }
 

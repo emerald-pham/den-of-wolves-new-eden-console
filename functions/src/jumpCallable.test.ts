@@ -132,6 +132,38 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
   }));
 });
 
+it('rejects Coordination jumps while the server phase is Team', async () => {
+  mock.get.mockImplementation(async (path: string) => {
+    const fields: Record<string, unknown> = path.includes('/players/')
+      ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
+      : path.includes('/gmInstances/')
+        ? { uid: mock.owner }
+        : {
+          phase: 'active',
+          currentTurn: mock.currentTurn,
+          turnPhase: {
+            turn: 1,
+            airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+          },
+          capybaraEnabled: true,
+          dioneEnabled: true,
+          shipGalacticCoordinates: { aegis: mock.coordinate },
+          shipResources: { aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 } },
+          shipDamage: mock.damage,
+          shipUpgrades: mock.upgrades,
+          shipJumpStates: mock.jumpStates,
+          maintenanceCycles: { aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} } },
+        };
+    return { exists: true, get: (key: string) => fields[key] };
+  });
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/coordination phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('honours an existing integrity lock without changing authoritative state', async () => {
   mock.jumpStates = {
     aegis: { integrityLockedUntil: new Date(Date.now() + 3_600_000).toISOString() },

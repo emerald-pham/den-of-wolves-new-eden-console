@@ -26,6 +26,14 @@ import {
   requireShipNavigationMoveRequest,
   requireShipJumpRequest,
   requireSessionRequest,
+  requireSessionCreationRequest,
+  requireCastingPreferenceRequest,
+  requireRoleAssignmentRequest,
+  requireRoleReleaseRequest,
+  requireLoyaltyAssignmentRequest,
+  requireAndroidDisclosureRequest,
+  requireFacilitatorResponsibilityRequest,
+  requireGameStartRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireUnrestDismissalRequest,
@@ -59,6 +67,80 @@ describe('callable request guards', () => {
   it('requires a session id when resuming', () => {
     expectHttpsError(() => requireSessionRequest({ sessionId: '' }), 'invalid-argument');
     expect(requireSessionRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
+  });
+
+  it('validates the immutable session-creation configuration and request id', () => {
+    expect(requireSessionCreationRequest({
+      requestId: 'create-1',
+      playerCount: 14,
+      chartId: 'B',
+      expansion: 'capybara',
+      turnLimit: 7,
+    })).toEqual({
+      requestId: 'create-1',
+      configuration: {
+        playerCount: 14,
+        chartId: 'B',
+        expansion: 'capybara',
+        turnLimit: 7,
+        dioneEnabled: true,
+        capybaraEnabled: true,
+      },
+    });
+    expectHttpsError(() => requireSessionCreationRequest({
+      requestId: 'create-1', playerCount: 8, dioneEnabled: true,
+    }), 'invalid-argument');
+  });
+
+  it('validates casting preferences and role assignment request identities', () => {
+    expect(requireCastingPreferenceRequest({
+      sessionId: 's1', requestId: 'preference-1', shipId: 'aegis',
+    })).toEqual({ sessionId: 's1', requestId: 'preference-1', shipId: 'aegis' });
+    expect(requireRoleAssignmentRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'assign-1',
+      targetUid: 'u2', roleId: 'admiral',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'assign-1',
+      targetUid: 'u2', roleId: 'admiral',
+    });
+    expect(requireRoleReleaseRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'release-1', targetUid: 'u2',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'release-1', targetUid: 'u2',
+    });
+    expectHttpsError(() => requireCastingPreferenceRequest({
+      sessionId: 's1', requestId: 'preference-1', shipId: '',
+    }), 'invalid-argument');
+  });
+
+  it('keeps loyalty assignment and Android disclosure identifiers bounded', () => {
+    expect(requireLoyaltyAssignmentRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'loyalty-1',
+      targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u3',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'loyalty-1',
+      targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u3',
+    });
+    expect(requireAndroidDisclosureRequest({
+      sessionId: 's1', requestId: 'android-1',
+    })).toEqual({ sessionId: 's1', requestId: 'android-1' });
+    expectHttpsError(() => requireLoyaltyAssignmentRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'loyalty-1', targetUid: 'u2', kind: 'friend', suspicion: 'zero',
+    }), 'invalid-argument');
+  });
+
+  it('validates facilitator responsibility and retry-safe start commands', () => {
+    expect(requireFacilitatorResponsibilityRequest({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
+    })).toEqual({ sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant' });
+    expect(requireGameStartRequest({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 3,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 3,
+    });
+    expectHttpsError(() => requireFacilitatorResponsibilityRequest({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'observer',
+    }), 'invalid-argument');
   });
 
   it('accepts four-digit jump input, including a coordinate that the server must reject as unprinted', () => {

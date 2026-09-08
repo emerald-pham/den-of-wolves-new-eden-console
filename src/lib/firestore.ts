@@ -159,6 +159,17 @@ function shipJumpTransitions(value: unknown): ShipJumpTransitions {
   })) as ShipJumpTransitions;
 }
 
+function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const result: Record<string, number> = {};
+  for (const [group, amount] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof amount === 'number' && Number.isSafeInteger(amount) && amount >= 0) {
+      result[group] = amount;
+    }
+  }
+  return result;
+}
+
 function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
@@ -169,6 +180,18 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
     currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0 ? data.currentTurn as number : 1,
+    ...(Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 18
+      ? { playerCount: data.playerCount as number } : {}),
+    ...(data.chartId === 'A' || data.chartId === 'B' || data.chartId === 'C'
+      ? { chartId: data.chartId } : {}),
+    ...(data.expansion === 'base' || data.expansion === 'capybara' || data.expansion === 'none'
+      ? { expansion: data.expansion } : {}),
+    ...(data.turnLimit === 6 || data.turnLimit === 7 || data.turnLimit === 8
+      ? { turnLimit: data.turnLimit } : {}),
+    ...(typeof data.configurationLocked === 'boolean'
+      ? { configurationLocked: data.configurationLocked } : {}),
+    ...(Number.isSafeInteger(data.setupRevision) && data.setupRevision >= 0
+      ? { setupRevision: data.setupRevision as number } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
@@ -181,6 +204,7 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
     shipJumpStates: shipJumpStates(data.shipJumpStates),
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
+    pursuitGroups: pursuitGroups(data.pursuitGroups),
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
@@ -231,6 +255,10 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
     displayName: normalizeDisplayName(data.displayName),
     role: data.role as Player['role'],
     seatId: (data.seatId as string | null) ?? null,
+    ...(typeof data.assignedRoleId === 'string' || data.assignedRoleId === null
+      ? { assignedRoleId: data.assignedRoleId as string | null } : {}),
+    ...(typeof data.shipPreferenceId === 'string' || data.shipPreferenceId === null
+      ? { shipPreferenceId: data.shipPreferenceId as string | null } : {}),
     activeConsoleRoleId: (data.activeConsoleRoleId as string | null) ?? null,
     joinedAt: iso(data.joinedAt),
   };
@@ -255,6 +283,8 @@ function gmInstanceFrom(sessionId: string, id: string, data: DocumentData): GmIn
     uid: data.uid as string,
     name: data.name as string,
     deviceLabel: data.deviceLabel as string,
+    ...(data.responsibility === 'main' || data.responsibility === 'assistant'
+      ? { responsibility: data.responsibility } : {}),
     claimedAt: iso(data.claimedAt),
   };
 }

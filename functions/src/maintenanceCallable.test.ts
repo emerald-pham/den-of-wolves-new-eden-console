@@ -116,6 +116,17 @@ it('begins maintenance atomically with a server-owned revision', async () => {
     'maintenanceCycles.aegis': expect.objectContaining({ step: 1, revision: 1 }),
   }));
 });
+it('rejects Team maintenance while the server phase is Coordination', async () => {
+  mock.turnPhase = {
+    turn: 1,
+    airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
+  };
+  await expect(runMaintenance.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/team phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
 it('denies unauthenticated, disconnected, unassigned players and foreign GM instances', async () => {
   mock.connected = false;
   await expect(runMaintenance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });

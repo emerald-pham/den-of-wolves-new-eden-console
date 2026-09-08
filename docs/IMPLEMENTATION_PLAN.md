@@ -934,6 +934,120 @@ regression floor throughout this queue, not disposable scaffolding.
 
 ### Build order
 
+#### Execution state
+
+The first 100 prompts are being executed from the current tested `main` in
+order. A completed prompt is marked with a checked task box in the execution
+checklist below and recorded with evidence in
+[`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md). Unchecked
+prompts remain open for the next execution slice.
+
+#### Execution checklist — prompts 001–100
+
+Unchecked entries are partial or missing, never silently complete; the evidence
+and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
+
+- [x] Prompt 001
+- [x] Prompt 002
+- [x] Prompt 003
+- [ ] Prompt 004
+- [x] Prompt 005
+- [x] Prompt 006
+- [x] Prompt 007
+- [x] Prompt 008
+- [x] Prompt 009
+- [x] Prompt 010
+- [ ] Prompt 011
+- [ ] Prompt 012
+- [x] Prompt 013
+- [ ] Prompt 014
+- [ ] Prompt 015
+- [x] Prompt 016
+- [ ] Prompt 017
+- [x] Prompt 018
+- [ ] Prompt 019
+- [ ] Prompt 020
+- [x] Prompt 021
+- [ ] Prompt 022
+- [x] Prompt 023
+- [x] Prompt 024
+- [x] Prompt 025
+- [x] Prompt 026
+- [x] Prompt 027
+- [x] Prompt 028
+- [x] Prompt 029
+- [x] Prompt 030
+- [x] Prompt 031
+- [x] Prompt 032
+- [x] Prompt 033
+- [x] Prompt 034
+- [x] Prompt 035
+- [x] Prompt 036
+- [x] Prompt 037
+- [x] Prompt 038
+- [x] Prompt 039
+- [x] Prompt 040
+- [x] Prompt 041
+- [x] Prompt 042
+- [x] Prompt 043
+- [x] Prompt 044
+- [x] Prompt 045
+- [x] Prompt 046
+- [x] Prompt 047
+- [x] Prompt 048
+- [x] Prompt 049
+- [x] Prompt 050
+- [ ] Prompt 051
+- [x] Prompt 052
+- [x] Prompt 053
+- [x] Prompt 054
+- [ ] Prompt 055
+- [ ] Prompt 056
+- [ ] Prompt 057
+- [ ] Prompt 058
+- [x] Prompt 059
+- [x] Prompt 060
+- [x] Prompt 061
+- [ ] Prompt 062
+- [ ] Prompt 063
+- [ ] Prompt 064
+- [x] Prompt 065
+- [x] Prompt 066
+- [x] Prompt 067
+- [ ] Prompt 068
+- [ ] Prompt 069
+- [ ] Prompt 070
+- [x] Prompt 071
+- [x] Prompt 072
+- [x] Prompt 073
+- [x] Prompt 074
+- [ ] Prompt 075
+- [x] Prompt 076
+- [ ] Prompt 077
+- [x] Prompt 078
+- [x] Prompt 079
+- [ ] Prompt 080
+- [x] Prompt 081
+- [ ] Prompt 082
+- [x] Prompt 083
+- [ ] Prompt 084
+- [ ] Prompt 085
+- [ ] Prompt 086
+- [x] Prompt 087
+- [ ] Prompt 088
+- [ ] Prompt 089
+- [ ] Prompt 090
+- [ ] Prompt 091
+- [ ] Prompt 092
+- [ ] Prompt 093
+- [x] Prompt 094
+- [x] Prompt 095
+- [x] Prompt 096
+- [x] Prompt 097
+- [ ] Prompt 098
+- [ ] Prompt 099
+- [ ] Prompt 100
+
 #### Foundation, session, casting, and start (Prompts 001–090)
 
 - **Prompt 001 — [PRESERVE] Build the canonical rule-source index.** Acceptance: every planned mechanic resolves to a routed reference, with printed component sheets taking precedence over generic guides.
