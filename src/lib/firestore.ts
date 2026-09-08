@@ -20,6 +20,9 @@ import type {
   GmInstance,
   Player,
   Seat,
+  SessionSetup,
+  SessionChartId,
+  SessionExpansionMode,
   SessionEvent,
   ShipJumpStates,
   ShipJumpTransitions,
@@ -172,6 +175,36 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
   return result;
 }
 
+function sessionSetup(value: unknown): SessionSetup | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const playerCount = raw.playerCount;
+  const chartId = raw.chartId;
+  const expansion = raw.expansion;
+  const turnLimit = raw.turnLimit;
+  const activeRoleIds = raw.activeRoleIds;
+  const activeVesselIds = raw.activeVesselIds;
+  if (
+    typeof playerCount !== 'number' || !Number.isSafeInteger(playerCount) || playerCount < 8 || playerCount > 20 ||
+    !(['A', 'B', 'C'] as readonly string[]).includes(String(chartId)) ||
+    !(['base', 'capybara', 'none'] as readonly string[]).includes(String(expansion)) ||
+    !([6, 7, 8] as readonly number[]).includes(Number(turnLimit)) ||
+    typeof raw.dioneEnabled !== 'boolean' || typeof raw.capybaraEnabled !== 'boolean' ||
+    !Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
+    !Array.isArray(activeVesselIds) || activeVesselIds.some((vesselId) => typeof vesselId !== 'string')
+  ) return undefined;
+  return {
+    playerCount,
+    chartId: chartId as SessionChartId,
+    expansion: expansion as SessionExpansionMode,
+    turnLimit: turnLimit as SessionSetup['turnLimit'],
+    dioneEnabled: raw.dioneEnabled,
+    capybaraEnabled: raw.capybaraEnabled,
+    activeRoleIds: [...activeRoleIds] as string[],
+    activeVesselIds: [...activeVesselIds] as string[],
+  };
+}
+
 export function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
@@ -179,9 +212,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const playerCount = Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 20
     ? data.playerCount as number
     : undefined;
-  const hasActiveRoleIds = Array.isArray(data.activeRoleIds);
+  const setup = sessionSetup(data.setup);
+  const hasActiveRoleIds = Array.isArray(data.activeRoleIds) || Boolean(setup);
   const activeRoleIds = hasActiveRoleIds
-    ? data.activeRoleIds as string[]
+    ? (Array.isArray(data.activeRoleIds) ? data.activeRoleIds : setup?.activeRoleIds) as string[]
     : DEFAULT_ACTIVE_ROLE_IDS;
   const shuttleManifest = normalizeShuttleManifest(
     Array.isArray(data.shuttleDockings) ? data.shuttleDockings : undefined,
@@ -206,6 +240,10 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       ? { configurationLocked: data.configurationLocked } : {}),
     ...(Number.isSafeInteger(data.setupRevision) && data.setupRevision >= 0
       ? { setupRevision: data.setupRevision as number } : {}),
+    ...(setup ? { setup, activeVesselIds: [...setup.activeVesselIds] } :
+      Array.isArray(data.activeVesselIds)
+        ? { activeVesselIds: data.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string') }
+        : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
@@ -281,6 +319,7 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   return {
     id,
     sessionId,
+    ...(typeof data.roleId === 'string' ? { roleId: data.roleId } : {}),
     label: data.label as string,
     factionId: (data.factionId as string | null) ?? null,
     status: data.status as Seat['status'],
@@ -290,6 +329,12 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
 }
 
 function gmInstanceFrom(sessionId: string, id: string, data: DocumentData): GmInstance {
+  const responsibilities = Array.isArray(data.responsibilities)
+    ? data.responsibilities.filter((responsibility): responsibility is 'main' | 'assistant' =>
+      responsibility === 'main' || responsibility === 'assistant')
+    : data.responsibility === 'main' || data.responsibility === 'assistant'
+      ? [data.responsibility]
+      : [];
   return {
     id,
     sessionId,
@@ -298,6 +343,7 @@ function gmInstanceFrom(sessionId: string, id: string, data: DocumentData): GmIn
     deviceLabel: data.deviceLabel as string,
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
       ? { responsibility: data.responsibility } : {}),
+    ...(responsibilities.length > 0 ? { responsibilities } : {}),
     claimedAt: iso(data.claimedAt),
   };
 }
@@ -330,7 +376,9 @@ export function subscribeSessionState(
       } else handlers.onError();
     }, handlers.onError),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
-      handlers.onSeats(snapshot.docs.map((seat) => seatFrom(sessionId, seat.id, seat.data())));
+      handlers.onSeats(snapshot.docs
+        .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
+        .filter((seat) => seat.roleId !== 'press-officer'));
     }, handlers.onError),
   ];
   return () => unsubscribes.forEach((unsubscribe) => unsubscribe());

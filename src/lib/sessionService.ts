@@ -165,11 +165,11 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
       ...(Array.isArray(reply.activeRoleIds)
         ? { activeRoleIds: reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string') }
         : {}),
-    } as GameSession & Record<string, unknown>;
-    if (typeof reply.setup === 'object' && reply.setup !== null) nextSession.setup = reply.setup;
-    if (Array.isArray(reply.activeVesselIds)) {
-      nextSession.activeVesselIds = reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string');
-    }
+      ...(typeof reply.setup === 'object' && reply.setup !== null ? { setup: reply.setup } : {}),
+      ...(Array.isArray(reply.activeVesselIds)
+        ? { activeVesselIds: reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string') }
+        : {}),
+    } as GameSession;
     store.setSession(nextSession);
   }
   if (
