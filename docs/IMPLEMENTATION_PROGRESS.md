@@ -15,7 +15,7 @@ session can resume at the first unresolved acceptance.
 
 **66 / 705 prompts complete (9%)**
 
-Status breakdown: **66 done · 27 partial · 612 missing**.
+Status breakdown: **66 done · 28 partial · 611 missing**.
 
 Active prompt: **none**.
 
@@ -167,7 +167,7 @@ release classification and evidence.
 | 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 103 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 105 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle copy in visible and ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106b | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
