@@ -127,6 +127,23 @@ describe('the CIC frame', () => {
   });
 });
 
+describe('the motion safety gate', () => {
+  it('keeps the first-load choice full-screen, square, responsive, and still', () => {
+    const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
+
+    expect(index).toMatch(
+      /\.motion-safety-backdrop\s*\{[^}]*position:\s*fixed[^}]*inset:\s*0[^}]*z-index:\s*60/s,
+    );
+    expect(index).toMatch(
+      /\.motion-safety-dialog__choices\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)/s,
+    );
+    expect(index).toMatch(
+      /@media \(max-width: 42rem\)\s*\{[^]*?\.motion-safety-dialog__choices\s*\{[^}]*grid-template-columns:\s*1fr/s,
+    );
+    expect(index).toContain(".motion-safety-content[aria-hidden='true']");
+  });
+});
+
 describe('the fleet transmission', () => {
   it('uses bone-white type for the survivor loss readout', () => {
     const intrusion = SHEETS.find(({ name }) => name === 'src/styles/intrusion.css')?.css ?? '';

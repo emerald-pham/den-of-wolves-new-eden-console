@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'A first-load motion-safety gate now explains the game\'s moving visuals and lets players choose reduced motion or the recommended normal motion, with a fresh acknowledgement required every 24 hours.',
+    ],
+  },
+  {
+    version: '0.3.2',
+    changes: [
       'Jump consoles now accept locked four-digit destinations, power up across a full-width drive rail, protect the drive with a one-hour integrity lockout for bad coordinates, and restore only the ships that arrive together after the jump.',
     ],
   },
