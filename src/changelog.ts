@@ -11,6 +11,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [21, 30, 51, 73],
+    changes: [
+      'Players and facilitators can now confirm one authoritative setup, with stable core-role seats that remain claimable and reconnectable.',
+      'A single GM can carry both printed facilitation responsibilities while optional additional GMs can share or hand off lanes; the optional Press station remains distinct and outside the core count.',
+    ],
+  },
+  {
+    version: '0.3.11',
     implementationPrompts: [4],
     changes: [
       'Facilitators can now stage an exact core-role roster for every player count from 8 through 20, including the source-authoritative Capybara Captain and Recycler pair at 19 and 20.',
