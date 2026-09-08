@@ -60,7 +60,7 @@ export default function PursuitTracker({
       </header>
 
       <p className="pursuit-tracker__countdown" aria-live="polite">
-        <span>Countdown to failure // </span>
+        <span>WOLF PURSUIT TRACK // </span>
         <strong>
           {failureCountdown} <small>{failureCountdown === 1 ? 'track' : 'tracks'}</small>
         </strong>

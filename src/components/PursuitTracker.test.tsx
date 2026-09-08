@@ -45,7 +45,7 @@ it('rebases the score when a split ship has a different position', () => {
   expect(screen.getByRole('region', { name: 'Pursuit tracker' })).toHaveTextContent('Current track // 2 / 10');
 });
 
-it('keeps an apocalyptic failure countdown visible even at the lower end of the track', () => {
+it('keeps the wolf pursuit track visible even at the lower end of the track', () => {
   render(
     <PursuitTracker
       currentTurn={1}
@@ -57,7 +57,8 @@ it('keeps an apocalyptic failure countdown visible even at the lower end of the 
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
   expect(tracker).toHaveAttribute('data-threat-level', 'tracked');
-  expect(tracker).toHaveTextContent('Countdown to failure // 8 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 8 tracks');
+  expect(tracker).not.toHaveTextContent('COUNTDOWN TO FAILURE');
   expect(tracker.querySelector('[aria-live="polite"]')).toHaveTextContent('8 tracks');
   expect(tracker.querySelector('[role="progressbar"]')).toHaveAttribute(
     'aria-valuetext',
@@ -77,7 +78,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
 
   const tracker = screen.getByRole('region', { name: 'Pursuit tracker' });
   expect(tracker).toHaveAttribute('data-threat-level', 'closing');
-  expect(tracker).toHaveTextContent('Countdown to failure // 3 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 3 tracks');
 
   rerender(
     <PursuitTracker
@@ -88,7 +89,7 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'critical');
-  expect(tracker).toHaveTextContent('Countdown to failure // 2 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 2 tracks');
 
   rerender(
     <PursuitTracker
@@ -99,6 +100,6 @@ it('escalates the apocalyptic threat treatment through closing, critical, and te
     />,
   );
   expect(tracker).toHaveAttribute('data-threat-level', 'terminal');
-  expect(tracker).toHaveTextContent('Countdown to failure // 0 tracks');
+  expect(tracker).toHaveTextContent('WOLF PURSUIT TRACK // 0 tracks');
   expect(tracker).toHaveTextContent('SURROUNDED // GAME OVER');
 });
