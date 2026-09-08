@@ -124,3 +124,12 @@ jobs:
             --region="us-central1" \
             --member="allUsers" \
             --quiet
+
+      - name: Restore browser access to Turn 1 single-player demo
+        if: contains(steps.targets.outputs.targets, 'functions')
+        run: |
+          gcloud functions add-invoker-policy-binding startSinglePlayerDemo \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --member="allUsers" \
+            --quiet
