@@ -81,7 +81,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
           setConfirmBegin(false);
           void execute('begin');
         }}>{confirmBegin ? 'ARE YOU SURE?' : `Begin Maintenance Cycle: Turn ${currentTurn}`}</button>
-      {turnZeroLocked && <p role="status">Turn 0 // Awaiting GM start</p>}
+      {turnZeroLocked && <p role="status">Turn 0 // Awaiting Iris Authentication</p>}
       {error && <p role="alert">{error}</p>}
       <ol aria-label={`${name} maintenance sequence`}>
         {labels.map((label, index) => {

@@ -136,6 +136,7 @@ it('holds Press Officer dispatch controls during Turn 0', () => {
 
   expect(screen.getByRole('textbox', { name: 'Dispatch' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Publish dispatch' })).toBeDisabled();
+  expect(screen.getByText('Turn 0 // Awaiting Iris Authentication')).toBeVisible();
 });
 
 it('shows every current dispatch and dismisses only the selected dispatch', async () => {

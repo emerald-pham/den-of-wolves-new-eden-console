@@ -71,4 +71,5 @@ it('holds the evidence shredder at Turn 0 for a non-GM player', () => {
   render(<PressConfetti shuttle={snnPressShuttle} />);
 
   expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
+  expect(screen.getByText('TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
 });

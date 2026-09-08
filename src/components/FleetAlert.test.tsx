@@ -44,6 +44,7 @@ it('holds the Admiral alert controls during Turn 0 for a player', () => {
 
   expect(screen.getByRole('textbox', { name: 'ALERT MESSAGE' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' })).toBeDisabled();
+  expect(screen.getByText('FLEET COMMAND // TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
 });
 it('shows the latest press dispatch while no alert is active', () => {
   act(() => {

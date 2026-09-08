@@ -98,7 +98,7 @@ export default function PressConfetti({ shuttle }: {
         </div>
         <p className="confetti-dispenser__notice">
           {turnZeroLocked
-            ? 'TURN 0 // AWAITING GM START'
+            ? 'TURN 0 // AWAITING IRIS AUTHENTICATION'
             : 'WARNING // WARNING // THIS WILL CAUSE SHREDDED PAPER TO ENTER THE BRIDGE OF ANY DOCKED SHIP'}
         </p>
       </section>

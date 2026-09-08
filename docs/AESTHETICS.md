@@ -1078,7 +1078,7 @@ dimensions, including return navigation.
 
 A new table is in **Turn 0** until an active GM advances it. Players may still
 use role selection and browse stations, but every control that changes gameplay
-is disabled with a concise `TURN 0 // AWAITING GM START` readout. The GM remains
+is disabled with a concise `TURN 0 // AWAITING IRIS AUTHENTICATION` readout. The GM remains
 able to set up the table. The GM Console belongs in the Independent stations
 roster beside the Press Officer card, not in the device-connection panel, and it
 is not rendered for non-GMs.

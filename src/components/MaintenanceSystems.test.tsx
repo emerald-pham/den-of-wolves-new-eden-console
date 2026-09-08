@@ -54,6 +54,7 @@ it('holds player maintenance controls during Turn 0 while GM setup is underway',
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
 
   expect(screen.getByRole('button', { name: 'Begin Maintenance Cycle: Turn 0' })).toBeDisabled();
+  expect(screen.getByRole('status')).toHaveTextContent('Turn 0 // Awaiting Iris Authentication');
 });
 it('presents every maintenance command as a boxed CIC action', () => {
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);

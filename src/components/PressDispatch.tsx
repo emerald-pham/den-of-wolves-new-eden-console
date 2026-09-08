@@ -107,7 +107,7 @@ export default function PressDispatch({ shuttle }: {
       </div>
       <p className="press-dispatch__status" aria-live="polite">
         {notice || (turnZeroLocked
-          ? 'Turn 0 // Awaiting GM start'
+          ? 'Turn 0 // Awaiting Iris Authentication'
           : !authorized ? 'Press Officer authority required' : '')}
       </p>
     </section>

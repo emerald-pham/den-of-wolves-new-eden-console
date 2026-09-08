@@ -542,6 +542,7 @@ it('holds a player ship dispenser at Turn 0', () => {
   );
 
   expect(screen.getByRole('button', { name: /open confetti activation cover/i })).toBeDisabled();
+  expect(screen.getByText('ONE USE // TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
 });
 
 it('tells a lone non-captain that a second person must fire the cannon', async () => {

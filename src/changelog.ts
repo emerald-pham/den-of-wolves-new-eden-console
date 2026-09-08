@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Turn 0 status messages now say Awaiting Iris Authentication so players see the actual authentication gate.',
+    ],
+  },
+  {
+    version: '0.3.3',
+    changes: [
       'A first-load motion-safety gate now explains the game\'s moving visuals and lets players choose reduced motion or the recommended normal motion, with a fresh acknowledgement required every 24 hours.',
     ],
   },
