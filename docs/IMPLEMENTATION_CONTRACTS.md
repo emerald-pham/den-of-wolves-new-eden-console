@@ -268,7 +268,7 @@ composition or hidden-state story is complete.
 | 027 | verified | `functions/src/joinSessionCallable.test.ts` covers limiter ordering and non-enumerating failures. |
 | 028 | verified | `tests/rules/firestore.rules.test.ts` session-header/member/listing cases. |
 | 029 | verified | `functions/src/seatCallable.test.ts` and `functions/src/seatPolicy.test.ts`. |
-| 030 | verified | `functions/src/seatCallable.test.ts` transaction assertions. |
+| 030 | partial | `functions/src/seatCallable.test.ts` proves isolated seat/player-pointer ownership, but `createSession` provisions no usable seat documents, the client has no claim/release service or UI, `readinessForSetup`/`startGame` do not inspect `seatId` or seat state, and `claimSeat` does not yet compose the roster/setup revision/event required by the prompt. Repair this production path before Prompt 071 or Prompt 020 can close. |
 | 031 | verified | `functions/src/seatCallable.test.ts` race/conflict coverage. |
 | 032 | verified | `functions/src/seatCallable.test.ts` release paths. |
 | 033 | verified | `functions/src/seatCallable.test.ts` stale/foreign release denial. |

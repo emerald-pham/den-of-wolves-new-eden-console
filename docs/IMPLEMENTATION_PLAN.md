@@ -458,6 +458,246 @@ reduced-motion visual review finds no clipped contact name or trapped route;
 both retained and new acceptance stories pass the complete reconciled product
 release gate.
 
+### Release objective — Prompt 004 exact 8–20 roster catalog
+
+This bounded Milestone 1 prerequisite completes only Prompt 004. It extends the
+canonical client/server roster catalogs through the settled 19-player row and
+proves exact support for every integer from 8 through 20 without claiming that
+creation, persisted configuration, casting, readiness, automatic private setup,
+or Turn 1 composition is complete. Those production stories retain their own
+Prompt 021/051/054/071/073/075/020 evidence gates below.
+
+**Source and product decisions:** preserve every printed base roster from 8
+through 18 under `AMB-13`. The two settled expansion rows are exactly 19 = the
+printed base-17 roster plus the atomic `capybara-captain` and
+`capybara-recycler` pair, and 20 = the printed base-18 roster plus that pair;
+both derive two Wolves. The printed expansion permits lower-count substitution
+but does not define its exact roster rows, so Capybara expansion requests from
+8 through 18 remain unavailable until the owner records that decision. Base or
+no-Capybara modes cannot claim the 19/20 expansion rows. `press-officer` is the
+separate optional product-extension station and no GM instance is a core role;
+neither can fill, replace, or increase a core row.
+
+**Existing-app reuse dossier:** extend only the shared client/server
+`recommendedRoleIds` catalogs and their common count derivations. Reuse the
+current `GmConsole` Setup panel and local roster staging/one-confirmation
+interaction as the observable consumer; creation/guards/hydration may inherit
+the shared supported-count result but are not redesigned in this slice.
+Characterize and otherwise preserve `sessionService`, immutable session
+configuration, casting/start callables, readiness, turn transitions, event and
+secret paths, Wolf selection, live session, broad direct-write denial, and all
+canonical role/vessel/shuttle/route/event IDs. Preserve the `/roles`,
+`/console`, `/gm`, and Press routes; the SNN AEGIS-at-8–11/Dione-at-12+ host
+rule; current connection, DRADIS, ticker, return-navigation, reconnect, and
+reduced-motion behavior; and the shared CIC controls in `cic.css`. Do not add a
+parallel setup wizard, callable behavior, client-owned random choice, second
+roster catalog, or start-path change under Prompt 004.
+
+The current Prompt 004 evidence is incomplete in one material way and must be
+made to fail before implementation: both catalogs omit count 19. Existing exact
+base 8–18 and 20 catalog tests, Union/Dione/vessel derivation, Press exclusion,
+Wolf-count thresholds, SNN host derivation, and the GM's locally staged
+Recommended player count control are the characterization floor.
+
+#### Prompt 004 acceptance stories
+
+- **Given** the canonical client and server roster catalogs, **when** every
+  integer count from 8 through 20 is requested, **then** each returns a unique,
+  canonically ordered roster with exactly that many roles. Rows 8–18 remain the
+  current printed/`AMB-13` base rows; row 19 is the ordered base-17 row followed
+  by `capybara-captain` and `capybara-recycler`; row 20 remains the ordered
+  base-18 row followed by the same atomic pair.
+- **Given** 19 or 20 core players, **when** shared derivations inspect the
+  roster, **then** Capybara is active once, Dione remains active, the SNN Press
+  Shuttle's existing roster-derived host is Dione, and the Wolf threshold
+  derives two. `press-officer` and GM instances never appear in or increase the
+  core catalog and no third Wolf can be inferred from them.
+- **Given** 7, 21, a fraction, malformed input, or any non-integer outside the
+  supported matrix, **when** the roster/count boundary is queried, **then** it
+  returns no roster or rejects through the existing typed validator without
+  inventing a nearby row. The source-permitted but unresolved 8–18 Capybara
+  substitution matrix remains unavailable and no catalog entry is fabricated
+  for it.
+- **Given** an authorized GM opens the existing Setup panel, **when** they select
+  19 in Recommended player count, **then** the current local-staging interaction
+  shows exactly 19 roles including both Capybara roles, makes no command before
+  confirmation, and retains the existing accessible status, role grouping,
+  return path, and CIC presentation. Production persistence and start remain
+  Prompt 051 work; this catalog release must not mark them complete.
+
+**Prompt 004 non-goals:** do not change callable persistence, assign players,
+create loyalty secrets, choose Wolves, remodel facilitator responsibilities,
+change readiness, start Turn 1, or add Capybara maintenance/craft/economy work.
+Creation guards and session hydration may receive narrow parity coverage only
+where the shared supported-count catalog propagates automatically; that evidence
+does not complete Prompt 021 or Prompt 051. Lower-count Capybara substitution
+remains unavailable pending an owner decision.
+
+**Prompt 004 exit gate:** first observe the client/server row-19 catalog and GM
+staging acceptance fail. Then prove exact ordered and unique rows for all 8–20,
+invalid 7/21/fraction/malformed boundaries, two Wolves at 19/20, no Press/GM in
+core math, Dione-derived SNN hosting at 19, client/server parity, and no command
+during local staging. Preserve all existing base/Press behavior. Run the full
+reconciled product release gate; because the GM Setup output changes, review
+320×844, 390×844, 1440×900, and 844×390 plus reduced motion for containment,
+focus, readable status, 44px operation, return navigation, and CIC consistency.
+
+#### Queued follow-on Milestone 1 releases
+
+Prompt 004 is followed by four separately evidenced releases so stale green
+fixtures cannot conflate a catalog with a playable start:
+
+1. Complete Prompt 051 with Prompt 021/071/073 as needed: production
+   configuration/casting/readiness accepts the settled matrix, one active GM
+   can cover both printed responsibilities, optional GMs remain nonblocking,
+   and Press stays outside core readiness. Repair the newly surfaced Prompt 030
+   production-seat gap before claiming readiness: session creation must
+   provision or expose authoritative seats, players must claim/release them
+   through the existing transaction boundary, and readiness must inspect that
+   authority rather than assuming role assignment is a seat.
+2. Complete Prompt 054 with the setup portion of Prompt 075: start derives the
+   Wolf count and default private loyalty state server-side, writes an
+   audience-correct calculation receipt, and is retry/race safe without
+   claiming the remaining deck/craft/resource initializer breadth.
+3. Complete Prompt 020 only after the dependencies above: one production-path
+   create → join → seat → cast → private setup → single-GM start → Turn 1
+   fixture passes without direct client gameplay writes.
+4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
+   turn and maintenance composition.
+
+The following stories are the queued walking-skeleton contract, not acceptance
+for the current Prompt 004 catalog release.
+
+- **Given** a new or unlocked session, **when** its creator or authorized GM
+  selects a supported base count from 8 through 18, **then** the server persists
+  that exact base count, mode, canonically ordered roster, active-vessel set,
+  Dione/Union decisions, and revision without Capybara expansion roles, Press,
+  or GM instances filling a row. Existing base sessions hydrate and reconnect
+  without a roster rewrite.
+- **Given** the Capybara expansion is selected, **when** the authorized GM
+  selects 19 or 20 in the existing Recommended player count control and
+  confirms once, **then** the client stages and the server atomically persists
+  the exact owner-set roster, player count, expansion mode, enabled Capybara,
+  active-vessel set, and setup revision. The Captain/Recycler pair is present
+  exactly once and cannot be partially enabled or replaced by Press. A base,
+  none, or unresolved low-count expansion request fails before any state
+  changes, with a nonsecret corrective message.
+- **Given** exactly the locked number of core members have unique active role
+  assignments and eligible loyalty state, **when** one live authorized GM
+  prepares the session, **then** that one GM can assume both printed main and
+  assistant responsibilities and sees one complete readiness result. A legacy
+  single-responsibility record remains readable and migrates only through an
+  authorized setup mutation. Additional active GMs may share or hand off
+  optional lanes, but absent, stale, duplicated, or disconnected collaborators
+  never block start and cannot broaden another instance's authority.
+- **Given** no complete explicit loyalty setup has been locked, **when** the
+  authorized GM starts the ready session, **then** the server derives one Wolf
+  for a locked core count of 8–13 and two for 14–20, selects from eligible core
+  role holders plus a uniquely claimed enabled Press holder, and assigns private
+  loyalty records in the same authoritative setup transaction. Claimed Press is
+  eligible but does not change the count or create a third Wolf; unclaimed or
+  disabled Press and GM-only participants are excluded. Non-Wolf holders receive
+  the printed default Fleet Loyalist distribution, including both suspicion-5
+  cards and one suspicion-10 card, without enabling optional Intelligence,
+  Arbour, Cult, Android, or Friend policies that belong to later decisions.
+- **Given** a complete valid explicit pre-start loyalty setup already exists,
+  **when** start is requested, **then** the server validates and preserves it
+  rather than silently rerolling or overwriting it. A partial, conflicting, or
+  stale explicit setup produces a precise blocker and no write. The normal
+  automatic path remains sufficient for one facilitator and never requires
+  manual assignment or cross-screen transcription.
+- **Given** the same start request is delivered twice or two authorized GM
+  instances race from the same expected setup revision, **when** the
+  transaction commits, **then** exactly one roster lock, Wolf/loyalty result,
+  setup receipt, Turn 1 transition, pursuit initialization, and start event are
+  created. The idempotent retry returns that original result and the losing
+  stale command cannot reroll, duplicate secrets, reset a clock, or publish a
+  second transmission.
+- **Given** an entitled player, Press holder, or facilitator reconnects after
+  start, **when** live authority replaces the cached snapshot, **then** each
+  player regains only their own role/loyalty result, facilitators regain the
+  authorized setup census/receipt, and no public, crew, DRADIS, event, or
+  member snapshot leaks Wolf identity, another loyalty, random ordering, or
+  facilitator-only notes.
+- **Given** the GM uses the ordinary start action in the existing GM console,
+  **when** readiness passes, **then** the UI calls the authoritative setup/start
+  path and visibly reaches Turn 1 with the durable announcement and a readable
+  committed setup summary. Missing/duplicate assignments, wrong modes, stale
+  revision, unauthorized actor, rejected randomness, or unavailable service
+  remain in Turn 0 with an accessible nonsecret failure result. Any retained
+  single-player/debug skip remains explicitly separate and is not evidence for
+  this production story.
+
+#### Queued walking-skeleton authority, receipts, and interaction contract
+
+The server owns the effective core count, mode compatibility, ordered roster,
+eligible loyalty pool, Wolf count, random selection, suspicion distribution,
+setup revision, and Turn 1 transition. The client supplies intent and expected
+revision only. The setup calculation receipt records the source/version,
+locked count and mode, canonical roster IDs, Press eligibility input, excluded
+GM count, Wolf threshold/rule, ordered modifiers, result count, command ID,
+expected/committed revision, actor, server time, and linked event. The
+facilitator projection may include the selected private result; the member
+projection exposes only the rule/count and that member's own loyalty. Public
+or crew projections never serialize selected Wolf identities.
+
+Those queued releases carry the interaction matrix as follows:
+
+| Existing system | Required participation or explicit exclusion |
+|---|---|
+| Routes and GM setup | Reuse `/gm` Setup, local staging, one confirmation, visible back path, and the ordinary production start control. No new wizard. |
+| Star map/navigation and DRADIS | Preserve existing coordinates, SNN roster-derived host, contact privacy, and full-name containment. No movement, group, or attack visualization is added. |
+| Turn structure and broadcasts | The authoritative start enters Turn 1 once through the existing clock and announcement path; raw debug advancement cannot satisfy the story. |
+| Roles, vessels, and shuttles | Persist canonical core role/vessel IDs; add the atomic Capybara pair only in 19/20 expansion rows. General Capybara craft ownership/actions remain deferred. |
+| Callables, rules, audit, and randomness | Configuration and start remain transaction-owned, direct client gameplay writes remain denied, random results use the deterministic test seam, and retry/race outcomes are auditable. |
+| Damage, resources, and economy | Preserve current initialized fields and do not claim complete Capybara maintenance, Scrap, Macaw, Boa, damage, or economy behavior from this casting/start release. |
+| Press | Preserve default-enabled/toggleable independent authority, unique claim, private loyalty, normal Wolf eligibility, SNN hosting, dispatch history, and non-counting readiness. |
+| Reconnect/replay | Live authority restores configuration, own private result, receipt projection, Turn 1 clock, and one announcement without duplicating setup. |
+| Accessibility and aesthetics | Reuse CIC hierarchy/tokens; keep controls keyboard/touch operable with 44px targets, live pending/rejected/committed text, no color-only meaning, no clipping at required viewports, and equivalent reduced-motion access. |
+| Multiple GMs | One instance suffices; additional instances use expected revisions and optional lane sharing without adding players, rerolling setup, or becoming required acknowledgers. |
+
+**Queued dependency and delivery order:** (1) retain the base and Press
+characterization floor; (2) make the exact client/server 8–20 configuration
+matrix fail; (3) make one-GM responsibility/readiness fail; (4) make automatic
+Wolf/loyalty setup, audience-correct receipt, retry, and GM race fail; (5) make
+the ordinary GM start route and reconnect projection fail; (6) implement the
+narrowest shared server/client changes; (7) run the composed production-path
+fixture; and (8) complete the reconciled release gate. Do not mark Prompt 054
+done from a count helper, Prompt 071/073 done from a boolean-only unit test, or
+Prompt 020 done from direct fixture writes around the callables.
+
+**Queued compatibility and rollback:** missing legacy mode fields continue through
+the existing documented normalization until an authorized configuration
+change materializes the settled shape. Stored valid base rosters, explicit
+loyalties, Press claims/history, and singular GM responsibility records are
+readable; migration is additive and revision-guarded. Do not reinterpret a
+stored low-count session as a Capybara expansion or silently discard a manual
+loyalty. Deploy server validation/projection support before a client can submit
+the new high-count or dual-responsibility shape. A rollback may leave additive
+receipt and responsibility fields in place, but must not restore a client that
+can bypass start authority or a server that rerolls an already committed setup.
+
+**Queued walking-skeleton non-goals:** do not invent lower-count Capybara substitutions;
+enable optional special loyalties; complete Capybara maintenance, Scrap,
+Macaw/Boa, damage, targeting, specialist work, or balance dials; implement a
+later turn or whole-game loop; implement a Wolf attack; or add the deferred
+DRADIS attack visualization. Prompts 055–058, 063–070, the remaining Prompt 075
+initializer breadth, Milestone 2+, Prompt 638 capacity, and Prompt 605a remain
+open unless independently proven by their own acceptance.
+
+**Queued Prompt 020 exit gate:** a production-path ATDD fixture creates a session, joins the
+configured members, claims one GM instance, commits the supported configuration,
+casts unique roles, runs automatic private setup, starts, and reaches Turn 1
+without a direct client gameplay write. It covers a retained base row, row 19,
+row 20 with enabled/claimed Press, optional extra GM instances, one- and
+two-Wolf thresholds, valid explicit-loyalty preservation, unauthorized/stale/
+duplicate/racing requests, reconnect/redaction, and unsupported mode/count
+denials. Focused tests, Firestore denial evidence, and the complete local release
+suite pass on the reconciled branch. If the GM Setup/start UI changes, rendered
+review at 320×844, 390×844, 1440×900, and 844×390 plus reduced motion confirms
+the existing CIC hierarchy, reachable controls, visible status, focus order,
+touch targets, return route, and no overflow before merge and push.
+
 ### Milestone 1 — Cast and start a real game
 
 **Given** a supported player count and a base-game, Dione, Capybara, or other
@@ -1438,7 +1678,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 027
 - [x] Prompt 028
 - [x] Prompt 029
-- [x] Prompt 030
+- [ ] Prompt 030
 - [x] Prompt 031
 - [x] Prompt 032
 - [x] Prompt 033

@@ -47,8 +47,8 @@ This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **63 / 710 prompts done, 34 partial, and 613 missing**
-  after reopening stale staffing/roster evidence and adding the
+- The ledger reports **62 / 710 prompts done, 34 partial, 1 in progress, and
+  613 missing** after reopening stale staffing/roster/seat evidence and adding the
   five dependency-placed Wolf/DRADIS lettered prompts.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.
@@ -60,6 +60,11 @@ progress ledger as work lands; it supersedes this dated summary.
   row but omits the owner-set 19-player row. The target is inclusive 8–20 with
   Capybara, so Prompt 638 must implement and prove the full matrix before
   capacity evidence can claim 8–20 support.
+- Seat claim/release primitives have isolated transaction tests, but session
+  creation does not provision a production seat catalog, the client does not
+  expose the claim/release path, and readiness ignores seat authority. Prompt
+  030 is therefore partial and must be repaired before the one-GM readiness or
+  lobby-to-Team-Phase composition gates can close.
 - No repeatable 60-browser gameplay harness or commit/deployment-tied capacity
   artifact exists yet. Runtime instance limits and deployment automation are
   configuration, not capacity or live-game proof.

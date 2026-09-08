@@ -15,11 +15,11 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**63 / 710 prompts complete (9%)**
+**62 / 710 prompts complete (9%)**
 
-Status breakdown: **63 done · 34 partial · 613 missing**.
+Status breakdown: **62 done · 34 partial · 613 missing · 1 in-progress**.
 
-Active prompt: **none**.
+Active prompt: **Prompt 004**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -96,7 +96,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | partial | feature | 0.3.9 | The printed artifact decision `AMB-13` and exact ordered 8–18 base role, vessel, Union, Dione, and Wolf matrix remain evidenced in existing tests. The target is now settled but not implemented: 19 = printed base-17 plus atomic Capybara Captain/Recycler, 20 = printed base-18 plus the pair, both with two Wolves; lower-count expansion substitutions remain undecided, and Press/GM instances must not count. Current runtime omits 19 and therefore cannot claim inclusive 8–20 support. |
+| 004 | in-progress | feature | 0.3.9 | Active Prompt 004 catalog slice: preserve the exact ordered 8–18 base matrix, add 19 = printed base-17 plus atomic Capybara Captain/Recycler, retain 20 = base-18 plus the pair, and prove client/server parity, invalid boundaries, Dione/SNN-host derivation, and two Wolves for both high rows without counting Press or GM instances. Production creation, casting, readiness, private setup, and Turn 1 remain separate prompt evidence; lower-count expansion substitutions remain undecided and must not be invented. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -122,7 +122,7 @@ release classification and evidence.
 | 027 | done | non-feature | — | Non-enumerating limiter tests. |
 | 028 | done | non-feature | — | Session-header membership/listing rules tests. |
 | 029 | done | non-feature | — | Seat policy/callable one-seat tests. |
-| 030 | done | non-feature | — | Authoritative seat transaction tests. |
+| 030 | partial | non-feature | — | `claimSeat` has isolated transaction tests for seat/player-pointer ownership, but session creation does not provision a usable seat catalog, no client service/UI exposes the authoritative claim/release path, readiness/start does not inspect `seatId` or seat documents, and the claim transaction does not yet compose the roster/setup revision/event required by this prompt. Prompts 029 and 031–033 retain their narrower exclusivity, race, release, and stale-denial evidence; Prompt 030 must be repaired before one-GM readiness or Prompt 020 can close. |
 | 031 | done | non-feature | — | Seat race/conflict tests. |
 | 032 | done | non-feature | — | Seat release tests. |
 | 033 | done | non-feature | — | Foreign/stale seat release denial tests. |
