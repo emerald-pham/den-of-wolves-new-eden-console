@@ -121,6 +121,7 @@ function AppRoutes() {
         capybaraEnabled={session?.capybaraEnabled !== false}
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
+        shipJumpTransitions={session?.shipJumpTransitions}
         ambientSession={session ?? undefined}
         turnPhase={session?.turnPhase}
       />

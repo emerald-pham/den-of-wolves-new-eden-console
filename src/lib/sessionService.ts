@@ -3,7 +3,13 @@ import { httpsCallable } from 'firebase/functions';
 import { auth, functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { PendingCommand } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, Player } from '@/types/game';
+import type {
+  GameSession,
+  GmInstance,
+  Player,
+  ShipJumpState,
+  ShipJumpTransition,
+} from '@/types/game';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
 import { normalizePressDispatch } from './pressDispatchState';
@@ -786,6 +792,65 @@ export async function setShipConsoleLock(
       });
     }
     return 'applied';
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+export interface JumpShipReply {
+  readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped';
+  readonly shipId: string;
+  readonly origin: string;
+  readonly destination: string;
+  readonly integrityLockedUntil?: string;
+  readonly length?: 'short' | 'medium' | 'long';
+  readonly fuelCost?: number;
+  readonly remainingFuel?: number;
+  readonly state?: ShipJumpState;
+  readonly transition?: ShipJumpTransition;
+}
+
+/** Submit a powered, coordinate-locked jump directly to the authoritative drive. */
+export async function jumpShip(shipId: string, destination: string): Promise<JumpShipReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before jumping.');
+  const payload = {
+    sessionId: store.session.id,
+    shipId,
+    destination,
+    ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, JumpShipReply>(functions(), 'jumpShip');
+    const reply = (await call(payload)).data;
+    const current = useSessionStore.getState().session;
+    if (current?.id === payload.sessionId) {
+      const nextSession: GameSession = {
+        ...current,
+        ...(reply.status === 'jumped' ? {
+          shipGalacticCoordinates: {
+            ...current.shipGalacticCoordinates,
+            [shipId]: reply.destination,
+          },
+          ...(current.shipResources && reply.remainingFuel !== undefined && current.shipResources[shipId]
+            ? { shipResources: {
+              ...current.shipResources,
+              [shipId]: { ...current.shipResources[shipId], fuel: reply.remainingFuel },
+            } }
+            : {}),
+        } : {}),
+        ...(reply.state ? {
+          shipJumpStates: { ...current.shipJumpStates, [shipId]: reply.state },
+        } : {}),
+        ...(reply.transition ? {
+          shipJumpTransitions: { ...current.shipJumpTransitions, [shipId]: reply.transition },
+        } : {}),
+      };
+      useSessionStore.getState().setSession(nextSession);
+    }
+    return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;

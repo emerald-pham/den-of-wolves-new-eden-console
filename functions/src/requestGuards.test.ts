@@ -24,6 +24,7 @@ import {
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
   requireShipNavigationMoveRequest,
+  requireShipJumpRequest,
   requireSessionRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
@@ -58,6 +59,18 @@ describe('callable request guards', () => {
   it('requires a session id when resuming', () => {
     expectHttpsError(() => requireSessionRequest({ sessionId: '' }), 'invalid-argument');
     expect(requireSessionRequest({ sessionId: 's1' })).toEqual({ sessionId: 's1' });
+  });
+
+  it('accepts four-digit jump input, including a coordinate that the server must reject as unprinted', () => {
+    expect(requireShipJumpRequest({ sessionId: 's1', shipId: 'aegis', destination: '0101' }))
+      .toEqual({ sessionId: 's1', shipId: 'aegis', destination: '0101' });
+    expect(requireShipJumpRequest({
+      sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', destination: '5143',
+    })).toEqual({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', destination: '5143' });
+    expectHttpsError(
+      () => requireShipJumpRequest({ sessionId: 's1', shipId: 'aegis', destination: '513' }),
+      'invalid-argument',
+    );
   });
 
   it('requires a current airspace window and positive turn for time extension', () => {

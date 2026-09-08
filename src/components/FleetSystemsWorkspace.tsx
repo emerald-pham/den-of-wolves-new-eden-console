@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MaintenanceSystems from './MaintenanceSystems';
 import JumpFailureReadout from './JumpFailureReadout';
+import JumpDriveConsole from './JumpDriveConsole';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import AssignedShuttlecraft from './AssignedShuttlecraft';
@@ -9,6 +10,7 @@ import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
+import { useSessionStore } from '@/store/useSessionStore';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -45,6 +47,7 @@ export default function FleetSystemsWorkspace({
   readonly consoleLocked?: boolean | undefined;
   readonly includeAssignedShuttlecraft?: boolean;
 }) {
+  const session = useSessionStore((state) => state.session);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
   const maintenance = ship.maintenance;
   const commandMetrics = maintenance ?? {
@@ -67,6 +70,19 @@ export default function FleetSystemsWorkspace({
     >
       <h3>{system.name}</h3>{baseline && <p>{baseline}</p>}
       {system.id === 'jump-drive' && <JumpFailureReadout />}
+      {system.id === 'jump-drive' && <JumpDriveConsole
+        shipId={ship.id}
+        shipName={ship.name}
+        currentCoordinate={galacticCoordinate}
+        fuel={fuel}
+        jumpCosts={commandMetrics.jump}
+        charged={session?.maintenanceCycles?.[ship.id]?.charges.includes('jump-drive') ?? false}
+        damaged={damaged}
+        upgraded={session?.shipUpgrades?.[ship.id]?.includes('jump-drive') ?? false}
+        consoleLocked={consoleLocked}
+        turnZeroLocked={session?.currentTurn === 0}
+        integrityLockedUntil={session?.shipJumpStates?.[ship.id]?.integrityLockedUntil}
+      />}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
       </div>{rules.map(rule => <div className={rule.label === 'If Damaged' ? 'aegis-system__damaged-rule' : undefined}

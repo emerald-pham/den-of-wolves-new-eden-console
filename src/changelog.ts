@@ -10,6 +10,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
+      'Jump consoles now accept locked four-digit destinations, power up across a full-width drive rail, protect the drive with a one-hour integrity lockout for bad coordinates, and restore only the ships that arrive together after the jump.',
+    ],
+  },
+  {
+    version: '0.3.1',
+    changes: [
       'The pursuit tracker now identifies its warning readout as WOLF PURSUIT TRACK for a clearer view of the approaching threat.',
     ],
   },

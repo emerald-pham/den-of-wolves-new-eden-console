@@ -13,6 +13,7 @@ import { DRADIS_RESIZE_MS } from './dradisMotion';
 import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { findShip } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
+import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import type { GameSession } from '@/types/game';
 
 /** One continuous field-to-widget morph; deliberately isolated for easy tuning or removal. */
@@ -40,6 +41,7 @@ export default function ShipPlot({
   capybaraEnabled = true,
   dioneEnabled = true,
   shipGalacticCoordinates = {},
+  shipJumpTransitions = {},
   ambientSession,
   turnPhase,
 }: {
@@ -49,16 +51,36 @@ export default function ShipPlot({
   capybaraEnabled?: boolean;
   dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
+  shipJumpTransitions?: GameSession['shipJumpTransitions'] | undefined;
   ambientSession?: Pick<GameSession, 'id' | 'createdAt' | 'dradisContactTriggeredAt'> | undefined;
   turnPhase?: GameSession['turnPhase'] | undefined;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [orientation, setOrientation] = useState<Orientation>(DEFAULT_ORIENTATION);
+  const [jumpTransitionId, setJumpTransitionId] = useState<string | null>(null);
   const drag = useRef<Drag | null>(null);
+
+  const viewer = findShip(viewerId) ?? findShip('aegis');
+  const effectiveViewerId = viewer?.id ?? 'aegis';
+  const jumpTransition = shipJumpTransitions?.[effectiveViewerId];
 
   useEffect(() => {
     if (!aboard) setExpanded(false);
   }, [aboard]);
+
+  useEffect(() => {
+    if (!jumpTransition?.id) return;
+    const occurredAt = Date.parse(jumpTransition.occurredAt);
+    if (!Number.isFinite(occurredAt)) return;
+    const elapsed = Date.now() - occurredAt;
+    if (elapsed > JUMP_FLASH_MS + 500) return;
+    setJumpTransitionId(jumpTransition.id);
+    const timer = window.setTimeout(
+      () => setJumpTransitionId((current) => current === jumpTransition.id ? null : current),
+      Math.max(0, JUMP_FLASH_MS - Math.max(0, elapsed)),
+    );
+    return () => window.clearTimeout(timer);
+  }, [jumpTransition?.id, jumpTransition?.occurredAt]);
 
   function beginRotation(event: PointerEvent<HTMLDivElement>): void {
     if (!SHIP_PLOT_ROTATION_ENABLED || !expanded) return;
@@ -110,9 +132,8 @@ export default function ShipPlot({
     }));
   }
 
-  const viewer = findShip(viewerId) ?? findShip('aegis');
-  const effectiveViewerId = viewer?.id ?? 'aegis';
   const viewerOrigin = fleetOriginFor(effectiveViewerId);
+  const jumpInProgress = jumpTransitionId === jumpTransition?.id;
   const galacticCoordinate = shipGalacticCoordinates[effectiveViewerId] ??
     ORIGIN_GALACTIC_COORDINATE;
   const fleetContacts = fleetViewFrom(
@@ -121,7 +142,7 @@ export default function ShipPlot({
     shipGalacticCoordinates,
     dioneEnabled,
   );
-  const contacts = fleetContacts.map((ship) => ({
+  const contacts = (jumpInProgress ? [] : fleetContacts).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,
     y: ship.y,
@@ -137,6 +158,7 @@ export default function ShipPlot({
       data-aboard={String(aboard)}
       data-expanded={String(expanded)}
       data-rotation-enabled={String(SHIP_PLOT_ROTATION_ENABLED)}
+      data-jump-transit={String(jumpInProgress)}
       style={{ '--ship-plot-resize': `${SHIP_PLOT_RESIZE_MS}ms` } as ShipPlotStyle}
     >
       <ContactPlot
@@ -145,11 +167,18 @@ export default function ShipPlot({
         placement={aboard ? 'widget' : 'inset'}
         size="min(92cqi, 92cqb)"
         contacts={contacts}
-        ambientSession={ambientSession}
+        ambientSession={jumpInProgress ? undefined : ambientSession}
         centerLabel={viewer?.name.toUpperCase() ?? 'AEGIS'}
         orientation={orientation}
         origin={viewerOrigin}
       />
+      {jumpInProgress && <span
+        className="ship-plot__jump-status"
+        role="status"
+        aria-label="DRADIS contacts lost during FTL transit"
+      >
+        DRADIS // CONTACTS LOST // FTL TRANSIT
+      </span>}
       {aboard ? (
         <>
           <DradisAirspaceTimer phase={turnPhase} />

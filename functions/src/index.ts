@@ -57,6 +57,7 @@ import {
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireShipDamageRequest,
+  requireShipJumpRequest,
   requireShipNavigationMoveRequest,
   requireShipConsoleLockRequest,
   requireShipUnrestRequest,
@@ -77,6 +78,12 @@ import {
   type NavigationLogEntry,
   type NavigationLogs,
 } from './navigation';
+import {
+  resolveJumpAttempt,
+  type JumpAttemptResult,
+  type JumpDriveState,
+  type JumpTransition,
+} from './jumpDrive';
 import { chooseWolfRoles } from './wolfAssignment';
 import { expireTurnScopedResources } from './turnTransition';
 import {
@@ -156,6 +163,12 @@ const INITIAL_SHIP_CONSOLE_LOCKS = Object.fromEntries(
 const INITIAL_SHIP_NAVIGATION_LOGS = Object.fromEntries(
   Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, []]),
 );
+const INITIAL_SHIP_JUMP_STATES = Object.fromEntries(
+  Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, {}]),
+);
+const INITIAL_SHIP_JUMP_TRANSITIONS = Object.fromEntries(
+  Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, undefined]),
+);
 
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
   if (typeof value !== 'object' || value === null) {
@@ -172,6 +185,42 @@ function shipConsoleLocks(value: unknown): Record<string, boolean> {
     shipId,
     stored[shipId] === true,
   ]));
+}
+
+function shipJumpStates(value: unknown): Record<string, JumpDriveState> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_STATES).map((shipId) => {
+    const raw = stored[shipId];
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [shipId, {}];
+    const state = raw as Record<string, unknown>;
+    return [shipId, {
+      ...(typeof state.lastJumpTurn === 'number' && Number.isSafeInteger(state.lastJumpTurn) && state.lastJumpTurn >= 1
+        ? { lastJumpTurn: state.lastJumpTurn }
+        : {}),
+      ...(typeof state.integrityLockedUntil === 'string'
+        ? { integrityLockedUntil: state.integrityLockedUntil }
+        : {}),
+    }];
+  }));
+}
+
+function shipJumpTransitions(value: unknown): Record<string, JumpTransition> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_TRANSITIONS).flatMap((shipId) => {
+    const raw = stored[shipId];
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return [];
+    const transition = raw as Record<string, unknown>;
+    if (
+      typeof transition.id !== 'string' || typeof transition.shipId !== 'string' ||
+      typeof transition.origin !== 'string' || typeof transition.destination !== 'string' ||
+      typeof transition.occurredAt !== 'string'
+    ) return [];
+    return [[shipId, transition as unknown as JumpTransition]];
+  }));
 }
 
 function shipNavigationLogs(value: unknown): NavigationLogs {
@@ -541,6 +590,8 @@ export const createSession = onCall<{
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
+          shipJumpStates: INITIAL_SHIP_JUMP_STATES,
+          shipJumpTransitions: {},
           shipResources: INITIAL_SHIP_RESOURCES,
           shipDamage: {},
           shipUnrest: INITIAL_SHIP_UNREST,
@@ -590,6 +641,8 @@ export const createSession = onCall<{
             shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
             shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
             shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
+            shipJumpStates: INITIAL_SHIP_JUMP_STATES,
+            shipJumpTransitions: {},
             shipResources: INITIAL_SHIP_RESOURCES,
             shipDamage: {},
             shipUnrest: INITIAL_SHIP_UNREST,
@@ -723,6 +776,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
         shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
+        shipJumpStates: shipJumpStates(sessionSnap.get('shipJumpStates')),
+        shipJumpTransitions: shipJumpTransitions(sessionSnap.get('shipJumpTransitions')),
         shipResources: shipResources(sessionSnap.get('shipResources')),
         shipDamage: shipDamage(sessionSnap.get('shipDamage')),
         shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -849,6 +904,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
       shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
+      shipJumpStates: shipJumpStates(sessionSnap.get('shipJumpStates')),
+      shipJumpTransitions: shipJumpTransitions(sessionSnap.get('shipJumpTransitions')),
       shipResources: shipResources(sessionSnap.get('shipResources')),
       shipDamage: shipDamage(sessionSnap.get('shipDamage')),
       shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
@@ -1299,6 +1356,144 @@ export const moveShipToLocation = onCall<{
       origin: move.origin,
       destination: move.destination,
       stardate: move.stardate,
+    };
+  });
+});
+
+/** Resolve one shipboard, coordinate-locked FTL jump. */
+export const jumpShip = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  shipId?: string;
+  destination?: string;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireShipJumpRequest(request.data ?? {});
+  const now = new Date();
+  const transitionId = randomUUID();
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+
+  return db.runTransaction(async (tx) => {
+    await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, false);
+    const session = await tx.get(sessionRef);
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('phase') === 'closed') {
+      throw new HttpsError('failed-precondition', 'This session is closed.');
+    }
+    requireTurnOneForPlayer(session, player);
+    if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
+    }
+    if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Dione is not in this session.');
+    }
+
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const currentCoordinate = shipGalacticCoordinates(session.get('shipGalacticCoordinates'))[change.shipId] ?? '0000';
+    const currentCycles = typeof session.get('maintenanceCycles') === 'object' && session.get('maintenanceCycles') !== null
+      ? session.get('maintenanceCycles') as Record<string, unknown>
+      : {};
+    const currentCycle = typeof currentCycles[change.shipId] === 'object' && currentCycles[change.shipId] !== null
+      ? currentCycles[change.shipId] as Record<string, unknown>
+      : {};
+    const charges = Array.isArray(currentCycle.charges)
+      ? currentCycle.charges.filter((charge): charge is string => typeof charge === 'string')
+      : [];
+    if (currentCycle.turn !== currentTurn || !charges.includes('jump-drive')) {
+      throw new HttpsError('failed-precondition', 'Charge the Jump Drive during this turn before departure.');
+    }
+
+    const inventories = shipResources(session.get('shipResources'));
+    const inventory = inventories[change.shipId];
+    if (!inventory) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
+    const damage = shipDamage(session.get('shipDamage'))[change.shipId] ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
+    const upgrades = typeof session.get('shipUpgrades') === 'object' && session.get('shipUpgrades') !== null
+      ? session.get('shipUpgrades') as Record<string, unknown>
+      : {};
+    const upgradeList = upgrades[change.shipId];
+    const upgraded = Array.isArray(upgradeList) && upgradeList.some((upgrade) => upgrade === 'jump-drive');
+    const state = shipJumpStates(session.get('shipJumpStates'))[change.shipId] ?? {};
+    let result: JumpAttemptResult;
+    try {
+      result = resolveJumpAttempt({
+        shipId: change.shipId,
+        origin: currentCoordinate,
+        destination: change.destination,
+        currentTurn,
+        fuel: inventory.fuel,
+        charged: true,
+        damaged: damage.damagedSystemIds.includes('jump-drive'),
+        upgraded,
+        now,
+        transitionId,
+        state,
+        integrityRoll: damage.damagedSystemIds.includes('jump-drive') ? randomInt(1, 7) : 6,
+      });
+    } catch (cause) {
+      throw new HttpsError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'The jump drive rejected the departure.',
+      );
+    }
+
+    if (result.status === 'integrity-locked') {
+      return {
+        ...result,
+        shipId: change.shipId,
+      };
+    }
+    if (result.status === 'integrity-lockout') {
+      tx.update(sessionRef, {
+        [`shipJumpStates.${change.shipId}`]: result.state,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return {
+        ...result,
+        shipId: change.shipId,
+      };
+    }
+    if (result.status === 'drive-failure') {
+      return {
+        ...result,
+        shipId: change.shipId,
+      };
+    }
+
+    const move = applyShipNavigationMove({
+      shipId: change.shipId,
+      destination: change.destination,
+      now,
+      eventIdPrefix: transitionId,
+      navigationalError: false,
+      coordinates: shipGalacticCoordinates(session.get('shipGalacticCoordinates')),
+      logs: shipNavigationLogs(session.get('shipNavigationLogs')),
+      shipNames: FLEET_SHIP_NAMES,
+    });
+    const nextCycle = {
+      ...currentCycle,
+      charges: charges.filter((charge) => charge !== 'jump-drive'),
+      results: {
+        ...(typeof currentCycle.results === 'object' && currentCycle.results !== null
+          ? currentCycle.results as Record<string, unknown>
+          : {}),
+        ftl: `FTL jump complete // ${result.origin} → ${result.destination} // ${result.length.toUpperCase()} // ${result.fuelCost} fuel.`,
+      },
+    };
+    tx.update(sessionRef, {
+      [`shipGalacticCoordinates.${change.shipId}`]: result.destination,
+      [`shipResources.${change.shipId}.fuel`]: result.remainingFuel,
+      [`maintenanceCycles.${change.shipId}`]: nextCycle,
+      [`shipJumpStates.${change.shipId}`]: result.state,
+      [`shipJumpTransitions.${change.shipId}`]: result.transition,
+      shipNavigationLogs: move.logs,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      ...result,
+      shipId: change.shipId,
     };
   });
 });

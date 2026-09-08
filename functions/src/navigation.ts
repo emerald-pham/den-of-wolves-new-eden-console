@@ -44,6 +44,7 @@ export interface ShipNavigationMoveInput {
   readonly logs: NavigationLogs;
   readonly shipNames: Readonly<Record<string, string>>;
   readonly eventIdPrefix?: string;
+  readonly navigationalError?: boolean;
 }
 
 export interface ShipNavigationMoveResult {
@@ -90,7 +91,7 @@ export function applyShipNavigationMove(input: ShipNavigationMoveInput): ShipNav
     type: 'self-jump',
     origin,
     destination: input.destination,
-    navigationalError: true,
+    navigationalError: input.navigationalError ?? true,
     occurredAt,
     stardate,
   });

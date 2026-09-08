@@ -234,6 +234,23 @@ navigational error. Resource/census privacy controls are local presentation
 switches, and the ICN travel lock is a state readout plus a square command
 button; neither should look like a decorative card or imply hidden authority.
 
+### Jump-drive launch module
+
+The jump-drive console is a single full-width CIC instrument: four square
+digit banks, one lock command, and one power rail. Digit controls use the shared
+44px command silhouette; the locked destination is a cyan measurement, while
+the rail and its speed marks stay amber structure until the drive is charged.
+The speed marks may sweep while the player drags the rail because that motion
+reports the real power-up state, not a decorative background. A successful jump
+uses the existing ship-system flash language for a finite two-second,
+three-hertz lockstep pulse, then leaves the console on its settled readouts.
+The integrity lockout remains a readable danger-state instrument and never
+depends on animation to communicate the one-hour timer. On narrow and short
+landscape screens, digit banks and the rail wrap in reading order without
+shrinking the controls or clipping the lockout; reduced motion freezes the
+speed marks and omits the system flash while preserving the destination,
+power, and transit status text.
+
 ### Control rows and everyday layout
 
 Treat related controls as one composition. Boxed buttons and inputs in the same
