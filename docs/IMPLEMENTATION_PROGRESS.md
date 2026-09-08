@@ -13,15 +13,15 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**64 / 100 prompts complete (64%)**
+**66 / 100 prompts complete (66%)**
 
-Status breakdown: **64 done · 28 partial · 8 missing**.
+Status breakdown: **66 done · 26 partial · 8 missing**.
 
 Active prompt: **none**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
-that only that many prompts have been completed. In this snapshot, Prompt 004
+that only that many prompts have been completed. In this snapshot, Prompt 011
 is the first unresolved prompt even though later prompts are already complete.
 
 `[█████████████░░░░░░░]`
@@ -64,7 +64,7 @@ not be listed in changelog coverage metadata.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | partial | non-feature | — | `functions/src/roleConfiguration.ts` and `gameSetup.ts` validate 8–18; full roster composition proof remains open. |
+| 004 | done | non-feature | — | Exhaustive client/server matrix in `functions/src/gameSetup.test.ts`; typed projection in `functions/src/gameSetup.ts`; AMB-13 records the 8–10 Wing Commander precedence decision. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -111,7 +111,7 @@ not be listed in changelog coverage metadata.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | non-feature | — | Presets exist; exact all-count roster composition remains open. |
+| 051 | done | non-feature | — | Exact 8–18 printed rows, no convenience/Capybara roles, and client/server agreement in `functions/src/gameSetup.test.ts`. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | done | non-feature | — | Wolf count/assignment tests. |
@@ -169,10 +169,9 @@ not be listed in changelog coverage metadata.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;
-  this is independent of the 64 completed prompts. Prompt 020 is the first
+- Resume pointer: Prompt 011 is the lowest-numbered unchecked acceptance;
+  this is independent of the 66 completed prompts. Prompt 020 is the first
   missing production-path composition proof after the documented preserve
   contracts.
-- Application version `0.3.5` is reserved for this first-100 slice. If the
-  final work is documentation-only, the version reservation must be reconciled
-  before closeout rather than left as an unearned release.
+- Application version `0.3.5` remains unchanged for this proof-only non-feature
+  slice; no player-facing changelog entry is warranted.
