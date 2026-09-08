@@ -31,7 +31,7 @@ export interface CoordinationEntry {
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
   readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
-  readonly implementationPrompt?: number;
+  readonly implementationPrompt?: number | string;
   readonly scopes?: readonly string[];
   readonly claims?: readonly string[];
   readonly outcome?: 'landed' | 'preserved' | 'discarded';
@@ -137,6 +137,9 @@ export function validateReleaseCompletion(options: {
   entry: CoordinationEntry;
   release: ReleaseState;
 }): { pushed: boolean };
+export function validateImplementationPromptClaims(
+  entries?: readonly Pick<CoordinationEntry, 'id' | 'status' | 'implementationPrompt'>[],
+): ReadonlyMap<string, string>;
 export function readReleaseState(options?: {
   cwd?: string;
   startBranchSha?: string;

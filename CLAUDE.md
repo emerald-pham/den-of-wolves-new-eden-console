@@ -89,7 +89,8 @@ that documented outcome and explain why it could not merge.
    add the planned note as a new, standalone top-level entry in
    `src/changelog.ts` before the test-first implementation sequence begins.
    Product work driven by the implementation plan must also pass
-   `--implementation-prompt NNN`, set that prompt to `in-progress` in
+   `--implementation-prompt NNN` or `NNN<letter>`, set that prompt to
+   `in-progress` in
    `docs/IMPLEMENTATION_PROGRESS.md`, and classify its ledger row as
    `feature` or `non-feature`. A feature cannot close until its row names the
    release version or versions and each matching changelog entry contains prompt coverage
@@ -271,9 +272,12 @@ it reserves no shared resource or file area. These fields remain in historical
 entries so cleanup can identify ownership without guessing from free-form intent.
 `--resources` remains the human-readable emulator/service detail and does not
 replace structured claims.
-Product work must also provide `--implementation-prompt NNN`; this binds the
-coordination entry to the progress ledger and prevents a feature task from
-closing without its prompt being marked. The executable progress gate checks
+Product work must also provide `--implementation-prompt NNN` or
+`NNN<letter>`; this binds the coordination entry to the progress ledger and
+prevents a feature task from closing without its prompt being marked. The
+registry rejects duplicate active claims for the same normalized prompt ID but
+allows separate agents to claim distinct base or lettered IDs concurrently. The
+executable progress gate checks
 that the ledger row, source-plan checkbox, release version, and real
 `src/changelog.ts` coverage agree.
 
