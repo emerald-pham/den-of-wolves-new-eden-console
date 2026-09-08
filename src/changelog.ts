@@ -10,7 +10,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     changes: [
-      'The first implementation-plan slice strengthens the session, casting, start, and phase foundations used by players and facilitators.',
+      'Player-count setup now preserves the printed roles, ships, Union assignments, and Wolf-agent count for every supported roster.',
     ],
   },
   {

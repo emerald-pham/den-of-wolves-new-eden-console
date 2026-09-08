@@ -2,7 +2,7 @@
 
 This is a documentation-only contract ledger for the first 100 prompts in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). It describes the
-current repository as inspected on 2026-09-07. It does not change the plan,
+current repository as inspected on 2026-09-08. It does not change the plan,
 mark plan items complete, or claim that a contract is playable merely because
 it is described here.
 
@@ -157,18 +157,18 @@ composition or hidden-state story is complete.
 | 001 | verified | `docs/IMPLEMENTATION_PLAN.md` source map and `docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md`; target source-map link audit if routes change. |
 | 002 | verified | `docs/IMPLEMENTATION_PLAN.md` source-precedence policy and routed reference files; target conflicting-value catalog test. |
 | 003 | verified-contract-only | This ledger §1 records known ambiguity decisions/blocks; runtime decision records remain future work. |
-| 004 | partial | `src/data/rolePresets.ts`, `functions/src/roleConfiguration.ts`, and `src/data/rolePresets.test.ts`; current presets extend through 21 and do not alone prove every 8–18 setup projection. Target full matrix composition test. |
+| 004 | verified | `functions/src/gameSetup.ts` projects the exact supported 8–18 role, vessel, Union, Dione, and Wolf matrix; `functions/src/gameSetup.test.ts` covers every count and rejects 7/19 without falling back to an unrelated roster. |
 | 005 | verified-contract-only | This ledger §2 defines the required capability columns; target callable-by-callable matrix assertion. |
 | 006 | verified-contract-only | This ledger §3 defines seven projections and redaction invariants; target serialized projection/rules tests. |
 | 007 | verified | `functions/src/eventEnvelope.ts` defines the shared envelope and `functions/src/eventEnvelope.test.ts` validates required fields, counters, timestamps, and visibility. Existing mutation paths still need migration to this envelope. |
 | 008 | verified | `functions/src/lifecycle.ts` and `functions/src/lifecycle.test.ts` define and reject the explicit lobby/casting/briefing/active/success/failure/debrief/closed/retained-empty edges. Callable migration for every edge remains future work. |
 | 009 | partial | `functions/src/atddFixtures.ts` and `functions/src/atddFixtures.test.ts` provide deterministic members, roles, vessels, shuttles, clocks, random sources, snapshots, readers, configurations, and requests; the full rules-emulator composition remains a target. |
 | 010 | verified-contract-only | This table audits 001–100 with status and named evidence/targets; it is an audit artifact, not green runtime proof. |
-| 011 | partial | `functions/src/joinCodeSecurity.ts`, `functions/src/joinCodeSecurity.test.ts`, and join callable tests cover validation/throttling; lifetime/alphabet/collision policy is not one recorded callable contract. Target session-code contract test. |
+| 011 | verified | `functions/src/joinCodeSecurity.ts` records `JOIN_CODE_POLICY`; validation, limiter, transactional `joinCodes/{code}` collision locking, and create/join callable tests cover the contract. |
 | 012 | partial | Retry-safe behavior exists in selected callables such as `functions/src/maintenanceCallable.test.ts` and `functions/src/sessionLifecycleCallable.test.ts`; no universal command idempotency contract covers all first-100 mutations. Target command replay matrix. |
 | 013 | verified | `functions/src/turnZero.ts`, `functions/src/sessionLifecycle.ts`, and server timestamp use in `functions/src/index.ts`; target emulator clock-skew/reconnect test. |
 | 014 | partial | revision fields and client parsing in `src/lib/firestore.ts` exist, but stale snapshots are not one universal mutation guard. Target stale-revision projection and callable test. |
-| 015 | partial | `functions/src/index.ts` uses Firebase callable errors and focused tests assert several codes; taxonomy is not centrally normalized for all listed cases. Target error taxonomy table/test. |
+| 015 | partial | `src/lib/commandErrorPolicy.ts` classifies the client-facing error categories and `sessionService.ts` uses the retry-safe service class; server-wide callable normalization and visible category projection remain open. |
 | 016 | verified | `functions/src/sessionResumeCallable.test.ts`, `functions/src/sessionLifecycleCallable.test.ts`, and `tests/rules/firestore.rules.test.ts`; target multi-device reconnect composition. |
 | 017 | partial | Stable IDs are used throughout `src/types/game.ts`, data catalogs, and Functions paths; typed IDs for groups, missions, attacks, and every event are not unified. Target typed-ID catalog compile/test. |
 | 018 | verified | `functions/src/actionMetadata.ts` and its tests define Team/Coordination actor and phase gates; `functions/src/index.ts` applies the gate to movement, jumps, and maintenance when a server phase clock exists. The remaining action families are future matrix rows. |

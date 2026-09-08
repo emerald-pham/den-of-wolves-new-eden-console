@@ -15,15 +15,20 @@ export const DEFAULT_ACTIVE_ROLE_IDS = ROLE_IDS.filter(
   (id) => !id.startsWith('joint-engineering-'),
 );
 
-const CORE_18 = ROLE_IDS.filter((id) =>
-  id !== 'press-officer' &&
-  !id.startsWith('capybara-') &&
-  !id.startsWith('joint-engineering-'),
-);
 const A = 'admiral';
 const W = 'wing-commander';
 const QR = 'joint-engineering-quellon-refinery';
 const SI = 'joint-engineering-shepherd-icebreaker';
+
+/** The printed casting table orders the six core ships AEGIS, Dione, Icebreaker, Shepherd, Quellon, Refinery. */
+const CORE_18 = [
+  'admiral', 'executive-officer', 'wing-commander',
+  'dione-captain', 'dione-engineer', 'dione-president',
+  'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
+  'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist',
+  'quellon-captain', 'quellon-engineer', 'quellon-explorer',
+  'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+] as const;
 
 export const JOINT_ENGINEERING_ROLE_IDS = [QR, SI] as const;
 export type JointEngineeringRoleId = typeof JOINT_ENGINEERING_ROLE_IDS[number];

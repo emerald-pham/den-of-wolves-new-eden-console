@@ -8,6 +8,7 @@ import {
   activeVesselIdsForRoles,
   roleAssignmentDecision,
   projectPrivateSetup,
+  printedRosterForPlayerCount,
   wolfCountForPlayerCount,
 } from './gameSetup';
 
@@ -44,6 +45,57 @@ describe('authoritative setup configuration', () => {
     expect(wolfCountForPlayerCount(13)).toBe(1);
     expect(wolfCountForPlayerCount(14)).toBe(2);
     expect(wolfCountForPlayerCount(18)).toBe(2);
+  });
+
+  it('projects the printed role, ship, Union, Dione, and Wolf matrix for every supported count', () => {
+    const expectedRoleIds: Readonly<Record<number, readonly string[]>> = {
+      8: ['admiral', 'icebreaker-miner', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      9: ['admiral', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery'],
+      10: ['admiral', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      11: ['admiral', 'wing-commander', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      12: ['admiral', 'wing-commander', 'dione-engineer', 'dione-president', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      13: ['admiral', 'executive-officer', 'wing-commander', 'dione-engineer', 'dione-president', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      14: ['admiral', 'wing-commander', 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      15: ['admiral', 'executive-officer', 'wing-commander', 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      16: ['admiral', 'wing-commander', 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      17: ['admiral', 'executive-officer', 'wing-commander', 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+      18: ['admiral', 'executive-officer', 'wing-commander', 'dione-captain', 'dione-engineer', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+    };
+    const expectedShipsByCount: Readonly<Record<number, readonly string[]>> = {
+      8: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      9: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      10: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      11: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      12: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      13: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      14: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      15: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      16: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      17: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+      18: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    };
+    const expectedUnionByCount: Readonly<Record<number, readonly string[]>> = {
+      8: ['joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      9: ['joint-engineering-quellon-refinery'],
+      10: [], 11: [], 12: [], 13: [],
+      14: ['joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      15: ['joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker'],
+      16: [], 17: [], 18: [],
+    };
+
+    for (let playerCount = 8; playerCount <= 18; playerCount += 1) {
+      const roster = printedRosterForPlayerCount(playerCount);
+      expect(roster).toEqual({
+        playerCount,
+        roleIds: expectedRoleIds[playerCount],
+        vesselIds: expectedShipsByCount[playerCount],
+        unionRoleIds: expectedUnionByCount[playerCount],
+        dioneEnabled: playerCount >= 12,
+        wolfCount: playerCount <= 13 ? 1 : 2,
+      });
+    }
+    expect(() => printedRosterForPlayerCount(7)).toThrow('playerCount must be an integer from 8 through 18.');
+    expect(() => printedRosterForPlayerCount(19)).toThrow('playerCount must be an integer from 8 through 18.');
   });
 });
 

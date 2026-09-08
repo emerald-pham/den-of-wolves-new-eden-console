@@ -15,6 +15,7 @@ import type { CounterStep } from './counterPreview';
 import { normalizePressDispatch } from './pressDispatchState';
 import { turnPhaseState } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
+import { isRetryableCommandError } from './commandErrorPolicy';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -44,13 +45,6 @@ const TERMINAL_RESUME_ERRORS = new Set([
   'functions/not-found',
   'functions/permission-denied',
   'functions/failed-precondition',
-]);
-const TRANSIENT_COMMAND_ERRORS = new Set([
-  'functions/unavailable',
-  'functions/deadline-exceeded',
-  'functions/resource-exhausted',
-  'functions/internal',
-  'functions/unknown',
 ]);
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
 export type CommandDisposition = 'applied' | 'queued' | 'awaiting-officer';
@@ -225,7 +219,7 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
     ) return 'awaiting-officer';
     return 'applied';
   } catch (cause) {
-    if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
+    if (isRetryableCommandError(errorCode(cause) ?? '')) {
       queue(command);
       store.setConnection('offline');
       return 'queued';
@@ -253,7 +247,7 @@ async function flushPendingCommands(): Promise<boolean> {
       applyCommandResult(command, await executeCommand(command));
       store.removeCommand(command.id);
     } catch (cause) {
-      if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;
+      if (isRetryableCommandError(errorCode(cause) ?? '')) return false;
       store.removeCommand(command.id);
       store.setCommunicationError(interception(cause));
     }
@@ -323,7 +317,7 @@ export async function connect(): Promise<void> {
       try {
         await reconcileGmAuthority();
       } catch (cause) {
-        if (!TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) throw cause;
+        if (!isRetryableCommandError(errorCode(cause) ?? '')) throw cause;
       }
     }
     store.setConnection('live');

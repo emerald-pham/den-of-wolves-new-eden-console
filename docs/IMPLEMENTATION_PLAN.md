@@ -950,14 +950,14 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
-- [ ] Prompt 004
+- [x] Prompt 004
 - [x] Prompt 005
 - [x] Prompt 006
 - [x] Prompt 007
 - [x] Prompt 008
 - [x] Prompt 009
 - [x] Prompt 010
-- [ ] Prompt 011
+- [x] Prompt 011
 - [ ] Prompt 012
 - [x] Prompt 013
 - [ ] Prompt 014

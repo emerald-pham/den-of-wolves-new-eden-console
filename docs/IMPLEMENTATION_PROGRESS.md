@@ -13,7 +13,7 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**64 / 100 prompts worked through (64%)**
+**66 / 100 prompts worked through (66%)**
 
 `[█████████████░░░░░░░]`
 
@@ -31,14 +31,14 @@ plan.
 | 001 | done | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | Plan precedence rule plus routed printed references. |
 | 003 | done | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | partial | `functions/src/roleConfiguration.ts` and `gameSetup.ts` validate 8–18; full roster composition proof remains open. |
+| 004 | done | `printedRosterForPlayerCount` and `functions/src/gameSetup.test.ts` prove the printed 8–18 role, vessel, Union, Dione, and Wolf matrix; invalid counts reject without fallback. |
 | 005 | done | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
 | 008 | done | `functions/src/lifecycle.ts` and `lifecycle.test.ts`. |
 | 009 | done | Deterministic fixture seams in `functions/src/atddFixtures.ts` with five focused tests. |
 | 010 | done | Prompt-by-prompt audit in `docs/IMPLEMENTATION_CONTRACTS.md` §5. |
-| 011 | partial | `joinCodeSecurity.ts` validates/throttles codes; lifetime/alphabet policy still needs a single contract. |
+| 011 | done | `JOIN_CODE_POLICY`, validation, limiter, transactional `joinCodes/{code}` collision lock, and join/create callable tests define the session-code contract. |
 | 012 | partial | Selected callables replay results; no universal command matrix yet. |
 | 013 | done | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
 | 014 | partial | Revision fields/parsing exist; universal stale-mutation semantics remain open. |
@@ -136,9 +136,9 @@ plan.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 004 is the first unchecked acceptance; Prompt 020 is
+- Resume pointer: Prompt 012 is the first unchecked acceptance; Prompt 020 is
   the first missing production-path composition proof after the documented
   preserve contracts.
-- Application version `0.3.5` is reserved for this first-100 slice. If the
-  final work is documentation-only, the version reservation must be reconciled
-  before closeout rather than left as an unearned release.
+- Application version `0.3.6` is reserved for this continuation slice. The
+  next horizon after the first 100 is prompts 101–350, using this same
+  source-plan checklist and evidence standard.

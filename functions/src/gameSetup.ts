@@ -1,6 +1,7 @@
 import {
   isJointEngineeringRoleAvailable,
   isJointEngineeringRoleId,
+  type JointEngineeringRoleId,
   recommendedRoleIds,
 } from './roleConfiguration';
 
@@ -265,6 +266,15 @@ export interface SetupReadinessInput {
   readonly activeVesselIds: readonly string[];
 }
 
+export interface PrintedRoster {
+  readonly playerCount: number;
+  readonly roleIds: readonly string[];
+  readonly vesselIds: readonly string[];
+  readonly unionRoleIds: readonly JointEngineeringRoleId[];
+  readonly dioneEnabled: boolean;
+  readonly wolfCount: 1 | 2;
+}
+
 function vesselIdsForRole(roleId: string): readonly string[] {
   if (roleId === 'admiral' || roleId === 'executive-officer' || roleId === 'wing-commander') return ['aegis'];
   if (roleId === 'joint-engineering-quellon-refinery') return ['quellon', 'refinery-124'];
@@ -312,9 +322,23 @@ export function readinessForSetup(input: SetupReadinessInput): {
   return { ready: reasons.length === 0, reasons };
 }
 
-/** Keep the imported preset helper reachable from the setup module's public contract. */
-export function printedRosterForPlayerCount(playerCount: number): readonly string[] {
-  return recommendedRoleIds(playerCount);
+/** Project the printed count matrix without falling back to an unrelated roster. */
+export function printedRosterForPlayerCount(playerCount: number): PrintedRoster {
+  if (!isOneOf(playerCount, SUPPORTED_PLAYER_COUNTS)) {
+    throw new Error('playerCount must be an integer from 8 through 18.');
+  }
+  const roleIds = recommendedRoleIds(playerCount);
+  const unionRoleIds = roleIds.filter(
+    (roleId): roleId is JointEngineeringRoleId => isJointEngineeringRoleId(roleId),
+  );
+  return {
+    playerCount,
+    roleIds,
+    vesselIds: activeVesselIdsForRoles(roleIds),
+    unionRoleIds,
+    dioneEnabled: roleIds.some((roleId) => roleId.startsWith('dione-')),
+    wolfCount: wolfCountForPlayerCount(playerCount),
+  };
 }
 
 /** Resolve the vessels that a setup roster actually puts into play. */
@@ -338,5 +362,8 @@ export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly st
     const ship = roleId.match(/^(dione|icebreaker|shepherd|quellon|refinery-124|capybara)-/);
     if (ship) vessels.add(ship[1]!);
   }
-  return [...vessels];
+  const printedVesselOrder = [
+    'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara', 'press',
+  ];
+  return printedVesselOrder.filter((vesselId) => vessels.has(vesselId));
 }
