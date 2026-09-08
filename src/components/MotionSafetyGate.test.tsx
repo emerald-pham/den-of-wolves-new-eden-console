@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import MotionSafetyGate from './MotionSafetyGate';
@@ -39,6 +39,24 @@ describe('MotionSafetyGate', () => {
     expect(screen.getByRole('status', { hidden: true })).toHaveTextContent('underlying motion: reduced');
     expect(screen.getByRole('button', { name: 'Game control', hidden: true })
       .closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  it('keeps keyboard focus in the safety choice and cannot be escaped', () => {
+    render(<MotionSafetyGate><p>Game content</p></MotionSafetyGate>);
+
+    const dialog = screen.getByRole('dialog', { name: /motion safety check/i });
+    const normal = screen.getByRole('button', { name: /normal motion/i });
+    const reduced = screen.getByRole('button', { name: /reduced motion/i });
+    expect(document.activeElement).toBe(normal);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(reduced);
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(normal);
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(reduced);
   });
 
   it('dismisses into normal motion only when the recommended option is chosen', async () => {
