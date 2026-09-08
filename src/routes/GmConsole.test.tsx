@@ -27,7 +27,8 @@ vi.mock('@/lib/sessionService', () => ({
   advanceTurn: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
-  setActiveRoleConfiguration: vi.fn(),
+  confirmSetup: vi.fn(),
+  setFacilitatorResponsibility: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -40,7 +41,8 @@ vi.mock('@/lib/firestore', () => ({
 }));
 
 const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setEmergencyTimerPaused, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
+  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setEmergencyTimerPaused,
+  confirmSetup, setFacilitatorResponsibility, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -48,10 +50,12 @@ const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents,
 const local = {
   id: 'local-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
   deviceLabel: 'macOS / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+  responsibilities: [] as readonly ('main' | 'assistant')[],
 };
 const other = {
   id: 'other-1', sessionId: 's1', uid: 'u2', name: 'Tablet',
   deviceLabel: 'iPad / Safari', claimedAt: '2026-01-01T00:01:00.000Z',
+  responsibilities: [] as readonly ('main' | 'assistant')[],
 };
 
 function renderConsole() {
@@ -869,11 +873,17 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(setActiveRoleConfiguration).mockImplementation(async (activeRoleIds) => {
+  vi.mocked(confirmSetup).mockImplementation(async (setup) => {
     const activeSession = useSessionStore.getState().session;
     if (activeSession) useSessionStore.getState().setSession({
       ...activeSession,
-      activeRoleIds,
+      activeRoleIds: setup.activeRoleIds,
+      playerCount: setup.playerCount,
+      chartId: setup.chartId,
+      expansion: setup.expansion,
+      turnLimit: setup.turnLimit,
+      dioneEnabled: setup.dioneEnabled,
+      capybaraEnabled: setup.capybaraEnabled,
     });
     return 'applied';
   });
@@ -890,7 +900,7 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   })).not.toBeInTheDocument();
 
   await user.selectOptions(playerCount, '14');
-  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   expect(screen.getByText(/unconfirmed changes/i)).toBeInTheDocument();
   expect(screen.getByRole('switch', {
     name: /quellon \/ refinery engineer role availability/i,
@@ -902,7 +912,7 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   }
 
   await user.selectOptions(playerCount, '19');
-  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   expect(screen.getByText('Unconfirmed changes // 19 roles staged')).toBeInTheDocument();
   expect(screen.getByRole('switch', { name: /capybara captain role availability/i }))
     .toBeChecked();
@@ -915,12 +925,12 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   })).not.toBeInTheDocument();
 
   await user.click(screen.getByRole('switch', { name: /executive officer role availability/i }));
-  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   expect(screen.getByText(/^custom$/i)).toBeInTheDocument();
 
   await user.click(screen.getByRole('button', { name: /confirm roster/i }));
-  expect(setActiveRoleConfiguration).toHaveBeenCalledOnce();
-  const confirmedRoleIds = vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0] ?? [];
+  expect(confirmSetup).toHaveBeenCalledOnce();
+  const confirmedRoleIds = vi.mocked(confirmSetup).mock.calls[0]?.[0]?.activeRoleIds ?? [];
   expect(confirmedRoleIds).toEqual(expect.arrayContaining(
     recommendedRoleIds(20).filter((roleId) => roleId !== 'executive-officer'),
   ));
@@ -947,7 +957,7 @@ it('stages a correction when an older roster has an invalid Union replacement', 
   expect(screen.getByRole('button', { name: /confirm roster/i })).toBeEnabled();
   await user.click(screen.getByRole('button', { name: /confirm roster/i }));
 
-  const correctedRoleIds = vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0] ?? [];
+  const correctedRoleIds = vi.mocked(confirmSetup).mock.calls[0]?.[0]?.activeRoleIds ?? [];
   expect(correctedRoleIds).toEqual(expect.arrayContaining([...recommendedRoleIds(20)]));
   expect(correctedRoleIds).toHaveLength(recommendedRoleIds(20).length);
 });
@@ -986,10 +996,10 @@ it('sends only the final draft after a GM confirms it', async () => {
   const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
   fireEvent.change(playerCount, { target: { value: '18' } });
 
-  expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   await userEvent.setup().click(screen.getByRole('button', { name: /confirm roster/i }));
-  expect(setActiveRoleConfiguration).toHaveBeenCalledOnce();
-  expect(vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0])
+  expect(confirmSetup).toHaveBeenCalledOnce();
+  expect(vi.mocked(confirmSetup).mock.calls[0]?.[0]?.activeRoleIds)
     .toEqual(expect.arrayContaining([...recommendedRoleIds(18)]));
 });
 
@@ -1051,11 +1061,6 @@ it('toggles Capybara off for the session and removes its perspective', async () 
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(setCapybaraEnabled).mockImplementation(async (enabled) => {
-    const session = useSessionStore.getState().session;
-    if (session) useSessionStore.getState().setSession({ ...session, capybaraEnabled: enabled });
-    return 'applied';
-  });
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
@@ -1069,7 +1074,8 @@ it('toggles Capybara off for the session and removes its perspective', async () 
     .toHaveTextContent(/remove capybara/i);
   await user.click(screen.getByRole('button', { name: /confirm remove capybara/i }));
 
-  expect(setCapybaraEnabled).toHaveBeenCalledWith(false);
+  expect(setCapybaraEnabled).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   expect(await screen.findByRole('button', { name: /turn capybara on/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from capybara/i }))
     .not.toBeInTheDocument();
@@ -1079,11 +1085,6 @@ it('toggles Dione off for the session and removes its perspective', async () => 
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(setDioneEnabled).mockImplementation(async (enabled) => {
-    const session = useSessionStore.getState().session;
-    if (session) useSessionStore.getState().setSession({ ...session, dioneEnabled: enabled });
-    return 'applied';
-  });
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
@@ -1097,7 +1098,8 @@ it('toggles Dione off for the session and removes its perspective', async () => 
     .toHaveTextContent(/remove dione/i);
   await user.click(screen.getByRole('button', { name: /confirm remove dione/i }));
 
-  expect(setDioneEnabled).toHaveBeenCalledWith(false);
+  expect(setDioneEnabled).not.toHaveBeenCalled();
+  expect(confirmSetup).not.toHaveBeenCalled();
   expect(await screen.findByRole('button', { name: /turn dione on/i })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /view dradis from dione/i }))
     .not.toBeInTheDocument();
@@ -1494,4 +1496,78 @@ it('uses the role workspace with a separate persistent GM instrument rail', asyn
   expect(within(workspace).queryByRole('region', { name: 'Fleet DRADIS' })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('link', { name: 'Back to role selection' }));
   expect(screen.getByText('Role selection route')).toBeVisible();
+});
+
+it('shows one-GM dual responsibility lanes and confirms the whole setup tuple', async () => {
+  const user = userEvent.setup();
+  const activeRoleIds = recommendedRoleIds(8);
+  const setup = {
+    playerCount: 8,
+    chartId: 'A' as const,
+    expansion: 'base' as const,
+    turnLimit: 6 as const,
+    dioneEnabled: true,
+    capybaraEnabled: false,
+    activeRoleIds,
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  };
+  useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    setupRevision: 4,
+    setup,
+    activeVesselIds: setup.activeVesselIds,
+    playerCount: setup.playerCount,
+    chartId: setup.chartId,
+    expansion: setup.expansion,
+    turnLimit: setup.turnLimit,
+    dioneEnabled: setup.dioneEnabled,
+    capybaraEnabled: setup.capybaraEnabled,
+    activeRoleIds,
+  });
+  useSessionStore.getState().setGmInstance({
+    ...local,
+    responsibilities: ['main', 'assistant'],
+  });
+  streamInstances([{ ...local, responsibilities: ['main', 'assistant'] }]);
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  vi.mocked(setFacilitatorResponsibility).mockResolvedValue('applied');
+  renderConsole();
+
+  expect(await screen.findByText(/MAIN FACILITATOR/i)).toBeInTheDocument();
+  expect(screen.getByText(/ASSISTANT FACILITATOR/i)).toBeInTheDocument();
+
+  await user.click(screen.getByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /confirm setup/i }));
+
+  expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({
+    playerCount: 8,
+    chartId: 'A',
+    expansion: 'base',
+    turnLimit: 6,
+    dioneEnabled: true,
+    capybaraEnabled: false,
+    activeRoleIds,
+  }));
+});
+
+it('keeps optional GM lane sharing and handoff visible without making a second GM required', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance({ ...local, responsibilities: ['main', 'assistant'] });
+  streamInstances([
+    { ...local, responsibilities: ['main', 'assistant'] },
+    { ...other, responsibilities: [] },
+  ]);
+  vi.mocked(setFacilitatorResponsibility).mockResolvedValue('applied');
+  renderConsole();
+
+  expect(await screen.findByText('Tablet')).toBeInTheDocument();
+  const shareMain = screen.getByRole('button', { name: /share main facilitator/i });
+  const handoffAssistant = screen.getByRole('button', { name: /hand off assistant facilitator/i });
+  expect(shareMain).toBeEnabled();
+  expect(handoffAssistant).toBeEnabled();
+
+  await user.click(shareMain);
+  expect(setFacilitatorResponsibility).toHaveBeenCalledWith(expect.objectContaining({
+    responsibility: 'main', mode: 'share', targetInstanceId: 'other-1',
+  }));
 });

@@ -1,6 +1,12 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { claimGmInstance, setGmControlsLocked } from '@/lib/sessionService';
+import {
+  claimGmInstance,
+  claimSeat,
+  releaseSeat,
+  setGmControlsLocked,
+  type CommandDisposition,
+} from '@/lib/sessionService';
 import {
   selectGmAccessAuthenticated,
   selectIsGm,
@@ -26,6 +32,7 @@ export default function RoleSelect() {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const gmInstance = useSessionStore((state) => state.gmInstance);
+  const seats = useSessionStore((state) => state.seats);
   const gmAccessAuthenticated = useSessionStore(selectGmAccessAuthenticated);
   const isGm = useSessionStore(selectIsGm);
   const pendingClaim = useSessionStore((state) =>
@@ -36,6 +43,8 @@ export default function RoleSelect() {
   const [instanceName, setInstanceName] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [changingLock, setChangingLock] = useState(false);
+  const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
+  const [seatStatus, setSeatStatus] = useState<string | null>(null);
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
   const controlsLocked = session?.gmControlsLocked === true;
 
@@ -66,6 +75,34 @@ export default function RoleSelect() {
     setMode(mode);
     navigate(`/${mode}`);
   }
+
+  async function changeSeat(seatId: string, action: 'claim' | 'release'): Promise<void> {
+    setPendingSeatId(seatId);
+    setSeatStatus(null);
+    try {
+      const disposition: CommandDisposition = action === 'claim'
+        ? await claimSeat(seatId)
+        : await releaseSeat(seatId);
+      setSeatStatus(disposition === 'queued'
+        ? 'STATION CHANGE PENDING // AWAITING RECONNECTION'
+        : `STATION ${action === 'claim' ? 'CLAIMED' : 'RELEASED'} // SERVER ${disposition.toUpperCase()}`);
+    } catch {
+      setSeatStatus('STATION CHANGE REJECTED // REVIEW THE LIVE SEAT MAP');
+    } finally {
+      setPendingSeatId(null);
+    }
+  }
+
+  const activeCoreRoleIds = new Set(
+    (session.activeRoleIds ?? []).filter((roleId) => roleId !== 'press-officer'),
+  );
+  const coreSeats = seats
+    .filter((seat) => {
+      const roleId = seat.roleId ?? seat.id;
+      return roleId !== 'press-officer' &&
+        (activeCoreRoleIds.size === 0 || activeCoreRoleIds.has(roleId));
+    })
+    .sort((left, right) => left.label.localeCompare(right.label));
 
   async function claim(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -101,6 +138,51 @@ export default function RoleSelect() {
         <h1 className="role-select__title">Connect this device</h1>
         <p className="role-select__lede">Choose how this screen will be used.</p>
       </div>
+
+      {coreSeats.length > 0 && (
+        <section className="role-seat-board cic-frame" aria-label="Core station seats">
+          <header className="role-seat-board__header">
+            <div>
+              <p className="eyebrow">Confirmed core roster</p>
+              <h2>Choose your station</h2>
+            </div>
+            <span className="role-seat-board__count">{coreSeats.length} core seats</span>
+          </header>
+          <ul className="role-seat-board__list">
+            {coreSeats.map((seat) => {
+              const heldByYou = seat.holderUid === me.uid;
+              const occupied = seat.status === 'claimed' && !heldByYou;
+              const action = heldByYou ? 'release' : 'claim';
+              return (
+                <li className="role-seat" key={seat.id}>
+                  <div className="role-seat__identity">
+                    <strong>{seat.label}</strong>
+                    <span className="role-seat__state" data-state={heldByYou ? 'you' : occupied ? 'held' : seat.status}>
+                      {heldByYou ? 'HELD BY YOU' : occupied ? 'OCCUPIED' : seat.status.toUpperCase()}
+                    </span>
+                  </div>
+                  {!occupied && (
+                    <button
+                      className="cic-action-button role-seat__action"
+                      type="button"
+                      disabled={pendingSeatId !== null}
+                      aria-label={`${action === 'claim' ? 'CLAIM' : 'RELEASE'} STATION // ${seat.label}`}
+                      onClick={() => void changeSeat(seat.id, action)}
+                    >
+                      {pendingSeatId === seat.id
+                        ? `${action === 'claim' ? 'CLAIMING' : 'RELEASING'}…`
+                        : `${action === 'claim' ? 'CLAIM' : 'RELEASE'} STATION`}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat status">
+            {seatStatus ?? 'Seat changes commit through the authoritative session service.'}
+          </p>
+        </section>
+      )}
 
       <div className="role-select__grid role-select__grid--four">
         <form className="role-card role-claim cic-frame" onSubmit={(event) => void claim(event)}>

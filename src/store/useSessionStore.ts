@@ -160,6 +160,20 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setFacilitatorResponsibility';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly responsibility: 'main' | 'assistant';
+        readonly mode: 'share' | 'handoff' | 'drop';
+        readonly targetInstanceId?: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'claimSeat';
       readonly payload: {
         readonly sessionId: string;

@@ -42,6 +42,12 @@ export interface SetupConfirmationInput {
   readonly activeRoleIds: readonly string[];
 }
 
+export interface FacilitatorResponsibilityChange {
+  readonly responsibility: 'main' | 'assistant';
+  readonly mode: 'share' | 'handoff' | 'drop';
+  readonly targetInstanceId?: string;
+}
+
 export interface CreateSessionOptions {
   readonly playerCount?: number;
   readonly chartId?: 'A' | 'B' | 'C';
@@ -198,7 +204,29 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
             : command.kind === 'claimSeat' ? store.me?.uid ?? seat.holderUid : null,
           claimedAt: command.kind === 'claimSeat' ? seat.claimedAt : null,
         }
-        : seat));
+      : seat));
+    }
+  }
+  if (
+    command.kind === 'setFacilitatorResponsibility' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextRevision = reply.setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+    if (Array.isArray(reply.responsibilities) && store.gmInstance?.id === command.payload.instanceId) {
+      const responsibilities = reply.responsibilities.filter(
+        (responsibility): responsibility is 'main' | 'assistant' =>
+          responsibility === 'main' || responsibility === 'assistant',
+      );
+      store.setGmInstance({
+        ...store.gmInstance,
+        responsibilities,
+        ...(responsibilities.length > 0 ? { responsibility: responsibilities[0] } : {}),
+      });
     }
   }
   if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
@@ -633,6 +661,30 @@ export async function confirmSetup(setup: SetupConfirmationInput): Promise<Comma
       requestId: commandId(),
       expectedSetupRevision: expectedSetupRevision(store.session),
       setup: { ...setup, activeRoleIds: [...setup.activeRoleIds] },
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Change one printed facilitator lane through the revisioned authority command. */
+export async function setFacilitatorResponsibility(
+  change: FacilitatorResponsibilityChange,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing facilitator responsibilities.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setFacilitatorResponsibility',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      responsibility: change.responsibility,
+      mode: change.mode,
+      ...(change.targetInstanceId ? { targetInstanceId: change.targetInstanceId } : {}),
     },
     createdAt: new Date().toISOString(),
   });

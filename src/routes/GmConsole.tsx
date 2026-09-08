@@ -33,12 +33,11 @@ import {
   resetWolves,
   kickGmInstance,
   kickPlayer,
-  setCapybaraEnabled,
+  confirmSetup,
   setDebriefMode,
-  setDioneEnabled,
   setPressEnabled,
   setGmControlsLocked,
-  setActiveRoleConfiguration,
+  setFacilitatorResponsibility,
   applyShipCounterSteps,
   advanceTurn,
   extendAirspaceWindow,
@@ -256,8 +255,14 @@ export default function GmConsole() {
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
+  const [draftCapybaraEnabled, setDraftCapybaraEnabled] = useState(
+    () => session?.capybaraEnabled !== false,
+  );
   const [changingDione, setChangingDione] = useState(false);
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
+  const [draftDioneEnabled, setDraftDioneEnabled] = useState(
+    () => session?.dioneEnabled !== false,
+  );
   const [changingPress, setChangingPress] = useState(false);
   const [pendingPressEnabled, setPendingPressEnabled] = useState<boolean | null>(null);
   const [pressMutationState, setPressMutationState] = useState<
@@ -285,14 +290,17 @@ export default function GmConsole() {
   const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
   const [confirmingRoster, setConfirmingRoster] = useState(false);
   const previousServerRoleIds = useRef<readonly string[]>(serverRoleIds);
-  const capybaraEnabled = session?.capybaraEnabled !== false;
-  const capybaraQueued = pendingCommands.some(
-    (command) => command.kind === 'setCapybaraEnabled',
+  const serverCapybaraEnabled = session?.capybaraEnabled !== false;
+  const serverDioneEnabled = session?.dioneEnabled !== false;
+  const capybaraEnabled = draftCapybaraEnabled;
+  const dioneEnabled = draftDioneEnabled;
+  const setupQueued = pendingCommands.some(
+    (command) => command.kind === 'confirmSetup',
   );
-  const dioneEnabled = session?.dioneEnabled !== false;
-  const dioneQueued = pendingCommands.some(
-    (command) => command.kind === 'setDioneEnabled',
-  );
+  // The convoy controls stage into the same atomic setup command now. Keep
+  // their existing queued presentation while that command is in flight.
+  const capybaraQueued = setupQueued;
+  const dioneQueued = setupQueued;
   const pressEnabled = session?.pressEnabled !== false;
   const pressQueued = pendingCommands.some(
     (command) => command.kind === 'setPressEnabled',
@@ -325,9 +333,7 @@ export default function GmConsole() {
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
-  const rosterQueued = pendingCommands.some(
-    (command) => command.kind === 'setActiveRoleConfiguration',
-  );
+  const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
     const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
     return role && canOfferJointEngineeringRole(draftRoleIds, roleId) ? [role] : [];
@@ -468,6 +474,14 @@ export default function GmConsole() {
   useEffect(() => {
     if (!dioneEnabled && viewerId === 'dione') setViewerId('aegis');
   }, [dioneEnabled, viewerId]);
+
+  useEffect(() => {
+    setDraftCapybaraEnabled(serverCapybaraEnabled);
+  }, [serverCapybaraEnabled]);
+
+  useEffect(() => {
+    setDraftDioneEnabled(serverDioneEnabled);
+  }, [serverDioneEnabled]);
 
   useEffect(() => {
     if (pendingPressEnabled === null) {
@@ -640,6 +654,22 @@ export default function GmConsole() {
     };
   }
 
+  async function changeFacilitatorResponsibility(
+    responsibility: 'main' | 'assistant',
+    mode: 'share' | 'handoff' | 'drop',
+    targetInstanceId?: string,
+  ): Promise<void> {
+    try {
+      await setFacilitatorResponsibility({
+        responsibility,
+        mode,
+        ...(targetInstanceId ? { targetInstanceId } : {}),
+      });
+    } catch {
+      // The shared interception notice reports the server rejection.
+    }
+  }
+
   async function kick(instance: GmInstance): Promise<void> {
     try {
       const disposition = await kickGmInstance(instance.id);
@@ -665,7 +695,9 @@ export default function GmConsole() {
   async function changeCapybara(enabled: boolean): Promise<void> {
     setChangingCapybara(true);
     try {
-      await setCapybaraEnabled(enabled);
+      // Capybara is part of the authoritative setup tuple. Stage the local
+      // choice here; only Confirm setup can send it with the revisioned CAS.
+      setDraftCapybaraEnabled(enabled);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
@@ -677,7 +709,9 @@ export default function GmConsole() {
   async function changeDione(enabled: boolean): Promise<void> {
     setChangingDione(true);
     try {
-      await setDioneEnabled(enabled);
+      // Dione is part of the authoritative setup tuple. Stage the local
+      // choice here; only Confirm setup can send it with the revisioned CAS.
+      setDraftDioneEnabled(enabled);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
@@ -901,10 +935,21 @@ export default function GmConsole() {
   }
 
   async function confirmRoster(): Promise<void> {
-    if (!hasUnconfirmedRosterChanges || !rosterConfigurationValid) return;
+    if (!rosterConfigurationValid) return;
+    const activeSession = session;
+    if (!activeSession) return;
     setConfirmingRoster(true);
     try {
-      await setActiveRoleConfiguration(draftRoleIds);
+      await confirmSetup({
+        playerCount: activeSession.playerCount ?? draftRecommendedPlayerCount ?? draftRoleIds.length,
+        chartId: activeSession.setup?.chartId ?? activeSession.chartId ?? 'A',
+        expansion: activeSession.setup?.expansion ?? activeSession.expansion ??
+          (draftCapybaraEnabled ? 'capybara' : 'base'),
+        turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
+        dioneEnabled: draftDioneEnabled,
+        capybaraEnabled: draftCapybaraEnabled,
+        activeRoleIds: draftRoleIds,
+      });
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
@@ -1319,13 +1364,14 @@ export default function GmConsole() {
                     <button
                       className="cic-action-button"
                       type="button"
+                      aria-label="Confirm setup // Confirm roster"
                       disabled={
-                        !hasUnconfirmedRosterChanges || !rosterConfigurationValid ||
+                        !rosterConfigurationValid ||
                         confirmingRoster || rosterQueued
                       }
                       onClick={() => void confirmRoster()}
                     >
-                      {confirmingRoster ? 'Confirming roster…' : 'Confirm roster'}
+                      {confirmingRoster ? 'Confirming setup…' : 'Confirm setup'}
                     </button>
                   </div>
                     <ShipRoleGroups
@@ -1532,12 +1578,66 @@ export default function GmConsole() {
               <ul className="gm-instance-list">
                 {instances.map((instance) => {
                   const own = instance.id === local.id;
+                  const otherInstance = instances.find((candidate) => candidate.id !== instance.id);
+                  const normalizedResponsibilities = instance.responsibilities?.length
+                    ? instance.responsibilities
+                    : instances.length === 1 && instance.responsibility
+                      ? ['main', 'assistant'] as const
+                      : instance.responsibility
+                        ? [instance.responsibility]
+                        : [];
                   return (
                     <li className="gm-instance cic-frame" key={instance.id}>
                       <div>
                         <strong>{instance.name}</strong>
                         <span>{instance.deviceLabel}</span>
                         {own && <span>THIS DEVICE</span>}
+                        <div className="gm-responsibility-board" aria-label={`${instance.name} facilitator responsibilities`}>
+                          {(['main', 'assistant'] as const).map((responsibility) => {
+                            const label = responsibility === 'main'
+                              ? 'MAIN FACILITATOR'
+                              : 'ASSISTANT FACILITATOR';
+                            const held = normalizedResponsibilities.includes(responsibility);
+                            return (
+                              <div className="gm-responsibility-lane" key={responsibility}>
+                                <span className={held ? 'gm-responsibility-lane__held' : undefined}>
+                                  {label} // {held ? 'HELD' : 'AVAILABLE'}
+                                </span>
+                                {own && otherInstance && held && (
+                                  <div className="gm-responsibility-actions">
+                                    <button
+                                      className="cic-action-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'share', otherInstance.id,
+                                      )}
+                                    >
+                                      Share {responsibility} facilitator
+                                    </button>
+                                    <button
+                                      className="cic-action-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'handoff', otherInstance.id,
+                                      )}
+                                    >
+                                      Hand off {responsibility} facilitator
+                                    </button>
+                                    <button
+                                      className="cic-text-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'drop', otherInstance.id,
+                                      )}
+                                    >
+                                      Drop {responsibility} facilitator
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                       {!own && (
                         <button
