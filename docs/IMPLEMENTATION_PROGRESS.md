@@ -151,10 +151,10 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | feature | 0.3.9 | Production-path create/apply/start evidence still covers the exact printed 8–18 base matrix and rejects convenience/short rosters in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; owner-revised 8–20 Capybara core composition remains open, so the earlier 46-test green run is not completion evidence for that target. |
+| 051 | partial | feature | 0.3.9 | Production-path create/apply/start evidence covers the exact printed 8–18 base matrix and rejects convenience/short rosters in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; scoped 19 creation/guard/hydration propagation is covered separately, but owner-revised 8–20 Capybara core composition remains open, so the earlier 46-test green run is not completion evidence for that target. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
-| 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover a helper and the printed 8–18 base matrix, not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
+| 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover the shared helper, including owner-set 19/20 rows, but not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
 | 055 | missing | non-feature | — | Intelligence Agent gating is not yet explicit. |
 | 056 | missing | non-feature | — | Universal Arbour/Wolf Cult setup is not yet explicit. |
 | 057 | partial | feature | 0.3.5 | Base/expansion/none configuration validation exists; full lock/composition remains open. |
