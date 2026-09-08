@@ -56,7 +56,7 @@ that documented outcome and explain why it could not merge.
 
 ### Implementation-plan reading route
 
-For numbered implementation-plan work, do not read the 705-prompt
+For numbered implementation-plan work, do not read the 710-prompt
 `docs/IMPLEMENTATION_PLAN.md` from top to bottom. Its fixed line numbers change
 as prompt evidence is updated, so required reading is defined by stable
 headings and targeted rows instead.
