@@ -97,6 +97,27 @@ export function isOfficerRoleForShip(roleId: unknown, shipId: string): boolean {
   return role?.shipId === shipId && role.authority === 'officer';
 }
 
+/** Keep only approvals that still describe the same live officer role. */
+export function liveConfettiApprovals(
+  shipId: string,
+  approvals: readonly ConfettiApproval[],
+  connectedOfficerRoles: readonly ConfettiApproval[],
+): ConfettiApproval[] {
+  const currentRoles = new Map(
+    connectedOfficerRoles
+      .filter((operator) => isOfficerRoleForShip(operator.roleId, shipId))
+      .map((operator) => [operator.uid, operator.roleId]),
+  );
+  const seen = new Set<string>();
+  return approvals.filter((approval) => {
+    if (seen.has(approval.uid) || currentRoles.get(approval.uid) !== approval.roleId) {
+      return false;
+    }
+    seen.add(approval.uid);
+    return true;
+  });
+}
+
 interface ShuttleDocking {
   readonly shuttleId: string;
   readonly shipId: string;

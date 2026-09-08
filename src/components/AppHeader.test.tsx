@@ -131,7 +131,7 @@ it('does not replace an already connected status with the startup default', asyn
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
-it('keeps a cached session light green for thirty seconds while a refreshed browser reconnects', async () => {
+it('keeps a cached session light green when a refreshed browser has not been active', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
 
@@ -144,10 +144,10 @@ it('keeps a cached session light green for thirty seconds while a refreshed brow
   act(() => vi.advanceTimersByTime(29_999));
   expect(indicator).toHaveAttribute('data-status', 'green');
   act(() => vi.advanceTimersByTime(1));
-  expect(indicator).toHaveAttribute('data-status', 'red');
+  expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
-it('restores the cached session light for thirty seconds when a background tab returns', async () => {
+it('does not let a page return after an outage make disconnected eligible', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setConnection('live');
@@ -155,8 +155,8 @@ it('restores the cached session light for thirty seconds when a background tab r
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(30_000));
-  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+  act(() => vi.advanceTimersByTime(30_001));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
 
   act(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
@@ -166,10 +166,8 @@ it('restores the cached session light for thirty seconds when a background tab r
   });
 
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(29_999));
+  act(() => vi.advanceTimersByTime(30_001));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(1));
-  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
   Reflect.deleteProperty(document, 'visibilityState');
 });
 
@@ -185,27 +183,37 @@ it('holds the last session light during a passive connection loss', async () => 
 
   const indicator = screen.getByRole('status');
   expect(indicator).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(30_000));
-  expect(indicator).toHaveAttribute('data-status', 'red');
+  act(() => vi.advanceTimersByTime(30_001));
+  expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
-it('shows the disconnected state immediately after player interaction', async () => {
+it('waits thirty seconds after sustained pre-outage interaction before showing disconnected', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setConnection('live');
 
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_001));
+  fireEvent.pointerDown(document.body);
 
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
 
-  fireEvent.click(screen.getByRole('button', { name: /settings/i }));
+  act(() => vi.advanceTimersByTime(29_999));
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
+  act(() => vi.advanceTimersByTime(1));
 
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
 });
 
-it('returns to passive grace after player activity has been idle for thirty seconds', async () => {
+it('does not show disconnected when sustained activity ended before the outage', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setConnection('live');
@@ -213,17 +221,19 @@ it('returns to passive grace after player activity has been idle for thirty seco
   render(<MemoryRouter><AppHeader /></MemoryRouter>);
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
 
-  fireEvent.click(screen.getByRole('button', { name: /settings/i }));
-  act(() => vi.advanceTimersByTime(30_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(30_001));
   act(() => useSessionStore.getState().setConnection('offline'));
 
   const indicator = screen.getByRole('status');
   expect(indicator).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(30_000));
-  expect(indicator).toHaveAttribute('data-status', 'red');
+  act(() => vi.advanceTimersByTime(30_001));
+  expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
-it('treats a page re-entry event as passive reconnect context', async () => {
+it('does not show disconnected when interaction begins after the outage', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));
   useSessionStore.getState().setConnection('live');
@@ -232,17 +242,9 @@ it('treats a page re-entry event as passive reconnect context', async () => {
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(30_000));
-  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
-
-  act(() => {
-    window.dispatchEvent(new Event('pageshow'));
-  });
-
-  const indicator = screen.getByRole('status');
-  expect(indicator).toHaveAttribute('data-status', 'green');
-  act(() => vi.advanceTimersByTime(30_000));
-  expect(indicator).toHaveAttribute('data-status', 'red');
+  act(() => vi.advanceTimersByTime(30_001));
+  fireEvent.pointerDown(document.body);
+  expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
 });
 
 it('keeps fleet broadcasts in the same measured header row as the session code', async () => {

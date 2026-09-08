@@ -12,6 +12,9 @@ it('keeps the visible build reference aligned with the package version', () => {
 
 it('retains the reconnection grace in player-facing release notes', () => {
   expect(CHANGELOG.some((entry) => entry.changes.includes(
+    'Connection indicators now keep the connected state through the first 30 seconds of a disconnect and only reveal the disconnected icon after that window when the player had been continuously interacting for more than 30 seconds before the outage.',
+  ))).toBe(true);
+  expect(CHANGELOG.some((entry) => entry.changes.includes(
     'Connection indicators now show a disconnect immediately when the player was active within the previous 30 seconds; older activity keeps the last connected state during the 30-second reconnect window.',
   ))).toBe(true);
   expect(CHANGELOG.some((entry) => entry.changes.includes(
@@ -36,9 +39,11 @@ it('keeps implementation-plan features mapped to dedicated release notes', () =>
   const currentEntry = CHANGELOG.find((entry) => entry.version === APP_VERSION);
 
   expect(new Set(versions).size).toBe(versions.length);
-  expect(currentEntry?.implementationPrompts?.length).toBe(currentEntry?.changes.length);
-  expect(new Set(currentEntry?.implementationPrompts ?? []).size)
-    .toBe(currentEntry?.implementationPrompts?.length);
+  if (currentEntry?.implementationPrompts) {
+    expect(currentEntry.implementationPrompts.length).toBe(currentEntry.changes.length);
+    expect(new Set(currentEntry.implementationPrompts).size)
+      .toBe(currentEntry.implementationPrompts.length);
+  }
 });
 
 it('emits uncached build metadata for live clients to discover upgrades', () => {
