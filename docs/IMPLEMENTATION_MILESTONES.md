@@ -334,7 +334,7 @@ to the first slice that exposes each surface:
 ## Review budget and evidence reuse
 
 The 2026-09-08 audit found 213 evidence-oriented prompts (163 `[PRESERVE]` plus
-50 `[PROVE]`) in the 710-prompt catalog. They protect real contracts, but they
+50 `[PROVE]`) in the 713-prompt catalog. They protect real contracts, but they
 must not create 213 independent review ceremonies.
 
 Use this review budget for a normal slice:

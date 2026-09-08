@@ -15,14 +15,26 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**63 / 713 prompts complete (9%)**
+**66 / 713 prompts complete (9.26%)**
 
-Status breakdown: **63 done · 33 partial · 1 in-progress · 616 missing**.
+Status breakdown: **66 done · 31 partial · 0 active · 616 missing**.
 
-Active prompt: **Prompt 021** — release 0.3.12 authoritative configuration,
-production seating, and one-GM staffing. Prompts 030 and 073 are inseparable
-repairs in the same bounded release; Prompt 051 receives evidence but remains
-partial until readiness/start.
+Active prompt: **none**.
+
+Version 0.3.12 closes Prompt 021 authoritative configuration, Prompt 030
+production seating, and Prompt 073 one-GM staffing. Prompt 030 is reclassified
+as a feature for this release. Prompt 051 remains partial: configuration and
+seating evidence is appended, while readiness and start remain outside the
+release boundary.
+
+### Version 0.3.12 progress evidence
+
+The release boundary is recorded reproducibly as **66 / 713 = 9.26%** with
+**66 done · 31 partial · 0 active · 616 missing**. Focused server authority,
+seat, responsibility, hydration, client-route, and rules-denial suites provide
+the implementation evidence; the release makes no claim for Prompt 054, 071,
+readiness, start, Wolf/setup receipt, Prompt 020, or the queued addenda
+P122a/P275b/P602a/P603a. Prompt 051 remains partial by design.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -153,7 +165,7 @@ release classification and evidence.
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
-| 021 | in-progress | feature | 0.3.5 | Release 0.3.12 is adding one server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Existing request guards cover printed/base inputs, but independently mutable role/count/mode/Capybara/Dione/vessel state must be replaced by atomic validation and persistence before this prompt can close. Press remains separate and GMs remain non-counted. |
+| 021 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Full tuple validation, request replay/CAS, deterministic active-vessel derivation, and retired partial mutators are covered by the focused Functions suite; Press remains separate and GMs remain non-counted. |
 | 022 | partial | feature | 0.3.5 | Atomic creation path and direct test exist; standardized envelope event is still open. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
 | 024 | done | non-feature | — | `joinSessionCallable.test.ts` and rules tests. |
@@ -162,7 +174,7 @@ release classification and evidence.
 | 027 | done | non-feature | — | Non-enumerating limiter tests. |
 | 028 | done | non-feature | — | Session-header membership/listing rules tests. |
 | 029 | done | non-feature | — | Seat policy/callable one-seat tests. |
-| 030 | partial | non-feature | — | Release 0.3.12 repairs the stale-green production gap: `createSession` provisions no usable stable core seats, no client service/UI exposes callable claim/release, and the current transaction omits request replay, setup revision, and an append-only roster event. Existing isolated exclusivity/race/release tests remain preservation gates; readiness/start stays outside this release. Reclassify to feature and record version 0.3.12 only after the visible player workflow lands. |
+| 030 | done | feature | 0.3.12 | Version 0.3.12 provisions canonical stable core seats, exposes callable-backed claim/release through the existing role route, and records revisioned request receipts and append-only events. Reconnect hydration, race/denial, pointer integrity, and Press exclusion remain covered; readiness/start stays outside this release. |
 | 031 | done | non-feature | — | Seat race/conflict tests. |
 | 032 | done | non-feature | — | Seat release tests. |
 | 033 | done | non-feature | — | Foreign/stale seat release denial tests. |
@@ -183,7 +195,7 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | feature | 0.3.9 | Production-path create/apply/start evidence covers the exact printed 8–18 base matrix and rejects convenience/short rosters in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; scoped 19 creation/guard/hydration propagation is covered separately, but owner-revised 8–20 Capybara core composition remains open, so the earlier 46-test green run is not completion evidence for that target. |
+| 051 | partial | feature | 0.3.9, 0.3.12 | Version 0.3.12 adds authoritative 8–20 core configuration, vessel derivation, stable-seat provisioning, and Press-excluded hydration evidence to the existing 0.3.9 production-path matrix. Readiness, start, Wolf/setup receipt, and the remaining owner-revised composition boundary remain open, so this prompt stays partial. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover the shared helper, including owner-set 19/20 rows, but not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
@@ -205,7 +217,7 @@ release classification and evidence.
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
 | 071 | partial | feature | 0.3.5 | Existing readiness policy and `startCallable.test.ts` precise reasons cover the printed/base matrix but encode stale staffing assumptions. One-GM readiness, owner-set 8–20 core, optional enabled/claimed/unclaimed Press, and optional multiple GM instances need composed evidence. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
-| 073 | partial | feature | 0.3.5 | Release 0.3.12 repairs the singular/exclusive responsibility model: one active GM must represent both printed labels, optional GMs may share or hand off lanes, and legacy singular data must normalize deterministically. This slice proves staffing representation and mutation; Prompt 071 retains the separate readiness/start acceptance. |
+| 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; Prompt 071 retains the separate readiness/start acceptance. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
 | 075 | partial | feature | 0.3.5 | Atomic Turn 1/lock/timer/pursuit/event start exists; automatic Wolf/loyalty composition, complete decks/craft/resources, one-GM setup receipt, and alert ownership remain open. |
 | 076 | done | non-feature | — | Durable start request replay test. |

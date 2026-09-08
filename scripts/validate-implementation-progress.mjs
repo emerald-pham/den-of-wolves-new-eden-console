@@ -35,7 +35,7 @@ function comparePromptIds(left, right) {
 }
 
 function parseHeadline(source, errors) {
-  const match = source.match(/\*\*(\d+)\s*\/\s*(\d+)\s+prompts\s+complete\s+\((\d+)%\)\*\*/);
+  const match = source.match(/\*\*(\d+)\s*\/\s*(\d+)\s+prompts\s+complete\s+\((\d+(?:\.\d+)?)\s*%\)\*\*/);
   if (!match) {
     errors.push('progress headline must use “N / M prompts complete (P%)”');
     return null;
@@ -43,7 +43,8 @@ function parseHeadline(source, errors) {
   return {
     complete: Number.parseInt(match[1], 10),
     total: Number.parseInt(match[2], 10),
-    percentage: Number.parseInt(match[3], 10),
+    percentage: Number.parseFloat(match[3]),
+    percentageText: match[3],
   };
 }
 
@@ -106,9 +107,10 @@ function parseStatusBreakdown(source, errors) {
   }
 
   const counts = {};
-  const entryPattern = /(\d+)\s+(done|partial|missing|blocked|in-progress)/g;
+  const entryPattern = /(\d+)\s+(done|partial|missing|blocked|in-progress|active)/g;
   for (const entry of match[1].matchAll(entryPattern)) {
-    const status = entry[2];
+    // “active” is the release-facing name for the ledger's in-progress state.
+    const status = entry[2] === 'active' ? 'in-progress' : entry[2];
     if (counts[status] !== undefined) {
       errors.push(`status breakdown lists ${status} more than once`);
     }
@@ -155,13 +157,85 @@ function parseChangelogEntries(source, applicationVersion, errors) {
         .filter(Boolean)
       : [];
     const changesMatch = body.match(/changes:\s*\[([\s\S]*?)\]/);
+    const progressMatch = body.match(/implementationProgress:\s*{([\s\S]*?)}/);
+    const progressSource = progressMatch?.[1] ?? '';
+    const progressNumber = (field) => {
+      const value = progressSource.match(new RegExp(`${field}\\s*:\\s*(\\d+)`));
+      return value ? Number.parseInt(value[1], 10) : undefined;
+    };
+    const progressPercentage = progressSource.match(
+      /percentage\s*:\s*['"]([^'"]+)['"]/
+    )?.[1];
 
     return {
       version,
       promptIds,
       changeCount: changesMatch ? countStringLiterals(changesMatch[1]) : 0,
+      implementationProgress: progressMatch
+        ? {
+          completed: progressNumber('completed'),
+          total: progressNumber('total'),
+          percentage: progressPercentage,
+          done: progressNumber('done'),
+          partial: progressNumber('partial'),
+          active: progressNumber('active'),
+          missing: progressNumber('missing'),
+        }
+        : null,
     };
   });
+}
+
+function validateReleaseProgressMetadata({
+  entries,
+  applicationVersion,
+  headline,
+  statusCounts,
+  errors,
+}) {
+  const entry = entries.find((candidate) => candidate.version === applicationVersion);
+  if (!entry) {
+    errors.push(`changelog ${applicationVersion} is missing the current release entry`);
+    return null;
+  }
+  const progress = entry.implementationProgress;
+  if (!progress) {
+    errors.push(`changelog ${applicationVersion} must record implementation progress metadata`);
+    return null;
+  }
+
+  const expectedCounts = {
+    completed: statusCounts.done,
+    total: headline.total,
+    done: statusCounts.done,
+    partial: statusCounts.partial,
+    active: statusCounts['in-progress'],
+    missing: statusCounts.missing,
+  };
+  for (const [field, expected] of Object.entries(expectedCounts)) {
+    const actual = progress[field];
+    if (actual !== expected) {
+      errors.push(
+        `changelog ${applicationVersion} implementation progress ${field} count is ${String(actual)}, ` +
+        `but the ledger has ${expected}`,
+      );
+    }
+  }
+
+  if (typeof progress.percentage !== 'string' || !/^\d+\.\d{2}%$/.test(progress.percentage)) {
+    errors.push(
+      `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
+    );
+  } else {
+    const expectedPercentage = `${((statusCounts.done / headline.total) * 100).toFixed(2)}%`;
+    if (progress.percentage !== expectedPercentage) {
+      errors.push(
+        `changelog ${applicationVersion} implementation progress percentage is ${progress.percentage}, ` +
+        `but the ledger has ${expectedPercentage}`,
+      );
+    }
+  }
+  return { version: applicationVersion, ...progress };
 }
 
 function validateChangelogCoverage({
@@ -256,6 +330,7 @@ function validateChangelogCoverage({
       }
     }
   }
+  return entries;
 }
 
 function parseActivePrompt(source, errors) {
@@ -332,10 +407,17 @@ export function validateImplementationProgress({
   const planByPrompt = comparePromptSets(planRows, canonicalPromptIds, 'source plan checklist', errors);
   const statusCounts = countStatuses(ledgerRows);
 
-  validateChangelogCoverage({
+  const changelogEntries = validateChangelogCoverage({
     ledgerRows,
     changelogSource,
     applicationVersion,
+    errors,
+  });
+  const releaseProgress = validateReleaseProgressMetadata({
+    entries: changelogEntries,
+    applicationVersion,
+    headline,
+    statusCounts,
     errors,
   });
 
@@ -353,9 +435,12 @@ export function validateImplementationProgress({
     );
   }
   const expectedPercentage = headline.total === 0
-    ? 0
-    : Math.round((statusCounts.done / headline.total) * 100);
-  if (headline.percentage !== expectedPercentage) {
+    ? '0.00'
+    : ((statusCounts.done / headline.total) * 100).toFixed(2);
+  if (!/^\d+\.\d{2}$/.test(headline.percentageText)) {
+    errors.push('progress headline percentage must use two decimals');
+  }
+  if (headline.percentage !== Number.parseFloat(expectedPercentage)) {
     errors.push(
       `headline percentage is ${headline.percentage}%, but ${statusCounts.done}/${headline.total} complete is ${expectedPercentage}%`,
     );
@@ -440,6 +525,7 @@ export function validateImplementationProgress({
 
   return {
     errors,
+    releaseProgress,
     summary: {
       complete: statusCounts.done,
       total: headline.total,

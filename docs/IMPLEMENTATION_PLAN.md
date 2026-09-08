@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 710-prompt catalog from top to bottom for an ordinary
+Do **not** read this 713-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-710-prompts-001653-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-713-prompts-001653-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 710-prompt roadmap.
+claim completion of the remaining 713-prompt roadmap.
 
 ## Scope and baseline
 
@@ -1822,8 +1822,8 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 710-ID queue (Prompts 001–653 plus the lettered prompts) is in
-scope for the active completion campaign. All 710 canonical prompt IDs (001–653
+The complete 713-ID queue (Prompts 001–653 plus the lettered prompts) is in
+scope for the active completion campaign. All 713 canonical prompt IDs (001–653
 plus the lettered prompts) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -1893,7 +1893,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 018
 - [ ] Prompt 019
 - [ ] Prompt 020
-- [ ] Prompt 021
+- [x] Prompt 021
 - [ ] Prompt 022
 - [x] Prompt 023
 - [x] Prompt 024
@@ -1902,7 +1902,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 027
 - [x] Prompt 028
 - [x] Prompt 029
-- [ ] Prompt 030
+- [x] Prompt 030
 - [x] Prompt 031
 - [x] Prompt 032
 - [x] Prompt 033
@@ -1945,7 +1945,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 070
 - [ ] Prompt 071
 - [x] Prompt 072
-- [ ] Prompt 073
+- [x] Prompt 073
 - [x] Prompt 074
 - [ ] Prompt 075
 - [x] Prompt 076
