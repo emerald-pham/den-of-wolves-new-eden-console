@@ -6,6 +6,7 @@ const mock = vi.hoisted(() => ({
   exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
   turnPhase: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
+  pressEnabled: true,
   randomUUID: vi.fn(() => 'dispatch-new'),
 }));
 vi.mock('node:crypto', () => ({ randomInt: vi.fn(), randomUUID: mock.randomUUID }));
@@ -33,6 +34,7 @@ beforeEach(() => {
     role: 'player', post: 'press-officer', connected: true, exists: true,
     phase: 'active', currentTurn: 1, pressDispatch: undefined, turnPhase: undefined,
     activeRoleIds: undefined,
+    pressEnabled: true,
   });
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
@@ -47,6 +49,7 @@ beforeEach(() => {
         pressDispatch: mock.pressDispatch,
         turnPhase: mock.turnPhase,
         activeRoleIds: mock.activeRoleIds,
+        pressEnabled: mock.pressEnabled,
       };
     return { exists: mock.exists, get: (key: string) => fields[key] };
   });
@@ -146,11 +149,29 @@ it('denies other roles, disconnected players, and unsigned callers', async () =>
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('revokes Press publishing when the live roster removes the Press role', async () => {
+it('keeps Press publishing when the counted roster changes', async () => {
   mock.activeRoleIds = ['admiral'];
 
+  await expect(publishPressDispatch.run(request())).resolves.toEqual({
+    dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
+    revision: 1,
+  });
+  expect(mock.update).toHaveBeenCalled();
+});
+
+it('denies every Press action while the authoritative toggle is disabled, including GM access', async () => {
+  mock.pressEnabled = false;
   await expect(publishPressDispatch.run(request())).rejects
     .toMatchObject({ code: 'permission-denied' });
+  mock.role = 'gm';
+  await expect(publishPressDispatch.run(request())).rejects
+    .toMatchObject({ code: 'permission-denied' });
+  mock.pressDispatch = {
+    dispatches: [{ id: 'dispatch-1', text: 'SNN // First report' }], revision: 1,
+  };
+  await expect(dismissPressDispatch.run(request({
+    sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 1,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
 });
 

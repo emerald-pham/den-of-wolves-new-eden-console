@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
+  pressEnabled: true,
   activeConsoleRoleId: undefined as string | undefined,
   activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
@@ -63,6 +64,7 @@ beforeEach(() => {
   mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
   mock.pressDispatch = undefined;
+  mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
   mock.activeRoleIds = undefined;
   mock.retry = false;
@@ -92,6 +94,7 @@ beforeEach(() => {
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
           pressDispatch: mock.pressDispatch,
+          pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
         };
     return { exists: true, get: (key: string) => fields[key] };
@@ -665,6 +668,25 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     }),
   }));
+});
+
+it('denies Press airspace unlock while Press is disabled without writing', async () => {
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.pressEnabled = false;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/press.*disabled/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('holds the player ICN travel lock at Turn 0', async () => {

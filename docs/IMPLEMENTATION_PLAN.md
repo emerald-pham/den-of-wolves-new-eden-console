@@ -2172,7 +2172,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 048 — [PRESERVE] Enter GM Observer mode read-only.** Acceptance: an eligible GM can inspect a selected fleet ship while mutation remains disabled until separately authorized.
 - **Prompt 049 — [PRESERVE] Reset Observer elevation on ship change.** Acceptance: leaving the observed ship removes any scoped write grant before another ship loads.
 - **Prompt 050 — [PRESERVE] Add return paths to session modes.** Acceptance: lobby, roster, Console, GM, and Observer routes expose a visible keyboard-operable return to their logical parent.
-- **Prompt 051 — [PRESERVE] Prove the roster through creation and start.** Acceptance: session creation, roster application, persisted configuration, and start readiness use the exact printed Prompt 004 base row across client and server and reject a mismatched or convenience role. This remains partial until the owner-revised 8–20 Capybara core acceptance is composed without counting Press.
+- **Prompt 051 — [REPAIR] Prove the roster through creation and start.** Acceptance: session creation, roster application, persisted configuration, and start readiness use the exact printed Prompt 004 base row across client and server and reject a mismatched or convenience role. This remains partial until the owner-revised 8–20 Capybara core acceptance is composed without counting Press; earlier green counted-Press 19/21 fixtures are contract drift, not preservation evidence.
 - **Prompt 052 — [PRESERVE] Exclude Dione below 12 players.** Acceptance: Dione, its roles, resources, shuttles, and population are absent and cannot be re-enabled by payload edits.
 - **Prompt 053 — [PRESERVE] Configure Joint Engineering Union substitutions.** Acceptance: each count assigns the correct paired ships, roles, and Union shuttle set.
 - **Prompt 054 — [REPAIR] Derive Wolf-agent count authoritatively.** Acceptance: the server derives one hidden Wolf at 8–13 core players and two at 14–20 from the locked effective core roster, records the rule/input/result in the setup receipt, and never asks the facilitator to select a routine count. Optional Press never adds a third Wolf or changes core count; any genuine product-policy override is explicit, reasoned, revision-guarded, and audited.
@@ -2408,7 +2408,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 249 — [NEW] Admit Voyage 33-0 through the crisis path.** Acceptance: facilitator acceptance creates the damaged cruiser with 40,000 survivors and its required fleet commitments.
 - **Prompt 250 — [NEW] Resolve Voyage 33-0 maintenance.** Acceptance: host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.
 - **Prompt 251 — [NEW] Resolve Voyage 33-0 movement.** Acceptance: it docks during Team and jumps for 1/1/2 host fuel without being treated as a base small ship in population logic.
-- **Prompt 252 — [EXTEND]/[REPAIR] Gate the expansion Capybara.** Acceptance: immutable configuration replaces, never combines with, the base Capybara across the owner-revised 8–20 core roster, catalogs, targeting, resources, and damage; exact 8–18 substitution matrices remain source/facilitator-defined until recorded. Optional Press and multiple GM instances remain orthogonal to that configuration.
+- **Prompt 252 — [REPAIR] Gate the expansion Capybara.** Acceptance: repair stale base/Capybara mode and counted-Press preset behavior so immutable configuration replaces, never combines with, the base Capybara across the owner-revised 8–20 core roster, catalogs, targeting, resources, and damage; exact 8–18 substitution matrices remain source/facilitator-defined until recorded. Optional Press and multiple GM instances remain orthogonal to that configuration.
 - **Prompt 253 — [EXTEND] Complete expansion Capybara identity.** Acceptance: 20,000 survivors, three charges, steps 1–6, 3/6/12 jump, and its own ration/population tracks render from one full-ship definition.
 - **Prompt 254 — [EXTEND] Resolve expansion Capybara Storage and Reactor.** Acceptance: Storage halves correct stores and the Reactor applies exact charge, damage, and upgrade behavior.
 - **Prompt 255 — [NEW] Resolve Capybara Advanced Hydroponics.** Acceptance: two water makes six food, optional one Scrap adds six, and upgrade/damage states apply once.
@@ -2678,7 +2678,7 @@ a presentation/data primitive, not proof of a playable attack.
 
 #### Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)
 
-- **Prompt 485 — [REPAIR]/[EXTEND] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
+- **Prompt 485 — [REPAIR] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
 - **Prompt 486 — [PROVE] Verify the per-turn pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
 - **Prompt 487 — [PROVE] Verify jump-based pursuit reduction.** Acceptance: attack pressure uses each group's selected-chart depth and never client-reported distance.
 - **Prompt 488 — [PROVE] Verify Ion Nebula threat suppression.** Acceptance: system I prevents the specified rise for that group while preserving environmental damage.
@@ -2809,7 +2809,7 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 595 — [PRESERVE] Display the derived application version.** Acceptance: Settings reads runtime package metadata and never carries a handwritten version.
 - **Prompt 596 — [PRESERVE] Display bounded changelog history.** Acceptance: newest player-facing entry appears first in an independently scrollable accessible region.
 - **Prompt 597 — [PRESERVE] Complete exact disconnect confirmation.** Acceptance: danger styling and the required two-step `ARE YOU SURE?` flow queue presence cleanup, clear local state, and reach landing.
-- **Prompt 598 — [PRESERVE] Explain connectivity truthfully.** Acceptance: connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
+- **Prompt 598 — [REPAIR] Explain connectivity truthfully.** Acceptance: repair the stale default/Turn-0 copy contract so connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
 - **Prompt 599 — [EXTEND] Build the single-facilitator setup checklist.** Acceptance: one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
@@ -2872,8 +2872,8 @@ a presentation/data primitive, not proof of a playable attack.
 
 The backlog contains **710 independently executable prompts** in this
 snapshot: 653 base IDs plus 57 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **163 `[PRESERVE]`, 103
-`[EXTEND]`, 363 `[NEW]`, 50 `[PROVE]`, 23 `[DECISION]`, 7 `[REPAIR]`, and 1
+dependency. The current evidence classification is **161 `[PRESERVE]`, 102
+`[EXTEND]`, 363 `[NEW]`, 50 `[PROVE]`, 23 `[DECISION]`, 10 `[REPAIR]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

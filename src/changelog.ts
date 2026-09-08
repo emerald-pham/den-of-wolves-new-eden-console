@@ -11,9 +11,11 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['275a'],
+    implementationPrompts: ['275a', 598, 605],
     changes: [
-      'SNN Press is always available from Independent Stations with its own shuttle console, while connection and DRADIS labels remain truthful and readable at every supported screen size.',
+      'SNN Press is default-enabled as an optional, authoritatively toggleable Independent Station: its distinct twenty-first player console stays outside the counted core roster, and its roster-derived starting host is AEGIS at 8–11 players or Dione at 12+ (the 19-player matrix remains open).',
+      'Connection indicators now say exactly CONNECTED before a session and NOT CONNECTED — AWAITING IRIS AUTHENTICATION only for a joined session before its first Turn 1 snapshot.',
+      'DRADIS now keeps every complete contact name inside the plot at the top, right, bottom, and left edges across compact, expanded, and reduced-motion views; broader group-local transit and parked-craft projection remains open.',
     ],
   },
   {

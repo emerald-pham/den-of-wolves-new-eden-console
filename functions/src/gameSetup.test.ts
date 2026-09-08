@@ -146,7 +146,7 @@ describe('start readiness', () => {
   it('derives active vessels without treating a Union role as a new vessel', () => {
     expect(activeVesselIdsForRoles([
       'admiral', 'joint-engineering-quellon-refinery', 'press-officer',
-    ])).toEqual(['aegis', 'quellon', 'refinery-124', 'press']);
+    ])).toEqual(['aegis', 'quellon', 'refinery-124']);
   });
   it('names every missing setup responsibility without leaking private reasons', () => {
     expect(readinessForSetup({
@@ -209,5 +209,87 @@ describe('start readiness', () => {
       activeRoleIds,
       activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
     })).toEqual({ ready: false, reasons: ['roles'] });
+  });
+
+  it('keeps an enabled Press holder and multiple GM instances outside core readiness and vessel math', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const assignments = coreRoleIds.map((roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId,
+    }));
+    const readinessInput = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid],
+      assignments,
+      loyaltyUids: [...corePlayers, pressUid],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      gmInstances: ['gm-main', 'gm-assistant'],
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+    } as Parameters<typeof readinessForSetup>[0];
+
+    expect(readinessForSetup(readinessInput)).toEqual({ ready: true, reasons: [] });
+    expect(activeVesselIdsForRoles(coreRoleIds)).not.toContain('snn-press-shuttle');
+  });
+
+  it('requires a claimed Press holder to carry private loyalty without changing core readiness', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const assignments = coreRoleIds.map((_roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId: coreRoleIds[index]!,
+    }));
+    const input = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid],
+      assignments,
+      loyaltyUids: corePlayers,
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+    };
+
+    expect(readinessForSetup(input)).toEqual({ ready: false, reasons: ['loyalties'] });
+    expect(readinessForSetup({
+      ...input,
+      loyaltyUids: [...corePlayers, pressUid],
+    })).toEqual({ ready: true, reasons: [] });
+  });
+
+  it.each([
+    ['missing core assignment', (assignments: Array<{ uid: string; roleId: string }>) => assignments.slice(0, -1)],
+    ['duplicate core role', (assignments: Array<{ uid: string; roleId: string }>) => assignments.map((assignment, index) =>
+      index === assignments.length - 1 ? { ...assignment, roleId: assignments[0]!.roleId } : assignment)],
+    ['extra core assignment attached to the Press holder', (assignments: Array<{ uid: string; roleId: string }>) => [
+      ...assignments,
+      { uid: 'press-21', roleId: assignments[0]!.roleId },
+    ]],
+  ])('keeps %s core-roster errors visible beside an optional Press claim', (_label, mutate) => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const baseAssignments = coreRoleIds.map((_roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId: coreRoleIds[index]!,
+    }));
+    const result = readinessForSetup({
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, 'press-21'],
+      assignments: mutate(baseAssignments),
+      loyaltyUids: [...corePlayers, 'press-21'],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: ['press-21'],
+    });
+
+    expect(result).toEqual({ ready: false, reasons: ['roles'] });
   });
 });

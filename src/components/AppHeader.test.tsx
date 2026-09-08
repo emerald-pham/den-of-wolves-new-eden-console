@@ -91,12 +91,17 @@ it('shows a blue iris-authentication status while Turn 0 systems are still booti
   const indicator = screen.getByRole('status', {
     name: /connected to firebase and awaiting iris authentication during turn 0/i,
   });
-  expect(indicator).toHaveTextContent('Connected, Awaiting Iris Authentication');
+  expect(indicator).toHaveTextContent('NOT CONNECTED — AWAITING IRIS AUTHENTICATION');
   expect(indicator).toHaveAttribute('data-status', 'blue');
+  expect(indicator).toHaveAttribute(
+    'title',
+    'Connected to Firebase and awaiting Iris Authentication during Turn 0',
+  );
 
   act(() => useSessionStore.getState().setSession({ ...session, currentTurn: 1 }));
   expect(indicator).toHaveTextContent('In session');
   expect(indicator).toHaveAttribute('data-status', 'green');
+  expect(indicator).toHaveAttribute('title', 'Connected to Firebase and in a session');
 });
 
 it('defaults to a connected light for five seconds before revealing offline reality', async () => {
@@ -107,7 +112,7 @@ it('defaults to a connected light for five seconds before revealing offline real
 
   const indicator = screen.getByRole('status');
   expect(indicator).toHaveAttribute('data-status', 'yellow');
-  expect(indicator).toHaveTextContent('Connected');
+  expect(indicator).toHaveTextContent('CONNECTED');
 
   act(() => vi.advanceTimersByTime(4_999));
   expect(indicator).toHaveAttribute('data-status', 'yellow');
@@ -115,6 +120,55 @@ it('defaults to a connected light for five seconds before revealing offline real
   act(() => vi.advanceTimersByTime(1));
   expect(indicator).toHaveAttribute('data-status', 'red');
   expect(indicator).toHaveTextContent('Offline');
+});
+
+it('keeps pre-session live and explicit offline states truthful in the composed header', () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setConnection('live');
+  const { unmount } = render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  let indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'yellow');
+  expect(indicator).toHaveTextContent('CONNECTED');
+  expect(indicator).toHaveAttribute('title', 'Connected to Firebase, not in a session');
+
+  unmount();
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setConnection('offline');
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+
+  indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'red');
+  expect(indicator).toHaveTextContent('Offline');
+  expect(indicator).toHaveAttribute('title', 'No connection to Firebase');
+});
+
+it('keeps Turn 0 offline truthfully red after the reconnect grace expires', async () => {
+  vi.useFakeTimers();
+  const session = useSessionStore.getState().session!;
+  useSessionStore.getState().setSession({ ...session, currentTurn: 0 });
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setConnection('live');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_000));
+  fireEvent.pointerDown(document.body);
+  act(() => vi.advanceTimersByTime(10_001));
+  fireEvent.pointerDown(document.body);
+  act(() => useSessionStore.getState().setConnection('offline'));
+  act(() => vi.advanceTimersByTime(30_001));
+
+  const indicator = screen.getByText('Offline').closest<HTMLElement>('.indicator');
+  if (!indicator) throw new Error('Expected the connection indicator.');
+  expect(indicator).toHaveAttribute('data-status', 'red');
+  expect(indicator).toHaveTextContent('Offline');
+  expect(indicator).toHaveAttribute('title', 'No connection to Firebase');
+  expect(indicator).not.toHaveAccessibleName(/connected to firebase/i);
 });
 
 it('does not replace an already connected status with the startup default', async () => {

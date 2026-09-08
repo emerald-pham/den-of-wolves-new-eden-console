@@ -2,8 +2,8 @@
 
 This tracker records all 710 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
-complete only after its `[PRESERVE]`, `[EXTEND]`, `[NEW]`, `[PROVE]`, or
-`[DECISION]` acceptance has been fully satisfied with named evidence. A
+complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
+`[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
 `[DEFERRED-OWNER]` prompt remains missing until the owner explicitly activates
 and accepts it. The
 completed count is deliberately non-sequential: later prompts may be complete
@@ -370,7 +370,7 @@ release classification and evidence.
 | 249 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 250 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 251 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 252 | missing | non-feature | — | Planned [EXTEND]/[REPAIR] prompt; no production-path evidence has been recorded yet. The owner-revised 8–20 Capybara core target, source-defined substitution matrices, and Press/multiple-GM orthogonality must be composed without relying on stale 19/21 presets. |
+| 252 | missing | non-feature | — | Planned [REPAIR] prompt; no production-path evidence has been recorded yet. The owner-revised 8–20 Capybara core target, source-defined substitution matrices, and Press/multiple-GM orthogonality must be composed without relying on stale 19/21 presets. |
 | 253 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 254 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 255 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -394,7 +394,7 @@ release classification and evidence.
 | 273 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 275a | in-progress | feature | 0.3.10 | Failing-first surface records Press/default-discovery, dedicated enable/disable, server denial/unique stale claim, 20-core-plus-Press/multiple-GM separation, exact connection copy, and DRADIS containment. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. Host compatibility is also under repair: `9c48e5d`/`dced782` used AEGIS, `4703e43` introduced blanket Dione despite Dione being absent below 12; target coverage derives AEGIS at 8/11 and Dione at 12/18/20 plus legacy missing-docking hydration. |
+| 275a | in-progress | feature | 0.3.10 | Failing-first coverage now closes the recovered Press/default-discovery, dedicated CAS enable/disable, server denial/unique stale claim, distinct Press loyalty/Wolf eligibility and disable cleanup, 20-core-plus-Press/multiple-GM separation, exact connection copy, roster-derived SNN host, and measured DRADIS containment boundaries. The changed unit/Functions matrix is **418/418**, the dedicated readiness matrix is **61/61**, and Firestore rules denial is **53/53**; final independent review, complete release gates, merge/push, and coordination closure remain before this row can become done. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; last default-working release point `1418146` is the direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`. `4703e43` introduced blanket Dione; compatibility coverage derives AEGIS at 8/11 and Dione at 12/18/20 plus legacy missing-docking hydration. This release does not claim the still-missing owner-set 19-player Capybara runtime row. |
 | 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -621,7 +621,7 @@ release classification and evidence.
 | 482 | missing | non-feature | — | Planned [EXTEND] prompt: existing damage/correction and craft catalogs do not yet compose ordinary post-attack repair. |
 | 483 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 484 | missing | non-feature | — | Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. |
-| 485 | missing | non-feature | — | Planned [REPAIR]/[EXTEND] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure. |
+| 485 | missing | non-feature | — | Planned [REPAIR] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure. |
 | 486 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 488 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
@@ -746,14 +746,14 @@ release classification and evidence.
 | 595 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 598 | partial | feature | 0.3.6, 0.3.10 | Release 0.3.6 proves the existing connected/offline grace primitive, but the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline state matrix are part of active Prompt 275a work and are not complete evidence until the reconciled 0.3.10 release lands. |
+| 598 | partial | feature | 0.3.6, 0.3.10 | Release 0.3.6 proves the existing connected/offline grace primitive. Prompt 275a's focused component/composition matrix now proves the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and live/offline-after-grace cases; this row remains partial until the reconciled 0.3.10 release gates and merge/push receipt land. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 605 | partial | feature | 0.3.10 | Prompt 275a now targets complete-name containment at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
+| 605 | partial | feature | 0.3.10 | Prompt 275a's focused geometry tests now prove intrinsic complete-name containment and two-axis clamping at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |
 | 606 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 607 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -837,7 +837,8 @@ release classification and evidence.
   receipt, with merge/push/close paused for independent review.
 
 - Full-range migration note: Prompt 041 remains the existing `done`/`non-feature`
-  local-disconnect evidence. The 0.3.6 connectivity behavior is tracked directly
-  under Prompt 598 as a `done`/`feature` row with changelog coverage. The old
-  first-100 validator could not represent Prompt 598 and forced that behavior to
-  be associated with Prompt 041; no behavior or release was rewritten here.
+  local-disconnect evidence. Prompt 598 carries the 0.3.6 primitive and the
+  active 0.3.10 copy/composition repair as a `partial`/`feature` row until the
+  current release is reconciled. The old first-100 validator could not represent
+  Prompt 598 and forced the earlier behavior to be associated with Prompt 041;
+  no behavior or release was rewritten here.

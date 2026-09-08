@@ -20,6 +20,7 @@ vi.mock('@/lib/sessionService', () => ({
   kickPlayer: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
+  setPressEnabled: vi.fn(),
   setDebriefMode: vi.fn(),
   replayTurnStartAnnouncement: vi.fn(),
   setGmControlsLocked: vi.fn(),
@@ -38,7 +39,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setDebriefMode, setGmControlsLocked,
+const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setEmergencyTimerPaused, setActiveRoleConfiguration, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
@@ -738,6 +739,132 @@ it('keeps Capybara convoy setup under a GM Console Setup subsection', async () =
   expect(screen.getByRole('button', { name: /turn capybara off/i })).toBeInTheDocument();
 });
 
+it('gives an authorized GM a deliberate Press availability control', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local, other]);
+  vi.mocked(setPressEnabled).mockResolvedValue('applied');
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  expect(screen.getByRole('alertdialog')).toHaveTextContent(/disable.*press/i);
+  const confirm = screen.getByRole('button', { name: /are you sure.*disable press/i });
+  expect(confirm).toHaveClass('cic-action-button--confirm');
+  await user.click(confirm);
+
+  expect(setPressEnabled).toHaveBeenCalledWith(false);
+  expect(screen.getByRole('status', { name: /press gm projection/i }))
+    .toHaveTextContent(/2 active gm instances/i);
+});
+
+it('shows server-committed Press state and accepts a second GM update independently', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local, other]);
+  vi.mocked(setPressEnabled).mockImplementation(async (enabled) => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) {
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        pressEnabled: enabled,
+        pressAvailabilityRevision: (activeSession.pressAvailabilityRevision ?? 0) + 1,
+      });
+    }
+    return 'applied';
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const pressToggle = screen.getByRole('button', { name: /turn press off/i });
+  await user.click(pressToggle);
+  await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
+
+  expect(await screen.findByRole('status', { name: /press availability status/i }))
+    .toHaveAttribute('data-state', 'committed');
+  expect(screen.getByRole('button', { name: /turn press on/i })).toHaveTextContent(/offline/i);
+
+  act(() => {
+    const activeSession = useSessionStore.getState().session;
+    if (activeSession) useSessionStore.getState().setSession({
+      ...activeSession,
+      pressEnabled: true,
+      pressAvailabilityRevision: (activeSession.pressAvailabilityRevision ?? 0) + 1,
+    });
+  });
+  expect(screen.getByRole('button', { name: /turn press off/i })).toHaveTextContent(/available/i);
+});
+
+it('announces Press availability while pending and after a stale CAS rejection', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local, other]);
+  let resolveChange: ((value: 'applied') => void) | undefined;
+  vi.mocked(setPressEnabled).mockImplementation(() => new Promise((resolve) => {
+    resolveChange = resolve;
+  }));
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
+  expect(screen.getByRole('status', { name: /press availability status/i }))
+    .toHaveAttribute('data-state', 'pending');
+  resolveChange?.('applied');
+  await waitFor(() => expect(screen.getByRole('status', { name: /press availability status/i }))
+    .toHaveAttribute('data-state', 'committed'));
+
+  vi.mocked(setPressEnabled).mockRejectedValueOnce({
+    code: 'functions/failed-precondition',
+    message: 'Press availability changed. Wait for the live update and try again.',
+  });
+  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
+  expect(await screen.findByRole('status', { name: /press availability status/i }))
+    .toHaveAttribute('data-state', 'stale');
+});
+
+it('announces a non-CAS Press rejection as rejected', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setPressEnabled).mockRejectedValueOnce({
+    code: 'functions/permission-denied',
+    message: 'This GM instance is no longer active.',
+  });
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
+
+  expect(await screen.findByRole('status', { name: /press availability status/i }))
+    .toHaveAttribute('data-state', 'rejected');
+});
+
+it('traps Press confirmation focus, cancels on Escape, and restores the trigger focus', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local, other]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const trigger = screen.getByRole('button', { name: /turn press off/i });
+  await user.click(trigger);
+  const dialog = screen.getByRole('alertdialog', { name: /change press availability/i });
+  const cancel = within(dialog).getByRole('button', { name: /cancel press change/i });
+  const confirm = within(dialog).getByRole('button', { name: /are you sure.*disable press/i });
+  expect(cancel).toHaveFocus();
+  await user.tab();
+  expect(confirm).toHaveFocus();
+  await user.tab();
+  expect(cancel).toHaveFocus();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('alertdialog', { name: /change press availability/i }))
+    .not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+});
+
 it('keeps roster edits local until the GM confirms one complete configuration', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -756,7 +883,8 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
   expect(screen.getByText(/edit the roster locally, then confirm it once/i)).toBeInTheDocument();
   expect(screen.getByText(/union replacements are available only in their printed low-count roster rows/i)).toBeInTheDocument();
-  expect(screen.getByRole('switch', { name: /press officer role availability/i })).toBeChecked();
+  expect(screen.queryByRole('switch', { name: /press officer role availability/i }))
+    .not.toBeInTheDocument();
   expect(screen.queryByRole('switch', {
     name: /quellon \/ refinery engineer role availability/i,
   })).not.toBeInTheDocument();
@@ -849,21 +977,20 @@ it('sends only the final draft after a GM confirms it', async () => {
   await userEvent.setup().click(await screen.findByRole('button', { name: /^setup$/i }));
   const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
   fireEvent.change(playerCount, { target: { value: '18' } });
-  fireEvent.change(playerCount, { target: { value: '20' } });
 
   expect(setActiveRoleConfiguration).not.toHaveBeenCalled();
   await userEvent.setup().click(screen.getByRole('button', { name: /confirm roster/i }));
   expect(setActiveRoleConfiguration).toHaveBeenCalledOnce();
   expect(vi.mocked(setActiveRoleConfiguration).mock.calls[0]?.[0])
-    .toEqual(expect.arrayContaining([...recommendedRoleIds(20)]));
+    .toEqual(expect.arrayContaining([...recommendedRoleIds(18)]));
 });
 
 it('offers random or manual wolf assignments from the active roles', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(assignWolves).mockResolvedValue(['press-officer']);
-  vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
+  vi.mocked(assignWolves).mockResolvedValue(['admiral']);
+  vi.mocked(assignWolfRoles).mockResolvedValue(['admiral']);
   vi.mocked(resetWolves).mockResolvedValue(undefined);
   renderConsole();
 
@@ -875,13 +1002,14 @@ it('offers random or manual wolf assignments from the active roles', async () =>
 
   await user.click(screen.getByRole('button', { name: /randomly assign 1 wolf/i }));
   expect(assignWolves).toHaveBeenCalledWith(1);
-  expect(await screen.findByText(/assigned.*press officer/i)).toBeInTheDocument();
+  expect(await screen.findByText(/assigned.*admiral/i)).toBeInTheDocument();
+  expect(screen.queryByText(/assigned.*press officer/i)).not.toBeInTheDocument();
 
   await user.click(screen.getByRole('button', { name: /reset wolves/i }));
 
-  await user.click(screen.getByRole('checkbox', { name: /press officer manual wolf assignment/i }));
+  await user.click(screen.getByRole('checkbox', { name: /admiral manual wolf assignment/i }));
   await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
-  expect(assignWolfRoles).toHaveBeenCalledWith(['press-officer']);
+  expect(assignWolfRoles).toHaveBeenCalledWith(['admiral']);
 
 });
 
@@ -889,26 +1017,26 @@ it('locks assigned wolf checkmarks until the GM resets them', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(assignWolfRoles).mockResolvedValue(['press-officer']);
+  vi.mocked(assignWolfRoles).mockResolvedValue(['admiral']);
   vi.mocked(resetWolves).mockResolvedValue(undefined);
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const pressOfficer = screen.getByRole('checkbox', {
-    name: /press officer manual wolf assignment/i,
+  const assignedRole = screen.getByRole('checkbox', {
+    name: /admiral manual wolf assignment/i,
   });
-  await user.click(pressOfficer);
+  await user.click(assignedRole);
   await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
 
-  expect(pressOfficer).toBeChecked();
-  expect(pressOfficer).toBeDisabled();
+  expect(assignedRole).toBeChecked();
+  expect(assignedRole).toBeDisabled();
   expect(screen.getByRole('button', { name: /assign selected wolves/i })).toBeDisabled();
 
   await user.click(screen.getByRole('button', { name: /reset wolves/i }));
 
   expect(resetWolves).toHaveBeenCalledOnce();
-  expect(pressOfficer).not.toBeChecked();
-  expect(pressOfficer).toBeEnabled();
+  expect(assignedRole).not.toBeChecked();
+  expect(assignedRole).toBeEnabled();
 });
 
 it('toggles Capybara off for the session and removes its perspective', async () => {

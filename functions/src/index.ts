@@ -41,6 +41,7 @@ import {
   requireDiceRequest,
   requireDebriefModeRequest,
   requireDioneAvailabilityRequest,
+  requirePressAvailabilityRequest,
   requireElevationRequest,
   requireGmAccessLoginRequest,
   requireGmAccessLogoutRequest,
@@ -135,7 +136,11 @@ import {
   applyUnrestSteps,
 } from './shipCounterBatch';
 import { pressDispatchState } from './pressDispatchState';
-import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
+import {
+  INITIAL_SHUTTLE_DOCKINGS,
+  initialShuttleDockingsForRoles,
+  initialShuttleVisitsForDockings,
+} from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
   isJoinCode,
@@ -322,6 +327,10 @@ async function reconcileReturningSeat(
 
 function sessionTurn(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 1;
+}
+
+function pressAvailabilityRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 type TurnStartAnnouncement = {
@@ -622,6 +631,8 @@ export const createSession = onCall<{
       // here would silently create more role holders than configured players
       // and would mix base and expansion Capybara rules.
       const activeRoleIds = [...recommendedRoleIds(creation.configuration.playerCount)];
+      const initialShuttleDockings = initialShuttleDockingsForRoles(activeRoleIds);
+      const initialShuttleVisits = initialShuttleVisitsForDockings(initialShuttleDockings);
       const reply = {
         session: {
           id: sessionRef.id,
@@ -635,6 +646,8 @@ export const createSession = onCall<{
           turnLimit: creation.configuration.turnLimit,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          pressEnabled: true,
+          pressAvailabilityRevision: 0,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -650,8 +663,8 @@ export const createSession = onCall<{
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
-          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          shuttleDockings: initialShuttleDockings,
+          shuttleVisitLog: initialShuttleVisits,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: now,
@@ -714,6 +727,8 @@ export const createSession = onCall<{
           setupRevision: 0,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          pressEnabled: true,
+          pressAvailabilityRevision: 0,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -729,8 +744,8 @@ export const createSession = onCall<{
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
-          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          shuttleDockings: initialShuttleDockings,
+          shuttleVisitLog: initialShuttleVisits,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -875,6 +890,9 @@ export const startGame = onCall<{
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
     const connectedPlayers = players.docs.filter(isActivePlayer).map((player) => player.id);
+    const pressPlayerUids = players.docs
+      .filter((player) => isActivePlayer(player) && player.get('activeConsoleRoleId') === 'press-officer')
+      .map((player) => player.id);
     const assignments = players.docs.flatMap((player) => {
       const roleId = player.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: player.id, roleId }] : [];
@@ -899,6 +917,7 @@ export const startGame = onCall<{
       facilitatorResponsibilities: responsibilities,
       activeRoleIds,
       activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      pressPlayerUids,
     });
     if (!readiness.ready) {
       throw new HttpsError(
@@ -1314,6 +1333,11 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+    const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+    const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+      initialShuttleDockingsForRoles(activeRoleIds);
+    const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
+      initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
     return {
       session: {
         id: sessionId,
@@ -1336,6 +1360,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
+        pressEnabled: sessionSnap.get('pressEnabled') !== false,
+        pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
         shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
@@ -1353,12 +1379,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-        activeRoleIds:
-          (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
-        shuttleDockings:
-          (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
-        shuttleVisitLog:
-          (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+        activeRoleIds,
+        shuttleDockings,
+        shuttleVisitLog,
         pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
@@ -1446,6 +1469,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     tx.update(playerRef, {
       connected: true,
       lastSeenAt: FieldValue.serverTimestamp(),
+      ...(currentSession.get('pressEnabled') === false &&
+        currentPlayer.get('activeConsoleRoleId') === 'press-officer'
+        ? { activeConsoleRoleId: null }
+        : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
     });
     tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
@@ -1457,6 +1484,11 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+  const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+  const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+    initialShuttleDockingsForRoles(activeRoleIds);
+  const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
+    initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
   return {
     session: {
       id: sessionId,
@@ -1479,6 +1511,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
+      pressEnabled: sessionSnap.get('pressEnabled') !== false,
+      pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
       shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
@@ -1496,12 +1530,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-      activeRoleIds:
-        (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
-      shuttleDockings:
-        (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
-      shuttleVisitLog:
-        (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+      activeRoleIds,
+      shuttleDockings,
+      shuttleVisitLog,
       pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
@@ -1845,6 +1876,126 @@ export const setCapybaraEnabled = onCall<{
   });
 
   return { capybaraEnabled: setting.capybaraEnabled };
+});
+
+/** Include or remove the optional SNN Press station independently of the core roster. */
+export const setPressEnabled = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  requestId?: string;
+  pressEnabled?: boolean;
+  expectedRevision?: number;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const setting = requirePressAvailabilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
+  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
+  const instanceRef = db.doc(
+    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
+  );
+  const eventRef = db.doc(
+    `sessions/${setting.sessionId}/events/press-availability-${setting.requestId}`,
+  );
+  const playersRef = db.collection(`sessions/${setting.sessionId}/players`);
+  const wolfSecretRef = db.doc(`sessions/${setting.sessionId}/secrets/wolf-assignment`);
+
+  const result = await db.runTransaction(async (tx) => {
+    const [session, player, instance, players, prior, wolfSecret] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+      tx.get(playersRef),
+      tx.get(eventRef),
+      tx.get(wolfSecretRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      !instance.exists || instance.get('uid') !== uid
+    ) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
+    if (prior.exists) {
+      const priorResult = prior.get('result');
+      if (typeof priorResult !== 'object' || priorResult === null ||
+          typeof (priorResult as { pressEnabled?: unknown }).pressEnabled !== 'boolean' ||
+          !Number.isSafeInteger((priorResult as { revision?: unknown }).revision)) {
+        throw new HttpsError('failed-precondition', 'This Press setting request has no replayable result.');
+      }
+      return priorResult as { pressEnabled: boolean; revision: number };
+    }
+
+    const storedRevision = session.get('pressAvailabilityRevision');
+    const currentRevision = Number.isSafeInteger(storedRevision) && storedRevision >= 0
+      ? storedRevision as number
+      : 0;
+    const currentEnabled = session.get('pressEnabled') !== false;
+    if (setting.expectedRevision !== currentRevision) {
+      if (setting.pressEnabled === currentEnabled) {
+        return { pressEnabled: currentEnabled, revision: currentRevision };
+      }
+      throw new HttpsError(
+        'failed-precondition',
+        'Press availability changed. Wait for the live update and try again.',
+      );
+    }
+    if (setting.pressEnabled === currentEnabled) {
+      return { pressEnabled: currentEnabled, revision: currentRevision };
+    }
+
+    const result = {
+      pressEnabled: setting.pressEnabled,
+      revision: currentRevision + 1,
+    } as const;
+    tx.update(sessionRef, {
+      pressEnabled: setting.pressEnabled,
+      pressAvailabilityRevision: result.revision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (!setting.pressEnabled) {
+      // Revoke live and stale station authority, while preserving assignments,
+      // dispatch history, and every counted/core roster field.
+      players.docs
+        .filter((candidate) => candidate.get('activeConsoleRoleId') === 'press-officer')
+        .forEach((candidate) => {
+          tx.update(candidate.ref, { activeConsoleRoleId: null });
+          const assignedRoleId = candidate.get('assignedRoleId');
+          const carriesCoreAssignment = typeof assignedRoleId === 'string' &&
+            assignedRoleId.trim().length > 0 && assignedRoleId !== 'press-officer';
+          if (!carriesCoreAssignment) {
+            tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
+          }
+        });
+
+      const payload = wolfSecret.get('payload');
+      if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
+        const roleIds = (payload as { roleIds?: unknown }).roleIds;
+        if (Array.isArray(roleIds)) {
+          const remainingRoleIds = roleIds.filter((roleId) => roleId !== 'press-officer');
+          if (remainingRoleIds.length === 0) {
+            tx.delete(wolfSecretRef);
+          } else {
+            tx.update(wolfSecretRef, {
+              payload: { ...(payload as Record<string, unknown>), roleIds: remainingRoleIds },
+            });
+          }
+        }
+      }
+    }
+    tx.set(eventRef, {
+      type: 'press-availability',
+      actorUid: uid,
+      requestId: setting.requestId,
+      expectedRevision: setting.expectedRevision,
+      previousPressEnabled: currentEnabled,
+      pressEnabled: setting.pressEnabled,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
+  });
+
+  return result;
 });
 
 /** Include or remove Dione for the whole session. */
@@ -2499,6 +2650,9 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
     await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral');
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Press is disabled.');
+    }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
@@ -2660,11 +2814,12 @@ export const assignWolves = onCall<{
   const instanceRef = db.doc(
     `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
   );
+  const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
   const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
 
   const roleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, players] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(playersRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (
@@ -2673,8 +2828,12 @@ export const assignWolves = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    const enabledRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
-      DEFAULT_ACTIVE_ROLE_IDS;
+    const enabledRoleIds = [...configuredRoleIds(session)];
+    const activePressHolders = players.docs.filter((candidate) =>
+      isActivePlayer(candidate) && candidate.get('activeConsoleRoleId') === 'press-officer');
+    if (session.get('pressEnabled') !== false && activePressHolders.length === 1) {
+      enabledRoleIds.push('press-officer');
+    }
     if (enabledRoleIds.length < assignment.count) {
       throw new HttpsError('failed-precondition', 'Not enough enabled roles for that many wolves.');
     }
@@ -2706,15 +2865,21 @@ export const assignWolfRoles = onCall<{
   const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
 
   await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, players] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player) || player.get('role') !== 'gm' || !instance.exists || instance.get('uid') !== uid) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
-    if (assignment.roleIds.some((roleId) => !active.includes(roleId))) {
+    const active = configuredRoleIds(session);
+    const pressClaimed = session.get('pressEnabled') !== false && players.docs.some((candidate) =>
+      isActivePlayer(candidate) && candidate.get('activeConsoleRoleId') === 'press-officer');
+    if (assignment.roleIds.some((roleId) =>
+      roleId === 'press-officer' ? !pressClaimed : !active.includes(roleId))) {
       throw new HttpsError('failed-precondition', 'Every selected wolf must be active.');
     }
     tx.set(secretRef, {
@@ -2785,6 +2950,23 @@ export const popShipConfetti = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     requireTurnOneForPlayer(session, player);
+    if (shipId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
+    }
+    if (
+      shipId === 'snn-press-shuttle' &&
+      (
+        activation.roleId !== 'press-officer' ||
+        !['player', 'gm'].includes(String(player.get('role'))) ||
+        player.get('connected') !== true ||
+        player.get('activeConsoleRoleId') !== 'press-officer'
+      )
+    ) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the active Press Officer may fire this dispenser.',
+      );
+    }
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
     }
@@ -2821,7 +3003,11 @@ export const popShipConfetti = onCall<{
         throw new HttpsError('permission-denied', 'This console is read only with the current crew.');
       }
     }
-    if (!shipForRole(activation.roleId) && !activeRoleIds.includes(activation.roleId)) {
+    if (
+      !shipForRole(activation.roleId) &&
+      activation.roleId !== 'press-officer' &&
+      !activeRoleIds.includes(activation.roleId)
+    ) {
       throw new HttpsError('failed-precondition', 'That role is not active in this session.');
     }
     if (shipId !== 'aegis' && !canPopShipConfetti(used, shipId)) {
@@ -2923,17 +3109,40 @@ export const refreshPresence = onCall<{
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
     }
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
+    if (
+      session.get('pressEnabled') === false &&
+      player.get('activeConsoleRoleId') === 'press-officer'
+    ) {
+      presenceUpdate.activeConsoleRoleId = null;
+    }
     if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
-      const activeRoleIds = session.get('activeRoleIds') as string[] | undefined;
-      const configuredRoleIds = activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+      const requestedRoleId = request.data.activeConsoleRoleId;
+      const isPressRequest = requestedRoleId === 'press-officer';
+      if (isPressRequest && session.get('pressEnabled') === false) {
+        throw new HttpsError('failed-precondition', 'Press is disabled.');
+      }
+      const assignedRoleId = player.get('assignedRoleId');
       if (
-        !configuredRoleIds.includes(request.data.activeConsoleRoleId) ||
-        (isJointEngineeringRoleId(request.data.activeConsoleRoleId) &&
-          !isJointEngineeringRoleAvailable(configuredRoleIds, request.data.activeConsoleRoleId))
+        isPressRequest &&
+        assignedRoleId !== null &&
+        assignedRoleId !== undefined &&
+        assignedRoleId !== ''
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Release your core role before selecting Press.',
+        );
+      }
+      const configuredRoleIdsForSelection = configuredRoleIds(session);
+      if (
+        (!isPressRequest && !configuredRoleIdsForSelection.includes(requestedRoleId)) ||
+        (!isPressRequest && isJointEngineeringRoleId(requestedRoleId) &&
+          !isJointEngineeringRoleAvailable(configuredRoleIdsForSelection, requestedRoleId))
       ) {
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
@@ -2942,7 +3151,7 @@ export const refreshPresence = onCall<{
       ) ?? false;
       if (!canSelectConsoleRole(
         player.get('activeConsoleRoleId') as string | null | undefined,
-        request.data.activeConsoleRoleId,
+        requestedRoleId,
         player.get('role') === 'gm',
         heldByAnotherPlayer,
       )) {
@@ -2954,7 +3163,7 @@ export const refreshPresence = onCall<{
           'Release your current role in settings before selecting another.',
         );
       }
-      presenceUpdate.activeConsoleRoleId = request.data.activeConsoleRoleId;
+      presenceUpdate.activeConsoleRoleId = requestedRoleId;
     }
     tx.update(playerRef, presenceUpdate);
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
@@ -3209,8 +3418,20 @@ function roleShipId(roleId: unknown): string | undefined {
 
 function configuredRoleIds(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeRoleIds');
-  return Array.isArray(stored)
+  const configured = Array.isArray(stored)
     ? ROLE_IDS.filter((roleId) => stored.includes(roleId))
+    : DEFAULT_ACTIVE_ROLE_IDS;
+  // Press is a separate product-extension station. It is never part of the
+  // counted/core roster, even when a legacy session persisted the old role.
+  return configured.filter((roleId) => roleId !== 'press-officer');
+}
+
+function sessionActiveRoleIds(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeRoleIds');
+  if (Array.isArray(stored)) return stored as string[];
+  const playerCount = session.get('playerCount');
+  return Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20
+    ? recommendedRoleIds(playerCount)
     : DEFAULT_ACTIVE_ROLE_IDS;
 }
 
@@ -3892,8 +4113,8 @@ export const publishPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
-      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
@@ -3945,8 +4166,8 @@ export const dismissPressDispatch = onCall<{
     }
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
-      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {

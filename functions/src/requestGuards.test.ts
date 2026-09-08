@@ -13,6 +13,7 @@ import {
   requireEmergencyTimerPauseRequest,
   requirePlayerKickRequest,
   requireDioneAvailabilityRequest,
+  requirePressAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipDamageRequest,
@@ -463,6 +464,24 @@ describe('callable request guards', () => {
     }), 'invalid-argument');
     expectHttpsError(() => requirePressDispatchDismissalRequest({
       sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: -1,
+    }), 'invalid-argument');
+  });
+
+  it('requires a Press availability request with a non-negative revision', () => {
+    expect(requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: false, expectedRevision: 4,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: false, expectedRevision: 4,
+    });
+    expectHttpsError(() => requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: true,
+    }), 'invalid-argument');
+    expectHttpsError(() => requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: true, expectedRevision: -1,
     }), 'invalid-argument');
   });
 

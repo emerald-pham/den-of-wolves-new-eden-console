@@ -12,6 +12,7 @@ import type {
 } from '@/types/game';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
+import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import { turnPhaseState } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
@@ -155,6 +156,28 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
       store.setSession({ ...store.session, dioneEnabled: enabled });
     }
   }
+  if (command.kind === 'setPressEnabled' && store.session?.id === command.payload.sessionId) {
+    const enabled =
+      typeof result === 'object' && result !== null && 'pressEnabled' in result &&
+      typeof result.pressEnabled === 'boolean'
+        ? result.pressEnabled
+        : undefined;
+    const revision =
+      typeof result === 'object' && result !== null && 'revision' in result &&
+      typeof result.revision === 'number' && Number.isSafeInteger(result.revision) && result.revision >= 0
+        ? result.revision
+        : undefined;
+    if (enabled !== undefined && revision !== undefined) {
+      store.setSession({
+        ...store.session,
+        pressEnabled: enabled,
+        pressAvailabilityRevision: revision,
+      });
+      if (!enabled && store.me?.activeConsoleRoleId === 'press-officer') {
+        store.setMe({ ...store.me, activeConsoleRoleId: null });
+      }
+    }
+  }
   if (command.kind === 'setGmControlsLocked' && store.session?.id === command.payload.sessionId) {
     const locked =
       typeof result === 'object' && result !== null && 'gmControlsLocked' in result &&
@@ -270,8 +293,22 @@ function applySession(reply: SessionReply, expectedSessionId?: string): boolean 
       reply.session.id !== expectedSessionId
     ))
   ) return false;
+  const shuttleManifest = normalizeShuttleManifest(
+    reply.session.shuttleDockings,
+    reply.session.shuttleVisitLog,
+    reply.session.activeRoleIds,
+    reply.session.playerCount,
+  );
   store.setIdentity({
     ...reply.session,
+    shuttleDockings: shuttleManifest.dockings,
+    shuttleVisitLog: shuttleManifest.visits,
+    pressEnabled: reply.session.pressEnabled !== false,
+    pressAvailabilityRevision:
+      Number.isSafeInteger(reply.session.pressAvailabilityRevision) &&
+      (reply.session.pressAvailabilityRevision as number) >= 0
+        ? reply.session.pressAvailabilityRevision as number
+        : 0,
     ...(reply.session.pressDispatch === undefined
       ? {}
       : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
@@ -723,6 +760,30 @@ export async function setDioneEnabled(dioneEnabled: boolean): Promise<CommandDis
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
       dioneEnabled,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export async function setPressEnabled(pressEnabled: boolean): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing Press availability.');
+  }
+  const expectedRevision =
+    Number.isSafeInteger(store.session.pressAvailabilityRevision) &&
+    (store.session.pressAvailabilityRevision as number) >= 0
+      ? store.session.pressAvailabilityRevision as number
+      : 0;
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setPressEnabled',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      pressEnabled,
+      expectedRevision,
     },
     createdAt: new Date().toISOString(),
   });

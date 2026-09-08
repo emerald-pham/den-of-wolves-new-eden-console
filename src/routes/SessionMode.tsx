@@ -30,6 +30,9 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
   }
   const modeIsValid = selectedMode === mode || (mode === 'press' && selectedMode === 'console');
   if (!modeIsValid) return <Navigate to="/roles" replace />;
+  if (mode === 'press' && session.pressEnabled === false) {
+    return <Navigate to="/console" replace />;
+  }
 
   if (mode === 'console') {
     return (
@@ -37,6 +40,7 @@ export default function SessionMode({ mode }: { mode: ConsoleMode }) {
         sessionName={session.name}
         capybaraEnabled={session.capybaraEnabled !== false}
         dioneEnabled={session.dioneEnabled !== false}
+        pressEnabled={session.pressEnabled !== false}
         activeRoleIds={session.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS}
         isGm={isGm}
       />
@@ -72,12 +76,14 @@ function FleetRoster({
   sessionName,
   capybaraEnabled,
   dioneEnabled,
+  pressEnabled,
   activeRoleIds,
   isGm,
 }: {
   sessionName: string;
   capybaraEnabled: boolean;
   dioneEnabled: boolean;
+  pressEnabled: boolean;
   activeRoleIds: readonly string[];
   isGm: boolean;
 }) {
@@ -108,7 +114,7 @@ function FleetRoster({
             <span className="role-card__name">GM Console</span>
             <span className="role-card__description">Session controls and fleet oversight</span>
           </Link>}
-          {active.has('press-officer') && <Link
+          {pressEnabled && <Link
             className="role-card cic-frame"
             to="/press"
             aria-label="Press Officer"

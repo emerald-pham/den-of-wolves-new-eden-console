@@ -34,6 +34,7 @@ const {
   resetWolves,
   setCapybaraEnabled,
   setDioneEnabled,
+  setPressEnabled,
   setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
@@ -56,6 +57,8 @@ const session = {
   joinCode: '4821',
   phase: 'lobby' as const,
   ownerUid: 'gm1',
+  pressEnabled: true,
+  pressAvailabilityRevision: 0,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };
@@ -251,7 +254,12 @@ describe('joinSession', () => {
 
     await joinSession('4821');
 
-    expect(useSessionStore.getState().session).toEqual(session);
+    expect(useSessionStore.getState().session).toMatchObject(session);
+    expect(useSessionStore.getState().session?.shuttleDockings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione' }),
+      ]),
+    );
     expect(useSessionStore.getState().me).toEqual(player);
   });
 });
@@ -312,6 +320,7 @@ describe('createSession', () => {
       requestId: expect.any(String),
     }));
   });
+
 });
 
 describe('GM instance commands', () => {
@@ -493,6 +502,58 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', dioneEnabled: false,
     });
     expect(useSessionStore.getState().session?.dioneEnabled).toBe(false);
+  });
+
+  it('sends Press availability with the live CAS revision and applies the server result', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      pressEnabled: true,
+      pressAvailabilityRevision: 4,
+    });
+    const callable = callableReturning({ data: { pressEnabled: false, revision: 5 } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(setPressEnabled(false)).resolves.toBe('applied');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setPressEnabled');
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1',
+      instanceId: 'instance-1',
+      requestId: expect.any(String),
+      pressEnabled: false,
+      expectedRevision: 4,
+    });
+    expect(useSessionStore.getState().session).toMatchObject({
+      pressEnabled: false,
+      pressAvailabilityRevision: 5,
+    });
+  });
+
+  it('does not optimistically overwrite Press authority after a stale rejection', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      pressEnabled: true,
+      pressAvailabilityRevision: 4,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
+      code: 'functions/failed-precondition',
+      message: 'Press availability changed. Wait for the live update and try again.',
+    }));
+
+    await expect(setPressEnabled(false)).rejects.toMatchObject({ code: 'functions/failed-precondition' });
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      pressEnabled: true,
+      pressAvailabilityRevision: 4,
+    });
   });
 
   it('sends the GM registration lock through the active GM instance', async () => {

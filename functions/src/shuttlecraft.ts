@@ -1,6 +1,6 @@
 /**
  * Server-owned initial shuttle manifest. The Union craft are intentionally
- * absent from the 20/21-player default roster: their printed sheets do not say
+ * absent from the default core roster: their printed sheets do not say
  * which optional Union pairing begins with each craft, so a facilitator
  * enables the paired Union role and establishes docking when it is in play.
  */
@@ -31,3 +31,34 @@ export const INITIAL_SHUTTLE_VISITS = INITIAL_SHUTTLE_DOCKINGS.map((docking) => 
   action: 'docked' as const,
   occurredAt: 'SESSION START',
 }));
+
+/**
+ * The Press shuttle is available independently of the core roster, but its
+ * legal initial host follows the vessels that are actually locked into that
+ * roster. Dione is not present in the 8–11 player presets, so those sessions
+ * begin at Aegis; the 12+ presets that include a Dione role begin at Dione.
+ */
+export function initialShuttleDockingsForRoles(
+  activeRoleIds: readonly string[],
+): readonly typeof INITIAL_SHUTTLE_DOCKINGS[number][] {
+  const initialHost = activeRoleIds.some((roleId) => roleId.startsWith('dione-'))
+    ? 'dione'
+    : 'aegis';
+  return INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId === 'snn-press-shuttle'
+    ? { ...docking, shipId: initialHost }
+    : docking);
+}
+
+export function initialShuttleVisitsForDockings(
+  dockings: readonly typeof INITIAL_SHUTTLE_DOCKINGS[number][],
+) {
+  return dockings.map((docking) => ({
+    id: docking.shuttleId === 'snn-press-shuttle'
+      ? `snn-initial-${docking.shipId}-docking`
+      : `${docking.shuttleId}-initial-${docking.shipId}-docking`,
+    shuttleId: docking.shuttleId,
+    shipId: docking.shipId,
+    action: 'docked' as const,
+    occurredAt: 'SESSION START',
+  }));
+}

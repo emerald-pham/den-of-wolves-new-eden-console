@@ -137,15 +137,13 @@ describe('recommended player-count role presets', () => {
     ])).toBe(false);
   });
 
-  it('keeps Capybara for 20+ and combines Capybara with Press at 21', () => {
-    expect(recommendedRoleIds(19)).toContain('press-officer');
-    expect(recommendedRoleIds(19)).not.toContain('capybara-captain');
+  it('keeps Capybara in the owner-set 20-core preset while Press stays separate', () => {
+    expect(recommendedRoleIds(19)).toEqual([]);
     expect(recommendedRoleIds(20)).toEqual(expect.arrayContaining([
       'capybara-captain', 'capybara-recycler',
     ]));
     expect(recommendedRoleIds(20)).not.toContain('press-officer');
-    expect(recommendedRoleIds(21)).toEqual(expect.arrayContaining([
-      'capybara-captain', 'capybara-recycler', 'press-officer',
-    ]));
+    expect(recommendedRoleIds(21)).toEqual([]);
+    expect(isValidRoleConfiguration([...recommendedRoleIds(20), 'press-officer'])).toBe(false);
   });
 });

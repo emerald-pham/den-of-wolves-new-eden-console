@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
+import { recommendedRoleIds } from './roleConfiguration';
+import {
+  INITIAL_SHUTTLE_DOCKINGS,
+  INITIAL_SHUTTLE_VISITS,
+  initialShuttleDockingsForRoles,
+} from './shuttlecraft';
 
 it('creates sessions with every non-Union printed shuttle docked at its home ship', () => {
   expect(INITIAL_SHUTTLE_DOCKINGS).toEqual([
@@ -26,5 +31,19 @@ it('creates sessions with every non-Union printed shuttle docked at its home shi
       action: 'docked',
       occurredAt: 'SESSION START',
     })),
+  );
+});
+
+it.each([
+  [8, 'aegis'],
+  [11, 'aegis'],
+  [12, 'dione'],
+  [18, 'dione'],
+  [20, 'dione'],
+] as const)('derives the SNN host from the locked %i-player core roster', (playerCount, shipId) => {
+  expect(initialShuttleDockingsForRoles(recommendedRoleIds(playerCount))).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId }),
+    ]),
   );
 });

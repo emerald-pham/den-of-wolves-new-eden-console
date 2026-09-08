@@ -76,6 +76,18 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setPressEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly pressEnabled: boolean;
+        readonly expectedRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setGmControlsLocked';
       readonly payload: {
         readonly sessionId: string;

@@ -100,12 +100,11 @@ describe('role configuration', () => {
     expect(DEFAULT_ACTIVE_ROLE_IDS).not.toContain('joint-engineering-quellon-refinery');
   });
 
-  it('configures the extended player presets', () => {
-    expect(recommendedRoleIds(19)).toContain('press-officer');
+  it('keeps the owner-set 20-core preset separate from Press', () => {
+    expect(recommendedRoleIds(19)).toEqual([]);
     expect(recommendedRoleIds(20)).toContain('capybara-recycler');
-    expect(recommendedRoleIds(21)).toEqual(expect.arrayContaining([
-      'press-officer', 'capybara-captain', 'capybara-recycler',
-    ]));
+    expect(recommendedRoleIds(21)).toEqual([]);
+    expect(isValidRoleConfiguration([...recommendedRoleIds(20), 'press-officer'])).toBe(false);
   });
 
   it('keeps each Union station in exactly its printed roster rows', () => {

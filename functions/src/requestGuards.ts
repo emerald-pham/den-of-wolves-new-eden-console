@@ -3,7 +3,11 @@ import { WOLF_ROLE_IDS } from './wolfAssignment';
 import { ROLE_IDS } from './roleConfiguration';
 import { RESOURCE_IDS, type ResourceId } from './resources';
 import { isStarSystemCoordinate } from './navigation';
-import { normalizeSessionConfiguration, type SessionConfiguration } from './gameSetup';
+import {
+  normalizeSessionConfiguration,
+  SUPPORTED_PLAYER_COUNTS,
+  type SessionConfiguration,
+} from './gameSetup';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -393,6 +397,34 @@ export function requireDioneAvailabilityRequest(data: {
   };
 }
 
+export function requirePressAvailabilityRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  pressEnabled?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  pressEnabled: boolean;
+  expectedRevision: number;
+} {
+  if (typeof data.pressEnabled !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'pressEnabled must be boolean.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    pressEnabled: data.pressEnabled,
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireGmControlsLockRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
@@ -702,9 +734,9 @@ export function requireRolePresetRequest(data: {
 }): { sessionId: string; instanceId: string; playerCount: number } {
   if (
     typeof data.playerCount !== 'number' || !Number.isInteger(data.playerCount) ||
-    data.playerCount < 8 || data.playerCount > 21
+    !SUPPORTED_PLAYER_COUNTS.includes(data.playerCount as typeof SUPPORTED_PLAYER_COUNTS[number])
   ) {
-    throw new HttpsError('invalid-argument', 'playerCount must be an integer from 8 through 21.');
+    throw new HttpsError('invalid-argument', 'playerCount must be one of the supported core counts from 8 through 20.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),

@@ -1,10 +1,24 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { createSession } from '@/lib/sessionService';
 import SessionMode from './SessionMode';
+
+vi.mock('firebase/functions', () => ({
+  httpsCallable: vi.fn(),
+}));
+vi.mock('@/lib/firebase', () => ({
+  auth: () => ({ currentUser: { uid: 'u1' } }),
+  functions: vi.fn(() => ({ kind: 'functions' })),
+}));
+const { httpsCallable } = await import('firebase/functions');
+
+function callableReturning(value: unknown) {
+  return Object.assign(vi.fn().mockResolvedValue(value), { stream: vi.fn() });
+}
 
 beforeEach(() => {
   useSessionStore.getState().reset();
@@ -53,6 +67,9 @@ it('identifies the unaffiliated SNN press shuttle', () => {
   expect(screen.getByRole('heading', { name: /snn.*system news network/i }))
     .toBeInTheDocument();
   expect(screen.getByText(/unaffiliated independent press shuttle/i)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
+    /docked.*dione/i,
+  );
   expect(screen.getByRole('link', { name: /leave shuttle/i }))
     .toHaveAttribute('href', '/console');
   expect(document.querySelector('.ship-console.shuttle-console')).toBeInTheDocument();
@@ -88,6 +105,139 @@ it('offers Press Officer and the GM Console from Select a role', async () => {
   expect(screen.getByText('GM console')).toBeInTheDocument();
 });
 
+it('composes a legacy createSession reply through hydration into the Press role card', async () => {
+  useSessionStore.getState().reset();
+  const legacySession = {
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby' as const, ownerUid: 'u1',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const player = {
+    uid: 'u1', sessionId: 's1', displayName: 'Player', role: 'player' as const,
+    seatId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  vi.mocked(httpsCallable).mockReturnValue(
+    callableReturning({ data: { session: legacySession, player } }),
+  );
+
+  await createSession();
+
+  expect(useSessionStore.getState().session).toMatchObject({
+    pressEnabled: true,
+    pressAvailabilityRevision: 0,
+  });
+  useSessionStore.getState().setMode('console');
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /press officer/i })).toHaveAttribute('href', '/press');
+});
+
+it.each([
+  [8, 'aegis'],
+  [11, 'aegis'],
+  [12, 'dione'],
+  [18, 'dione'],
+  [20, 'dione'],
+] as const)('hydrates the %i-player legacy reply into the authoritative SNN host route', async (playerCount, shipId) => {
+  useSessionStore.getState().reset();
+  const session = {
+    id: `s-${playerCount}`, name: 'Table one', joinCode: `${4000 + playerCount}`, phase: 'lobby' as const,
+    playerCount, activeRoleIds: recommendedRoleIds(playerCount), ownerUid: 'u1',
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const player = {
+    uid: 'u1', sessionId: session.id, displayName: 'Player', role: 'player' as const,
+    seatId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  vi.mocked(httpsCallable).mockReturnValue(
+    callableReturning({ data: { session, player } }),
+  );
+
+  await createSession();
+  useSessionStore.getState().setMode('press');
+  const view = render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes><Route path="/press" element={<SessionMode mode="press" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
+    new RegExp(`docked.*${shipId}`, 'i'),
+  );
+  view.unmount();
+});
+
+it('keeps a valid persisted nondefault SNN docking and its visit history during create hydration', async () => {
+  useSessionStore.getState().reset();
+  const session = {
+    id: 's-visit', name: 'Table one', joinCode: '4999', phase: 'lobby' as const,
+    playerCount: 20, activeRoleIds: recommendedRoleIds(20), ownerUid: 'u1',
+    shuttleDockings: [{ shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'TURN 3' }],
+    shuttleVisitLog: [{
+      id: 'snn-visit-3', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+      action: 'docked' as const, occurredAt: 'TURN 3',
+    }],
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const player = {
+    uid: 'u1', sessionId: session.id, displayName: 'Player', role: 'player' as const,
+    seatId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+  };
+  vi.mocked(httpsCallable).mockReturnValue(
+    callableReturning({ data: { session, player } }),
+  );
+
+  await createSession();
+
+  expect(useSessionStore.getState().session?.shuttleDockings).toEqual(session.shuttleDockings);
+  expect(useSessionStore.getState().session?.shuttleVisitLog).toEqual(session.shuttleVisitLog);
+});
+
+it('composes a createSession snapshot into an enabled Press role card', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test session.');
+  useSessionStore.getState().setGmInstance(null);
+  useSessionStore.getState().setMe({ ...me, role: 'player' });
+  useSessionStore.getState().setSession({
+    ...session,
+    activeRoleIds: recommendedRoleIds(9),
+    pressEnabled: true,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('link', { name: /press officer/i })).toHaveAttribute('href', '/press');
+});
+
+it('hides Press discovery when the authoritative toggle is disabled, independent of core roles', () => {
+  const session = useSessionStore.getState().session;
+  const me = useSessionStore.getState().me;
+  if (!session || !me) throw new Error('Expected the test session.');
+  useSessionStore.getState().setGmInstance(null);
+  useSessionStore.getState().setMe({ ...me, role: 'player' });
+  useSessionStore.getState().setSession({
+    ...session,
+    activeRoleIds: [...recommendedRoleIds(9), 'press-officer'],
+    pressEnabled: false,
+  });
+
+  render(
+    <MemoryRouter initialEntries={['/console']}>
+      <Routes><Route path="/console" element={<SessionMode mode="console" />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.queryByRole('link', { name: /press officer/i })).not.toBeInTheDocument();
+});
+
 it('hides the GM Console from non-GM role selection', () => {
   const state = useSessionStore.getState();
   state.setMe({ ...state.me!, role: 'player' });
@@ -101,6 +251,24 @@ it('hides the GM Console from non-GM role selection', () => {
   );
 
   expect(screen.queryByRole('link', { name: /gm console/i })).not.toBeInTheDocument();
+});
+
+it('returns a direct disabled Press route to role selection', () => {
+  useSessionStore.getState().setMode('press');
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...session, pressEnabled: false });
+
+  render(
+    <MemoryRouter initialEntries={['/press']}>
+      <Routes>
+        <Route path="/press" element={<SessionMode mode="press" />} />
+        <Route path="/console" element={<p>Role selection</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
 });
 
 it('groups every ship role by its world of origin without exposing ship actions', () => {
@@ -203,6 +371,7 @@ it('hides disabled roles and offers enabled Joint Engineering Union stations', (
   useSessionStore.getState().setSession({
     ...session,
     activeRoleIds: recommendedRoleIds(9),
+    pressEnabled: false,
   });
 
   render(

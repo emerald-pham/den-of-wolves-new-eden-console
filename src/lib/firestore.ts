@@ -26,7 +26,9 @@ import type {
   ShipNavigationLogs,
 } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
-import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
+import {
+  normalizeShuttleManifest,
+} from '@/data/shuttles';
 import {
   INITIAL_SHIP_CONSOLE_LOCKS,
   INITIAL_SHIP_GALACTIC_COORDINATES,
@@ -170,18 +172,30 @@ function pursuitGroups(value: unknown): Readonly<Record<string, number>> {
   return result;
 }
 
-function sessionFrom(id: string, data: DocumentData): GameSession {
+export function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
+  const playerCount = Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 20
+    ? data.playerCount as number
+    : undefined;
+  const hasActiveRoleIds = Array.isArray(data.activeRoleIds);
+  const activeRoleIds = hasActiveRoleIds
+    ? data.activeRoleIds as string[]
+    : DEFAULT_ACTIVE_ROLE_IDS;
+  const shuttleManifest = normalizeShuttleManifest(
+    Array.isArray(data.shuttleDockings) ? data.shuttleDockings : undefined,
+    Array.isArray(data.shuttleVisitLog) ? data.shuttleVisitLog : undefined,
+    hasActiveRoleIds ? activeRoleIds : undefined,
+    playerCount,
+  );
   return {
     id,
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
     currentTurn: Number.isSafeInteger(data.currentTurn) && data.currentTurn >= 0 ? data.currentTurn as number : 1,
-    ...(Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 18
-      ? { playerCount: data.playerCount as number } : {}),
+    ...(playerCount === undefined ? {} : { playerCount }),
     ...(data.chartId === 'A' || data.chartId === 'B' || data.chartId === 'C'
       ? { chartId: data.chartId } : {}),
     ...(data.expansion === 'base' || data.expansion === 'capybara' || data.expansion === 'none'
@@ -196,6 +210,11 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
+    pressEnabled: data.pressEnabled !== false,
+    pressAvailabilityRevision:
+      Number.isSafeInteger(data.pressAvailabilityRevision) && data.pressAvailabilityRevision >= 0
+        ? data.pressAvailabilityRevision as number
+        : 0,
     shipGalacticCoordinates:
       typeof data.shipGalacticCoordinates === 'object' && data.shipGalacticCoordinates !== null
         ? { ...INITIAL_SHIP_GALACTIC_COORDINATES, ...data.shipGalacticCoordinates as Record<string, string> }
@@ -227,15 +246,9 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         ? data.unrestAlerts as NonNullable<GameSession['unrestAlerts']>
         : {},
     gmControlsLocked: data.gmControlsLocked === true,
-    activeRoleIds: Array.isArray(data.activeRoleIds)
-      ? data.activeRoleIds as string[]
-      : DEFAULT_ACTIVE_ROLE_IDS,
-    shuttleDockings: Array.isArray(data.shuttleDockings)
-      ? data.shuttleDockings as NonNullable<GameSession['shuttleDockings']>
-      : INITIAL_SHUTTLE_DOCKINGS,
-    shuttleVisitLog: Array.isArray(data.shuttleVisitLog)
-      ? data.shuttleVisitLog as NonNullable<GameSession['shuttleVisitLog']>
-      : INITIAL_SHUTTLE_VISITS,
+    activeRoleIds,
+    shuttleDockings: shuttleManifest.dockings,
+    shuttleVisitLog: shuttleManifest.visits,
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
       ? data.confettiUsedShipIds as string[]
       : [],

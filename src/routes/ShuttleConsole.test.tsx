@@ -29,10 +29,10 @@ beforeEach(() => {
     id: 's1', name: 'Table one', joinCode: '4821', phase: 'lobby', ownerUid: 'u1',
     activeRoleIds: ['press-officer'],
     shuttleDockings: [
-      { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+      { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: 'SESSION START' },
     ],
     shuttleVisitLog: [{
-      id: 'visit-1', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+      id: 'visit-1', shuttleId: 'snn-press-shuttle', shipId: 'dione',
       action: 'docked', occurredAt: 'SESSION START',
     }],
     createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
@@ -193,7 +193,7 @@ it('uses the shared full-screen shuttlecraft console template for SNN', () => {
   expect(description.compareDocumentPosition(captain))
     .toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   expect(screen.getByRole('region', { name: /shuttle systems/i })).toHaveTextContent(
-    /docked.*aegis/i,
+    /docked.*dione/i,
   );
   expect(screen.queryByText(/travel log/i)).not.toBeInTheDocument();
   expect(screen.queryByRole('list', { name: /shuttle travel log/i })).not.toBeInTheDocument();
@@ -236,11 +236,11 @@ it('keeps a non-GM press officer aboard until settings releases the role', () =>
   expect(screen.queryByRole('link', { name: /leave shuttle/i })).not.toBeInTheDocument();
 });
 
-it('keeps a press officer aboard if the GM disables the held role', () => {
+it('returns a Press holder to role selection when the GM disables Press', () => {
   const session = useSessionStore.getState().session;
   const me = useSessionStore.getState().me;
   if (!session || !me) throw new Error('Expected test session state.');
-  useSessionStore.getState().setSession({ ...session, activeRoleIds: [] });
+  useSessionStore.getState().setSession({ ...session, activeRoleIds: [], pressEnabled: false });
   useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'press-officer' });
 
   render(
@@ -252,7 +252,8 @@ it('keeps a press officer aboard if the GM disables the held role', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('heading', { name: /snn.*system news network/i })).toBeInTheDocument();
+  expect(screen.getByText('Role selection')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: /snn.*system news network/i })).not.toBeInTheDocument();
 });
 
 it('opens a printed shipboard shuttle for its owning role without press-only equipment', () => {

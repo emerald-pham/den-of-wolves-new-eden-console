@@ -4,7 +4,7 @@ import {
   recommendedRoleIds,
 } from './roleConfiguration';
 
-export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20] as const;
 export const SUPPORTED_CHART_IDS = ['A', 'B', 'C'] as const;
 export const SUPPORTED_EXPANSION_MODES = ['base', 'capybara', 'none'] as const;
 export const SUPPORTED_TURN_LIMITS = [6, 7, 8] as const;
@@ -55,7 +55,7 @@ export function normalizeSessionConfiguration(
     ? DEFAULT_SESSION_CONFIGURATION.playerCount
     : input.playerCount;
   if (!isOneOf(playerCount, SUPPORTED_PLAYER_COUNTS)) {
-    throw new Error('playerCount must be an integer from 8 through 18.');
+    throw new Error('playerCount must be an integer from 8 through 20.');
   }
 
   const chartId = input.chartId === undefined ? DEFAULT_SESSION_CONFIGURATION.chartId : input.chartId;
@@ -110,7 +110,7 @@ export function normalizeSessionConfiguration(
 
 export function wolfCountForPlayerCount(playerCount: number): 1 | 2 {
   if (!isOneOf(playerCount, SUPPORTED_PLAYER_COUNTS)) {
-    throw new Error('playerCount must be an integer from 8 through 18.');
+    throw new Error('playerCount must be an integer from 8 through 20.');
   }
   return playerCount <= 13 ? 1 : 2;
 }
@@ -263,6 +263,8 @@ export interface SetupReadinessInput {
   readonly facilitatorResponsibilities: { readonly main: boolean; readonly assistant: boolean };
   readonly activeRoleIds: readonly string[];
   readonly activeVesselIds: readonly string[];
+  /** Optional Press holders are live station occupancy, never core roster members. */
+  readonly pressPlayerUids?: readonly string[];
 }
 
 function vesselIdsForRole(roleId: string): readonly string[] {
@@ -280,11 +282,18 @@ export function readinessForSetup(input: SetupReadinessInput): {
   const reasons: SetupReadinessReason[] = [];
   if (input.phase !== 'casting') reasons.push('wrong-phase');
   if (!isOneOf(input.playerCount, SUPPORTED_PLAYER_COUNTS)) reasons.push('player-count');
-  if (input.connectedPlayers.length !== input.playerCount) reasons.push('players');
+  const pressPlayerUids = new Set(input.pressPlayerUids ?? []);
+  const coreConnectedPlayers = input.connectedPlayers.filter((uid) => !pressPlayerUids.has(uid));
+  const coreAssignments = input.assignments.filter((assignment) =>
+    !pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
+  const coreLoyaltyUids = input.loyaltyUids.filter((uid) => !pressPlayerUids.has(uid));
+  const pressHasCoreAssignment = input.assignments.some((assignment) =>
+    pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
+  if (coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
 
-  const playerIds = new Set(input.connectedPlayers);
-  const roleIds = new Set(input.assignments.map((assignment) => assignment.roleId));
-  const assignedPlayers = new Set(input.assignments.map((assignment) => assignment.uid));
+  const playerIds = new Set(coreConnectedPlayers);
+  const roleIds = new Set(coreAssignments.map((assignment) => assignment.roleId));
+  const assignedPlayers = new Set(coreAssignments.map((assignment) => assignment.uid));
   const printedRoleIds = recommendedRoleIds(input.playerCount);
   const configuredRoleSet = new Set(input.activeRoleIds);
   const exactPrintedRoster =
@@ -292,24 +301,26 @@ export function readinessForSetup(input: SetupReadinessInput): {
     input.activeRoleIds.length === printedRoleIds.length &&
     printedRoleIds.every((roleId) => configuredRoleSet.has(roleId));
   if (
-    assignedPlayers.size !== input.assignments.length ||
-    roleIds.size !== input.assignments.length ||
-    input.assignments.length !== input.connectedPlayers.length ||
+    assignedPlayers.size !== coreAssignments.length ||
+    roleIds.size !== coreAssignments.length ||
+    coreAssignments.length !== coreConnectedPlayers.length ||
     !exactPrintedRoster ||
-    input.assignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
+    pressHasCoreAssignment ||
+    coreAssignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
   ) reasons.push('roles');
 
-  const loyaltyIds = new Set(input.loyaltyUids);
+  const loyaltyIds = new Set(coreLoyaltyUids);
   if (
-    loyaltyIds.size !== input.loyaltyUids.length ||
-    loyaltyIds.size !== input.connectedPlayers.length ||
-    input.connectedPlayers.some((uid) => !loyaltyIds.has(uid))
+    [...pressPlayerUids].some((uid) => !input.loyaltyUids.includes(uid)) ||
+    loyaltyIds.size !== coreLoyaltyUids.length ||
+    loyaltyIds.size !== coreConnectedPlayers.length ||
+    coreConnectedPlayers.some((uid) => !loyaltyIds.has(uid))
   ) reasons.push('loyalties');
 
   if (!input.facilitatorResponsibilities.main) reasons.push('main-facilitator');
   if (!input.facilitatorResponsibilities.assistant) reasons.push('assistant-facilitator');
 
-  const assignedVessels = new Set(input.assignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
+  const assignedVessels = new Set(coreAssignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
   const configuredVessels = new Set(input.activeVesselIds);
   if (
     assignedVessels.size !== configuredVessels.size ||
@@ -330,10 +341,6 @@ export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly st
   for (const roleId of roleIds) {
     if (roleId === 'admiral' || roleId === 'executive-officer' || roleId === 'wing-commander') {
       vessels.add('aegis');
-      continue;
-    }
-    if (roleId === 'press-officer') {
-      vessels.add('press');
       continue;
     }
     const jointShips = isJointEngineeringRoleId(roleId)

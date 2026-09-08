@@ -11,12 +11,18 @@ describe('ConnectionIndicator', () => {
 
   it('reports being connected to Firebase without a session', () => {
     render(<ConnectionIndicator status="yellow" />);
-    expect(screen.getByRole('status')).toHaveTextContent(/connected/i);
+    expect(screen.getByRole('status')).toHaveTextContent('CONNECTED');
+    expect(screen.getByRole('status')).not.toHaveTextContent('Connected, Awaiting Iris Authentication');
   });
 
   it('reports being in a session', () => {
     render(<ConnectionIndicator status="green" />);
     expect(screen.getByRole('status')).toHaveTextContent(/in session/i);
+  });
+
+  it('uses the exact Turn 0 Iris authentication label only for a joined session', () => {
+    render(<ConnectionIndicator status="blue" />);
+    expect(screen.getByRole('status')).toHaveTextContent('NOT CONNECTED — AWAITING IRIS AUTHENTICATION');
   });
 
   it('exposes the status for styling without relying on it for meaning', () => {

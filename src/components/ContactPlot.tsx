@@ -1,5 +1,5 @@
 import { useSessionStore } from '@/store/useSessionStore';
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { CONTACT_SCAN_EVENT, followSweeps, type Vector } from './sweep';
 import {
   AMBIENT_CLASSIFICATION_MS,
@@ -101,6 +101,7 @@ const EXPOSED = 'FALSE';
 export const SPASM_MS = 3300;
 const AMBIENT_RANGE_UPDATE_MS = 1_000;
 const ZERO_ORIGIN: Vector = { x: 0, y: 0, z: 0 };
+const LABEL_VIEWPORT_GUTTER_PX = 8;
 
 const MERIDIANS = [0, 30, 60, 90, 120, 150];
 const PARALLELS = [-60, -30, 0, 30, 60];
@@ -138,6 +139,39 @@ function labelAnchor(track: Track | PlotContact, index: number): LabelAnchor {
 
 function combatRangeLabel(track: Track | PlotContact): string {
   return (track.combatRange ?? 'short').toUpperCase();
+}
+
+/** Keep intrinsic-width labels inside the actual rendered plot, on both axes. */
+function clampContactLabels(plot: HTMLElement): void {
+  const plotBounds = plot.getBoundingClientRect();
+  if (plotBounds.width <= 0 || plotBounds.height <= 0) return;
+  const labels = [...plot.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  labels.forEach((label) => {
+    label.style.removeProperty('--label-clamp-x');
+    label.style.removeProperty('--label-clamp-y');
+  });
+
+  // The second pass accounts for the transform changing the measured box in
+  // perspective layouts without ever allowing a label to oscillate.
+  for (let pass = 0; pass < 2; pass += 1) {
+    labels.forEach((label) => {
+      const bounds = label.getBoundingClientRect();
+      const minX = plotBounds.left + LABEL_VIEWPORT_GUTTER_PX;
+      const maxX = plotBounds.right - LABEL_VIEWPORT_GUTTER_PX;
+      const minY = plotBounds.top + LABEL_VIEWPORT_GUTTER_PX;
+      const maxY = plotBounds.bottom - LABEL_VIEWPORT_GUTTER_PX;
+      const x = bounds.left < minX ? minX - bounds.left : bounds.right > maxX ? maxX - bounds.right : 0;
+      const y = bounds.top < minY ? minY - bounds.top : bounds.bottom > maxY ? maxY - bounds.bottom : 0;
+      if (x !== 0) {
+        const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-x')) || 0;
+        label.style.setProperty('--label-clamp-x', `${round(previous + x)}px`);
+      }
+      if (y !== 0) {
+        const previous = Number.parseFloat(label.style.getPropertyValue('--label-clamp-y')) || 0;
+        label.style.setProperty('--label-clamp-y', `${round(previous + y)}px`);
+      }
+    });
+  }
 }
 
 function relativeVector(point: Vector, origin: Vector): Vector {
@@ -332,6 +366,20 @@ export default function ContactPlot({
       ? SPOOFED.map((track) => ({ track, spoof: true, cartesian: false, ambient: false }))
       : []),
   ];
+
+  useLayoutEffect(() => {
+    const node = plot.current;
+    if (!node) return;
+    const clamp = () => clampContactLabels(node);
+    clamp();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(clamp);
+    observer?.observe(node);
+    window.addEventListener('resize', clamp);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', clamp);
+    };
+  }, [ambient?.id, classifiedOccurrenceId, contacts, departing, hostile, placement, size, still, tracks.length]);
 
   return (
     <div

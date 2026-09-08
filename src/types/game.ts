@@ -206,6 +206,10 @@ export interface GameSession {
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
+  /** Optional New Eden Console extension; absent legacy values are treated as enabled. */
+  readonly pressEnabled?: boolean;
+  /** Server-owned CAS revision for Press availability changes. */
+  readonly pressAvailabilityRevision?: number;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Server-authored navigation events, newest first, by receiving ship. */

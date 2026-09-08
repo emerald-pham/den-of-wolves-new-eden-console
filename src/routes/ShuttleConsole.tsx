@@ -19,7 +19,10 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   const activeRoles = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const captainRole = findConsoleRole(shuttle?.captainRoleId);
   const docking = dockingForShuttle(session ?? {}, shuttleId);
-  const shuttleEnabled = shuttle ? isShuttleEnabled(shuttle, activeRoles) : false;
+  const isPressShuttle = shuttleId === 'snn-press-shuttle';
+  const shuttleEnabled = shuttle
+    ? isPressShuttle ? session?.pressEnabled !== false : isShuttleEnabled(shuttle, activeRoles)
+    : false;
   const canClaimCaptainRole = Boolean(
     session && me && shuttle && (mode === 'console' || mode === 'press') &&
     shuttleEnabled &&
@@ -34,6 +37,9 @@ export default function ShuttleConsole({ shuttleId: providedShuttleId }: { shutt
   if (!session || !me) return <Navigate to="/" replace />;
   if (!isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== shuttle?.captainRoleId) {
     return <Navigate to={consoleRoleRoute(me.activeConsoleRoleId)} replace />;
+  }
+  if (isPressShuttle && session.pressEnabled === false) {
+    return <Navigate to="/console" replace />;
   }
   if (
     !shuttle || (mode !== 'console' && mode !== 'press') ||

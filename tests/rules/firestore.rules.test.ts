@@ -183,6 +183,14 @@ describe('session header', () => {
     await assertFails(updateDoc(session, { dioneEnabled: false }));
   });
 
+  it('cannot change Press availability or its CAS revision from the client', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const session = doc(as(uid), SESSION);
+      await assertFails(updateDoc(session, { pressEnabled: false }));
+      await assertFails(updateDoc(session, { pressAvailabilityRevision: 1 }));
+    }
+  });
+
   it('cannot forge a fleetwide DRADIS contact trigger from the client', async () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), {
       dradisContactTriggeredAt: new Date().toISOString(),

@@ -82,6 +82,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
+      pressEnabled: true,
     },
     player: { uid: 'u1', displayName: 'Facilitator' },
   });
@@ -95,6 +96,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
       turnLimit: 7,
       configurationLocked: false,
       setupRevision: 0,
+      pressEnabled: true,
     }),
   );
   expect(mock.set).toHaveBeenCalledWith(
@@ -115,6 +117,31 @@ it('creates an eight-player lobby with one legal role per player', async () => {
         'quellon-explorer', 'refinery-124-pdf-colonel',
         'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
       ],
+    }),
+  );
+});
+
+it.each([
+  [8, 'aegis'],
+  [11, 'aegis'],
+  [12, 'dione'],
+  [18, 'dione'],
+  [20, 'dione'],
+] as const)('persists the authoritative SNN host for the %i-player session', async (playerCount, shipId) => {
+  const reply = await createSession.run(request({
+    requestId: `create-snn-host-${playerCount}`,
+    playerCount,
+  }));
+
+  expect(reply.session.shuttleDockings).toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId }),
+  ]));
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/generated-session' }),
+    expect.objectContaining({
+      shuttleDockings: expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId }),
+      ]),
     }),
   );
 });

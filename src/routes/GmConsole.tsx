@@ -1,5 +1,5 @@
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
@@ -36,6 +36,7 @@ import {
   setCapybaraEnabled,
   setDebriefMode,
   setDioneEnabled,
+  setPressEnabled,
   setGmControlsLocked,
   setActiveRoleConfiguration,
   applyShipCounterSteps,
@@ -188,7 +189,7 @@ function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleG
 }
 
 function knownRoleIds(roleIds: readonly string[]): readonly string[] {
-  return roleIds.filter((roleId) => KNOWN_CONSOLE_ROLE_IDS.has(roleId));
+  return roleIds.filter((roleId) => roleId !== 'press-officer' && KNOWN_CONSOLE_ROLE_IDS.has(roleId));
 }
 
 function normalizeRoleDraft(roleIds: readonly string[]): readonly string[] {
@@ -216,7 +217,11 @@ export default function GmConsole() {
   const { reducedMotion } = useMotionPreference();
   const session = useSessionStore((state) => state.session);
   const sessionId = session?.id;
-  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const activeRoleIds = useMemo(
+    () => (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS)
+      .filter((roleId) => roleId !== 'press-officer'),
+    [session?.activeRoleIds],
+  );
   const serverRoleIds = knownRoleIds(activeRoleIds);
   const normalizedServerRoleIds = normalizeRoleDraft(serverRoleIds);
   const me = useSessionStore((state) => state.me);
@@ -253,6 +258,15 @@ export default function GmConsole() {
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
   const [changingDione, setChangingDione] = useState(false);
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
+  const [changingPress, setChangingPress] = useState(false);
+  const [pendingPressEnabled, setPendingPressEnabled] = useState<boolean | null>(null);
+  const [pressMutationState, setPressMutationState] = useState<
+    'idle' | 'pending' | 'stale' | 'rejected' | 'committed'
+  >('idle');
+  const [pressMutationMessage, setPressMutationMessage] = useState<string | null>(null);
+  const pressTriggerRef = useRef<HTMLButtonElement>(null);
+  const pressDialogRef = useRef<HTMLElement>(null);
+  const restorePressTriggerFocus = useRef(false);
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [skippingTurn, setSkippingTurn] = useState(false);
@@ -279,6 +293,13 @@ export default function GmConsole() {
   const dioneQueued = pendingCommands.some(
     (command) => command.kind === 'setDioneEnabled',
   );
+  const pressEnabled = session?.pressEnabled !== false;
+  const pressQueued = pendingCommands.some(
+    (command) => command.kind === 'setPressEnabled',
+  );
+  const pressProjectionMessage = instances.length > 1
+    ? `Shared Press projection // ${instances.length} active GM instances`
+    : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
   const controlsLocked = session?.gmControlsLocked === true;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
@@ -449,6 +470,60 @@ export default function GmConsole() {
   }, [dioneEnabled, viewerId]);
 
   useEffect(() => {
+    if (pendingPressEnabled === null) {
+      if (restorePressTriggerFocus.current) {
+        restorePressTriggerFocus.current = false;
+        pressTriggerRef.current?.focus();
+      }
+      return;
+    }
+    const dialog = pressDialogRef.current;
+    if (!dialog) return;
+    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    )];
+    const focusFirst = () => {
+      const first = focusableElements()[0];
+      if (first) first.focus();
+      else dialog.focus();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (!dialog.contains(event.target as Node)) focusFirst();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        restorePressTriggerFocus.current = true;
+        setPendingPressEnabled(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    focusFirst();
+    document.addEventListener('focusin', onFocusIn);
+    dialog.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      dialog.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pendingPressEnabled]);
+
+  useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
     const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
     setDraftRoleIds((current) =>
@@ -609,6 +684,46 @@ export default function GmConsole() {
       setChangingDione(false);
       setPendingDioneEnabled(null);
     }
+  }
+
+  async function changePress(enabled: boolean): Promise<void> {
+    setChangingPress(true);
+    setPressMutationState('pending');
+    setPressMutationMessage(null);
+    try {
+      const disposition = await setPressEnabled(enabled);
+      const committed = disposition === 'applied';
+      setPressMutationState(committed ? 'committed' : 'pending');
+      setPressMutationMessage(
+        !committed
+          ? 'Press availability pending // queued for reconnection.'
+          : 'Press availability committed by the server.',
+      );
+    } catch (cause) {
+      const code = typeof cause === 'object' && cause !== null && 'code' in cause &&
+        typeof cause.code === 'string' ? cause.code : '';
+      setPressMutationState(code.includes('failed-precondition') ? 'stale' : 'rejected');
+      setPressMutationMessage(
+        code.includes('failed-precondition')
+          ? 'Press availability stale // a newer GM revision committed; review the live state and retry.'
+          : 'Press availability rejected // the server did not commit this change.',
+      );
+    } finally {
+      setChangingPress(false);
+      restorePressTriggerFocus.current = true;
+      setPendingPressEnabled(null);
+    }
+  }
+
+  function openPressDialog(): void {
+    setPressMutationState('idle');
+    setPressMutationMessage(null);
+    setPendingPressEnabled(!pressEnabled);
+  }
+
+  function closePressDialog(): void {
+    restorePressTriggerFocus.current = true;
+    setPendingPressEnabled(null);
   }
 
   async function toggleLock(): Promise<void> {
@@ -1132,6 +1247,32 @@ export default function GmConsole() {
                 >
                   Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
                 </button>
+                <button
+                  className="gm-dradis__availability"
+                  type="button"
+                  aria-label={`Turn Press ${pressEnabled ? 'off' : 'on'}`}
+                  aria-pressed={pressEnabled}
+                  ref={pressTriggerRef}
+                  disabled={changingPress || pressQueued}
+                  onClick={openPressDialog}
+                >
+                  Press // {pressQueued ? 'Change queued' : pressEnabled ? 'Available' : 'Offline'}
+                </button>
+                <p
+                  className="gm-role-setup__note"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Press availability status"
+                  aria-busy={pressMutationState === 'pending' && changingPress}
+                  data-state={pressMutationState}
+                >
+                  {pressMutationMessage ?? (pressMutationState === 'pending'
+                    ? 'Press availability pending // awaiting server confirmation.'
+                    : `Press availability // ${pressEnabled ? 'enabled' : 'disabled'} // revision ${session?.pressAvailabilityRevision ?? 0}`)}
+                </p>
+                <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
+                  {pressProjectionMessage}
+                </p>
                 <fieldset className="gm-role-setup">
                   <legend>Active roles</legend>
                   <label className="gm-role-preset">
@@ -1187,8 +1328,9 @@ export default function GmConsole() {
                       {confirmingRoster ? 'Confirming roster…' : 'Confirm roster'}
                     </button>
                   </div>
-                  <ShipRoleGroups
-                    roles={CONSOLE_ROLES.filter((role) => !isJointEngineeringRoleId(role.id))}
+                    <ShipRoleGroups
+                      roles={CONSOLE_ROLES.filter((role) =>
+                        role.id !== 'press-officer' && !isJointEngineeringRoleId(role.id))}
                     renderRole={(role) => {
                       const enabled = draftRoleIds.includes(role.id);
                       return (
@@ -1270,7 +1412,10 @@ export default function GmConsole() {
                   <fieldset className="gm-wolf-manual">
                     <legend>Manual wolf assignment</legend>
                     <ShipRoleGroups
-                      roles={CONSOLE_ROLES.filter((role) => normalizedServerRoleIds.includes(role.id))}
+                      roles={CONSOLE_ROLES.filter((role) =>
+                        normalizedServerRoleIds.includes(role.id) ||
+                        (role.id === 'press-officer' && pressEnabled &&
+                          connectedPlayers.some((player) => player.activeConsoleRoleId === 'press-officer')))}
                       renderRole={(role) => (
                       <label className="gm-wolf-role" key={role.id}>
                         <span>{role.name}</span>
@@ -1586,6 +1731,48 @@ export default function GmConsole() {
               onClick={() => void changeDione(pendingDioneEnabled)}
             >
               Confirm {pendingDioneEnabled ? 'add' : 'remove'} Dione
+            </button>
+          </section>
+        </div>
+      )}
+      {pendingPressEnabled !== null && (
+        <div
+          className="settings-backdrop"
+          onMouseDown={closePressDialog}
+        >
+          <section
+            className="settings-dialog cic-frame"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="press-availability-confirm-title"
+            aria-describedby="press-availability-confirm-copy"
+            ref={pressDialogRef}
+            tabIndex={-1}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="settings-dialog__header">
+              <h2 id="press-availability-confirm-title">Change Press availability</h2>
+            </div>
+            <p id="press-availability-confirm-copy">
+              {pendingPressEnabled
+                ? 'Enable Press discovery and the SNN shuttle console?'
+                : 'Disable Press discovery and revoke every live SNN shuttle claim?'}
+            </p>
+            <button
+              className="cic-text-button"
+              type="button"
+              autoFocus
+              onClick={closePressDialog}
+            >
+              Cancel Press change
+            </button>
+            <button
+              className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
+              type="button"
+              disabled={changingPress}
+              onClick={() => void changePress(pendingPressEnabled)}
+            >
+              ARE YOU SURE? // {pendingPressEnabled ? 'Enable' : 'Disable'} Press
             </button>
           </section>
         </div>
