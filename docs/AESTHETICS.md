@@ -1052,10 +1052,13 @@ and stationary copy. Keep that lower breathing room even when the ticker is
 compact: SNN’s monospaced lettering must never be clipped at the bottom edge.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
-Press Officer. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
-and publishes through server authority with revision checks. The current copy
-remains visible on the desk; other shuttle viewers may see the instrument but
-cannot transmit from it.
+Press Officer. SNN Press is an added independent station rather than a printed
+roster slot, so the `Independent stations` group always presents its shuttle
+and Press Officer route after a player joins without changing the printed
+setup count. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
+and publishes through server authority with exclusive live role ownership and
+revision checks. The current copy remains visible on the desk; other shuttle
+viewers may see the instrument but cannot transmit from it.
 
 Press, stand-down, and the Admiral’s active warning remain uppercase. Every
 active Admiral warning starts `ICSN ADMIRAL //`, including edited copy; the
@@ -1093,11 +1096,13 @@ other high-impact commands and plays the normal fullscreen transmission, while
 Skip to Turn 1 has its own confirmation and suppresses that transmission.
 Advance's in-flight state must not rewrite Skip's `SKIP TO TURN 1` wording.
 
-During a live Turn 0 session, the top-right connection light uses cyan-blue
-instrumentation and says `CONNECTED, AWAITING IRIS AUTHENTICATION`; it makes the fleet's
-boot-up state clear without treating it as an offline connection. The first
-Turn 1 snapshot restores the usual green in-session light, marking CIC as fully
-uplinked and the fleet as ready to launch.
+Before a browser joins a session, the top-right default connection light uses
+the established uppercase label `CONNECTED`. Only after joining, while Turn 1
+has not yet occurred, the light uses cyan-blue instrumentation and says
+`NOT CONNECTED — AWAITING IRIS AUTHENTICATION`. The first Turn 1 snapshot
+restores the usual green in-session light, marking CIC as fully uplinked and the
+fleet as ready to launch. These labels describe the player-facing game uplink;
+they do not grant or withhold command authority by themselves.
 
 When a browser restores a cached in-session identity after a refresh, loses page
 context, or returns from the background, its header light keeps the last known

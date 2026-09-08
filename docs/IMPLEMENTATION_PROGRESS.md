@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 **68 / 705 prompts complete (10%)**
 
-Status breakdown: **68 done · 26 partial · 611 missing**.
+Status breakdown: **68 done · 26 partial · 610 missing · 1 in-progress**.
 
-Active prompt: **none**.
+Active prompt: **275a**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -392,7 +392,7 @@ release classification and evidence.
 | 273 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 275a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 275a | in-progress | feature | 0.3.10 | Delivering the independent SNN Press role and shuttle selection with the same release's required connection-copy and DRADIS-label regressions. |
 | 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

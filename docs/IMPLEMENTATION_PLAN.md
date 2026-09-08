@@ -84,7 +84,9 @@ The implementation is complete only when all of these objectives are met:
 4. **Make every role useful.** All supported player counts have a valid role
    configuration, every selected role has meaningful work during the game,
    replacement roles can be used before the game ends, and the Capybara
-   expansion is distinct from the base-game small-ship Capybara.
+   expansion is distinct from the base-game small-ship Capybara. SNN Press is
+   an independent added station: its Press Officer and shuttle remain
+   selectable without changing the exact printed 8–18 player roster.
 5. **Preserve the shared console system.** New ships, shuttles, roles, and
    instruments extend the existing typed definitions and shared templates.
    Per-vessel exceptions are explicit configuration or modules, never copied
@@ -182,6 +184,51 @@ below. Several of the original milestone ideas are intentionally split: a
 DRADIS filter is not the same thing as a playable split fleet, a Wolf attack is
 not the same thing as recovering from its aftermath, and a jump button is not
 the jump authority.
+
+### Release objective — SNN Press and operational readout regressions
+
+This bounded release completes Prompt 275a while strengthening the connected
+Prompt 598 and Prompt 605 contracts. The four outcomes are inseparable because
+they restore how a player discovers the independent station and reads the
+shared header/DRADIS instrumentation on the way into it.
+
+- **Given** a browser that has not joined a session, **when** the shared header
+  renders its optimistic default connection state, **then** the player-facing
+  label is exactly `CONNECTED` in the established uppercase CIC style. **Given**
+  that browser has joined a session whose Turn 1 snapshot has not occurred,
+  **when** the header reports the boot gate, **then** and only then it says
+  exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`; the first Turn 1
+  snapshot restores the ordinary in-session label without changing command
+  authority.
+- **Given** any named DRADIS contact at the edge of the plot, including a long
+  fleet or shuttle name, **when** the contact is rendered, sampled, moved, or
+  viewed at 320×844, 1440×900, or 844×390, **then** its complete visible name
+  stays inside the DRADIS viewport. Reduced motion preserves the same name and
+  containment while removing nonessential movement.
+- **Given** a joined supported session whose exact printed roster does not
+  include optional Press, **when** a player opens `Independent stations`,
+  **then** the SNN Press Shuttle and Press Officer remain selectable as one
+  independent added station, the shared shuttle route loads, and its visible
+  return control reaches the roster without altering the printed roster or
+  setup-readiness count.
+- **Given** one connected player has authoritatively claimed Press Officer,
+  **when** that player publishes or dismisses an SNN dispatch, **then** the
+  server still enforces membership, exclusive live console ownership, Turn 1,
+  session, and revision checks; another player cannot impersonate Press and a
+  rejected action makes no shared-state change. The dispatch, shuttle console,
+  live status, focus, and reduced-motion presentation remain accessible.
+
+**Dependencies:** preserve the exact Prompt 004/051 printed roster and setup
+readiness; extend the existing typed `press-officer`/`snn-press-shuttle`
+catalog, `/press` shared shuttle route, server-owned presence claim, guarded
+Press dispatch callable, and shared `ContactPlot`. This objective does not add
+general shuttle movement or claim Prompt 605 complete beyond the viewport-safe
+contact-name regression.
+
+**Exit gate:** focused tests first fail on all four regressions and then pass;
+the authoritative Press claim/dispatch denial cases remain green; responsive
+and reduced-motion visual review finds no clipped contact name or trapped
+route; the complete reconciled product release gate passes.
 
 ### Milestone 1 — Cast and start a real game
 
@@ -2019,7 +2066,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 273 — [PRESERVE] Register the PDF Escort Fighter Wing.** Acceptance: four-fighter cap, independent mission participation, combat launch, bonuses, and Colonel ownership are distinct.
 - **Prompt 274 — [PRESERVE] Register J.E.U. Wobbly completely.** Acceptance: its cargo and fuelled recharge belong to Wobbly despite copied Condor text and follow the active Union assignment.
 - **Prompt 275 — [PRESERVE] Register J.E.U. Ally completely.** Acceptance: cargo, repair, dismantle, permission, and fuel rule belong to Ally despite copied Chacau/Philia text.
-- **Prompt 275a — [NEW] Register the SNN Independent Press Shuttle.** Acceptance: unaffiliated ownership, current host, Press Officer route, movement exception, equipment, and enabled-session behavior remain distinct from printed fleet craft.
+- **Prompt 275a — [NEW] Register the SNN Independent Press Shuttle.** Acceptance: given any joined supported session, when a player opens Independent stations, then SNN Press remains an independently selectable Press Officer/shuttle console without changing the exact printed roster; exclusive server-owned console claim, current host, movement exception, dispatch authority, equipment, return route, and enabled-session behavior remain distinct from printed fleet craft.
 - **Prompt 275b — [PROVE] Verify Press dispatch and bridge presentation.** Acceptance: an authorized dispatch reaches the intended audience and newspaper/confetti presentation follows current dock, accessibility, and reduced-motion rules without becoming authority.
 - **Prompt 276 — [PRESERVE] Assign the Quellon/Refinery Union pair.** Acceptance: the engineer runs only those two maintenance lanes and their configured craft during allowed movement.
 - **Prompt 277 — [PRESERVE] Assign the Shepherd/Icebreaker Union pair.** Acceptance: the alternate engineer receives only those two lanes and corresponding craft.
@@ -2385,7 +2432,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 595 — [PRESERVE] Display the derived application version.** Acceptance: Settings reads runtime package metadata and never carries a handwritten version.
 - **Prompt 596 — [PRESERVE] Display bounded changelog history.** Acceptance: newest player-facing entry appears first in an independently scrollable accessible region.
 - **Prompt 597 — [PRESERVE] Complete exact disconnect confirmation.** Acceptance: danger styling and the required two-step `ARE YOU SURE?` flow queue presence cleanup, clear local state, and reach landing.
-- **Prompt 598 — [PRESERVE] Explain connectivity truthfully.** Acceptance: connected, offline, stale, pending, denied, retrying, and closed states derive from real signals.
+- **Prompt 598 — [PRESERVE] Explain connectivity truthfully.** Acceptance: connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
 - **Prompt 599 — [EXTEND] Build the facilitator setup checklist.** Acceptance: two-facilitator duties, room/components, chart, casting, loyalties, and readiness are tracked without mutating gameplay.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
@@ -2395,7 +2442,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 602 — [PROVE] Prove return navigation everywhere.** Acceptance: every nonlanding route has a visible keyboard-accessible logical return that preserves state unless explicitly released.
 - **Prompt 603 — [EXTEND] Make ship consoles work on narrow phones.** Acceptance: maintenance order, stores, damage, status, and primary action remain readable without clipped critical content.
 - **Prompt 604 — [EXTEND] Make maintenance work in short landscape.** Acceptance: every step and result is reachable with intentional scrolling and no obscured control.
-- **Prompt 605 — [EXTEND] Make DRADIS responsive.** Acceptance: group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes.
+- **Prompt 605 — [EXTEND] Make DRADIS responsive.** Acceptance: group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes; every complete visible contact name stays inside the DRADIS viewport at every supported edge, orientation, and motion preference.
 - **Prompt 606 — [EXTEND] Make shuttle travel touch-operable.** Acceptance: departure, destination, retarget, dock, park, and denial use 44px targets without hover or precision drag.
 - **Prompt 607 — [EXTEND] Make jump controls keyboard-complete.** Acceptance: digit editing, lock, power rail alternative, submission, pending, denial, success, and recovery work without a pointer.
 - **Prompt 608 — [EXTEND] Own dialog focus correctly.** Acceptance: settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.

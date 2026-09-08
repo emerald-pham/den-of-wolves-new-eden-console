@@ -11,6 +11,13 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['275a'],
+    changes: [
+      'SNN Press is always available from Independent Stations with its own shuttle console, while connection and DRADIS labels remain truthful and readable at every supported screen size.',
+    ],
+  },
+  {
+    version: '0.3.9',
     implementationPrompts: [4, 51],
     changes: [
       'Every supported table size now receives a complete printed-roster-compatible cast through lobby setup and game start, including the documented low-count AEGIS role decision.',
