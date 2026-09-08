@@ -2,10 +2,10 @@
 
 This tracker records the first 100 numbered prompts in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
-worked through only after its `[PRESERVE]`, `[EXTEND]`, `[NEW]`, `[PROVE]`, or
-`[DECISION]` acceptance has been audited or implemented with named evidence.
-The tracker is the progress bar for this execution slice; it is not a claim
-that later prompts are complete.
+complete only after its `[PRESERVE]`, `[EXTEND]`, `[NEW]`, `[PROVE]`, or
+`[DECISION]` acceptance has been fully satisfied with named evidence. The
+completed count is deliberately non-sequential: later prompts may be complete
+while an earlier prompt remains partial or missing.
 
 Completed prompts are also marked with `- [x]` in the execution checklist in
 the source plan. Open or blocked prompts remain unchecked there so a later
@@ -13,16 +13,41 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**64 / 100 prompts worked through (64%)**
+**64 / 100 prompts complete (64%)**
+
+Status breakdown: **64 done · 28 partial · 8 missing**.
+
+Active prompt: **none**.
+
+The resume pointer is separate from the completion count. It is the
+lowest-numbered prompt that is not done, not a sequential cursor or a claim
+that only that many prompts have been completed. In this snapshot, Prompt 004
+is the first unresolved prompt even though later prompts are already complete.
 
 `[█████████████░░░░░░░]`
 
-Each bar block represents approximately five prompts. Legend: `done` = the
-acceptance is satisfied with named evidence, `partial` = a real seam exists
-but at least one acceptance boundary remains, `missing` = no truthful
+Each bar block represents approximately five completed prompts. Legend: `done`
+= the acceptance is satisfied with named evidence, `partial` = a real seam
+exists but at least one acceptance boundary remains, `missing` = no truthful
 production-path acceptance exists yet, and `blocked` = a concrete external or
 product decision is required. Only `done` prompts are checked in the source
 plan.
+
+## Progress integrity gate
+
+This page is a checked status contract, not a manually edited progress
+summary. Run `npm run validate:implementation-progress` after changing the
+ledger and before reporting progress. The gate cross-checks the prompt IDs and
+statuses, the headline count and percentage, the status breakdown, the checked
+source-plan boxes, and the resume pointer. It also prints the canonical
+aggregate status sentence so “complete” and “resume” cannot be conflated.
+
+When work starts, set `Active prompt` to the first unresolved prompt and change
+that ledger row to `in-progress`. Exactly one prompt may be `in-progress`. The
+move-on gate fails while that row is open: mark it `done`, `partial`, `missing`,
+or `blocked` with evidence before selecting another prompt. A non-`done` result
+remains the resume point, so marking a prompt partial, missing, or blocked does
+not authorize silently skipping it.
 
 ## Execution ledger
 
@@ -136,9 +161,10 @@ plan.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 004 is the first unchecked acceptance; Prompt 020 is
-  the first missing production-path composition proof after the documented
-  preserve contracts.
+- Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;
+  this is independent of the 64 completed prompts. Prompt 020 is the first
+  missing production-path composition proof after the documented preserve
+  contracts.
 - Application version `0.3.5` is reserved for this first-100 slice. If the
   final work is documentation-only, the version reservation must be reconciled
   before closeout rather than left as an unearned release.
