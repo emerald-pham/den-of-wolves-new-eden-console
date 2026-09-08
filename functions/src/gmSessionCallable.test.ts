@@ -132,6 +132,7 @@ import {
   logoutGmAccess,
   kickPlayer,
   releaseGmInstance,
+  setFacilitatorResponsibility,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 
@@ -228,6 +229,34 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('lets one active GM instance carry both printed responsibilities', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 1,
+      responsibilities: ['main', 'assistant'],
+      coverage: { main: ['bridge'], assistant: ['bridge'] },
+    });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      responsibilities: ['main', 'assistant'],
+    });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({ status: 'replayed', setupRevision: 1 });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
   it('logs in and out of persistent GM access', async () => {
     await expect(loginGmAccess.run(request({ password: 'bananasplit' })))
       .resolves.toEqual({ authenticated: true });

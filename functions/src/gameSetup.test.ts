@@ -9,6 +9,8 @@ import {
   roleAssignmentDecision,
   projectPrivateSetup,
   wolfCountForPlayerCount,
+  normalizePersistedSessionConfiguration,
+  stableSeatsForRoles,
 } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
 
@@ -16,12 +18,12 @@ describe('authoritative setup configuration', () => {
   it('normalizes the legacy session shape to a printed base-game configuration', () => {
     expect(normalizeSessionConfiguration({})).toEqual(DEFAULT_SESSION_CONFIGURATION);
     expect(normalizeSessionConfiguration({
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
     })).toEqual({
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
@@ -41,6 +43,57 @@ describe('authoritative setup configuration', () => {
     ['dione', { playerCount: 8, dioneEnabled: true }],
   ])('rejects an unsupported %s option before writes', (_name, input) => {
     expect(() => normalizeSessionConfiguration(input)).toThrow();
+  });
+
+  it('rejects a base 19/20 request and lower-count Capybara substitution before any write', () => {
+    expect(() => normalizeSessionConfiguration({
+      playerCount: 19,
+      expansion: 'base',
+      capybaraEnabled: false,
+    })).toThrow(/Capybara expansion/i);
+    expect(() => normalizeSessionConfiguration({
+      playerCount: 18,
+      expansion: 'capybara',
+    })).toThrow(/19 or 20/i);
+  });
+
+  it('hydrates a legacy lower-count Capybara marker as a valid base tuple', () => {
+    expect(normalizePersistedSessionConfiguration({
+      playerCount: 14,
+      chartId: 'A',
+      expansion: 'capybara',
+      turnLimit: 8,
+      capybaraEnabled: true,
+    })).toEqual({
+      playerCount: 14,
+      chartId: 'A',
+      expansion: 'base',
+      turnLimit: 8,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+    });
+  });
+
+  it('uses the canonical CIC role and vessel labels for stable seats', () => {
+    expect(stableSeatsForRoles([
+      'admiral', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'capybara-recycler',
+    ])).toEqual([
+      expect.objectContaining({
+        id: 'admiral', label: 'AEGIS // Admiral', factionId: 'aegis',
+      }),
+      expect.objectContaining({
+        id: 'refinery-124-pdf-colonel', label: 'Refinery 124 // P.D.F. Colonel', factionId: 'refinery-124',
+      }),
+      expect.objectContaining({
+        id: 'joint-engineering-quellon-refinery',
+        label: 'Joint Engineering Union // Quellon / Refinery Engineer',
+        factionId: 'joint-engineering-union',
+      }),
+      expect.objectContaining({
+        id: 'capybara-recycler', label: 'Capybara // Capybara Recycler', factionId: 'capybara',
+      }),
+    ]);
   });
 
   it('maps the printed player-count range to one or two hidden wolves', () => {

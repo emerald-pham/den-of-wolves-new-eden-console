@@ -39,6 +39,8 @@ import {
   setShipConsoleLock,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
+  setCapybaraEnabled,
+  setDioneEnabled,
   unlockPressAirspace,
 } from './index';
 import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
@@ -206,19 +208,17 @@ it('does not let a GM add a Union role alongside the engineers it replaces', asy
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('accepts one confirmed Union roster and rejects an invalid replacement combination', async () => {
+it('retires the partial role configuration callable and preserves invalid-combination denial', async () => {
   const validRoleIds = recommendedRoleIds(14);
-  const expectedRoleIds = ROLE_IDS.filter((roleId) => validRoleIds.includes(roleId));
   await expect(setActiveRoleConfiguration.run(request({
     sessionId: 's1',
     instanceId: 'bridge',
     activeRoleIds: validRoleIds,
-  }))).resolves.toEqual({ activeRoleIds: expectedRoleIds });
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    activeRoleIds: expectedRoleIds,
-  }));
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/confirmSetup/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
 
-  mock.update.mockClear();
   await expect(setActiveRoleConfiguration.run(request({
     sessionId: 's1',
     instanceId: 'bridge',
@@ -228,6 +228,33 @@ it('accepts one confirmed Union roster and rejects an invalid replacement combin
       'quellon-engineer',
     ],
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('retires every legacy setup mutator behind the complete confirmSetup transaction', async () => {
+  const commands = [
+    () => setActiveRoleEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', roleId: 'admiral', enabled: false,
+    })),
+    () => setActiveRoleConfiguration.run(request({
+      sessionId: 's1', instanceId: 'bridge', activeRoleIds: recommendedRoleIds(14),
+    })),
+    () => import('./index').then(({ applyRolePreset }) => applyRolePreset.run(request({
+      sessionId: 's1', instanceId: 'bridge', playerCount: 14,
+    }))),
+    () => setCapybaraEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', capybaraEnabled: false,
+    })),
+    () => setDioneEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', dioneEnabled: false,
+    })),
+  ];
+
+  for (const command of commands) {
+    await expect(command()).rejects.toMatchObject({
+      code: 'failed-precondition', message: expect.stringMatching(/confirmSetup/i),
+    });
+  }
   expect(mock.update).not.toHaveBeenCalled();
 });
 

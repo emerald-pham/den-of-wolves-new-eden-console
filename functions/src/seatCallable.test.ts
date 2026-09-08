@@ -156,15 +156,72 @@ beforeEach(() => {
   mock.set.mockClear();
   mock.remove.mockClear();
   mock.resetTransactions();
+  put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 0 });
 });
 
 describe('claimSeat', () => {
+  it('commits a revisioned, replay-safe seat receipt, pointer, and member-safe event', async () => {
+    put('sessions/s1', {
+      phase: 'lobby',
+      currentTurn: 0,
+      configurationLocked: false,
+      setupRevision: 0,
+    });
+    player('u1');
+    seat('admiral');
+
+    const command = {
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: 'claim-admiral-1',
+      expectedSetupRevision: 0,
+    };
+    await expect(claimSeat.run(request(command))).resolves.toMatchObject({
+      status: 'committed',
+      requestId: 'claim-admiral-1',
+      setupRevision: 1,
+      seatId: 'admiral',
+      holderUid: 'u1',
+    });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 1 });
+    expect(read('sessions/s1/events/seat-claim-claim-admiral-1')).toMatchObject({
+      type: 'seat-claim',
+      seatId: 'admiral',
+      actorUid: 'u1',
+      revision: 1,
+    });
+
+    await expect(claimSeat.run(request(command))).resolves.toMatchObject({
+      status: 'replayed',
+      requestId: 'claim-admiral-1',
+      setupRevision: 1,
+    });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 1 });
+  });
+
+  it('rejects a stale claim before mutating either seat, pointer, revision, or event', async () => {
+    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 3 });
+    player('u1');
+    seat('admiral');
+
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'claim-stale', expectedSetupRevision: 2,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'open', holderUid: null });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: null });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
+    expect(read('sessions/s1/events/seat-claim-claim-stale')).toBeUndefined();
+  });
+
   it('claims an open seat and records the pointer in the same transaction', async () => {
     player('u1');
     seat('seat-1');
 
-    await expect(claimSeat.run(request({ sessionId: 's1', seatId: 'seat-1' })))
-      .resolves.toEqual({ seatId: 'seat-1', holderUid: 'u1' });
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'claim-seat-1', expectedSetupRevision: 0,
+    }))).resolves.toMatchObject({
+      status: 'committed', seatId: 'seat-1', holderUid: 'u1', setupRevision: 1,
+    });
 
     expect(read('sessions/s1/seats/seat-1')).toMatchObject({
       status: 'claimed',
@@ -190,7 +247,9 @@ describe('claimSeat', () => {
     const beforeSeat = read('sessions/s1/seats/seat-1');
     const beforePlayer = read('sessions/s1/players/u1');
 
-    await expect(claimSeat.run(request({ sessionId: 's1', seatId: 'seat-1' })))
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: `claim-${_name.replaceAll(' ', '-')}`, expectedSetupRevision: 0,
+    })))
       .rejects.toMatchObject({ code });
 
     expect(read('sessions/s1/seats/seat-1')).toEqual(beforeSeat);
@@ -203,8 +262,12 @@ describe('claimSeat', () => {
     seat('seat-1');
 
     const outcomes = await Promise.allSettled([
-      claimSeat.run(request({ sessionId: 's1', seatId: 'seat-1' }, 'u1')),
-      claimSeat.run(request({ sessionId: 's1', seatId: 'seat-1' }, 'u2')),
+      claimSeat.run(request({
+        sessionId: 's1', seatId: 'seat-1', requestId: 'claim-race-u1', expectedSetupRevision: 0,
+      }, 'u1')),
+      claimSeat.run(request({
+        sessionId: 's1', seatId: 'seat-1', requestId: 'claim-race-u2', expectedSetupRevision: 0,
+      }, 'u2')),
     ]);
 
     expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
@@ -217,12 +280,45 @@ describe('claimSeat', () => {
 });
 
 describe('releaseSeat', () => {
+  it('commits a revisioned self-release and replays without a second event', async () => {
+    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 4 });
+    player('u1', { seatId: 'admiral' });
+    seat('admiral', { status: 'claimed', holderUid: 'u1', claimedAt: 'server-time' });
+
+    const command = {
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: 'release-admiral-1',
+      expectedSetupRevision: 4,
+    };
+    await expect(releaseSeat.run(request(command))).resolves.toMatchObject({
+      status: 'committed',
+      requestId: 'release-admiral-1',
+      setupRevision: 5,
+      seatId: 'admiral',
+    });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 5 });
+    expect(read('sessions/s1/events/seat-release-release-admiral-1')).toMatchObject({
+      type: 'seat-release',
+      seatId: 'admiral',
+      actorUid: 'u1',
+      revision: 5,
+    });
+
+    await expect(releaseSeat.run(request(command))).resolves.toMatchObject({
+      status: 'replayed',
+      requestId: 'release-admiral-1',
+      setupRevision: 5,
+    });
+  });
+
   it('opens a held seat and clears only the matching player pointer', async () => {
     player('u1', { seatId: 'seat-1' });
     seat('seat-1', { status: 'claimed', holderUid: 'u1', claimedAt: 'server-time' });
 
-    await expect(releaseSeat.run(request({ sessionId: 's1', seatId: 'seat-1' })))
-      .resolves.toEqual({ seatId: 'seat-1' });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-seat-1', expectedSetupRevision: 0,
+    }))).resolves.toMatchObject({ status: 'committed', seatId: 'seat-1', setupRevision: 1 });
 
     expect(read('sessions/s1/seats/seat-1')).toEqual({
       status: 'open',
@@ -236,23 +332,32 @@ describe('releaseSeat', () => {
     player('u1', { seatId: 'seat-2' });
     seat('seat-1', { status: 'claimed', holderUid: 'u1' });
 
-    await releaseSeat.run(request({ sessionId: 's1', seatId: 'seat-1' }));
+    await releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-stale-seat', expectedSetupRevision: 0,
+    }));
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: 'seat-2' });
   });
 
   it('allows an active GM to release another player seat but denies an ordinary non-holder', async () => {
+    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 0 });
     player('u1', { role: 'gm' });
     player('u2', { seatId: 'seat-1' });
     seat('seat-1', { status: 'claimed', holderUid: 'u2' });
+    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
 
-    await releaseSeat.run(request({ sessionId: 's1', seatId: 'seat-1' }, 'u1'));
+    await releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-by-gm', expectedSetupRevision: 0,
+      instanceId: 'bridge', reason: 'Roster correction',
+    }, 'u1'));
     expect(read('sessions/s1/players/u2')).toMatchObject({ seatId: null });
     expect(mock.directGet).not.toHaveBeenCalled();
 
     player('u1', { role: 'player' });
     seat('seat-2', { status: 'claimed', holderUid: 'u2' });
-    await expect(releaseSeat.run(request({ sessionId: 's1', seatId: 'seat-2' }, 'u1')))
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-2', requestId: 'release-denied', expectedSetupRevision: 1,
+    }, 'u1')))
       .rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1/seats/seat-2')).toMatchObject({ holderUid: 'u2' });
   });

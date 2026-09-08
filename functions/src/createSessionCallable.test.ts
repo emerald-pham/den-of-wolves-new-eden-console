@@ -38,7 +38,7 @@ vi.mock('firebase-admin/firestore', () => ({
   },
 }));
 
-import { applyRolePreset, createSession } from './index';
+import { applyRolePreset, confirmSetup, createSession } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -70,7 +70,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
     requestId: 'create-1',
     name: '  First table  ',
     displayName: '  Facilitator  ',
-    playerCount: 14,
+    playerCount: 19,
     chartId: 'B',
     expansion: 'capybara',
     turnLimit: 7,
@@ -78,7 +78,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
     session: {
       id: 'generated-session',
       name: 'First table',
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
@@ -90,7 +90,7 @@ it('creates one configured lobby and persists a replayable creation result atomi
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/generated-session' }),
     expect.objectContaining({
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
@@ -144,6 +144,35 @@ it('creates a nineteen-player lobby with the atomic Capybara pair and Dione-host
 });
 
 it.each([
+  [8, 'admiral'],
+  [19, 'capybara-captain'],
+  [20, 'capybara-recycler'],
+] as const)('provisions one stable authoritative seat catalog for the %i-player core at %s', async (playerCount, roleId) => {
+  await createSession.run(request({ requestId: `create-seats-${playerCount}`, playerCount }));
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: `sessions/generated-session/seats/${roleId}` }),
+    expect.objectContaining({
+      id: roleId,
+      roleId,
+      status: 'open',
+      holderUid: null,
+    }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/generated-session' }),
+    expect.objectContaining({
+      setup: expect.objectContaining({
+        playerCount,
+        activeRoleIds: expect.any(Array),
+        activeVesselIds: expect.any(Array),
+      }),
+      setupRevision: 0,
+    }),
+  );
+});
+
+it.each([
   [8, 'aegis'],
   [11, 'aegis'],
   [12, 'dione'],
@@ -169,34 +198,46 @@ it.each([
   );
 });
 
-it('applies the exact eight-player roster atomically through the GM preset callable', async () => {
+it('retires the partial role preset callable in favor of the complete setup tuple', async () => {
+  await expect(applyRolePreset.run(request({
+    sessionId: 's1', instanceId: 'bridge', playerCount: 8,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/confirmSetup/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies a downsize that would remove a claimed stable seat without mutating setup', async () => {
   mock.get.mockImplementation(async (ref: { path: string }) => {
-    if (ref.path === 'sessions/s1') return snapshot({ phase: 'lobby', configurationLocked: false });
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'lobby',
+        configurationLocked: false,
+        setupRevision: 2,
+        playerCount: 19,
+        expansion: 'capybara',
+        activeRoleIds: [
+          'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+          'dione-president', 'icebreaker-captain', 'icebreaker-engineer',
+          'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer',
+          'shepherd-scientist', 'quellon-captain', 'quellon-engineer',
+          'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer',
+          'refinery-124-pdf-colonel', 'capybara-captain', 'capybara-recycler',
+        ],
+      });
+    }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
     if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/seats/capybara-recycler') {
+      return snapshot({ status: 'claimed', holderUid: 'u9' });
+    }
     return snapshot({}, false);
   });
 
   await expect(applyRolePreset.run(request({
-    sessionId: 's1', instanceId: 'bridge', playerCount: 8,
-  }))).resolves.toEqual({
-    activeRoleIds: [
-      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
-      'quellon-explorer', 'refinery-124-pdf-colonel',
-      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
-    ],
-    playerCount: 8,
-  });
-  expect(mock.update).toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1' }),
-    expect.objectContaining({
-      activeRoleIds: [
-        'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
-        'quellon-explorer', 'refinery-124-pdf-colonel',
-        'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
-      ],
-    }),
-  );
+    sessionId: 's1', instanceId: 'bridge', playerCount: 18,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('does not claim a code already owned by another session', async () => {
@@ -231,5 +272,49 @@ it('replays the same session and join code for a retried request', async () => {
   });
 
   await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(reply);
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a setup replay when the tuple payload changes under the same request id', async () => {
+  const activeRoleIds = [
+    'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+    'quellon-explorer', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ];
+  const reply = {
+    status: 'committed', requestId: 'setup-1', setupRevision: 1,
+    setup: {
+      playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+      dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    },
+    activeRoleIds,
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/setupMutationRequests/setup-1') {
+      return snapshot({
+        action: 'confirm-setup', sessionId: 's1', actorUid: 'u1',
+        fingerprint: {
+          playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+          dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+        },
+        reply,
+      });
+    }
+    if (ref.path === 'sessions/s1') {
+      return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'setup-1', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 7,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });

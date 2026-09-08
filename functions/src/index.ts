@@ -40,7 +40,6 @@ import {
 import {
   requireDiceRequest,
   requireDebriefModeRequest,
-  requireDioneAvailabilityRequest,
   requirePressAvailabilityRequest,
   requireElevationRequest,
   requireGmAccessLoginRequest,
@@ -54,7 +53,6 @@ import {
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
-  requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
@@ -77,9 +75,7 @@ import {
   requireUid,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
-  requireActiveRoleSettingRequest,
-  requireRoleConfigurationRequest,
-  requireRolePresetRequest,
+  requireSetupConfirmationRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
 } from './requestGuards';
@@ -100,17 +96,20 @@ import {
   DEFAULT_ACTIVE_ROLE_IDS,
   isJointEngineeringRoleAvailable,
   isJointEngineeringRoleId,
-  isValidRoleConfiguration,
   jointEngineeringShipsForRole,
   ROLE_IDS,
   recommendedRoleIds,
 } from './roleConfiguration';
 import {
   activeVesselIdsForRoles,
+  canonicalSessionSetup,
   defaultSuspicionForLoyalty,
   loyaltyAssignmentDecision,
+  normalizeSessionConfiguration,
+  normalizePersistedSessionConfiguration,
   readinessForSetup,
   roleAssignmentDecision,
+  stableSeatsForRoles,
   type LoyaltyKind,
 } from './gameSetup';
 import {
@@ -686,6 +685,8 @@ export const createSession = onCall<{
       // here would silently create more role holders than configured players
       // and would mix base and expansion Capybara rules.
       const activeRoleIds = [...recommendedRoleIds(creation.configuration.playerCount)];
+      const setup = canonicalSessionSetup(creation.configuration, activeRoleIds);
+      const stableSeats = stableSeatsForRoles(activeRoleIds);
       const initialShuttleDockings = initialShuttleDockingsForRoles(activeRoleIds);
       const initialShuttleVisits = initialShuttleVisitsForDockings(initialShuttleDockings);
       const reply = {
@@ -701,6 +702,8 @@ export const createSession = onCall<{
           turnLimit: creation.configuration.turnLimit,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          setup,
+          activeVesselIds: setup.activeVesselIds,
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
@@ -783,6 +786,8 @@ export const createSession = onCall<{
           setupRevision: 0,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          setup,
+          activeVesselIds: setup.activeVesselIds,
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
@@ -810,6 +815,12 @@ export const createSession = onCall<{
           deleteAfter: null,
           deletingAt: null,
         });
+        for (const seat of stableSeats) {
+          tx.set(db.doc(`sessions/${sessionRef.id}/seats/${seat.id}`), {
+            ...seat,
+            sessionId: sessionRef.id,
+          });
+        }
         // GM authority is claimed per named browser instance after creation.
         tx.set(db.doc(`sessions/${sessionRef.id}/players/${uid}`), {
           uid,
@@ -861,6 +872,224 @@ function requireCastingWindow(session: DocumentSnapshot): void {
   }
 }
 
+function canonicalSetupForSession(
+  session: DocumentSnapshot,
+  activeRoleIds: readonly string[],
+  playerCountOverride?: number,
+) {
+  const playerCount = playerCountOverride ?? (
+    Number.isSafeInteger(session.get('playerCount')) ? session.get('playerCount') as number : 18
+  );
+  const expansion = playerCount >= 19
+    ? 'capybara'
+    : playerCountOverride === undefined && session.get('expansion') === 'capybara'
+      ? 'capybara'
+      : session.get('expansion') === 'none' ? 'none' : 'base';
+  const configurationInput = {
+    playerCount,
+    chartId: session.get('chartId'),
+    expansion,
+    turnLimit: session.get('turnLimit'),
+    dioneEnabled: session.get('dioneEnabled') !== false && playerCount >= 12,
+    capybaraEnabled: expansion !== 'none' && (playerCount >= 19 || session.get('capybaraEnabled') !== false),
+  };
+  const configuration = playerCountOverride === undefined
+    ? normalizePersistedSessionConfiguration(configurationInput)
+    : normalizeSessionConfiguration(configurationInput);
+  return canonicalSessionSetup(configuration, activeRoleIds);
+}
+
+/** Reconcile role-keyed seats before writing the tuple that advertises them. */
+async function reconcileStableSeats(
+  tx: Transaction,
+  sessionId: string,
+  currentRoleIds: readonly string[],
+  nextRoleIds: readonly string[],
+): Promise<void> {
+  const next = new Set(nextRoleIds);
+  const current = new Set(currentRoleIds);
+  const roleIds = [...new Set([...currentRoleIds, ...nextRoleIds])];
+  const snapshots = await Promise.all(roleIds.map(async (roleId) => ({
+    roleId,
+    snapshot: await tx.get(db.doc(`sessions/${sessionId}/seats/${roleId}`)),
+  })));
+  const byRole = new Map(snapshots.map(({ roleId, snapshot }) => [roleId, snapshot]));
+  const removed = currentRoleIds.filter((roleId) => !next.has(roleId));
+  const claimedSeat = removed
+    .map((roleId) => ({ roleId, snapshot: byRole.get(roleId)! }))
+    .find(({ snapshot }) =>
+      snapshot.exists && snapshot.get('status') === 'claimed' && snapshot.get('holderUid'));
+  if (claimedSeat) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Seat ${claimedSeat.roleId} is claimed and cannot be removed from the setup.`,
+    );
+  }
+
+  for (const roleId of removed) {
+    if (byRole.get(roleId)?.exists) {
+      tx.update(db.doc(`sessions/${sessionId}/seats/${roleId}`), {
+        status: 'locked',
+        holderUid: null,
+        claimedAt: null,
+      });
+    }
+  }
+  for (const seat of stableSeatsForRoles(nextRoleIds)) {
+    const stored = byRole.get(seat.id);
+    if (stored?.exists && current.has(seat.id)) continue;
+    tx.set(db.doc(`sessions/${sessionId}/seats/${seat.id}`), {
+      ...seat,
+      sessionId,
+    });
+  }
+}
+
+function setupWriteFields(setup: ReturnType<typeof canonicalSetupForSession>) {
+  return {
+    setup,
+    playerCount: setup.playerCount,
+    chartId: setup.chartId,
+    expansion: setup.expansion,
+    turnLimit: setup.turnLimit,
+    dioneEnabled: setup.dioneEnabled,
+    capybaraEnabled: setup.capybaraEnabled,
+    activeRoleIds: [...setup.activeRoleIds],
+    activeVesselIds: [...setup.activeVesselIds],
+  };
+}
+
+type SetupCommandFingerprint = {
+  readonly playerCount: number;
+  readonly chartId: string;
+  readonly expansion: string;
+  readonly turnLimit: number;
+  readonly dioneEnabled: boolean;
+  readonly capybaraEnabled: boolean;
+  readonly activeRoleIds: readonly string[];
+};
+
+function setupCommandFingerprint(
+  configuration: ReturnType<typeof normalizeSessionConfiguration>,
+  activeRoleIds: readonly string[],
+): SetupCommandFingerprint {
+  return {
+    playerCount: configuration.playerCount,
+    chartId: configuration.chartId,
+    expansion: configuration.expansion,
+    turnLimit: configuration.turnLimit,
+    dioneEnabled: configuration.dioneEnabled,
+    capybaraEnabled: configuration.capybaraEnabled,
+    activeRoleIds: [...activeRoleIds],
+  };
+}
+
+function sameSetupCommandFingerprint(
+  value: unknown,
+  expected: SetupCommandFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.playerCount === expected.playerCount &&
+    candidate.chartId === expected.chartId &&
+    candidate.expansion === expected.expansion &&
+    candidate.turnLimit === expected.turnLimit &&
+    candidate.dioneEnabled === expected.dioneEnabled &&
+    candidate.capybaraEnabled === expected.capybaraEnabled &&
+    Array.isArray(candidate.activeRoleIds) &&
+    candidate.activeRoleIds.length === expected.activeRoleIds.length &&
+    candidate.activeRoleIds.every((roleId, index) => roleId === expected.activeRoleIds[index]);
+}
+
+function rejectLegacySetupMutation(): never {
+  throw new HttpsError(
+    'failed-precondition',
+    'Legacy setup mutations are disabled; submit the complete tuple through confirmSetup.',
+  );
+}
+
+/** Confirm the complete setup tuple in one authoritative, replayable write. */
+export const confirmSetup = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  setup?: unknown;
+  playerCount?: unknown;
+  chartId?: unknown;
+  expansion?: unknown;
+  turnLimit?: unknown;
+  dioneEnabled?: unknown;
+  capybaraEnabled?: unknown;
+  activeRoleIds?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = requireSetupConfirmationRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${command.sessionId}`);
+  const requestRef = db.doc(`sessions/${command.sessionId}/setupMutationRequests/${command.requestId}`);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/setup-confirm-${command.requestId}`);
+
+  return db.runTransaction(async (tx) => {
+    const [prior, authority] = await Promise.all([
+      tx.get(requestRef),
+      requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+    ]);
+    if (prior.exists) {
+      if (
+        prior.get('action') !== 'confirm-setup' ||
+        prior.get('sessionId') !== command.sessionId ||
+        prior.get('actorUid') !== uid ||
+        prior.get('instanceId') !== command.instanceId
+      ) {
+        throw new HttpsError('failed-precondition', 'This request id belongs to a different setup command.');
+      }
+      const expectedFingerprint = setupCommandFingerprint(command.configuration, command.activeRoleIds);
+      if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different setup tuple.');
+      }
+      const reply = prior.get('reply');
+      if (typeof reply !== 'object' || reply === null) {
+        throw new HttpsError('failed-precondition', 'This setup request has no replayable result.');
+      }
+      return { ...(reply as Record<string, unknown>), status: 'replayed' };
+    }
+    if (setupRevision(authority.session) !== command.expectedSetupRevision) {
+      throw new HttpsError('failed-precondition', 'Setup changed. Refresh the configuration before confirming.');
+    }
+    requireCastingWindow(authority.session);
+    const currentRoleIds = sessionActiveRoleIds(authority.session);
+    await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
+    const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
+    const fingerprint = setupCommandFingerprint(command.configuration, command.activeRoleIds);
+    const reply = {
+      status: 'committed' as const,
+      requestId: command.requestId,
+      setupRevision: command.expectedSetupRevision + 1,
+      setup,
+      activeRoleIds: [...setup.activeRoleIds],
+      activeVesselIds: [...setup.activeVesselIds],
+    };
+    tx.update(sessionRef, {
+      ...setupWriteFields(setup),
+      setupRevision: reply.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'setup-confirm', action: 'confirm-setup', requestId: command.requestId,
+      actorUid: uid, instanceId: command.instanceId, revision: reply.setupRevision,
+      fingerprint,
+      activeRoleIds: [...setup.activeRoleIds], createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      action: 'confirm-setup', requestId: command.requestId,
+      sessionId: command.sessionId, actorUid: uid, instanceId: command.instanceId,
+      fingerprint, reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
+
 async function requireFacilitatorInstance(
   tx: Transaction,
   sessionId: string,
@@ -883,16 +1112,69 @@ async function requireFacilitatorInstance(
 }
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
+type FacilitatorResponsibility = 'main' | 'assistant';
+
+function normalizedResponsibilities(instance: Pick<DocumentSnapshot, 'get'>): FacilitatorResponsibility[] {
+  const stored = instance.get('responsibilities');
+  if (Array.isArray(stored)) {
+    return ['main', 'assistant'].filter((responsibility) =>
+      stored.includes(responsibility)) as FacilitatorResponsibility[];
+  }
+  const legacy = instance.get('responsibility');
+  return legacy === 'main' || legacy === 'assistant' ? [legacy] : [];
+}
+
+function responsibilityCoverage(instances: readonly DocumentSnapshot[]) {
+  return {
+    main: instances.filter((instance) => normalizedResponsibilities(instance).includes('main')).map((instance) => instance.id),
+    assistant: instances.filter((instance) => normalizedResponsibilities(instance).includes('assistant')).map((instance) => instance.id),
+  };
+}
+
 export const setFacilitatorResponsibility = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
   responsibility?: unknown;
+  mode?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${responsibility.sessionId}`);
   const instanceRef = db.doc(`sessions/${responsibility.sessionId}/gmInstances/${responsibility.instanceId}`);
   const instancesRef = db.collection(`sessions/${responsibility.sessionId}/gmInstances`);
+  const requestRef = db.doc(
+    `sessions/${responsibility.sessionId}/gmResponsibilityRequests/${responsibility.requestId}`,
+  );
+  const eventRef = db.doc(
+    `sessions/${responsibility.sessionId}/events/gm-responsibility-${responsibility.requestId}`,
+  );
   return db.runTransaction(async (tx) => {
+    const prior = await tx.get(requestRef);
+    const fingerprint = {
+      action: 'set-facilitator-responsibility',
+      sessionId: responsibility.sessionId,
+      instanceId: responsibility.instanceId,
+      actorUid: uid,
+      responsibility: responsibility.responsibility,
+      mode: responsibility.mode,
+    } as const;
+    if (prior.exists) {
+      const stored = prior.get('fingerprint');
+      const same = typeof stored === 'object' && stored !== null &&
+        Object.entries(fingerprint).every(([key, value]) =>
+          (stored as Record<string, unknown>)[key] === value);
+      if (!same) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different responsibility command.');
+      }
+      const reply = prior.get('reply');
+      if (typeof reply !== 'object' || reply === null) {
+        throw new HttpsError('failed-precondition', 'This responsibility request has no replayable result.');
+      }
+      return { ...(reply as Record<string, unknown>), status: 'replayed' };
+    }
+
     const [authority, instance, instances] = await Promise.all([
       requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
       tx.get(instanceRef),
@@ -900,15 +1182,85 @@ export const setFacilitatorResponsibility = onCall<{
     ]);
     requireCastingWindow(authority.session);
     if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
-    const claimedByAnother = instances.docs.some((candidate) =>
-      candidate.id !== responsibility.instanceId &&
-      candidate.get('responsibility') === responsibility.responsibility,
-    );
-    if (claimedByAnother) {
-      throw new HttpsError('already-exists', 'That facilitator responsibility is already staffed.');
+    if (setupRevision(authority.session) !== responsibility.expectedSetupRevision) {
+      throw new HttpsError('failed-precondition', 'Setup changed. Refresh facilitator responsibilities before saving.');
     }
-    tx.update(instanceRef, { responsibility: responsibility.responsibility });
-    return { responsibility: responsibility.responsibility };
+
+    const onlyInstance = instances.docs.length === 1;
+    if (onlyInstance && responsibility.mode === 'drop') {
+      throw new HttpsError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.');
+    }
+
+    const nextByInstance = new Map<string, FacilitatorResponsibility[]>(
+      instances.docs.map((candidate) => [candidate.id, normalizedResponsibilities(candidate)]),
+    );
+    const current = nextByInstance.get(instance.id) ?? [];
+    if (onlyInstance) {
+      nextByInstance.set(instance.id, ['main', 'assistant']);
+    } else if (responsibility.mode === 'drop') {
+      nextByInstance.set(
+        instance.id,
+        current.filter((lane) => lane !== responsibility.responsibility),
+      );
+    } else {
+      for (const [candidateId, lanes] of nextByInstance) {
+        if (responsibility.mode === 'handoff' && candidateId !== instance.id) {
+          nextByInstance.set(candidateId, lanes.filter((lane) => lane !== responsibility.responsibility));
+        }
+      }
+      nextByInstance.set(instance.id, [...new Set([...current, responsibility.responsibility])]);
+    }
+
+    for (const candidate of instances.docs) {
+      const responsibilities = nextByInstance.get(candidate.id) ?? [];
+      const legacyResponsibility = responsibilities[0] ?? null;
+      tx.update(candidate.ref, {
+        responsibilities,
+        // Keep the singular field for legacy clients; the array is authoritative.
+        responsibility: legacyResponsibility,
+      });
+    }
+
+    const nextRevision = responsibility.expectedSetupRevision + 1;
+    const nextInstances = instances.docs.map((candidate) => ({
+      ...candidate,
+      get: (field: string) => field === 'responsibilities'
+        ? nextByInstance.get(candidate.id) ?? []
+        : field === 'responsibility'
+          ? (nextByInstance.get(candidate.id)?.[0] ?? null)
+          : candidate.get(field),
+    } as DocumentSnapshot));
+    const reply = {
+      status: 'committed' as const,
+      requestId: responsibility.requestId,
+      setupRevision: nextRevision,
+      responsibilities: nextByInstance.get(instance.id) ?? [],
+      coverage: responsibilityCoverage(nextInstances),
+    };
+    tx.update(sessionRef, {
+      setupRevision: nextRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'gm-responsibility',
+      action: 'set-facilitator-responsibility',
+      actorUid: uid,
+      requestId: responsibility.requestId,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
+      revision: nextRevision,
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      ...fingerprint,
+      requestId: responsibility.requestId,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 
@@ -964,9 +1316,11 @@ export const startGame = onCall<{
       .map((secret) => secret.id)
       .filter((id) => id.startsWith('loyalty-'))
       .map((id) => id.slice('loyalty-'.length));
+    // Read the authoritative array while accepting the legacy singular field;
+    // this is representation-only and does not change start/readiness policy.
     const responsibilities = {
-      main: instances.docs.some((instance) => instance.get('responsibility') === 'main'),
-      assistant: instances.docs.some((instance) => instance.get('responsibility') === 'assistant'),
+      main: instances.docs.some((instance) => normalizedResponsibilities(instance).includes('main')),
+      assistant: instances.docs.some((instance) => normalizedResponsibilities(instance).includes('assistant')),
     };
     const playerCount = typeof authority.session.get('playerCount') === 'number'
       ? authority.session.get('playerCount') as number
@@ -1660,12 +2014,18 @@ function gmInstanceFrom(
   id: string,
   data: FirebaseFirestore.DocumentData,
 ) {
+  const responsibilities = Array.isArray(data.responsibilities)
+    ? ['main', 'assistant'].filter((responsibility) => data.responsibilities.includes(responsibility))
+    : data.responsibility === 'main' || data.responsibility === 'assistant'
+      ? [data.responsibility]
+      : [];
   return {
     id,
     sessionId,
     uid: data.uid as string,
     name: cleanName(data.name, 'GM instance', 40),
     deviceLabel: cleanName(data.deviceLabel, 'Unknown device', 160),
+    ...(responsibilities.length > 0 ? { responsibilities } : {}),
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
       ? { responsibility: data.responsibility } : {}),
     claimedAt: isoOf(data.claimedAt),
@@ -1756,11 +2116,15 @@ export const claimGmInstance = onCall<{
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
+    const firstActiveGm = activeInstances.docs.length === 0;
     tx.set(instanceRef, {
       uid,
       sessionId: claim.sessionId,
       name: claim.name,
       deviceLabel: claim.deviceLabel,
+      ...(firstActiveGm
+        ? { responsibilities: ['main', 'assistant'], responsibility: 'main' }
+        : {}),
       claimedAt: existing.get('claimedAt') ?? FieldValue.serverTimestamp(),
     });
     tx.update(playerRef, {
@@ -1957,34 +2321,8 @@ export const setCapybaraEnabled = onCall<{
   instanceId?: string;
   capybaraEnabled?: boolean;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireShipAvailabilityRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
-  );
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef),
-      tx.get(playerRef),
-      tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, {
-      capybaraEnabled: setting.capybaraEnabled,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  });
-
-  return { capybaraEnabled: setting.capybaraEnabled };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Include or remove the optional SNN Press station independently of the core roster. */
@@ -2097,34 +2435,8 @@ export const setDioneEnabled = onCall<{
   instanceId?: string;
   dioneEnabled?: boolean;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireDioneAvailabilityRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
-  );
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef),
-      tx.get(playerRef),
-      tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, {
-      dioneEnabled: setting.dioneEnabled,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  });
-
-  return { dioneEnabled: setting.dioneEnabled };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Move one fleet ship on the organiser chart and write the bridge audit trail. */
@@ -2789,40 +3101,8 @@ export const setActiveRoleEnabled = onCall<{
   roleId?: string;
   enabled?: boolean;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireActiveRoleSettingRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
-
-  const activeRoleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    const current = new Set(
-      (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS,
-    );
-    if (setting.enabled) current.add(setting.roleId);
-    else current.delete(setting.roleId);
-    const next = ROLE_IDS.filter((roleId) => current.has(roleId));
-    if (!isValidRoleConfiguration(next)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
-      );
-    }
-    tx.update(sessionRef, { activeRoleIds: next, updatedAt: FieldValue.serverTimestamp() });
-    return next;
-  });
-
-  return { activeRoleIds };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Apply the GM-reviewed roster atomically; individual draft edits never reach the server. */
@@ -2831,34 +3111,8 @@ export const setActiveRoleConfiguration = onCall<{
   instanceId?: unknown;
   activeRoleIds?: unknown;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const configuration = requireRoleConfigurationRequest(request.data ?? {});
-  if (!isValidRoleConfiguration(configuration.activeRoleIds)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
-    );
-  }
-  const sessionRef = db.doc(`sessions/${configuration.sessionId}`);
-  const playerRef = db.doc(`sessions/${configuration.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${configuration.sessionId}/gmInstances/${configuration.instanceId}`);
-  const activeRoleIds = ROLE_IDS.filter((roleId) => configuration.activeRoleIds.includes(roleId));
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
-  });
-
-  return { activeRoleIds };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Replace role availability with the recommended player-count template. */
@@ -2867,31 +3121,8 @@ export const applyRolePreset = onCall<{
   instanceId?: string;
   playerCount?: number;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireRolePresetRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
-  const activeRoleIds = [...recommendedRoleIds(setting.playerCount)];
-  if (!isValidRoleConfiguration(activeRoleIds)) {
-    throw new HttpsError('internal', 'The recommended roster is invalid.');
-  }
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
-  });
-
-  return { activeRoleIds, playerCount: setting.playerCount };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Securely choose one or two wolf roles and keep the result GM-only. */
@@ -3490,80 +3721,196 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
   }
 });
 
+type SeatMutationReceipt = {
+  readonly status: 'committed' | 'replayed';
+  readonly requestId: string;
+  readonly setupRevision: number;
+  readonly seatId: string;
+  readonly holderUid?: string;
+};
+
 /** Claim an open seat. First transaction wins; losers get a clean error. */
-export const claimSeat = onCall<{ sessionId: string; seatId: string }>(
+export const claimSeat = onCall<{
+  sessionId: string;
+  seatId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+}>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
+    const parsed = requireSessionSeatRequest(request.data ?? {});
+    const { sessionId, seatId } = parsed;
+    const revisioned = parsed;
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
 
-    return db.runTransaction(async (tx) => {
-      const [seat, player] = await Promise.all([tx.get(seatRef), tx.get(playerRef)]);
-      if (!isActivePlayer(player)) {
-        throw new HttpsError('permission-denied', 'Join the session first.');
-      }
-      if (!canClaimSeat(player.get('seatId'))) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Release your current seat before claiming another.',
-        );
-      }
-      if (!seat.exists) {
-        throw new HttpsError('not-found', 'No such seat.');
-      }
-      if (seat.get('status') !== 'open') {
-        throw new HttpsError('aborted', 'That seat was just taken.');
-      }
+    const sessionRef = db.doc(`sessions/${sessionId}`);
+    const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const eventRef = db.doc(`sessions/${sessionId}/events/seat-claim-${revisioned.requestId}`);
+    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+        const [prior, session, seat, player] = await Promise.all([
+          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
+        ]);
+        if (prior.exists) {
+          if (
+            prior.get('action') !== 'claim' ||
+            prior.get('sessionId') !== sessionId ||
+            prior.get('seatId') !== seatId ||
+            prior.get('actorUid') !== uid
+          ) {
+            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+          }
+          const reply = prior.get('reply');
+          if (typeof reply !== 'object' || reply === null) {
+            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          }
+          return { ...(reply as SeatMutationReceipt), status: 'replayed' };
+        }
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          throw new HttpsError('failed-precondition', 'Setup changed. Refresh the seat map and try again.');
+        }
+        requireCastingWindow(session);
+        if (!isActivePlayer(player)) {
+          throw new HttpsError('permission-denied', 'Join the session first.');
+        }
+        const configuredRoles = session.get('activeRoleIds');
+        if (Array.isArray(configuredRoles) && configuredRoles.length > 0 && !configuredRoles.includes(seatId)) {
+          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+        }
+        if (!canClaimSeat(player.get('seatId'))) {
+          throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
+        }
+        if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
+        if (seat.get('roleId') !== undefined && seat.get('roleId') !== seatId) {
+          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+        }
+        if (seat.get('status') !== 'open' || seat.get('holderUid') !== null) {
+          throw new HttpsError('aborted', 'That seat was just taken.');
+        }
+        const assignedRoleId = player.get('assignedRoleId');
+        if (typeof assignedRoleId === 'string' && assignedRoleId !== seatId) {
+          throw new HttpsError('failed-precondition', 'Your assigned role does not match that seat.');
+        }
 
-      tx.update(seatRef, {
-        status: 'claimed',
-        holderUid: uid,
-        claimedAt: FieldValue.serverTimestamp(),
-      });
-      tx.update(playerRef, { seatId });
-      return { seatId, holderUid: uid };
+        const nextRevision = revisioned.expectedSetupRevision + 1;
+        const reply: SeatMutationReceipt = {
+          status: 'committed',
+          requestId: revisioned.requestId,
+          setupRevision: nextRevision,
+          seatId,
+          holderUid: uid,
+        };
+        tx.update(seatRef, {
+          status: 'claimed', holderUid: uid, claimedAt: FieldValue.serverTimestamp(),
+        });
+        tx.update(playerRef, { seatId });
+        tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(eventRef, {
+          type: 'seat-claim', seatId, actorUid: uid, revision: nextRevision,
+          requestId: revisioned.requestId, createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(requestRef, {
+          requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
+          reply, createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
     });
   },
 );
 
 /** Release a seat you hold, or -- as GM -- any seat. */
-export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
+export const releaseSeat = onCall<{
+  sessionId: string;
+  seatId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  instanceId?: string;
+  reason?: string;
+}>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
+    const parsed = requireSessionSeatRequest(request.data ?? {});
+    const { sessionId, seatId } = parsed;
+    const revisioned = parsed;
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
+    const sessionRef = db.doc(`sessions/${sessionId}`);
+    const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const eventRef = db.doc(`sessions/${sessionId}/events/seat-release-${revisioned.requestId}`);
+    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+        const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+        const [prior, session, seat, actor] = await Promise.all([
+          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
+        ]);
+        if (prior.exists) {
+          if (
+            prior.get('action') !== 'release' ||
+            prior.get('sessionId') !== sessionId ||
+            prior.get('seatId') !== seatId ||
+            prior.get('actorUid') !== uid
+          ) {
+            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+          }
+          const reply = prior.get('reply');
+          if (typeof reply !== 'object' || reply === null) {
+            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          }
+          return { ...(reply as SeatMutationReceipt), status: 'replayed' };
+        }
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          throw new HttpsError('failed-precondition', 'Setup changed. Refresh the seat map and try again.');
+        }
+        requireCastingWindow(session);
+        if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
+        if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
 
-    return db.runTransaction(async (tx) => {
-      const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-      const [seat, actor] = await Promise.all([tx.get(seatRef), tx.get(actorRef)]);
-      if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
-      if (!isActivePlayer(actor)) {
-        throw new HttpsError('permission-denied', 'Join the session first.');
-      }
+        const configuredRoles = session.get('activeRoleIds');
+        if (Array.isArray(configuredRoles) && configuredRoles.length > 0 && !configuredRoles.includes(seatId)) {
+          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+        }
+        if (seat.get('roleId') !== undefined && seat.get('roleId') !== seatId) {
+          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+        }
+        if (seat.get('status') !== 'claimed' || typeof seat.get('holderUid') !== 'string') {
+          throw new HttpsError('failed-precondition', 'That seat is not currently claimed.');
+        }
 
-      const holderUid = seat.get('holderUid') as string | null;
-      const holderRef = holderUid
-        ? db.doc(`sessions/${sessionId}/players/${holderUid}`)
-        : null;
-      const holder = holderRef ? await tx.get(holderRef) : null;
-      if (holderUid !== uid && actor.get('role') !== 'gm') {
-        throw new HttpsError('permission-denied', 'GM only.');
-      }
-
-      tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
-      if (
-        holderRef &&
-        holder?.exists &&
-        shouldClearSeatPointer(holder.get('seatId'), seatId)
-      ) {
-        tx.update(holderRef, {
-          seatId: null,
+        const holderUid = seat.get('holderUid') as string | null;
+        const holderRef = holderUid ? db.doc(`sessions/${sessionId}/players/${holderUid}`) : null;
+        const holder = holderRef ? await tx.get(holderRef) : null;
+        if (holderUid !== uid) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
+          }
+          const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
+          if (!instance.exists || instance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
+        }
+        const nextRevision = revisioned.expectedSetupRevision + 1;
+        const reply: SeatMutationReceipt = {
+          status: 'committed', requestId: revisioned.requestId,
+          setupRevision: nextRevision, seatId,
+        };
+        tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
+        if (holderRef && holder?.exists && shouldClearSeatPointer(holder.get('seatId'), seatId)) {
+          tx.update(holderRef, { seatId: null });
+        }
+        tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(eventRef, {
+          type: 'seat-release', seatId, actorUid: uid, revision: nextRevision,
+          requestId: revisioned.requestId, reason: revisioned.reason ?? null,
+          createdAt: FieldValue.serverTimestamp(),
         });
-      }
-      return { seatId };
+        tx.set(requestRef, {
+          requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
+          reason: revisioned.reason ?? null,
+          reply, createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
     });
   },
 );

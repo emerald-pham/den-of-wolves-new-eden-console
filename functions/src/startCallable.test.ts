@@ -108,10 +108,15 @@ it('records a distinct facilitator responsibility', async () => {
   mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1' } }];
   await expect(setFacilitatorResponsibility.run(request({
     sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
-  }))).resolves.toEqual({ responsibility: 'main' });
+    requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+  }))).resolves.toMatchObject({
+    status: 'committed', setupRevision: 1,
+    responsibilities: ['main', 'assistant'],
+    coverage: { main: ['bridge'], assistant: ['bridge'] },
+  });
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/gmInstances/bridge' }),
-    { responsibility: 'main' },
+    { responsibilities: ['main', 'assistant'], responsibility: 'main' },
   );
 });
 
