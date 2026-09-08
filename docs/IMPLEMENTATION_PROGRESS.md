@@ -34,9 +34,38 @@ exists but at least one acceptance boundary remains, `missing` = no truthful
 production-path acceptance exists yet, and `blocked` = a concrete external or
 product decision is required. Only `done` prompts are checked in the source plan.
 
-### Prompt 004/051 failing-first evidence
+### Prompt 004/051 historical 0.3.9 failing-first evidence
 
-The underlying printed artifact was inspected at `/Users/emeraldpham/Documents/DoWNE v1.1/Home Printing/DoWNE - Facilitator Guide v1.1.pdf`, PDF page 5 (printed page 3). The chronological red run was missed before production edits. A separate retrospective baseline reconstruction applied only the nine intended test diffs to the old runtime and ran the focused matrix/readiness and production-path suite from the dedicated Prompt 004 worktree with:
+Before changing production roster code, the underlying printed artifact was
+inspected at `/Users/emeraldpham/Documents/DoWNE v1.1/Home Printing/DoWNE - Facilitator Guide v1.1.pdf`, PDF page 5 (printed page 3), and the new
+matrix/readiness and production-path acceptance tests were run from the
+dedicated Prompt 004 worktree with:
+
+```text
+npx vitest run --project unit --project functions src/data/rolePresets.test.ts functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/createSessionCallable.test.ts functions/src/startCallable.test.ts
+```
+
+Observed red result (Vitest start `09:16:59`, recorded from that run; this
+summary is evidence of the run and is not being presented as a rerun): 5 test
+files failed, with 11 failed and 35 passed tests. The client and server exact
+ordered-roster assertions failed first at player count 8 because the current
+implementation returned 7 roles instead of the required 8. The readiness
+matrix failed at counts 8, 9, 10, and 11 because the current presets returned
+7, 8, 9, and 10 roles respectively; the count-18 vessel-order assertion also
+observed `quellon` before `shepherd` instead of the canonical order. The
+negative readiness test showed the current production readiness accepted an
+out-of-preset `press-officer`, and the production-path tests showed creation
+and `applyRolePreset` persisted/returned the short 8-player roster while the
+start test was blocked on `players` when it used that roster. This is the
+durable preimplementation red evidence for the Prompt 004/051 production
+change.
+
+### Prompt 004 version 0.3.11 retrospective regression-sensitivity evidence
+
+The chronological 0.3.11 red run was missed before production edits. A
+separate retrospective baseline reconstruction applied only the nine intended
+test diffs to the old runtime and ran the focused matrix/readiness and
+production-path suite from the dedicated Prompt 004 worktree with:
 
 ```text
 npx vitest run --project unit --project functions src/data/rolePresets.test.ts src/data/shuttles.test.ts src/lib/firestore.test.ts src/routes/GmConsole.test.tsx functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/requestGuards.test.ts functions/src/createSessionCallable.test.ts functions/src/shuttlecraft.test.ts
