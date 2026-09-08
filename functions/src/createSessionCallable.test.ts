@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(),
+  update: vi.fn(),
   set: vi.fn(),
   delete: vi.fn(),
   randomInt: vi.fn(() => 1234),
@@ -22,6 +23,7 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
       get: mock.get,
+      update: mock.update,
       set: mock.set,
       delete: mock.delete,
     }),
@@ -36,7 +38,7 @@ vi.mock('firebase-admin/firestore', () => ({
   },
 }));
 
-import { createSession } from './index';
+import { applyRolePreset, createSession } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -48,6 +50,7 @@ function snapshot(fields: Record<string, unknown> = {}, exists = true) {
 
 beforeEach(() => {
   mock.get.mockReset();
+  mock.update.mockReset();
   mock.set.mockReset();
   mock.delete.mockReset();
   mock.randomInt.mockReset();
@@ -97,6 +100,52 @@ it('creates one configured lobby and persists a replayable creation result atomi
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: expect.stringMatching(/^sessionCreationRequests\/u1_create-1$/) }),
     expect.objectContaining({ sessionId: 'generated-session', requestId: 'create-1' }),
+  );
+});
+
+it('creates an eight-player lobby with one legal role per player', async () => {
+  await expect(createSession.run(request({ requestId: 'create-roster-8', playerCount: 8 })))
+    .resolves.toMatchObject({ session: { playerCount: 8 } });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/generated-session' }),
+    expect.objectContaining({
+      activeRoleIds: [
+        'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+        'quellon-explorer', 'refinery-124-pdf-colonel',
+        'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+      ],
+    }),
+  );
+});
+
+it('applies the exact eight-player roster atomically through the GM preset callable', async () => {
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot({ phase: 'lobby', configurationLocked: false });
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(applyRolePreset.run(request({
+    sessionId: 's1', instanceId: 'bridge', playerCount: 8,
+  }))).resolves.toEqual({
+    activeRoleIds: [
+      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+      'quellon-explorer', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+    ],
+    playerCount: 8,
+  });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1' }),
+    expect.objectContaining({
+      activeRoleIds: [
+        'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+        'quellon-explorer', 'refinery-124-pdf-colonel',
+        'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+      ],
+    }),
   );
 });
 

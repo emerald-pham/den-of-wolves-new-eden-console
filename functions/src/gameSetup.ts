@@ -285,10 +285,17 @@ export function readinessForSetup(input: SetupReadinessInput): {
   const playerIds = new Set(input.connectedPlayers);
   const roleIds = new Set(input.assignments.map((assignment) => assignment.roleId));
   const assignedPlayers = new Set(input.assignments.map((assignment) => assignment.uid));
+  const printedRoleIds = recommendedRoleIds(input.playerCount);
+  const configuredRoleSet = new Set(input.activeRoleIds);
+  const exactPrintedRoster =
+    configuredRoleSet.size === input.activeRoleIds.length &&
+    input.activeRoleIds.length === printedRoleIds.length &&
+    printedRoleIds.every((roleId) => configuredRoleSet.has(roleId));
   if (
     assignedPlayers.size !== input.assignments.length ||
     roleIds.size !== input.assignments.length ||
     input.assignments.length !== input.connectedPlayers.length ||
+    !exactPrintedRoster ||
     input.assignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
   ) reasons.push('roles');
 

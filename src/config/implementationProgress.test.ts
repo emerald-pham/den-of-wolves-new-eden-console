@@ -26,7 +26,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 65/100 complete; 27 partial; 8 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 67/100 complete; 25 partial; 8 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -34,25 +34,25 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**65 / 100 prompts complete (65%)**',
-        '**66 / 100 prompts complete (66%)**',
+        '**67 / 100 prompts complete (67%)**',
+        '**68 / 100 prompts complete (68%)**',
       ),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 66, but the ledger has 65 done prompts');
+    expect(result.errors.join('\n')).toContain('headline complete count is 68, but the ledger has 67 done prompts');
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        'Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;',
         'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;',
+        'Resume pointer: Prompt 013 is the lowest-numbered unchecked acceptance;',
       ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'resume pointer is Prompt 012, but the first unresolved prompt is 004',
+      'resume pointer is Prompt 013, but the first unresolved prompt is 012',
     );
   });
 
@@ -71,16 +71,16 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
         ...validationInputs,
         progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 004**.')
-        .replace('| 004 | partial | non-feature | — |', '| 004 | in-progress | non-feature | — |')
+        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 012**.')
+        .replace('| 012 | partial | non-feature | — |', '| 012 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **65 done · 27 partial · 8 missing**.',
-          'Status breakdown: **65 done · 26 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **67 done · 25 partial · 8 missing**.',
+          'Status breakdown: **67 done · 24 partial · 8 missing · 1 in-progress**.',
         ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'Prompt 004 is still in-progress; mark it done, partial, missing, or blocked before moving on',
+      'Prompt 012 is still in-progress; mark it done, partial, missing, or blocked before moving on',
     );
   });
 
@@ -88,17 +88,17 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
         ...validationInputs,
         progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 005**.')
-        .replace('| 005 | done | non-feature | — |', '| 005 | in-progress | non-feature | — |')
+        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 013**.')
+        .replace('| 013 | done | non-feature | — |', '| 013 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **65 done · 27 partial · 8 missing**.',
-          'Status breakdown: **64 done · 27 partial · 8 missing · 1 in-progress**.',
+          'Status breakdown: **67 done · 25 partial · 8 missing**.',
+          'Status breakdown: **66 done · 25 partial · 8 missing · 1 in-progress**.',
         ),
-      planSource: planSource.replace('- [x] Prompt 005', '- [ ] Prompt 005'),
+      planSource: planSource.replace('- [x] Prompt 013', '- [ ] Prompt 013'),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'active prompt is 005, but the first unresolved prompt is 004',
+      'active prompt is 013, but the first unresolved prompt is 012',
     );
   });
 
@@ -146,7 +146,7 @@ describe('implementation progress integrity gate', () => {
 
   it('allows a feature prompt to carry coverage into a later release', () => {
     const laterEntry = `  {
-    version: '0.3.6',
+    version: '0.3.7',
     implementationPrompts: [15],
     changes: [
       'Command errors now explain the remaining retry path without exposing private state.',
@@ -157,7 +157,7 @@ describe('implementation progress integrity gate', () => {
       ...validationInputs,
       progressSource: progressSource.replace(
         '| 015 | partial | feature | 0.3.5 |',
-        '| 015 | partial | feature | 0.3.5, 0.3.6 |',
+        '| 015 | partial | feature | 0.3.5, 0.3.7 |',
       ),
       changelogSource: changelogSource.replace(
         "  {\n    version: '0.3.4',",

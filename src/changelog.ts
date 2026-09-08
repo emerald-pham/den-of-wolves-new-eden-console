@@ -11,6 +11,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [4, 51],
+    changes: [
+      'Every supported table size now receives a complete printed-roster-compatible cast through lobby setup and game start, including the documented low-count AEGIS role decision.',
+      'Facilitators can now apply an exact printed roster preset for each supported player count without a convenience role or a short start roster.',
+    ],
+  },
+  {
+    version: '0.3.5',
     implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],
     changes: [
       'Players and facilitators now receive stable, nonsecret command errors for authentication, permission, phase, revision, conflict, malformed input, service, and terminal-session failures.',
