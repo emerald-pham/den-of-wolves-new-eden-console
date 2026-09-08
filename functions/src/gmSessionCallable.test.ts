@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => {
     filters: ReadonlyArray<readonly [string, unknown]>;
     where: (field: string, operator: string, value: unknown) => Query;
     orderBy: () => Query;
+    get: () => Promise<{ docs: Array<ReturnType<typeof snapshot>>; size: number }>;
   };
 
   const documents = new Map<string, StoredDocument>();
@@ -55,6 +56,7 @@ const mock = vi.hoisted(() => {
       return query(path, [...filters, [field, value]]);
     },
     orderBy: () => query(path, filters),
+    get: async () => querySnapshot(query(path, filters)),
   });
   const querySnapshot = (target: Query) => {
     const docs = [...documents.keys()]
@@ -131,6 +133,7 @@ import {
   loginGmAccess,
   logoutGmAccess,
   kickPlayer,
+  listGmInstances,
   releaseGmInstance,
   setFacilitatorResponsibility,
 } from './index';
@@ -255,6 +258,26 @@ describe('GM instance ownership', () => {
       sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
       requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 1, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
+  it('projects a legacy singular responsibility to both labels for the sole active GM', async () => {
+    session({ phase: 'lobby', setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'), responsibility: 'main',
+    });
+
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      instances: [expect.objectContaining({
+        id: 'bridge', responsibilities: ['main', 'assistant'], responsibility: 'main',
+      })],
+    });
   });
 
   it('logs in and out of persistent GM access', async () => {

@@ -11,8 +11,9 @@ import {
   wolfCountForPlayerCount,
   normalizePersistedSessionConfiguration,
   stableSeatsForRoles,
+  ROLE_SEAT_METADATA,
 } from './gameSetup';
-import { recommendedRoleIds } from './roleConfiguration';
+import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
 
 describe('authoritative setup configuration', () => {
   it('normalizes the legacy session shape to a printed base-game configuration', () => {
@@ -94,6 +95,16 @@ describe('authoritative setup configuration', () => {
         id: 'capybara-recycler', label: 'Capybara // Capybara Recycler', factionId: 'capybara',
       }),
     ]);
+  });
+
+  it('has canonical metadata for every counted role, including long and joint labels', () => {
+    const countedRoleIds = ROLE_IDS.filter((roleId) => roleId !== 'press-officer');
+    expect(Object.keys(ROLE_SEAT_METADATA).sort()).toEqual([...countedRoleIds].sort());
+    for (const roleId of countedRoleIds) {
+      const [seat] = stableSeatsForRoles([roleId]);
+      expect(seat).toMatchObject({ roleId, factionId: expect.any(String), label: expect.stringContaining(' // ') });
+      expect(seat?.factionId).not.toBeNull();
+    }
   });
 
   it('maps the printed player-count range to one or two hidden wolves', () => {

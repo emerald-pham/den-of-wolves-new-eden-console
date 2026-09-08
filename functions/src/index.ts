@@ -945,6 +945,28 @@ async function reconcileStableSeats(
   }
 }
 
+/** Heal legacy sessions into the canonical setup/seat shape during join or resume. */
+async function hydrateCanonicalSessionSetup(
+  tx: Transaction,
+  sessionId: string,
+  session: DocumentSnapshot,
+): Promise<ReturnType<typeof canonicalSetupForSession>> {
+  const activeRoleIds = sessionActiveRoleIds(session);
+  await reconcileStableSeats(tx, sessionId, activeRoleIds, activeRoleIds);
+  const setup = canonicalSetupForSession(session, activeRoleIds);
+  const storedSetup = session.get('setup');
+  const hasSetup = typeof storedSetup === 'object' && storedSetup !== null &&
+    Array.isArray(session.get('activeVesselIds'));
+  if (!hasSetup) {
+    tx.update(db.doc(`sessions/${sessionId}`), {
+      ...setupWriteFields(setup),
+      setupRevision: setupRevision(session),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return setup;
+}
+
 function setupWriteFields(setup: ReturnType<typeof canonicalSetupForSession>) {
   return {
     setup,
@@ -1159,6 +1181,7 @@ export const setFacilitatorResponsibility = onCall<{
       actorUid: uid,
       responsibility: responsibility.responsibility,
       mode: responsibility.mode,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
     } as const;
     if (prior.exists) {
       const stored = prior.get('fingerprint');
@@ -1316,11 +1339,9 @@ export const startGame = onCall<{
       .map((secret) => secret.id)
       .filter((id) => id.startsWith('loyalty-'))
       .map((id) => id.slice('loyalty-'.length));
-    // Read the authoritative array while accepting the legacy singular field;
-    // this is representation-only and does not change start/readiness policy.
     const responsibilities = {
-      main: instances.docs.some((instance) => normalizedResponsibilities(instance).includes('main')),
-      assistant: instances.docs.some((instance) => normalizedResponsibilities(instance).includes('assistant')),
+      main: instances.docs.some((instance) => instance.get('responsibility') === 'main'),
+      assistant: instances.docs.some((instance) => instance.get('responsibility') === 'assistant'),
     };
     const playerCount = typeof authority.session.get('playerCount') === 'number'
       ? authority.session.get('playerCount') as number
@@ -1720,6 +1741,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         );
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
+      await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
       if (player.exists) {
         const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
         const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
@@ -1772,6 +1794,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+    const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
       initialShuttleDockingsForRoles(activeRoleIds);
     const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
@@ -1794,6 +1817,8 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
         ...(typeof sessionSnap.get('setupRevision') === 'number'
           ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
+        setup,
+        activeVesselIds: [...setup.activeVesselIds],
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
@@ -1903,6 +1928,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       );
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
+    await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
     const currentPressAuthority = currentPlayer.get('activeConsoleRoleId') === 'press-officer';
     const storedPressHolderUid = currentSession.get('pressHolderUid');
@@ -1937,6 +1963,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+  const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
     initialShuttleDockingsForRoles(activeRoleIds);
   const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
@@ -1959,6 +1986,8 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
       ...(typeof sessionSnap.get('setupRevision') === 'number'
         ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
+      setup,
+      activeVesselIds: [...setup.activeVesselIds],
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
@@ -2013,11 +2042,12 @@ function gmInstanceFrom(
   sessionId: string,
   id: string,
   data: FirebaseFirestore.DocumentData,
+  projectLegacySingle = false,
 ) {
   const responsibilities = Array.isArray(data.responsibilities)
     ? ['main', 'assistant'].filter((responsibility) => data.responsibilities.includes(responsibility))
     : data.responsibility === 'main' || data.responsibility === 'assistant'
-      ? [data.responsibility]
+      ? projectLegacySingle ? ['main', 'assistant'] : [data.responsibility]
       : [];
   return {
     id,
@@ -2156,7 +2186,7 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
     .get();
   return {
     instances: instances.docs.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data())),
+      gmInstanceFrom(sessionId, instance.id, instance.data(), instances.docs.length === 1)),
   };
 });
 
@@ -3729,6 +3759,38 @@ type SeatMutationReceipt = {
   readonly holderUid?: string;
 };
 
+type SeatMutationFingerprint = {
+  readonly action: 'claim' | 'release';
+  readonly sessionId: string;
+  readonly seatId: string;
+  readonly actorUid: string;
+  readonly expectedSetupRevision: number;
+  readonly instanceId: string | null;
+  readonly reason: string | null;
+};
+
+function seatMutationFingerprint(
+  action: SeatMutationFingerprint['action'],
+  parsed: ReturnType<typeof requireSessionSeatRequest>,
+  actorUid: string,
+): SeatMutationFingerprint {
+  return {
+    action,
+    sessionId: parsed.sessionId,
+    seatId: parsed.seatId,
+    actorUid,
+    expectedSetupRevision: parsed.expectedSetupRevision,
+    instanceId: parsed.instanceId ?? null,
+    reason: parsed.reason ?? null,
+  };
+}
+
+function sameSeatMutationFingerprint(value: unknown, expected: SeatMutationFingerprint): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+}
+
 /** Claim an open seat. First transaction wins; losers get a clean error. */
 export const claimSeat = onCall<{
   sessionId: string;
@@ -3748,6 +3810,7 @@ export const claimSeat = onCall<{
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
     const eventRef = db.doc(`sessions/${sessionId}/events/seat-claim-${revisioned.requestId}`);
+    const fingerprint = seatMutationFingerprint('claim', parsed, uid);
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
         const [prior, session, seat, player] = await Promise.all([
           tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
@@ -3757,7 +3820,8 @@ export const claimSeat = onCall<{
             prior.get('action') !== 'claim' ||
             prior.get('sessionId') !== sessionId ||
             prior.get('seatId') !== seatId ||
-            prior.get('actorUid') !== uid
+            prior.get('actorUid') !== uid ||
+            !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
           ) {
             throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
           }
@@ -3776,14 +3840,14 @@ export const claimSeat = onCall<{
           throw new HttpsError('permission-denied', 'Join the session first.');
         }
         const configuredRoles = session.get('activeRoleIds');
-        if (Array.isArray(configuredRoles) && configuredRoles.length > 0 && !configuredRoles.includes(seatId)) {
+        if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
           throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
         }
         if (!canClaimSeat(player.get('seatId'))) {
           throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
         }
         if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
-        if (seat.get('roleId') !== undefined && seat.get('roleId') !== seatId) {
+        if (seat.get('roleId') !== seatId) {
           throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
         }
         if (seat.get('status') !== 'open' || seat.get('holderUid') !== null) {
@@ -3809,11 +3873,12 @@ export const claimSeat = onCall<{
         tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
         tx.set(eventRef, {
           type: 'seat-claim', seatId, actorUid: uid, revision: nextRevision,
-          requestId: revisioned.requestId, createdAt: FieldValue.serverTimestamp(),
+          requestId: revisioned.requestId, expectedSetupRevision: revisioned.expectedSetupRevision,
+          fingerprint, createdAt: FieldValue.serverTimestamp(),
         });
         tx.set(requestRef, {
           requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
-          reply, createdAt: FieldValue.serverTimestamp(),
+          fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
         });
         return reply;
     });
@@ -3839,6 +3904,7 @@ export const releaseSeat = onCall<{
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
     const eventRef = db.doc(`sessions/${sessionId}/events/seat-release-${revisioned.requestId}`);
+    const fingerprint = seatMutationFingerprint('release', parsed, uid);
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
         const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
         const [prior, session, seat, actor] = await Promise.all([
@@ -3849,7 +3915,8 @@ export const releaseSeat = onCall<{
             prior.get('action') !== 'release' ||
             prior.get('sessionId') !== sessionId ||
             prior.get('seatId') !== seatId ||
-            prior.get('actorUid') !== uid
+            prior.get('actorUid') !== uid ||
+            !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
           ) {
             throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
           }
@@ -3868,27 +3935,33 @@ export const releaseSeat = onCall<{
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
 
         const configuredRoles = session.get('activeRoleIds');
-        if (Array.isArray(configuredRoles) && configuredRoles.length > 0 && !configuredRoles.includes(seatId)) {
+        if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
           throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
         }
-        if (seat.get('roleId') !== undefined && seat.get('roleId') !== seatId) {
+        if (seat.get('roleId') !== seatId) {
           throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
         }
         if (seat.get('status') !== 'claimed' || typeof seat.get('holderUid') !== 'string') {
           throw new HttpsError('failed-precondition', 'That seat is not currently claimed.');
         }
 
-        const holderUid = seat.get('holderUid') as string | null;
-        const holderRef = holderUid ? db.doc(`sessions/${sessionId}/players/${holderUid}`) : null;
-        const holder = holderRef ? await tx.get(holderRef) : null;
+        const holderUid = seat.get('holderUid') as string;
+        // Establish actor authority before reading the holder record. An ordinary
+        // non-holder must not learn whether another player's seat pointer is stale.
+        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
         if (holderUid !== uid) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
           }
-          const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
-          if (!instance.exists || instance.get('uid') !== uid) {
+          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
+          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
             throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
           }
+        }
+        const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
+        const holder = await tx.get(holderRef);
+        if (!holder.exists || !isActivePlayer(holder) || holder.get('seatId') !== seatId) {
+          throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
         }
         const nextRevision = revisioned.expectedSetupRevision + 1;
         const reply: SeatMutationReceipt = {
@@ -3896,19 +3969,20 @@ export const releaseSeat = onCall<{
           setupRevision: nextRevision, seatId,
         };
         tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
-        if (holderRef && holder?.exists && shouldClearSeatPointer(holder.get('seatId'), seatId)) {
+        if (shouldClearSeatPointer(holder.get('seatId'), seatId)) {
           tx.update(holderRef, { seatId: null });
         }
         tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
         tx.set(eventRef, {
           type: 'seat-release', seatId, actorUid: uid, revision: nextRevision,
           requestId: revisioned.requestId, reason: revisioned.reason ?? null,
+          expectedSetupRevision: revisioned.expectedSetupRevision, fingerprint,
           createdAt: FieldValue.serverTimestamp(),
         });
         tx.set(requestRef, {
           requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
           reason: revisioned.reason ?? null,
-          reply, createdAt: FieldValue.serverTimestamp(),
+          fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
         });
         return reply;
     });
@@ -3967,7 +4041,9 @@ function configuredRoleIds(session: DocumentSnapshot): readonly string[] {
 
 function sessionActiveRoleIds(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeRoleIds');
-  if (Array.isArray(stored)) return stored as string[];
+  if (Array.isArray(stored)) {
+    return (stored as string[]).filter((roleId) => roleId !== 'press-officer');
+  }
   const playerCount = session.get('playerCount');
   return Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20
     ? recommendedRoleIds(playerCount)

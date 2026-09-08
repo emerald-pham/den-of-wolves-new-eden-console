@@ -137,6 +137,7 @@ function player(uid: string, fields: StoredDocument = {}) {
 
 function seat(id: string, fields: StoredDocument = {}) {
   put('sessions/s1/seats/' + id, {
+    roleId: id,
     status: 'open',
     holderUid: null,
     claimedAt: null,
@@ -156,7 +157,10 @@ beforeEach(() => {
   mock.set.mockClear();
   mock.remove.mockClear();
   mock.resetTransactions();
-  put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 0 });
+  put('sessions/s1', {
+    phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false,
+    activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+  });
 });
 
 describe('claimSeat', () => {
@@ -166,6 +170,7 @@ describe('claimSeat', () => {
       currentTurn: 0,
       configurationLocked: false,
       setupRevision: 0,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
     });
     player('u1');
     seat('admiral');
@@ -197,10 +202,16 @@ describe('claimSeat', () => {
       setupRevision: 1,
     });
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 1 });
+
+    await expect(claimSeat.run(request({ ...command, expectedSetupRevision: 1 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
   it('rejects a stale claim before mutating either seat, pointer, revision, or event', async () => {
-    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 3 });
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 3, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
     player('u1');
     seat('admiral');
 
@@ -211,6 +222,24 @@ describe('claimSeat', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: null });
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
     expect(read('sessions/s1/events/seat-claim-claim-stale')).toBeUndefined();
+  });
+
+  it('requires an explicit active roster and an exact stable role id', async () => {
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false,
+      activeRoleIds: ['admiral'],
+    });
+    player('u1');
+    seat('admiral', { roleId: 'dione-captain' });
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'claim-mismatch', expectedSetupRevision: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    seat('admiral', { roleId: 'admiral' });
+    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'claim-no-roster', expectedSetupRevision: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
   it('claims an open seat and records the pointer in the same transaction', async () => {
@@ -281,7 +310,10 @@ describe('claimSeat', () => {
 
 describe('releaseSeat', () => {
   it('commits a revisioned self-release and replays without a second event', async () => {
-    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 4 });
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 4, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
     player('u1', { seatId: 'admiral' });
     seat('admiral', { status: 'claimed', holderUid: 'u1', claimedAt: 'server-time' });
 
@@ -310,6 +342,9 @@ describe('releaseSeat', () => {
       requestId: 'release-admiral-1',
       setupRevision: 5,
     });
+
+    await expect(releaseSeat.run(request({ ...command, expectedSetupRevision: 5 })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
   it('opens a held seat and clears only the matching player pointer', async () => {
@@ -321,6 +356,7 @@ describe('releaseSeat', () => {
     }))).resolves.toMatchObject({ status: 'committed', seatId: 'seat-1', setupRevision: 1 });
 
     expect(read('sessions/s1/seats/seat-1')).toEqual({
+      roleId: 'seat-1',
       status: 'open',
       holderUid: null,
       claimedAt: null,
@@ -332,15 +368,19 @@ describe('releaseSeat', () => {
     player('u1', { seatId: 'seat-2' });
     seat('seat-1', { status: 'claimed', holderUid: 'u1' });
 
-    await releaseSeat.run(request({
+    await expect(releaseSeat.run(request({
       sessionId: 's1', seatId: 'seat-1', requestId: 'release-stale-seat', expectedSetupRevision: 0,
-    }));
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
 
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: 'seat-2' });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
   });
 
   it('allows an active GM to release another player seat but denies an ordinary non-holder', async () => {
-    put('sessions/s1', { phase: 'lobby', currentTurn: 0, setupRevision: 0 });
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
     player('u1', { role: 'gm' });
     player('u2', { seatId: 'seat-1' });
     seat('seat-1', { status: 'claimed', holderUid: 'u2' });
@@ -360,5 +400,25 @@ describe('releaseSeat', () => {
     }, 'u1')))
       .rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1/seats/seat-2')).toMatchObject({ holderUid: 'u2' });
+  });
+
+  it('requires the claimed holder document and pointer to agree before release', async () => {
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1'],
+    });
+    player('u1', { seatId: 'seat-2' });
+    seat('seat-1', { status: 'claimed', holderUid: 'u1' });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-pointer-mismatch', expectedSetupRevision: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+
+    put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true, seatId: null });
+    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-missing-holder', expectedSetupRevision: 0,
+      instanceId: 'bridge', reason: 'Remove stale holder',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
   });
 });
