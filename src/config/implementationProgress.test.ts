@@ -27,7 +27,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 66/705 complete; 28 partial; 611 missing; resume at Prompt 004 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 68/705 complete; 26 partial; 611 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -35,7 +35,9 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 66, total: 705 });
+    expect(result.summary).toMatchObject({ complete: 68, total: 705 });
+    expect(progressSource).toContain('| 004 | done | feature | 0.3.9 |');
+    expect(progressSource).toContain('| 051 | done | feature | 0.3.9 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
     expect(progressSource).toContain('| 598 | done | feature | 0.3.6 |');
   });
@@ -73,25 +75,25 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        '**66 / 705 prompts complete (9%)**',
-        '**67 / 705 prompts complete (10%)**',
+        '**68 / 705 prompts complete (10%)**',
+        '**69 / 705 prompts complete (10%)**',
       ),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 67, but the ledger has 66 done prompts');
+    expect(result.errors.join('\n')).toContain('headline complete count is 69, but the ledger has 68 done prompts');
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        'Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;',
         'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;',
+        'Resume pointer: Prompt 013 is the lowest-numbered unchecked acceptance;',
       ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'resume pointer is Prompt 012, but the first unresolved prompt is 004',
+      'resume pointer is Prompt 013, but the first unresolved prompt is 012',
     );
   });
 
@@ -110,16 +112,16 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
         ...validationInputs,
         progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 004**.')
-        .replace('| 004 | partial | non-feature | — |', '| 004 | in-progress | non-feature | — |')
+        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 012**.')
+        .replace('| 012 | partial | non-feature | — |', '| 012 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **66 done · 27 partial · 612 missing**.',
-          'Status breakdown: **66 done · 26 partial · 612 missing · 1 in-progress**.',
+          'Status breakdown: **68 done · 26 partial · 611 missing**.',
+          'Status breakdown: **68 done · 25 partial · 611 missing · 1 in-progress**.',
         ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'Prompt 004 is still in-progress; mark it done, partial, missing, or blocked before moving on',
+      'Prompt 012 is still in-progress; mark it done, partial, missing, or blocked before moving on',
     );
   });
 
@@ -127,17 +129,17 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
         ...validationInputs,
         progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 005**.')
-        .replace('| 005 | done | non-feature | — |', '| 005 | in-progress | non-feature | — |')
+        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 013**.')
+        .replace('| 013 | done | non-feature | — |', '| 013 | in-progress | non-feature | — |')
         .replace(
-          'Status breakdown: **66 done · 27 partial · 612 missing**.',
-          'Status breakdown: **65 done · 27 partial · 612 missing · 1 in-progress**.',
+          'Status breakdown: **68 done · 26 partial · 611 missing**.',
+          'Status breakdown: **67 done · 26 partial · 611 missing · 1 in-progress**.',
         ),
-      planSource: planSource.replace('- [x] Prompt 005', '- [ ] Prompt 005'),
+      planSource: planSource.replace('- [x] Prompt 013', '- [ ] Prompt 013'),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'active prompt is 005, but the first unresolved prompt is 004',
+      'active prompt is 013, but the first unresolved prompt is 012',
     );
   });
 

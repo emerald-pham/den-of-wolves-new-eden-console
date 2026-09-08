@@ -5,7 +5,93 @@ import {
   recommendedRoleIds,
 } from './rolePresets';
 
+const EXPECTED_PRINTED_ROSTERS: Readonly<Record<number, readonly string[]>> = {
+  8: [
+    'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+    'quellon-explorer', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ],
+  9: [
+    'admiral', 'wing-commander', 'icebreaker-engineer', 'icebreaker-miner',
+    'shepherd-engineer', 'shepherd-scientist', 'quellon-explorer',
+    'refinery-124-pdf-colonel', 'joint-engineering-quellon-refinery',
+  ],
+  10: [
+    'admiral', 'wing-commander', 'icebreaker-engineer', 'icebreaker-miner',
+    'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer',
+    'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+  ],
+  11: [
+    'admiral', 'executive-officer', 'wing-commander', 'icebreaker-engineer',
+    'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist',
+    'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer',
+    'refinery-124-pdf-colonel',
+  ],
+  12: [
+    'admiral', 'wing-commander', 'dione-engineer', 'dione-president',
+    'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer',
+    'shepherd-scientist', 'quellon-engineer', 'quellon-explorer',
+    'refinery-124-engineer', 'refinery-124-pdf-colonel',
+  ],
+  13: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-engineer',
+    'dione-president', 'icebreaker-engineer', 'icebreaker-miner',
+    'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer',
+    'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+  ],
+  14: [
+    'admiral', 'wing-commander', 'dione-captain', 'dione-president',
+    'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain',
+    'shepherd-scientist', 'quellon-captain', 'quellon-explorer',
+    'refinery-124-captain', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ],
+  15: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+    'dione-president', 'icebreaker-captain', 'icebreaker-miner',
+    'shepherd-captain', 'shepherd-scientist', 'quellon-captain',
+    'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ],
+  16: [
+    'admiral', 'wing-commander', 'dione-captain', 'dione-president',
+    'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
+    'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist',
+    'quellon-captain', 'quellon-engineer', 'quellon-explorer',
+    'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+  ],
+  17: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+    'dione-president', 'icebreaker-captain', 'icebreaker-engineer',
+    'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer',
+    'shepherd-scientist', 'quellon-captain', 'quellon-engineer',
+    'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer',
+    'refinery-124-pdf-colonel',
+  ],
+  18: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+    'dione-engineer', 'dione-president', 'icebreaker-captain',
+    'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain',
+    'shepherd-engineer', 'shepherd-scientist', 'quellon-captain',
+    'quellon-engineer', 'quellon-explorer', 'refinery-124-captain',
+    'refinery-124-engineer', 'refinery-124-pdf-colonel',
+  ],
+};
+
 describe('recommended player-count role presets', () => {
+  it('selects the exact ordered printed roster for every supported count', () => {
+    for (const [playerCountText, expected] of Object.entries(EXPECTED_PRINTED_ROSTERS)) {
+      const playerCount = Number(playerCountText);
+      const actual = recommendedRoleIds(playerCount);
+      expect(actual, `player count ${playerCount}`).toEqual(expected);
+      expect(actual).toHaveLength(playerCount);
+      expect(new Set(actual).size).toBe(playerCount);
+      expect(actual).not.toContain('press-officer');
+      expect(actual).not.toContain('capybara-captain');
+      expect(actual).not.toContain('capybara-recycler');
+    }
+  });
+
   it('uses the Joint Engineering Union only in the low-count matrix presets', () => {
     expect(recommendedRoleIds(8)).toEqual(expect.arrayContaining([
       'joint-engineering-quellon-refinery',

@@ -17,6 +17,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     ],
   },
   {
+    version: '0.3.9',
+    implementationPrompts: [4, 51],
+    changes: [
+      'Every supported table size now receives a complete printed-roster-compatible cast through lobby setup and game start, including the documented low-count AEGIS role decision.',
+      'Facilitators can now apply an exact printed roster preset for each supported player count without a convenience role or a short start roster.',
+    ],
+  },
+  {
     version: '0.3.8',
     changes: [
       'Wolf Pursuit Track countdowns now describe the remaining cycles instead of tracks.',

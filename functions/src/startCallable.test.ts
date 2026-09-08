@@ -2,8 +2,9 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const roleIds = [
-  'admiral', 'dione-captain', 'icebreaker-captain', 'shepherd-captain',
-  'quellon-captain', 'refinery-124-captain', 'press-officer', 'capybara-captain',
+  'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+  'quellon-explorer', 'refinery-124-pdf-colonel',
+  'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
 ];
 
 const mock = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { setFacilitatorResponsibility, startGame } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return {
@@ -127,6 +129,24 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     expect.objectContaining({ path: 'sessionStartRequests/s1_start-1' }),
     expect.objectContaining({ requestId: 'start-1' }),
   );
+});
+
+it('starts the complete production 8-player preset after every player receives a legal role', async () => {
+  const activeRoleIds = [...recommendedRoleIds(8)];
+  mock.session = {
+    ...mock.session,
+    playerCount: 8,
+    activeRoleIds,
+  };
+  mock.playerDocs = activeRoleIds.map((roleId, index) => ({
+    id: `u${index + 1}`,
+    fields: { connected: true, role: index === 0 ? 'gm' : 'player', assignedRoleId: roleId },
+  }));
+  mock.secretDocs = mock.playerDocs.map(({ id }) => `loyalty-${id}`);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ sessionId: 's1', currentTurn: 1 });
 });
 
 it('blocks incomplete readiness without writing and replays a completed start request', async () => {

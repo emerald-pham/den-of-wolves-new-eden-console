@@ -13,15 +13,15 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**66 / 705 prompts complete (9%)**
+**68 / 705 prompts complete (10%)**
 
-Status breakdown: **66 done · 27 partial · 611 missing · 1 in-progress**.
+Status breakdown: **68 done · 25 partial · 611 missing · 1 in-progress**.
 
 Active prompt: **Prompt 022**.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
-that only that many prompts have been completed. In this snapshot, Prompt 004
+that only that many prompts have been completed. In this snapshot, Prompt 012
 is the first unresolved prompt even though later prompts are already complete.
 
 `[██░░░░░░░░░░░░░░░░░░]`
@@ -31,6 +31,32 @@ Each bar block represents approximately five completed prompts. Legend: `done`
 exists but at least one acceptance boundary remains, `missing` = no truthful
 production-path acceptance exists yet, and `blocked` = a concrete external or
 product decision is required. Only `done` prompts are checked in the source plan.
+
+### Prompt 004/051 failing-first evidence
+
+Before changing production roster code, the underlying printed artifact was
+inspected at `/Users/emeraldpham/Documents/DoWNE v1.1/Home Printing/DoWNE - Facilitator Guide v1.1.pdf`, PDF page 5 (printed page 3), and the new
+matrix/readiness and production-path acceptance tests were run from the
+dedicated Prompt 004 worktree with:
+
+```text
+npx vitest run --project unit --project functions src/data/rolePresets.test.ts functions/src/roleConfiguration.test.ts functions/src/gameSetup.test.ts functions/src/createSessionCallable.test.ts functions/src/startCallable.test.ts
+```
+
+Observed red result (Vitest start `09:16:59`, recorded from that run; this
+summary is evidence of the run and is not being presented as a rerun): 5 test
+files failed, with 11 failed and 35 passed tests. The client and server exact
+ordered-roster assertions failed first at player count 8 because the current
+implementation returned 7 roles instead of the required 8. The readiness
+matrix failed at counts 8, 9, 10, and 11 because the current presets returned
+7, 8, 9, and 10 roles respectively; the count-18 vessel-order assertion also
+observed `quellon` before `shepherd` instead of the canonical order. The
+negative readiness test showed the current production readiness accepted an
+out-of-preset `press-officer`, and the production-path tests showed creation
+and `applyRolePreset` persisted/returned the short 8-player roster while the
+start test was blocked on `players` when it used that roster. This is the
+durable preimplementation red evidence for the Prompt 004/051 production
+change.
 
 ## Progress integrity gate
 
@@ -66,7 +92,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | partial | non-feature | — | `functions/src/roleConfiguration.ts` and `gameSetup.ts` validate 8–18; full roster composition proof remains open. |
+| 004 | done | feature | 0.3.9 | Printed artifact decision `AMB-13`, exact client/server 8–18 ordered matrix, and production-path create/apply/start readiness proof in `src/data/rolePresets.test.ts`, `functions/src/roleConfiguration.test.ts`, `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; focused green: 5 files, 46 tests passed. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -113,7 +139,7 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | non-feature | — | Presets exist; exact all-count roster composition remains open. |
+| 051 | done | feature | 0.3.9 | Exact ordered player-count presets, no-convenience-role assertions, Union/Dione/vessel/Wolf matrix checks, and start readiness proof are covered by the Prompt 004 slice tests named above. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | done | non-feature | — | Wolf count/assignment tests. |
@@ -776,13 +802,12 @@ release classification and evidence.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 004 is the lowest-numbered unchecked acceptance;
-  this is independent of the 64 completed prompts. Prompt 020 is the first
+- Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;
+  this is independent of the 68 completed prompts. Prompt 020 is the first
   missing production-path composition proof after the documented preserve
   contracts.
-- Application version `0.3.5` is reserved for this first-100 slice. If the
-  final work is documentation-only, the version reservation must be reconciled
-  before closeout rather than left as an unearned release.
+- Application version `0.3.9` is reserved for and used by the Prompt 004/051
+  player-facing roster slice, with matching changelog coverage.
 - Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to
   the non-feature join-code policy contract on branch
   `chore/prompt-011-join-code-policy-20260908`.

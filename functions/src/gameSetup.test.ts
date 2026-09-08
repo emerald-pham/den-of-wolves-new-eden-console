@@ -10,6 +10,7 @@ import {
   projectPrivateSetup,
   wolfCountForPlayerCount,
 } from './gameSetup';
+import { recommendedRoleIds } from './roleConfiguration';
 
 describe('authoritative setup configuration', () => {
   it('normalizes the legacy session shape to a printed base-game configuration', () => {
@@ -104,6 +105,44 @@ describe('casting and private setup policy', () => {
 });
 
 describe('start readiness', () => {
+  it.each([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])(
+    'accepts one unique legal assignment for every printed %s-player roster',
+    (playerCount) => {
+      const activeRoleIds = [...recommendedRoleIds(playerCount)];
+      const connectedPlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+      const assignments = activeRoleIds.map((roleId, index) => ({
+        uid: connectedPlayers[index]!,
+        roleId,
+      }));
+      const expectedVessels = playerCount < 12
+        ? ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124']
+        : ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+
+      expect(activeRoleIds).toHaveLength(playerCount);
+      expect(new Set(activeRoleIds).size).toBe(playerCount);
+      expect(activeRoleIds).not.toContain('press-officer');
+      expect(activeRoleIds).not.toContain('capybara-captain');
+      expect(activeRoleIds).not.toContain('capybara-recycler');
+      expect(activeRoleIds.some((roleId) => roleId.startsWith('dione-'))).toBe(playerCount >= 12);
+      expect(activeRoleIds.includes('joint-engineering-quellon-refinery'))
+        .toBe([8, 9, 14, 15].includes(playerCount));
+      expect(activeRoleIds.includes('joint-engineering-shepherd-icebreaker'))
+        .toBe([8, 14, 15].includes(playerCount));
+      expect(activeVesselIdsForRoles(activeRoleIds)).toEqual(expectedVessels);
+      expect(wolfCountForPlayerCount(playerCount)).toBe(playerCount <= 13 ? 1 : 2);
+      expect(readinessForSetup({
+        phase: 'casting',
+        playerCount,
+        connectedPlayers,
+        assignments,
+        loyaltyUids: connectedPlayers,
+        facilitatorResponsibilities: { main: true, assistant: true },
+        activeRoleIds,
+        activeVesselIds: expectedVessels,
+      })).toEqual({ ready: true, reasons: [] });
+    },
+  );
+
   it('derives active vessels without treating a Union role as a new vessel', () => {
     expect(activeVesselIdsForRoles([
       'admiral', 'joint-engineering-quellon-refinery', 'press-officer',
@@ -132,13 +171,13 @@ describe('start readiness', () => {
     const connectedPlayers = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7', 'u8'];
     const assignments = [
       { uid: 'u1', roleId: 'admiral' },
-      { uid: 'u2', roleId: 'icebreaker-miner' },
-      { uid: 'u3', roleId: 'shepherd-scientist' },
-      { uid: 'u4', roleId: 'quellon-explorer' },
-      { uid: 'u5', roleId: 'refinery-124-pdf-colonel' },
-      { uid: 'u6', roleId: 'joint-engineering-quellon-refinery' },
-      { uid: 'u7', roleId: 'joint-engineering-shepherd-icebreaker' },
-      { uid: 'u8', roleId: 'press-officer' },
+      { uid: 'u2', roleId: 'wing-commander' },
+      { uid: 'u3', roleId: 'icebreaker-miner' },
+      { uid: 'u4', roleId: 'shepherd-scientist' },
+      { uid: 'u5', roleId: 'quellon-explorer' },
+      { uid: 'u6', roleId: 'refinery-124-pdf-colonel' },
+      { uid: 'u7', roleId: 'joint-engineering-quellon-refinery' },
+      { uid: 'u8', roleId: 'joint-engineering-shepherd-icebreaker' },
     ];
     expect(readinessForSetup({
       phase: 'casting',
@@ -148,7 +187,27 @@ describe('start readiness', () => {
       loyaltyUids: connectedPlayers,
       facilitatorResponsibilities: { main: true, assistant: true },
       activeRoleIds: assignments.map(({ roleId }) => roleId),
-      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'press'],
+      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
     })).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('rejects a convenience role that is not part of the configured printed roster', () => {
+    const activeRoleIds = [...recommendedRoleIds(8).slice(0, -1), 'press-officer'];
+    const connectedPlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({
+      uid: connectedPlayers[index]!,
+      roleId,
+    }));
+
+    expect(readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers,
+      assignments,
+      loyaltyUids: connectedPlayers,
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+    })).toEqual({ ready: false, reasons: ['roles'] });
   });
 });

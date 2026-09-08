@@ -34,10 +34,10 @@ export const JOINT_ENGINEERING_PLAYER_COUNTS: Readonly<
 };
 
 const MATRIX_PRESETS: Readonly<Record<number, readonly string[]>> = {
-  8: [A, 'icebreaker-miner', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR, SI],
-  9: [A, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR],
-  10: [A, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
-  11: [A, W, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+  8: [A, W, 'icebreaker-miner', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR, SI],
+  9: [A, W, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-explorer', 'refinery-124-pdf-colonel', QR],
+  10: [A, W, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+  11: [A, 'executive-officer', W, 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
   12: [A, W, 'dione-engineer', 'dione-president', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
   13: [A, 'executive-officer', W, 'dione-engineer', 'dione-president', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-engineer', 'shepherd-scientist', 'quellon-engineer', 'quellon-explorer', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
   14: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
