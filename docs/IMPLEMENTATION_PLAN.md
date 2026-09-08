@@ -116,6 +116,256 @@ handled as real roadmap items rather than represented by disabled fiction:
   `docs/ABUSE_PROTECTION_HANDOFF.md`; this is an operational workstream, not
   an excuse to add an unmeasured proxy or raise limits blindly.
 
+## Player story milestones and ATDD exit gates
+
+The following milestones turn the product objectives and the roadmap phases
+into player-facing acceptance stories. They are deliberately end-to-end
+vertical slices rather than component or callable checklists. A milestone is
+green only when its stated player/GM outcome works against authoritative state,
+has a visible result and failure path, and satisfies the cross-cutting contract
+below. Several of the original milestone ideas are intentionally split: a
+DRADIS filter is not the same thing as a playable split fleet, a Wolf attack is
+not the same thing as recovering from its aftermath, and a jump button is not
+the jump authority.
+
+### Milestone 1 — Cast and start a real game
+
+**Given** a supported player count and a base-game, Dione, Capybara, or other
+enabled configuration, **when** the facilitator commits the printed roster and
+starts play, **then** the active roles, ships, player seats, Wolf count and
+private loyalties match that configuration, Dione is absent below the printed
+threshold, the Capybara expansion remains distinct from the base small ship,
+and every player sees only the role and loyalty information they are entitled
+to see. Turn 0 can advance into a real Turn 1 without an orphaned or invalid
+seat.
+
+**Dependencies:** session lifecycle, role presets, hidden-information policy,
+and facilitator setup.
+
+### Milestone 2 — Complete one authoritative turn and maintenance loop
+
+**Given** a healthy and a materially different damaged reference ship, **when**
+the GM starts a numbered turn and each crew resolves Team and Coordination
+Phase, **then** the server applies the printed maintenance order, ration table,
+unrest and riot result, population loss, damage draw, reactor charges, shuttle
+refuelling, phase timing and airspace transition. Advancing the turn expires
+unused charges and shuttle fuel, preserves any overrun mission, and rejects
+stale or duplicate commands without applying a second result.
+
+**Dependencies:** Milestone 1, ship catalogs, damage decks, random-result
+authority, and turn/airspace state.
+
+### Milestone 3 — Make the fleet economy and specialist capabilities playable
+
+**Given** a legal phase, the required resources and an entitled role or
+shuttle, **when** Miner, Engineer, Scientist, Captain, or other specialist
+performs a printed operation, **then** mining, refining, production, cargo
+transfer, repair, recharge, research, upgrade and evacuation apply their exact
+costs, limits, ownership and target rules. The authorized players see the
+result, the facilitator can audit it, and invalid cargo, phase, role, resource
+or target requests fail without partial state.
+
+**Dependencies:** Milestones 1–2 and the registered vessel capability catalog.
+This is the acceptance story that proves every enabled role has meaningful
+work, not merely a rendered procedure card.
+
+### Milestone 4 — Scout and learn a system without leaking the organiser chart
+
+**Given** a selected organiser chart and an available Starlight, Hummingbird,
+Endeavour, or replacement scout, **when** an entitled player scouts a target,
+**then** the server enforces the printed range and per-turn limit and reveals
+only the permitted system code, mission information and candidate/hazard
+information to the permitted readers. The player chart gains the allowed
+discovery, while the complete organiser chart and unrelated system secrets
+remain hidden.
+
+**Dependencies:** Milestone 1, chart selection, navigation topology and
+hidden-information policy.
+
+### Milestone 5 — Jump independently to a legal destination and recover from failure
+
+**Given** a ship with a charged Jump Drive and sufficient fuel, **when** its
+crew submits a destination during the Coordination Phase, **then** the server
+validates the printed chart route, ship-specific fuel cost, once-per-turn rule,
+drive condition and upgrade, consumes the authoritative fuel, updates that
+ship's location and pursuit state, and writes the appropriate navigation log.
+Wrong coordinates, an invalid or failed jump, damage, a facilitator
+adjudication, and the ship's one emergency jump each produce their prescribed
+recoverable outcome and cannot be selected by the client as a fake result.
+
+The **jump button** is the player-facing control for this story, not a separate
+milestone. “Wild destination” means a player-selected/scouted destination on
+the selected printed 22-system network; arbitrary four-digit coordinates are an
+input-error or facilitator-adjudication path, not valid navigation authority.
+
+**Dependencies:** Milestones 1–4, per-ship navigation authority, pursuit, and
+damage resolution.
+
+### Milestone 6 — Fly a shuttle and make it useful after arrival
+
+**Given** a shuttle, a legal destination ship and an open movement window,
+**when** its owner departs, retargets, arrives and docks, **then** the server
+resolves its position from timestamps, records the visit, updates the local
+DRADIS sample and permits only its printed cargo and capability actions. A
+shuttle can transfer, repair, recharge, mine, scout, contribute to an away
+mission, or support boarding only when its sheet and phase allow it.
+
+During restricted airspace, movement is rejected except for the documented
+AEGIS-authorized SNN exception; during a Wolf Attack, all shuttles park at the
+nearest ship and only battle-capable craft join the battle table. Mid-flight
+retargeting starts from the server-resolved current position rather than
+snapping to the old origin or animation frame.
+
+**Dependencies:** Milestones 1–3 and the authoritative shuttle travel,
+docking, airspace and DRADIS contracts.
+
+### Milestone 7 — Complete an away mission at an arrived system
+
+**Given** a newly reached system and eligible away-mission shuttles, **when** a
+Mission Leader starts and completes the mission, **then** participants receive
+private initial cards, the leader distributes opportunity cards without seeing
+them, players secretly discard and assign cards, facilitator cards and shuttle
+bonuses are applied simultaneously, and each opportunity produces its exact
+success, critical-success or failure result. Rewards reach the Mission Leader
+or their chosen drop-off ship, overruns preserve the mission and dockings, and
+hostile systems trigger the required Wolf consequences.
+
+**Dependencies:** Milestones 3–6, system discovery, mission-card authority,
+private card visibility and resource/reward persistence.
+
+### Milestone 8 — Operate and reunite a split fleet safely
+
+**Given** one or more ships jump away while others remain behind, **when** the
+split state is created, **then** each group has its own location and pursuit
+state, local DRADIS shows only the contacts that have arrived in that group,
+cross-group communication is blocked,
+and no view silently exposes the other group's position. A legal scout taxi can
+carry at most two players or two strytium fuel for a round trip, and a later
+rejoin is authoritative, logged and visible to the reunited group.
+
+This extends the original “split the fleet and filter DRADIS contacts” story:
+the filter is the first acceptance case, while communication, pursuit, taxi and
+rejoin are the exit gate for a playable split fleet.
+
+**Dependencies:** Milestones 5–6, fleet-group state, local information policy
+and rejoin rules.
+
+### Milestone 9 — Resolve a full Wolf attack and its aftermath
+
+**Given** a prepared Wolf composition and the current fleet state, **when** a
+Wolf Attack is declared, **then** all shuttles park, targeting resolves with
+the permitted modifiers, Long, Medium and Short Range actions resolve
+simultaneously, Short Range damage targets fighter wings first, Boarding
+Action resolves security dice and shuttle support, and surviving Wolf ships
+apply their step-specific damage and retreat/return behavior. The attack,
+damage cards, casualties, boarding results and public/private readouts are
+auditable and cannot be chosen by the client.
+
+The post-attack story continues through repair, resource loss, survivor
+changes, salvage and any newly triggered alert or mission consequence. Combat
+resolution and recovery must each have a failing-first acceptance fixture so a
+passing battle animation cannot be mistaken for a playable aftermath.
+
+**Dependencies:** Milestones 2–3 and 6, server randomness, damage authority,
+boarding state and the Wolf ship-card catalog.
+
+### Milestone 10 — Make hidden loyalties and social deduction playable
+
+**Given** an assigned hidden Wolf, Intelligence Agent, or other configured
+loyalty, **when** a player performs one permitted action in a turn, **then**
+console sabotage, supply sabotage, homing beacon, intel, suspicion changes,
+clues, investigations, arrests and prisoner deadlines resolve through the
+server with the correct private/public visibility. An arrest reaches release,
+execution or replacement by the next Team Phase, and a replacement role can
+use its new ability before the game ends.
+
+**Dependencies:** Milestones 1–2, secret records, role ownership, facilitator
+visibility and the replacement-role contract. This is separate from the Wolf
+combat story: the social-deduction loop must work even when no attack is in
+progress.
+
+### Milestone 11 — Recover from catastrophe without orphaning the game
+
+**Given** a failed jump, damage-deck exhaustion, population loss, unrest 8,
+or a destroyed ship, **when** the facilitator and affected players resolve the
+consequence, **then** the session records mutiny, destruction, escape pods,
+survivor evacuation, resource salvage, repairs, a new captain or an extra/
+replacement role as appropriate. The affected ship cannot perform actions it
+no longer has, while the remaining fleet can continue and the replacement gets
+meaningful authorized work before debrief.
+
+**Dependencies:** Milestones 2, 5, 7 and 9, population/damage state,
+evacuation rules and role reassignment.
+
+### Milestone 12 — Resolve crises and political decisions
+
+**Given** a configured President and a facilitator-issued crisis, **when** the
+President and affected teams resolve or allow it to escalate, **then** the
+political-capital, unrest, quarantine, election, approaching-vessel or other
+printed consequence is recorded and announced at the correct phase. A
+facilitator call is explicit, attributable and auditable rather than an
+unexplained client-side state change.
+
+**Dependencies:** Milestones 1–3, facilitator controls, broadcasts and
+role-specific authority.
+
+### Milestone 13 — Reach an explicit New Eden ending
+
+**Given** a discovered New Eden candidate, **when** the fleet attempts its
+candidate-specific path, **then** the server resolves the distinct Ancient
+Jump Ring, Deep Nebula or Ancient Space Station preparation and attempt,
+including research/material/fuel, scouting and long-jump, or Wolf/combat/
+reactor requirements as applicable. Pursuit reaching 10, total fleet loss,
+lost ships, a candidate success, and any unresolved facilitator call produce a
+clear outcome, survivor summary and debrief; active play freezes and the
+session transitions to `closed` without losing the readable audit history.
+
+**Dependencies:** Milestones 1–12. The exit fixture must include at least one
+candidate success path and one failure path; the existing `debriefMode` visual
+toggle alone does not satisfy this milestone.
+
+### Cross-cutting acceptance contract
+
+Every milestone above carries the following acceptance cases:
+
+- Gameplay, randomness, secrets, resources, movement, damage and victory are
+  committed by an authoritative callable transaction; the corresponding
+  client write is denied in Firestore rules.
+- An unauthenticated, unauthorized, out-of-phase, out-of-range, stale or
+  malformed request is rejected without partial state. An authorized retry is
+  idempotent and returns or exposes the single authoritative result.
+- A reconnecting browser replaces its cached snapshot with live authority and
+  does not duplicate an irreversible action. Hidden results are readable only
+  by the entitled player, GM instance or facilitator.
+- The state change has a member-visible result, a failure/denial readout, and a
+  stable audit record naming the actor, source, random result or facilitator
+  call when applicable. Presentation effects never become gameplay authority.
+- Every affected route has a visible, keyboard-accessible return path, and
+  every supported viewport can reach the result without clipped, overlapping
+  or unverified controls.
+
+### Recommended story order
+
+The shortest path to a meaningful playable loop is:
+
+1. Cast and start a real game.
+2. Complete one authoritative turn and maintenance loop.
+3. Make the fleet economy and specialist capabilities playable.
+4. Scout and learn a system.
+5. Jump independently to a legal destination and recover from failure.
+6. Fly a shuttle and make it useful; then complete an away mission.
+7. Operate and reunite a split fleet safely.
+8. Resolve a full Wolf attack and its aftermath.
+9. Make hidden loyalties and social deduction playable.
+10. Recover from catastrophe and resolve crises.
+11. Reach an explicit New Eden ending and closed debrief.
+
+The 20-player roster and 60-browser-client scenario remain release-readiness
+evidence, not substitutes for these stories. They should be exercised after
+the relevant loop is functionally complete, with measured latency, errors,
+contention, reconnect and retry results rather than an unverified capacity
+claim.
+
 ## Source-of-truth and decision policy
 
 Before designing a mechanic, read
