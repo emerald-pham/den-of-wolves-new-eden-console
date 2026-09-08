@@ -207,7 +207,23 @@ function plannedApplicationVersion(versionPlan) {
   return matches.at(-1)?.[0];
 }
 
-function changelogPreservationErrors(mainChangelog, branchChangelog, { allowVersion } = {}) {
+function changelogCoverageFreeSource(source) {
+  return normalizeChangelogEntrySource(source)
+    .replace(/\s*implementationPrompts:\s*\[[^\]]*\]\s*,?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function changelogEntriesDifferOnlyByCoverage(mainEntry, branchEntry) {
+  return changelogCoverageFreeSource(mainEntry.source) ===
+    changelogCoverageFreeSource(branchEntry.source);
+}
+
+function changelogPreservationErrors(
+  mainChangelog,
+  branchChangelog,
+  { allowVersion, allowMetadataOnly = false } = {},
+) {
   const branchEntries = new Map();
   const errors = [];
 
@@ -231,6 +247,7 @@ function changelogPreservationErrors(mainChangelog, branchChangelog, { allowVers
       normalizeChangelogEntrySource(mainEntry.source)
     ) {
       if (mainEntry.version === allowVersion) continue;
+      if (allowMetadataOnly && changelogEntriesDifferOnlyByCoverage(mainEntry, branchEntry)) continue;
       errors.push(
         `branch changelog would replace main's ${mainEntry.version} entry`,
       );
@@ -387,7 +404,7 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
       release.mainChangelog,
       release.branchChangelog,
       toolingOnly && release.branchVersion === release.mainVersion
-        ? { allowVersion: release.mainVersion }
+        ? { allowVersion: release.mainVersion, allowMetadataOnly: true }
         : undefined,
     ));
   }

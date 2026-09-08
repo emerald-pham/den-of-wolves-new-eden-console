@@ -840,6 +840,36 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('allows tooling-only enrichment of historical release coverage metadata', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        versionPlan: 'Tooling-only; correct historical prompt coverage metadata.',
+      },
+      release: releaseState({
+        branchVersion: '0.3.5',
+        mainVersion: '0.3.5',
+        branchLockVersion: '0.3.5',
+        mainLockVersion: '0.3.5',
+        branchChangelog: [
+          { version: '0.3.5', source: 'generic current release summary' },
+          {
+            version: '0.3.4',
+            source: "version: '0.3.4' implementationPrompts: [598] changes: ['historical change']",
+          },
+        ],
+        mainChangelog: [
+          { version: '0.3.5', source: 'generic current release summary' },
+          {
+            version: '0.3.4',
+            source: "version: '0.3.4' changes: ['historical change']",
+          },
+        ],
+      }),
+    })).not.toThrow();
+  });
+
   it('preserves a previous APP_VERSION entry across a new release', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-release-preservation-${randomUUID()}.json`);
 
