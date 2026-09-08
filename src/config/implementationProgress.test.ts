@@ -87,8 +87,8 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;',
-        'Resume pointer: Prompt 013 is the lowest-numbered unchecked acceptance;',
+        'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and',
+        'Resume pointer: Prompt 013 is the lowest-numbered unchecked acceptance and',
       ),
     });
 
@@ -125,21 +125,23 @@ describe('implementation progress integrity gate', () => {
     );
   });
 
-  it('does not allow work to start past the first unresolved prompt', () => {
+  it('allows a dependency-ready prompt to start past the triage resume pointer', () => {
     const result = validateImplementationProgress({
         ...validationInputs,
         progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 013**.')
-        .replace('| 013 | done | non-feature | — |', '| 013 | in-progress | non-feature | — |')
+        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 020**.')
+        .replace('| 020 | missing | non-feature | — |', '| 020 | in-progress | non-feature | — |')
         .replace(
           'Status breakdown: **68 done · 26 partial · 611 missing**.',
-          'Status breakdown: **67 done · 26 partial · 611 missing · 1 in-progress**.',
+          'Status breakdown: **68 done · 26 partial · 610 missing · 1 in-progress**.',
         ),
-      planSource: planSource.replace('- [x] Prompt 013', '- [ ] Prompt 013'),
     });
 
+    expect(result.errors.join('\n')).not.toContain(
+      'active prompt is 020, but the first unresolved prompt is 012',
+    );
     expect(result.errors.join('\n')).toContain(
-      'active prompt is 013, but the first unresolved prompt is 012',
+      'Prompt 020 is still in-progress; mark it done, partial, missing, or blocked before moving on',
     );
   });
 

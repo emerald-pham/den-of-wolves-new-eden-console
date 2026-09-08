@@ -6,6 +6,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 ## Contents
 
 - [Agent fast path](#agent-fast-path)
+- [Implementation-plan reading route](#implementation-plan-reading-route)
 - [Test first for code](#1-test-first-for-code)
 - [Shared test-runner contention](#shared-test-runner-contention)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
@@ -52,6 +53,42 @@ Every `Session goals` checklist must include this release objective:
 Keep this objective unchecked until the sequence has actually happened. If the
 work is explicitly preserved or discarded instead of landed, replace it with
 that documented outcome and explain why it could not merge.
+
+### Implementation-plan reading route
+
+For numbered implementation-plan work, do not read the 705-prompt
+`docs/IMPLEMENTATION_PLAN.md` from top to bottom. Its fixed line numbers change
+as prompt evidence is updated, so required reading is defined by stable
+headings and targeted rows instead.
+
+Read these items before implementation:
+
+1. The selected milestone, dependencies, exit fixture, and review budget in
+   `docs/IMPLEMENTATION_MILESTONES.md`.
+2. `IMPLEMENTATION_PLAN.md` sections **Reading map and table of contents**,
+   **Product objectives**, the affected **Source-of-truth and decision policy**
+   row, **Prompt status legend**, **Contract carried by every numbered
+   prompt**, and **Implementation-plan agent authorization**.
+3. Only the exact selected prompt definition and its exact row in
+   `docs/IMPLEMENTATION_PROGRESS.md`.
+4. The exact printed references routed for that mechanic. Product behavior
+   still requires the game-rule reading described later in this file.
+
+Use targeted lookup rather than broad reads:
+
+```bash
+prompt_id=012
+rg -n -A 2 "^- \*\*Prompt ${prompt_id} —" docs/IMPLEMENTATION_PLAN.md
+rg -n "^\| ${prompt_id} \|" docs/IMPLEMENTATION_PROGRESS.md
+rg -n '^## |^### |^#### ' docs/IMPLEMENTATION_PLAN.md docs/IMPLEMENTATION_MILESTONES.md
+```
+
+Read the full plan only when auditing or restructuring the roadmap, changing
+prompt IDs/taxonomy, making a cross-cutting architecture decision, or executing
+the final release-readiness audit. The progress ledger's lowest unresolved ID
+is a default triage pointer, not a dependency lock; a worktree may claim any
+dependency-ready unresolved prompt, while the coordination registry prevents a
+duplicate active claim.
 
 ### Start
 

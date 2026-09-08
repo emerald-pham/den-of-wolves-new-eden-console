@@ -422,12 +422,6 @@ export function validateImplementationProgress({
         `Active prompt is ${promptLabel(activePrompt)}, but Prompt ${promptLabel(inProgressRows[0].prompt)} is in-progress`,
       );
     }
-    if (activePrompt !== firstUnresolvedPrompt) {
-      errors.push(
-        `active prompt is ${promptLabel(activePrompt)}, but the first unresolved prompt is ` +
-        `${firstUnresolvedPrompt === null ? 'none' : promptLabel(firstUnresolvedPrompt)}`,
-      );
-    }
     if (activeRow?.status === 'in-progress') {
       errors.push(
         `Prompt ${promptLabel(activePrompt)} is still in-progress; mark it done, partial, missing, or blocked before moving on`,

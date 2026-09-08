@@ -68,12 +68,14 @@ row per ID, the headline count and percentage, the status breakdown, the checked
 source-plan boxes, changelog coverage, and the resume pointer. It accepts both
 base and lettered IDs without a 001–100 range assumption.
 
-When work starts, set `Active prompt` to the first unresolved prompt and change
-that ledger row to `in-progress`. The coordination registry owns the active
-claim: agents may claim different base or lettered IDs concurrently, but a
-second active claim for the same normalized ID is rejected. The move-on gate
-fails while an in-progress row is open: mark it `done`, `partial`, `missing`,
-or `blocked` with evidence before selecting another prompt.
+When work starts, set `Active prompt` to the selected dependency-ready
+unresolved prompt and change that ledger row to `in-progress`. The lowest-ID
+resume pointer is the default triage suggestion, not a serial execution lock.
+The coordination registry owns the active claim: worktrees may claim different
+base or lettered IDs concurrently, but a second active claim for the same
+normalized ID is rejected. The final move-on gate still fails while the current
+branch leaves its selected row `in-progress`: mark it `done`, `partial`,
+`missing`, or `blocked` with evidence before release.
 
 Every ledger row also declares whether the prompt is a `feature` or
 `non-feature` change. A feature row names its application release or releases
@@ -92,7 +94,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | done | feature | 0.3.9 | Printed artifact decision `AMB-13`, exact client/server 8–18 ordered matrix, and production-path create/apply/start readiness proof in `src/data/rolePresets.test.ts`, `functions/src/roleConfiguration.test.ts`, `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; focused green: 5 files, 46 tests passed. |
+| 004 | done | feature | 0.3.9 | Supported-count policy: printed artifact decision `AMB-13` plus the exact ordered 8–18 role, vessel, Union, Dione, and Wolf matrix in `src/data/rolePresets.test.ts`, `functions/src/roleConfiguration.test.ts`, and `functions/src/gameSetup.test.ts`. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -139,7 +141,7 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | done | feature | 0.3.9 | Exact ordered player-count presets, no-convenience-role assertions, Union/Dione/vessel/Wolf matrix checks, and start readiness proof are covered by the Prompt 004 slice tests named above. |
+| 051 | done | feature | 0.3.9 | Production-path use of the Prompt 004 matrix: create/apply/start persists the selected row, rejects a convenience or short roster, and requires one assignment per active role in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; the combined focused Prompt 004/051 run passed 46 tests across five files. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | done | non-feature | — | Wolf count/assignment tests. |
@@ -778,7 +780,7 @@ release classification and evidence.
 | 635 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 636 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 637 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 638 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 638 | missing | non-feature | — | Planned [EXTEND] prompt: authoritative session setup still supports only 8–18, so the base/expansion count policy and a real 20-player run both remain open. |
 | 639 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 640 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 641 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
@@ -802,10 +804,10 @@ release classification and evidence.
 - The plan's status tag controls the action: preserve existing contracts,
   extend only missing seams, implement new behavior test-first, and record
   decisions before exposing ambiguous actions.
-- Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance;
-  this is independent of the 68 completed prompts. Prompt 020 is the first
-  missing production-path composition proof after the documented preserve
-  contracts.
+- Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and
+  the default triage suggestion, not a dependency or concurrency lock. Prompt
+  020 is the first missing production-path composition proof after the
+  documented preserve contracts.
 - Application version `0.3.9` is reserved for and used by the Prompt 004/051
   player-facing roster slice, with matching changelog coverage.
 - Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to

@@ -13,6 +13,56 @@ smallest rules-complete increment needed for that slice.
 No application code, tests, rules, configuration, version metadata, or
 player-facing changelog entries are changed by this planning document.
 
+## Reading map and table of contents
+
+Do **not** read this 705-prompt catalog from top to bottom for an ordinary
+implementation slice. Fixed numeric line ranges are intentionally not
+prescribed because checklist and evidence edits move them. Use the stable
+headings and targeted searches below.
+
+Default reading path for one prompt:
+
+1. Read the selected row in the compact
+   [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) completion
+   route, including its dependencies and exit fixture.
+2. Read [Product objectives](#product-objectives), the relevant part of
+   [Scope and baseline](#scope-and-baseline), and the affected row in
+   [Source-of-truth and decision policy](#source-of-truth-and-decision-policy).
+3. Read [Prompt status legend](#prompt-status-legend),
+   [Contract carried by every numbered prompt](#contract-carried-by-every-numbered-prompt),
+   and only the selected prompt definition.
+4. Read the matching ledger row in
+   [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md), then the exact
+   printed references routed for the mechanic.
+5. Use `CLAUDE.md` for workflow, validation, review, merge, and release rules;
+   do not reread duplicated workflow prose here.
+
+Targeted lookup example:
+
+```bash
+prompt_id=012
+rg -n -A 2 "^- \*\*Prompt ${prompt_id} —" docs/IMPLEMENTATION_PLAN.md
+rg -n "^\| ${prompt_id} \|" docs/IMPLEMENTATION_PROGRESS.md
+rg -n '^## |^### |^#### ' docs/IMPLEMENTATION_PLAN.md docs/IMPLEMENTATION_MILESTONES.md
+```
+
+Read the full plan only for roadmap restructuring, prompt-ID changes, a
+cross-cutting architecture decision, or the final release-readiness audit.
+
+Contents:
+
+- [Product objectives](#product-objectives)
+- [Scope and baseline](#scope-and-baseline)
+- [Detailed player stories and exit gates](#player-story-milestones-and-atdd-exit-gates)
+- [Source and decision policy](#source-of-truth-and-decision-policy)
+- [Coverage lanes](#staged-implementation-plan)
+- [Review budget and evidence reuse](#review-budget-and-evidence-reuse)
+- [Test-first plan delta](#test-first-execution-contract)
+- [Roadmap definition of done](#definition-of-done-for-the-roadmap)
+- [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
+- [Prompt checklist](#execution-checklist--all-705-prompts-001653-plus-lettered-ids)
+- [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
+
 ## Product objectives
 
 The implementation is complete only when all of these objectives are met:
@@ -117,6 +167,11 @@ handled as real roadmap items rather than represented by disabled fiction:
   an excuse to add an unmeasured proxy or raise limits blindly.
 
 ## Player story milestones and ATDD exit gates
+
+For ordinary planning and prompt selection, use the compact dependency map in
+[`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md). The detailed
+stories below remain the canonical acceptance narrative and are read only when
+the selected slice touches that story or changes milestone scope.
 
 The following milestones turn the product objectives and the roadmap phases
 into player-facing acceptance stories. They are deliberately end-to-end
@@ -435,43 +490,16 @@ first code slice that depends on them:
 - The Capybara expansion does not fully specify an empty damage deck, Boa
   targeting after destruction, or Macaw dismantling its own ship console.
 
-### Active vertical slice — ship jump console
-
-**Objective:** turn the existing display-only Jump Drive entry into one
-authoritative, touch-friendly ship action with a readable start, transit, and
-recovery state.
-
-**Contract:**
-
-- The player edits four numeric coordinate digits with increment/decrement
-  controls, explicitly locks the destination, and drags a full-width power
-  rail before the server receives a jump request. Coordinate editing remains
-  local until the locked jump is submitted.
-- The callable validates the active ship role, current turn, maintenance
-  charge, fuel, damage/upgrades, chart reachability, and one-jump-per-turn
-  rule. A four-digit value that is not a printed, reachable system is an
-  integrity failure: the ship does not move and the server records a one-hour
-  `integrityLockedUntil` state. The client displays that lockout from server
-  state, not from a local timer alone.
-- Successful jumps update the ship's galactic coordinate, consume the
-  authoritative fuel/charge, append a navigation event, and publish one
-  transition record. DRADIS contacts are derived from the new coordinate, so
-  only ships that completed the same destination reappear and their fixed
-  ship-relative formation is unchanged.
-- The transition record drives a two-second 3 Hz system flash across the ship
-  console. Reduced motion removes the nonessential flash while preserving the
-  authoritative coordinate/contact transition and accessible status copy.
-
-**Definition of done:** the failing-first unit, callable, component, DRADIS,
-and Firestore-denial tests cover the contract above; the module is mounted in
-the shared fleet system workspace for every enabled ship; and narrow, wide,
-short-landscape, and reduced-motion visual review finds no clipped controls or
-misleading contact data.
-
 ## Staged implementation plan
 
-Each phase below is a product objective, not a license to implement the whole
-phase in one branch. Break a phase into vertical slices that have one
+These numbered phases are coverage lanes retained for stable navigation, not a
+chronological queue. Their old numbering puts away missions before shuttle
+travel and role breadth after mechanics that depend on those roles. Execute by
+the dependency order in
+[`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md): role and
+shuttle prerequisites land before missions, candidate discovery is separate
+from candidate resolution, and cross-cutting security/accessibility work lands
+with the first affected surface. Break each lane into vertical slices with one
 authoritative state change and one user-visible outcome.
 
 ### Phase 0 — Scope, rule matrix, and delivery contract
@@ -760,6 +788,10 @@ slice without weakening security.
 - Follow `docs/ABUSE_PROTECTION_HANDOFF.md`: validate App Check behavior,
   classify callable costs, preserve identity/session-aware throttles, and
   make overload/retry behavior recoverable and idempotent.
+- Build one reproducible capacity command before claiming load evidence. It
+  must exercise production-shaped gameplay, accept explicit client/duration
+  parameters, fail on declared thresholds, and write a reviewable artifact
+  tied to the tested commit and deployment/environment identity.
 - Run an isolated, repeatable 60-client scenario covering startup/reconnect,
   15 minutes of heartbeats and live listeners, concurrent GM/player actions,
   contention on shared documents, and recovery from temporary 429/unavailable
@@ -779,71 +811,69 @@ clients, malformed/unauthorized traffic is rejected before meaningful game
 work, retries do not duplicate mutations, operational owners know how to
 respond, and the release evidence is recorded with the change.
 
+## Review budget and evidence reuse
+
+The 2026-09-08 audit found 219 evidence-oriented entries in this catalog: 168
+`[PRESERVE]` and 51 `[PROVE]`. The coverage is useful; 219 separate review
+ceremonies are not. The compact milestone route defines the full
+[review budget](./IMPLEMENTATION_MILESTONES.md#review-budget-and-evidence-reuse).
+
+For an ordinary slice, perform one selection/evidence preflight, one red/green
+implementation loop when behavior is missing, one risk-based review, and one
+reconciled executable release gate. Reuse unchanged named evidence instead of
+rereading the whole plan or rerunning the same manual review at every adjacent
+prompt.
+
+- Batch adjacent evidence-only `[PRESERVE]` prompts when current tests already
+  prove them and no behavior changes. Do not manufacture a product release,
+  refactor, or review-only agent for unchanged behavior.
+- Run `[PROVE]` composition at the milestone boundary after its prerequisites
+  land. It must exercise the production path, but it must not duplicate every
+  lower-level review.
+- Require independent review for security/authorization, hidden information,
+  randomness, destructive migrations, endgame, capacity, and complex conflict
+  resolution. Use it by judgment elsewhere; it is not a per-prompt ceremony.
+- Let the final release audit aggregate current milestone evidence and execute
+  the final gates. It does not manually repeat every earlier audit.
+
 ## Test-first execution contract
 
-The plan is intentionally test-first. For every future code slice:
+`CLAUDE.md` is the workflow source of truth. The plan adds only these
+gameplay-specific requirements:
 
-1. Read the affected reference sources and identify the exact rule or contract.
-2. Write the smallest failing test before implementation code. Run it and
-   record the observed failure.
-3. Implement the minimum server/client change that makes the test pass.
-4. Add adjacent denial, stale-state, retry, and navigation cases before
-   broadening the implementation.
-5. Run the relevant unit/function suite, then the rules suite when Firestore
-   authority is involved. Keep emulator ports isolated per `CLAUDE.md`.
-6. For UI work, render and inspect narrow, wide, and short landscape states;
-   passing text-presence tests alone is not visual verification.
-7. Run the repository release gates in proportion to the change: lint,
-   application and function builds, all tests, bundle checks, and capacity
-   evidence when those surfaces are affected.
-
-Required coverage patterns:
-
-- Pure rule tables and state transitions: `src/**/*.test.ts` or
-  `functions/src/*.test.ts`.
-- Components and routes: React Testing Library tests that query by role or
-  accessible text, including activation of the visible return route.
-- Firestore-authoritative behavior: `tests/rules/firestore.rules.test.ts`
-  must assert both permitted reads/actions and the client-side denial.
-- Callable Functions: assert authentication, membership, role/GM instance,
-  phase, revision, feature toggle, input bounds, transaction atomicity,
-  idempotency, and private/public result visibility.
-- Shared console architecture: exercise a reference vessel plus a materially
-  different configuration rather than copying assertions per ship.
-- Random or hidden mechanics: test that the client cannot supply the result,
-  that the server records it, and that only entitled readers receive it.
-- Responsive/aesthetic regressions: assert layout-relevant semantics or
-  computed styles where appropriate, then perform the required rendered review.
+1. Name the exact printed source and the Given/When/Then player or facilitator
+   result before writing code.
+2. For `[PRESERVE]`, close from current evidence when it already satisfies the
+   acceptance. For `[EXTEND]`/`[NEW]`, observe the smallest missing production-
+   path acceptance fail before implementation.
+3. Exercise server authority, direct-write denial, audience projection,
+   idempotent retry/reconnect, visible success/failure, and stable audit output
+   wherever the selected mechanic uses those boundaries.
+4. Exercise the shared console with a reference vessel and a materially
+   different vessel where configuration varies.
+5. Apply route, viewport, keyboard/touch, and reduced-motion checks only when
+   the slice changes or newly exposes UI.
 
 ## Definition of done for the roadmap
 
-A roadmap slice is complete only when:
-
-- its objective, source references, scope, and unresolved decisions are
-  recorded in the implementation issue/branch;
-- the failing test was observed before implementation;
-- the server transaction, Firestore denial, client surface, audit record, and
-  retry behavior agree;
-- affected routes have visible tested return navigation and no unverified
-  buttons;
-- affected visuals work at supported viewport sizes and respect reduced motion;
-- documentation, architecture, errata, and aesthetics are updated when the
-  new behavior changes them;
-- version and player-facing changelog are updated for product changes, while
-  documentation-only changes keep them untouched;
-- local validation and capacity evidence appropriate to the risk are recorded;
-- the coordination entry is closed from the same worktree and the finished
-  branch is merged and pushed according to `CLAUDE.md`.
+A roadmap slice is complete only when its selected prompt acceptance and
+milestone contribution have current named evidence, no exposed control depends
+on unfinished later work to become truthful, and the `CLAUDE.md` definition of
+done is satisfied. Prompt completion is not milestone completion: the milestone
+exit fixture must also pass before claiming the player story. The full product
+is complete only at the
+[`1.0` completion gate](./IMPLEMENTATION_MILESTONES.md#10-completion-gate).
 
 ## Prompt-by-prompt ATDD build sequence
 
 This is an incremental queue from the tested application that exists now to a
 complete game. It is not a greenfield specification. The inventory below was
-checked against the current production modules and all 128 test files. The
-ordinary Vitest run was also executed while preparing this plan: **127 test
-files and 1,126 tests passed**. Its separate Firestore emulator suite also
-passed **52 rules tests in one file**, for a current evidence snapshot of
-**1,178 passing tests across 128 files**.
+checked while the plan was prepared at commit `1418146`. At that historical
+snapshot, the ordinary Vitest run reported **127 test files and 1,126 tests
+passing**, and the separate Firestore suite reported **52 passing rules tests**.
+Those counts are context, not current proof; `main` has advanced and every
+selected slice must use its current focused evidence plus the live progress
+ledger. Do not infer gameplay-completion percentage from test-file count.
 
 ### Current tested foundation
 
@@ -872,9 +902,9 @@ visual are real, but candidate resolution and a durable outcome are not.
 ### Prompt status legend
 
 - **`[PRESERVE]`** — the current suite already exercises the behavior. Do not
-  rewrite it. Confirm the named tests, add only a missing regression or
-  composition case, and close the prompt with no product change when the
-  acceptance is already proven.
+  rewrite it. Reuse the named current evidence, add only a genuinely missing
+  regression or composition case, and batch adjacent evidence-only closures
+  when no product behavior changes.
 - **`[EXTEND]`** — production scaffolding or part of the behavior exists. Add
   the smallest missing authoritative edge while retaining every passing test,
   ID, route, template, and player-facing contract.
@@ -887,43 +917,27 @@ visual are real, but candidate resolution and a durable outcome are not.
 - **`[DECISION]`** — resolve a genuine printed-rule or product ambiguity before
   exposing the affected action. Record the source and chosen policy.
 
-Before starting any numbered prompt, reconcile it with current `main`, the
-coordination ledger, this evidence table, and the rule matrix. The status tag
-overrides any broad verb retained in the prompt title: for example,
-`[PRESERVE] Implement ...` means audit the already-implemented contract, not
-replace it. If later work has landed, reclassify the prompt from `[NEW]` or
-`[EXTEND]` to `[PRESERVE]`, link its proof, and make no duplicate
-implementation. Split a prompt only when its first failing test exposes two
-independent state changes; retain the original ID with a lettered child rather
-than renumbering completed work.
+At selection time, reconcile the chosen prompt with current `main`, active
+coordination claims, its progress row, and the relevant rule-matrix row. Do
+this once per slice; do not re-audit the whole catalog. The status tag overrides
+any broad verb retained in the title: `[PRESERVE] Implement ...` means preserve
+the proven contract, not replace it. If later work has landed, reclassify the
+prompt to `[PRESERVE]`, link its proof, and make no duplicate implementation.
+Split only when the first failing test exposes independent state changes;
+retain the original ID with a lettered child rather than renumbering completed
+work.
 
 ### Contract carried by every numbered prompt
 
 Treat each entry below as if it ended with this instruction:
 
-> Read `CLAUDE.md`, the implementation-plan source map, and the exact printed
-> references for this slice. Start with session goals and coordination,
-> version, changelog, and resource preflight. State the Given/When/Then player
-> or facilitator outcome. First run the named existing tests for the affected
-> contract and keep them green. For `[PRESERVE]`, stop when current behavior and
-> evidence satisfy the acceptance; never refactor or reimplement it merely to
-> complete the prompt. For `[EXTEND]` or `[NEW]`, write the smallest missing
-> failing acceptance test and run it to observe the intended failure before
-> changing product code. Implement one bounded vertical slice through server
-> authority, typed shared state, Firestore denial, the entitled client surface,
-> a truthful failure
-> state, idempotent retry/reconnect behavior, and a stable audit result where
-> those layers apply. Add adjacent unauthenticated, unauthorized, wrong-role,
-> wrong-phase, stale-revision, malformed-input, secret-visibility, and direct-
-> write cases in proportion to risk. Exercise the shared console with a
-> reference vessel and a materially different vessel when applicable. Verify
-> visible return navigation, supported viewports, keyboard/touch operation,
-> and reduced motion for affected UI. Update rule, architecture, errata,
-> aesthetics, version, and player-facing changelog records only when the slice
-> requires them. Run the repository gates appropriate to the changed surfaces,
-> reconcile current `main`, merge, push, close coordination, and record both
-> the red and green evidence. Do not expose a control whose authoritative
-> action, result, denial, and recovery path are not all real.
+> Follow `CLAUDE.md`, the selected milestone row, the exact printed source, and
+> the review budget. State the Given/When/Then outcome. Preserve current proof
+> or observe the smallest missing acceptance fail, then deliver one bounded,
+> authoritative, retry-safe, audience-correct result with truthful success and
+> failure UI where applicable. Do not expose a control whose action, denial,
+> result, and recovery path are not real. Record focused evidence and complete
+> the single reconciled release gate required by `CLAUDE.md`.
 
 Planning, decision, fixture, and operations prompts use the same discipline:
 their first red check is an executable schema, traceability, security, replay,
@@ -943,6 +957,9 @@ plus the lettered prompts) are tracked in the checklist below and in
 implementation begins. A completed prompt is marked with a checked task box
 and recorded with current evidence. Unchecked, `partial`, and `missing`
 prompts remain open; none of those states may be treated as completion.
+The lowest unresolved ID is the default triage resume pointer, not a dependency
+lock. A worktree may select any dependency-ready unresolved prompt in the
+current milestone, and distinct coordination claims may proceed concurrently.
 
 #### Implementation-plan agent authorization
 
@@ -968,8 +985,10 @@ use its own worktree and short-lived branch, and follow the test-first contract
 above, including observing the failing test before implementation. Each slice
 must satisfy the applicable reference, authority, denial, retry, audit,
 accessibility, responsive-review, version, and standalone changelog contracts.
-An independent Luna agent at any supported reasoning level may perform final
-read-only review and gate verification. If that review or release work changes
+Use an independent Luna review for security/authorization, hidden information,
+randomness, destructive migrations, endgame, capacity, or complex conflict
+resolution, and when ordinary risk judgment calls for one. Do not create a
+review-only agent for every low-risk prompt. If review or release work changes
 code, rules, configuration, scripts, or tests, the agent must use `max`. A
 prompt may move to `done` only after its proof is current on the reconciled
 branch, every applicable executable gate passes, the slice is merged to `main`,
@@ -1740,7 +1759,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 048 — [PRESERVE] Enter GM Observer mode read-only.** Acceptance: an eligible GM can inspect a selected fleet ship while mutation remains disabled until separately authorized.
 - **Prompt 049 — [PRESERVE] Reset Observer elevation on ship change.** Acceptance: leaving the observed ship removes any scoped write grant before another ship loads.
 - **Prompt 050 — [PRESERVE] Add return paths to session modes.** Acceptance: lobby, roster, Console, GM, and Observer routes expose a visible keyboard-operable return to their logical parent.
-- **Prompt 051 — [PRESERVE] Load a roster by player count.** Acceptance: every supported count selects exactly the printed casting row and no convenience role.
+- **Prompt 051 — [PRESERVE] Prove the roster through creation and start.** Acceptance: session creation, roster application, persisted configuration, and start readiness use the exact Prompt 004 row across client and server and reject a mismatched or convenience role.
 - **Prompt 052 — [PRESERVE] Exclude Dione below 12 players.** Acceptance: Dione, its roles, resources, shuttles, and population are absent and cannot be re-enabled by payload edits.
 - **Prompt 053 — [PRESERVE] Configure Joint Engineering Union substitutions.** Acceptance: each count assigns the correct paired ships, roles, and Union shuttle set.
 - **Prompt 054 — [PRESERVE] Configure Wolf-agent count.** Acceptance: 8–13 players receive one hidden Wolf and 14–18 receive two, unless a recorded optional loyalty rule replaces one.
@@ -2409,8 +2428,8 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 635 — [EXTEND] Standardize action audit records.** Acceptance: actor, session, action, phase, request, revision, outcome, random/facilitator source, and redaction policy are queryable.
 - **Prompt 636 — [PROVE] Measure callable and snapshot health.** Acceptance: latency, listener delay, retries, denials, 429/unavailable responses, and contention have privacy-safe metrics.
 - **Prompt 637 — [PROVE] Establish render-performance baselines.** Acceptance: landing bundle, route startup, DRADIS, attack updates, mission hands, and mobile frame behavior have measured thresholds.
-- **Prompt 638 — [PROVE] Exercise the 20-player target.** Acceptance: one deterministic expansion roster records join, cast, heartbeat, listener, action, and reconnect evidence without claiming support beforehand.
-- **Prompt 639 — [PROVE] Exercise the 60-browser target.** Acceptance: an isolated 15-minute run records heartbeats, listeners, concurrent actions, contention, reconnect, 429/unavailable recovery, usage, and cost.
+- **Prompt 638 — [EXTEND] Support and exercise the 20-player target.** Acceptance: resolve the 8–18 base versus expansion-count policy, align authoritative session validation, roster/Wolf/vessel setup, client configuration, and start transactions, then record one deterministic 20-player expansion run covering join, cast, heartbeat, listeners, a real action, and reconnect without claiming support beforehand.
+- **Prompt 639 — [PROVE] Exercise the 60-browser target.** Acceptance: a committed repeatable capacity command runs an isolated 15-minute production-shaped scenario and records the tested commit/environment, heartbeats, listeners, concurrent real actions, contention, reconnect, 429/unavailable recovery, latency/error thresholds, usage, and cost in a reviewable artifact.
 - **Prompt 640 — [PROVE] Publish capacity conclusions.** Acceptance: supported envelope, failed thresholds, retry guidance, cost, and follow-up work reflect measurements rather than the nominal target.
 - **Prompt 641 — [PROVE] Run a complete base-game playthrough.** Acceptance: six core ships and two facilitators progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief.
 - **Prompt 642 — [PROVE] Run a complete Capybara playthrough.** Acceptance: both roles, Scrap, Macaw, Boa, d8 targeting, mission, combat, jump, and one candidate path complete.
@@ -2422,44 +2441,16 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 648 — [PROVE] Prove Deep Nebula success and loss.** Acceptance: hidden scout bonus, one lost ship, later bonus, one successful ship, fleet-success policy, and debrief complete.
 - **Prompt 649 — [PROVE] Prove Ancient Space Station success.** Acceptance: arrival pressure, repeated attacks, liberation, 18 Reactor power, activation, and debrief complete.
 - **Prompt 650 — [PROVE] Prove terminal failure and recovery paths.** Acceptance: pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play.
-- **Prompt 651 — [PROVE] Run the final release-readiness audit.** Acceptance: every prompt has evidence/status; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, capacity, version, changelog, and docs gates are green; no placeholder control remains.
+- **Prompt 651 — [PROVE] Run the final release-readiness audit.** Acceptance: aggregate current prompt and milestone evidence; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, capacity, version, changelog, and docs gates are green; the final executable gates pass and no placeholder control remains, without manually repeating every earlier review.
 - **Prompt 652 — [EXTEND] Prevent FleetTicker messages from overlapping.** Acceptance: when standing/broadcast copy changes, outgoing text drains and queued replacement enters without two strings covering each other; urgent FleetBroadcast precedence and replacement ordering remain intact; rapid updates serialize without duplicate tracks; screen-reader announcements are not duplicated; reduced-motion mode remains readable; and narrow phone, wide desktop, and short landscape layouts show one legible lane with no overlap/clipping.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
 The backlog contains **705 independently executable prompts** in this
 snapshot: 653 base IDs plus 52 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **168 `[PRESERVE]`, 85
-`[EXTEND]`, 377 `[NEW]`, 52 `[PROVE]`, and 23 `[DECISION]`**. That distribution
+dependency. The current evidence classification is **168 `[PRESERVE]`, 86
+`[EXTEND]`, 377 `[NEW]`, 51 `[PROVE]`, and 23 `[DECISION]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:
 reclassify prompts as `main` advances, retain completed IDs, add a suffix when a
 red test proves two independent outcomes, and never renumber completed prompts
 to make the total look tidy.
-
-## Current vertical slice — emergency timer pause
-
-**Objective:** give an authenticated GM a deliberately difficult, auditable
-way to hold the live turn clock during a genuine emergency, then resume it
-without losing elapsed time.
-
-**Source and product decision:** the printed rules define timed Team and
-Coordination phases and facilitator-announced transitions, but do not define a
-pause action. This slice is therefore an explicit facilitator-only product
-decision layered on the server-owned phase clock; it does not add a new player
-movement exception or alter the printed phase lengths during ordinary play.
-
-**Contract:** the session stores an optional paused phase readout with the
-active window, frozen remaining milliseconds, and pause instant. A callable
-accepts only an active GM instance, current turn, and boolean desired state;
-the transaction rejects stale, expired, Turn 0, closed, non-GM, and foreign
-instance requests, writes one member-visible timer event for each actual state
-change, and treats a repeated desired state as idempotent. Every connected
-console shows the emergency hold in its timer instrument and fleet broadcast.
-
-**Acceptance:** the GM console exposes one square emergency interlock whose
-first and second clicks only advance an explicit three-click sequence; the
-third click pauses or resumes the server clock. The button is unavailable
-without a live timer or GM connectivity, and all three clicks are reset when
-the authoritative turn or pause state changes. The phase display remains
-frozen while paused, resumes with the exact hold duration, and never creates a
-second client-owned clock.
