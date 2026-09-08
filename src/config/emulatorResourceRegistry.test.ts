@@ -85,13 +85,11 @@ function releaseState(overrides = {}) {
 describe('local emulator coordination', () => {
   it('retains the task baseline when evaluating changed files after merge', () => {
     expect(changedFilesBaseRef({
-      branchSha: 'branch-sha',
       mainSha: 'main-sha',
       startBranchSha: 'start-sha',
       mainContainsBranch: true,
     })).toBe('start-sha');
     expect(changedFilesBaseRef({
-      branchSha: 'branch-sha',
       mainSha: 'main-sha',
       startBranchSha: 'start-sha',
       mainContainsBranch: false,
