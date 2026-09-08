@@ -101,7 +101,7 @@ not be listed in changelog coverage metadata.
 | 038 | done | non-feature | — | Stale-device expiry tests. |
 | 039 | done | non-feature | — | Seat reconciliation on expiry tests. |
 | 040 | done | non-feature | — | Empty-session retention tests. |
-| 041 | done | non-feature | — | Local disconnect/outbox tests. |
+| 041 | done | non-feature | — | Local disconnect/outbox tests and connection-indicator eligibility tests. |
 | 042 | done | non-feature | — | Queued disconnect replay tests. |
 | 043 | done | non-feature | — | Resume/disconnect route tests. |
 | 044 | done | non-feature | — | GM eligibility/device-mode policy tests. |

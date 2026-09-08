@@ -146,7 +146,7 @@ describe('implementation progress integrity gate', () => {
 
   it('allows a feature prompt to carry coverage into a later release', () => {
     const laterEntry = `  {
-    version: '0.3.6',
+    version: '0.3.7',
     implementationPrompts: [15],
     changes: [
       'Command errors now explain the remaining retry path without exposing private state.',
@@ -157,7 +157,7 @@ describe('implementation progress integrity gate', () => {
       ...validationInputs,
       progressSource: progressSource.replace(
         '| 015 | partial | feature | 0.3.5 |',
-        '| 015 | partial | feature | 0.3.5, 0.3.6 |',
+        '| 015 | partial | feature | 0.3.5, 0.3.7 |',
       ),
       changelogSource: changelogSource.replace(
         "  {\n    version: '0.3.4',",
