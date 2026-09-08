@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
+  changedFilesBaseRef,
   finishCoordinationEntry,
   formatCoordinationState,
   isPortFree,
@@ -82,6 +83,21 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('retains the task baseline when evaluating changed files after merge', () => {
+    expect(changedFilesBaseRef({
+      branchSha: 'branch-sha',
+      mainSha: 'main-sha',
+      startBranchSha: 'start-sha',
+      mainContainsBranch: true,
+    })).toBe('start-sha');
+    expect(changedFilesBaseRef({
+      branchSha: 'branch-sha',
+      mainSha: 'main-sha',
+      startBranchSha: 'start-sha',
+      mainContainsBranch: false,
+    })).toBe('main-sha');
+  });
+
   it('keeps distinct base and lettered prompt claims independent', () => {
     expect(validateImplementationPromptClaims([
       { id: 'base-agent', status: 'active', implementationPrompt: '598' },

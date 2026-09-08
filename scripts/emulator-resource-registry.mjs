@@ -498,8 +498,12 @@ async function readGitFile(ref, path, cwd) {
   return runGit(['show', `${ref}:${path}`], cwd);
 }
 
-async function readTaskChangedFiles(branchSha, cwd) {
-  const output = await runGit(['diff', '--name-only', `main...${branchSha}`], cwd);
+export function changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch }) {
+  return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
+}
+
+async function readTaskChangedFiles(baseSha, branchSha, cwd) {
+  const output = await runGit(['diff', '--name-only', `${baseSha}...${branchSha}`], cwd);
   return output.split('\n').map((filePath) => filePath.trim()).filter(Boolean);
 }
 
@@ -527,14 +531,19 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
   ]);
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
-  const changedFiles = await readTaskChangedFiles(branchSha, cwd);
+  const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
+  const changedFiles = await readTaskChangedFiles(
+    changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch }),
+    branchSha,
+    cwd,
+  );
 
   return {
     branchName,
     branchSha,
     mainSha,
     originMainSha,
-    mainContainsBranch: await gitIsAncestor(branchSha, mainSha, cwd),
+    mainContainsBranch,
     mainIsAncestorOfBranch: await gitIsAncestor(mainSha, branchSha, cwd),
     worktreeClean: status.length === 0,
     branchVersion,
