@@ -1,6 +1,7 @@
 import MaintenanceSystems from './MaintenanceSystems';
 import AirspaceControl from './AirspaceControl';
 import JumpFailureReadout from './JumpFailureReadout';
+import JumpDriveConsole from './JumpDriveConsole';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import { useState } from 'react';
@@ -11,6 +12,7 @@ import {
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
+import { useSessionStore } from '@/store/useSessionStore';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -22,9 +24,26 @@ interface Props {
   readonly consoleLocked?: boolean | undefined;
 }
 
-function SystemCard({ system, damaged }: {
+function SystemCard({
+  system,
+  damaged,
+  fuel,
+  galacticCoordinate,
+  charged,
+  upgraded,
+  consoleLocked,
+  turnZeroLocked,
+  integrityLockedUntil,
+}: {
   readonly system: AegisShipSystem;
   readonly damaged: boolean;
+  readonly fuel: number;
+  readonly galacticCoordinate: string;
+  readonly charged: boolean;
+  readonly upgraded: boolean;
+  readonly consoleLocked: boolean;
+  readonly turnZeroLocked: boolean;
+  readonly integrityLockedUntil?: string | undefined;
 }) {
   return (
     <article
@@ -38,6 +57,23 @@ function SystemCard({ system, damaged }: {
       <h3>{system.name}</h3>
       <p>{system.baseline}</p>
       {system.id === 'jump-drive' && <JumpFailureReadout />}
+      {system.id === 'jump-drive' && <JumpDriveConsole
+        shipId="aegis"
+        shipName="AEGIS"
+        currentCoordinate={galacticCoordinate}
+        fuel={fuel}
+        jumpCosts={[
+          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
+          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
+          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
+        ]}
+        charged={charged}
+        damaged={damaged}
+        upgraded={upgraded}
+        consoleLocked={consoleLocked}
+        turnZeroLocked={turnZeroLocked}
+        integrityLockedUntil={integrityLockedUntil}
+      />}
       <dl>
         <div className="aegis-system__condition">
           <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
@@ -51,6 +87,7 @@ function SystemCard({ system, damaged }: {
 
 function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
+  const session = useSessionStore((state) => state.session);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
 
   return (
@@ -76,7 +113,14 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         damageDraws={damageDraws}
         renderSystem={system => <SystemCard key={system.id} system={system}
-          damaged={damage?.damagedSystemIds.includes(system.id) ?? false} />}
+          damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
+          fuel={fuel}
+          galacticCoordinate={galacticCoordinate}
+          charged={session?.maintenanceCycles?.aegis?.charges.includes('jump-drive') ?? false}
+          upgraded={session?.shipUpgrades?.aegis?.includes('jump-drive') ?? false}
+          consoleLocked={consoleLocked ?? false}
+          turnZeroLocked={session?.currentTurn === 0}
+          integrityLockedUntil={session?.shipJumpStates?.aegis?.integrityLockedUntil} />}
         rations={<>
           <div className="aegis-ration-table">
             <table aria-label="AEGIS ration schedule">

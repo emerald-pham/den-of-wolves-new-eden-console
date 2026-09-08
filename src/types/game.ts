@@ -39,6 +39,25 @@ export interface ShipNavigationLogEntry {
 export type ShipNavigationLogs = Readonly<Record<string, readonly ShipNavigationLogEntry[]>>;
 export type ShipConsoleLocks = Readonly<Record<string, boolean>>;
 
+export interface ShipJumpState {
+  /** The numbered turn in which this ship last completed a jump. */
+  readonly lastJumpTurn?: number;
+  /** Server expiry for a bad-coordinate integrity lockout. */
+  readonly integrityLockedUntil?: Timestamp;
+}
+
+export type ShipJumpStates = Readonly<Record<string, ShipJumpState>>;
+
+export interface ShipJumpTransition {
+  readonly id: Id;
+  readonly shipId: Id;
+  readonly origin: GalacticCoordinate;
+  readonly destination: GalacticCoordinate;
+  readonly occurredAt: Timestamp;
+}
+
+export type ShipJumpTransitions = Readonly<Record<string, ShipJumpTransition>>;
+
 export type AirspaceWindow = 'restricted' | 'open';
 
 /** A server-owned emergency hold freezes the active window, never the client clock. */
@@ -174,6 +193,10 @@ export interface GameSession {
   readonly shipNavigationLogs?: ShipNavigationLogs;
   /** Server-authorized travel lock state, by ship. */
   readonly shipConsoleLocks?: ShipConsoleLocks;
+  /** Server-authorized jump integrity and once-per-turn state, by ship. */
+  readonly shipJumpStates?: ShipJumpStates;
+  /** Latest completed jump, used for fleetwide presentation and DRADIS blackout. */
+  readonly shipJumpTransitions?: ShipJumpTransitions;
   /** Shared resource stock by fleet ship; legacy sessions use the printed starting stock. */
   readonly shipResources?: ShipResources;
   /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */

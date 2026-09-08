@@ -21,11 +21,18 @@ import type {
   Player,
   Seat,
   SessionEvent,
+  ShipJumpStates,
+  ShipJumpTransitions,
   ShipNavigationLogs,
 } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from '@/data/shuttles';
-import { INITIAL_SHIP_CONSOLE_LOCKS, INITIAL_SHIP_GALACTIC_COORDINATES } from '@/data/ships';
+import {
+  INITIAL_SHIP_CONSOLE_LOCKS,
+  INITIAL_SHIP_GALACTIC_COORDINATES,
+  INITIAL_SHIP_JUMP_STATES,
+  INITIAL_SHIP_JUMP_TRANSITIONS,
+} from '@/data/ships';
 import { shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
@@ -105,6 +112,53 @@ function shipConsoleLocks(value: unknown): NonNullable<GameSession['shipConsoleL
   ]));
 }
 
+function shipJumpStates(value: unknown): ShipJumpStates {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_STATES).map((shipId) => {
+    const state = stored[shipId];
+    if (typeof state !== 'object' || state === null || Array.isArray(state)) return [shipId, {}];
+    const raw = state as Record<string, unknown>;
+    const lock = raw.integrityLockedUntil;
+    const integrityLockedUntil = lock && typeof (lock as { toDate?: unknown }).toDate === 'function'
+      ? iso(lock)
+      : typeof lock === 'string' ? lock : undefined;
+    return [shipId, {
+      ...(typeof raw.lastJumpTurn === 'number' && Number.isSafeInteger(raw.lastJumpTurn) && raw.lastJumpTurn >= 1
+        ? { lastJumpTurn: raw.lastJumpTurn }
+        : {}),
+      ...(integrityLockedUntil ? { integrityLockedUntil } : {}),
+    }];
+  })) as ShipJumpStates;
+}
+
+function shipJumpTransitions(value: unknown): ShipJumpTransitions {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_TRANSITIONS).flatMap((shipId) => {
+    const transition = stored[shipId];
+    if (typeof transition !== 'object' || transition === null || Array.isArray(transition)) return [];
+    const raw = transition as Record<string, unknown>;
+    const occurredAtValue = raw.occurredAt;
+    const occurredAt = occurredAtValue && typeof (occurredAtValue as { toDate?: unknown }).toDate === 'function'
+      ? iso(occurredAtValue)
+      : typeof occurredAtValue === 'string' ? occurredAtValue : undefined;
+    if (
+      typeof raw.id !== 'string' || typeof raw.shipId !== 'string' ||
+      typeof raw.origin !== 'string' || typeof raw.destination !== 'string' || !occurredAt
+    ) return [];
+    return [[shipId, {
+      id: raw.id,
+      shipId: raw.shipId,
+      origin: raw.origin,
+      destination: raw.destination,
+      occurredAt,
+    }]];
+  })) as ShipJumpTransitions;
+}
+
 function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
@@ -125,6 +179,8 @@ function sessionFrom(id: string, data: DocumentData): GameSession {
         : INITIAL_SHIP_GALACTIC_COORDINATES,
     shipNavigationLogs: shipNavigationLogs(data.shipNavigationLogs),
     shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
+    shipJumpStates: shipJumpStates(data.shipJumpStates),
+    shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
     fleetRedAlert: data.fleetRedAlert ?? { active: false, revision: 0 },
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),

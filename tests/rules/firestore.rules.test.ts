@@ -189,9 +189,16 @@ describe('session header', () => {
     }));
   });
 
-  it('cannot change authoritative ship stores, unrest, or unrest alerts from the client', async () => {
+  it('cannot change authoritative ship stores, jump state, unrest, or unrest alerts from the client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { 'shipResources.aegis.fuel': 99 }));
+    await assertFails(updateDoc(session, { 'shipJumpStates.aegis': { lastJumpTurn: 99 } }));
+    await assertFails(updateDoc(session, {
+      'shipJumpTransitions.aegis': {
+        id: 'forged', shipId: 'aegis', origin: '0000', destination: '5143',
+        occurredAt: new Date().toISOString(),
+      },
+    }));
     await assertFails(updateDoc(session, { 'shipUnrest.aegis': 10 }));
     await assertFails(updateDoc(session, {
       'unrestAlerts.aegis': {

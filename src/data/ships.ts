@@ -25,6 +25,12 @@ export const INITIAL_SHIP_GALACTIC_COORDINATES: Readonly<Record<string, string>>
 export const INITIAL_SHIP_CONSOLE_LOCKS: Readonly<Record<string, boolean>> =
   Object.fromEntries(SHIPS.map((ship) => [ship.id, false]));
 
+export const INITIAL_SHIP_JUMP_STATES: Readonly<Record<string, never>> =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, {}])) as Readonly<Record<string, never>>;
+
+export const INITIAL_SHIP_JUMP_TRANSITIONS: Readonly<Record<string, never>> =
+  Object.fromEntries(SHIPS.map((ship) => [ship.id, {}])) as Readonly<Record<string, never>>;
+
 export const INITIAL_SHIP_NAVIGATION_LOGS: Readonly<Record<string, readonly never[]>> =
   Object.fromEntries(SHIPS.map((ship) => [ship.id, []]));
 

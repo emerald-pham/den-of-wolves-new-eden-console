@@ -23,6 +23,7 @@ import { consoleRoleRoute } from '@/lib/consoleRole';
 import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
+import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
 import type { Player, DamageDraw } from '@/types/game';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -79,6 +80,8 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
+  const jumpTransition = ship ? session?.shipJumpTransitions?.[ship.id] : undefined;
+  const [jumpFlashId, setJumpFlashId] = useState<string | null>(null);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
     (command) => command.kind === 'popShipConfetti' &&
@@ -157,6 +160,20 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     return () => window.clearTimeout(timer);
   }, [burst]);
 
+  useEffect(() => {
+    if (!jumpTransition?.id) return;
+    const occurredAt = Date.parse(jumpTransition.occurredAt);
+    if (!Number.isFinite(occurredAt)) return;
+    const elapsed = Date.now() - occurredAt;
+    if (elapsed > JUMP_FLASH_MS + 500) return;
+    setJumpFlashId(jumpTransition.id);
+    const timer = window.setTimeout(
+      () => setJumpFlashId((current) => current === jumpTransition.id ? null : current),
+      Math.max(0, JUMP_FLASH_MS - Math.max(0, elapsed)),
+    );
+    return () => window.clearTimeout(timer);
+  }, [jumpTransition?.id, jumpTransition?.occurredAt]);
+
   if (!session || !me) return <Navigate to="/" replace />;
   if (observer && !isGm) return <Navigate to="/console" replace />;
   if (!observer && !isGm && me.activeConsoleRoleId && me.activeConsoleRoleId !== roleId && ownShip !== ship?.id) {
@@ -211,6 +228,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       } as CSSProperties}
       data-observer-mode={observer ? (observerWrite ? 'write' : 'read') : undefined}
       data-unrest-critical={!hideCensus && unrest > 7 ? 'true' : undefined}
+      data-jump-flash={jumpFlashId === jumpTransition?.id ? 'true' : undefined}
     >
       <img
         className="ship-console__flag"

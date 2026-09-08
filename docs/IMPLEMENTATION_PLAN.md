@@ -185,6 +185,39 @@ first code slice that depends on them:
 - The Capybara expansion does not fully specify an empty damage deck, Boa
   targeting after destruction, or Macaw dismantling its own ship console.
 
+### Active vertical slice — ship jump console
+
+**Objective:** turn the existing display-only Jump Drive entry into one
+authoritative, touch-friendly ship action with a readable start, transit, and
+recovery state.
+
+**Contract:**
+
+- The player edits four numeric coordinate digits with increment/decrement
+  controls, explicitly locks the destination, and drags a full-width power
+  rail before the server receives a jump request. Coordinate editing remains
+  local until the locked jump is submitted.
+- The callable validates the active ship role, current turn, maintenance
+  charge, fuel, damage/upgrades, chart reachability, and one-jump-per-turn
+  rule. A four-digit value that is not a printed, reachable system is an
+  integrity failure: the ship does not move and the server records a one-hour
+  `integrityLockedUntil` state. The client displays that lockout from server
+  state, not from a local timer alone.
+- Successful jumps update the ship's galactic coordinate, consume the
+  authoritative fuel/charge, append a navigation event, and publish one
+  transition record. DRADIS contacts are derived from the new coordinate, so
+  only ships that completed the same destination reappear and their fixed
+  ship-relative formation is unchanged.
+- The transition record drives a two-second 3 Hz system flash across the ship
+  console. Reduced motion removes the nonessential flash while preserving the
+  authoritative coordinate/contact transition and accessible status copy.
+
+**Definition of done:** the failing-first unit, callable, component, DRADIS,
+and Firestore-denial tests cover the contract above; the module is mounted in
+the shared fleet system workspace for every enabled ship; and narrow, wide,
+short-landscape, and reduced-motion visual review finds no clipped controls or
+misleading contact data.
+
 ## Staged implementation plan
 
 Each phase below is a product objective, not a license to implement the whole

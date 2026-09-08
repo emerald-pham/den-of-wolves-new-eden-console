@@ -1,0 +1,160 @@
+import { beforeEach, expect, it, vi } from 'vitest';
+import type { CallableRequest } from 'firebase-functions/v2/https';
+
+const mock = vi.hoisted(() => ({
+  get: vi.fn(),
+  update: vi.fn(),
+  role: 'gm',
+  owner: 'u1',
+  connected: true,
+  currentTurn: 1,
+  coordinate: '0000',
+  fuel: 4,
+  charges: ['jump-drive'] as string[],
+  jumpStates: {} as Record<string, unknown>,
+  upgrades: {} as Record<string, unknown>,
+  damage: {} as Record<string, unknown>,
+  randomInt: vi.fn(() => 6),
+  randomUUID: vi.fn(() => 'jump-event'),
+}));
+
+vi.mock('node:crypto', () => ({ randomInt: mock.randomInt, randomUUID: mock.randomUUID }));
+vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: () => ({
+    doc: (path: string) => path,
+    collection: (path: string) => path,
+    runTransaction: async (callback: (tx: unknown) => unknown) =>
+      callback({ get: mock.get, update: mock.update }),
+  }),
+  FieldValue: { serverTimestamp: () => 'server-time' },
+  Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
+}));
+
+import { jumpShip } from './index';
+
+function request(data: Record<string, unknown>, uid = 'u1') {
+  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
+}
+
+const data = {
+  sessionId: 's1',
+  instanceId: 'bridge',
+  shipId: 'aegis',
+};
+
+beforeEach(() => {
+  mock.role = 'gm';
+  mock.owner = 'u1';
+  mock.connected = true;
+  mock.currentTurn = 1;
+  mock.coordinate = '0000';
+  mock.fuel = 4;
+  mock.charges = ['jump-drive'];
+  mock.jumpStates = {};
+  mock.upgrades = {};
+  mock.damage = {};
+  mock.randomInt.mockReset();
+  mock.randomInt.mockReturnValue(6);
+  mock.randomUUID.mockReset();
+  mock.randomUUID.mockReturnValue('jump-event');
+  mock.update.mockReset();
+  mock.get.mockImplementation(async (path: string) => {
+    const fields: Record<string, unknown> = path.includes('/players/')
+      ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
+      : path.includes('/gmInstances/')
+        ? { uid: mock.owner }
+        : {
+          phase: 'active',
+          currentTurn: mock.currentTurn,
+          capybaraEnabled: true,
+          dioneEnabled: true,
+          shipGalacticCoordinates: {
+            aegis: mock.coordinate,
+            dione: '0000',
+            icebreaker: '0000',
+            capybara: '0000',
+            shepherd: '0000',
+            quellon: '0000',
+            'refinery-124': '0000',
+          },
+          shipNavigationLogs: {
+            aegis: [], dione: [], icebreaker: [], capybara: [], shepherd: [], quellon: [], 'refinery-124': [],
+          },
+          shipResources: {
+            aegis: { ore: 0, fuel: mock.fuel, food: 8, water: 6, materials: 1, securityTeams: 9 },
+          },
+          shipDamage: mock.damage,
+          shipUpgrades: mock.upgrades,
+          shipJumpStates: mock.jumpStates,
+          maintenanceCycles: {
+            aegis: { turn: mock.currentTurn, charges: mock.charges, results: {} },
+          },
+        };
+    return { exists: true, get: (key: string) => fields[key] };
+  });
+});
+
+it('rejects an unprinted locked coordinate with a server-owned one-hour integrity lockout', async () => {
+  await expect(jumpShip.run(request({ ...data, destination: '0101' }))).resolves.toMatchObject({
+    status: 'integrity-lockout',
+    shipId: 'aegis',
+    origin: '0000',
+    destination: '0101',
+    state: { integrityLockedUntil: expect.any(String) },
+  });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipJumpStates.aegis': { integrityLockedUntil: expect.any(String) },
+    updatedAt: 'server-time',
+  }));
+  expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipGalacticCoordinates.aegis');
+});
+
+it('uses the active GM instance and atomically moves, burns fuel, consumes charge, and publishes the transition', async () => {
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
+    status: 'jumped',
+    shipId: 'aegis',
+    origin: '0000',
+    destination: '5143',
+    length: 'short',
+    fuelCost: 2,
+    remainingFuel: 2,
+    transition: expect.objectContaining({ id: 'jump-event', destination: '5143' }),
+  });
+
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipGalacticCoordinates.aegis': '5143',
+    'shipResources.aegis.fuel': 2,
+    'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
+    'shipJumpStates.aegis': { lastJumpTurn: 1 },
+    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-event' }),
+  }));
+});
+
+it('honours an existing integrity lock without changing authoritative state', async () => {
+  mock.jumpStates = {
+    aegis: { integrityLockedUntil: new Date(Date.now() + 3_600_000).toISOString() },
+  };
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
+    status: 'integrity-locked',
+    shipId: 'aegis',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('denies a player operating a different ship even with a valid printed destination', async () => {
+  mock.role = 'player';
+  mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/players/')) {
+      return { exists: true, get: (key: string) => ({ role: 'player', connected: true, activeConsoleRoleId: 'dione-captain' } as Record<string, unknown>)[key] };
+    }
+    return { exists: true, get: (key: string) => key === 'activeRoleIds' ? undefined : undefined };
+  });
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+});
