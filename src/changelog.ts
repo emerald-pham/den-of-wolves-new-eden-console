@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [51, 54, 71, 75],
+    implementationProgress: {
+      completed: 66,
+      total: 713,
+      percentage: '9.26%',
+      done: 66,
+      partial: 30,
+      active: 1,
+      missing: 616,
+    },
+    changes: [
+      'Facilitators can now prepare an authoritative start from provisioned core seats, reciprocal player pointers, exact roles, and one live GM before any game state changes.',
+      'Ordinary GM start now derives the correct private Wolf and Fleet Loyalist setup on the server, shows a safe calculation receipt, and starts Turn 1 exactly once with the existing timer and announcement.',
+    ],
+  },
+  {
+    version: '0.3.12',
     implementationPrompts: [21, 30, 51, 73],
     implementationProgress: {
       completed: 66,
