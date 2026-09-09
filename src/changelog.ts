@@ -23,13 +23,13 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationPrompts: ['603a'],
     implementationProgress: {
-      completed: 71,
+      completed: 72,
       total: 719,
-      percentage: '9.87%',
-      done: 71,
+      percentage: '10.01%',
+      done: 72,
       partial: 27,
       active: 0,
-      missing: 621,
+      missing: 620,
     },
     changes: [
       'The session ticket now reserves its real space across the console, keeping Role Select and routed controls clear on phones and short screens; reduced-motion FleetBroadcast copy wraps in the same CIC instrument instead of clipping.',

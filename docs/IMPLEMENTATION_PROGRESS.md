@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**71 / 719 prompts complete (9.87%)**
+**72 / 719 prompts complete (10.01%)**
 
-Status breakdown: **71 done · 27 partial · 0 active · 621 missing**.
+Status breakdown: **72 done · 27 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -39,8 +39,8 @@ resources/economy, and alert initialization are still outside this release.
 
 ### Version 0.3.15 progress evidence
 
-The release boundary is recorded reproducibly as **71 / 719 = 9.87%** with
-**71 done · 27 partial · 0 active · 621 missing**. Prompt 603a extends the
+The release boundary is recorded reproducibly as **72 / 719 = 10.01%** with
+**72 done · 27 partial · 0 active · 620 missing**. Prompt 603a extends the
 existing measured `AppHeader` contract to Role Select and session-mode routes
 on both narrow phones and short landscape screens. The focused red/green
 static CSS cascade test and focused component/layout suites pass. The

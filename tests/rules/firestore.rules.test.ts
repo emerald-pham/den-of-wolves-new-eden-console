@@ -566,6 +566,7 @@ describe('secrets', () => {
     await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/secrets/loyalty-press`)));
     await assertFails(getDoc(doc(as('press'), `${SESSION}/secrets/sec1`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-press`)));
+    await assertFails(getDoc(doc(as('stranger'), `${SESSION}/secrets/loyalty-press`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/setup-receipt-start-1`)));
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec1`)));
   });

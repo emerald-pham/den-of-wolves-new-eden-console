@@ -603,7 +603,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     const resumed = await resumeSession.run(request({ sessionId }, coreUids[0]!));
     expect(resumed).toMatchObject({
       session: { id: sessionId, phase: 'active', currentTurn: 1 },
-      player: { uid: coreUids[0], assignedRoleId: activeRoleIds[0], seatId: activeRoleIds[0] },
+      player: {
+        uid: coreUids[0], role: 'player', assignedRoleId: activeRoleIds[0], seatId: activeRoleIds[0],
+      },
     });
     expect(JSON.stringify(resumed)).not.toMatch(/wolf-agent|selectedWolfRoleIds|fleet-loyalist/);
     expect(resumed).not.toHaveProperty('secrets');
