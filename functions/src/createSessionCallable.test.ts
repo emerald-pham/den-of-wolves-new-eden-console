@@ -105,9 +105,11 @@ it('creates one configured lobby and persists a replayable creation result atomi
     expect.objectContaining({ sessionId: 'generated-session', requestId: 'create-1' }),
   );
 
-  const eventWrite = mock.set.mock.calls.find(([ref]) =>
+  const eventWrites = mock.set.mock.calls.filter(([ref]) =>
     (ref as { path: string }).path === 'sessions/generated-session/events/create-create-1',
-  )?.[1] as Record<string, unknown> | undefined;
+  );
+  expect(eventWrites).toHaveLength(1);
+  const eventWrite = eventWrites[0]?.[1] as Record<string, unknown> | undefined;
   expect(eventWrite).toEqual({
     sessionId: 'generated-session',
     actorUid: 'u1',
@@ -386,19 +388,28 @@ it('does not claim a code already owned by another session', async () => {
 });
 
 it('replays the same session and join code for a retried request', async () => {
-  const reply = {
-    session: { id: 'existing', joinCode: '123456' },
-    player: { uid: 'u1' },
-  };
+  const requestPath = 'sessionCreationRequests/u1_retry-1';
+  let storedRequest: Record<string, unknown> | undefined;
   mock.get.mockImplementation(async (ref: { path: string }) => {
-    if (ref.path === 'sessionCreationRequests/u1_retry-1') return snapshot({ reply });
+    if (ref.path === requestPath && storedRequest) return snapshot(storedRequest);
     return snapshot({}, false);
   });
+  mock.set.mockImplementation((ref: { path: string }, data: Record<string, unknown>) => {
+    if (ref.path === requestPath) storedRequest = data;
+  });
 
-  await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(reply);
-  expect(mock.set).not.toHaveBeenCalled();
-  expect(mock.set.mock.calls.map(([ref]) => (ref as { path: string }).path))
-    .not.toContain('sessions/existing/events/create-retry-1');
+  const firstReply = await createSession.run(request({ requestId: 'retry-1' }));
+  expect(storedRequest).toEqual(expect.objectContaining({
+    sessionId: 'generated-session', requestId: 'retry-1',
+    reply: firstReply,
+  }));
+  const writesAfterCreate = mock.set.mock.calls.length;
+
+  await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(firstReply);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterCreate);
+  expect(mock.set.mock.calls.filter(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/events/create-retry-1',
+  )).toHaveLength(1);
 });
 
 it('rejects a setup replay when the tuple payload changes under the same request id', async () => {
