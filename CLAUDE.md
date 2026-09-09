@@ -119,7 +119,10 @@ duplicate active claim.
    pass as startup recovery: an earlier task may have skipped its end cleanup.
    Status shows active work by default; use
    `npm run coordination:status -- --history` only when historical receipts are
-   needed.
+   needed. `coordination:begin` also normalizes a GitHub HTTPS `origin` to its
+   equivalent SSH URL in the checkout's local Git config. Existing SSH origins
+   and non-GitHub remotes are left unchanged; verify the result with
+   `git remote -v` if transport was repaired.
 4. For player-facing product work, complete the changelog preflight immediately:
    reserve one unused release version for this task, record that exact version
    in `--version-plan`, update `package.json` and the root lockfile to it, and
