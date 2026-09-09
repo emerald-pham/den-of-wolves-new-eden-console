@@ -104,6 +104,48 @@ it('creates one configured lobby and persists a replayable creation result atomi
     expect.objectContaining({ path: expect.stringMatching(/^sessionCreationRequests\/u1_create-1$/) }),
     expect.objectContaining({ sessionId: 'generated-session', requestId: 'create-1' }),
   );
+
+  const eventWrites = mock.set.mock.calls.filter(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/events/create-create-1',
+  );
+  expect(eventWrites).toHaveLength(1);
+  const eventWrite = eventWrites[0]?.[1] as Record<string, unknown> | undefined;
+  expect(eventWrite).toEqual({
+    sessionId: 'generated-session',
+    actorUid: 'u1',
+    actorRoleId: null,
+    turn: 0,
+    phase: 'lobby',
+    type: 'session.created',
+    requestId: 'create-1',
+    revision: 0,
+    serverTime: expect.any(String),
+    visibility: 'member',
+    createdAt: 'server-time',
+  });
+  expect(Object.keys(eventWrite ?? {}).sort()).toEqual([
+    'actorRoleId', 'actorUid', 'createdAt', 'phase', 'requestId', 'revision',
+    'serverTime', 'sessionId', 'turn', 'type', 'visibility',
+  ]);
+});
+
+it('does not write a creation event for unauthenticated or exhausted code-collision requests', async () => {
+  await expect(createSession.run({
+    data: { requestId: 'unauthenticated-create', playerCount: 8 },
+    auth: null,
+  } as CallableRequest<Record<string, unknown>>)).rejects.toMatchObject({ code: 'unauthenticated' });
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'joinCodes/1234') return snapshot({ sessionId: 'existing-session' });
+    return snapshot({}, false);
+  });
+  await expect(createSession.run(request({ requestId: 'collision-create', playerCount: 8 })))
+    .rejects.toMatchObject({ code: 'resource-exhausted' });
+  expect(mock.set).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: expect.stringContaining('/events/') }),
+    expect.anything(),
+  );
 });
 
 it('creates an eight-player lobby with one legal role per player', async () => {
@@ -346,17 +388,28 @@ it('does not claim a code already owned by another session', async () => {
 });
 
 it('replays the same session and join code for a retried request', async () => {
-  const reply = {
-    session: { id: 'existing', joinCode: '123456' },
-    player: { uid: 'u1' },
-  };
+  const requestPath = 'sessionCreationRequests/u1_retry-1';
+  let storedRequest: Record<string, unknown> | undefined;
   mock.get.mockImplementation(async (ref: { path: string }) => {
-    if (ref.path === 'sessionCreationRequests/u1_retry-1') return snapshot({ reply });
+    if (ref.path === requestPath && storedRequest) return snapshot(storedRequest);
     return snapshot({}, false);
   });
+  mock.set.mockImplementation((ref: { path: string }, data: Record<string, unknown>) => {
+    if (ref.path === requestPath) storedRequest = data;
+  });
 
-  await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(reply);
-  expect(mock.set).not.toHaveBeenCalled();
+  const firstReply = await createSession.run(request({ requestId: 'retry-1' }));
+  expect(storedRequest).toEqual(expect.objectContaining({
+    sessionId: 'generated-session', requestId: 'retry-1',
+    reply: firstReply,
+  }));
+  const writesAfterCreate = mock.set.mock.calls.length;
+
+  await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(firstReply);
+  expect(mock.set).toHaveBeenCalledTimes(writesAfterCreate);
+  expect(mock.set.mock.calls.filter(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session/events/create-retry-1',
+  )).toHaveLength(1);
 });
 
 it('rejects a setup replay when the tuple payload changes under the same request id', async () => {
