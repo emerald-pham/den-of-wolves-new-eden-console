@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [22],
+    implementationProgress: {
+      completed: 70,
+      total: 719,
+      percentage: '9.74%',
+      done: 70,
+      partial: 27,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'Members can now see a redacted session-created event exactly once when a session is created, with retries safe and failed requests silent.',
+    ],
+  },
+  {
+    version: '0.3.13',
     implementationPrompts: [51, 54, 71, 75],
     implementationProgress: {
       completed: 69,

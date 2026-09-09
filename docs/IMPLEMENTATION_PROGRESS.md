@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**69 / 719 prompts complete (9.60%)**
+**70 / 719 prompts complete (9.74%)**
 
-Status breakdown: **69 done · 28 partial · 0 active · 622 missing**.
+Status breakdown: **70 done · 27 partial · 0 active · 622 missing**.
 
 Active prompt: **none**.
 
@@ -36,6 +36,17 @@ Version 0.3.13 closes Prompt 051 production roster-to-start composition, Prompt
 Prompt 054 is reclassified as a feature. Prompt 075 gains setup-receipt and
 atomic Turn 1 evidence but remains partial because complete decks, craft,
 resources/economy, and alert initialization are still outside this release.
+
+### Version 0.3.14 progress evidence
+
+The release boundary is recorded reproducibly as **70 / 719 = 9.74%** with
+**70 done · 27 partial · 0 active · 622 missing**. Prompt 022 now composes the
+existing authoritative creation transaction with one deterministic
+`session.created` event keyed by the authenticated actor and request ID. The
+focused red/green callable evidence proves the member-visible envelope is
+strictly redacted, retries do not emit a second event, and unauthenticated or
+exhausted join-code-collision attempts emit none; the existing event rules
+tests continue to prove member reads and client-write denial.
 
 ### Version 0.3.13 progress evidence
 
@@ -206,7 +217,7 @@ release classification and evidence.
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
 | 021 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Full tuple validation, request replay/CAS, deterministic active-vessel derivation, and retired partial mutators are covered by the focused Functions suite; Press remains separate and GMs remain non-counted. |
-| 022 | partial | feature | 0.3.5 | Atomic creation path and direct test exist; standardized envelope event is still open. |
+| 022 | done | feature | 0.3.5, 0.3.14 | Version 0.3.14 completes the standardized member-visible `session.created` envelope inside the atomic creation transaction, bound to the authenticated actor and request ID, strictly redacted, replay-safe, and absent on authentication or code-collision failure. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
 | 024 | done | non-feature | — | `joinSessionCallable.test.ts` and rules tests. |
 | 025 | done | non-feature | — | Join-code lookup/security tests and denied listing. |
