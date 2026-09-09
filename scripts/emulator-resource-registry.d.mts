@@ -131,6 +131,12 @@ export function changedFilesBaseRef(options: {
   readonly startBranchSha?: string;
   readonly mainContainsBranch: boolean;
 }): string;
+export function normalizeGitHubOriginToSsh(originUrl: string): string;
+export function ensureSshOrigin(cwd?: string): Promise<{
+  readonly changed: boolean;
+  readonly origin: string;
+  readonly previousOrigin?: string;
+}>;
 export function validationPlanForFiles(
   changedFiles?: readonly string[],
 ): ValidationPlan;
