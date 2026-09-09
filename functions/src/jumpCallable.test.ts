@@ -127,6 +127,7 @@ it('rejects an unprinted locked coordinate with a server-owned one-hour integrit
   expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipResources.aegis.fuel');
   expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('maintenanceCycles.aegis');
   expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipJumpTransitions.aegis');
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('uses the active GM instance and atomically moves, burns fuel, consumes charge, and publishes the transition', async () => {
@@ -198,6 +199,7 @@ it('rejects Coordination jumps while the server phase is Team', async () => {
     message: expect.stringMatching(/coordination phase/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('honours an existing integrity lock without changing authoritative state', async () => {
@@ -210,6 +212,7 @@ it('honours an existing integrity lock without changing authoritative state', as
     shipId: 'aegis',
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 
   mock.jumpStates = {};
   mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
@@ -219,14 +222,17 @@ it('honours an existing integrity lock without changing authoritative state', as
     shipId: 'aegis',
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).toHaveBeenCalledTimes(1);
 
   mock.damage = {};
   mock.jumpStates = { aegis: { lastJumpTurn: 1 } };
+  mock.randomInt.mockClear();
   await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
     code: 'failed-precondition',
     message: expect.stringMatching(/already jumped/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('denies a player operating a different ship even with a valid printed destination', async () => {
@@ -242,4 +248,5 @@ it('denies a player operating a different ship even with a valid printed destina
     code: 'permission-denied',
   });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });

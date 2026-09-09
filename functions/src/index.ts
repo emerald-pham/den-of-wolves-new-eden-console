@@ -2960,9 +2960,10 @@ export const jumpShip = onCall<{
   const change = requireShipJumpRequest(request.data ?? {});
   const now = new Date();
   const transitionId = randomUUID();
-  // Firestore may retry the transaction callback. Capture the server-owned
-  // integrity roll once so contention cannot reroll a damaged drive.
-  const integrityRoll = randomInt(1, 7);
+  // Firestore may retry the transaction callback. Populate this only after
+  // the authoritative reads confirm a damaged drive, then reuse it so
+  // contention cannot reroll the same departure.
+  let integrityRoll: number | undefined;
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
 
   return db.runTransaction(async (tx) => {
@@ -3003,6 +3004,7 @@ export const jumpShip = onCall<{
     const damage = shipDamage(session.get('shipDamage'))[change.shipId] ?? {
       damagedSystemIds: [], destroyed: false,
     };
+    const damaged = damage.damagedSystemIds.includes('jump-drive');
     const upgrades = typeof session.get('shipUpgrades') === 'object' && session.get('shipUpgrades') !== null
       ? session.get('shipUpgrades') as Record<string, unknown>
       : {};
@@ -3011,7 +3013,7 @@ export const jumpShip = onCall<{
     const state = shipJumpStates(session.get('shipJumpStates'))[change.shipId] ?? {};
     let result: JumpAttemptResult;
     try {
-      result = resolveJumpAttempt({
+      const attempt = {
         shipId: change.shipId,
         origin: currentCoordinate,
         destination: change.destination,
@@ -3023,8 +3025,15 @@ export const jumpShip = onCall<{
         now,
         transitionId,
         state,
-        integrityRoll: damage.damagedSystemIds.includes('jump-drive') ? integrityRoll : 6,
-      });
+        // A roll of six is a non-random preflight value. The real roll is
+        // sampled only after route/fuel/lock guards have passed below.
+        integrityRoll: 6,
+      };
+      result = resolveJumpAttempt(attempt);
+      if (damaged && result.status === 'jumped') {
+        integrityRoll ??= randomInt(1, 7);
+        result = resolveJumpAttempt({ ...attempt, integrityRoll });
+      }
     } catch (cause) {
       throw new HttpsError(
         'failed-precondition',
