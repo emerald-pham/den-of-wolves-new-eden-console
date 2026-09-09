@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { Timestamp } from 'firebase-admin/firestore';
 
 const roleIds = [
   'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
@@ -14,12 +15,23 @@ const mock = vi.hoisted(() => ({
   session: {} as Record<string, unknown>,
   playerDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   instanceDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
+  seatDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   secretDocs: [] as string[],
+  secretPayloads: {} as Record<string, Record<string, unknown>>,
   priorReply: undefined as unknown,
+  priorFingerprint: undefined as unknown,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
+  Timestamp: class MockTimestamp {
+    constructor(private readonly date: Date) {}
+    static now() { return new MockTimestamp(new Date('2026-09-07T12:00:00.000Z')); }
+    static fromDate(value: Date) { return new MockTimestamp(value); }
+    static fromMillis(value: number) { return new MockTimestamp(new Date(value)); }
+    toDate() { return this.date; }
+    toMillis() { return this.date.getTime(); }
+  },
   getFirestore: () => ({
     doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
     collection: (path: string) => ({ path }),
@@ -31,14 +43,10 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
   }),
   FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
-  Timestamp: {
-    now: () => new Date('2026-09-07T12:00:00.000Z'),
-    fromDate: (value: Date) => value,
-  },
 }));
 
-import { assignWolves, setFacilitatorResponsibility, startGame } from './index';
-import { wolfCountForPlayerCount } from './gameSetup';
+import { setFacilitatorResponsibility, startGame } from './index';
+import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
@@ -54,11 +62,89 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
+function provisionProductionRoster(
+  playerCount: 8 | 19 | 20,
+  options: {
+    readonly press?: 'claimed' | 'unclaimed' | 'disabled' | 'multiple' | 'stale';
+    readonly extraGm?: boolean;
+  } = {},
+) {
+  const activeRoleIds = [...recommendedRoleIds(playerCount)];
+  const corePlayers = activeRoleIds.map((roleId, index) => ({
+    id: `core-${index + 1}`,
+    fields: {
+      connected: true,
+      role: 'player',
+      assignedRoleId: roleId,
+      seatId: roleId,
+      activeConsoleRoleId: null,
+    },
+  }));
+  const pressMode = options.press;
+  const pressPlayers = pressMode === undefined ? [] : [{
+    id: 'press-21',
+    fields: {
+      connected: true,
+      role: 'player',
+      assignedRoleId: null,
+      seatId: null,
+      activeConsoleRoleId: 'press-officer',
+      ...(pressMode === 'stale' ? { lastSeenAt: new Date(Date.now() - 60_000) } : {}),
+    },
+  }, ...(pressMode === 'multiple' ? [{
+    id: 'press-22',
+    fields: {
+      connected: true,
+      role: 'player',
+      assignedRoleId: null,
+      seatId: null,
+      activeConsoleRoleId: 'press-officer',
+    },
+  }] : [])];
+  const extraGm = options.extraGm
+    ? [{ id: 'gm-observer', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null } }]
+    : [];
+  mock.session = {
+    ...mock.session,
+    phase: 'casting',
+    setupRevision: 0,
+    playerCount,
+    expansion: playerCount >= 19 ? 'capybara' : 'base',
+    activeRoleIds,
+    activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+    ...(pressMode === 'claimed' ? { pressHolderUid: 'press-21', pressEnabled: true } :
+      pressMode === 'unclaimed' ? { pressHolderUid: null, pressEnabled: true } :
+        pressMode === 'disabled' ? { pressHolderUid: 'press-21', pressEnabled: false } :
+          pressMode === 'multiple' ? { pressHolderUid: 'press-21', pressEnabled: true } :
+            pressMode === 'stale' ? { pressHolderUid: 'press-21', pressEnabled: true } :
+              { pressHolderUid: null, pressEnabled: true }),
+  };
+  mock.playerDocs = [
+    { id: 'u1', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null } },
+    ...corePlayers,
+    ...pressPlayers,
+    ...extraGm,
+  ];
+  mock.instanceDocs = [
+    { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
+    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
+    ...(options.extraGm ? [{ id: 'observer-bridge', fields: { uid: 'gm-observer' } }] : []),
+  ];
+  mock.seatDocs = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+    id: seat.id,
+    fields: { ...seat, status: 'claimed', holderUid: `core-${index + 1}` },
+  }));
+  mock.secretDocs = [];
+  mock.secretPayloads = {};
+}
+
 beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
   mock.priorReply = undefined;
+  mock.priorFingerprint = undefined;
+  mock.secretPayloads = {};
   mock.session = {
     phase: 'casting',
     configurationLocked: false,
@@ -66,30 +152,47 @@ beforeEach(() => {
     playerCount: 8,
     currentTurn: 0,
     activeRoleIds: roleIds,
+    activeVesselIds: activeVesselIdsForRoles(roleIds),
     capybaraEnabled: true,
     dioneEnabled: true,
   };
-  mock.playerDocs = roleIds.map((roleId, index) => ({
-    id: `u${index + 1}`,
+  mock.playerDocs = [
+    { id: 'u1', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null } },
+    ...roleIds.map((roleId, index) => ({
+    id: `u${index + 2}`,
     fields: {
       connected: true,
-      role: index === 0 ? 'gm' : 'player',
+      role: 'player',
       assignedRoleId: roleId,
+      seatId: roleId,
     },
-  }));
+    })),
+  ];
   mock.instanceDocs = [
     { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
-    { id: 'desk', fields: { uid: 'u9', responsibility: 'assistant' } },
+    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
   ];
-  mock.secretDocs = roleIds.map((_roleId, index) => `loyalty-u${index + 1}`);
+  mock.secretDocs = [];
+  mock.seatDocs = stableSeatsForRoles(roleIds).map((seat, index) => ({
+    id: seat.id,
+    fields: { ...seat, status: 'claimed', holderUid: `u${index + 2}`, claimedAt: '2026-09-09T00:00:00.000Z' },
+  }));
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
-    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.playerDocs[0]!.fields, ref.path);
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instanceDocs[0]!.fields, ref.path);
+    const playerMatch = ref.path.match(/^sessions\/s1\/players\/([^/]+)$/);
+    if (playerMatch) {
+      const player = mock.playerDocs.find(({ id }) => id === playerMatch[1]);
+      return player ? snapshot(player.fields, ref.path) : snapshot({}, ref.path, false);
+    }
+    const instanceMatch = ref.path.match(/^sessions\/s1\/gmInstances\/([^/]+)$/);
+    if (instanceMatch) {
+      const instance = mock.instanceDocs.find(({ id }) => id === instanceMatch[1]);
+      return instance ? snapshot(instance.fields, ref.path) : snapshot({}, ref.path, false);
+    }
     if (ref.path === 'sessionStartRequests/s1_start-1') {
       return mock.priorReply === undefined
         ? snapshot({}, ref.path, false)
-        : snapshot({ reply: mock.priorReply }, ref.path);
+        : snapshot({ reply: mock.priorReply, fingerprint: mock.priorFingerprint }, ref.path);
     }
     if (ref.path === 'sessions/s1/players') {
       return { exists: true, docs: mock.playerDocs.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
@@ -97,8 +200,11 @@ beforeEach(() => {
     if (ref.path === 'sessions/s1/gmInstances') {
       return { exists: true, docs: mock.instanceDocs.map(({ id, fields }) => snapshot(fields, `sessions/s1/gmInstances/${id}`)) };
     }
+    if (ref.path === 'sessions/s1/seats') {
+      return { exists: true, docs: mock.seatDocs.map(({ id, fields }) => snapshot(fields, `sessions/s1/seats/${id}`)) };
+    }
     if (ref.path === 'sessions/s1/secrets') {
-      return { exists: true, docs: mock.secretDocs.map((id) => snapshot({}, `sessions/s1/secrets/${id}`)) };
+      return { exists: true, docs: mock.secretDocs.map((id) => snapshot({ payload: mock.secretPayloads[id] }, `sessions/s1/secrets/${id}`)) };
     }
     return snapshot({}, ref.path, false);
   });
@@ -137,6 +243,109 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   );
 });
 
+it('durably upgrades a sole legacy singular GM lane while committing the start', async () => {
+  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } }];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-legacy-gm', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', setupRevision: 1 });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/gmInstances/bridge' }),
+    { responsibilities: ['main', 'assistant'], responsibility: 'main' },
+  );
+});
+
+it('returns the original result as replayed without repeating start writes', async () => {
+  const setupReceipt = {
+    source: 'routine-start', playerCount: 8, mode: 'base',
+    rosterIds: [...roleIds], pressEligibility: { enabled: true, activeClaimCount: 0, claimed: false },
+    excludedGmCount: 1, wolfCount: 1, wolfRule: 'one-wolf-at-8-13',
+    selectedWolfRoleIds: ['admiral'], eligibleRoleIds: [...roleIds], orderedModifiers: [],
+    resultCount: 8, loyaltySource: 'automatic-default', request: {},
+    expectedSetupRevision: 0, committedSetupRevision: 1, actorUid: 'u1',
+    serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
+  };
+  mock.priorReply = {
+    status: 'committed', sessionId: 's1', requestId: 'start-1', currentTurn: 1,
+    setupRevision: 1, setupReceipt,
+  };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).resolves.toEqual(expect.objectContaining({
+    status: 'replayed', sessionId: 's1', requestId: 'start-1', currentTurn: 1,
+    setupRevision: 1, setupReceipt,
+  }));
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('replays a stored stale start disposition as stale, never as committed', async () => {
+  mock.priorReply = {
+    status: 'stale', sessionId: 's1', requestId: 'start-1',
+    expectedSetupRevision: 0, currentSetupRevision: 1,
+  };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).resolves.toEqual(mock.priorReply);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a replay from a disconnected facilitator instance before revealing its result', async () => {
+  mock.priorReply = {
+    status: 'committed', sessionId: 's1', requestId: 'start-1', currentTurn: 1,
+    setupRevision: 1, setupReceipt: { selectedWolfRoleIds: ['admiral'] },
+  };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', connected: false } }];
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies a replay from a stale facilitator lease using a Firestore Timestamp shape', async () => {
+  mock.priorReply = {
+    status: 'committed', sessionId: 's1', requestId: 'start-1', currentTurn: 1,
+    setupRevision: 1, setupReceipt: { selectedWolfRoleIds: ['admiral'] },
+  };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+  mock.instanceDocs = [{
+    id: 'bridge',
+    fields: { uid: 'u1', connected: true, lastSeenAt: Timestamp.fromMillis(Date.now() - 60_000) },
+  }];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('starts the complete production 8-player preset after every player receives a legal role', async () => {
   const activeRoleIds = [...recommendedRoleIds(8)];
   mock.session = {
@@ -145,14 +354,169 @@ it('starts the complete production 8-player preset after every player receives a
     activeRoleIds,
   };
   mock.playerDocs = activeRoleIds.map((roleId, index) => ({
-    id: `u${index + 1}`,
-    fields: { connected: true, role: index === 0 ? 'gm' : 'player', assignedRoleId: roleId },
+    id: `u${index + 2}`,
+    fields: { connected: true, role: 'player', assignedRoleId: roleId, seatId: roleId },
   }));
-  mock.secretDocs = mock.playerDocs.map(({ id }) => `loyalty-${id}`);
+  mock.playerDocs.unshift({ id: 'u1', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null } });
+  mock.seatDocs = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+    id: seat.id,
+    fields: { ...seat, status: 'claimed', holderUid: `u${index + 2}` },
+  }));
+  mock.secretDocs = [];
 
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
   }))).resolves.toMatchObject({ sessionId: 's1', currentTurn: 1 });
+});
+
+it('starts the exact 19-player Capybara pair matrix with two derived Wolves', async () => {
+  provisionProductionRoster(19);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-19', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    status: 'committed',
+    setupReceipt: expect.objectContaining({
+      playerCount: 19,
+      wolfCount: 2,
+      resultCount: 19,
+      rosterIds: expect.arrayContaining(['capybara-captain', 'capybara-recycler']),
+    }),
+  });
+  expect(mock.set.mock.calls.filter(([ref]) => ref.path.includes('/secrets/loyalty-'))).toHaveLength(19);
+});
+
+it('keeps the setup receipt roster and eligible pool in canonical printed order', async () => {
+  provisionProductionRoster(8);
+  const gm = mock.playerDocs.find((player) => player.id === 'u1');
+  const core = mock.playerDocs.filter((player) => player.id !== 'u1').reverse();
+  mock.playerDocs = gm ? [gm, ...core] : [...core];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-order', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    setupReceipt: expect.objectContaining({
+      rosterIds: [...recommendedRoleIds(8)],
+      eligibleRoleIds: [...recommendedRoleIds(8)],
+    }),
+  });
+});
+
+it('starts the exact 20-player matrix with a claimed optional Press 21st and extra GM', async () => {
+  provisionProductionRoster(20, { press: 'claimed', extraGm: true });
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-20-press', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    status: 'committed',
+    setupReceipt: expect.objectContaining({
+      playerCount: 20,
+      wolfCount: 2,
+      resultCount: 21,
+      excludedGmCount: 2,
+      pressEligibility: { enabled: true, activeClaimCount: 1, claimed: true },
+      rosterIds: expect.arrayContaining(['capybara-captain', 'capybara-recycler']),
+    }),
+  });
+  const receiptCall = mock.set.mock.calls.find(([ref]) => ref.path.endsWith('/secrets/setup-receipt-start-20-press'));
+  expect(receiptCall?.[1]).toEqual(expect.objectContaining({ payload: expect.objectContaining({ resultCount: 21 }) }));
+});
+
+it.each(['stale', 'disconnected'] as const)(
+  'excludes a %s extra GM from private setup recipients while retaining the authorized GM',
+  async (state) => {
+    provisionProductionRoster(20, { press: 'claimed', extraGm: true });
+    const extraInstance = mock.instanceDocs.find((instance) => instance.id === 'observer-bridge');
+    if (!extraInstance) throw new Error('Expected the extra GM instance.');
+    if (state === 'stale') extraInstance.fields.lastSeenAt = new Date(Date.now() - 60_000);
+    else extraInstance.fields.connected = false;
+
+    await expect(startGame.run(request({
+      sessionId: 's1', instanceId: 'bridge', requestId: `start-extra-${state}`, expectedSetupRevision: 0,
+    }))).resolves.toMatchObject({ status: 'committed' });
+    const wolfCall = mock.set.mock.calls.find(([ref]) => ref.path.endsWith('/secrets/wolf-assignment'));
+    const receiptCall = mock.set.mock.calls.find(([ref]) => ref.path.endsWith('/secrets/setup-receipt-start-extra-' + state));
+    expect(wolfCall?.[1]).toEqual(expect.objectContaining({ visibleToUids: ['u1'] }));
+    expect(receiptCall?.[1]).toEqual(expect.objectContaining({ visibleToUids: ['u1'] }));
+  },
+);
+
+it.each([
+  ['unclaimed Press is excluded', { press: 'unclaimed' as const }, 20],
+  ['disabled Press is excluded', { press: 'disabled' as const }, 20],
+] as const)('keeps an %s from adding a third Wolf or a core seat', async (_label, options, playerCount) => {
+  provisionProductionRoster(playerCount, options);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `start-${_label.replace(/\W+/g, '-')}`, expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    setupReceipt: expect.objectContaining({ playerCount, wolfCount: 2, resultCount: 20 }),
+  });
+  expect(mock.set.mock.calls.some(([ref]) => ref.path.endsWith('/secrets/loyalty-press-21'))).toBe(false);
+});
+
+it('rejects a stale Press pointer with a precise Press readiness reason and no writes', async () => {
+  provisionProductionRoster(20, { press: 'stale' });
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-stale-press', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/press/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects multiple live Press claims without writing setup or secrets', async () => {
+  provisionProductionRoster(20, { press: 'multiple' });
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-multiple-press', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/press/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('preserves a complete explicit loyalty setup without silently rerolling it', async () => {
+  provisionProductionRoster(8);
+  const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');
+  mock.secretDocs = corePlayers.map((player) => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(corePlayers.map((player, index) => [
+    `loyalty-${player.id}`,
+    { type: 'loyalty', kind: index === 0 ? 'wolf-agent' : 'fleet-loyalist', suspicion: 0 },
+  ]));
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-explicit', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    setupReceipt: expect.objectContaining({ loyaltySource: 'explicit-preserved', wolfCount: 1 }),
+  });
+  expect(mock.set.mock.calls.some(([ref]) => ref.path.includes('/secrets/loyalty-'))).toBe(false);
+});
+
+it('blocks partial and conflicting explicit loyalty setup before any start writes', async () => {
+  provisionProductionRoster(8);
+  const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');
+  mock.secretDocs = [`loyalty-${corePlayers[0]!.id}`];
+  mock.secretPayloads = {
+    [`loyalty-${corePlayers[0]!.id}`]: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 0 },
+  };
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-partial-explicit', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/loyalties/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.secretDocs = corePlayers.map((player) => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(corePlayers.map((player) => [
+    `loyalty-${player.id}`,
+    { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+  ]));
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-conflicting-explicit', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/conflicting-wolf-count/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('blocks incomplete readiness without writing and replays a completed start request', async () => {
@@ -169,9 +533,37 @@ it('blocks incomplete readiness without writing and replays a completed start re
   mock.update.mockClear();
   mock.set.mockClear();
   mock.priorReply = { sessionId: 's1', currentTurn: 1, setupRevision: 1 };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
-  }))).resolves.toEqual(mock.priorReply);
+  }))).resolves.toEqual({ ...mock.priorReply, status: 'replayed' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('blocks a missing persisted vessel tuple before any start write', async () => {
+  delete mock.session.activeVesselIds;
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-missing-vessels', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/vessels/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('blocks a missing persisted role tuple before any start write', async () => {
+  delete mock.session.activeRoleIds;
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-missing-roles', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/roles/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
@@ -183,17 +575,20 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
     ...mock.session,
     playerCount: 20,
     activeRoleIds: coreRoleIds,
+    activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
     pressEnabled: true,
   };
   mock.playerDocs = coreRoleIds.map((roleId, index) => ({
-    id: `u${index + 1}`,
+    id: `core-${index + 1}`,
     fields: {
       connected: true,
-      role: index === 0 ? 'gm' : 'player',
+      role: 'player',
       assignedRoleId: roleId,
+      seatId: roleId,
       activeConsoleRoleId: null,
     },
   }));
+  mock.playerDocs.unshift({ id: 'u1', fields: { connected: true, role: 'gm', assignedRoleId: null, seatId: null } });
   mock.playerDocs.push({
     id: pressUid,
     fields: {
@@ -215,10 +610,14 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
   );
   mock.instanceDocs = [
     { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
-    { id: 'desk', fields: { uid: 'u9', responsibility: 'assistant' } },
-    { id: 'extra-gm', fields: { uid: 'u10' } },
+    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
+    { id: 'extra-gm', fields: { uid: 'u1' } },
   ];
-  mock.secretDocs = coreRoleIds.map((_roleId, index) => `loyalty-u${index + 1}`);
+  mock.seatDocs = stableSeatsForRoles(coreRoleIds).map((seat, index) => ({
+    id: seat.id,
+    fields: { ...seat, status: 'claimed', holderUid: `core-${index + 1}` },
+  }));
+  mock.secretDocs = ['loyalty-core-1'];
 
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-press-without-loyalty',
@@ -228,40 +627,95 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
     message: expect.stringMatching(/loyalties/i),
   });
 
-  mock.secretDocs.push(`loyalty-${pressUid}`, 'loyalty-former-press');
+  mock.secretDocs = [];
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-press-with-loyalty',
     expectedSetupRevision: 0,
   }))).resolves.toMatchObject({ sessionId: 's1', currentTurn: 1 });
 });
 
-it('keeps a claimed Press eligible in the callable Wolf pool without creating a third Wolf', async () => {
-  mock.session = {
-    ...mock.session,
-    playerCount: 20,
-    activeRoleIds: ['admiral'],
-    pressEnabled: true,
-  };
-  mock.playerDocs = [
-    {
-      id: 'u1',
-      fields: { connected: true, role: 'gm', assignedRoleId: 'admiral', activeConsoleRoleId: null },
-    },
-    {
-      id: 'press-21',
-      fields: { connected: true, role: 'player', assignedRoleId: null, activeConsoleRoleId: 'press-officer' },
-    },
-  ];
-  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } }];
-
-  expect(wolfCountForPlayerCount(20)).toBe(2);
-  await expect(assignWolves.run(request({
-    sessionId: 's1', instanceId: 'bridge', count: wolfCountForPlayerCount(20),
+it('writes private automatic loyalties and a safe setup receipt in the same committed start', async () => {
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-receipt', expectedSetupRevision: 0,
   }))).resolves.toMatchObject({
-    roleIds: expect.arrayContaining(['press-officer', 'admiral']),
+    status: 'committed',
+    setupReceipt: expect.objectContaining({
+      source: expect.any(String),
+      wolfCount: 1,
+      expectedSetupRevision: 0,
+      committedSetupRevision: 1,
+      event: 'game-started',
+    }),
   });
   expect(mock.set).toHaveBeenCalledWith(
-    expect.objectContaining({ path: 'sessions/s1/secrets/wolf-assignment' }),
-    expect.objectContaining({ payload: { type: 'wolf-assignment', roleIds: expect.any(Array) } }),
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({ payload: expect.objectContaining({ type: 'loyalty' }) }),
+  );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/setup-receipt-start-receipt' }),
+    expect.objectContaining({ payload: expect.objectContaining({ type: 'setup-receipt' }) }),
+  );
+});
+
+it('does not embed a release version in the server setup receipt', async () => {
+  const reply = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-receipt-version', expectedSetupRevision: 0,
+  }));
+
+  expect(reply.setupReceipt).not.toHaveProperty('version');
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/setup-receipt-start-receipt-version' }),
+    expect.objectContaining({ payload: expect.not.objectContaining({ version: expect.anything() }) }),
+  );
+});
+
+it('rejects a conflicting reuse of a start request id instead of returning the prior result', async () => {
+  mock.priorReply = { sessionId: 's1', currentTurn: 1, setupRevision: 1 };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/request|payload|different/i),
+  });
+});
+
+it('rejects the same request id when the actor changes without exposing the prior result', async () => {
+  mock.priorReply = { sessionId: 's1', currentTurn: 1, setupRevision: 1 };
+  mock.priorFingerprint = {
+    sessionId: 's1', requestId: 'start-1', actorUid: 'u1', instanceId: 'bridge',
+    expectedSetupRevision: 0,
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 0,
+  }, 'u2'))).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('lets one same-revision GM start commit and rejects the racing stale revision without a second write', async () => {
+  provisionProductionRoster(20, { press: 'claimed', extraGm: true });
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'race-a', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed', setupRevision: 1 });
+
+  mock.session = { ...mock.session, phase: 'active', setupRevision: 1 };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'observer-bridge', requestId: 'race-b', expectedSetupRevision: 0,
+  }, 'gm-observer'))).resolves.toMatchObject({
+    status: 'stale', requestId: 'race-b', expectedSetupRevision: 0, currentSetupRevision: 1,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessionStartRequests/s1_race-b' }),
+    expect.objectContaining({ reply: expect.objectContaining({ status: 'stale' }) }),
   );
 });

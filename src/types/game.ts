@@ -262,6 +262,35 @@ export interface GameSession {
   readonly updatedAt: Timestamp;
 }
 
+/** GM-private receipt returned by the authoritative ordinary start transaction. */
+export interface SetupReceipt {
+  readonly source: string;
+  readonly playerCount: number;
+  readonly mode: string;
+  readonly rosterIds: readonly string[];
+  readonly pressEligibility: Readonly<Record<string, unknown>>;
+  readonly excludedGmCount: number;
+  readonly wolfCount: 1 | 2;
+  readonly wolfRule: string;
+  readonly selectedWolfRoleIds: readonly string[];
+  readonly eligibleRoleIds: readonly string[];
+  readonly orderedModifiers: readonly unknown[];
+  readonly resultCount: number;
+  readonly loyaltySource: 'automatic-default' | 'explicit-preserved';
+  readonly request: Readonly<Record<string, unknown>>;
+  readonly expectedSetupRevision: number;
+  readonly committedSetupRevision: number;
+  readonly actorUid: string;
+  readonly serverTime: string;
+  readonly event: string;
+}
+
+export interface PrivateLoyalty {
+  readonly kind: string;
+  readonly suspicion: number | null;
+  readonly partnerUid?: string;
+}
+
 export interface ShuttleDocking {
   readonly shuttleId: Id;
   readonly shipId: Id;

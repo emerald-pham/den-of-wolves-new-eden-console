@@ -19,6 +19,7 @@ import type {
   GameSession,
   GmInstance,
   Player,
+  PrivateLoyalty,
   Seat,
   SessionSetup,
   SessionChartId,
@@ -27,6 +28,7 @@ import type {
   ShipJumpStates,
   ShipJumpTransitions,
   ShipNavigationLogs,
+  SetupReceipt,
 } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -63,6 +65,34 @@ function iso(value: unknown): string {
     typeof value.toDate === 'function'
   ) return (value.toDate() as Date).toISOString();
   return new Date().toISOString();
+}
+
+function privateLoyalty(value: unknown): PrivateLoyalty | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.kind !== 'string' ||
+      (typeof payload.suspicion !== 'number' && payload.suspicion !== null)) return null;
+  return {
+    kind: payload.kind,
+    suspicion: payload.suspicion,
+    ...(typeof payload.partnerUid === 'string' ? { partnerUid: payload.partnerUid } : {}),
+  };
+}
+
+function setupReceipt(value: unknown): SetupReceipt | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if (
+    typeof raw.source !== 'string' ||
+    typeof raw.playerCount !== 'number' || !Array.isArray(raw.rosterIds) ||
+    typeof raw.wolfCount !== 'number' || (raw.wolfCount !== 1 && raw.wolfCount !== 2) ||
+    !Array.isArray(raw.selectedWolfRoleIds) || !Array.isArray(raw.eligibleRoleIds) ||
+    typeof raw.resultCount !== 'number' ||
+    (raw.loyaltySource !== 'automatic-default' && raw.loyaltySource !== 'explicit-preserved') ||
+    typeof raw.expectedSetupRevision !== 'number' || typeof raw.committedSetupRevision !== 'number' ||
+    typeof raw.actorUid !== 'string' || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string'
+  ) return null;
+  return raw as unknown as SetupReceipt;
 }
 
 function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnouncement'] {
@@ -368,6 +398,8 @@ export interface SessionStateHandlers {
   readonly onPlayer: (player: Player) => void;
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
+  readonly onPrivateLoyalty?: (loyalty: PrivateLoyalty | null) => void;
+  readonly onSetupReceipt?: (receipt: SetupReceipt | null) => void;
   readonly onError: () => void;
 }
 
@@ -395,6 +427,28 @@ export function subscribeSessionState(
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
     }, handlers.onError),
+    ...(handlers.onPrivateLoyalty ? [onSnapshot(
+      doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
+      (snapshot) => handlers.onPrivateLoyalty?.(
+        snapshot.exists() ? privateLoyalty(snapshot.get('payload')) : null,
+      ),
+      handlers.onError,
+    )] : []),
+    ...(handlers.onSetupReceipt ? [onSnapshot(
+      query(
+        collection(database, `sessions/${sessionId}/secrets`),
+        where('visibleToUids', 'array-contains', uid),
+      ),
+      (snapshot) => {
+        const latest = snapshot.docs
+          .map((secret) => setupReceipt(secret.get('payload')))
+          .filter((receipt): receipt is SetupReceipt => receipt !== null)
+          .sort((left, right) => left.committedSetupRevision - right.committedSetupRevision)
+          .at(-1) ?? null;
+        handlers.onSetupReceipt?.(latest);
+      },
+      handlers.onError,
+    )] : []),
   ];
   return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 }

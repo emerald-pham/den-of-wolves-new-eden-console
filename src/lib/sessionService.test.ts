@@ -29,15 +29,13 @@ const {
   releaseConsoleRole,
   reconcileGmAuthority,
   resumeSession,
-  assignWolves,
-  assignWolfRoles,
-  resetWolves,
   setCapybaraEnabled,
   setDioneEnabled,
   setPressEnabled,
   setDebriefMode,
   setGmControlsLocked,
   advanceTurn,
+  startGame,
   replayTurnStartAnnouncement,
   beginOpenAirspacePhase,
   extendAirspaceWindow,
@@ -316,6 +314,128 @@ describe('authoritative session replies', () => {
       me: player,
     });
   });
+});
+
+it('starts production through one server receipt and hydrates the GM-private setup result', async () => {
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 },
+    { ...player, role: 'gm' },
+  );
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmSetupReceipt(null);
+  const callable = callableReturning({
+    data: {
+      status: 'committed', sessionId: 's1', requestId: 'start-1', currentTurn: 1,
+      setupRevision: 5,
+      turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+      turnPhase: {
+        turn: 1,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+      },
+      setupReceipt: {
+        source: 'routine-start', playerCount: 8,
+        mode: 'base', rosterIds: ['admiral'], pressEligibility: {},
+        excludedGmCount: 1, wolfCount: 1, wolfRule: 'one-wolf-at-8-13',
+        selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'],
+        orderedModifiers: [], resultCount: 8, loyaltySource: 'automatic-default',
+        request: {}, expectedSetupRevision: 4, committedSetupRevision: 5,
+        actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
+      },
+    },
+  });
+  vi.mocked(httpsCallable).mockReturnValue(callable);
+
+  const reply = await startGame();
+
+  expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startGame');
+  expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', instanceId: 'instance-1', expectedSetupRevision: 4,
+    requestId: expect.any(String),
+  }));
+  expect(reply.status).toBe('committed');
+  expect(useSessionStore.getState().session).toMatchObject({
+    phase: 'active', currentTurn: 1, configurationLocked: true, setupRevision: 5,
+    pursuitGroups: { fleet: 2 },
+  });
+  expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
+    source: 'routine-start', committedSetupRevision: 5,
+  });
+});
+
+it('reuses the same start request id after an ambiguous transport failure', async () => {
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 },
+    { ...player, role: 'gm' },
+  );
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  const reply = {
+    status: 'replayed' as const, sessionId: 's1', requestId: 'retry-start', currentTurn: 1,
+    setupRevision: 5,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+    setupReceipt: {
+      source: 'routine-start', playerCount: 8, mode: 'base',
+      rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1, wolfCount: 1,
+      wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'],
+      orderedModifiers: [], resultCount: 8, loyaltySource: 'automatic-default', request: {},
+      expectedSetupRevision: 4, committedSetupRevision: 5, actorUid: 'u1',
+      serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
+    },
+  };
+  const callable = Object.assign(
+    vi.fn()
+      .mockRejectedValueOnce({ code: 'functions/unavailable', message: 'Transport interrupted.' })
+      .mockResolvedValueOnce({ data: reply }),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable);
+
+  await expect(startGame()).rejects.toMatchObject({ code: 'functions/unavailable' });
+  const firstPayload = callable.mock.calls[0]?.[0] as { requestId: string };
+  await expect(startGame()).resolves.toMatchObject({ status: 'replayed' });
+  const secondPayload = callable.mock.calls[1]?.[0] as { requestId: string };
+  expect(firstPayload.requestId).toBeTruthy();
+  expect(secondPayload.requestId).toBe(firstPayload.requestId);
+  expect(callable).toHaveBeenCalledTimes(2);
+});
+
+it('keeps a structured stale start result out of local Turn 1 hydration', async () => {
+  useSessionStore.getState().setIdentity(
+    { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 },
+    { ...player, role: 'gm' },
+  );
+  useSessionStore.getState().setGmInstance({
+    id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmSetupReceipt(null);
+  const stale = {
+    status: 'stale' as const, sessionId: 's1', requestId: 'stale-start',
+    expectedSetupRevision: 4, currentSetupRevision: 5,
+  };
+  const callable = Object.assign(
+    vi.fn().mockResolvedValue({ data: stale }),
+    { stream: vi.fn() },
+  );
+  vi.mocked(httpsCallable).mockReturnValue(callable);
+
+  await expect(startGame({ requestId: 'stale-start' })).resolves.toEqual(stale);
+  await expect(startGame({ requestId: 'stale-start' })).resolves.toEqual(stale);
+  expect(callable).toHaveBeenCalledTimes(2);
+  expect(callable.mock.calls[0]?.[0]).toMatchObject({ requestId: 'stale-start' });
+  expect(callable.mock.calls[1]?.[0]).toMatchObject({ requestId: 'stale-start' });
+  expect(useSessionStore.getState().session).toMatchObject({ phase: 'casting', currentTurn: 0, setupRevision: 4 });
+  expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
 });
 
 describe('createSession', () => {
@@ -871,51 +991,6 @@ describe('GM instance commands', () => {
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'triggerDradisContact');
     expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'instance-1' });
     expect(useSessionStore.getState().session?.dradisContactTriggeredAt).toBe(triggeredAt);
-  });
-
-  it('asks the server to randomly assign wolves and returns the secret result', async () => {
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
-      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    const callable = callableReturning({ data: { roleIds: ['press-officer'] } });
-    vi.mocked(httpsCallable).mockReturnValue(callable);
-
-    await expect(assignWolves(1)).resolves.toEqual(['press-officer']);
-    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolves');
-    expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', count: 1,
-    });
-  });
-
-  it('asks the server to save the GM-selected wolf roles', async () => {
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
-      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    const callable = callableReturning({ data: { roleIds: ['press-officer'] } });
-    vi.mocked(httpsCallable).mockReturnValue(callable);
-
-    await expect(assignWolfRoles(['press-officer'])).resolves.toEqual(['press-officer']);
-    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'assignWolfRoles');
-    expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', roleIds: ['press-officer'],
-    });
-  });
-
-  it('asks the server to reset the wolf assignment', async () => {
-    useSessionStore.getState().setGmInstance({
-      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
-      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
-    });
-    const callable = callableReturning({ data: { reset: true } });
-    vi.mocked(httpsCallable).mockReturnValue(callable);
-
-    await expect(resetWolves()).resolves.toBeUndefined();
-    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetWolves');
-    expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1',
-    });
   });
 
   it('sends one confirmed role configuration through the active GM', async () => {

@@ -41,32 +41,30 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Audited baseline — 2026-09-08 (after Prompt 004 and roadmap addenda)
+## Audited baseline — 2026-09-08 (release 0.3.13 candidate)
 
 This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **63 / 713 prompts done, 33 partial, one active prompt,
-  and 616 missing** after completing the Prompt 004 catalog slice, activating
-  Prompt 021, and recording the two owner-requested regression children while retaining
-  the deliberately reopened Prompt 030 seat evidence and the five
-  dependency-placed Wolf/DRADIS lettered prompts.
+- The ledger reports **69 / 719 prompts done, 28 partial, no active prompt,
+  and 622 missing** after release 0.3.13 composed authoritative configuration,
+  production seating, one-GM readiness, private setup, and Turn 1. Six new
+  dependency-placed future prompts account for the expanded denominator; the
+  separately scheduled regression work remains open.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.
 - No complete production route currently resolves an away mission, Wolf
   attack/boarding sequence, crisis, New Eden candidate attempt, or durable
   success/failure/closed transition. Existing catalogs and debrief presentation
   are foundations for those loops.
-- The authoritative client/server catalogs now accept the settled 8–20 matrix,
-  including the owner-set 19-player row. Production configuration, one-GM
-  readiness/start, and Prompt 638's measured capacity evidence remain open;
-  catalog support is not a live-game or 60-client claim.
-- Seat claim/release primitives have isolated transaction tests, but session
-  creation does not provision a production seat catalog, the client does not
-  expose the claim/release path, and readiness ignores seat authority. Prompt
-  030 is therefore partial and must be repaired before the one-GM readiness or
-  lobby-to-Team-Phase composition gates can close.
+- The authoritative client/server catalogs accept the settled 8–20 matrix,
+  including the owner-set 19-player row. Production configuration provisions
+  stable seats and exposes revisioned claim/release; readiness and start now
+  consume the reciprocal seat graph, derive the routine Wolf/default loyalty
+  result privately, and let one live GM enter Turn 1 once. Prompt 020's full
+  create-to-Turn-1 composed fixture and Prompt 638's measured capacity evidence
+  remain open; this release is not a live-game or 60-client capacity claim.
 - No repeatable 60-browser gameplay harness or commit/deployment-tied capacity
   artifact exists yet. Runtime instance limits and deployment automation are
   configuration, not capacity or live-game proof.
@@ -74,25 +72,71 @@ progress ledger as work lands; it supersedes this dated summary.
   the selected prompt's focused evidence plus the reconciled release gate, not
   an old aggregate count.
 
-### Active dependency slice — release 0.3.12
+### Completed dependency slice — release 0.3.13
 
-The active Prompt 021 release is limited to authoritative configuration,
-production seating, and one-GM staffing. It repairs Prompt 030's uncomposed
-seat primitive and Prompt 073's obsolete two-holder representation in the same
-dependency slice. Prompt 051 gains production configuration evidence but stays
-partial: this release does not evaluate readiness, assign Wolves, initialize a
-setup receipt, start Turn 1, or close the Milestone 1 fixture.
+Prompt 051 consumes release 0.3.12's configuration, stable
+seats, and one-GM staffing to complete authoritative readiness and Turn 1. It
+also completes Prompt 054's automatic Wolf-selection contract and Prompt 071's
+one-GM readiness contract. Prompt 075 gains only the setup/start evidence in
+this slice and remains partial: deck, craft, complete resource/economy, and
+alert initialization retain their own dependencies and proof.
 
-The slice exits only when creation produces the exact 8–20 configuration and
-stable core-seat documents; one compare-and-set command cannot split count,
-mode, role, vessel, or expansion state; client-visible claim/release composes
-seat, player pointer, revision, receipt, and event; one active GM can carry both
-facilitator labels while optional GMs share/handoff; legacy singular staffing
-normalizes deterministically; Press remains a distinct optional non-counted
-21st player; and chronological red-first, emulator/rules, responsive/a11y,
-reconnect, race, full build/test, reconcile, merge, and push evidence is
-recorded. The next dependency slice consumes this authority for readiness,
-automatic private setup, and Turn 1.
+The production gaps are part of this repair rather than accepted green
+evidence. Readiness must inspect provisioned seat documents and reciprocal
+player seat pointers; effective responsibility coverage must use live normalized
+GM instances rather than the legacy singular field; and the ordinary GM console
+must call one authoritative start transaction rather than using a debug advance.
+That transaction derives the Wolf count, default loyalty composition, safe and
+private receipts, setup lock, Turn 1 clock/announcement, and pursuit 2 exactly
+once. Caller-selected Wolf cardinality is not the routine path.
+
+**Release 0.3.13 ATDD stories:**
+
+1. Given a locked 8-, 19-, or 20-player core roster, when every connected core
+   member holds one matching stable seat and one unique role, then readiness
+   accepts the reciprocal seat/role graph; missing, duplicate, foreign, stale,
+   mismatched, or Press/GM-as-core pointers produce precise nonsecret blockers.
+2. Given one live authorized GM instance, when that GM prepares a complete
+   roster, then normalized effective coverage satisfies both printed
+   responsibility lanes. Zero live GMs blocks; stale/disconnected extra GMs do
+   not count; additional live GMs may collaborate but are never required.
+3. Given no complete explicit loyalty setup, when the GM starts, then the
+   server derives one Wolf for core 8–13 or two for core 14–20, samples only
+   occupied eligible core roles plus one uniquely claimed enabled Press Officer,
+   and writes every holder's private loyalty in the same transaction. Press is
+   a distinct optional twenty-first player and can never create a third Wolf;
+   GMs and disabled/unclaimed Press are excluded.
+4. Given a complete valid explicit loyalty setup, when start is requested,
+   then it is validated and preserved. A partial, conflicting, malformed, or
+   stale setup blocks without writes or a quiet reroll.
+5. Given one request retry or two authorized GMs racing from one setup revision,
+   when start commits, then one payload-bound request owns one private result,
+   setup receipt, lock, start event, Turn 1 transition, pursuit initialization,
+   and transmission. Same actor/payload replay returns that result; conflicting
+   request reuse and the losing stale command cannot reroll or reset time.
+6. Given a player, claimed Press Officer, or GM reconnects, when authoritative
+   projections hydrate, then a player sees only their own loyalty, the GM sees
+   the permitted full receipt, and shared events expose only the rule, count,
+   revision, and safe result metadata. Ordinary members, observers, nonmembers,
+   and foreign sessions cannot read or write another audience's setup state.
+7. Given the ordinary Turn 0 GM Setup workspace, when readiness is incomplete,
+   pending, rejected, committed, or replayed, then the square CIC instrument
+   reports the state in text, keeps the automatic path primary, requires the
+   existing danger-red second confirmation for start, and remains keyboard,
+   screen-reader, touch, mobile, short-landscape, and reduced-motion usable.
+
+**Dependency and exit order:** preserve 0.3.12 configuration/seat/responsibility
+evidence; observe chronological server readiness, Wolf/loyalty, replay/privacy,
+client-start, and rules failures; implement the server transaction and audience
+projections before enabling the production UI; then pass focused tests, an
+isolated Firestore emulator/rules run, responsive and accessibility review at
+320x844, 390x844, 1440x900, and 844x390 under normal and reduced motion, the
+complete lint/test/build/bundle/docs/diff gates, current-main reconciliation,
+machine coordination validation, merge, push, remote-SHA proof, and cleanup.
+That evidence moves Prompts 051, 054, and 071 to done, with **69 / 719 = 9.60%**
+and **69 done · 28 partial · 0 active · 622 missing** recorded. Prompt 020
+follows as a separate production-composition proof and does not borrow this
+release's isolated fixtures as its own acceptance.
 
 Prompt 275b is a separately queued regression repair after the current
 dependency slice. It must recover the last working SNN Dispatch Desk from git

@@ -21,6 +21,25 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [51, 54, 71, 75],
+    implementationProgress: {
+      completed: 69,
+      total: 719,
+      percentage: '9.60%',
+      done: 69,
+      partial: 28,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'The production roster now reaches start only from the exact configured 8–20 core cast, canonical occupied seats, reciprocal live player pointers, and private loyalty state.',
+      'Routine start now derives one Wolf at 8–13 core players or two at 14–20 on the server; a uniquely claimed Press Officer stays eligible as the distinct optional twenty-first player without adding a third Wolf.',
+      'One live GM can now satisfy both facilitator responsibilities and start a ready session, while additional live GMs may collaborate without becoming a readiness dependency.',
+      'Ordinary GM start now locks setup, writes audience-correct private results and a safe calculation receipt, and enters Turn 1 exactly once with pursuit 2 and the existing timer and announcement.',
+    ],
+  },
+  {
+    version: '0.3.12',
     implementationPrompts: [21, 30, 51, 73],
     implementationProgress: {
       completed: 66,

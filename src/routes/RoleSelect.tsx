@@ -226,7 +226,7 @@ export default function RoleSelect() {
                       {heldByYou ? 'HELD BY YOU' : occupied ? 'OCCUPIED' : seat.status.toUpperCase()}
                     </span>
                   </div>
-                  {!occupied && (
+                  {!occupied && (!isGm || heldByYou) && (
                     <button
                       className="cic-action-button role-seat__action"
                       type="button"
