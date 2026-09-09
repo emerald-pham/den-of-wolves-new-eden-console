@@ -2890,6 +2890,11 @@ body {
   border-color: var(--cic-amber);
   padding: 0.8rem;
 }
+.private-loyalty-flow {
+  position: relative;
+  z-index: 1;
+  padding-top: calc(var(--app-header-height, 4.25rem) + max(0.75rem, env(safe-area-inset-top)) + 0.75rem);
+}
 .private-loyalty-panel__eyebrow {
   margin: 0;
   color: var(--cic-amber);

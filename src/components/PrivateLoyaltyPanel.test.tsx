@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -35,4 +36,24 @@ it('shows a Press holder card with its private partner pointer when present', ()
 it('renders no panel before the entitled secret hydrates', () => {
   render(<PrivateLoyaltyPanel />);
   expect(screen.queryByRole('region', { name: /private loyalty card/i })).not.toBeInTheDocument();
+});
+
+it('keeps the private card in routed flow below the persistent session chrome', () => {
+  useSessionStore.getState().setPrivateLoyalty({ kind: 'fleet-loyalist', suspicion: 0 });
+
+  render(
+    <div className="screen-fade__content">
+      <PrivateLoyaltyPanel />
+    </div>,
+  );
+
+  const panel = screen.getByRole('region', { name: /private loyalty card/i });
+  const flow = panel.closest('[data-private-loyalty-flow]');
+  expect(flow).toHaveAttribute('data-private-loyalty-flow', 'true');
+  expect(flow).toContainElement(panel);
+
+  const stylesheet = readFileSync('src/index.css', 'utf8');
+  expect(stylesheet).toMatch(
+    /\.private-loyalty-flow\s*\{[\s\S]*padding-top:\s*calc\(var\(--app-header-height/,
+  );
 });

@@ -21,18 +21,20 @@ export default function PrivateLoyaltyPanel() {
   if (!loyalty) return null;
 
   return (
-    <section className="private-loyalty-panel cic-frame" aria-label="Private loyalty card">
-      <p className="private-loyalty-panel__eyebrow">Private setup // your loyalty card</p>
-      <h2>{loyaltyLabel(loyalty)}</h2>
-      <p className="private-loyalty-panel__suspicion">
-        Suspicion // {loyalty.suspicion === null ? 'unassigned' : loyalty.suspicion}
-      </p>
-      {loyalty.partnerUid && (
-        <p className="private-loyalty-panel__partner">Partner assignment // {loyalty.partnerUid}</p>
-      )}
-      <p className="private-loyalty-panel__note">
-        This card belongs to this browser identity only. Do not read it aloud on an open channel.
-      </p>
-    </section>
+    <div className="private-loyalty-flow" data-private-loyalty-flow="true">
+      <section className="private-loyalty-panel cic-frame" aria-label="Private loyalty card">
+        <p className="private-loyalty-panel__eyebrow">Private setup // your loyalty card</p>
+        <h2>{loyaltyLabel(loyalty)}</h2>
+        <p className="private-loyalty-panel__suspicion">
+          Suspicion // {loyalty.suspicion === null ? 'unassigned' : loyalty.suspicion}
+        </p>
+        {loyalty.partnerUid && (
+          <p className="private-loyalty-panel__partner">Partner assignment // {loyalty.partnerUid}</p>
+        )}
+        <p className="private-loyalty-panel__note">
+          This card belongs to this browser identity only. Do not read it aloud on an open channel.
+        </p>
+      </section>
+    </div>
   );
 }
