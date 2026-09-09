@@ -169,6 +169,40 @@ beforeEach(() => {
 });
 
 describe('claimSeat', () => {
+  it('rejects a GM claim before the first call without writing', async () => {
+    player('u1', { role: 'gm' });
+    seat('seat-1');
+    const command = {
+      sessionId: 's1', seatId: 'seat-1', requestId: 'claim-gm-first-call', expectedSetupRevision: 0,
+    };
+
+    await expect(claimSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'open', holderUid: null });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm', seatId: null });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 0 });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  });
+
+  it('rejects a GM claim replay before returning the stored receipt', async () => {
+    player('u1');
+    seat('seat-1');
+    const command = {
+      sessionId: 's1', seatId: 'seat-1', requestId: 'claim-gm-replay', expectedSetupRevision: 0,
+    };
+    await expect(claimSeat.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+
+    player('u1', { role: 'gm', seatId: null });
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+    await expect(claimSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  });
+
   it('commits a revisioned, replay-safe seat receipt, pointer, and member-safe event', async () => {
     put('sessions/s1', {
       phase: 'lobby',

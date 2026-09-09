@@ -528,6 +528,20 @@ describe('secrets', () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
   });
 
+  it('revokes GM-private reads after the allowlisted GM is demoted', async () => {
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
+    });
+
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertFails(getDocs(query(
+      collection(as('gm1'), `${SESSION}/secrets`),
+      where('visibleToUids', 'array-contains', 'gm1'),
+    )));
+  });
+
   it('allows an allowlisted GM to query only its setup receipts', async () => {
     await assertSucceeds(getDocs(query(
       collection(as('gm1'), `${SESSION}/secrets`),

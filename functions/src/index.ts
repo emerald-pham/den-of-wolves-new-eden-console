@@ -286,6 +286,11 @@ function hasCoreAssignment(player: DocumentSnapshot): boolean {
     assignedRoleId !== 'press-officer';
 }
 
+function hasCoreSeat(player: DocumentSnapshot): boolean {
+  const seatId = player.get('seatId');
+  return typeof seatId === 'string' && seatId.trim().length > 0 && seatId !== 'press-officer';
+}
+
 function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
   return isActivePlayer(player) && player.get('role') === 'player' &&
     player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreAssignment(player);
@@ -2456,6 +2461,9 @@ export const claimGmInstance = onCall<{
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (hasCoreSeat(player) || hasCoreAssignment(player)) {
+      throw new HttpsError('failed-precondition', 'Release your core station before joining as GM.');
+    }
     if (
       !existing.exists &&
       !mayClaimGmInstance(session.get('gmControlsLocked') === true, activeInstances.size)
@@ -4025,6 +4033,9 @@ export const claimSeat = onCall<{
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(player)) {
           throw new HttpsError('permission-denied', 'Join the session first.');
+        }
+        if (player.get('role') === 'gm') {
+          throw new HttpsError('permission-denied', 'GMs cannot claim core seats.');
         }
         if (prior.exists) {
           if (

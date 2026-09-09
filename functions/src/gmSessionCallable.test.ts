@@ -411,6 +411,30 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
   });
 
+  it.each([
+    ['a core seat pointer', { seatId: 'admiral' }],
+    ['a core assigned role', { assignedRoleId: 'admiral' }],
+  ] as const)('rejects GM promotion with %s without mutating authority', async (_label, fields) => {
+    session();
+    player('u1', fields);
+    await login();
+    mock.directUpdate.mockClear();
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1', instanceId: 'bridge', name: 'Bridge laptop', deviceLabel: 'Test browser',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player', ...fields });
+    expect(mock.directUpdate).not.toHaveBeenCalled();
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
+  });
+
   it('rejects a duplicate browser identifier owned by somebody else', async () => {
     session();
     player('u1');
