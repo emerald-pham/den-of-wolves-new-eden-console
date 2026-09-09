@@ -2,10 +2,29 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
-import { sessionFrom } from '@/lib/firestore';
+import { subscribeSessionState } from '@/lib/firestore';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
 import FleetBroadcast from './FleetBroadcast';
 import FleetAlertControl from './FleetAlertControl';
+const firestoreMocks = vi.hoisted(() => ({
+  onSnapshot: vi.fn(),
+}));
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn((_database: unknown, path: string) => ({ path })),
+  connectFirestoreEmulator: vi.fn(),
+  doc: vi.fn((_database: unknown, path: string) => ({ path })),
+  getFirestore: vi.fn(() => ({})),
+  onSnapshot: firestoreMocks.onSnapshot,
+  orderBy: vi.fn(),
+  limit: vi.fn(),
+  query: vi.fn((_collection: unknown) => _collection),
+  where: vi.fn(),
+}));
+vi.mock('@/lib/firebase', () => ({ app: vi.fn(() => ({})) }));
+vi.mock('@/lib/firebaseConfig', () => ({
+  emulatorPorts: { firestore: 8080 },
+  useEmulators: false,
+}));
 vi.mock('@/lib/fleetAlertService', () => ({ setFleetRedAlert: vi.fn() }));
 const { setFleetRedAlert } = await import('@/lib/fleetAlertService');
 beforeEach(() => {
@@ -127,10 +146,16 @@ it('posts the current airspace window as a compact looping Airspace Control bull
 });
 
 it('names the lifted window as an Airspace Control bulletin', () => {
-  const state = useSessionStore.getState();
+  const listeners: Array<{ path: string; callback: (snapshot: unknown) => void }> = [];
+  firestoreMocks.onSnapshot.mockImplementation((target: { path: string }, callback: (snapshot: unknown) => void) => {
+    listeners.push({ path: target.path, callback });
+    return vi.fn();
+  });
   const now = new Date(Date.now());
   const authoritativeSnapshot = {
-    ...state.session!,
+    name: 'Table',
+    joinCode: '1234',
+    phase: 'active',
     currentTurn: 1,
     turnPhase: {
       turn: 1,
@@ -138,26 +163,46 @@ it('names the lifted window as an Airspace Control bulletin', () => {
       openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     },
+    ownerUid: 'u1',
+    createdAt: '2026-09-09T17:00:00.000Z',
+    updatedAt: '2026-09-09T17:05:00.000Z',
   };
-  const hydrateAuthoritativeSession = () => {
-    const hydrated = sessionFrom('s1', authoritativeSnapshot);
-    useSessionStore.getState().setSession(hydrated);
-    return hydrated;
+  const subscribeToAuthoritativeSession = () => {
+    const start = listeners.length;
+    const stop = subscribeSessionState('s1', 'u1', {
+      onSession: (session) => useSessionStore.getState().setSession(session),
+      onPlayer: vi.fn(),
+      onKicked: vi.fn(),
+      onSeats: vi.fn(),
+      onError: vi.fn(),
+    });
+    const sessionListener = listeners.slice(start).find(({ path }) => path === 'sessions/s1');
+    if (!sessionListener) throw new Error('Expected the session Firestore listener.');
+    act(() => {
+      sessionListener.callback({
+        exists: () => true,
+        id: 's1',
+        data: () => authoritativeSnapshot,
+      });
+    });
+    return stop;
   };
 
-  act(() => { hydrateAuthoritativeSession(); });
-
+  const firstStop = subscribeToAuthoritativeSession();
   const view = render(<FleetBroadcast />);
   const expectedBulletin = 'AIRSPACE CONTROL // AIRSPACE OPEN';
   expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
   expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
 
   view.unmount();
-  act(() => { hydrateAuthoritativeSession(); });
+  firstStop();
+  listeners.length = 0;
+  const reconnectStop = subscribeToAuthoritativeSession();
   render(<FleetBroadcast />);
 
   expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
   expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
+  reconnectStop();
 });
 
 it('broadcasts an emergency timer hold as a fleetwide Airspace Control bulletin', () => {
