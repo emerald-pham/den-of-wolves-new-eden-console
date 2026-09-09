@@ -226,6 +226,58 @@ it('hydrates stable seat role ids without treating Press as a core seat', () => 
   ]));
 });
 
+it('hydrates only the current player loyalty and a GM-visible setup receipt after reconnect', () => {
+  const onPrivateLoyalty = vi.fn();
+  const onSetupReceipt = vi.fn();
+  let listener = 0;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    listener += 1;
+    if (listener === 3) {
+      (callback as (snapshot: unknown) => void)({ docs: [] });
+    } else if (listener === 4) {
+      (callback as (snapshot: unknown) => void)({
+        exists: () => true,
+        get: (field: string) => field === 'payload'
+          ? { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 }
+          : undefined,
+      });
+    } else if (listener === 5) {
+      (callback as (snapshot: unknown) => void)({
+        docs: [{
+          get: (field: string) => field === 'payload'
+            ? {
+              type: 'setup-receipt', source: 'routine-start', version: '0.3.13', playerCount: 8,
+              mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
+              wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+              eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
+              loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
+              committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-09-09T00:00:00.000Z',
+              event: 'game-started',
+            } : undefined,
+        }],
+      });
+    } else {
+      (callback as (snapshot: unknown) => void)({
+        exists: () => true,
+        id: 's1',
+        data: () => ({}),
+        get: () => undefined,
+      });
+    }
+    return vi.fn();
+  }) as never);
+
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onSetupReceipt, onError: vi.fn(),
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenCalledWith({ kind: 'fleet-loyalist', suspicion: 5 });
+  expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
+    source: 'routine-start', version: '0.3.13', committedSetupRevision: 1,
+  }));
+});
+
 it('hydrates legacy seat labels and factions from the canonical role catalog', () => {
   const onSeats = vi.fn();
   let snapshotNumber = 0;

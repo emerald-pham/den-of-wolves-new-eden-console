@@ -30,6 +30,7 @@ import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference, useMotionSafetyGatePending } from '@/lib/motionPreference';
 import { startVersionUpgradeMonitor } from '@/lib/versionUpgrade';
 import { dockingForShuttle } from '@/data/shuttles';
+import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
@@ -78,6 +79,8 @@ function AppRoutes() {
         onPlayer: (next) => useSessionStore.getState().setMe(next),
         onKicked: () => useSessionStore.getState().disconnect(),
         onSeats: (next) => useSessionStore.getState().setSeats(next),
+        onPrivateLoyalty: (next) => useSessionStore.getState().setPrivateLoyalty(next),
+        onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
         onError: () => useSessionStore.getState().setConnection('offline'),
       });
     });
@@ -128,6 +131,7 @@ function AppRoutes() {
       />
       <AppHeader />
       <CommunicationError />
+      <PrivateLoyaltyPanel />
       <UnrestAlert />
       <PopulationAlert />
       <ScreenFade>

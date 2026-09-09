@@ -13,9 +13,6 @@ import {
 import GmConsole from './GmConsole';
 
 vi.mock('@/lib/sessionService', () => ({
-  assignWolves: vi.fn(),
-  assignWolfRoles: vi.fn(),
-  resetWolves: vi.fn(),
   kickGmInstance: vi.fn(),
   kickPlayer: vi.fn(),
   setCapybaraEnabled: vi.fn(),
@@ -25,6 +22,7 @@ vi.mock('@/lib/sessionService', () => ({
   replayTurnStartAnnouncement: vi.fn(),
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
+  startGame: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
@@ -40,8 +38,8 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { assignWolves, assignWolfRoles, resetWolves, kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, extendAirspaceWindow, setEmergencyTimerPaused,
+const { kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
@@ -107,6 +105,24 @@ function streamInstances(instances: readonly typeof local[]) {
   });
 }
 
+const productionReceipt = {
+  source: 'routine-start', version: '0.3.13', playerCount: 8, mode: 'base',
+  rosterIds: ['admiral'], pressEligibility: { enabled: true, activeClaimCount: 0, claimed: false },
+  excludedGmCount: 1, wolfCount: 1 as const, wolfRule: 'one-wolf-at-8-13',
+  selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'], orderedModifiers: [],
+  resultCount: 8, loyaltySource: 'automatic-default' as const, request: {},
+  expectedSetupRevision: 0, committedSetupRevision: 1, actorUid: 'u1',
+  serverTime: '2026-09-09T00:00:00.000Z', event: 'game-started',
+};
+
+function productionReply(status: 'committed' | 'replayed' = 'committed') {
+  return {
+    status, sessionId: 's1', requestId: 'start-ui', currentTurn: 1, setupRevision: 1,
+    turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
+    setupReceipt: productionReceipt,
+  } as never;
+}
+
 it('redirects browsers without a local GM claim', () => {
   renderConsole();
   expect(screen.getByText('Role selection route')).toBeInTheDocument();
@@ -157,7 +173,7 @@ it('lets the active GM reset the code of conduct checklist from the GM Console',
   window.removeEventListener(SESSION_WAIVER_RESET_EVENT, resetEvent);
 });
 
-it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
+it('keeps Turn 0 Skip separate while routing production start through Setup', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
   if (!activeSession) throw new Error('Expected the test session.');
@@ -171,62 +187,21 @@ it('offers a Turn 0 debug shortcut straight to Turn 1', async () => {
   renderConsole();
 
   const turnControls = await screen.findByRole('region', { name: /turn controls/i });
-  const buttons = within(turnControls).getAllByRole('button');
-  expect(buttons).toHaveLength(6);
-  expect(buttons[0]).toHaveTextContent('Advance to Turn 1');
-  expect(buttons[1]).toHaveTextContent('Skip to Turn 1');
-  expect(buttons[2]).toBeDisabled();
-  expect(buttons[3]).toBeDisabled();
+  expect(within(turnControls).getByText(/Turn 0 \/\/ ordinary production start/)).toBeInTheDocument();
+  const skipButton = within(turnControls).getByRole('button', { name: /skip to turn 1/i });
+  expect(within(turnControls).queryByRole('button', { name: 'Advance to Turn 1' })).not.toBeInTheDocument();
 
-  await user.click(buttons[1]!);
+  await user.click(skipButton);
   expect(advanceTurn).not.toHaveBeenCalled();
-  expect(buttons[1]).toHaveClass('cic-action-button--confirm');
-  expect(buttons[1]).toHaveTextContent('ARE YOU SURE? // Skip to Turn 1');
-  await user.click(buttons[1]!);
+  expect(skipButton).toHaveClass('cic-action-button--confirm');
+  expect(skipButton).toHaveTextContent('ARE YOU SURE? // Skip to Turn 1');
+  await user.click(skipButton);
 
   expect(advanceTurn).toHaveBeenCalledOnce();
   expect(advanceTurn).toHaveBeenCalledWith({ skipTurnStartAnnouncement: true });
   await waitFor(() => expect(within(turnControls).getByText('Turn 1')).toBeInTheDocument());
   expect(within(turnControls).queryByRole('button', { name: /skip to turn 1/i }))
     .not.toBeInTheDocument();
-});
-
-it('requires confirmation for Advance to Turn 1 without changing Skip wording', async () => {
-  const user = userEvent.setup();
-  const activeSession = useSessionStore.getState().session;
-  if (!activeSession) throw new Error('Expected the test session.');
-  useSessionStore.getState().setSession({ ...activeSession, currentTurn: 0 });
-  useSessionStore.getState().setGmInstance(local);
-  streamInstances([local]);
-  let resolveAdvance: (() => void) | undefined;
-  vi.mocked(advanceTurn).mockReturnValue(new Promise<void>((resolve) => {
-    resolveAdvance = resolve;
-  }));
-  renderConsole();
-
-  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
-  const advanceToTurnOne = within(turnControls).getByRole('button', { name: /advance to turn 1/i });
-  const skipToTurnOne = within(turnControls).getByRole('button', { name: /skip to turn 1/i });
-
-  await user.click(advanceToTurnOne);
-  expect(advanceTurn).not.toHaveBeenCalled();
-  expect(within(turnControls).getByRole('button', {
-    name: 'ARE YOU SURE? // Advance to Turn 1',
-  })).toBeVisible();
-  expect(skipToTurnOne).toHaveTextContent('Skip to Turn 1');
-
-  await user.click(within(turnControls).getByRole('button', {
-    name: 'ARE YOU SURE? // Advance to Turn 1',
-  }));
-
-  expect(advanceTurn).toHaveBeenCalledOnce();
-  expect(advanceTurn).toHaveBeenCalledWith();
-  expect(skipToTurnOne).toHaveTextContent('Skip to Turn 1');
-  expect(skipToTurnOne).not.toHaveTextContent('Skipping to Turn 1…');
-  await act(async () => {
-    resolveAdvance?.();
-    await Promise.resolve();
-  });
 });
 
 it('keeps Advance and Skip available for every numbered turn', async () => {
@@ -1052,58 +1027,112 @@ it('sends only the final draft after a GM confirms it', async () => {
     .toEqual(expect.arrayContaining([...recommendedRoleIds(18)]));
 });
 
-it('offers random or manual wolf assignments from the active roles', async () => {
+it('exposes ordinary production start and retires caller-controlled Wolf assignment', async () => {
   const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({ ...activeSession, phase: 'casting', currentTurn: 0 });
   useSessionStore.getState().setGmInstance(local);
   streamInstances([local]);
-  vi.mocked(assignWolves).mockResolvedValue(['admiral']);
-  vi.mocked(assignWolfRoles).mockResolvedValue(['admiral']);
-  vi.mocked(resetWolves).mockResolvedValue(undefined);
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  expect(screen.queryByRole('group', { name: /^wolf eligibility$/i })).not.toBeInTheDocument();
-  expect(screen.queryByRole('switch', { name: /wolf/i })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: /randomly assign 1 wolf/i })).toBeEnabled();
-  expect(screen.getByRole('button', { name: /randomly assign 2 wolves/i })).toBeEnabled();
-
-  await user.click(screen.getByRole('button', { name: /randomly assign 1 wolf/i }));
-  expect(assignWolves).toHaveBeenCalledWith(1);
-  expect(await screen.findByText(/assigned.*admiral/i)).toBeInTheDocument();
-  expect(screen.queryByText(/assigned.*press officer/i)).not.toBeInTheDocument();
-
-  await user.click(screen.getByRole('button', { name: /reset wolves/i }));
-
-  await user.click(screen.getByRole('checkbox', { name: /admiral manual wolf assignment/i }));
-  await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
-  expect(assignWolfRoles).toHaveBeenCalledWith(['admiral']);
-
+  expect(screen.queryByRole('button', { name: /randomly assign/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('checkbox', { name: /manual wolf assignment/i })).not.toBeInTheDocument();
+  const start = screen.getByRole('button', { name: /start production/i });
+  expect(start).toBeEnabled();
+  await user.click(start);
+  expect(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' })).toBeInTheDocument();
 });
 
-it('locks assigned wolf checkmarks until the GM resets them', async () => {
+it('commits ordinary production only on the second click and renders the private receipt', async () => {
   const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({ ...activeSession, phase: 'casting', currentTurn: 0 });
   useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmSetupReceipt(productionReceipt);
   streamInstances([local]);
-  vi.mocked(assignWolfRoles).mockResolvedValue(['admiral']);
-  vi.mocked(resetWolves).mockResolvedValue(undefined);
+  vi.mocked(startGame).mockResolvedValue(productionReply());
   renderConsole();
 
   await user.click(await screen.findByRole('button', { name: /^setup$/i }));
-  const assignedRole = screen.getByRole('checkbox', {
-    name: /admiral manual wolf assignment/i,
-  });
-  await user.click(assignedRole);
-  await user.click(screen.getByRole('button', { name: /assign selected wolves/i }));
+  const start = screen.getByRole('button', { name: /start production/i });
+  await user.click(start);
+  expect(startGame).not.toHaveBeenCalled();
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
 
-  expect(assignedRole).toBeChecked();
-  expect(assignedRole).toBeDisabled();
-  expect(screen.getByRole('button', { name: /assign selected wolves/i })).toBeDisabled();
+  expect(startGame).toHaveBeenCalledOnce();
+  expect(await screen.findByText(/Start committed \/\/ Turn 1/)).toBeInTheDocument();
+  const receipt = await screen.findByRole('region', { name: /production start receipt/i });
+  expect(receipt).toHaveTextContent(/routine-start \/\/ 0.3.13/);
+  expect(receipt).toHaveTextContent(/base \/\/ 8 core/);
+  expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ 1 \/\/ 8 private cards/);
+  expect(receipt).toHaveTextContent(/Press input/);
+  expect(receipt).toHaveTextContent(/Setup revisions/);
+  expect(screen.getByRole('button', { name: /skip to turn 1/i })).toBeInTheDocument();
+});
 
-  await user.click(screen.getByRole('button', { name: /reset wolves/i }));
+it('shows pending production state and ignores a second submit while the callable is unresolved', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({ ...activeSession, phase: 'casting', currentTurn: 0 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  let resolveStart: ((value: unknown) => void) | undefined;
+  const pending = new Promise((resolve) => { resolveStart = resolve; });
+  vi.mocked(startGame).mockImplementation(() => pending as never);
+  renderConsole();
 
-  expect(resetWolves).toHaveBeenCalledOnce();
-  expect(assignedRole).not.toBeChecked();
-  expect(assignedRole).toBeEnabled();
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /start production/i }));
+  const confirm = screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' });
+  await user.click(confirm);
+  expect(await screen.findByText(/Start pending \/\/ validating/i)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /starting production/i })).toBeDisabled();
+  expect(startGame).toHaveBeenCalledOnce();
+  await user.click(screen.getByRole('button', { name: /starting production/i }));
+  expect(startGame).toHaveBeenCalledOnce();
+  resolveStart?.(productionReply());
+  expect(await screen.findByText(/Start committed \/\/ Turn 1/)).toBeInTheDocument();
+});
+
+it('renders structured stale and replayed start dispositions and cancels confirmation on Escape', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({ ...activeSession, phase: 'casting', currentTurn: 0 });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(startGame).mockResolvedValue({
+    status: 'stale', sessionId: 's1', requestId: 'start-ui',
+    expectedSetupRevision: 0, currentSetupRevision: 1,
+  } as never);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /start production/i }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: /start production/i }));
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
+  expect(await screen.findByText(/Start stale \/\/ setup revision 1 superseded/i)).toBeInTheDocument();
+  expect(startGame).toHaveBeenCalledOnce();
+});
+
+it('shows a replayed production receipt without changing the Skip control', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (activeSession) useSessionStore.getState().setSession({ ...activeSession, phase: 'casting', currentTurn: 0 });
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmSetupReceipt(productionReceipt);
+  streamInstances([local]);
+  vi.mocked(startGame).mockResolvedValue(productionReply('replayed'));
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /start production/i }));
+  await user.click(screen.getByRole('button', { name: 'ARE YOU SURE? // ADVANCE TO TURN 1' }));
+  expect(await screen.findByText(/Start replayed \/\/ the existing Turn 1 result was preserved/i)).toBeInTheDocument();
+  expect(await screen.findByRole('region', { name: /production start receipt/i })).toHaveTextContent(/replayed/i);
+  expect(screen.getByRole('button', { name: /skip to turn 1/i })).toBeInTheDocument();
 });
 
 it('toggles Capybara off for the session and removes its perspective', async () => {

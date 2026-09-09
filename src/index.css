@@ -2882,6 +2882,60 @@ body {
 .gm-role-preset output { color: var(--cic-cyan); white-space: nowrap; }
 .gm-role-template-status { color: var(--cic-amber); font: 0.7rem/1.4 var(--cic-mono); text-transform: uppercase; }
 .gm-role-setup__note { color: var(--cic-muted); font: 0.6rem/1.5 var(--cic-mono); }
+.private-loyalty-panel {
+  display: grid;
+  gap: 0.35rem;
+  width: min(100% - 2rem, 42rem);
+  margin: 0.75rem auto;
+  border-color: var(--cic-amber);
+  padding: 0.8rem;
+}
+.private-loyalty-panel__eyebrow {
+  margin: 0;
+  color: var(--cic-amber);
+  font: 0.62rem/1.4 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.private-loyalty-panel h2 {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 700 1rem/1.25 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.private-loyalty-panel__suspicion,
+.private-loyalty-panel__partner,
+.private-loyalty-panel__note {
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.65rem/1.45 var(--cic-mono);
+}
+.private-loyalty-panel__suspicion,
+.private-loyalty-panel__partner { color: var(--cic-ink); }
+.gm-start-receipt {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.75rem;
+}
+.gm-start-receipt__list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--cic-muted);
+  font: 0.6rem/1.45 var(--cic-mono);
+  text-transform: uppercase;
+}
+.gm-start-receipt__list div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.75fr) minmax(0, 1.25fr);
+  gap: 0.55rem;
+  border-bottom: 1px dotted var(--cic-rule);
+  padding-bottom: 0.25rem;
+}
+.gm-start-receipt__list dt { color: var(--cic-muted); }
+.gm-start-receipt__list dd { margin: 0; color: var(--cic-cyan); overflow-wrap: anywhere; }
 .gm-roster-draft {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

@@ -12,6 +12,8 @@ import {
   normalizePersistedSessionConfiguration,
   stableSeatsForRoles,
   ROLE_SEAT_METADATA,
+  composeDefaultLoyaltyAssignments,
+  validateExplicitLoyaltySetup,
 } from './gameSetup';
 import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
 
@@ -145,6 +147,43 @@ describe('casting and private setup policy', () => {
     expect(loyaltyAssignmentDecision('fleet-loyalist', 4)).toMatchObject({
       allowed: false, reason: 'invalid-suspicion',
     });
+  });
+
+  it('derives automatic Wolves and Fleet Loyalist suspicion cards without optional policies', () => {
+    const holders = [
+      { uid: 'u1', roleId: 'admiral' },
+      { uid: 'u2', roleId: 'wing-commander' },
+      { uid: 'u3', roleId: 'icebreaker-miner' },
+      { uid: 'press', roleId: 'press-officer' },
+    ];
+    const assignments = composeDefaultLoyaltyAssignments(holders, ['wing-commander'], () => 0);
+    expect(assignments).toMatchObject({
+      u1: { kind: 'fleet-loyalist' },
+      u2: { kind: 'wolf-agent', suspicion: 0 },
+      u3: { kind: 'fleet-loyalist' },
+      press: { kind: 'fleet-loyalist' },
+    });
+    expect(Object.values(assignments).filter((entry) => entry.suspicion === 5)).toHaveLength(2);
+    expect(Object.values(assignments).filter((entry) => entry.suspicion === 10)).toHaveLength(1);
+  });
+
+  it('preserves only a complete explicit loyalty setup and rejects partial or stale records', () => {
+    const holders = [
+      { uid: 'u1', roleId: 'admiral' },
+      { uid: 'u2', roleId: 'wing-commander' },
+    ];
+    const complete = validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'fleet-loyalist', suspicion: 5 },
+    ]);
+    expect(complete).toMatchObject({ valid: true });
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+    ])).toEqual({ valid: false, reason: 'partial' });
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { uid: 'stale', roleId: 'wing-commander', kind: 'fleet-loyalist', suspicion: 5 },
+    ])).toEqual({ valid: false, reason: 'stale' });
   });
 
   it('projects only a player\'s own brief and loyalty while facilitators receive the census', () => {
@@ -405,5 +444,187 @@ describe('start readiness', () => {
     });
 
     expect(result).toEqual({ ready: false, reasons: ['roles'] });
+  });
+
+  it('requires provisioned claimed seats, reciprocal player pointers, and one live dual-lane GM', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId,
+    }));
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+      claimedAt: '2026-09-08T01:00:00.000Z',
+    }));
+    const result = readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments,
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({ uid, seatId: activeRoleIds[index]! })),
+      gmInstances: [{ id: 'bridge', uid: 'gm-1', connected: true, responsibilities: [] }],
+      facilitatorPlayerUids: ['gm-1'],
+    } as Parameters<typeof readinessForSetup>[0]);
+
+    expect(result).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('rejects a seat with corrupt canonical label or faction metadata', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({
+      uid: corePlayers[index]!, roleId,
+    }));
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      ...(index === 0 ? { label: 'Tampered CIC label', factionId: 'foreign-faction' } : {}),
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+    }));
+    const result = readinessForSetup({
+      phase: 'casting', playerCount: 8, connectedPlayers: corePlayers, assignments,
+      loyaltyUids: [], facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds, activeVesselIds: activeVesselIdsForRoles(activeRoleIds), seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({ uid, seatId: activeRoleIds[index]! })),
+      gmInstances: [{ id: 'bridge', uid: 'gm-1', connected: true }],
+      facilitatorPlayerUids: ['gm-1'],
+    });
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain('seat-documents');
+  });
+
+  it('keeps a disabled Press claim outside the core seat and loyalty contract', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const assignments = [
+      ...activeRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId })),
+      { uid: pressUid, roleId: 'press-officer' },
+    ];
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+      claimedAt: '2026-09-08T01:00:00.000Z',
+    }));
+    expect(readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: [...corePlayers, pressUid],
+      assignments,
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      pressEnabled: false,
+      pressPlayerUids: [pressUid],
+      seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({ uid, seatId: activeRoleIds[index]! })),
+      gmInstances: [{ id: 'bridge', uid: 'gm-1', connected: true }],
+      facilitatorPlayerUids: ['gm-1'],
+    })).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('blocks a foreign or stale reciprocal seat pointer with a precise nonsecret reason', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId }));
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+      claimedAt: '2026-09-08T01:00:00.000Z',
+    }));
+    const result = readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments,
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({
+        uid,
+        seatId: index === 0 ? 'foreign-seat' : activeRoleIds[index]!,
+      })),
+      gmInstances: [{ id: 'bridge', uid: 'gm-1', connected: true, responsibilities: [] }],
+      facilitatorPlayerUids: ['gm-1'],
+    } as Parameters<typeof readinessForSetup>[0]);
+
+    expect(result.ready).toBe(false);
+    expect(result.reasons).toContain('seat-pointers');
+  });
+
+  it('normalizes Firestore-like GM lease timestamps and ignores stale instances', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId }));
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+      claimedAt: '2026-09-08T01:00:00.000Z',
+    }));
+    const base = {
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments,
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({ uid, seatId: activeRoleIds[index]! })),
+      facilitatorPlayerUids: ['gm-1'],
+      nowMs: 1_000_000,
+    } as const;
+    expect(readinessForSetup({
+      ...base,
+      gmInstances: [{
+        id: 'bridge', uid: 'gm-1', connected: true,
+        lastSeenAt: { toMillis: () => 980_000 },
+      }],
+    })).toEqual({ ready: true, reasons: [] });
+    expect(readinessForSetup({
+      ...base,
+      gmInstances: [{
+        id: 'bridge', uid: 'gm-1', connected: true,
+        lastSeenAt: { toMillis: () => 900_000 },
+      }],
+    })).toEqual({ ready: false, reasons: ['gm-staffing'] });
+  });
+
+  it('rejects duplicate or foreign configured vessels before start', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId }));
+    const base = {
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments,
+      loyaltyUids: corePlayers,
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds,
+    } as const;
+    expect(readinessForSetup({
+      ...base,
+      activeVesselIds: [...activeVesselIdsForRoles(activeRoleIds), 'aegis'],
+    })).toEqual({ ready: false, reasons: ['vessels'] });
+    expect(readinessForSetup({
+      ...base,
+      activeVesselIds: [...activeVesselIdsForRoles(activeRoleIds), 'rogue-vessel'],
+    })).toEqual({ ready: false, reasons: ['vessels'] });
   });
 });

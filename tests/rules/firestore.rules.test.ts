@@ -68,6 +68,14 @@ beforeEach(async () => {
       seatId: null,
       connected: true,
     });
+    await setDoc(doc(db, `${SESSION}/players/press`), {
+      uid: 'press',
+      role: 'player',
+      displayName: 'Press Officer',
+      seatId: null,
+      connected: true,
+      activeConsoleRoleId: 'press-officer',
+    });
     await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
       uid: 'gm1',
       name: 'Bridge laptop',
@@ -86,6 +94,14 @@ beforeEach(async () => {
     await setDoc(doc(db, `${SESSION}/secrets/sec2`), {
       visibleToUids: ['bob'],
       payload: { hand: ['king'] },
+    });
+    await setDoc(doc(db, `${SESSION}/secrets/loyalty-press`), {
+      visibleToUids: ['press'],
+      payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
+    });
+    await setDoc(doc(db, `${SESSION}/secrets/setup-receipt-start-1`), {
+      visibleToUids: ['gm1'],
+      payload: { type: 'setup-receipt', source: 'routine-start', version: '0.3.13' },
     });
     await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
       shipId: 'aegis',
@@ -359,6 +375,7 @@ describe('seats', () => {
       `${SESSION}/setupMutationRequests/request-1`,
       `${SESSION}/seatMutationRequests/request-1`,
       `${SESSION}/gmResponsibilityRequests/request-1`,
+      `sessionStartRequests/s1_start-1`,
       `${SESSION}/events/setup-confirm-request-1`,
       `${SESSION}/events/seat-claim-request-1`,
     ];
@@ -504,6 +521,14 @@ describe('secrets', () => {
 
   it('are readable by the gm', async () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec2`)));
+  });
+
+  it('lets Press hydrate only its own loyalty and keeps the GM receipt private', async () => {
+    await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/secrets/loyalty-press`)));
+    await assertFails(getDoc(doc(as('press'), `${SESSION}/secrets/sec1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-press`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/setup-receipt-start-1`)));
   });
 
   it('cannot be written from the client', async () => {
