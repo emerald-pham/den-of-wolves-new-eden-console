@@ -88,7 +88,7 @@ describe('implementation progress integrity gate', () => {
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
-      version: '0.3.14',
+      version: applicationVersion,
       completed: 70,
       total: 719,
       percentage: '9.74%',
@@ -107,10 +107,10 @@ describe('implementation progress integrity gate', () => {
     });
 
     expect(badPercentage.errors.join('\n')).toContain(
-      'changelog 0.3.14 implementation progress percentage must use two decimals',
+      `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
     );
     expect(badPercentage.errors.join('\n')).toContain(
-      'changelog 0.3.14 implementation progress partial count is 28, but the ledger has 27',
+      `changelog ${applicationVersion} implementation progress partial count is 28, but the ledger has 27`,
     );
   });
 

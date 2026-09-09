@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 622,
     },
     changes: [
-      'Members can now see a redacted session-created event exactly once when a session is created, with retries safe and failed requests silent.',
+      'Session creation now persists one redacted, request-bound audit record for authorized member reads, with retries safe and failed requests silent.',
     ],
   },
   {
