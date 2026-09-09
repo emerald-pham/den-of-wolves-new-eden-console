@@ -81,6 +81,16 @@ describe('repository guidance', () => {
     expect(guidance).toContain('machine-checked');
   });
 
+  it('documents the test-growth review gate without imposing a hard test cap', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8');
+
+    expect(guidance).toContain('Test-growth review gate');
+    expect(guidance).toContain('test:growth');
+    expect(guidance).toContain('test-growth-justification');
+    expect(guidance).toMatch(/review trigger, not a cap/i);
+  });
+
   it('keeps AGENTS.md as a pointer to the canonical executable gate', () => {
     const agentsPath = resolve(process.cwd(), 'AGENTS.md');
     const agents = readFileSync(agentsPath, 'utf8');

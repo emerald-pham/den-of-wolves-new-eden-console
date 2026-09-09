@@ -308,6 +308,97 @@ describe('local emulator coordination', () => {
     );
   });
 
+  it('blocks validation when test growth needs review and no justification is supplied', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-test-growth-${randomUUID()}.json`);
+    const commands: string[] = [];
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{ ...releaseEntry, validation: undefined }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          changedFiles: ['src/example.test.ts'],
+          testGrowth: {
+            baseSha: 'start-sha',
+            headSha: 'branch-sha',
+            changedTestFiles: ['src/example.test.ts'],
+            addedTestFiles: 1,
+            addedTestLines: 240,
+            addedTestCases: 2,
+            linesPerAddedCase: 120,
+          },
+        }),
+        commandRunner: async (command) => {
+          commands.push(command);
+        },
+      })).rejects.toThrow(/test-growth gate.*justification/i);
+      expect(commands).toEqual([]);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('records test-growth metrics and a legitimate justification in the validation receipt', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-test-growth-${randomUUID()}.json`);
+    const justification = 'Shared security matrix covers both client roles.';
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [{ ...releaseEntry, validation: undefined }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        'test-growth-justification': justification,
+        release: releaseState({
+          changedFiles: ['src/example.test.ts'],
+          testGrowth: {
+            baseSha: 'start-sha',
+            headSha: 'branch-sha',
+            changedTestFiles: ['src/example.test.ts'],
+            addedTestFiles: 1,
+            addedTestLines: 240,
+            addedTestCases: 2,
+            linesPerAddedCase: 120,
+          },
+        }),
+        commandRunner: async () => undefined,
+      } as Parameters<typeof validateCoordinationEntry>[1] & {
+        'test-growth-justification': string;
+      });
+
+      const state = await readCoordinationState(filePath);
+      const testGrowthReceipt = (state.entries[0]?.validation as {
+        testGrowth?: Record<string, unknown>;
+      } | undefined)?.testGrowth;
+      expect(testGrowthReceipt).toMatchObject({
+        passed: true,
+        reviewRequired: true,
+        waived: true,
+        justification,
+        baseSha: 'start-sha',
+        headSha: 'branch-sha',
+        addedTestLines: 240,
+        addedTestCases: 2,
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('records a passing validation receipt against the exact branch SHA', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-validation-${randomUUID()}.json`);
     const commands: string[] = [];
@@ -643,6 +734,30 @@ describe('local emulator coordination', () => {
       },
       release: releaseState(),
     })).toThrow(/validation.*branch-sha|branch-sha.*validation/i);
+  });
+
+  it('rejects completion without a test-growth receipt for changed test files', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        validation: {
+          ...codeValidation,
+          files: ['src/example.test.ts'],
+        },
+      },
+      release: releaseState({
+        changedFiles: ['src/example.test.ts'],
+        testGrowth: {
+          baseSha: 'start-sha',
+          headSha: 'branch-sha',
+          changedTestFiles: ['src/example.test.ts'],
+          addedTestFiles: 1,
+          addedTestLines: 240,
+          addedTestCases: 2,
+          linesPerAddedCase: 120,
+        },
+      }),
+    })).toThrow(/test-growth/i);
   });
 
   it('requires the human review attestation that matches documentation or UI scope', () => {

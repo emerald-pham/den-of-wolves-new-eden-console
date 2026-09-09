@@ -17,6 +17,7 @@
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",
     "test:rules": "node scripts/run-emulator-command.mjs rules",
+    "test:growth": "node scripts/test-growth-gate.mjs",
     "test:all": "npm run test && npm run test:rules",
     "coordination:status": "node scripts/emulator-resource-registry.mjs status",
     "coordination:begin": "node scripts/emulator-resource-registry.mjs begin",

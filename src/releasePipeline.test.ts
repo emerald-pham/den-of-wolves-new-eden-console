@@ -72,6 +72,10 @@ it('coordinates emulator commands and gives rules tests an isolated fallback slo
   );
 });
 
+it('exposes the test-growth gate as a local preview command', () => {
+  expect(packageJson.scripts['test:growth']).toBe('node scripts/test-growth-gate.mjs');
+});
+
 it('records configured slots in the shared worktree coordination file', () => {
   expect(configureEmulatorCommand).toContain('reserveAvailableConfiguredEmulatorSlot');
   expect(configureEmulatorCommand).toContain("args[0] === 'auto'");

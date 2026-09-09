@@ -215,7 +215,25 @@ Commands:
 npm test            # unit + component
 npm run test:rules  # security rules, wrapped in the Firestore emulator
 npm run test:all    # both — this is what CI runs
+npm run test:growth -- --base main  # preview the test-growth review gate
 ```
+
+### Test-growth review gate
+
+Test coverage is a safety boundary, not a quota. Keep tests for authoritative
+callables and transactions, Firestore denials, retries and stale revisions,
+private-information boundaries, route guards, and critical accessibility or
+reduced-motion behavior. Reuse existing evidence for unchanged contracts and
+do not add duplicate client/service/callable fixtures merely to close an
+evidence prompt.
+
+`coordination:validate` measures committed test-file additions from the task
+baseline. It pauses when a task adds at least 160 test lines and at least 40
+lines per newly declared test case, or adds test lines without a new case. A
+legitimate fixture, matrix, security, or composition expansion may continue
+with `--test-growth-justification "..."`; the gate records the metrics and
+explanation in the validation receipt. This is a review trigger, not a cap on
+tests or an exemption from the normal test-first, rules, lint, or build gates.
 
 ### Shared test-runner contention
 
@@ -549,6 +567,8 @@ together.
   `npm run coordination:docs`. A receipt is valid only for the exact final
   branch SHA, and validation refuses an unreconciled branch that does not yet
   contain current local `main`.
+  When test files changed, the same validation preflight also runs the
+  test-growth review gate described above before the longer commands begin.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant

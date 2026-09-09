@@ -26,6 +26,11 @@ import {
   readImplementationProgress,
   validateImplementationProgress,
 } from './validate-implementation-progress.mjs';
+import {
+  isTestFilePath,
+  measureTestGrowth,
+  reviewTestGrowth,
+} from './test-growth-gate.mjs';
 
 export const CODEX_COORDINATION_FILE_ENV = 'CODEX_COORDINATION_FILE';
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
@@ -453,7 +458,52 @@ function validationReceiptErrors(entry, release) {
   if (plan.requiresVisualReview && !text(receipt.reviews?.visual)) {
     errors.push('UI changes require a visual review receipt');
   }
+  const changedTestFiles = (release.changedFiles ?? []).filter(isTestFilePath);
+  if (changedTestFiles.length > 0) {
+    if (!receipt.testGrowth) {
+      errors.push('test-file changes require a test-growth review receipt');
+    } else if (receipt.testGrowth.passed !== true) {
+      errors.push('the recorded test-growth review is not passing');
+    } else if (receipt.testGrowth.reviewRequired && receipt.testGrowth.waived !== true) {
+      errors.push('a required test-growth review must record an explicit justification');
+    }
+
+    const measuredTestGrowth = release.testGrowth;
+    if (!measuredTestGrowth) {
+      errors.push('test-file changes could not be measured by the test-growth gate');
+    } else if (receipt.testGrowth) {
+      for (const field of [
+        'baseSha',
+        'headSha',
+        'addedTestFiles',
+        'addedTestLines',
+        'addedTestCases',
+        'linesPerAddedCase',
+      ]) {
+        if (receipt.testGrowth[field] !== measuredTestGrowth[field]) {
+          errors.push(`test-growth receipt field ${field} does not match the measured diff`);
+        }
+      }
+      if (JSON.stringify(receipt.testGrowth.changedTestFiles) !== JSON.stringify(measuredTestGrowth.changedTestFiles)) {
+        errors.push('test-growth receipt changed test files do not match the measured diff');
+      }
+    }
+  }
   return errors;
+}
+
+function testGrowthReviewForRelease({ release, justification = '' }) {
+  const changedTestFiles = (release.changedFiles ?? []).filter(isTestFilePath);
+  if (changedTestFiles.length === 0) return null;
+  if (!release.testGrowth) {
+    return {
+      passed: false,
+      reviewRequired: true,
+      waived: false,
+      message: 'Test-growth gate could not measure changed test files.',
+    };
+  }
+  return reviewTestGrowth(release.testGrowth, justification);
 }
 
 /**
@@ -532,11 +582,17 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
+  const changedFilesBase = changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch });
   const changedFiles = await readTaskChangedFiles(
-    changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch }),
+    changedFilesBase,
     branchSha,
     cwd,
   );
+  const testGrowth = await measureTestGrowth({
+    baseSha: changedFilesBase,
+    headSha: branchSha,
+    cwd,
+  });
 
   return {
     branchName,
@@ -553,6 +609,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
     branchChangelog: parseChangelogSnapshot(branchChangelog, branchVersion),
     mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
     changedFiles,
+    testGrowth,
     ...(startBranchSha
       ? {
           startBranchSha,
@@ -1577,6 +1634,18 @@ async function beginEntry(filePath, options) {
   });
 }
 
+/**
+ * @param {string} filePath
+ * @param {{
+ *   id?: string,
+ *   ['start-sha']?: string,
+ *   ['documentation-review']?: string,
+ *   ['visual-review']?: string,
+ *   ['test-growth-justification']?: string,
+ *   release?: any,
+ *   commandRunner?: (command: string, cwd: string) => Promise<void>,
+ * }} options
+ */
 export async function validateCoordinationEntry(filePath, options) {
   if (!options.id) throw new Error('coordination validate requires --id <entry-id>.');
 
@@ -1620,6 +1689,14 @@ export async function validateCoordinationEntry(filePath, options) {
       errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
     }
     errors.push(...implementationPlanGateErrors(entry));
+    const testGrowthJustification = text(options['test-growth-justification']);
+    const testGrowthReview = testGrowthReviewForRelease({
+      release,
+      justification: testGrowthJustification,
+    });
+    if (testGrowthReview && !testGrowthReview.passed) {
+      errors.push(`test-growth gate: ${testGrowthReview.message}`);
+    }
     if (errors.length > 0) {
       throw new Error(
         `Cannot validate coordination entry ${entry.id}: ${errors.join('; ')}.`,
@@ -1649,6 +1726,8 @@ export async function validateCoordinationEntry(filePath, options) {
       plan,
       documentationReview,
       visualReview,
+      testGrowthJustification,
+      testGrowthReview,
     };
   });
 
@@ -1682,6 +1761,13 @@ export async function validateCoordinationEntry(filePath, options) {
     requireMerged: false,
     requireReconciled: true,
   });
+  const finalTestGrowthReview = testGrowthReviewForRelease({
+    release: finalRelease,
+    justification: preparation.testGrowthJustification,
+  });
+  if (finalTestGrowthReview && !finalTestGrowthReview.passed) {
+    finalErrors.push(`test-growth gate: ${finalTestGrowthReview.message}`);
+  }
   if (finalErrors.length > 0) {
     throw new Error(
       `Cannot record validation for ${options.id}: ${finalErrors.join('; ')}.`,
@@ -1723,6 +1809,7 @@ export async function validateCoordinationEntry(filePath, options) {
           : {}),
         ...(preparation.visualReview ? { visual: preparation.visualReview } : {}),
       },
+      ...(finalTestGrowthReview ? { testGrowth: finalTestGrowthReview } : {}),
     };
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;

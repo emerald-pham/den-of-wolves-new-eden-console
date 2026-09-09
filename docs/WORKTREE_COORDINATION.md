@@ -39,6 +39,10 @@ implementation begin:
    merge and push; preserved work must prove an addressable commit or archive;
    discarded work must record an explicit review decision without implying a
    merge or push.
+7. Keep test growth proportional to new behavior. Security, authority,
+   retry, privacy, route, and accessibility coverage remains load-bearing;
+   duplicate fixtures and process-only expansion require an explicit review
+   when a task adds much more test code than new test cases.
 
 The executable tests are the acceptance criteria for these objectives. This
 section states the intended invariants; a newly described gate is not considered
@@ -62,6 +66,10 @@ The current hardening slice has the following acceptance conditions:
   teardown; a wrapper must not release another worktree's reservation.
 - Structured work type, scope, and resource claims reject overlapping intent
   before setup, validation, or teardown can disturb another task.
+- Test-growth validation measures committed test-file additions from the task
+  baseline. A disproportionate addition pauses validation for a concise
+  justification, while unchanged test files and ordinary focused additions
+  continue without extra ceremony.
 
 ## Before editing
 
@@ -210,6 +218,13 @@ resolves `APP_VERSION` before comparing entry bodies, so moving an unchanged
 former top entry to its explicit version does not create a false replacement.
 Implementation-plan product validation also requires the progress ledger to be
 committed and reruns its changelog-coverage gate before recording the receipt.
+When the task changes test files, validation also runs the test-growth review
+gate. It pauses when the committed diff adds at least 160 test lines and at
+least 40 lines per newly declared test case, or adds test lines without a new
+case. A legitimate fixture, matrix, security, or composition expansion may
+continue with `--test-growth-justification "..."`; the metrics and explanation
+are stored in the receipt. Preview the same check with
+`npm run test:growth -- --base main`.
 The review flags are explicit human attestations; the receipt cannot prove that
 a person truly performed the review.
 
