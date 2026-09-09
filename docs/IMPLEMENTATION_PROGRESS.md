@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 721 Prompts
+# Implementation Plan Progress — All 723 Prompts
 
-This tracker records all 721 canonical prompt IDs in
+This tracker records all 723 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**75 / 721 prompts complete (10.40%)**
+**74 / 723 prompts complete (10.24%)**
 
-Status breakdown: **75 done · 26 partial · 0 active · 620 missing**.
+Status breakdown: **74 done · 27 partial · 0 active · 622 missing**.
 
 Active prompt: **none**.
 
@@ -78,6 +78,20 @@ winner, one resource/damage mutation, one event, and a write-free stale loser;
 retries reuse one server timestamp and one server-owned entropy/dice outcome.
 Firestore rules deny direct maintenance-receipt access. Prompt 138a rollback,
 Prompt 139 audience projection, and Prompt 140 all-vessel coverage remain
+outside this release.
+
+### Version 0.3.19 progress evidence
+
+The release boundary records Prompt 138a complete at **74 / 723 = 10.24%**
+with **74 done · 27 partial · 0 active · 622 missing**. The current-turn
+maintenance rollback restores only the recorded reversible cycle, resource,
+cargo, fuel, and non-damage alert state when the matching revision and turn
+still hold; damage state and its survivor/unrest consequences plus existing
+maintenance/audit events remain immutable. A stateful callable regression proves
+riot damage and a prior event survive rollback, while a repeated stale revision
+is rejected without writes. Prompt 598 is reopened as a partial connectivity
+repair; Prompts 654–656 are queued missing repairs with no production evidence.
+Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
 
 ### Version 0.3.17 progress evidence
@@ -254,7 +268,7 @@ release classification and evidence.
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
 | 002 | done | non-feature | — | Plan precedence rule plus routed printed references. |
 | 003 | done | non-feature | — | Ambiguity and decision ledger in `docs/IMPLEMENTATION_CONTRACTS.md` §1. |
-| 004 | done | feature | 0.3.9, 0.3.11 | Prompt 004 catalog slice complete: client/server tests prove exact ordered, unique 8–20 rows; 19 = base-17 plus Capybara Captain/Recycler and 20 = base-18 plus the same pair; invalid boundaries, Dione/SNN host at 19, vessels/Union, two Wolves, Press/GM exclusion, and GM-local 19 staging are covered. Creation/guard/hydration parity is inherited shared-count propagation only. Prompt 030 remains partial; no claims are made for Prompts 021, 030, 051, 054, 071, 073, 075, or 020; lower-count Capybara substitutions remain unresolved. |
+| 004 | done | feature | 0.3.9, 0.3.11 | Prompt 004 catalog slice complete: client/server tests prove exact ordered, unique 8–20 rows; 19 = base-17 plus Capybara Captain/Recycler and 20 = base-18 plus the same pair; invalid boundaries, Dione/SNN host at 19, vessels/Union, two Wolves, Press/GM exclusion, and GM-local 19 staging are covered. Creation/guard/hydration parity is inherited shared-count propagation only. Prompt 030 remains partial; no claims are made for Prompts 021, 030, 051, 054, 073, 075, or 020; lower-count Capybara substitutions remain unresolved. |
 | 005 | done | non-feature | — | Capability matrix in `docs/IMPLEMENTATION_CONTRACTS.md` §2. |
 | 006 | done | non-feature | — | Projection/redaction contract in `docs/IMPLEMENTATION_CONTRACTS.md` §3 and `projectPrivateSetup` tests. |
 | 007 | done | non-feature | — | `functions/src/eventEnvelope.ts` and `eventEnvelope.test.ts`. |
@@ -323,9 +337,8 @@ release classification and evidence.
 | 068 | partial | non-feature | — | Printed craft ownership primitives exist; start composition remains open. |
 | 069 | partial | non-feature | — | Population/resource catalogs exist; one start initializer is still open. |
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
-| 071 | done | feature | 0.3.5, 0.3.13 | Production start now requires the exact connected core count, canonical unique seat documents with reciprocal live player pointers, exact roles/vessels, private loyalty completeness, and at least one live authorized GM. One GM can carry both responsibilities; additional GMs never block. Enabled-unclaimed Press does not block, while claimed Press stays distinct and requires its own private loyalty. Precise nonsecret reasons, lease/authority checks, and stale/race denial are covered. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
-| 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; Prompt 071 retains the separate readiness/start acceptance. |
+| 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; former Prompt 071 readiness evidence remains historical while Prompt 654 is the queued repair for zero/partial-occupancy start. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
 | 075 | partial | feature | 0.3.5, 0.3.13 | Version 0.3.13 atomically locks validated setup, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with existing timer/announcement behavior. Complete deck, craft, resource/economy, and alert initialization remains open, so Prompt 075 stays partial. |
 | 076 | done | non-feature | — | Durable start request replay test. |
@@ -396,7 +409,7 @@ release classification and evidence.
 | 136 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 137 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 138 | done | feature | 0.3.18 | Authority-bound request IDs, pre-replay guards, one atomic resource/charge/fuel/damage/undo/event/receipt transaction, stateful CAS winner/stale proof, and write-free exact replay prevent duplicate maintenance effects; 138a/139/140 remain separate. |
-| 138a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 138a | done | feature | 0.3.19 | Current-turn rollback restores only reversible maintenance state under the matching revision, preserves damage and existing audit events, and rejects stale repeated rollback without writes; Prompt 139/140 remain separate. |
 | 139 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 140 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 140a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -910,7 +923,7 @@ release classification and evidence.
 | 595 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 596 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 597 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 598 | done | feature | 0.3.6, 0.3.10 | Release 0.3.6 provides the connected/offline grace primitive; release 0.3.10 repairs the owner-revised exact no-session `CONNECTED`, joined pre-Turn-1 `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`, truthful accessible title, legacy `currentTurn`, and composed live/offline-after-grace matrix. Focused component/AppHeader coverage and the real-browser no-session/Turn-0 matrix provide the current evidence without remapping Prompt 041. |
+| 598 | partial | feature | 0.3.6, 0.3.10 | Historical releases provide the connected/offline grace primitive and earlier no-session copy repair, but the current live joined Turn 0 surface still needs the exact `CONNECTED — AWAITING IRIS AUTHENTICATION` visible copy and accessible name/title; `NOT CONNECTED` must never describe live transport or session state. Preserve the 30-second sustained-pre-outage grace and do not remap Prompt 041. |
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -972,6 +985,9 @@ release classification and evidence.
 | 652a | missing | non-feature | — | Future ticker regression repair: restore `a91a020`'s continuous-tail baseline so every Red Alert glyph stays fully visible until its painted bounds are outside the viewport. Audit `080457e` and later geometry without reverting unrelated header work; prohibit clipping, fade, truncation, early unmount, remeasurement jump, and overlap across replacement/stand-down/font-load/resize/rotation, with single announcement and reduced-motion proof. |
 | 652b | missing | non-feature | — | Future explicit mobile experiment: keep the non-sticky baseline at scroll top and become a reserved-space sticky row only after the measured lower edge crosses `safe-area-inset-top`. Reflow around safe areas, session ticket, Role Select, controls, keyboard, resize/rotation, and wrapped/reduced-motion copy. Roll back under `TICKER-STICKY-OCCLUSION` for occlusion, oscillation, excess layout shift, material jank, or lost/duplicate announcement; never silently make it permanent. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
+| 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
+| 656 | missing | non-feature | — | Planned [REPAIR] prompt: route a cached, current, or resume-in-flight launcher at `/` to the authoritative current session/last route without create/join, mutation, release, or misleading recovery copy. |
 
 ## Working notes
 
@@ -1008,6 +1024,7 @@ release classification and evidence.
 
 - Full-range migration note: Prompt 041 remains the existing `done`/`non-feature`
   local-disconnect evidence. Prompt 598 carries the 0.3.6 primitive and the
-  0.3.10 copy/composition repair as a `done`/`feature` row. The old first-100 validator could not represent
-  Prompt 598 and forced the earlier behavior to be associated with Prompt 041;
-  no behavior or release was rewritten here.
+  0.3.10 copy/composition repair as a `partial`/`feature` row because its exact
+  live joined Turn 0 copy remains open. The old first-100 validator could not
+  represent Prompt 598 and forced the earlier behavior to be associated with
+  Prompt 041; no behavior or release was rewritten here.

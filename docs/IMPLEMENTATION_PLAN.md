@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 721-prompt catalog from top to bottom for an ordinary
+Do **not** read this 723-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-721-prompts-001653-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-723-prompts-001656-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 721-prompt roadmap.
+claim completion of the remaining 723-prompt roadmap.
 
 ## Scope and baseline
 
@@ -465,7 +465,7 @@ canonical client/server roster catalogs through the settled 19-player row and
 proves exact support for every integer from 8 through 20 without claiming that
 creation, persisted configuration, casting, readiness, automatic private setup,
 or Turn 1 composition is complete. Those production stories retain their own
-Prompt 021/051/054/071/073/075/020 evidence gates below.
+Prompt 021/051/054/073/075/020/654 evidence gates below.
 
 **Source and product decisions:** preserve every printed base roster from 8
 through 18 under `AMB-13`. The two settled expansion rows are exactly 19 = the
@@ -556,7 +556,7 @@ Prompt 021, repairs and completes Prompt 030, and completes Prompt 073. It adds
 production configuration-and-seating evidence to Prompt 051, which remains
 partial until casting, readiness, start, and Turn 1 are proven in their own
 release. This slice must not assign Wolves, initialize private setup, evaluate
-start readiness, start the game, or claim Prompt 020, 054, 071, or 075.
+start readiness, start the game, or claim Prompt 020, 054, 075, or 654.
 
 #### Session goals
 
@@ -890,7 +890,7 @@ route, private reconnect projection, and rules-denial boundary fail; (5)
 implement the narrowest shared server/client changes; and (6) complete focused,
 emulator/security, visual/accessibility, full, reconciled release gates. The
 separate Prompt 020 composed production fixture follows only after the release
-lands. Do not mark Prompt 054 done from a count helper, Prompt 071 done from a
+lands. Do not mark Prompt 054 done from a count helper, Prompt 654 done from a
 boolean-only unit test, or Prompt 020 done from direct fixture writes around the
 callables.
 
@@ -943,7 +943,7 @@ This addendum records future work only. It creates Prompts 031a, 106c, 485a,
 611a, 652a, and 652b; reopens Prompt 589b as a copy repair; and makes Prompt
 611's existing non-color requirement explicit for compact DRADIS. It does not
 change the implementation boundary, status, acceptance, or evidence for
-Prompts 020, 051, 054, 071, 075, 275b, 602a, or 603a, and no item below is
+Prompts 020, 051, 054, 075, 275b, 602a, or 603a, and no item below is
 complete merely because its contract is documented.
 
 #### Provenance and preservation baseline
@@ -976,8 +976,8 @@ complete merely because its contract is documented.
 
 #### Dependency and delivery order
 
-1. Land the existing P051/P054/P071 readiness/start slice without modifying it.
-   Prompt 031a then consumes the stable P030/P031/P032/P034 claim, release,
+1. Preserve the existing P051/P054 readiness/start evidence while Prompt 654
+   remains queued for its successor repair. Prompt 031a then consumes the stable P030/P031/P032/P034 claim, release,
    race, and resume authority. It does not complete P020 or recast Press as a
    core seat.
 2. Implement Prompt 106c before P652a or P652b. The server-owned message
@@ -2045,9 +2045,10 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 721-ID queue (Prompts 001–653 plus the lettered prompts) is in
-scope for the active completion campaign. All 721 canonical prompt IDs (001–653
-plus the lettered prompts) are tracked in the checklist below and in
+The complete 723-ID queue (Prompts 001–656 plus the lettered prompts, with the
+retired Prompt 071 removed) is in scope for the active completion campaign. All
+723 canonical prompt IDs (001–656 plus the lettered prompts, with the retired
+Prompt 071 removed) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
 and recorded with current evidence. Unchecked, `partial`, and `missing`
@@ -2091,7 +2092,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 721 prompts (001–653 plus lettered IDs)
+#### Execution checklist — all 723 prompts (001–656 plus lettered IDs; Prompt 071 retired)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2168,7 +2169,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 068
 - [ ] Prompt 069
 - [ ] Prompt 070
-- [x] Prompt 071
 - [x] Prompt 072
 - [x] Prompt 073
 - [x] Prompt 074
@@ -2241,7 +2241,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 136
 - [ ] Prompt 137
 - [x] Prompt 138
-- [ ] Prompt 138a
+- [x] Prompt 138a
 - [ ] Prompt 139
 - [ ] Prompt 140
 - [ ] Prompt 140a
@@ -2755,7 +2755,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 595
 - [ ] Prompt 596
 - [ ] Prompt 597
-- [x] Prompt 598
+- [ ] Prompt 598
 - [ ] Prompt 599
 - [ ] Prompt 600
 - [ ] Prompt 601
@@ -2817,6 +2817,9 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 652a
 - [ ] Prompt 652b
 - [ ] Prompt 653
+- [ ] Prompt 654
+- [ ] Prompt 655
+- [ ] Prompt 656
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -2892,7 +2895,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 068 — [PRESERVE] Assign role-owned craft.** Acceptance: every shuttle and fighter wing starts under its printed role without client-claimable ownership.
 - **Prompt 069 — [PRESERVE] Initialize vessel populations and stores.** Acceptance: active vessels receive exact printed survivors, ore, fuel, food, water, materials, and expansion Scrap.
 - **Prompt 070 — [PRESERVE] Initialize security teams.** Acceptance: each active ship begins with its printed authoritative team count.
-- **Prompt 071 — [REPAIR] Validate start readiness for one facilitator.** Acceptance: missing seats, roles, loyalties, vessel ownership, configuration, or any one required active facilitator blocks start with a precise nonsecret reason. One authorized GM instance can assume both printed responsibilities; additional GM instances are optional and never block readiness. The owner-revised 8–20 core remains independent of an enabled/claimed Press holder, and an unclaimed enabled Press never blocks start.
 - **Prompt 072 — [NEW] Lock casting at start.** Acceptance: lobby commands cannot alter roles, loyalties, or starting state after the start transaction; later replacement uses its own path.
 - **Prompt 073 — [REPAIR] Represent facilitator responsibilities without a staffing dependency.** Acceptance: one authorized GM can assume both printed main/assistant responsibilities, while multiple GMs may claim, share, or hand off optional lanes without conflating local device mode with authority or making either lane a second-person readiness requirement.
 - **Prompt 074 — [NEW] Authorize game start.** Acceptance: only an active eligible facilitator/GM instance can start a ready roster.
@@ -3513,7 +3515,7 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 595 — [PRESERVE] Display the derived application version.** Acceptance: Settings reads runtime package metadata and never carries a handwritten version.
 - **Prompt 596 — [PRESERVE] Display bounded changelog history.** Acceptance: newest player-facing entry appears first in an independently scrollable accessible region.
 - **Prompt 597 — [PRESERVE] Complete exact disconnect confirmation.** Acceptance: danger styling and the required two-step `ARE YOU SURE?` flow queue presence cleanup, clear local state, and reach landing.
-- **Prompt 598 — [REPAIR] Explain connectivity truthfully.** Acceptance: repair the stale default/Turn-0 copy contract so connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
+- **Prompt 598 — [REPAIR] Explain connectivity truthfully.** Acceptance: repair the stale default/Turn-0 copy contract so connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default remains exactly `CONNECTED`, while a live joined Turn 0 session says exactly `CONNECTED — AWAITING IRIS AUTHENTICATION` in its visible copy and accessible name/title. `NOT CONNECTED` never describes live transport or session state. Preserve the blue boot-gate if desired and the 30-second sustained-pre-outage grace.
 - **Prompt 599 — [EXTEND] Build the single-facilitator setup checklist.** Acceptance: one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
@@ -3578,11 +3580,15 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 652a — [REPAIR] Keep every moving ticker glyph visible through its real exit.** Acceptance: restore `a91a020`'s continuous visible-tail baseline so a Red Alert group keeps every glyph, including its final painted bounds, fully visible until actually outside the viewport; audit `080457e` and later measured-copy/window geometry before changing code. Replacement, dismissal, stand-down, font load, resize/rotation, and authoritative P106c updates cannot cause nested clipping, fade, truncation, early unmount, remeasurement jump, or overlap. Preserve one constant linear speed, discard only unentered repetitions, announce each identity once, provide a readable reduced-motion equivalent, and prove exact boundary geometry at 320×844, 390×844, 1440×900, and 844×390.
 - **Prompt 652b — [NEW] Run a reversible mobile sticky-ticker experiment.** Acceptance: behind an explicit experiment control, keep the current non-sticky layout at scroll top and switch to a top sticky/frozen row only when the ticker's measured lower edge crosses the named `safe-area-inset-top` threshold. Reserve the ticker's exact block in flow and recompute safely on wrapped copy, live resize, rotation, keyboard, and safe-area changes; never overlap content, controls, focus outlines, session ticket, or Role Select. Preserve the non-sticky fallback and stationary reduced-motion equivalent; prove 320×844, 390×844, 844×390, short landscape, touch/keyboard/screen-reader, interruption, layout-shift, and scroll-performance evidence, with 1440×900 as the non-sticky reference. Roll back under named criterion `TICKER-STICKY-OCCLUSION` for any supported-viewport occlusion, threshold oscillation, more than one unexpected layout shift per crossing, material baseline jank, or lost/duplicate announcement; do not silently make the experiment permanent.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
+- **Prompt 654 — [REPAIR] Start production after a confirmed roster without treating unfilled roles as a blocker.** Acceptance: an authenticated active facilitator with a valid confirmed canonical setup can authoritatively start exactly once with zero, partial, or full role occupancy; unfilled roles are never blockers. Reject only genuine missing or invalid tuple, lifecycle/revision/closed/authority/malformed/unavailable server-result blockers with a stable nonsecret reason; never fabricate a role, player, or loyalty and never accept client randomness. Define an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. After confirmation the existing start control is enabled and accessible, and role status names the actual blocker rather than stale `Start blocked // confirm...` copy. Preserve focus, 44px targets, reduced motion, and mobile CIC behavior. This repair supersedes the retired Prompt 071 acceptance and depends on Milestone 1; later server, client, UI, and security tests must replace the old missing-role blockers.
+- **Prompt 655 — [REPAIR] Restore the Press evidence-shredder docked-cockpit warning.** Acceptance: exact visible and accessible copy states firing sends `SHREDDED EVIDENCE INTO COCKPITS OF DOCKED SHIPS AS WELL`. Preserve server targeting of docked SNN to SNN plus the authoritative host only, undocked SNN to SNN only, no client-selected or unrelated target, no ordinary GM event, and no duplicate on replay or reconnect. Focus, live-region, reduced-motion, and responsive CIC semantics remain covered.
+- **Prompt 656 — [REPAIR] Route an already-connected launcher to its current session.** Acceptance: cached, current, or resume-in-flight state at `/` never calls create or join; accessible reconnecting/stale state then resolves to the authoritative last route or `/roles`. Back, refresh, and reconnect converge; terminal denial clears only an established path while transient failure preserves recovery; an unexpected create race gives a truthful alert/link; and the launcher never auto-disconnects, releases, or mutates a session.
 
-The backlog contains **721 independently executable prompts** in this
-snapshot: 653 base IDs plus 68 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **159 `[PRESERVE]`, 104
-`[EXTEND]`, 366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 19 `[REPAIR]`, and 1
+The backlog contains **723 independently executable prompts** in this
+snapshot: 655 base IDs plus 68 lettered child IDs placed beside their closest
+dependency; retired Prompt 071 is preserved only in historical release notes.
+The current evidence classification is **159 `[PRESERVE]`, 104 `[EXTEND]`,
+366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 21 `[REPAIR]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

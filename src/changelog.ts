@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['138a'],
+    implementationProgress: {
+      completed: 74,
+      total: 723,
+      percentage: '10.24%',
+      done: 74,
+      partial: 27,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'GMs can now undo the latest maintenance step from the current turn without erasing damage or maintenance history — Roadmap progress: 74 of 723 prompts complete (10.24%).',
+    ],
+  },
+  {
+    version: '0.3.18',
     implementationPrompts: [138],
     implementationProgress: {
       completed: 75,
@@ -101,7 +117,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   },
   {
     version: '0.3.13',
-    implementationPrompts: [51, 54, 71, 75],
+    implementationPrompts: [51, 54, 75],
     implementationProgress: {
       completed: 69,
       total: 719,
@@ -183,7 +199,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   },
   {
     version: '0.3.5',
-    implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],
+    implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 72, 73, 74, 75, 77, 78, 84, 86],
     changes: [
       'Players and facilitators now receive stable, nonsecret command errors for authentication, permission, phase, revision, conflict, malformed input, service, and terminal-session failures.',
       'Actions now carry phase eligibility metadata, so a stale control cannot authorize a valid command in the wrong phase.',
