@@ -2760,7 +2760,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 602
 - [ ] Prompt 602a
 - [ ] Prompt 603
-- [ ] Prompt 603a
+- [x] Prompt 603a
 - [ ] Prompt 604
 - [ ] Prompt 605
 - [ ] Prompt 605a

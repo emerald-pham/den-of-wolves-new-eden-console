@@ -16,6 +16,8 @@
   to { transform: translate3d(calc(0px - var(--fleet-ticker-group-width)), 0, 0); }
 }
 .fleet-ticker[data-reduced="true"] { align-items: flex-start; max-height: min(7rem, 20vh); overflow-y: auto; }
+.fleet-ticker[data-reduced="true"] .fleet-ticker__window { align-items: center; overflow: visible; }
+.fleet-ticker[data-reduced="true"] .fleet-ticker__message { min-inline-size: 0; max-inline-size: 100%; overflow: visible; overflow-wrap: anywhere; white-space: normal; }
 
 @media (max-width: 48rem) {
   .fleet-ticker { order: 5; width: 100%; min-width: 0; flex: 0 0 100%; }

@@ -24,6 +24,19 @@ import FleetBroadcast from './FleetBroadcast';
 const CONNECTION_STATUS_GRACE_MS = 30_000;
 const CONNECTION_ACTIVITY_WINDOW_MS = CONNECTION_STATUS_GRACE_MS;
 const CONNECTION_STATUS_STARTUP_LIE_MS = 5_000;
+const VISUAL_CONNECTED_PLAYERS_STORAGE_KEY = 'prompt-603a-connected-players';
+
+function readVisualConnectedPlayers(): number | null {
+  if (!import.meta.env.DEV) return null;
+  try {
+    const raw = window.sessionStorage.getItem(VISUAL_CONNECTED_PLAYERS_STORAGE_KEY);
+    if (raw === null) return null;
+    const count = Number(raw);
+    return Number.isSafeInteger(count) && count >= 0 && count <= 99 ? count : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Keep the header optimistic while the first connection attempt settles.
@@ -206,7 +219,9 @@ export default function AppHeader() {
   const [gmAccessPassword, setGmAccessPassword] = useState('');
   const [gmAccessBusy, setGmAccessBusy] = useState(false);
   const [singlePlayerDemoBusy, setSinglePlayerDemoBusy] = useState(false);
-  const [connectedPlayers, setConnectedPlayers] = useState<number | null>(null);
+  const [connectedPlayers, setConnectedPlayers] = useState<number | null>(
+    readVisualConnectedPlayers,
+  );
   const settingsButton = useRef<HTMLButtonElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
@@ -245,6 +260,11 @@ export default function AppHeader() {
   }
 
   useEffect(() => {
+    const visualConnectedPlayers = readVisualConnectedPlayers();
+    if (visualConnectedPlayers !== null) {
+      setConnectedPlayers(visualConnectedPlayers);
+      return () => undefined;
+    }
     if (!sessionId) {
       setConnectedPlayers(null);
       return;

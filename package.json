@@ -1,7 +1,7 @@
 {
   "name": "den-of-wolves-new-eden-console",
   "private": true,
-  "version": "0.3.14",
+  "version": "0.3.15",
   "type": "module",
   "description": "Den of Wolves: New Eden Unofficial Companion Console",
   "engines": {
@@ -18,6 +18,7 @@
     "test:watch": "vitest --project unit",
     "test:rules": "node scripts/run-emulator-command.mjs rules",
     "test:growth": "node scripts/test-growth-gate.mjs",
+    "test:geometry:603a": "node scripts/prompt-603a-geometry.mjs",
     "test:all": "npm run test && npm run test:rules",
     "coordination:status": "node scripts/emulator-resource-registry.mjs status",
     "coordination:begin": "node scripts/emulator-resource-registry.mjs begin",

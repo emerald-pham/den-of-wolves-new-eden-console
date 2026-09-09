@@ -1,0 +1,5676 @@
+{
+  "prompt": "603a",
+  "generatedAt": "2026-09-09T13:07:40.904Z",
+  "command": "npm run test:geometry:603a",
+  "source": "Chrome DevTools Protocol DOMRect capture against the local Vite build; layout values are not mocked. Connected-player counts use the development-only AppHeader session-storage seed so each rendered variant is deterministic.",
+  "viewports": [
+    {
+      "name": "portrait-phone",
+      "width": 320,
+      "height": 844,
+      "connectedPlayers": 1,
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      }
+    },
+    {
+      "name": "wide-phone",
+      "width": 390,
+      "height": 844,
+      "connectedPlayers": 2,
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      }
+    },
+    {
+      "name": "short-landscape",
+      "width": 844,
+      "height": 390,
+      "connectedPlayers": 8,
+      "safeArea": {
+        "top": 10,
+        "right": 24,
+        "bottom": 10,
+        "left": 24
+      }
+    },
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "connectedPlayers": 20,
+      "safeArea": {
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      }
+    }
+  ],
+  "records": [
+    {
+      "route": "/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A1 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 12,
+          "y": 24,
+          "left": 12,
+          "top": 24,
+          "right": 308,
+          "bottom": 208.36,
+          "width": 296,
+          "height": 184.36
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A1 connected to CIC",
+        "rect": {
+          "x": 69.91,
+          "y": 24,
+          "left": 69.91,
+          "top": 24,
+          "right": 308,
+          "bottom": 64,
+          "width": 238.09,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 69.91,
+          "y": 24,
+          "left": 69.91,
+          "top": 24,
+          "right": 148.66,
+          "bottom": 64,
+          "width": 78.75,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "role-intro",
+        "tag": "div",
+        "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+        "rect": {
+          "x": 16,
+          "y": 224.36,
+          "left": 16,
+          "top": 224.36,
+          "right": 304,
+          "bottom": 372.09,
+          "width": 288,
+          "height": 147.73
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A1 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 12,
+            "y": 24,
+            "left": 12,
+            "top": 24,
+            "right": 308,
+            "bottom": 208.36,
+            "width": 296,
+            "height": 184.36
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A1 connected to CIC",
+          "rect": {
+            "x": 69.91,
+            "y": 24,
+            "left": 69.91,
+            "top": 24,
+            "right": 308,
+            "bottom": 64,
+            "width": 238.09,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 69.91,
+            "y": 24,
+            "left": 69.91,
+            "top": 24,
+            "right": 148.66,
+            "bottom": 64,
+            "width": 78.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "1 connected to CIC",
+          "rect": {
+            "x": 158.25,
+            "y": 24,
+            "left": 158.25,
+            "top": 24,
+            "right": 308,
+            "bottom": 64,
+            "width": 149.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 12,
+            "y": 167.17,
+            "left": 12,
+            "top": 167.17,
+            "right": 308,
+            "bottom": 208.36,
+            "width": 296,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 12,
+            "y": 70.39,
+            "left": 12,
+            "top": 70.39,
+            "right": 308,
+            "bottom": 110.39,
+            "width": 296,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 264,
+            "y": 116.78,
+            "left": 264,
+            "top": 116.78,
+            "right": 308,
+            "bottom": 160.78,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "role-select[1]",
+          "tag": "main",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 320,
+            "bottom": 1475.36,
+            "width": 320,
+            "height": 1475.36
+          }
+        },
+        {
+          "key": "role-intro[1]",
+          "tag": "div",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 16,
+            "y": 224.36,
+            "left": 16,
+            "top": 224.36,
+            "right": 304,
+            "bottom": 372.09,
+            "width": 288,
+            "height": 147.73
+          }
+        },
+        {
+          "key": "role-title[1]",
+          "tag": "h1",
+          "text": "Connect this device",
+          "rect": {
+            "x": 16,
+            "y": 272.75,
+            "left": 16,
+            "top": 272.75,
+            "right": 304,
+            "bottom": 336.75,
+            "width": 288,
+            "height": 64
+          }
+        },
+        {
+          "key": "role-lede[1]",
+          "tag": "p",
+          "text": "Choose how this screen will be used.",
+          "rect": {
+            "x": 16,
+            "y": 350.34,
+            "left": 16,
+            "top": 350.34,
+            "right": 304,
+            "bottom": 372.09,
+            "width": 288,
+            "height": 21.75
+          }
+        },
+        {
+          "key": "seat-board[1]",
+          "tag": "section",
+          "text": "Confirmed core rosterChoose your station3 core seatsAEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM",
+          "rect": {
+            "x": 16,
+            "y": 396.09,
+            "left": 16,
+            "top": 396.09,
+            "right": 304,
+            "bottom": 909.22,
+            "width": 288,
+            "height": 513.13
+          }
+        },
+        {
+          "key": "seat-board-header[1]",
+          "tag": "header",
+          "text": "Confirmed core rosterChoose your station3 core seats",
+          "rect": {
+            "x": 29.8,
+            "y": 409.89,
+            "left": 29.8,
+            "top": 409.89,
+            "right": 290.2,
+            "bottom": 499.23,
+            "width": 260.41,
+            "height": 89.34
+          }
+        },
+        {
+          "key": "seat-board-list[1]",
+          "tag": "ul",
+          "text": "AEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM STATIONAEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 512.03,
+            "left": 29.8,
+            "top": 512.03,
+            "right": 290.2,
+            "bottom": 853.97,
+            "width": 260.41,
+            "height": 341.94
+          }
+        },
+        {
+          "key": "seat[1]",
+          "tag": "li",
+          "text": "AEGIS // AdmiralOPENCLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 512.03,
+            "left": 29.8,
+            "top": 512.03,
+            "right": 290.2,
+            "bottom": 621.22,
+            "width": 260.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[2]",
+          "tag": "li",
+          "text": "AEGIS // Executive OfficerOPENCLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 628.41,
+            "left": 29.8,
+            "top": 628.41,
+            "right": 290.2,
+            "bottom": 737.59,
+            "width": 260.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[3]",
+          "tag": "li",
+          "text": "AEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 744.78,
+            "left": 29.8,
+            "top": 744.78,
+            "right": 290.2,
+            "bottom": 853.97,
+            "width": 260.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat-identity[1]",
+          "tag": "div",
+          "text": "AEGIS // AdmiralOPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 521.03,
+            "left": 29.8,
+            "top": 521.03,
+            "right": 290.2,
+            "bottom": 556.42,
+            "width": 260.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[2]",
+          "tag": "div",
+          "text": "AEGIS // Executive OfficerOPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 637.41,
+            "left": 29.8,
+            "top": 637.41,
+            "right": 290.2,
+            "bottom": 672.8,
+            "width": 260.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[3]",
+          "tag": "div",
+          "text": "AEGIS // Wing CommanderOPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 753.78,
+            "left": 29.8,
+            "top": 753.78,
+            "right": 290.2,
+            "bottom": 789.17,
+            "width": 260.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-state[1]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 542.09,
+            "left": 29.8,
+            "top": 542.09,
+            "right": 290.2,
+            "bottom": 556.42,
+            "width": 260.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[2]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 658.47,
+            "left": 29.8,
+            "top": 658.47,
+            "right": 290.2,
+            "bottom": 672.8,
+            "width": 260.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[3]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 29.8,
+            "y": 774.84,
+            "left": 29.8,
+            "top": 774.84,
+            "right": 290.2,
+            "bottom": 789.17,
+            "width": 260.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-action[1]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 569.22,
+            "left": 29.8,
+            "top": 569.22,
+            "right": 290.2,
+            "bottom": 613.22,
+            "width": 260.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[2]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 685.59,
+            "left": 29.8,
+            "top": 685.59,
+            "right": 290.2,
+            "bottom": 729.59,
+            "width": 260.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[3]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 29.8,
+            "y": 801.97,
+            "left": 29.8,
+            "top": 801.97,
+            "right": 290.2,
+            "bottom": 845.97,
+            "width": 260.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "role-grid[1]",
+          "tag": "div",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.🔓Lock out more GMs being addedUnlockedSelect a ro",
+          "rect": {
+            "x": 16,
+            "y": 933.22,
+            "left": 16,
+            "top": 933.22,
+            "right": 304,
+            "bottom": 1443.36,
+            "width": 288,
+            "height": 510.14
+          }
+        },
+        {
+          "key": "role-card[1]",
+          "tag": "form",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 16,
+            "y": 933.22,
+            "left": 16,
+            "top": 933.22,
+            "right": 304,
+            "bottom": 1144.98,
+            "width": 288,
+            "height": 211.77
+          }
+        },
+        {
+          "key": "role-card[2]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 16,
+            "y": 1160.98,
+            "left": 16,
+            "top": 1160.98,
+            "right": 304,
+            "bottom": 1307.36,
+            "width": 288,
+            "height": 146.38
+          }
+        },
+        {
+          "key": "role-card[3]",
+          "tag": "button",
+          "text": "Select a roleChoose an independent or shipboard station.",
+          "rect": {
+            "x": 16,
+            "y": 1323.36,
+            "left": 16,
+            "top": 1323.36,
+            "right": 304,
+            "bottom": 1443.36,
+            "width": 288,
+            "height": 120
+          }
+        },
+        {
+          "key": "role-card-name[1]",
+          "tag": "label",
+          "text": "Input GM Name",
+          "rect": {
+            "x": 33,
+            "y": 1003.02,
+            "left": 33,
+            "top": 1003.02,
+            "right": 287,
+            "bottom": 1028.02,
+            "width": 254,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-name[2]",
+          "tag": "span",
+          "text": "Lock out more GMs being added",
+          "rect": {
+            "x": 33,
+            "y": 1212.38,
+            "left": 33,
+            "top": 1212.38,
+            "right": 287,
+            "bottom": 1262.38,
+            "width": 254,
+            "height": 50
+          }
+        },
+        {
+          "key": "role-card-name[3]",
+          "tag": "span",
+          "text": "Select a role",
+          "rect": {
+            "x": 33,
+            "y": 1354.19,
+            "left": 33,
+            "top": 1354.19,
+            "right": 287,
+            "bottom": 1379.19,
+            "width": 254,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-description[1]",
+          "tag": "span",
+          "text": "🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 33,
+            "y": 1089.61,
+            "left": 33,
+            "top": 1089.61,
+            "right": 287,
+            "bottom": 1127.98,
+            "width": 254,
+            "height": 38.38
+          }
+        },
+        {
+          "key": "role-card-description[2]",
+          "tag": "span",
+          "text": "Unlocked",
+          "rect": {
+            "x": 33,
+            "y": 1271.17,
+            "left": 33,
+            "top": 1271.17,
+            "right": 287,
+            "bottom": 1290.36,
+            "width": 254,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[3]",
+          "tag": "span",
+          "text": "Choose an independent or shipboard station.",
+          "rect": {
+            "x": 33,
+            "y": 1387.98,
+            "left": 33,
+            "top": 1387.98,
+            "right": 287,
+            "bottom": 1426.36,
+            "width": 254,
+            "height": 38.38
+          }
+        },
+        {
+          "key": "gm-claim-control[1]",
+          "tag": "button",
+          "text": "Join as GM",
+          "rect": {
+            "x": 33,
+            "y": 950.22,
+            "left": 33,
+            "top": 950.22,
+            "right": 287,
+            "bottom": 994.22,
+            "width": 254,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-name-input[1]",
+          "tag": "input",
+          "text": "",
+          "rect": {
+            "x": 33,
+            "y": 1036.81,
+            "left": 33,
+            "top": 1036.81,
+            "right": 287,
+            "bottom": 1080.81,
+            "width": 254,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-lock-control[1]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 16,
+            "y": 1160.98,
+            "left": 16,
+            "top": 1160.98,
+            "right": 304,
+            "bottom": 1307.36,
+            "width": 288,
+            "height": 146.38
+          }
+        }
+      ],
+      "plot": null,
+      "intersections": [],
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "224.359px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "connectedPlayerCount": 1,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 320,
+        "scrollWidth": 320,
+        "clientHeight": 844,
+        "scrollHeight": 1475,
+        "horizontalOverflow": false,
+        "mainHeight": 1475.359375
+      },
+      "interactive": {
+        "count": 8,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "portrait-phone",
+        "width": 320,
+        "height": 844,
+        "connectedPlayers": 1,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      },
+      "connectedPlayersSeed": 1,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-320x844.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A1 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 12,
+          "y": 24,
+          "left": 12,
+          "top": 24,
+          "right": 308,
+          "bottom": 254.75,
+          "width": 296,
+          "height": 230.75
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A1 connected to CIC",
+        "rect": {
+          "x": 69.91,
+          "y": 24,
+          "left": 69.91,
+          "top": 24,
+          "right": 308,
+          "bottom": 64,
+          "width": 238.09,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 69.91,
+          "y": 24,
+          "left": 69.91,
+          "top": 24,
+          "right": 148.66,
+          "bottom": 64,
+          "width": 78.75,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "ship-role-panel",
+        "tag": "section",
+        "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+        "rect": {
+          "x": 16,
+          "y": 434.75,
+          "left": 16,
+          "top": 434.75,
+          "right": 304,
+          "bottom": 1223.91,
+          "width": 288,
+          "height": 789.16
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A1 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 12,
+            "y": 24,
+            "left": 12,
+            "top": 24,
+            "right": 308,
+            "bottom": 254.75,
+            "width": 296,
+            "height": 230.75
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A1 connected to CIC",
+          "rect": {
+            "x": 69.91,
+            "y": 24,
+            "left": 69.91,
+            "top": 24,
+            "right": 308,
+            "bottom": 64,
+            "width": 238.09,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 69.91,
+            "y": 24,
+            "left": 69.91,
+            "top": 24,
+            "right": 148.66,
+            "bottom": 64,
+            "width": 78.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "1 connected to CIC",
+          "rect": {
+            "x": 158.25,
+            "y": 24,
+            "left": 158.25,
+            "top": 24,
+            "right": 308,
+            "bottom": 64,
+            "width": 149.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 12,
+            "y": 213.56,
+            "left": 12,
+            "top": 213.56,
+            "right": 308,
+            "bottom": 254.75,
+            "width": 296,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "rank",
+          "tag": "p",
+          "text": "Rank: Admiral",
+          "rect": {
+            "x": 184.3,
+            "y": 70.39,
+            "left": 184.3,
+            "top": 70.39,
+            "right": 308,
+            "bottom": 110.39,
+            "width": 123.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 12,
+            "y": 116.78,
+            "left": 12,
+            "top": 116.78,
+            "right": 308,
+            "bottom": 156.78,
+            "width": 296,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 264,
+            "y": 163.17,
+            "left": 264,
+            "top": 163.17,
+            "right": 308,
+            "bottom": 207.17,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "ship-role-select[1]",
+          "tag": "main",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 320,
+            "bottom": 1255.91,
+            "width": 320,
+            "height": 1255.91
+          }
+        },
+        {
+          "key": "ship-role-panel[1]",
+          "tag": "section",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 16,
+            "y": 434.75,
+            "left": 16,
+            "top": 434.75,
+            "right": 304,
+            "bottom": 1223.91,
+            "width": 288,
+            "height": 789.16
+          }
+        },
+        {
+          "key": "ship-role-intro[1]",
+          "tag": "div",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consoles",
+          "rect": {
+            "x": 37,
+            "y": 455.75,
+            "left": 37,
+            "top": 455.75,
+            "right": 283,
+            "bottom": 786.91,
+            "width": 246,
+            "height": 331.16
+          }
+        },
+        {
+          "key": "ship-flag[1]",
+          "tag": "img",
+          "text": "",
+          "rect": {
+            "x": 37,
+            "y": 501.52,
+            "left": 37,
+            "top": 501.52,
+            "right": 283,
+            "bottom": 645.52,
+            "width": 246,
+            "height": 144
+          }
+        },
+        {
+          "key": "ship-back[1]",
+          "tag": "a",
+          "text": "Back to fleet",
+          "rect": {
+            "x": 26.61,
+            "y": 445.52,
+            "left": 26.61,
+            "top": 445.52,
+            "right": 172.66,
+            "bottom": 489.52,
+            "width": 146.05,
+            "height": 44
+          }
+        },
+        {
+          "key": "ship-title[1]",
+          "tag": "h1",
+          "text": "View ship consoles",
+          "rect": {
+            "x": 37,
+            "y": 722.91,
+            "left": 37,
+            "top": 722.91,
+            "right": 283,
+            "bottom": 786.91,
+            "width": 246,
+            "height": 64
+          }
+        },
+        {
+          "key": "ship-role-grid[1]",
+          "tag": "div",
+          "text": "AdmiralExecutive OfficerWing Commander",
+          "rect": {
+            "x": 37,
+            "y": 810.91,
+            "left": 37,
+            "top": 810.91,
+            "right": 283,
+            "bottom": 1202.91,
+            "width": 246,
+            "height": 392
+          }
+        },
+        {
+          "key": "ship-role-card[1]",
+          "tag": "a",
+          "text": "Admiral",
+          "rect": {
+            "x": 37,
+            "y": 810.91,
+            "left": 37,
+            "top": 810.91,
+            "right": 283,
+            "bottom": 930.91,
+            "width": 246,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card[2]",
+          "tag": "a",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 37,
+            "y": 946.91,
+            "left": 37,
+            "top": 946.91,
+            "right": 283,
+            "bottom": 1066.91,
+            "width": 246,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card[3]",
+          "tag": "a",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 37,
+            "y": 1082.91,
+            "left": 37,
+            "top": 1082.91,
+            "right": 283,
+            "bottom": 1202.91,
+            "width": 246,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card-name[1]",
+          "tag": "span",
+          "text": "Admiral",
+          "rect": {
+            "x": 54,
+            "y": 888.91,
+            "left": 54,
+            "top": 888.91,
+            "right": 266,
+            "bottom": 913.91,
+            "width": 212,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[2]",
+          "tag": "span",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 54,
+            "y": 1024.91,
+            "left": 54,
+            "top": 1024.91,
+            "right": 266,
+            "bottom": 1049.91,
+            "width": 212,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[3]",
+          "tag": "span",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 54,
+            "y": 1160.91,
+            "left": 54,
+            "top": 1160.91,
+            "right": 266,
+            "bottom": 1185.91,
+            "width": 212,
+            "height": 25
+          }
+        }
+      ],
+      "plot": {
+        "key": "ship-plot",
+        "tag": "div",
+        "text": "AEGISDIONEICEBREAKERCAPYBARASHEPHERDQUELLONREFINERY 124DRADIS // LOCAL PLOTZoom",
+        "rect": {
+          "x": 172,
+          "y": 266.75,
+          "left": 172,
+          "top": 266.75,
+          "right": 308,
+          "bottom": 402.75,
+          "width": 136,
+          "height": 136
+        }
+      },
+      "intersections": [],
+      "headerContentGap": 180,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "230.75px",
+      "sessionPaddingTop": "434.75px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "connectedPlayerCount": 1,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 320,
+        "scrollWidth": 320,
+        "clientHeight": 844,
+        "scrollHeight": 1256,
+        "horizontalOverflow": false,
+        "mainHeight": 1255.90625
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "portrait-phone",
+        "width": 320,
+        "height": 844,
+        "connectedPlayers": 1,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      },
+      "connectedPlayersSeed": 1,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-320x844.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 12,
+          "y": 24,
+          "left": 12,
+          "top": 24,
+          "right": 378,
+          "bottom": 208.36,
+          "width": 366,
+          "height": 184.36
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A2 connected to CIC",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 378,
+          "bottom": 64,
+          "width": 238.09,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 218.66,
+          "bottom": 64,
+          "width": 78.75,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "role-intro",
+        "tag": "div",
+        "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+        "rect": {
+          "x": 19.5,
+          "y": 224.36,
+          "left": 19.5,
+          "top": 224.36,
+          "right": 370.5,
+          "bottom": 340.09,
+          "width": 351,
+          "height": 115.73
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 12,
+            "y": 24,
+            "left": 12,
+            "top": 24,
+            "right": 378,
+            "bottom": 208.36,
+            "width": 366,
+            "height": 184.36
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A2 connected to CIC",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 238.09,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 218.66,
+            "bottom": 64,
+            "width": 78.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "2 connected to CIC",
+          "rect": {
+            "x": 228.25,
+            "y": 24,
+            "left": 228.25,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 149.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 12,
+            "y": 167.17,
+            "left": 12,
+            "top": 167.17,
+            "right": 378,
+            "bottom": 208.36,
+            "width": 366,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 16.3,
+            "y": 70.39,
+            "left": 16.3,
+            "top": 70.39,
+            "right": 378,
+            "bottom": 110.39,
+            "width": 361.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 334,
+            "y": 116.78,
+            "left": 334,
+            "top": 116.78,
+            "right": 378,
+            "bottom": 160.78,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "role-select[1]",
+          "tag": "main",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 390,
+            "bottom": 1443.36,
+            "width": 390,
+            "height": 1443.36
+          }
+        },
+        {
+          "key": "role-intro[1]",
+          "tag": "div",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 19.5,
+            "y": 224.36,
+            "left": 19.5,
+            "top": 224.36,
+            "right": 370.5,
+            "bottom": 340.09,
+            "width": 351,
+            "height": 115.73
+          }
+        },
+        {
+          "key": "role-title[1]",
+          "tag": "h1",
+          "text": "Connect this device",
+          "rect": {
+            "x": 19.5,
+            "y": 272.75,
+            "left": 19.5,
+            "top": 272.75,
+            "right": 370.5,
+            "bottom": 304.75,
+            "width": 351,
+            "height": 32
+          }
+        },
+        {
+          "key": "role-lede[1]",
+          "tag": "p",
+          "text": "Choose how this screen will be used.",
+          "rect": {
+            "x": 19.5,
+            "y": 318.34,
+            "left": 19.5,
+            "top": 318.34,
+            "right": 370.5,
+            "bottom": 340.09,
+            "width": 351,
+            "height": 21.75
+          }
+        },
+        {
+          "key": "seat-board[1]",
+          "tag": "section",
+          "text": "Confirmed core rosterChoose your station3 core seatsAEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM",
+          "rect": {
+            "x": 19.5,
+            "y": 364.09,
+            "left": 19.5,
+            "top": 364.09,
+            "right": 370.5,
+            "bottom": 877.22,
+            "width": 351,
+            "height": 513.13
+          }
+        },
+        {
+          "key": "seat-board-header[1]",
+          "tag": "header",
+          "text": "Confirmed core rosterChoose your station3 core seats",
+          "rect": {
+            "x": 33.3,
+            "y": 377.89,
+            "left": 33.3,
+            "top": 377.89,
+            "right": 356.7,
+            "bottom": 467.23,
+            "width": 323.41,
+            "height": 89.34
+          }
+        },
+        {
+          "key": "seat-board-list[1]",
+          "tag": "ul",
+          "text": "AEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM STATIONAEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 480.03,
+            "left": 33.3,
+            "top": 480.03,
+            "right": 356.7,
+            "bottom": 821.97,
+            "width": 323.41,
+            "height": 341.94
+          }
+        },
+        {
+          "key": "seat[1]",
+          "tag": "li",
+          "text": "AEGIS // AdmiralOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 480.03,
+            "left": 33.3,
+            "top": 480.03,
+            "right": 356.7,
+            "bottom": 589.22,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[2]",
+          "tag": "li",
+          "text": "AEGIS // Executive OfficerOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 596.41,
+            "left": 33.3,
+            "top": 596.41,
+            "right": 356.7,
+            "bottom": 705.59,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[3]",
+          "tag": "li",
+          "text": "AEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 712.78,
+            "left": 33.3,
+            "top": 712.78,
+            "right": 356.7,
+            "bottom": 821.97,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat-identity[1]",
+          "tag": "div",
+          "text": "AEGIS // AdmiralOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 489.03,
+            "left": 33.3,
+            "top": 489.03,
+            "right": 356.7,
+            "bottom": 524.42,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[2]",
+          "tag": "div",
+          "text": "AEGIS // Executive OfficerOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 605.41,
+            "left": 33.3,
+            "top": 605.41,
+            "right": 356.7,
+            "bottom": 640.8,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[3]",
+          "tag": "div",
+          "text": "AEGIS // Wing CommanderOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 721.78,
+            "left": 33.3,
+            "top": 721.78,
+            "right": 356.7,
+            "bottom": 757.17,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-state[1]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 510.09,
+            "left": 33.3,
+            "top": 510.09,
+            "right": 356.7,
+            "bottom": 524.42,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[2]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 626.47,
+            "left": 33.3,
+            "top": 626.47,
+            "right": 356.7,
+            "bottom": 640.8,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[3]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 742.84,
+            "left": 33.3,
+            "top": 742.84,
+            "right": 356.7,
+            "bottom": 757.17,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-action[1]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 537.22,
+            "left": 33.3,
+            "top": 537.22,
+            "right": 356.7,
+            "bottom": 581.22,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[2]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 653.59,
+            "left": 33.3,
+            "top": 653.59,
+            "right": 356.7,
+            "bottom": 697.59,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[3]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 769.97,
+            "left": 33.3,
+            "top": 769.97,
+            "right": 356.7,
+            "bottom": 813.97,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "role-grid[1]",
+          "tag": "div",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.🔓Lock out more GMs being addedUnlockedSelect a ro",
+          "rect": {
+            "x": 19.5,
+            "y": 901.22,
+            "left": 19.5,
+            "top": 901.22,
+            "right": 370.5,
+            "bottom": 1411.36,
+            "width": 351,
+            "height": 510.14
+          }
+        },
+        {
+          "key": "role-card[1]",
+          "tag": "form",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 19.5,
+            "y": 901.22,
+            "left": 19.5,
+            "top": 901.22,
+            "right": 370.5,
+            "bottom": 1112.98,
+            "width": 351,
+            "height": 211.77
+          }
+        },
+        {
+          "key": "role-card[2]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 19.5,
+            "y": 1128.98,
+            "left": 19.5,
+            "top": 1128.98,
+            "right": 370.5,
+            "bottom": 1275.36,
+            "width": 351,
+            "height": 146.38
+          }
+        },
+        {
+          "key": "role-card[3]",
+          "tag": "button",
+          "text": "Select a roleChoose an independent or shipboard station.",
+          "rect": {
+            "x": 19.5,
+            "y": 1291.36,
+            "left": 19.5,
+            "top": 1291.36,
+            "right": 370.5,
+            "bottom": 1411.36,
+            "width": 351,
+            "height": 120
+          }
+        },
+        {
+          "key": "role-card-name[1]",
+          "tag": "label",
+          "text": "Input GM Name",
+          "rect": {
+            "x": 36.5,
+            "y": 971.02,
+            "left": 36.5,
+            "top": 971.02,
+            "right": 353.5,
+            "bottom": 996.02,
+            "width": 317,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-name[2]",
+          "tag": "span",
+          "text": "Lock out more GMs being added",
+          "rect": {
+            "x": 36.5,
+            "y": 1180.38,
+            "left": 36.5,
+            "top": 1180.38,
+            "right": 353.5,
+            "bottom": 1230.38,
+            "width": 317,
+            "height": 50
+          }
+        },
+        {
+          "key": "role-card-name[3]",
+          "tag": "span",
+          "text": "Select a role",
+          "rect": {
+            "x": 36.5,
+            "y": 1341.38,
+            "left": 36.5,
+            "top": 1341.38,
+            "right": 353.5,
+            "bottom": 1366.38,
+            "width": 317,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-description[1]",
+          "tag": "span",
+          "text": "🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 36.5,
+            "y": 1057.61,
+            "left": 36.5,
+            "top": 1057.61,
+            "right": 353.5,
+            "bottom": 1095.98,
+            "width": 317,
+            "height": 38.38
+          }
+        },
+        {
+          "key": "role-card-description[2]",
+          "tag": "span",
+          "text": "Unlocked",
+          "rect": {
+            "x": 36.5,
+            "y": 1239.17,
+            "left": 36.5,
+            "top": 1239.17,
+            "right": 353.5,
+            "bottom": 1258.36,
+            "width": 317,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[3]",
+          "tag": "span",
+          "text": "Choose an independent or shipboard station.",
+          "rect": {
+            "x": 36.5,
+            "y": 1375.17,
+            "left": 36.5,
+            "top": 1375.17,
+            "right": 353.5,
+            "bottom": 1394.36,
+            "width": 317,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "gm-claim-control[1]",
+          "tag": "button",
+          "text": "Join as GM",
+          "rect": {
+            "x": 36.5,
+            "y": 918.22,
+            "left": 36.5,
+            "top": 918.22,
+            "right": 353.5,
+            "bottom": 962.22,
+            "width": 317,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-name-input[1]",
+          "tag": "input",
+          "text": "",
+          "rect": {
+            "x": 36.5,
+            "y": 1004.81,
+            "left": 36.5,
+            "top": 1004.81,
+            "right": 353.5,
+            "bottom": 1048.81,
+            "width": 317,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-lock-control[1]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 19.5,
+            "y": 1128.98,
+            "left": 19.5,
+            "top": 1128.98,
+            "right": 370.5,
+            "bottom": 1275.36,
+            "width": 351,
+            "height": 146.38
+          }
+        }
+      ],
+      "plot": null,
+      "intersections": [],
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "224.359px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "connectedPlayerCount": 2,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 1443,
+        "horizontalOverflow": false,
+        "mainHeight": 1443.359375
+      },
+      "interactive": {
+        "count": 8,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844,
+        "connectedPlayers": 2,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      },
+      "connectedPlayersSeed": 2,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-390x844.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 12,
+          "y": 24,
+          "left": 12,
+          "top": 24,
+          "right": 378,
+          "bottom": 254.75,
+          "width": 366,
+          "height": 230.75
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A2 connected to CIC",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 378,
+          "bottom": 64,
+          "width": 238.09,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 218.66,
+          "bottom": 64,
+          "width": 78.75,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "ship-role-panel",
+        "tag": "section",
+        "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+        "rect": {
+          "x": 16,
+          "y": 439.14,
+          "left": 16,
+          "top": 439.14,
+          "right": 370.5,
+          "bottom": 1196.3,
+          "width": 354.5,
+          "height": 757.16
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 12,
+            "y": 24,
+            "left": 12,
+            "top": 24,
+            "right": 378,
+            "bottom": 254.75,
+            "width": 366,
+            "height": 230.75
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A2 connected to CIC",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 238.09,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 218.66,
+            "bottom": 64,
+            "width": 78.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "2 connected to CIC",
+          "rect": {
+            "x": 228.25,
+            "y": 24,
+            "left": 228.25,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 149.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 12,
+            "y": 213.56,
+            "left": 12,
+            "top": 213.56,
+            "right": 378,
+            "bottom": 254.75,
+            "width": 366,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "rank",
+          "tag": "p",
+          "text": "Rank: Admiral",
+          "rect": {
+            "x": 254.3,
+            "y": 70.39,
+            "left": 254.3,
+            "top": 70.39,
+            "right": 378,
+            "bottom": 110.39,
+            "width": 123.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 16.3,
+            "y": 116.78,
+            "left": 16.3,
+            "top": 116.78,
+            "right": 378,
+            "bottom": 156.78,
+            "width": 361.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 334,
+            "y": 163.17,
+            "left": 334,
+            "top": 163.17,
+            "right": 378,
+            "bottom": 207.17,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "ship-role-select[1]",
+          "tag": "main",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 390,
+            "bottom": 1228.3,
+            "width": 390,
+            "height": 1228.3
+          }
+        },
+        {
+          "key": "ship-role-panel[1]",
+          "tag": "section",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 16,
+            "y": 439.14,
+            "left": 16,
+            "top": 439.14,
+            "right": 370.5,
+            "bottom": 1196.3,
+            "width": 354.5,
+            "height": 757.16
+          }
+        },
+        {
+          "key": "ship-role-intro[1]",
+          "tag": "div",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consoles",
+          "rect": {
+            "x": 37,
+            "y": 460.14,
+            "left": 37,
+            "top": 460.14,
+            "right": 349.5,
+            "bottom": 759.3,
+            "width": 312.5,
+            "height": 299.16
+          }
+        },
+        {
+          "key": "ship-flag[1]",
+          "tag": "img",
+          "text": "",
+          "rect": {
+            "x": 37,
+            "y": 505.91,
+            "left": 37,
+            "top": 505.91,
+            "right": 325,
+            "bottom": 649.91,
+            "width": 288,
+            "height": 144
+          }
+        },
+        {
+          "key": "ship-back[1]",
+          "tag": "a",
+          "text": "Back to fleet",
+          "rect": {
+            "x": 26.61,
+            "y": 449.91,
+            "left": 26.61,
+            "top": 449.91,
+            "right": 172.66,
+            "bottom": 493.91,
+            "width": 146.05,
+            "height": 44
+          }
+        },
+        {
+          "key": "ship-title[1]",
+          "tag": "h1",
+          "text": "View ship consoles",
+          "rect": {
+            "x": 37,
+            "y": 727.3,
+            "left": 37,
+            "top": 727.3,
+            "right": 349.5,
+            "bottom": 759.3,
+            "width": 312.5,
+            "height": 32
+          }
+        },
+        {
+          "key": "ship-role-grid[1]",
+          "tag": "div",
+          "text": "AdmiralExecutive OfficerWing Commander",
+          "rect": {
+            "x": 37,
+            "y": 783.3,
+            "left": 37,
+            "top": 783.3,
+            "right": 349.5,
+            "bottom": 1175.3,
+            "width": 312.5,
+            "height": 392
+          }
+        },
+        {
+          "key": "ship-role-card[1]",
+          "tag": "a",
+          "text": "Admiral",
+          "rect": {
+            "x": 37,
+            "y": 783.3,
+            "left": 37,
+            "top": 783.3,
+            "right": 349.5,
+            "bottom": 903.3,
+            "width": 312.5,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card[2]",
+          "tag": "a",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 37,
+            "y": 919.3,
+            "left": 37,
+            "top": 919.3,
+            "right": 349.5,
+            "bottom": 1039.3,
+            "width": 312.5,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card[3]",
+          "tag": "a",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 37,
+            "y": 1055.3,
+            "left": 37,
+            "top": 1055.3,
+            "right": 349.5,
+            "bottom": 1175.3,
+            "width": 312.5,
+            "height": 120
+          }
+        },
+        {
+          "key": "ship-role-card-name[1]",
+          "tag": "span",
+          "text": "Admiral",
+          "rect": {
+            "x": 54,
+            "y": 861.3,
+            "left": 54,
+            "top": 861.3,
+            "right": 332.5,
+            "bottom": 886.3,
+            "width": 278.5,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[2]",
+          "tag": "span",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 54,
+            "y": 997.3,
+            "left": 54,
+            "top": 997.3,
+            "right": 332.5,
+            "bottom": 1022.3,
+            "width": 278.5,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[3]",
+          "tag": "span",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 54,
+            "y": 1133.3,
+            "left": 54,
+            "top": 1133.3,
+            "right": 332.5,
+            "bottom": 1158.3,
+            "width": 278.5,
+            "height": 25
+          }
+        }
+      ],
+      "plot": {
+        "key": "ship-plot",
+        "tag": "div",
+        "text": "AEGISDIONEICEBREAKERCAPYBARASHEPHERDQUELLONREFINERY 124DRADIS // LOCAL PLOTZoom",
+        "rect": {
+          "x": 237.61,
+          "y": 266.75,
+          "left": 237.61,
+          "top": 266.75,
+          "right": 378,
+          "bottom": 407.14,
+          "width": 140.39,
+          "height": 140.39
+        }
+      },
+      "intersections": [],
+      "headerContentGap": 184.39,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "230.75px",
+      "sessionPaddingTop": "439.15px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "connectedPlayerCount": 2,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 1228,
+        "horizontalOverflow": false,
+        "mainHeight": 1228.296875
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844,
+        "connectedPlayers": 2,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      },
+      "connectedPlayersSeed": 2,
+      "headerScroll": {
+        "before": {
+          "top": 24,
+          "bottom": 254.75,
+          "scrollY": 0
+        },
+        "after": {
+          "top": -360,
+          "bottom": -129.25,
+          "scrollY": 384
+        },
+        "moved": true,
+        "leavesViewport": true
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-390x844.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A8 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 820,
+          "bottom": 65.36,
+          "width": 796,
+          "height": 53.36
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A8 connected to CIC",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 255.53,
+          "bottom": 65.36,
+          "width": 231.53,
+          "height": 53.36
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 158.88,
+          "bottom": 65.36,
+          "width": 134.88,
+          "height": 53.36
+        }
+      },
+      "content": {
+        "key": "role-intro",
+        "tag": "div",
+        "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+        "rect": {
+          "x": 42.19,
+          "y": 96,
+          "left": 42.19,
+          "top": 96,
+          "right": 650.19,
+          "bottom": 217.38,
+          "width": 608,
+          "height": 121.38
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A8 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 820,
+            "bottom": 65.36,
+            "width": 796,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A8 connected to CIC",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 255.53,
+            "bottom": 65.36,
+            "width": 231.53,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 158.88,
+            "bottom": 65.36,
+            "width": 134.88,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "8 connected to CIC",
+          "rect": {
+            "x": 168.47,
+            "y": 12,
+            "left": 168.47,
+            "top": 12,
+            "right": 255.53,
+            "bottom": 65.36,
+            "width": 87.06,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 265.13,
+            "y": 18.08,
+            "left": 265.13,
+            "top": 18.08,
+            "right": 485.86,
+            "bottom": 59.27,
+            "width": 220.73,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 495.45,
+            "y": 18.67,
+            "left": 495.45,
+            "top": 18.67,
+            "right": 766.41,
+            "bottom": 58.67,
+            "width": 270.95,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 776,
+            "y": 16.67,
+            "left": 776,
+            "top": 16.67,
+            "right": 820,
+            "bottom": 60.67,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "role-select[1]",
+          "tag": "main",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 844,
+            "bottom": 1086.19,
+            "width": 844,
+            "height": 1086.19
+          }
+        },
+        {
+          "key": "role-intro[1]",
+          "tag": "div",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 42.19,
+            "y": 96,
+            "left": 42.19,
+            "top": 96,
+            "right": 650.19,
+            "bottom": 217.38,
+            "width": 608,
+            "height": 121.38
+          }
+        },
+        {
+          "key": "role-title[1]",
+          "tag": "h1",
+          "text": "Connect this device",
+          "rect": {
+            "x": 42.19,
+            "y": 131.39,
+            "left": 42.19,
+            "top": 131.39,
+            "right": 650.19,
+            "bottom": 182.03,
+            "width": 608,
+            "height": 50.64
+          }
+        },
+        {
+          "key": "role-lede[1]",
+          "tag": "p",
+          "text": "Choose how this screen will be used.",
+          "rect": {
+            "x": 42.19,
+            "y": 195.63,
+            "left": 42.19,
+            "top": 195.63,
+            "right": 650.19,
+            "bottom": 217.38,
+            "width": 608,
+            "height": 21.75
+          }
+        },
+        {
+          "key": "seat-board[1]",
+          "tag": "section",
+          "text": "Confirmed core rosterChoose your station3 core seatsAEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM",
+          "rect": {
+            "x": 42.19,
+            "y": 259.56,
+            "left": 42.19,
+            "top": 259.56,
+            "right": 801.81,
+            "bottom": 608.23,
+            "width": 759.63,
+            "height": 348.67
+          }
+        },
+        {
+          "key": "seat-board-header[1]",
+          "tag": "header",
+          "text": "Confirmed core rosterChoose your station3 core seats",
+          "rect": {
+            "x": 60.06,
+            "y": 277.44,
+            "left": 60.06,
+            "top": 277.44,
+            "right": 783.94,
+            "bottom": 344.06,
+            "width": 723.88,
+            "height": 66.63
+          }
+        },
+        {
+          "key": "seat-board-list[1]",
+          "tag": "ul",
+          "text": "AEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM STATIONAEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 60.06,
+            "y": 356.86,
+            "left": 60.06,
+            "top": 356.86,
+            "right": 783.94,
+            "bottom": 563.23,
+            "width": 723.88,
+            "height": 206.38
+          }
+        },
+        {
+          "key": "seat[1]",
+          "tag": "li",
+          "text": "AEGIS // AdmiralOPENCLAIM STATION",
+          "rect": {
+            "x": 60.06,
+            "y": 356.86,
+            "left": 60.06,
+            "top": 356.86,
+            "right": 783.94,
+            "bottom": 420.86,
+            "width": 723.88,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat[2]",
+          "tag": "li",
+          "text": "AEGIS // Executive OfficerOPENCLAIM STATION",
+          "rect": {
+            "x": 60.06,
+            "y": 428.05,
+            "left": 60.06,
+            "top": 428.05,
+            "right": 783.94,
+            "bottom": 492.05,
+            "width": 723.88,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat[3]",
+          "tag": "li",
+          "text": "AEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 60.06,
+            "y": 499.23,
+            "left": 60.06,
+            "top": 499.23,
+            "right": 783.94,
+            "bottom": 563.23,
+            "width": 723.88,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat-identity[1]",
+          "tag": "div",
+          "text": "AEGIS // AdmiralOPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 371.66,
+            "left": 60.06,
+            "top": 371.66,
+            "right": 595.14,
+            "bottom": 407.05,
+            "width": 535.08,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[2]",
+          "tag": "div",
+          "text": "AEGIS // Executive OfficerOPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 442.84,
+            "left": 60.06,
+            "top": 442.84,
+            "right": 595.14,
+            "bottom": 478.23,
+            "width": 535.08,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[3]",
+          "tag": "div",
+          "text": "AEGIS // Wing CommanderOPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 514.03,
+            "left": 60.06,
+            "top": 514.03,
+            "right": 595.14,
+            "bottom": 549.42,
+            "width": 535.08,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-state[1]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 392.72,
+            "left": 60.06,
+            "top": 392.72,
+            "right": 595.14,
+            "bottom": 407.05,
+            "width": 535.08,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[2]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 463.91,
+            "left": 60.06,
+            "top": 463.91,
+            "right": 595.14,
+            "bottom": 478.23,
+            "width": 535.08,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[3]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 60.06,
+            "y": 535.09,
+            "left": 60.06,
+            "top": 535.09,
+            "right": 595.14,
+            "bottom": 549.42,
+            "width": 535.08,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-action[1]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 607.94,
+            "y": 367.36,
+            "left": 607.94,
+            "top": 367.36,
+            "right": 783.94,
+            "bottom": 411.36,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[2]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 607.94,
+            "y": 438.55,
+            "left": 607.94,
+            "top": 438.55,
+            "right": 783.94,
+            "bottom": 482.55,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[3]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 607.94,
+            "y": 509.73,
+            "left": 607.94,
+            "top": 509.73,
+            "right": 783.94,
+            "bottom": 553.73,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "role-grid[1]",
+          "tag": "div",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.🔓Lock out more GMs being addedUnlockedSelect a ro",
+          "rect": {
+            "x": 42.19,
+            "y": 650.42,
+            "left": 42.19,
+            "top": 650.42,
+            "right": 801.81,
+            "bottom": 1054.19,
+            "width": 759.63,
+            "height": 403.77
+          }
+        },
+        {
+          "key": "role-card[1]",
+          "tag": "form",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 42.19,
+            "y": 650.42,
+            "left": 42.19,
+            "top": 650.42,
+            "right": 414,
+            "bottom": 878.19,
+            "width": 371.81,
+            "height": 227.77
+          }
+        },
+        {
+          "key": "role-card[2]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 430,
+            "y": 650.42,
+            "left": 430,
+            "top": 650.42,
+            "right": 801.81,
+            "bottom": 878.19,
+            "width": 371.81,
+            "height": 227.77
+          }
+        },
+        {
+          "key": "role-card[3]",
+          "tag": "button",
+          "text": "Select a roleChoose an independent or shipboard station.",
+          "rect": {
+            "x": 42.19,
+            "y": 894.19,
+            "left": 42.19,
+            "top": 894.19,
+            "right": 414,
+            "bottom": 1054.19,
+            "width": 371.81,
+            "height": 160
+          }
+        },
+        {
+          "key": "role-card-name[1]",
+          "tag": "label",
+          "text": "Input GM Name",
+          "rect": {
+            "x": 67.19,
+            "y": 728.22,
+            "left": 67.19,
+            "top": 728.22,
+            "right": 389,
+            "bottom": 753.22,
+            "width": 321.81,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-name[2]",
+          "tag": "span",
+          "text": "Lock out more GMs being added",
+          "rect": {
+            "x": 455,
+            "y": 775.2,
+            "left": 455,
+            "top": 775.2,
+            "right": 776.81,
+            "bottom": 825.2,
+            "width": 321.81,
+            "height": 50
+          }
+        },
+        {
+          "key": "role-card-name[3]",
+          "tag": "span",
+          "text": "Select a role",
+          "rect": {
+            "x": 67.19,
+            "y": 976.2,
+            "left": 67.19,
+            "top": 976.2,
+            "right": 389,
+            "bottom": 1001.2,
+            "width": 321.81,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-description[1]",
+          "tag": "span",
+          "text": "🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 67.19,
+            "y": 814.81,
+            "left": 67.19,
+            "top": 814.81,
+            "right": 389,
+            "bottom": 853.19,
+            "width": 321.81,
+            "height": 38.38
+          }
+        },
+        {
+          "key": "role-card-description[2]",
+          "tag": "span",
+          "text": "Unlocked",
+          "rect": {
+            "x": 455,
+            "y": 834,
+            "left": 455,
+            "top": 834,
+            "right": 776.81,
+            "bottom": 853.19,
+            "width": 321.81,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[3]",
+          "tag": "span",
+          "text": "Choose an independent or shipboard station.",
+          "rect": {
+            "x": 67.19,
+            "y": 1010,
+            "left": 67.19,
+            "top": 1010,
+            "right": 389,
+            "bottom": 1029.19,
+            "width": 321.81,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "gm-claim-control[1]",
+          "tag": "button",
+          "text": "Join as GM",
+          "rect": {
+            "x": 67.19,
+            "y": 675.42,
+            "left": 67.19,
+            "top": 675.42,
+            "right": 389,
+            "bottom": 719.42,
+            "width": 321.81,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-name-input[1]",
+          "tag": "input",
+          "text": "",
+          "rect": {
+            "x": 67.19,
+            "y": 762.02,
+            "left": 67.19,
+            "top": 762.02,
+            "right": 389,
+            "bottom": 806.02,
+            "width": 321.81,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-lock-control[1]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 430,
+            "y": 650.42,
+            "left": 430,
+            "top": 650.42,
+            "right": 801.81,
+            "bottom": 878.19,
+            "width": 371.81,
+            "height": 227.77
+          }
+        }
+      ],
+      "plot": null,
+      "intersections": [],
+      "headerContentGap": 30.64,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "53.359375px",
+      "sessionPaddingTop": "96px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "connectedPlayerCount": 8,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 844,
+        "scrollWidth": 844,
+        "clientHeight": 390,
+        "scrollHeight": 1086,
+        "horizontalOverflow": false,
+        "mainHeight": 1086.1875
+      },
+      "interactive": {
+        "count": 8,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "short-landscape",
+        "width": 844,
+        "height": 390,
+        "connectedPlayers": 8,
+        "safeArea": {
+          "top": 10,
+          "right": 24,
+          "bottom": 10,
+          "left": 24
+        }
+      },
+      "safeArea": {
+        "top": 10,
+        "right": 24,
+        "bottom": 10,
+        "left": 24
+      },
+      "connectedPlayersSeed": 8,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-844x390.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A8 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 820,
+          "bottom": 65.36,
+          "width": 796,
+          "height": 53.36
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A8 connected to CIC",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 255.53,
+          "bottom": 65.36,
+          "width": 231.53,
+          "height": 53.36
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 24,
+          "y": 12,
+          "left": 24,
+          "top": 12,
+          "right": 158.88,
+          "bottom": 65.36,
+          "width": 134.88,
+          "height": 53.36
+        }
+      },
+      "content": {
+        "key": "ship-role-panel",
+        "tag": "section",
+        "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+        "rect": {
+          "x": 33.75,
+          "y": 295.03,
+          "left": 33.75,
+          "top": 295.03,
+          "right": 600.56,
+          "bottom": 1202.94,
+          "width": 566.81,
+          "height": 907.91
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A8 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLE",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 820,
+            "bottom": 65.36,
+            "width": 796,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A8 connected to CIC",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 255.53,
+            "bottom": 65.36,
+            "width": 231.53,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 24,
+            "y": 12,
+            "left": 24,
+            "top": 12,
+            "right": 158.88,
+            "bottom": 65.36,
+            "width": 134.88,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "8 connected to CIC",
+          "rect": {
+            "x": 168.47,
+            "y": 12,
+            "left": 168.47,
+            "top": 12,
+            "right": 255.53,
+            "bottom": 65.36,
+            "width": 87.06,
+            "height": 53.36
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 265.13,
+            "y": 18.08,
+            "left": 265.13,
+            "top": 18.08,
+            "right": 426.77,
+            "bottom": 59.27,
+            "width": 161.64,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "rank",
+          "tag": "p",
+          "text": "Rank: Admiral",
+          "rect": {
+            "x": 436.36,
+            "y": 18.67,
+            "left": 436.36,
+            "top": 18.67,
+            "right": 560.06,
+            "bottom": 58.67,
+            "width": 123.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 569.66,
+            "y": 12.58,
+            "left": 569.66,
+            "top": 12.58,
+            "right": 766.41,
+            "bottom": 64.77,
+            "width": 196.75,
+            "height": 52.19
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 776,
+            "y": 16.67,
+            "left": 776,
+            "top": 16.67,
+            "right": 820,
+            "bottom": 60.67,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "ship-role-select[1]",
+          "tag": "main",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 844,
+            "bottom": 1234.94,
+            "width": 844,
+            "height": 1234.94
+          }
+        },
+        {
+          "key": "ship-role-panel[1]",
+          "tag": "section",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 33.75,
+            "y": 295.03,
+            "left": 33.75,
+            "top": 295.03,
+            "right": 600.56,
+            "bottom": 1202.94,
+            "width": 566.81,
+            "height": 907.91
+          }
+        },
+        {
+          "key": "ship-role-intro[1]",
+          "tag": "div",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consoles",
+          "rect": {
+            "x": 68.5,
+            "y": 329.78,
+            "left": 68.5,
+            "top": 329.78,
+            "right": 565.81,
+            "bottom": 702.44,
+            "width": 497.31,
+            "height": 372.66
+          }
+        },
+        {
+          "key": "ship-flag[1]",
+          "tag": "img",
+          "text": "",
+          "rect": {
+            "x": 68.5,
+            "y": 375.55,
+            "left": 68.5,
+            "top": 375.55,
+            "right": 356.5,
+            "bottom": 578.09,
+            "width": 288,
+            "height": 202.55
+          }
+        },
+        {
+          "key": "ship-back[1]",
+          "tag": "a",
+          "text": "Back to fleet",
+          "rect": {
+            "x": 58.11,
+            "y": 319.55,
+            "left": 58.11,
+            "top": 319.55,
+            "right": 204.16,
+            "bottom": 363.55,
+            "width": 146.05,
+            "height": 44
+          }
+        },
+        {
+          "key": "ship-title[1]",
+          "tag": "h1",
+          "text": "View ship consoles",
+          "rect": {
+            "x": 68.5,
+            "y": 651.8,
+            "left": 68.5,
+            "top": 651.8,
+            "right": 565.81,
+            "bottom": 702.44,
+            "width": 497.31,
+            "height": 50.64
+          }
+        },
+        {
+          "key": "ship-role-grid[1]",
+          "tag": "div",
+          "text": "AdmiralExecutive OfficerWing Commander",
+          "rect": {
+            "x": 68.5,
+            "y": 736.19,
+            "left": 68.5,
+            "top": 736.19,
+            "right": 565.81,
+            "bottom": 1168.19,
+            "width": 497.31,
+            "height": 432
+          }
+        },
+        {
+          "key": "ship-role-card[1]",
+          "tag": "a",
+          "text": "Admiral",
+          "rect": {
+            "x": 68.5,
+            "y": 736.19,
+            "left": 68.5,
+            "top": 736.19,
+            "right": 309.16,
+            "bottom": 944.19,
+            "width": 240.66,
+            "height": 208
+          }
+        },
+        {
+          "key": "ship-role-card[2]",
+          "tag": "a",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 325.16,
+            "y": 736.19,
+            "left": 325.16,
+            "top": 736.19,
+            "right": 565.81,
+            "bottom": 944.19,
+            "width": 240.66,
+            "height": 208
+          }
+        },
+        {
+          "key": "ship-role-card[3]",
+          "tag": "a",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 68.5,
+            "y": 960.19,
+            "left": 68.5,
+            "top": 960.19,
+            "right": 309.16,
+            "bottom": 1168.19,
+            "width": 240.66,
+            "height": 208
+          }
+        },
+        {
+          "key": "ship-role-card-name[1]",
+          "tag": "span",
+          "text": "Admiral",
+          "rect": {
+            "x": 93.5,
+            "y": 894.19,
+            "left": 93.5,
+            "top": 894.19,
+            "right": 284.16,
+            "bottom": 919.19,
+            "width": 190.66,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[2]",
+          "tag": "span",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 350.16,
+            "y": 894.19,
+            "left": 350.16,
+            "top": 894.19,
+            "right": 540.81,
+            "bottom": 919.19,
+            "width": 190.66,
+            "height": 25
+          }
+        },
+        {
+          "key": "ship-role-card-name[3]",
+          "tag": "span",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 93.5,
+            "y": 1118.19,
+            "left": 93.5,
+            "top": 1118.19,
+            "right": 284.16,
+            "bottom": 1143.19,
+            "width": 190.66,
+            "height": 25
+          }
+        }
+      ],
+      "plot": {
+        "key": "ship-plot",
+        "tag": "div",
+        "text": "AEGISDIONEICEBREAKERCAPYBARASHEPHERDQUELLONREFINERY 124DRADIS // LOCAL PLOTZoom",
+        "rect": {
+          "x": 634.33,
+          "y": 77.36,
+          "left": 634.33,
+          "top": 77.36,
+          "right": 820,
+          "bottom": 263.03,
+          "width": 185.67,
+          "height": 185.67
+        }
+      },
+      "intersections": [],
+      "headerContentGap": 229.67,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "53.359375px",
+      "sessionPaddingTop": "295.039px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "connectedPlayerCount": 8,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 844,
+        "scrollWidth": 844,
+        "clientHeight": 390,
+        "scrollHeight": 1235,
+        "horizontalOverflow": false,
+        "mainHeight": 1234.9375
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "short-landscape",
+        "width": 844,
+        "height": 390,
+        "connectedPlayers": 8,
+        "safeArea": {
+          "top": 10,
+          "right": 24,
+          "bottom": 10,
+          "left": 24
+        }
+      },
+      "safeArea": {
+        "top": 10,
+        "right": 24,
+        "bottom": 10,
+        "left": 24
+      },
+      "connectedPlayersSeed": 8,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-844x390.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A20 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOL",
+        "rect": {
+          "x": 12,
+          "y": 12,
+          "left": 12,
+          "top": 12,
+          "right": 1428,
+          "bottom": 53.19,
+          "width": 1416,
+          "height": 41.19
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A20 connected to CIC",
+        "rect": {
+          "x": 12,
+          "y": 12.59,
+          "left": 12,
+          "top": 12.59,
+          "right": 350.98,
+          "bottom": 52.59,
+          "width": 338.98,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 12,
+          "y": 12.59,
+          "left": 12,
+          "top": 12.59,
+          "right": 184.67,
+          "bottom": 52.59,
+          "width": 172.67,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "role-intro",
+        "tag": "div",
+        "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+        "rect": {
+          "x": 224,
+          "y": 126,
+          "left": 224,
+          "top": 126,
+          "right": 832,
+          "bottom": 252.73,
+          "width": 608,
+          "height": 126.73
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A20 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOL",
+          "rect": {
+            "x": 12,
+            "y": 12,
+            "left": 12,
+            "top": 12,
+            "right": 1428,
+            "bottom": 53.19,
+            "width": 1416,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A20 connected to CIC",
+          "rect": {
+            "x": 12,
+            "y": 12.59,
+            "left": 12,
+            "top": 12.59,
+            "right": 350.98,
+            "bottom": 52.59,
+            "width": 338.98,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 12,
+            "y": 12.59,
+            "left": 12,
+            "top": 12.59,
+            "right": 184.67,
+            "bottom": 52.59,
+            "width": 172.67,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "20 connected to CIC",
+          "rect": {
+            "x": 194.27,
+            "y": 12.59,
+            "left": 194.27,
+            "top": 12.59,
+            "right": 350.98,
+            "bottom": 52.59,
+            "width": 156.72,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 360.58,
+            "y": 12,
+            "left": 360.58,
+            "top": 12,
+            "right": 973.2,
+            "bottom": 53.19,
+            "width": 612.63,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 982.8,
+            "y": 12.59,
+            "left": 982.8,
+            "top": 12.59,
+            "right": 1378.41,
+            "bottom": 52.59,
+            "width": 395.61,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 1388,
+            "y": 12.59,
+            "left": 1388,
+            "top": 12.59,
+            "right": 1428,
+            "bottom": 52.59,
+            "width": 40,
+            "height": 40
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "role-select[1]",
+          "tag": "main",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 176,
+            "y": 0,
+            "left": 176,
+            "top": 0,
+            "right": 1264,
+            "bottom": 1129.31,
+            "width": 1088,
+            "height": 1129.31
+          }
+        },
+        {
+          "key": "role-intro[1]",
+          "tag": "div",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 224,
+            "y": 126,
+            "left": 224,
+            "top": 126,
+            "right": 832,
+            "bottom": 252.73,
+            "width": 608,
+            "height": 126.73
+          }
+        },
+        {
+          "key": "role-title[1]",
+          "tag": "h1",
+          "text": "Connect this device",
+          "rect": {
+            "x": 224,
+            "y": 161.39,
+            "left": 224,
+            "top": 161.39,
+            "right": 832,
+            "bottom": 217.39,
+            "width": 608,
+            "height": 56
+          }
+        },
+        {
+          "key": "role-lede[1]",
+          "tag": "p",
+          "text": "Choose how this screen will be used.",
+          "rect": {
+            "x": 224,
+            "y": 230.98,
+            "left": 224,
+            "top": 230.98,
+            "right": 832,
+            "bottom": 252.73,
+            "width": 608,
+            "height": 21.75
+          }
+        },
+        {
+          "key": "seat-board[1]",
+          "tag": "section",
+          "text": "Confirmed core rosterChoose your station3 core seatsAEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM",
+          "rect": {
+            "x": 224,
+            "y": 300.73,
+            "left": 224,
+            "top": 300.73,
+            "right": 1216,
+            "bottom": 657.73,
+            "width": 992,
+            "height": 357
+          }
+        },
+        {
+          "key": "seat-board-header[1]",
+          "tag": "header",
+          "text": "Confirmed core rosterChoose your station3 core seats",
+          "rect": {
+            "x": 245,
+            "y": 321.73,
+            "left": 245,
+            "top": 321.73,
+            "right": 1195,
+            "bottom": 390.44,
+            "width": 950,
+            "height": 68.7
+          }
+        },
+        {
+          "key": "seat-board-list[1]",
+          "tag": "ul",
+          "text": "AEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM STATIONAEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 245,
+            "y": 403.23,
+            "left": 245,
+            "top": 403.23,
+            "right": 1195,
+            "bottom": 609.61,
+            "width": 950,
+            "height": 206.38
+          }
+        },
+        {
+          "key": "seat[1]",
+          "tag": "li",
+          "text": "AEGIS // AdmiralOPENCLAIM STATION",
+          "rect": {
+            "x": 245,
+            "y": 403.23,
+            "left": 245,
+            "top": 403.23,
+            "right": 1195,
+            "bottom": 467.23,
+            "width": 950,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat[2]",
+          "tag": "li",
+          "text": "AEGIS // Executive OfficerOPENCLAIM STATION",
+          "rect": {
+            "x": 245,
+            "y": 474.42,
+            "left": 245,
+            "top": 474.42,
+            "right": 1195,
+            "bottom": 538.42,
+            "width": 950,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat[3]",
+          "tag": "li",
+          "text": "AEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 245,
+            "y": 545.61,
+            "left": 245,
+            "top": 545.61,
+            "right": 1195,
+            "bottom": 609.61,
+            "width": 950,
+            "height": 64
+          }
+        },
+        {
+          "key": "seat-identity[1]",
+          "tag": "div",
+          "text": "AEGIS // AdmiralOPEN",
+          "rect": {
+            "x": 245,
+            "y": 418.03,
+            "left": 245,
+            "top": 418.03,
+            "right": 1006.2,
+            "bottom": 453.42,
+            "width": 761.2,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[2]",
+          "tag": "div",
+          "text": "AEGIS // Executive OfficerOPEN",
+          "rect": {
+            "x": 245,
+            "y": 489.22,
+            "left": 245,
+            "top": 489.22,
+            "right": 1006.2,
+            "bottom": 524.61,
+            "width": 761.2,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[3]",
+          "tag": "div",
+          "text": "AEGIS // Wing CommanderOPEN",
+          "rect": {
+            "x": 245,
+            "y": 560.41,
+            "left": 245,
+            "top": 560.41,
+            "right": 1006.2,
+            "bottom": 595.8,
+            "width": 761.2,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-state[1]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 245,
+            "y": 439.09,
+            "left": 245,
+            "top": 439.09,
+            "right": 1006.2,
+            "bottom": 453.42,
+            "width": 761.2,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[2]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 245,
+            "y": 510.28,
+            "left": 245,
+            "top": 510.28,
+            "right": 1006.2,
+            "bottom": 524.61,
+            "width": 761.2,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[3]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 245,
+            "y": 581.47,
+            "left": 245,
+            "top": 581.47,
+            "right": 1006.2,
+            "bottom": 595.8,
+            "width": 761.2,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-action[1]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 1019,
+            "y": 413.73,
+            "left": 1019,
+            "top": 413.73,
+            "right": 1195,
+            "bottom": 457.73,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[2]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 1019,
+            "y": 484.92,
+            "left": 1019,
+            "top": 484.92,
+            "right": 1195,
+            "bottom": 528.92,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[3]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 1019,
+            "y": 556.11,
+            "left": 1019,
+            "top": 556.11,
+            "right": 1195,
+            "bottom": 600.11,
+            "width": 176,
+            "height": 44
+          }
+        },
+        {
+          "key": "role-grid[1]",
+          "tag": "div",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.🔓Lock out more GMs being addedUnlockedSelect a ro",
+          "rect": {
+            "x": 224,
+            "y": 705.73,
+            "left": 224,
+            "top": 705.73,
+            "right": 1216,
+            "bottom": 1097.31,
+            "width": 992,
+            "height": 391.58
+          }
+        },
+        {
+          "key": "role-card[1]",
+          "tag": "form",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 224,
+            "y": 705.73,
+            "left": 224,
+            "top": 705.73,
+            "right": 712,
+            "bottom": 921.31,
+            "width": 488,
+            "height": 215.58
+          }
+        },
+        {
+          "key": "role-card[2]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 728,
+            "y": 705.73,
+            "left": 728,
+            "top": 705.73,
+            "right": 1216,
+            "bottom": 921.31,
+            "width": 488,
+            "height": 215.58
+          }
+        },
+        {
+          "key": "role-card[3]",
+          "tag": "button",
+          "text": "Select a roleChoose an independent or shipboard station.",
+          "rect": {
+            "x": 224,
+            "y": 937.31,
+            "left": 224,
+            "top": 937.31,
+            "right": 712,
+            "bottom": 1097.31,
+            "width": 488,
+            "height": 160
+          }
+        },
+        {
+          "key": "role-card-name[1]",
+          "tag": "label",
+          "text": "Input GM Name",
+          "rect": {
+            "x": 249,
+            "y": 783.53,
+            "left": 249,
+            "top": 783.53,
+            "right": 687,
+            "bottom": 815.53,
+            "width": 438,
+            "height": 32
+          }
+        },
+        {
+          "key": "role-card-name[2]",
+          "tag": "span",
+          "text": "Lock out more GMs being added",
+          "rect": {
+            "x": 753,
+            "y": 836.33,
+            "left": 753,
+            "top": 836.33,
+            "right": 1191,
+            "bottom": 868.33,
+            "width": 438,
+            "height": 32
+          }
+        },
+        {
+          "key": "role-card-name[3]",
+          "tag": "span",
+          "text": "Select a role",
+          "rect": {
+            "x": 249,
+            "y": 1012.33,
+            "left": 249,
+            "top": 1012.33,
+            "right": 687,
+            "bottom": 1044.33,
+            "width": 438,
+            "height": 32
+          }
+        },
+        {
+          "key": "role-card-description[1]",
+          "tag": "span",
+          "text": "🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 249,
+            "y": 877.13,
+            "left": 249,
+            "top": 877.13,
+            "right": 687,
+            "bottom": 896.31,
+            "width": 438,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[2]",
+          "tag": "span",
+          "text": "Unlocked",
+          "rect": {
+            "x": 753,
+            "y": 877.13,
+            "left": 753,
+            "top": 877.13,
+            "right": 1191,
+            "bottom": 896.31,
+            "width": 438,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[3]",
+          "tag": "span",
+          "text": "Choose an independent or shipboard station.",
+          "rect": {
+            "x": 249,
+            "y": 1053.13,
+            "left": 249,
+            "top": 1053.13,
+            "right": 687,
+            "bottom": 1072.31,
+            "width": 438,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "gm-claim-control[1]",
+          "tag": "button",
+          "text": "Join as GM",
+          "rect": {
+            "x": 249,
+            "y": 730.73,
+            "left": 249,
+            "top": 730.73,
+            "right": 687,
+            "bottom": 774.73,
+            "width": 438,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-name-input[1]",
+          "tag": "input",
+          "text": "",
+          "rect": {
+            "x": 249,
+            "y": 824.33,
+            "left": 249,
+            "top": 824.33,
+            "right": 687,
+            "bottom": 868.33,
+            "width": 438,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-lock-control[1]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 728,
+            "y": 705.73,
+            "left": 728,
+            "top": 705.73,
+            "right": 1216,
+            "bottom": 921.31,
+            "width": 488,
+            "height": 215.58
+          }
+        }
+      ],
+      "plot": null,
+      "intersections": [],
+      "headerContentGap": 72.81,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "41.1875px",
+      "sessionPaddingTop": "126px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "connectedPlayerCount": 20,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "clientHeight": 900,
+        "scrollHeight": 1129,
+        "horizontalOverflow": false,
+        "mainHeight": 1129.3125
+      },
+      "interactive": {
+        "count": 8,
+        "minimumHeight": 40,
+        "under44": [
+          {
+            "tag": "button",
+            "label": "Settings",
+            "rect": {
+              "x": 1388,
+              "y": 12.59,
+              "left": 1388,
+              "top": 12.59,
+              "right": 1428,
+              "bottom": 52.59,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ]
+      },
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900,
+        "connectedPlayers": 20,
+        "safeArea": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "safeArea": {
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      },
+      "connectedPlayersSeed": 20,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-1440x900.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A20 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOL",
+        "rect": {
+          "x": 12,
+          "y": 12,
+          "left": 12,
+          "top": 12,
+          "right": 1428,
+          "bottom": 53.19,
+          "width": 1416,
+          "height": 41.19
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A20 connected to CIC",
+        "rect": {
+          "x": 12,
+          "y": 12.59,
+          "left": 12,
+          "top": 12.59,
+          "right": 350.98,
+          "bottom": 52.59,
+          "width": 338.98,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 12,
+          "y": 12.59,
+          "left": 12,
+          "top": 12.59,
+          "right": 184.67,
+          "bottom": 52.59,
+          "width": 172.67,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "ship-role-panel",
+        "tag": "section",
+        "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+        "rect": {
+          "x": 48,
+          "y": 206.42,
+          "left": 48,
+          "top": 206.42,
+          "right": 1108,
+          "bottom": 787.58,
+          "width": 1060,
+          "height": 581.16
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A20 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOL",
+          "rect": {
+            "x": 12,
+            "y": 12,
+            "left": 12,
+            "top": 12,
+            "right": 1428,
+            "bottom": 53.19,
+            "width": 1416,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A20 connected to CIC",
+          "rect": {
+            "x": 12,
+            "y": 12.59,
+            "left": 12,
+            "top": 12.59,
+            "right": 350.98,
+            "bottom": 52.59,
+            "width": 338.98,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 12,
+            "y": 12.59,
+            "left": 12,
+            "top": 12.59,
+            "right": 184.67,
+            "bottom": 52.59,
+            "width": 172.67,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "20 connected to CIC",
+          "rect": {
+            "x": 194.27,
+            "y": 12.59,
+            "left": 194.27,
+            "top": 12.59,
+            "right": 350.98,
+            "bottom": 52.59,
+            "width": 156.72,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE // AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICA",
+          "rect": {
+            "x": 360.58,
+            "y": 12,
+            "left": 360.58,
+            "top": 12,
+            "right": 839.91,
+            "bottom": 53.19,
+            "width": 479.33,
+            "height": 41.19
+          }
+        },
+        {
+          "key": "rank",
+          "tag": "p",
+          "text": "Rank: Admiral",
+          "rect": {
+            "x": 849.5,
+            "y": 12.59,
+            "left": 849.5,
+            "top": 12.59,
+            "right": 973.2,
+            "bottom": 52.59,
+            "width": 123.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 982.8,
+            "y": 12.59,
+            "left": 982.8,
+            "top": 12.59,
+            "right": 1378.41,
+            "bottom": 52.59,
+            "width": 395.61,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 1388,
+            "y": 12.59,
+            "left": 1388,
+            "top": 12.59,
+            "right": 1428,
+            "bottom": 52.59,
+            "width": 40,
+            "height": 40
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "ship-role-select[1]",
+          "tag": "main",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 1440,
+            "bottom": 900,
+            "width": 1440,
+            "height": 900
+          }
+        },
+        {
+          "key": "ship-role-panel[1]",
+          "tag": "section",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consolesAdmiralExecutiv",
+          "rect": {
+            "x": 48,
+            "y": 206.42,
+            "left": 48,
+            "top": 206.42,
+            "right": 1108,
+            "bottom": 787.58,
+            "width": 1060,
+            "height": 581.16
+          }
+        },
+        {
+          "key": "ship-role-intro[1]",
+          "tag": "div",
+          "text": "Back to fleetVISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGISView ship consoles",
+          "rect": {
+            "x": 85,
+            "y": 243.42,
+            "left": 85,
+            "top": 243.42,
+            "right": 410.28,
+            "bottom": 750.58,
+            "width": 325.28,
+            "height": 507.16
+          }
+        },
+        {
+          "key": "ship-flag[1]",
+          "tag": "img",
+          "text": "",
+          "rect": {
+            "x": 85,
+            "y": 289.19,
+            "left": 85,
+            "top": 289.19,
+            "right": 373,
+            "bottom": 545.19,
+            "width": 288,
+            "height": 256
+          }
+        },
+        {
+          "key": "ship-back[1]",
+          "tag": "a",
+          "text": "Back to fleet",
+          "rect": {
+            "x": 74.61,
+            "y": 233.19,
+            "left": 74.61,
+            "top": 233.19,
+            "right": 220.66,
+            "bottom": 277.19,
+            "width": 146.05,
+            "height": 44
+          }
+        },
+        {
+          "key": "ship-title[1]",
+          "tag": "h1",
+          "text": "View ship consoles",
+          "rect": {
+            "x": 85,
+            "y": 638.58,
+            "left": 85,
+            "top": 638.58,
+            "right": 410.28,
+            "bottom": 750.58,
+            "width": 325.28,
+            "height": 112
+          }
+        },
+        {
+          "key": "ship-role-grid[1]",
+          "tag": "div",
+          "text": "AdmiralExecutive OfficerWing Commander",
+          "rect": {
+            "x": 466.28,
+            "y": 243.42,
+            "left": 466.28,
+            "top": 243.42,
+            "right": 1070.98,
+            "bottom": 750.58,
+            "width": 604.7,
+            "height": 507.16
+          }
+        },
+        {
+          "key": "ship-role-card[1]",
+          "tag": "a",
+          "text": "Admiral",
+          "rect": {
+            "x": 466.28,
+            "y": 243.42,
+            "left": 466.28,
+            "top": 243.42,
+            "right": 760.63,
+            "bottom": 489,
+            "width": 294.34,
+            "height": 245.58
+          }
+        },
+        {
+          "key": "ship-role-card[2]",
+          "tag": "a",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 776.63,
+            "y": 243.42,
+            "left": 776.63,
+            "top": 243.42,
+            "right": 1070.98,
+            "bottom": 489,
+            "width": 294.36,
+            "height": 245.58
+          }
+        },
+        {
+          "key": "ship-role-card[3]",
+          "tag": "a",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 466.28,
+            "y": 505,
+            "left": 466.28,
+            "top": 505,
+            "right": 760.63,
+            "bottom": 750.58,
+            "width": 294.34,
+            "height": 245.58
+          }
+        },
+        {
+          "key": "ship-role-card-name[1]",
+          "tag": "span",
+          "text": "Admiral",
+          "rect": {
+            "x": 491.28,
+            "y": 432,
+            "left": 491.28,
+            "top": 432,
+            "right": 735.63,
+            "bottom": 464,
+            "width": 244.34,
+            "height": 32
+          }
+        },
+        {
+          "key": "ship-role-card-name[2]",
+          "tag": "span",
+          "text": "Executive Officer",
+          "rect": {
+            "x": 801.63,
+            "y": 400,
+            "left": 801.63,
+            "top": 400,
+            "right": 1045.98,
+            "bottom": 464,
+            "width": 244.36,
+            "height": 64
+          }
+        },
+        {
+          "key": "ship-role-card-name[3]",
+          "tag": "span",
+          "text": "Wing Commander",
+          "rect": {
+            "x": 491.28,
+            "y": 693.58,
+            "left": 491.28,
+            "top": 693.58,
+            "right": 735.63,
+            "bottom": 725.58,
+            "width": 244.34,
+            "height": 32
+          }
+        }
+      ],
+      "plot": {
+        "key": "ship-plot",
+        "tag": "div",
+        "text": "AEGISDIONEICEBREAKERCAPYBARASHEPHERDQUELLONREFINERY 124DRADIS // LOCAL PLOTZoom",
+        "rect": {
+          "x": 1156,
+          "y": 65.19,
+          "left": 1156,
+          "top": 65.19,
+          "right": 1428,
+          "bottom": 337.19,
+          "width": 272,
+          "height": 272
+        }
+      },
+      "intersections": [],
+      "headerContentGap": 153.23,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": -130.77,
+      "appHeaderHeight": "41.1875px",
+      "sessionPaddingTop": "126px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "connectedPlayerCount": 20,
+      "motion": "full",
+      "reducedTicker": null,
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "clientHeight": 900,
+        "scrollHeight": 900,
+        "horizontalOverflow": false,
+        "mainHeight": 900
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 40,
+        "under44": [
+          {
+            "tag": "button",
+            "label": "Settings",
+            "rect": {
+              "x": 1388,
+              "y": 12.59,
+              "left": 1388,
+              "top": 12.59,
+              "right": 1428,
+              "bottom": 52.59,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ]
+      },
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900,
+        "connectedPlayers": 20,
+        "safeArea": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "safeArea": {
+        "top": 0,
+        "right": 0,
+        "bottom": 0,
+        "left": 0
+      },
+      "connectedPlayersSeed": 20,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-1440x900.png"
+    }
+  ],
+  "variants": {
+    "longLabels": {
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "horizontalOverflow": false
+    },
+    "settings": {
+      "dialog": {
+        "x": 16,
+        "y": 16,
+        "top": 16,
+        "right": 374,
+        "bottom": 892.56,
+        "width": 358,
+        "height": 876.56
+      },
+      "sessionTicket": {
+        "x": 37,
+        "y": 110,
+        "top": 110,
+        "right": 353,
+        "bottom": 150,
+        "width": 316,
+        "height": 40
+      },
+      "controlCount": 5,
+      "minimumControlHeight": 44,
+      "horizontalOverflow": false,
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844,
+        "connectedPlayers": 2,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-settings-390x844.png"
+    },
+    "keyboardFocus": {
+      "settings": {
+        "element": "settings-button",
+        "focusVisible": true,
+        "outline": "rgb(232, 137, 43) solid 2px",
+        "outlineWidth": "2px",
+        "rect": {
+          "x": 334,
+          "y": 116.78125,
+          "width": 44,
+          "height": 44
+        },
+        "viewport": {
+          "name": "wide-phone",
+          "width": 390,
+          "height": 844,
+          "connectedPlayers": 2,
+          "safeArea": {
+            "top": 24,
+            "right": 10,
+            "bottom": 16,
+            "left": 10
+          }
+        },
+        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-focus-390x844.png"
+      },
+      "roleSelect": {
+        "order": [
+          {
+            "tag": "button",
+            "className": "settings-button",
+            "label": "Settings"
+          },
+          {
+            "tag": "button",
+            "className": "cic-action-button role-seat__action",
+            "label": "CLAIM STATION // AEGIS // Admiral"
+          },
+          {
+            "tag": "button",
+            "className": "cic-action-button role-seat__action",
+            "label": "CLAIM STATION // AEGIS // Executive Officer"
+          },
+          {
+            "tag": "button",
+            "className": "cic-action-button role-seat__action",
+            "label": "CLAIM STATION // AEGIS // Wing Commander"
+          },
+          {
+            "tag": "input",
+            "className": "role-claim__input",
+            "label": ""
+          },
+          {
+            "tag": "button",
+            "className": "role-card cic-frame",
+            "label": "Select a roleChoose an independent or shipboard station."
+          },
+          {
+            "tag": "textarea",
+            "className": "g-recaptcha-response",
+            "label": ""
+          }
+        ],
+        "initial": {
+          "tag": "input",
+          "className": "role-claim__input",
+          "label": "",
+          "focusVisible": true,
+          "outline": "rgb(153, 200, 255) auto 1px",
+          "rect": {
+            "x": 36.5,
+            "y": 405.81,
+            "width": 317,
+            "height": 44
+          },
+          "index": 4
+        },
+        "afterTab": {
+          "tag": "button",
+          "className": "role-card cic-frame",
+          "label": "Select a roleChoose an independent or shipboard station.",
+          "focusVisible": true,
+          "outline": "rgb(232, 137, 43) solid 2px",
+          "rect": {
+            "x": 19.5,
+            "y": 692.36,
+            "width": 351,
+            "height": 120
+          },
+          "index": 5
+        },
+        "viewport": {
+          "name": "wide-phone",
+          "width": 390,
+          "height": 844,
+          "connectedPlayers": 2,
+          "safeArea": {
+            "top": 24,
+            "right": 10,
+            "bottom": 16,
+            "left": 10
+          }
+        },
+        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-role-focus-390x844.png"
+      },
+      "shipRoleSelect": {
+        "order": [
+          {
+            "tag": "button",
+            "className": "ship-plot__toggle",
+            "label": "Zoom into DRADIS panel"
+          },
+          {
+            "tag": "button",
+            "className": "settings-button",
+            "label": "Settings"
+          },
+          {
+            "tag": "a",
+            "className": "session-mode__back cic-text-button",
+            "label": "Back to fleet"
+          },
+          {
+            "tag": "a",
+            "className": "role-card cic-frame",
+            "label": "Admiral"
+          },
+          {
+            "tag": "a",
+            "className": "role-card cic-frame",
+            "label": "Executive Officer"
+          },
+          {
+            "tag": "a",
+            "className": "role-card cic-frame",
+            "label": "Wing Commander"
+          },
+          {
+            "tag": "textarea",
+            "className": "g-recaptcha-response",
+            "label": ""
+          }
+        ],
+        "initial": {
+          "tag": "a",
+          "className": "role-card cic-frame",
+          "label": "Admiral",
+          "focusVisible": true,
+          "outline": "rgb(232, 137, 43) solid 2px",
+          "rect": {
+            "x": 37,
+            "y": 724.3,
+            "width": 312.5,
+            "height": 120
+          },
+          "index": 3
+        },
+        "afterTab": {
+          "tag": "a",
+          "className": "role-card cic-frame",
+          "label": "Executive Officer",
+          "focusVisible": true,
+          "outline": "rgb(232, 137, 43) solid 2px",
+          "rect": {
+            "x": 37,
+            "y": 535.3,
+            "width": 312.5,
+            "height": 120
+          },
+          "index": 4
+        },
+        "viewport": {
+          "name": "wide-phone",
+          "width": 390,
+          "height": 844,
+          "connectedPlayers": 2,
+          "safeArea": {
+            "top": 24,
+            "right": 10,
+            "bottom": 16,
+            "left": 10
+          }
+        },
+        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-focus-390x844.png"
+      }
+    },
+    "reducedMotion": {
+      "route": "/roles",
+      "header": {
+        "key": "header",
+        "tag": "header",
+        "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETENOT CONNECTED — AWAI",
+        "rect": {
+          "x": 12,
+          "y": 24,
+          "left": 12,
+          "top": 24,
+          "right": 378,
+          "bottom": 211.42,
+          "width": 366,
+          "height": 187.42
+        }
+      },
+      "sessionReadouts": {
+        "key": "session-readouts",
+        "tag": "div",
+        "text": "Session code603A2 connected to CIC",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 378,
+          "bottom": 64,
+          "width": 238.09,
+          "height": 40
+        }
+      },
+      "ticket": {
+        "key": "session-ticket",
+        "tag": "div",
+        "text": "Session code603A",
+        "rect": {
+          "x": 139.91,
+          "y": 24,
+          "left": 139.91,
+          "top": 24,
+          "right": 218.66,
+          "bottom": 64,
+          "width": 78.75,
+          "height": 40
+        }
+      },
+      "content": {
+        "key": "role-intro",
+        "tag": "div",
+        "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+        "rect": {
+          "x": 19.5,
+          "y": 227.42,
+          "left": 19.5,
+          "top": 227.42,
+          "right": 370.5,
+          "bottom": 343.16,
+          "width": 351,
+          "height": 115.73
+        }
+      },
+      "headerRegions": [
+        {
+          "key": "header",
+          "tag": "header",
+          "text": "Session code603A2 connected to CICAEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETENOT CONNECTED — AWAI",
+          "rect": {
+            "x": 12,
+            "y": 24,
+            "left": 12,
+            "top": 24,
+            "right": 378,
+            "bottom": 211.42,
+            "width": 366,
+            "height": 187.42
+          }
+        },
+        {
+          "key": "session-readouts",
+          "tag": "div",
+          "text": "Session code603A2 connected to CIC",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 238.09,
+            "height": 40
+          }
+        },
+        {
+          "key": "session-ticket",
+          "tag": "div",
+          "text": "Session code603A",
+          "rect": {
+            "x": 139.91,
+            "y": 24,
+            "left": 139.91,
+            "top": 24,
+            "right": 218.66,
+            "bottom": 64,
+            "width": 78.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "connected-player-count",
+          "tag": "div",
+          "text": "2 connected to CIC",
+          "rect": {
+            "x": 228.25,
+            "y": 24,
+            "left": 228.25,
+            "top": 24,
+            "right": 378,
+            "bottom": 64,
+            "width": 149.75,
+            "height": 40
+          }
+        },
+        {
+          "key": "fleet-broadcast",
+          "tag": "aside",
+          "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE",
+          "rect": {
+            "x": 12,
+            "y": 167.17,
+            "left": 12,
+            "top": 167.17,
+            "right": 378,
+            "bottom": 211.42,
+            "width": 366,
+            "height": 44.25
+          }
+        },
+        {
+          "key": "connection-indicator",
+          "tag": "span",
+          "text": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+          "rect": {
+            "x": 16.3,
+            "y": 70.39,
+            "left": 16.3,
+            "top": 70.39,
+            "right": 378,
+            "bottom": 110.39,
+            "width": 361.7,
+            "height": 40
+          }
+        },
+        {
+          "key": "settings",
+          "tag": "button",
+          "text": "⚙",
+          "rect": {
+            "x": 334,
+            "y": 116.78,
+            "left": 334,
+            "top": 116.78,
+            "right": 378,
+            "bottom": 160.78,
+            "width": 44,
+            "height": 44
+          }
+        }
+      ],
+      "routeRegions": [
+        {
+          "key": "role-select[1]",
+          "tag": "main",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "left": 0,
+            "top": 0,
+            "right": 390,
+            "bottom": 1446.42,
+            "width": 390,
+            "height": 1446.42
+          }
+        },
+        {
+          "key": "role-intro[1]",
+          "tag": "div",
+          "text": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUTConnect this deviceChoose how this screen will be used.",
+          "rect": {
+            "x": 19.5,
+            "y": 227.42,
+            "left": 19.5,
+            "top": 227.42,
+            "right": 370.5,
+            "bottom": 343.16,
+            "width": 351,
+            "height": 115.73
+          }
+        },
+        {
+          "key": "role-title[1]",
+          "tag": "h1",
+          "text": "Connect this device",
+          "rect": {
+            "x": 19.5,
+            "y": 275.81,
+            "left": 19.5,
+            "top": 275.81,
+            "right": 370.5,
+            "bottom": 307.81,
+            "width": 351,
+            "height": 32
+          }
+        },
+        {
+          "key": "role-lede[1]",
+          "tag": "p",
+          "text": "Choose how this screen will be used.",
+          "rect": {
+            "x": 19.5,
+            "y": 321.41,
+            "left": 19.5,
+            "top": 321.41,
+            "right": 370.5,
+            "bottom": 343.16,
+            "width": 351,
+            "height": 21.75
+          }
+        },
+        {
+          "key": "seat-board[1]",
+          "tag": "section",
+          "text": "Confirmed core rosterChoose your station3 core seatsAEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM",
+          "rect": {
+            "x": 19.5,
+            "y": 367.16,
+            "left": 19.5,
+            "top": 367.16,
+            "right": 370.5,
+            "bottom": 880.28,
+            "width": 351,
+            "height": 513.13
+          }
+        },
+        {
+          "key": "seat-board-header[1]",
+          "tag": "header",
+          "text": "Confirmed core rosterChoose your station3 core seats",
+          "rect": {
+            "x": 33.3,
+            "y": 380.95,
+            "left": 33.3,
+            "top": 380.95,
+            "right": 356.7,
+            "bottom": 470.3,
+            "width": 323.41,
+            "height": 89.34
+          }
+        },
+        {
+          "key": "seat-board-list[1]",
+          "tag": "ul",
+          "text": "AEGIS // AdmiralOPENCLAIM STATIONAEGIS // Executive OfficerOPENCLAIM STATIONAEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 483.09,
+            "left": 33.3,
+            "top": 483.09,
+            "right": 356.7,
+            "bottom": 825.03,
+            "width": 323.41,
+            "height": 341.94
+          }
+        },
+        {
+          "key": "seat[1]",
+          "tag": "li",
+          "text": "AEGIS // AdmiralOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 483.09,
+            "left": 33.3,
+            "top": 483.09,
+            "right": 356.7,
+            "bottom": 592.28,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[2]",
+          "tag": "li",
+          "text": "AEGIS // Executive OfficerOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 599.47,
+            "left": 33.3,
+            "top": 599.47,
+            "right": 356.7,
+            "bottom": 708.66,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat[3]",
+          "tag": "li",
+          "text": "AEGIS // Wing CommanderOPENCLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 715.84,
+            "left": 33.3,
+            "top": 715.84,
+            "right": 356.7,
+            "bottom": 825.03,
+            "width": 323.41,
+            "height": 109.19
+          }
+        },
+        {
+          "key": "seat-identity[1]",
+          "tag": "div",
+          "text": "AEGIS // AdmiralOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 492.09,
+            "left": 33.3,
+            "top": 492.09,
+            "right": 356.7,
+            "bottom": 527.48,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[2]",
+          "tag": "div",
+          "text": "AEGIS // Executive OfficerOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 608.47,
+            "left": 33.3,
+            "top": 608.47,
+            "right": 356.7,
+            "bottom": 643.86,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-identity[3]",
+          "tag": "div",
+          "text": "AEGIS // Wing CommanderOPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 724.84,
+            "left": 33.3,
+            "top": 724.84,
+            "right": 356.7,
+            "bottom": 760.23,
+            "width": 323.41,
+            "height": 35.39
+          }
+        },
+        {
+          "key": "seat-state[1]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 513.16,
+            "left": 33.3,
+            "top": 513.16,
+            "right": 356.7,
+            "bottom": 527.48,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[2]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 629.53,
+            "left": 33.3,
+            "top": 629.53,
+            "right": 356.7,
+            "bottom": 643.86,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-state[3]",
+          "tag": "span",
+          "text": "OPEN",
+          "rect": {
+            "x": 33.3,
+            "y": 745.91,
+            "left": 33.3,
+            "top": 745.91,
+            "right": 356.7,
+            "bottom": 760.23,
+            "width": 323.41,
+            "height": 14.33
+          }
+        },
+        {
+          "key": "seat-action[1]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 540.28,
+            "left": 33.3,
+            "top": 540.28,
+            "right": 356.7,
+            "bottom": 584.28,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[2]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 656.66,
+            "left": 33.3,
+            "top": 656.66,
+            "right": 356.7,
+            "bottom": 700.66,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "seat-action[3]",
+          "tag": "button",
+          "text": "CLAIM STATION",
+          "rect": {
+            "x": 33.3,
+            "y": 773.03,
+            "left": 33.3,
+            "top": 773.03,
+            "right": 356.7,
+            "bottom": 817.03,
+            "width": 323.41,
+            "height": 44
+          }
+        },
+        {
+          "key": "role-grid[1]",
+          "tag": "div",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.🔓Lock out more GMs being addedUnlockedSelect a ro",
+          "rect": {
+            "x": 19.5,
+            "y": 904.28,
+            "left": 19.5,
+            "top": 904.28,
+            "right": 370.5,
+            "bottom": 1414.42,
+            "width": 351,
+            "height": 510.14
+          }
+        },
+        {
+          "key": "role-card[1]",
+          "tag": "form",
+          "text": "Join as GMInput GM Name🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 19.5,
+            "y": 904.28,
+            "left": 19.5,
+            "top": 904.28,
+            "right": 370.5,
+            "bottom": 1116.05,
+            "width": 351,
+            "height": 211.77
+          }
+        },
+        {
+          "key": "role-card[2]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 19.5,
+            "y": 1132.05,
+            "left": 19.5,
+            "top": 1132.05,
+            "right": 370.5,
+            "bottom": 1278.42,
+            "width": 351,
+            "height": 146.38
+          }
+        },
+        {
+          "key": "role-card[3]",
+          "tag": "button",
+          "text": "Select a roleChoose an independent or shipboard station.",
+          "rect": {
+            "x": 19.5,
+            "y": 1294.42,
+            "left": 19.5,
+            "top": 1294.42,
+            "right": 370.5,
+            "bottom": 1414.42,
+            "width": 351,
+            "height": 120
+          }
+        },
+        {
+          "key": "role-card-name[1]",
+          "tag": "label",
+          "text": "Input GM Name",
+          "rect": {
+            "x": 36.5,
+            "y": 974.08,
+            "left": 36.5,
+            "top": 974.08,
+            "right": 353.5,
+            "bottom": 999.08,
+            "width": 317,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-name[2]",
+          "tag": "span",
+          "text": "Lock out more GMs being added",
+          "rect": {
+            "x": 36.5,
+            "y": 1183.44,
+            "left": 36.5,
+            "top": 1183.44,
+            "right": 353.5,
+            "bottom": 1233.44,
+            "width": 317,
+            "height": 50
+          }
+        },
+        {
+          "key": "role-card-name[3]",
+          "tag": "span",
+          "text": "Select a role",
+          "rect": {
+            "x": 36.5,
+            "y": 1344.44,
+            "left": 36.5,
+            "top": 1344.44,
+            "right": 353.5,
+            "bottom": 1369.44,
+            "width": 317,
+            "height": 25
+          }
+        },
+        {
+          "key": "role-card-description[1]",
+          "tag": "span",
+          "text": "🔐 Log in through Settings to unlock GM access.",
+          "rect": {
+            "x": 36.5,
+            "y": 1060.67,
+            "left": 36.5,
+            "top": 1060.67,
+            "right": 353.5,
+            "bottom": 1099.05,
+            "width": 317,
+            "height": 38.38
+          }
+        },
+        {
+          "key": "role-card-description[2]",
+          "tag": "span",
+          "text": "Unlocked",
+          "rect": {
+            "x": 36.5,
+            "y": 1242.23,
+            "left": 36.5,
+            "top": 1242.23,
+            "right": 353.5,
+            "bottom": 1261.42,
+            "width": 317,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "role-card-description[3]",
+          "tag": "span",
+          "text": "Choose an independent or shipboard station.",
+          "rect": {
+            "x": 36.5,
+            "y": 1378.23,
+            "left": 36.5,
+            "top": 1378.23,
+            "right": 353.5,
+            "bottom": 1397.42,
+            "width": 317,
+            "height": 19.19
+          }
+        },
+        {
+          "key": "gm-claim-control[1]",
+          "tag": "button",
+          "text": "Join as GM",
+          "rect": {
+            "x": 36.5,
+            "y": 921.28,
+            "left": 36.5,
+            "top": 921.28,
+            "right": 353.5,
+            "bottom": 965.28,
+            "width": 317,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-name-input[1]",
+          "tag": "input",
+          "text": "",
+          "rect": {
+            "x": 36.5,
+            "y": 1007.88,
+            "left": 36.5,
+            "top": 1007.88,
+            "right": 353.5,
+            "bottom": 1051.88,
+            "width": 317,
+            "height": 44
+          }
+        },
+        {
+          "key": "gm-lock-control[1]",
+          "tag": "button",
+          "text": "🔓Lock out more GMs being addedUnlocked",
+          "rect": {
+            "x": 19.5,
+            "y": 1132.05,
+            "left": 19.5,
+            "top": 1132.05,
+            "right": 370.5,
+            "bottom": 1278.42,
+            "width": 351,
+            "height": 146.38
+          }
+        }
+      ],
+      "plot": null,
+      "intersections": [],
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "187.421875px",
+      "sessionPaddingTop": "227.422px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "connectedPlayerCount": 2,
+      "motion": "reduce",
+      "reducedTicker": {
+        "ticker": {
+          "x": 12,
+          "y": 167.17,
+          "left": 12,
+          "top": 167.17,
+          "right": 378,
+          "bottom": 211.42,
+          "width": 366,
+          "height": 44.25
+        },
+        "message": {
+          "x": 24.19,
+          "y": 173.77,
+          "left": 24.19,
+          "top": 173.77,
+          "right": 365.81,
+          "bottom": 204.83,
+          "width": 341.63,
+          "height": 31.06
+        },
+        "text": "AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE",
+        "whiteSpace": "normal",
+        "overflowWrap": "anywhere",
+        "clientWidth": 364,
+        "scrollWidth": 364,
+        "clientHeight": 42,
+        "scrollHeight": 42
+      },
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 1446,
+        "horizontalOverflow": false,
+        "mainHeight": 1446.421875
+      },
+      "interactive": {
+        "count": 8,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844,
+        "connectedPlayers": 2,
+        "safeArea": {
+          "top": 24,
+          "right": 10,
+          "bottom": 16,
+          "left": 10
+        }
+      },
+      "safeArea": {
+        "top": 24,
+        "right": 10,
+        "bottom": 16,
+        "left": 10
+      },
+      "connectedPlayersSeed": 2,
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-reduced-motion-390x844.png"
+    }
+  },
+  "assertions": {
+    "headerBeforeContent": true,
+    "sessionTicketOutsideRoleContent": true,
+    "shipDradisOutsideShipRoleContent": true,
+    "allRoleSelectRegionsMeasured": true,
+    "noIntersections": true,
+    "noHorizontalOverflow": true,
+    "touchViewportInteractiveTargetsAtLeast44px": true,
+    "settingsControlsAtLeast44px": true,
+    "connectedPlayerCounts": [
+      1,
+      2,
+      8,
+      20
+    ],
+    "connectedPlayerCountVariantsCovered": true,
+    "safeAreasVerified": true,
+    "keyboardOrderAndFocusVerified": true,
+    "absoluteHeaderLeavesViewportAfterScroll": true,
+    "reducedMotionTickerWrapped": true,
+    "portraitAndLandscapeCovered": true
+  }
+}

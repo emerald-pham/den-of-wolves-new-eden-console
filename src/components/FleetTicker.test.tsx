@@ -72,6 +72,26 @@ it('shows readable stationary copy in reduced motion and clears finite messages'
   act(() => vi.advanceTimersByTime(60000));
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
+it('wraps the stationary bulletin inside the reduced-motion ticker', () => {
+  setMotionOverride('reduce');
+  const { container } = render(<FleetTicker message={{
+    id: 'long-reduced',
+    text: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+    tone: 'normal',
+    gap: 'long',
+  }} />);
+  const stylesheet = document.createElement('style');
+  stylesheet.textContent = readFileSync('src/components/fleetTicker.css', 'utf8');
+  document.head.append(stylesheet);
+  try {
+    const message = container.querySelector<HTMLElement>('.fleet-ticker__message');
+    expect(message).toBeTruthy();
+    expect(getComputedStyle(message!).whiteSpace).toBe('normal');
+    expect(getComputedStyle(message!).overflowWrap).toBe('anywhere');
+  } finally {
+    stylesheet.remove();
+  }
+});
 it('duplicates every moving broadcast into two seamless, screen-filling groups', () => {
   const { container } = render(<FleetTicker message={alert} />);
   const groups = container.querySelectorAll('.fleet-ticker__group');

@@ -38,3 +38,20 @@ it('wraps long vessel names in the shared base instead of widening phone console
   const name = css.match(/^\.ship-console__name\s*\{([^}]*)\}/m)?.[1] ?? '';
   expect(name).toContain('overflow-wrap: anywhere');
 });
+
+it('reserves measured session chrome for role routes in short landscape', () => {
+  expect(css).toMatch(
+    /@media\s*\(max-width:\s*42rem\),\s*\(max-height:\s*42rem\)[\s\S]*?\.role-select,\s*\.session-mode\s*\{[^}]*padding-top:\s*max\(\s*clamp\(6rem,\s*14vh,\s*9rem\),\s*calc\(max\(0\.75rem,\s*env\(safe-area-inset-top\)\)\s*\+\s*var\(--app-header-height,\s*4\.25rem\)\s*\+\s*1rem\)\s*\)/s,
+  );
+});
+
+it('keeps the ship-role DRADIS reservation after shared short-viewport padding', () => {
+  const sharedReservation = css.indexOf('@media (max-width: 42rem), (max-height: 42rem)');
+  const shipReservation = css.indexOf('.session-mode.ship-role-select', sharedReservation);
+
+  expect(sharedReservation).toBeGreaterThanOrEqual(0);
+  expect(shipReservation).toBeGreaterThan(sharedReservation);
+  expect(css.slice(shipReservation, shipReservation + 260)).toMatch(
+    /\.session-mode\.ship-role-select\s*\{[^}]*align-content:\s*start;[^}]*padding-top:\s*calc\(\s*var\(--console-plot-top\)\s*\+\s*1rem\s*\+\s*var\(--ship-plot-widget-size\)\s*\+\s*1rem\s*\)/s,
+  );
+});
