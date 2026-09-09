@@ -269,6 +269,14 @@ async function navigate(cdp, appUrl, route, seed) {
   await wait(350);
 }
 
+async function ensureAppOrigin(cdp, appUrl) {
+  await cdp.send('Page.navigate', { url: `${appUrl}/?prompt603a=bootstrap#/roles` });
+  await waitFor(
+    () => evaluate(cdp, `location.origin === ${JSON.stringify(appUrl)}`),
+    'local app origin',
+  );
+}
+
 async function screenshot(cdp, filename) {
   const result = await cdp.send('Page.captureScreenshot', {
     format: 'png',
@@ -382,6 +390,7 @@ async function main() {
     cdp = new CdpSession(socketUrl);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
+    await ensureAppOrigin(cdp, appUrl);
     const records = [];
     for (const viewport of VIEWPORTS) {
       await cdp.send('Emulation.setDeviceMetricsOverride', {
