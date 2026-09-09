@@ -11,10 +11,25 @@ const renderWorkspace = (children: ReactNode) => render(<MemoryRouter>{children}
 
 describe('fleet system reference workspaces', () => {
   it.each(SHIPS.flatMap(ship => ship.roles.map(role => ({ ship, role }))))(
-    'gives $role.id real references without gameplay mutations', async ({ ship, role }) => {
+    'gives $role.id complete command references without gameplay mutations', async ({ ship, role }) => {
       renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={7} galacticCoordinate="0102" />);
       expect(screen.queryByText('Scaffold ready')).not.toBeInTheDocument();
-      expect(screen.getByRole('region', { name: `${ship.name} ${role.name} console` })).toBeInTheDocument();
+      const workspace = screen.getByRole('region', {
+        name: `${ship.name} ${role.name} console`,
+      });
+      expect(workspace).toBeInTheDocument();
+      expect(workspace).toHaveTextContent(`${ship.name} command console // ${role.name}`);
+      expect(workspace).toHaveTextContent(/galactic coordinates.*0102/i);
+      expect(workspace).toHaveTextContent(/fuel in stores.*7/i);
+      expect(workspace).toHaveTextContent(/reactor capacity.*consoles/i);
+      expect(workspace).toHaveTextContent(/damage state.*0 systems/i);
+      expect(workspace).toHaveTextContent(/jump requirement.*short.*medium.*long/i);
+      expect(workspace).toHaveTextContent(
+        /maintenance and damage synchronized.*upgrades and procedure outcomes are tracked at the table/i,
+      );
+      expect(screen.getByRole('navigation', {
+        name: `${ship.name} ${role.name} console pages`,
+      })).toBeInTheDocument();
       if (role.id === 'admiral') {
         expect(screen.getByRole('heading', { name: 'Maintenance cycle' })).toBeVisible();
         return;
@@ -49,32 +64,9 @@ describe('fleet system reference workspaces', () => {
     expect(screen.getByRole('link', { name: /open maliades shuttle console/i }))
       .toHaveAttribute('href', '/shuttles/maliades');
   });
-
-  it.each(SHIPS.flatMap(ship => ship.roles.map(role => ({ ship, role }))))(
-    'keeps $ship.name $role.name aligned with the AEGIS Admiral command presentation',
-    ({ ship, role }) => {
-      renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={7} galacticCoordinate="0102" />);
-
-      const workspace = screen.getByRole('region', {
-        name: `${ship.name} ${role.name} console`,
-      });
-      expect(workspace).toHaveTextContent(`${ship.name} command console // ${role.name}`);
-      expect(workspace).toHaveTextContent(/galactic coordinates.*0102/i);
-      expect(workspace).toHaveTextContent(/fuel in stores.*7/i);
-      expect(workspace).toHaveTextContent(/reactor capacity.*consoles/i);
-      expect(workspace).toHaveTextContent(/damage state.*0 systems/i);
-      expect(workspace).toHaveTextContent(/jump requirement.*short.*medium.*long/i);
-      expect(workspace).toHaveTextContent(
-        /maintenance and damage synchronized.*upgrades and procedure outcomes are tracked at the table/i,
-      );
-      expect(screen.getByRole('navigation', {
-        name: `${ship.name} ${role.name} console pages`,
-      })).toBeInTheDocument();
-    },
-  );
 });
 
-it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and maintenance together', (ship) => {
+it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name maintenance reference together', (ship) => {
   const role = ship.roles[0];
   if (!role) throw new Error('Expected a ship role');
   renderWorkspace(<FleetSystemsWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0000" />);
@@ -82,10 +74,6 @@ it.each(SHIPS.filter(ship => ship.maintenance))('shows $name systems and mainten
   expect(screen.getByRole('list', { name: `${ship.name} maintenance sequence` })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Storage' })).toBeVisible();
   expect(screen.getByRole('heading', { name: 'Role procedures' })).toBeVisible();
-});
-
-it.each(SHIPS.filter(ship => ship.maintenance))('reads out the normal jump-drive failure roll for $name', (ship) => {
-  renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
 
   const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
   const baseline = jump.getByText(/charged:|airspace open|short \/\//i, { selector: 'p' });
@@ -95,10 +83,7 @@ it.each(SHIPS.filter(ship => ship.maintenance))('reads out the normal jump-drive
   expect(jump.queryByText('Normal', { selector: 'dt' })).not.toBeInTheDocument();
   expect(baseline.compareDocumentPosition(normalFailure) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(normalFailure.compareDocumentPosition(condition) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-});
 
-it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards inside the printed maintenance steps', (ship) => {
-  renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
   const steps = screen.getByRole('list', { name: `${ship.name} maintenance sequence` });
   const entries = Array.from(steps.children);
   expect(entries).toHaveLength(6);
@@ -110,15 +95,11 @@ it.each(SHIPS.filter(ship => ship.maintenance))('places $name system cards insid
   expect(steps).not.toContainElement(screen.getByRole('heading', { name: 'Jump Drive' }));
   const production = (ship.systems ?? []).filter(system => !['Storage', 'Reactor', 'Shuttle Bay', 'Jump Drive', 'Fighter Bay', 'Ram Scoop'].includes(system.name));
   for (const system of production) expect(entries[4]).toContainElement(screen.getByRole('heading', { name: system.name }));
-});
 
-
-it.each(['capybara', 'icebreaker'])('separates conditional rules for %s into readable labeled rows', (id) => {
-  const ship = SHIPS.find(ship => ship.id === id)!;
-  renderWorkspace(<FleetSystemsWorkspace ship={ship} role={ship.roles[0]!} fuel={3} galacticCoordinate="0000" />);
-  const jump = within(screen.getByRole('article', { name: 'Jump Drive system // operational' }));
-  expect(jump.getByText('If Upgraded (By Shepherd)', { selector: 'dt' })).toBeVisible();
-  expect(jump.getByText('If Damaged', { selector: 'dt' })).toBeVisible();
-  expect(jump.getByText('jumps fail on 1–3.', { selector: 'dd' })).toBeVisible();
-  expect(jump.getByText('Condition', { selector: 'dt' })).toBeVisible();
+  if (ship.id === 'capybara' || ship.id === 'icebreaker') {
+    expect(jump.getByText('If Upgraded (By Shepherd)', { selector: 'dt' })).toBeVisible();
+    expect(jump.getByText('If Damaged', { selector: 'dt' })).toBeVisible();
+    expect(jump.getByText('jumps fail on 1–3.', { selector: 'dd' })).toBeVisible();
+    expect(jump.getByText('Condition', { selector: 'dt' })).toBeVisible();
+  }
 });

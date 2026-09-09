@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error The executable gate is intentionally plain JavaScript.
-import { TEST_GROWTH_REVIEW_LIMITS, reviewTestGrowth, summarizeTestGrowthDiff } from '../../scripts/test-growth-gate.mjs';
+import {
+  TEST_GROWTH_REVIEW_LIMITS,
+  findNewDuplicateTestMatrices,
+  reviewTestGrowth,
+  summarizeTestGrowthDiff,
+} from '../../scripts/test-growth-gate.mjs';
 
 describe('test-growth review gate', () => {
   it('counts added test lines and declared cases without treating production code as tests', () => {
@@ -104,5 +109,62 @@ describe('test-growth review gate', () => {
 
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/without a new test case/i);
+  });
+
+  it('finds a newly duplicated parameter matrix without charging pre-existing debt', () => {
+    const duplicate = `
+      it.each(CASES)('first contract', value => expect(value).toBeTruthy());
+      test.each(CASES)('second contract', value => expect(value).toBeTruthy());
+    `;
+
+    expect(findNewDuplicateTestMatrices({
+      baseSources: {
+        'src/new-duplication.test.ts': `it.each(CASES)('first contract', () => {});`,
+        'src/existing-debt.test.ts': duplicate,
+      },
+      headSources: {
+        'src/new-duplication.test.ts': duplicate,
+        'src/existing-debt.test.ts': duplicate,
+      },
+    })).toEqual([{
+      filePath: 'src/new-duplication.test.ts',
+      matrix: 'CASES',
+      baseUses: 1,
+      headUses: 2,
+    }]);
+  });
+
+  it('requires a justification for a newly duplicated parameter matrix', () => {
+    const duplicateMatrix = [{
+      filePath: 'src/example.test.ts',
+      matrix: 'SHIPS.flatMap(ship => ship.roles)',
+      baseUses: 1,
+      headUses: 2,
+    }];
+    const summary = {
+      changedTestFiles: ['src/example.test.ts'],
+      addedTestFiles: 1,
+      addedTestLines: 12,
+      addedTestCases: 1,
+      linesPerAddedCase: 12,
+      newDuplicateTestMatrices: duplicateMatrix,
+      baseSha: 'base-sha',
+      headSha: 'head-sha',
+    };
+
+    expect(reviewTestGrowth(summary)).toMatchObject({
+      passed: false,
+      reviewRequired: true,
+      waived: false,
+    });
+    expect(reviewTestGrowth(summary).message).toMatch(/duplicate parameter matrix/i);
+    expect(reviewTestGrowth(
+      summary,
+      'The two security contracts intentionally share one exhaustive role matrix.',
+    )).toMatchObject({
+      passed: true,
+      reviewRequired: true,
+      waived: true,
+    });
   });
 });

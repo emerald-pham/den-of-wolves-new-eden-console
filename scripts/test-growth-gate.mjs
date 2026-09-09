@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const execFileAsync = promisify(execFile);
 
@@ -17,6 +18,58 @@ const TEST_CASE_PATTERN = /^\s*(?:it|test)(?:\.(?:each|skip|todo))?\s*\(/;
 
 export function isTestFilePath(filePath) {
   return typeof filePath === 'string' && TEST_FILE_PATTERN.test(filePath);
+}
+
+function testMatrixUsageCounts(source, filePath) {
+  const scriptKind = /\.[cm]?[jt]sx$/i.test(filePath)
+    ? ts.ScriptKind.TSX
+    : ts.ScriptKind.TS;
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    String(source ?? ''),
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKind,
+  );
+  const printer = ts.createPrinter({ removeComments: true });
+  const counts = new Map();
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'each' &&
+      ts.isIdentifier(node.expression.expression) &&
+      ['it', 'test'].includes(node.expression.expression.text) &&
+      node.arguments[0]
+    ) {
+      const matrix = printer
+        .printNode(ts.EmitHint.Expression, node.arguments[0], sourceFile)
+        .trim();
+      counts.set(matrix, (counts.get(matrix) ?? 0) + 1);
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return counts;
+}
+
+export function findNewDuplicateTestMatrices({ baseSources = {}, headSources = {} } = {}) {
+  const duplicates = [];
+
+  for (const filePath of Object.keys(headSources).sort()) {
+    const baseCounts = testMatrixUsageCounts(baseSources[filePath], filePath);
+    const headCounts = testMatrixUsageCounts(headSources[filePath], filePath);
+    for (const [matrix, headUses] of headCounts) {
+      const baseUses = baseCounts.get(matrix) ?? 0;
+      if (headUses > Math.max(baseUses, 1)) {
+        duplicates.push({ filePath, matrix, baseUses, headUses });
+      }
+    }
+  }
+
+  return duplicates;
 }
 
 function normalizeDiffPath(filePath) {
@@ -92,6 +145,7 @@ export function summarizeTestGrowthDiff({ baseSha, headSha, numstat, patch }) {
     ...parsedNumstat,
     addedTestCases,
     linesPerAddedCase,
+    newDuplicateTestMatrices: [],
   };
 }
 
@@ -99,7 +153,12 @@ export function reviewTestGrowth(summary, justification = '') {
   const normalizedJustification = typeof justification === 'string'
     ? justification.trim()
     : '';
+  const newDuplicateTestMatrices = Array.isArray(summary.newDuplicateTestMatrices)
+    ? summary.newDuplicateTestMatrices
+    : [];
   const reviewRequired = (
+    newDuplicateTestMatrices.length > 0
+  ) || (
     summary.addedTestLines > 0 && summary.addedTestCases === 0
   ) || (
     summary.addedTestLines >= TEST_GROWTH_REVIEW_LIMITS.minimumAddedLines &&
@@ -127,9 +186,15 @@ export function reviewTestGrowth(summary, justification = '') {
     };
   }
 
-  const reason = summary.addedTestCases === 0
-    ? `adds ${summary.addedTestLines} test lines without a new test case`
-    : `adds ${summary.addedTestLines} test lines for ${summary.addedTestCases} new test cases (${summary.linesPerAddedCase.toFixed(1)} lines per case)`;
+  let reason;
+  if (newDuplicateTestMatrices.length > 0) {
+    const duplicate = newDuplicateTestMatrices[0];
+    reason = `introduces a duplicate parameter matrix in ${duplicate.filePath}: ${duplicate.matrix} (${duplicate.baseUses} baseline uses, ${duplicate.headUses} current uses)`;
+  } else if (summary.addedTestCases === 0) {
+    reason = `adds ${summary.addedTestLines} test lines without a new test case`;
+  } else {
+    reason = `adds ${summary.addedTestLines} test lines for ${summary.addedTestCases} new test cases (${summary.linesPerAddedCase.toFixed(1)} lines per case)`;
+  }
   return {
     ...summary,
     passed: false,
@@ -148,6 +213,14 @@ async function runGit(args, cwd) {
   return result.stdout;
 }
 
+async function readGitSource(git, revision, filePath, cwd) {
+  try {
+    return await git(['show', `${revision}:${filePath}`], cwd);
+  } catch {
+    return '';
+  }
+}
+
 export async function measureTestGrowth({
   baseSha,
   headSha = 'HEAD',
@@ -160,7 +233,25 @@ export async function measureTestGrowth({
     git(['diff', '--numstat', diffRange, '--'], cwd),
     git(['diff', '--unified=0', diffRange, '--'], cwd),
   ]);
-  return summarizeTestGrowthDiff({ baseSha, headSha, numstat, patch });
+  const summary = summarizeTestGrowthDiff({ baseSha, headSha, numstat, patch });
+  const sourcePairs = await Promise.all(summary.changedTestFiles.map(async (filePath) => [
+    filePath,
+    await readGitSource(git, baseSha, filePath, cwd),
+    await readGitSource(git, headSha, filePath, cwd),
+  ]));
+  const baseSources = Object.fromEntries(sourcePairs.map(([filePath, baseSource]) => [
+    filePath,
+    baseSource,
+  ]));
+  const headSources = Object.fromEntries(sourcePairs.map(([filePath, , headSource]) => [
+    filePath,
+    headSource,
+  ]));
+
+  return {
+    ...summary,
+    newDuplicateTestMatrices: findNewDuplicateTestMatrices({ baseSources, headSources }),
+  };
 }
 
 export function formatTestGrowthReview(result) {
@@ -174,6 +265,7 @@ export function formatTestGrowthReview(result) {
     `added lines=${result.addedTestLines}`,
     `added cases=${result.addedTestCases}`,
     `lines per added case=${ratio}`,
+    `new duplicate matrices=${result.newDuplicateTestMatrices?.length ?? 0}`,
     result.waived ? 'justification recorded=yes' : 'justification recorded=no',
   ].join('; ');
 }

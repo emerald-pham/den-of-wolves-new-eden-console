@@ -221,9 +221,13 @@ committed and reruns its changelog-coverage gate before recording the receipt.
 When the task changes test files, validation also runs the test-growth review
 gate. It pauses when the committed diff adds at least 160 test lines and at
 least 40 lines per newly declared test case, or adds test lines without a new
-case. A legitimate fixture, matrix, security, or composition expansion may
-continue with `--test-growth-justification "..."`; the metrics and explanation
-are stored in the receipt. Preview the same check with
+case. It also pauses when a changed test file newly reuses the same `it.each`
+or `test.each` parameter matrix in more than one test declaration, because the
+assertions can usually share one render or fixture pass. Existing duplicate
+matrices are recorded as baseline debt and do not block unrelated changes. A
+legitimate fixture, matrix, security, or composition expansion may continue
+with `--test-growth-justification "..."`; the metrics and explanation are
+stored in the receipt. Preview the same check with
 `npm run test:growth -- --base main`.
 The review flags are explicit human attestations; the receipt cannot prove that
 a person truly performed the review.
