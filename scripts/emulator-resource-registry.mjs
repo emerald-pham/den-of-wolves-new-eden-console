@@ -2185,6 +2185,7 @@ async function beginEntry(filePath, options) {
  *   ['test-growth-justification']?: string,
  *   release?: any,
  *   commandRunner?: (command: string, cwd: string, options?: Record<string, unknown>) => Promise<void>,
+ *   repositoryDirectory?: string,
  *   signalSource?: NodeJS.Process,
  * }} options
  */
@@ -2282,6 +2283,7 @@ export async function validateCoordinationEntry(filePath, options) {
 
   const commandRunner = options.commandRunner ?? runValidationCommand;
   const needsEmulator = preparation.plan.commands.includes('npm run test:all');
+  const emulatorRepositoryDirectory = options.repositoryDirectory ?? process.cwd();
   const signalSource = options.signalSource ?? process;
   const validationAbort = new AbortController();
   let interruptedSignal;
@@ -2302,7 +2304,7 @@ export async function validateCoordinationEntry(filePath, options) {
     }
     preparedEmulator = needsEmulator
       ? await prepareValidationEmulator({
-          repositoryDirectory: process.cwd(),
+          repositoryDirectory: emulatorRepositoryDirectory,
           coordinationPath: filePath,
         })
       : undefined;

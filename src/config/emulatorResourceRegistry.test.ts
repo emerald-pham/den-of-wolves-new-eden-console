@@ -741,10 +741,16 @@ describe('local emulator coordination', () => {
   });
 
   it('records a passing validation receipt against the exact branch SHA', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-validation-receipt-${randomUUID()}`);
+    const firebasePath = resolve(root, 'firebase.json');
+    const generatedConfigPath = resolve(root, 'firebase.local.json');
+    const generatedEnvironmentPath = resolve(root, '.env.emulators.local');
     const filePath = resolve(tmpdir(), `den-of-wolves-validation-${randomUUID()}.json`);
     const commands: string[] = [];
 
     try {
+      await mkdir(root, { recursive: true });
+      await writeFile(firebasePath, JSON.stringify({ emulators: {} }), 'utf8');
       await writeFile(filePath, JSON.stringify({
         version: 1,
         versionAgreement: 'agreement',
@@ -759,6 +765,7 @@ describe('local emulator coordination', () => {
       await validateCoordinationEntry(filePath, {
         id: releaseEntry.id,
         release: releaseState(),
+        repositoryDirectory: root,
         commandRunner: async (command) => {
           commands.push(command);
         },
@@ -787,6 +794,9 @@ describe('local emulator coordination', () => {
         },
       });
     } finally {
+      await unlink(firebasePath).catch(() => undefined);
+      await unlink(generatedConfigPath).catch(() => undefined);
+      await unlink(generatedEnvironmentPath).catch(() => undefined);
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }

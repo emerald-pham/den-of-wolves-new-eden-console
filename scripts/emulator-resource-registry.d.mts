@@ -212,6 +212,7 @@ export function validateCoordinationEntry(
     'visual-review'?: string;
     release?: ReleaseState;
     commandRunner?: (command: string, cwd: string) => Promise<void>;
+    repositoryDirectory?: string;
   },
 ): Promise<CoordinationEntry>;
 export function finishCoordinationEntry(
