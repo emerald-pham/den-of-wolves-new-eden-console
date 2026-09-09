@@ -39,6 +39,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { applyRolePreset, confirmSetup, createSession } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -317,4 +318,81 @@ it('rejects a setup replay when the tuple payload changes under the same request
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a setup replay when only the expected setup revision changes', async () => {
+  const activeRoleIds = [
+    'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+    'quellon-explorer', 'refinery-124-pdf-colonel',
+    'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+  ];
+  const reply = {
+    status: 'committed', requestId: 'setup-revision-1', setupRevision: 1,
+    setup: {
+      playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+      dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+      activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    },
+    activeRoleIds,
+    activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/setupMutationRequests/setup-revision-1') {
+      return snapshot({
+        action: 'confirm-setup', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+        fingerprint: {
+          playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+          dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+          expectedSetupRevision: 0,
+        },
+        reply,
+      });
+    }
+    if (ref.path === 'sessions/s1') {
+      return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 1, activeRoleIds });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'setup-revision-1', expectedSetupRevision: 1,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('backfills canonical metadata on a retained legacy seat without touching its holder pointer', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/setupMutationRequests/migrate-seat-1') return snapshot({}, false);
+    if (ref.path === 'sessions/s1') {
+      return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/seats/admiral') {
+      return snapshot({ status: 'claimed', holderUid: 'u9', claimedAt: 'legacy-claim', label: 'Admiral' });
+    }
+    if (ref.path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    return snapshot({}, false);
+  });
+
+  await confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'migrate-seat-1', expectedSetupRevision: 0,
+    playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 8,
+    dioneEnabled: false, capybaraEnabled: false, activeRoleIds,
+  }));
+
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    { roleId: 'admiral', label: 'AEGIS // Admiral', factionId: 'aegis' },
+  );
+  expect(mock.update).not.toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/admiral' }),
+    expect.objectContaining({ status: expect.anything(), holderUid: expect.anything() }),
+  );
 });

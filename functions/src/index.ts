@@ -937,7 +937,28 @@ async function reconcileStableSeats(
   }
   for (const seat of stableSeatsForRoles(nextRoleIds)) {
     const stored = byRole.get(seat.id);
-    if (stored?.exists && current.has(seat.id)) continue;
+    if (stored?.exists && current.has(seat.id)) {
+      const canonicalFields = {
+        roleId: seat.roleId,
+        label: seat.label,
+        factionId: seat.factionId,
+      };
+      if (
+        stored.get('roleId') !== canonicalFields.roleId ||
+        stored.get('label') !== canonicalFields.label ||
+        stored.get('factionId') !== canonicalFields.factionId
+      ) {
+        tx.update(db.doc(`sessions/${sessionId}/seats/${seat.id}`), canonicalFields);
+      }
+      continue;
+    }
+    if (stored?.exists) {
+      tx.update(db.doc(`sessions/${sessionId}/seats/${seat.id}`), {
+        ...seat,
+        sessionId,
+      });
+      continue;
+    }
     tx.set(db.doc(`sessions/${sessionId}/seats/${seat.id}`), {
       ...seat,
       sessionId,
@@ -989,11 +1010,13 @@ type SetupCommandFingerprint = {
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
   readonly activeRoleIds: readonly string[];
+  readonly expectedSetupRevision: number;
 };
 
 function setupCommandFingerprint(
   configuration: ReturnType<typeof normalizeSessionConfiguration>,
   activeRoleIds: readonly string[],
+  expectedSetupRevision: number,
 ): SetupCommandFingerprint {
   return {
     playerCount: configuration.playerCount,
@@ -1003,6 +1026,7 @@ function setupCommandFingerprint(
     dioneEnabled: configuration.dioneEnabled,
     capybaraEnabled: configuration.capybaraEnabled,
     activeRoleIds: [...activeRoleIds],
+    expectedSetupRevision,
   };
 }
 
@@ -1018,6 +1042,7 @@ function sameSetupCommandFingerprint(
     candidate.turnLimit === expected.turnLimit &&
     candidate.dioneEnabled === expected.dioneEnabled &&
     candidate.capybaraEnabled === expected.capybaraEnabled &&
+    candidate.expectedSetupRevision === expected.expectedSetupRevision &&
     Array.isArray(candidate.activeRoleIds) &&
     candidate.activeRoleIds.length === expected.activeRoleIds.length &&
     candidate.activeRoleIds.every((roleId, index) => roleId === expected.activeRoleIds[index]);
@@ -1065,7 +1090,11 @@ export const confirmSetup = onCall<{
       ) {
         throw new HttpsError('failed-precondition', 'This request id belongs to a different setup command.');
       }
-      const expectedFingerprint = setupCommandFingerprint(command.configuration, command.activeRoleIds);
+      const expectedFingerprint = setupCommandFingerprint(
+        command.configuration,
+        command.activeRoleIds,
+        command.expectedSetupRevision,
+      );
       if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
         throw new HttpsError('failed-precondition', 'This request id was already used for a different setup tuple.');
       }
@@ -1082,7 +1111,11 @@ export const confirmSetup = onCall<{
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
-    const fingerprint = setupCommandFingerprint(command.configuration, command.activeRoleIds);
+    const fingerprint = setupCommandFingerprint(
+      command.configuration,
+      command.activeRoleIds,
+      command.expectedSetupRevision,
+    );
     const reply = {
       status: 'committed' as const,
       requestId: command.requestId,
@@ -1160,6 +1193,7 @@ export const setFacilitatorResponsibility = onCall<{
   expectedSetupRevision?: unknown;
   responsibility?: unknown;
   mode?: unknown;
+  targetInstanceId?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
@@ -1181,6 +1215,7 @@ export const setFacilitatorResponsibility = onCall<{
       actorUid: uid,
       responsibility: responsibility.responsibility,
       mode: responsibility.mode,
+      targetInstanceId: responsibility.targetInstanceId ?? null,
       expectedSetupRevision: responsibility.expectedSetupRevision,
     } as const;
     if (prior.exists) {
@@ -1209,6 +1244,16 @@ export const setFacilitatorResponsibility = onCall<{
       throw new HttpsError('failed-precondition', 'Setup changed. Refresh facilitator responsibilities before saving.');
     }
 
+    const targetInstanceId = responsibility.targetInstanceId ?? responsibility.instanceId;
+    if (
+      instances.docs.length > 1 &&
+      (responsibility.mode === 'share' || responsibility.mode === 'handoff') &&
+      responsibility.targetInstanceId === undefined
+    ) {
+      throw new HttpsError('invalid-argument', 'targetInstanceId is required when multiple facilitator instances are active.');
+    }
+    const target = instances.docs.find((candidate) => candidate.id === targetInstanceId);
+    if (!target) throw new HttpsError('not-found', 'No such target facilitator instance.');
     const onlyInstance = instances.docs.length === 1;
     if (onlyInstance && responsibility.mode === 'drop') {
       throw new HttpsError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.');
@@ -1225,13 +1270,16 @@ export const setFacilitatorResponsibility = onCall<{
         instance.id,
         current.filter((lane) => lane !== responsibility.responsibility),
       );
+    } else if (responsibility.mode === 'share') {
+      const targetResponsibilities = nextByInstance.get(target.id) ?? [];
+      nextByInstance.set(target.id, [...new Set([...targetResponsibilities, responsibility.responsibility])]);
     } else {
       for (const [candidateId, lanes] of nextByInstance) {
-        if (responsibility.mode === 'handoff' && candidateId !== instance.id) {
-          nextByInstance.set(candidateId, lanes.filter((lane) => lane !== responsibility.responsibility));
-        }
+        nextByInstance.set(candidateId, lanes.filter((lane) => lane !== responsibility.responsibility));
       }
-      nextByInstance.set(instance.id, [...new Set([...current, responsibility.responsibility])]);
+      nextByInstance.set(target.id, [
+        ...new Set([...(nextByInstance.get(target.id) ?? []), responsibility.responsibility]),
+      ]);
     }
 
     for (const candidate of instances.docs) {
@@ -3850,6 +3898,9 @@ export const claimSeat = onCall<{
         if (seat.get('roleId') !== seatId) {
           throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
         }
+        if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
+          throw new HttpsError('failed-precondition', 'Press is optional and cannot be claimed as a core seat.');
+        }
         if (seat.get('status') !== 'open' || seat.get('holderUid') !== null) {
           throw new HttpsError('aborted', 'That seat was just taken.');
         }
@@ -3941,6 +3992,9 @@ export const releaseSeat = onCall<{
         if (seat.get('roleId') !== seatId) {
           throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
         }
+        if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
+          throw new HttpsError('failed-precondition', 'Press is optional and cannot be released as a core seat.');
+        }
         if (seat.get('status') !== 'claimed' || typeof seat.get('holderUid') !== 'string') {
           throw new HttpsError('failed-precondition', 'That seat is not currently claimed.');
         }
@@ -3960,8 +4014,15 @@ export const releaseSeat = onCall<{
         }
         const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
         const holder = await tx.get(holderRef);
-        if (!holder.exists || !isActivePlayer(holder) || holder.get('seatId') !== seatId) {
-          throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
+        const staleHolder = !holder.exists || !isActivePlayer(holder) || holder.get('seatId') !== seatId;
+        if (staleHolder && !gmInstance) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
+          }
+          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
+          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
         }
         const nextRevision = revisioned.expectedSetupRevision + 1;
         const reply: SeatMutationReceipt = {
@@ -3969,7 +4030,7 @@ export const releaseSeat = onCall<{
           setupRevision: nextRevision, seatId,
         };
         tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
-        if (shouldClearSeatPointer(holder.get('seatId'), seatId)) {
+        if (!staleHolder && shouldClearSeatPointer(holder.get('seatId'), seatId)) {
           tx.update(holderRef, { seatId: null });
         }
         tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });

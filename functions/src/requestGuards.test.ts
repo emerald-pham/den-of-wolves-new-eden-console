@@ -133,9 +133,11 @@ describe('callable request guards', () => {
     expect(requireFacilitatorResponsibilityRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
       expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
     })).toEqual({
       sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
       expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
     });
     expect(requireGameStartRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 3,

@@ -242,6 +242,28 @@ describe('claimSeat', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
+  it('never treats the optional Press station as a core claim or release seat', async () => {
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false,
+      activeRoleIds: ['press-officer'],
+    });
+    player('u1');
+    seat('press-officer');
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'press-officer', requestId: 'claim-press', expectedSetupRevision: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/seats/press-officer')).toMatchObject({ status: 'open', holderUid: null });
+
+    put('sessions/s1/players/u1', { uid: 'u1', role: 'player', connected: true, seatId: 'press-officer' });
+    put('sessions/s1/seats/press-officer', {
+      roleId: 'press-officer', status: 'claimed', holderUid: 'u1', claimedAt: 'server-time',
+    });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'press-officer', requestId: 'release-press', expectedSetupRevision: 0,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1/seats/press-officer')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+  });
+
   it('claims an open seat and records the pointer in the same transaction', async () => {
     player('u1');
     seat('seat-1');
@@ -419,6 +441,20 @@ describe('releaseSeat', () => {
     await expect(releaseSeat.run(request({
       sessionId: 's1', seatId: 'seat-1', requestId: 'release-missing-holder', expectedSetupRevision: 0,
       instanceId: 'bridge', reason: 'Remove stale holder',
-    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    }))).resolves.toMatchObject({ status: 'committed', seatId: 'seat-1', setupRevision: 1 });
+    expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'open', holderUid: null });
+    expect(read('sessions/s1/events/seat-release-release-missing-holder')).toMatchObject({
+      reason: 'Remove stale holder', actorUid: 'u1', seatId: 'seat-1',
+    });
+
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 1, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1'],
+    });
+    put('sessions/s1/seats/seat-1', { roleId: 'seat-1', status: 'claimed', holderUid: 'u9' });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-missing-reason', expectedSetupRevision: 1,
+      instanceId: 'bridge',
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
   });
 });

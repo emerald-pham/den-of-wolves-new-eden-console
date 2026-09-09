@@ -285,4 +285,35 @@ describe('RoleSelect', () => {
     await user.click(screen.getByRole('button', { name: 'RELEASE STATION // AEGIS // Admiral' }));
     expect(releaseSeat).toHaveBeenCalledWith('admiral');
   });
+
+  it('gives an active GM an accessible reasoned intervention for a stale occupied seat', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'ghost', factionId: 'aegis', claimedAt: 'legacy-claim',
+    }]);
+    vi.mocked(releaseSeat).mockResolvedValue('applied');
+    renderRoute();
+
+    const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
+    expect(intervene).toHaveClass('cic-danger-button');
+    await user.click(intervene);
+
+    const reason = screen.getByRole('textbox', { name: /reason for clearing stale seat/i });
+    expect(screen.getByRole('button', { name: /confirm clear stale seat/i })).toBeDisabled();
+    await user.type(reason, 'Ghost browser expired');
+    await user.click(screen.getByRole('button', { name: /confirm clear stale seat/i }));
+
+    expect(releaseSeat).toHaveBeenCalledWith('admiral', 'Ghost browser expired');
+  });
 });

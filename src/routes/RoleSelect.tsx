@@ -45,6 +45,8 @@ export default function RoleSelect() {
   const [changingLock, setChangingLock] = useState(false);
   const [pendingSeatId, setPendingSeatId] = useState<string | null>(null);
   const [seatStatus, setSeatStatus] = useState<string | null>(null);
+  const [interventionSeatId, setInterventionSeatId] = useState<string | null>(null);
+  const [interventionReason, setInterventionReason] = useState('');
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
   const controlsLocked = session?.gmControlsLocked === true;
 
@@ -88,6 +90,25 @@ export default function RoleSelect() {
         : `STATION ${action === 'claim' ? 'CLAIMED' : 'RELEASED'} // SERVER ${disposition.toUpperCase()}`);
     } catch {
       setSeatStatus('STATION CHANGE REJECTED // REVIEW THE LIVE SEAT MAP');
+    } finally {
+      setPendingSeatId(null);
+    }
+  }
+
+  async function clearStaleSeat(): Promise<void> {
+    const reason = interventionReason.trim();
+    if (!interventionSeatId || !reason) return;
+    setPendingSeatId(interventionSeatId);
+    setSeatStatus(null);
+    try {
+      const disposition = await releaseSeat(interventionSeatId, reason);
+      setSeatStatus(disposition === 'queued'
+        ? 'STALE STATION CLEAR PENDING // AWAITING RECONNECTION'
+        : `STALE STATION CLEARED // SERVER ${disposition.toUpperCase()}`);
+      setInterventionSeatId(null);
+      setInterventionReason('');
+    } catch {
+      setSeatStatus('STALE STATION CLEAR REJECTED // REVIEW THE LIVE SEAT MAP');
     } finally {
       setPendingSeatId(null);
     }
@@ -174,6 +195,20 @@ export default function RoleSelect() {
                         : `${action === 'claim' ? 'CLAIM' : 'RELEASE'} STATION`}
                     </button>
                   )}
+                  {occupied && isGm && (
+                    <button
+                      className="cic-danger-button role-seat__action"
+                      type="button"
+                      disabled={pendingSeatId !== null}
+                      aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
+                      onClick={() => {
+                        setInterventionSeatId(seat.id);
+                        setInterventionReason('');
+                      }}
+                    >
+                      CLEAR STALE HOLDER
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -181,6 +216,49 @@ export default function RoleSelect() {
           <p className="role-seat-board__note" role="status" aria-live="polite" aria-label="Seat status">
             {seatStatus ?? 'Seat changes commit through the authoritative session service.'}
           </p>
+          {interventionSeatId && (
+            <div
+              className="role-seat-intervention cic-frame"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="role-seat-intervention-title"
+              aria-describedby="role-seat-intervention-copy"
+            >
+              <h3 id="role-seat-intervention-title">Clear stale station holder?</h3>
+              <p id="role-seat-intervention-copy">
+                This GM-only intervention releases the occupied station and writes an audit reason.
+              </p>
+              <label htmlFor="role-seat-intervention-reason">Reason for clearing stale seat</label>
+              <textarea
+                id="role-seat-intervention-reason"
+                value={interventionReason}
+                maxLength={240}
+                rows={3}
+                onChange={(event) => setInterventionReason(event.target.value)}
+              />
+              <div className="role-seat-intervention__actions">
+                <button
+                  className="cic-danger-button"
+                  type="button"
+                  disabled={pendingSeatId !== null || interventionReason.trim().length === 0}
+                  onClick={() => void clearStaleSeat()}
+                >
+                  CONFIRM CLEAR STALE SEAT
+                </button>
+                <button
+                  className="cic-text-button"
+                  type="button"
+                  disabled={pendingSeatId !== null}
+                  onClick={() => {
+                    setInterventionSeatId(null);
+                    setInterventionReason('');
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

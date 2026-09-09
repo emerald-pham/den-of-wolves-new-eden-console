@@ -199,3 +199,37 @@ it('hydrates stable seat role ids without treating Press as a core seat', () => 
     expect.objectContaining({ id: 'press-officer' }),
   ]));
 });
+
+it('hydrates legacy seat labels and factions from the canonical role catalog', () => {
+  const onSeats = vi.fn();
+  let snapshotNumber = 0;
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    snapshotNumber += 1;
+    if (snapshotNumber === 3) {
+      (callback as (snapshot: unknown) => void)({
+        docs: [{
+          id: 'admiral',
+          data: () => ({ roleId: 'admiral', status: 'open', holderUid: null, claimedAt: null }),
+        }],
+      });
+    } else {
+      (callback as (snapshot: unknown) => void)({
+        exists: () => true,
+        id: 's1',
+        data: () => ({}),
+        get: () => undefined,
+      });
+    }
+    return vi.fn();
+  }) as never);
+
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats, onError: vi.fn(),
+  });
+
+  expect(onSeats).toHaveBeenCalledWith([
+    expect.objectContaining({
+      id: 'admiral', roleId: 'admiral', label: 'AEGIS // Admiral', factionId: 'aegis',
+    }),
+  ]);
+});

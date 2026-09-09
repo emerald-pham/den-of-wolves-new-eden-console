@@ -29,6 +29,7 @@ import type {
   ShipNavigationLogs,
 } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
   normalizeShuttleManifest,
 } from '@/data/shuttles';
@@ -316,12 +317,16 @@ function playerFrom(sessionId: string, uid: string, data: DocumentData): Player 
 }
 
 function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
+  const roleId = typeof data.roleId === 'string' ? data.roleId : id;
+  const metadata = ROLE_SEAT_METADATA[roleId];
   return {
     id,
     sessionId,
-    ...(typeof data.roleId === 'string' ? { roleId: data.roleId } : {}),
-    label: data.label as string,
-    factionId: (data.factionId as string | null) ?? null,
+    roleId,
+    label: typeof data.label === 'string' ? data.label : metadata?.label ?? roleId,
+    factionId: typeof data.factionId === 'string' || data.factionId === null
+      ? data.factionId as string | null
+      : metadata?.factionId ?? null,
     status: data.status as Seat['status'],
     holderUid: (data.holderUid as string | null) ?? null,
     claimedAt: data.claimedAt ? iso(data.claimedAt) : null,

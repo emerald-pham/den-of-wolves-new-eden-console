@@ -146,6 +146,7 @@ export function requireFacilitatorResponsibilityRequest(data: {
   expectedSetupRevision?: unknown;
   responsibility?: unknown;
   mode?: unknown;
+  targetInstanceId?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
@@ -153,6 +154,7 @@ export function requireFacilitatorResponsibilityRequest(data: {
   expectedSetupRevision: number;
   responsibility: 'main' | 'assistant';
   mode: 'share' | 'handoff' | 'drop';
+  targetInstanceId?: string;
 } {
   if (data.responsibility !== 'main' && data.responsibility !== 'assistant') {
     throw new HttpsError('invalid-argument', 'responsibility must be main or assistant.');
@@ -163,13 +165,18 @@ export function requireFacilitatorResponsibilityRequest(data: {
   if (data.mode !== undefined && data.mode !== 'share' && data.mode !== 'handoff' && data.mode !== 'drop') {
     throw new HttpsError('invalid-argument', 'mode must be share, handoff, or drop.');
   }
+  const mode = data.mode === 'handoff' ? 'handoff' : data.mode === 'drop' ? 'drop' : 'share';
+  const targetInstanceId = data.targetInstanceId === undefined || data.targetInstanceId === null
+    ? undefined
+    : requiredId(data.targetInstanceId, 'targetInstanceId');
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     requestId: requiredId(data.requestId, 'requestId'),
     expectedSetupRevision: data.expectedSetupRevision as number,
     responsibility: data.responsibility,
-    mode: data.mode === 'handoff' ? 'handoff' : data.mode === 'drop' ? 'drop' : 'share',
+    mode,
+    ...(targetInstanceId === undefined ? {} : { targetInstanceId }),
   };
 }
 

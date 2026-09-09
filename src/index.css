@@ -963,11 +963,52 @@ body {
 .role-seat__state[data-state='held'] { color: var(--cic-amber); }
 .role-seat__action { min-width: 11rem; }
 .role-seat-board__note { margin: 0; }
+.cic-danger-button {
+  min-height: 44px;
+  border: 1px solid var(--cic-danger);
+  border-radius: 0;
+  padding: 0.65rem 0.8rem;
+  color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 10%, transparent);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cic-danger-button:hover:not(:disabled),
+.cic-danger-button:focus-visible {
+  background: color-mix(in srgb, var(--cic-danger) 20%, transparent);
+}
+.cic-danger-button:disabled { cursor: wait; opacity: 0.55; }
+.role-seat-intervention {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  border-color: var(--cic-danger);
+}
+.role-seat-intervention h3,
+.role-seat-intervention p { margin: 0; }
+.role-seat-intervention label { color: var(--cic-muted); font-size: 0.75rem; }
+.role-seat-intervention textarea {
+  width: 100%;
+  min-height: 5rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: 0;
+  padding: 0.65rem;
+  color: var(--cic-ink);
+  background: var(--cic-panel);
+  font: inherit;
+  resize: vertical;
+}
+.role-seat-intervention__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
 
 @media (max-width: 560px) {
   .role-seat-board__header { align-items: start; flex-direction: column; }
   .role-seat { grid-template-columns: 1fr; align-items: stretch; }
   .role-seat__action { width: 100%; }
+  .role-seat-intervention__actions { align-items: stretch; flex-direction: column; }
+  .role-seat-intervention__actions > * { width: 100%; }
 }
 
 .role-card--static {

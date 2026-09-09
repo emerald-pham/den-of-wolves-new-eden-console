@@ -280,6 +280,44 @@ describe('GM instance ownership', () => {
     });
   });
 
+  it('applies share and handoff to the requested target instance and binds target in replay', async () => {
+    session({ phase: 'lobby', setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm' });
+    instance('bridge', 'u1');
+    instance('tablet', 'u2');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'), responsibilities: ['main', 'assistant'], responsibility: 'main',
+    });
+    put('sessions/s1/gmInstances/tablet', {
+      ...read('sessions/s1/gmInstances/tablet'), responsibilities: [],
+    });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'tablet', responsibility: 'main',
+      requestId: 'responsibility-share-target', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 1,
+      coverage: { main: ['bridge', 'tablet'], assistant: ['bridge'] },
+    });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ responsibilities: ['main'] });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'tablet', responsibility: 'assistant',
+      requestId: 'responsibility-handoff-target', expectedSetupRevision: 1, mode: 'handoff',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 2,
+      coverage: { main: ['bridge', 'tablet'], assistant: ['tablet'] },
+    });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ responsibilities: ['main'] });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ responsibilities: ['main', 'assistant'] });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-share-target', expectedSetupRevision: 0, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
   it('logs in and out of persistent GM access', async () => {
     await expect(loginGmAccess.run(request({ password: 'bananasplit' })))
       .resolves.toEqual({ authenticated: true });
