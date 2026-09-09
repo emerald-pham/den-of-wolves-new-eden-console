@@ -858,7 +858,7 @@ not by themselves Prompt 020's later composed production-path acceptance.
 The server owns the effective core count, mode compatibility, ordered roster,
 eligible loyalty pool, Wolf count, random selection, suspicion distribution,
 setup revision, and Turn 1 transition. The client supplies intent and expected
-revision only. The setup calculation receipt records the source/version,
+revision only. The setup calculation receipt records the authoritative source,
 locked count and mode, canonical roster IDs, Press eligibility input, excluded
 GM count, Wolf threshold/rule, ordered modifiers, result count, command ID,
 expected/committed revision, actor, server time, and linked event. The
