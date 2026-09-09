@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**75 / 723 prompts complete (10.37%)**
+**76 / 723 prompts complete (10.51%)**
 
-Status breakdown: **75 done · 27 partial · 0 active · 621 missing**.
+Status breakdown: **76 done · 27 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -101,12 +101,18 @@ outside this release.
 
 ### Version 0.3.20 progress evidence
 
-The release boundary records Prompt 139 complete at **75 / 723 = 10.37%**
-with **75 done · 27 partial · 0 active · 621 missing**. Maintenance events now
-carry an explicit crew-safe projection of costs and outcomes through the
-member-visible event stream; the client parser accepts only those allowlisted
-fields and drops hidden deck order, private facilitator data, and unknown
-payload fields. Existing maintenance receipts remain private and retry-safe.
+The current release records Prompt 139 complete and the proof-only Prompt 103
+preservation at **76 / 723 = 10.51%** with **76 done · 27 partial · 0 active ·
+620 missing**. Maintenance events carry an explicit crew-safe projection of
+costs and outcomes through the member-visible event stream; the client parser
+accepts only those allowlisted fields and drops hidden deck order, private
+facilitator data, and unknown payload fields. Existing maintenance receipts
+remain private and retry-safe. Prompt 103 preserves the existing next-turn
+initialization path: `functions/src/index.ts:597-654` and `:3217-3271` advance
+the turn atomically, `functions/src/turnTransition.ts:8-27` resets turn-scoped
+charges and shuttle fuel, and `functions/src/maintenanceCallable.test.ts:578-703`
+and `:792-937` cover schedule/expiry and overlapping advance/CAS/stale
+write-free behavior. Prompt 103a remains outside this release.
 Prompt 140 all-vessel maintenance coverage remains outside this release.
 
 ### Version 0.3.17 progress evidence
@@ -383,7 +389,7 @@ release classification and evidence.
 | 100 | partial | non-feature | — | Movement/jump Coordination gates exist; transfer/scouting/research coverage remains open. |
 | 101 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 103 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 103 | done | non-feature | — | Existing next-turn initialization is preserved by the atomic transition in `functions/src/index.ts:597-654` and callable path at `:3217-3271`; `functions/src/turnTransition.ts:8-27` resets turn-scoped charges and shuttle fuel, while `functions/src/maintenanceCallable.test.ts:578-703` covers schedule/expiry and `:792-937` covers overlapping advance/CAS/stale write-free behavior. Proof-only; no runtime change. |
 | 103a | missing | non-feature | — | Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no production-path evidence has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. |
 | 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |

@@ -23,16 +23,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationPrompts: [139],
     implementationProgress: {
-      completed: 75,
+      completed: 76,
       total: 723,
-      percentage: '10.37%',
-      done: 75,
+      percentage: '10.51%',
+      done: 76,
       partial: 27,
       active: 0,
-      missing: 621,
+      missing: 620,
     },
     changes: [
-      'Crew maintenance updates now show the useful result without exposing private game information. — Roadmap progress: 75 of 723 prompts complete (10.37%).',
+      'Crew maintenance updates now show the useful result without exposing private game information. — Roadmap progress: 76 of 723 prompts complete (10.51%).',
     ],
   },
   {
