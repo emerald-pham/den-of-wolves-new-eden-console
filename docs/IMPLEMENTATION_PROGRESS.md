@@ -69,8 +69,9 @@ retries write-free.
 
 The release boundary records Prompt 138 complete at **75 / 721 = 10.40%**
 with **75 done · 26 partial · 0 active · 620 missing**. The printed maintenance
-path now requires an authority-bound client request ID, checks authority and
-phase before replay, and commits the resource, charge, fuel, damage, undo,
+path now requires an authority-bound client request ID, checks current authority
+before replay and enforces phase/turn gates before a new mutation, and commits
+the resource, charge, fuel, damage, undo,
 event, and private replay receipt together. A stateful optimistic-CAS fixture
 proves duplicate replay and two distinct same-revision requests produce one
 winner, one resource/damage mutation, one event, and a write-free stale loser;
