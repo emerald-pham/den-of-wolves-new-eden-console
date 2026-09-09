@@ -41,16 +41,17 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Audited baseline — 2026-09-08 (after release 0.3.12)
+## Audited baseline — 2026-09-08 (release 0.3.13 candidate)
 
 This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the
 progress ledger as work lands; it supersedes this dated summary.
 
-- The ledger reports **66 / 713 prompts done, 31 partial, no active prompt,
-  and 616 missing** after release 0.3.12 completed authoritative configuration,
-  production seating, and one-GM staffing. The separately scheduled regression
-  children and dependency-placed Wolf/DRADIS prompts remain open.
+- The ledger reports **69 / 719 prompts done, 28 partial, no active prompt,
+  and 622 missing** after release 0.3.13 composed authoritative configuration,
+  production seating, one-GM readiness, private setup, and Turn 1. Six new
+  dependency-placed future prompts account for the expanded denominator; the
+  separately scheduled regression work remains open.
   Several done prompts define or test reusable contracts; they do not by
   themselves prove that production callables consume those contracts.
 - No complete production route currently resolves an away mission, Wolf
@@ -58,12 +59,12 @@ progress ledger as work lands; it supersedes this dated summary.
   success/failure/closed transition. Existing catalogs and debrief presentation
   are foundations for those loops.
 - The authoritative client/server catalogs accept the settled 8–20 matrix,
-  including the owner-set 19-player row, and production configuration now
-  provisions stable seats and exposes revisioned claim/release. Readiness and
-  start still do not consume those seats, so Prompt 051 remains partial and
-  Prompt 020's composed fixture remains missing. Prompt 638's measured capacity
-  evidence also remains open; catalog support is not a live-game or 60-client
-  claim.
+  including the owner-set 19-player row. Production configuration provisions
+  stable seats and exposes revisioned claim/release; readiness and start now
+  consume the reciprocal seat graph, derive the routine Wolf/default loyalty
+  result privately, and let one live GM enter Turn 1 once. Prompt 020's full
+  create-to-Turn-1 composed fixture and Prompt 638's measured capacity evidence
+  remain open; this release is not a live-game or 60-client capacity claim.
 - No repeatable 60-browser gameplay harness or commit/deployment-tied capacity
   artifact exists yet. Runtime instance limits and deployment automation are
   configuration, not capacity or live-game proof.
@@ -71,9 +72,9 @@ progress ledger as work lands; it supersedes this dated summary.
   the selected prompt's focused evidence plus the reconciled release gate, not
   an old aggregate count.
 
-### Active dependency slice — release 0.3.13
+### Completed dependency slice — release 0.3.13
 
-The active Prompt 051 release consumes release 0.3.12's configuration, stable
+Prompt 051 consumes release 0.3.12's configuration, stable
 seats, and one-GM staffing to complete authoritative readiness and Turn 1. It
 also completes Prompt 054's automatic Wolf-selection contract and Prompt 071's
 one-GM readiness contract. Prompt 075 gains only the setup/start evidence in
@@ -132,8 +133,8 @@ isolated Firestore emulator/rules run, responsive and accessibility review at
 320x844, 390x844, 1440x900, and 844x390 under normal and reduced motion, the
 complete lint/test/build/bundle/docs/diff gates, current-main reconciliation,
 machine coordination validation, merge, push, remote-SHA proof, and cleanup.
-Only then may Prompts 051, 054, and 071 move to done, with **69 / 713 = 9.68%**
-and **69 done · 28 partial · 0 active · 616 missing** recorded. Prompt 020
+That evidence moves Prompts 051, 054, and 071 to done, with **69 / 719 = 9.60%**
+and **69 done · 28 partial · 0 active · 622 missing** recorded. Prompt 020
 follows as a separate production-composition proof and does not borrow this
 release's isolated fixtures as its own acceptance.
 

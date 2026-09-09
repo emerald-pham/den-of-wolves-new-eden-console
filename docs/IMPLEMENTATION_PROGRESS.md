@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 713 Prompts
+# Implementation Plan Progress — All 719 Prompts
 
-This tracker records all 713 canonical prompt IDs in
+This tracker records all 719 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,55 +15,57 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**66 / 713 prompts complete (9.26%)**
+**69 / 719 prompts complete (9.60%)**
 
-Status breakdown: **66 done · 30 partial · 1 active · 616 missing**.
+Status breakdown: **69 done · 28 partial · 0 active · 622 missing**.
 
-Active prompt: **Prompt 051**.
+Active prompt: **none**.
 
-Version 0.3.13 is active for authoritative seat-backed readiness, automatic
-private Wolf/loyalty setup, an audience-correct setup calculation receipt, and
-retry-safe one-GM Turn 1 start. It may close Prompts 051, 054, and 071 only when
-the production callable, client route, projection, privacy, race/replay, and
-rendered interaction evidence all land. Prompt 075 remains partial because its
-deck, craft, complete resource/economy, and alert initialization breadth is out
-of this release.
+The six-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
+P652a, and P652b as missing without changing any landed implementation status.
+P589b remains missing but is reclassified from preservation to a narrow copy
+repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
+The country-flag regression report is retracted: P031a instead composes the
+existing seat/console and flag-selection experiences while preserving the
+historical bespoke flag choreography. The version 0.3.13 release snapshot below
+therefore records the expanded 719-prompt denominator; older release snapshots
+remain historical rather than being retroactively restated.
 
-### Active version 0.3.13 objectives and exit evidence
+Version 0.3.13 closes Prompt 051 production roster-to-start composition, Prompt
+054 authoritative routine Wolf derivation, and Prompt 071 one-GM readiness.
+Prompt 054 is reclassified as a feature. Prompt 075 gains setup-receipt and
+atomic Turn 1 evidence but remains partial because complete decks, craft,
+resources/economy, and alert initialization are still outside this release.
 
-The release begins at **66 / 713 = 9.26%** with **66 done · 30 partial · 1
-active · 616 missing** after selecting Prompt 051. If and only if the exact
-acceptance closes Prompt 051, 054, and 071, the release records **69 / 713 =
-9.68%** with **69 done · 28 partial · 0 active · 616 missing**. Partial work or
-an unmerged branch does not earn that percentage.
+### Version 0.3.13 progress evidence
 
-The chronological failing-first record must expose the current production gaps:
-readiness can pass without provisioned seat documents or reciprocal player seat
-pointers; start reads only legacy singular facilitator responsibilities; the
-callable accepts prewritten loyalty documents rather than composing private
-setup; Wolf assignment trusts caller-selected cardinality and is not bound to a
-setup revision/request receipt; the GM console advances a debug turn instead of
-calling an ordinary production start path; and current generic rules tests do
-not prove own-loyalty/GM-receipt access with member and cross-session denial.
+The release boundary is recorded reproducibly as **69 / 719 = 9.60%** with
+**69 done · 28 partial · 0 active · 622 missing**. Chronological failing-first
+evidence exposed six production gaps across three Functions suites before the
+implementation: missing server-derived routine Wolf selection, legacy
+two-human readiness assumptions, incomplete reciprocal seat-pointer checks,
+missing atomic setup receipt/private writes, and unsafe conflicting request-id
+replay. The focused green evidence covers 81 Functions assertions, 155 client
+assertions, and 55 emulator-backed rules assertions.
 
-Closure evidence must cover 8, 19, and 20 core players; exact stable seats and
-unique roles; one live GM and optional additional GMs; default-enabled claimed,
-unclaimed, and disabled Press as a distinct non-counted twenty-first player;
-one Wolf at core 8–13 and two at 14–20 without a third; automatic default and
-complete explicit loyalty paths; partial/stale loyalty denial; same-request
-replay, conflicting reuse, and two-GM race; private reconnect/redaction; and
-one authoritative Turn 1 transition with pursuit 2 and the existing clock and
-announcement. The shared event may expose safe rule/count/revision metadata but
-never selected Wolf IDs or another player's loyalty.
+The accepted production path validates the exact 8, 19, and 20 core roster and
+stable seat pointers; permits one live GM while additional GMs remain optional;
+keeps default-enabled Press distinct, non-counted, and eligible only when
+claimed; derives one Wolf at core 8–13 and two at 14–20 without a third; writes
+private loyalty/Wolf results plus an audience-correct GM receipt; replays one
+request without rerolling; rejects stale/conflicting authority; and enters Turn
+1 once with pursuit 2 and the existing clock and announcement. Legacy manual
+Wolf mutation exports are retired rather than retained as hidden bypasses.
 
-The exit gate is chronological focused red/green evidence, isolated emulator
-rules proof, keyboard/screen-reader/touch and CIC review at 320x844, 390x844,
-1440x900, and 844x390 under normal and reduced motion, lint, all unit/Functions
-and rules tests, client and Functions builds, bundle, documentation/progress,
-diff, independent security/privacy review, current-main reconciliation,
-machine coordination validation, merge, push, verified local/remote SHA, and
-coordination cleanup. Prompt 020 and P122a/P275b/P602a/P603a remain outside this
-release and retain their own dependency-ordered evidence.
+Prompt 020 remains missing until its separate full production-composition proof.
+P122a/P275b/P602a/P603a and the future ticker/DRADIS/typography/selection prompts
+remain outside release 0.3.13.
+
+Version 0.3.12 closes Prompt 021 authoritative configuration, Prompt 030
+production seating, and Prompt 073 one-GM staffing. Prompt 030 is reclassified
+as a feature for this release. Prompt 051 remains partial: configuration and
+seating evidence is appended, while readiness and start remain outside the
+release boundary.
 
 ### Version 0.3.12 progress evidence
 
@@ -214,6 +216,7 @@ release classification and evidence.
 | 029 | done | non-feature | — | Seat policy/callable one-seat tests. |
 | 030 | done | feature | 0.3.12 | Version 0.3.12 provisions canonical stable core seats, exposes callable-backed claim/release through the existing role route, and records revisioned request receipts and append-only events. Reconnect hydration, race/denial, pointer integrity, and Press exclusion remain covered; readiness/start stays outside this release. |
 | 031 | done | non-feature | — | Seat race/conflict tests. |
+| 031a | missing | non-feature | — | Future unified fleet/console entry: compose the separate fleet/flag and seat/console pages only after the active setup/readiness slice. Full enabled catalog viewing never claims; first authenticated entry to an open core console atomically claims it, a simultaneous race has one winner, and every client converges in real time. Preserve stable seat authority, CAS/idempotency/audit, reconnect, release/handoff/GM intervention, deep links/Back, Press as distinct and non-counted, claimed read-only state, and the exact shared-flag choreography/timing/layers recorded from `5ea9b74` through the named refinements. Require keyboard/screen-reader/44px touch, safe areas, rotation/reduced motion, interruption/performance, and nonoverlap at 320×844, 390×844, 1440×900, and 844×390. |
 | 032 | done | non-feature | — | Seat release tests. |
 | 033 | done | non-feature | — | Foreign/stale seat release denial tests. |
 | 034 | done | non-feature | — | Resume callable and session service tests. |
@@ -233,10 +236,10 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | in-progress | feature | 0.3.9, 0.3.12 | Version 0.3.13 is actively composing release 0.3.12's authoritative 8–20 configuration, stable seats, and one-GM staffing into exact seat-backed readiness, private setup, and Turn 1. Completion requires the named callable/client/privacy/race/rendered evidence; Prompt 075 and Prompt 020 remain separately incomplete. |
+| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 | Version 0.3.13 composes release 0.3.12's authoritative 8–20 configuration and stable seats into exact reciprocal seat-backed readiness, private loyalty hydration, and one authoritative Turn 1 transition. Functions/client/rules evidence covers 8, 19, 20, claimed/unclaimed/disabled Press, one and additional GMs, stale authority, retry, replay, and private projection; Prompt 020 remains the separate full create-to-Turn-1 proof. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
-| 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover the shared helper, including owner-set 19/20 rows, but not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
+| 054 | done | feature | 0.3.13 | The routine production start derives one hidden Wolf at 8–13 core players and two at 14–20 from locked authoritative setup, never accepts caller-selected routine cardinality, keeps Press outside the count while including one claimed holder in the eligible pool, and records private identities plus a redacted calculation receipt without a third Wolf. Same-request retry/replay cannot reroll; stale/conflicting authority rejects. Legacy manual Wolf mutation exports are retired. |
 | 055 | missing | non-feature | — | Intelligence Agent gating is not yet explicit. |
 | 056 | missing | non-feature | — | Universal Arbour/Wolf Cult setup is not yet explicit. |
 | 057 | partial | feature | 0.3.5 | Base/expansion/none configuration validation exists; full lock/composition remains open. |
@@ -253,11 +256,11 @@ release classification and evidence.
 | 068 | partial | non-feature | — | Printed craft ownership primitives exist; start composition remains open. |
 | 069 | partial | non-feature | — | Population/resource catalogs exist; one start initializer is still open. |
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
-| 071 | partial | feature | 0.3.5 | Existing readiness policy and `startCallable.test.ts` precise reasons cover the printed/base matrix but encode stale staffing assumptions. One-GM readiness, owner-set 8–20 core, optional enabled/claimed/unclaimed Press, and optional multiple GM instances need composed evidence. |
+| 071 | done | feature | 0.3.5, 0.3.13 | Production start now requires the exact connected core count, canonical unique seat documents with reciprocal live player pointers, exact roles/vessels, private loyalty completeness, and at least one live authorized GM. One GM can carry both responsibilities; additional GMs never block. Enabled-unclaimed Press does not block, while claimed Press stays distinct and requires its own private loyalty. Precise nonsecret reasons, lease/authority checks, and stale/race denial are covered. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
 | 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; Prompt 071 retains the separate readiness/start acceptance. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
-| 075 | partial | feature | 0.3.5 | Atomic Turn 1/lock/timer/pursuit/event start exists; automatic Wolf/loyalty composition, complete decks/craft/resources, one-GM setup receipt, and alert ownership remain open. |
+| 075 | partial | feature | 0.3.5, 0.3.13 | Version 0.3.13 atomically locks validated setup, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with existing timer/announcement behavior. Complete deck, craft, resource/economy, and alert initialization remains open, so Prompt 075 stays partial. |
 | 076 | done | non-feature | — | Durable start request replay test. |
 | 077 | partial | feature | 0.3.5 | Start initializes fleet pursuit at 2; split-group pursuit remains open. |
 | 078 | done | feature | 0.3.5 | Six-to-eight validation and start configuration lock. |
@@ -291,6 +294,7 @@ release classification and evidence.
 | 106 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106b | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 106c | missing | non-feature | — | Future server-authoritative FleetTicker lifecycle: deterministic session/message/revision identities, precedence, current/queued/draining state, pass counts, dismissals, and replay cursors must serialize concurrent automatic/Admiral/Press send-replace-dismiss and Red Alert activation/stand-down. Reconnect/replay/late join and every client converge; idempotent CAS, authenticated authority, privacy-safe projection/audit, schema bounds, and direct-write denial precede P652a/P652b. |
 | 107 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 108 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 109 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -713,6 +717,7 @@ release classification and evidence.
 | 483 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 484 | missing | non-feature | — | Planned [EXTEND] crew/GM/broadcast aftermath and one-GM recovery-work projection prompt. |
 | 485 | missing | non-feature | — | Planned [REPAIR] prompt: pursuit presentation/client calculation exists, but no authoritative group value drives attack scheduling/navigation/failure. |
+| 485a | missing | non-feature | — | Future pursuit-color repair: restore `0215488`'s normal ship/faction treatment outside authoritative Red Alert and use danger red only while the shared alert is active; `0d64e25` records the always-danger departure. Preserve countdown, values, split-fleet scope, terminal text, reconnect/stand-down/reduced-motion truth, and do not claim P485's broader server-owned pursuit acceptance. |
 | 486 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 487 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 488 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
@@ -828,7 +833,7 @@ release classification and evidence.
 | 588 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 589 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 589a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 589b | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 589b | missing | non-feature | — | Future [REPAIR]: the authenticated-session waiver solely owns the exact human-first regulation body `Be bold. Remember the human on the other side.` Preserve title/eyebrow, lifetime, checkbox/focus semantics, reconnect, privacy/audit, and GM-expiry distinction; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. |
 | 590 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 591 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 592 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -853,7 +858,8 @@ release classification and evidence.
 | 608 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 609 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 610 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 611 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 611 | missing | non-feature | — | Planned [EXTEND] prompt now explicitly includes compact/minimized and expanded DRADIS: both must expose a stable non-color `RED ALERT` cue from authoritative `fleetRedAlert` and clear on stand-down/reconnect/replay without stale local color-only meaning. P605a remains deferred. |
+| 611a | missing | non-feature | — | Future CIC typography repair: characterize the exact `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` surface and directly comparable label/readout outliers, then repair only proven token/tracking/casing/contrast/wrapping inconsistencies. No redesign or global type-scale change; require accessibility and responsive evidence at all four supported viewports. |
 | 612 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 613 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 614 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -895,6 +901,8 @@ release classification and evidence.
 | 650 | missing | non-feature | — | Planned [PROVE] prompt: authoritative pursuit/outcome must drive terminal failure; current client presentation cannot freeze or end play. |
 | 651 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 652 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 652a | missing | non-feature | — | Future ticker regression repair: restore `a91a020`'s continuous-tail baseline so every Red Alert glyph stays fully visible until its painted bounds are outside the viewport. Audit `080457e` and later geometry without reverting unrelated header work; prohibit clipping, fade, truncation, early unmount, remeasurement jump, and overlap across replacement/stand-down/font-load/resize/rotation, with single announcement and reduced-motion proof. |
+| 652b | missing | non-feature | — | Future explicit mobile experiment: keep the non-sticky baseline at scroll top and become a reserved-space sticky row only after the measured lower edge crosses `safe-area-inset-top`. Reflow around safe areas, session ticket, Role Select, controls, keyboard, resize/rotation, and wrapped/reduced-motion copy. Roll back under `TICKER-STICKY-OCCLUSION` for occlusion, oscillation, excess layout shift, material jank, or lost/duplicate announcement; never silently make it permanent. |
 | 653 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 
 ## Working notes

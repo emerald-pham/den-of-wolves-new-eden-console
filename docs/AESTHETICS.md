@@ -209,6 +209,14 @@ cinematic headlines. System fonts only, no external font dependency.
 `--cic-radius` is `0` — nothing in this interface is rounded.
 `--cic-space` for fluid spacing.
 
+Typography repairs are characterization work, not a redesign. The exact
+rendered status `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` belongs to the
+same mono label/readout family as the other console-access states. Audit it and
+directly comparable UI outliers against the named tokens, casing, tracking,
+contrast, line-height, semantic heading order, and wrapping convention before
+changing them; repair only proven mismatches. Do not globally rescale,
+substitute display type, or recase unrelated player copy for visual uniformity.
+
 Shared utilities, all in src/styles/cic.css:
 
 - `.cic-frame` — the one container. A hairline `--cic-rule` border over
@@ -421,6 +429,12 @@ not mysterious. The acknowledgement is browser-local and global to the window
 rather than keyed to a session, so switching tables within 24 hours does not
 repeat the prompt. Authenticated GM access may reset that local completion from
 the GM Console, which reopens the full instrument.
+
+The waiver is the sole live owner of the human-first regulation body, which is
+exactly `Be bold. Remember the human on the other side.` Preserve that casing
+and punctuation in visible, tested, and screen-reader text. Its existing title
+and eyebrow retain their established CIC casing. Debrief and release history
+may explain the contract but must not host a second live copy of the sentence.
 
 ## Contact plot / threat board
 
@@ -681,10 +695,15 @@ history can never grow underneath or overlap DRADIS. It is a plain ledger: each 
 names the shuttlecraft and the shuttleport where it docked. Do not mix current
 occupancy, maintenance rules, or departure events into this panel. The Press
 shuttle's port is the civilian access hatch.
-The pursuit panel is a standing threat instrument: keep its frame and countdown
-danger red even at the start of the track, intensify the readout as the real
-0–10 limit approaches, and reserve `SURROUNDED // GAME OVER` for the terminal
-value. Freeze the escalation pulse when reduced motion is enabled.
+The pursuit panel is a ship-local instrument. Outside an authoritative Red
+Alert, its frame, label, countdown, and scale use the established normal
+ship/faction treatment from the first pursuit implementation. While the shared
+Red Alert is active, switch the instrument to hostile danger red; stand-down
+returns it immediately to normal ship/faction colors. Keep the real 0–10
+intensification and reserve `SURROUNDED // GAME OVER` for the terminal value,
+but neither color nor animation may be the only alert or terminal cue. Freeze
+the escalation pulse when reduced motion is enabled. Reconnect, late join, and
+stale snapshots cannot leave a local false-red pursuit state.
 On narrow screens the identity/workspace and rail enter document flow and the
 whole console scrolls; controls must never be compressed out of reach.
 When that flow starts, the instrument rail is ordered before the identity so
@@ -1143,6 +1162,27 @@ separate intervention, asks for a reason, and uses danger red only in its final
 high-impact confirmation. The board must remain usable with 20 core rows and a
 separate Press station without presenting Press as core seat 21.
 
+Future Prompt 031a composes the fleet/flag and console/seat selection pages into
+one cohesive entry flow after the authoritative setup/readiness slice lands.
+Every entitled player can scan the full enabled catalog and its nonsecret
+status; looking, focusing, searching, grouping, or returning never claims a
+console. Entering an open core console performs the first authoritative claim,
+then reveals write authority only to the winner; a losing concurrent entrant
+remains in the same visual system with truthful claimed/read-only recovery.
+Press stays a distinct independent, non-counted station.
+
+The unified flow preserves the existing fleet flags and their audited shared-
+element craft, not a generic replacement animation. Normal motion retains the
+100 ms screen halves around the 200 ms geometry move, source/destination aspect
+ratio and object-position continuity, recorded background/foreground layering,
+reverse-navigation symmetry, and the intentionally flash-free roster-to-role
+crossfade. Interruption, reconnect, rapid Back/Forward, resize, and rotation
+settle on one route and one flag without a visible orphan or authority change.
+Reduced motion keeps the same identity and destination without animated travel.
+At 320×844, 390×844, 1440×900, and 844×390, catalog, flag, claimed status,
+session ticket, Role Select, safe areas, focus outlines, and 44 px targets do
+not overlap or clip.
+
 Facilitator staffing remains in the existing GM workspace. Render the printed
 `MAIN FACILITATOR` and `ASSISTANT FACILITATOR` duties as square ruled lane rows,
 not exclusive radio choices. One active instance may visibly cover both;
@@ -1191,9 +1231,19 @@ exit, fade, easing curve or message-specific speed.
 
 Alert copy repeats until replaced; stand-down copy makes two complete passes.
 Playback identity includes the session and alert revision, and completed passes
-survive navigation and tab reloads. A new alert follows any cancellation copy
-already visible while unentered cancellation repetitions are dropped. The
-shared FleetTicker accepts message copy, tone, spacing and optional pass count.
+survive navigation and tab reloads. Future Prompt 106c moves current, queued,
+draining, dismissal, pass-count, and replay-cursor truth into one server-owned,
+revisioned stream with deterministic session-scoped message/sequence IDs.
+Concurrent automatic, Admiral, and Press send/replace/dismiss plus Red Alert
+activation/stand-down resolve once through authenticated CAS/idempotency;
+reconnect, replay, late join, and every client converge on the same order and
+tail. Local session storage may optimize presentation but cannot resurrect,
+duplicate, reorder, or authorize a bulletin. Projections and audit expose only
+copy and metadata permitted to their audience, while direct writes and stale,
+foreign, malformed, oversized, or unauthorized commands fail without advancing
+the stream. A new alert follows any cancellation copy already visible while
+unentered cancellation repetitions are dropped. The shared FleetTicker accepts
+message copy, tone, spacing and optional pass count.
 Press dispatches use its long-gap mode on the same instrument. Reduced motion
 shows the current stationary wrapped copy immediately and does not retain a
 dismissed visual message.
@@ -1201,6 +1251,28 @@ dismissed visual message.
 The ticker window reserves a full, vertically centred line box for both moving
 and stationary copy. Keep that lower breathing room even when the ticker is
 compact: SNN’s monospaced lettering must never be clipped at the bottom edge.
+Every visible glyph, including the final glyph's painted bounds, stays fully
+visible until it is actually outside the viewport. Replacing, dismissing, or
+standing down a Red Alert cannot use nested overflow, text clipping, fade,
+truncation, early unmount, or remeasurement to erase any visible lettering;
+the outgoing group retains its exact position and constant linear speed while
+the queued group remains behind its tail.
+
+Prompt 652b is a reversible mobile experiment, not the default layout. When it
+is disabled, unsupported, or cannot measure safely, the ticker remains in the
+established non-sticky header. When explicitly enabled, it stays in normal flow
+at scroll top and becomes a top frozen/sticky row only after its measured lower
+edge crosses `safe-area-inset-top`. Its exact block remains reserved in flow so
+the route reflows rather than jumping beneath it. Wrapped messages, software
+keyboard, live resize, rotation, and threshold reversal recompute one stable
+placement below required safe/header chrome. It must never overlap content,
+controls, focus outlines, session ticket, or Role Select at 320×844, 390×844,
+or 844×390; 1440×900 is the non-sticky reference. Reduced motion changes state
+without a slide and keeps stationary wrapped copy readable. Disable the
+experiment under rollback criterion `TICKER-STICKY-OCCLUSION` for any supported-
+viewport occlusion, threshold oscillation, more than one unexpected layout
+shift per crossing, material scroll jank against baseline, or lost/duplicate
+accessible announcement.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. SNN Press is an added independent station rather than a printed

@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 713-prompt catalog from top to bottom for an ordinary
+Do **not** read this 719-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-713-prompts-001653-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-719-prompts-001653-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 713-prompt roadmap.
+claim completion of the remaining 719-prompt roadmap.
 
 ## Scope and baseline
 
@@ -778,7 +778,7 @@ fixtures cannot conflate a catalog with a playable start:
    073: atomically persist the full authoritative configuration, provision and
    expose production seats, and represent one-GM/optional-multi-GM staffing.
    Prompt 051 receives production configuration evidence but remains partial.
-2. Release 0.3.13 (active) completes Prompt 051/054/071 with the setup portion
+2. Release 0.3.13 completes Prompt 051/054/071 with the setup portion
    of Prompt 075: readiness
    consumes authoritative seats/casting and start derives the
    Wolf count and default private loyalty state server-side, writes an
@@ -790,7 +790,7 @@ fixtures cannot conflate a catalog with a playable start:
 4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
    turn and maintenance composition.
 
-The following stories are the active 0.3.13 walking-skeleton contract. They are
+The following stories are the release 0.3.13 walking-skeleton contract. They are
 not by themselves Prompt 020's later composed production-path acceptance.
 
 - **Given** a new or unlocked session, **when** its creator or authorized GM
@@ -936,6 +936,214 @@ suite pass on the reconciled branch. If the GM Setup/start UI changes, rendered
 review at 320×844, 390×844, 1440×900, and 844×390 plus reduced motion confirms
 the existing CIC hierarchy, reachable controls, visible status, focus order,
 touch targets, return route, and no overflow before merge and push.
+
+### Future roadmap addendum — unified entry, authoritative alerts, and CIC repairs
+
+This addendum records future work only. It creates Prompts 031a, 106c, 485a,
+611a, 652a, and 652b; reopens Prompt 589b as a copy repair; and makes Prompt
+611's existing non-color requirement explicit for compact DRADIS. It does not
+change the implementation boundary, status, acceptance, or evidence for
+Prompts 020, 051, 054, 071, 075, 275b, 602a, or 603a, and no item below is
+complete merely because its contract is documented.
+
+#### Provenance and preservation baseline
+
+- Prompt 031a composes the current `/console`, `/roles`, and ship-role routes
+  after the landed P030/P031 seat transaction. Preserve the fleet/ship
+  selection lineage at `637aaa4`, `e773b8f`, and `34fd0f2`. Preserve the
+  selected faction flag's bespoke shared-element choreography from `5ea9b74`
+  and its refinements `4a46186`, `e42c09a`, `b4f47d0`, `3f59bf7`, `c1a8936`,
+  `2fec365`, `9fade2e`, and `4dc39da`: 100 ms screen halves around a 200 ms
+  geometry move; source-to-destination aspect ratio and object-position
+  continuity; the recorded background/foreground layer changes; roster-to-role
+  crossfade only where history intentionally suppresses a flash; reverse
+  navigation symmetry; and an intentional reduced-motion equivalent. The
+  preserved flag treatment is one part of the new unified entry flow.
+- Prompt 485a restores the normal ship/faction pursuit presentation introduced
+  at `0215488`; `0d64e25` is the audited point where the instrument became
+  always danger red. Preserve current pursuit values, countdown placement,
+  split-fleet scope, terminal wording, and server-authority dependencies.
+- Prompt 652a restores the continuous-tail behavior specified and implemented
+  at `a91a020`: a visible group keeps its position and linear rate until its
+  trailing glyph is outside the viewport. Audit the later measured-copy and
+  window geometry changes, including `080457e`, to identify the exact cause;
+  those commits are candidates, not permission to revert unrelated header
+  work.
+- Prompt 589b owns the exact conduct sentence on the authenticated-session
+  waiver. `8b27674` establishes that gate and `92a0d1d` establishes the
+  human-first regulation. Debrief and changelog history are evidence, not
+  duplicate owners of the live sentence.
+
+#### Dependency and delivery order
+
+1. Land the existing P051/P054/P071 readiness/start slice without modifying it.
+   Prompt 031a then consumes the stable P030/P031/P032/P034 claim, release,
+   race, and resume authority. It does not complete P020 or recast Press as a
+   core seat.
+2. Implement Prompt 106c before P652a or P652b. The server-owned message
+   identity, revision, ordering, replay, dismissal, and tail-drain state must
+   exist before presentation repairs or experiments infer lifecycle locally.
+3. Run P652a after P106c and alongside the still-open P652 serialization
+   contract. Only after both are green may P652b run as an explicitly
+   reversible experiment. P603a's measured session-ticket reflow and shared
+   safe-area/header contract remain prerequisites for P652b.
+4. P485a and the compact-DRADIS portion of P611 consume the existing
+   authoritative `fleetRedAlert` projection independently of P485's broader
+   pursuit-authority repair and P605a's owner-deferred attack visualization.
+5. P611a and P589b are narrow presentation/copy repairs. They may ship
+   independently once their characterization tests and shared accessibility
+   gates are green; neither authorizes a typography redesign or waiver rewrite.
+
+#### Prompt 031a ATDD — one cohesive fleet and console entry flow
+
+- **Given** an authenticated entitled player opens the unified entry route,
+  **when** live session state loads, **then** the full enabled console catalog,
+  faction flags, and nonsecret `OPEN`, `HELD BY YOU`, or claimed/read-only
+  status are visible in canonical order. Viewing, searching, grouping,
+  focusing, scrolling, or navigating back never claims anything.
+- **Given** an open core console, **when** the first authenticated player enters
+  or logs into that console, **then** the server atomically claims the stable
+  seat and player pointer before granting write authority. Two simultaneous
+  first entries yield exactly one winner; the other receives a truthful
+  read-only/conflict result, and every subscribed client updates in real time.
+  No client may dual-claim, infer authority from route state, or write the seat
+  directly.
+- **Given** reconnect, replay, a direct deep link, browser Back/Forward, release,
+  handoff, or a reasoned GM intervention, **when** live authority replaces cache,
+  **then** the same seat/route outcome converges without a second claim, lost
+  ownership, loop, or cross-console privilege. Requests use stable IDs,
+  idempotency keys, expected revisions and transactional compare-and-set; audit
+  identifies actor, console, prior/new holder, reason, outcome, and server time
+  without exposing private role or loyalty data.
+- **Given** enabled Press, **when** the unified catalog is viewed or a core
+  configuration is counted, **then** Press remains a visibly distinct
+  independent, optional, non-counted station with its existing exclusive
+  authority. It never fills a core console, changes readiness/Wolf math, or
+  receives an implicit claim merely because its card is visible.
+- **Given** normal motion, **when** the player advances or reverses between the
+  unified catalog and a ship console, **then** the exact audited flag
+  choreography, timing, transition states, aspect ratio, layer placement, and
+  polish remain regression-tested against the historical implementation.
+  Interruption, rapid navigation, reconnect, live resize, and rotation settle
+  on one flag and route without flash, orphaned clone, jank, or authority drift.
+  Reduced motion preserves identity and spatial continuity without animated
+  travel.
+- **Given** 320×844, 390×844, 1440×900, or 844×390 with safe areas, long names,
+  and either motion preference, **when** the catalog and console-entry states
+  are operated by keyboard, screen reader, or touch, **then** logical focus,
+  exact accessible names/status, visible focus, 44 px targets, and all content
+  remain reachable with no overlap with session ticket, Role Select, controls,
+  flags, or safe-area edges.
+
+#### Prompt 106c/652/652a ATDD — authoritative ticker lifecycle and complete glyphs
+
+- **Given** concurrent authorized automatic, Admiral, or Press transmissions,
+  replacements, and dismissals, **when** the server resolves them, **then** one
+  revisioned transaction assigns deterministic session-scoped message and
+  sequence identities, applies urgent Red Alert precedence, records the
+  audience-safe audit, and publishes the same ordered current/queued/draining
+  state to every client. Unauthorized, nonmember, non-holder, foreign-session,
+  stale, malformed, oversized, direct-write, and conflicting request attempts
+  are denied without leaking copy or advancing the stream; identical retries
+  replay one result.
+- **Given** reconnect, replay, late join, navigation, Red Alert activation or
+  stand-down, **when** a client hydrates the authoritative cursor, **then** it
+  renders the same active identity, completed-pass count, replacements, and
+  deterministic outgoing tail as every other client. Cached/session-storage
+  completion may accelerate presentation but never overrule server state.
+  Unentered obsolete repeats may be discarded; visible tails continue once,
+  and no client resurrects, duplicates, reorders, or locally invents a notice.
+- **Given** a Red Alert message is moving and a replacement or stand-down
+  arrives, **when** its leading text has entered the viewport, **then** every
+  glyph—including the last glyph and its painted bounds—remains fully visible
+  until that glyph is actually outside the viewport. No nested clipping,
+  text-overflow, fade, truncation, early unmount, geometry remeasurement, or
+  replacement removes any visible lettering. The outgoing group keeps its
+  exact linear speed and position while the queued group enters only behind its
+  tail under P652, with no overlap.
+- **Given** assistive technology or reduced motion, **when** the authoritative
+  identity changes, **then** the meaningful message/source/status is announced
+  once, dismissed content is not retained as current, and a stationary wrapped
+  equivalent preserves ordering and reading time without using animation as
+  state. Normal-motion regression evidence includes exact boundary geometry at
+  320×844, 390×844, 1440×900, and 844×390, resize/rotation, font load, long copy,
+  and Red Alert activation/stand-down.
+
+#### Prompt 652b ATDD — reversible mobile sticky-ticker experiment
+
+- **Given** the experiment is disabled, unsupported, or cannot measure its
+  anchor/threshold safely, **when** the route scrolls, **then** FleetTicker uses
+  the established non-sticky header layout. That fallback is the permanent
+  baseline; the experiment must be explicitly enabled and may not silently
+  redefine it.
+- **Given** the experiment is enabled on mobile, **when** the ticker's measured
+  lower edge crosses the named threshold `safe-area-inset-top`, **then** it
+  becomes a top sticky/frozen-row instrument. Before that crossing it remains
+  in normal flow. A same-size placeholder or equivalent grid track reserves its
+  exact occupied block so content reflows without jump or overlap; scrolling
+  back across the threshold restores normal flow deterministically.
+- **Given** the session ticket, Role Select, routed controls, focus outlines,
+  software keyboard, safe areas, wrapped ticker, live resize, or rotation,
+  **when** sticky mode recomputes, **then** one measured layout places the
+  ticker below required safe/header chrome and reserves all of its height. It
+  never overlays, clips, hides, or z-index-covers content, controls, or the
+  session ticket at 320×844, 390×844, or 844×390; 1440×900 remains the
+  non-sticky reference.
+- **Given** reduced motion or a short landscape viewport, **when** the threshold
+  is crossed, **then** the state change has no animated slide and the wrapped
+  message remains keyboard/screen-reader/touch readable with at least 44 px
+  interactive targets around it. Performance evidence records scroll frame
+  behavior, layout-shift count, resize-observer stability, and interruption.
+  **Rollback criterion `TICKER-STICKY-OCCLUSION`** fires if any supported
+  viewport shows content/focus/session-ticket occlusion, a repeated threshold
+  oscillation, more than one unexpected layout shift per crossing, material
+  scroll jank against the recorded baseline, or loss/duplication of accessible
+  announcements; disable the experiment and retain the non-sticky layout.
+
+#### Prompt 485a/611/611a/589b ATDD — alert semantics, type, and conduct copy
+
+- **Given** the authoritative fleet Red Alert is active, **when** Pursuit Track
+  and compact or expanded DRADIS render, **then** Pursuit Track uses hostile
+  danger red and DRADIS visibly says `RED ALERT` with a stable non-color text or
+  icon cue. **Given** stand-down or a non-alert session, **then** Pursuit Track
+  immediately returns to the established ship/faction colors and DRADIS clears
+  that cue. Cache, reconnect, late join, revision ordering, and reduced motion
+  cannot leave a local false alert; terminal pursuit still uses its exact
+  textual state without making non-alert color claim authority.
+- **Given** the rendered status `CONSOLE ACCESS // WRITE // CREW INCOMPLETE`,
+  **when** it appears in the ship-console identity/status hierarchy, **then** it
+  uses the same CIC mono label/readout token, tracking, casing, contrast, and
+  responsive wrapping as equivalent console-access states. Audit other direct
+  label/readout outliers against named CIC type tokens and casing conventions,
+  characterize each before repair, and change only proven inconsistencies—no
+  global type scale, visual redesign, or copy normalization by convenience.
+- **Given** the authenticated-session waiver's human-first regulation, **when**
+  it is presented, read aloud, tested, or resumed, **then** the regulation body
+  is exactly `Be bold. Remember the human on the other side.` with that casing
+  and punctuation. The waiver remains the sole live owner; its existing title,
+  checkbox semantics, focus trap/restore, acknowledgement lifetime, privacy
+  boundary, audit, and distinction from GM access expiry remain intact. No
+  debrief, history, or changelog surface receives a duplicate live sentence.
+- **Given** any of those repaired surfaces at 320×844, 390×844, 1440×900, or
+  844×390, **when** operated with keyboard, screen reader, touch, safe-area
+  insets, rotation, or reduced motion, **then** status is announced once,
+  complete text stays visible, focus and 44 px controls remain unobscured, and
+  the established square ruled CIC hierarchy remains recognizable.
+
+#### Shared regression and release gate
+
+Each implementation begins with the narrowest chronological failing
+characterization of the cited current/history boundary. Authority work adds
+callable transaction, CAS/race, idempotency/replay, reconnect/late-join,
+projection/privacy, audit, and Firestore-denial evidence; presentation work adds
+normal/reduced-motion, keyboard/screen-reader/touch, live resize/rotation, safe
+area, and real-browser geometry evidence at 320×844, 390×844, 1440×900, and
+844×390. Preserve current working behavior outside the selected prompt. A
+future product slice reserves its own version and changelog, passes focused and
+full client/Functions/rules/build gates in proportion to changed scope, receives
+security and visual/accessibility review, reconciles current `main`, merges,
+pushes, and closes coordination. Documentation alone satisfies none of these
+product gates.
 
 ### Milestone 1 — Cast and start a real game
 
@@ -1837,8 +2045,8 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 713-ID queue (Prompts 001–653 plus the lettered prompts) is in
-scope for the active completion campaign. All 713 canonical prompt IDs (001–653
+The complete 719-ID queue (Prompts 001–653 plus the lettered prompts) is in
+scope for the active completion campaign. All 719 canonical prompt IDs (001–653
 plus the lettered prompts) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -1883,7 +2091,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 713 prompts (001–653 plus lettered IDs)
+#### Execution checklist — all 719 prompts (001–653 plus lettered IDs)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -1919,6 +2127,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 029
 - [x] Prompt 030
 - [x] Prompt 031
+- [ ] Prompt 031a
 - [x] Prompt 032
 - [x] Prompt 033
 - [x] Prompt 034
@@ -1938,10 +2147,10 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 048
 - [x] Prompt 049
 - [x] Prompt 050
-- [ ] Prompt 051
+- [x] Prompt 051
 - [x] Prompt 052
 - [x] Prompt 053
-- [ ] Prompt 054
+- [x] Prompt 054
 - [ ] Prompt 055
 - [ ] Prompt 056
 - [ ] Prompt 057
@@ -1958,7 +2167,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 068
 - [ ] Prompt 069
 - [ ] Prompt 070
-- [ ] Prompt 071
+- [x] Prompt 071
 - [x] Prompt 072
 - [x] Prompt 073
 - [x] Prompt 074
@@ -1996,6 +2205,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 106
 - [ ] Prompt 106a
 - [ ] Prompt 106b
+- [ ] Prompt 106c
 - [ ] Prompt 107
 - [ ] Prompt 108
 - [ ] Prompt 109
@@ -2418,6 +2628,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 483
 - [ ] Prompt 484
 - [ ] Prompt 485
+- [ ] Prompt 485a
 - [ ] Prompt 486
 - [ ] Prompt 487
 - [ ] Prompt 488
@@ -2559,6 +2770,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 609
 - [ ] Prompt 610
 - [ ] Prompt 611
+- [ ] Prompt 611a
 - [ ] Prompt 612
 - [ ] Prompt 613
 - [ ] Prompt 614
@@ -2600,6 +2812,8 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 650
 - [ ] Prompt 651
 - [ ] Prompt 652
+- [ ] Prompt 652a
+- [ ] Prompt 652b
 - [ ] Prompt 653
 
 #### Foundation, session, casting, and start (Prompts 001–090)
@@ -2635,6 +2849,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 029 — [PRESERVE] Enforce one seat per player.** Acceptance: concurrent claims cannot leave one player in two seats or one seat pointing to two players.
 - **Prompt 030 — [REPAIR] Implement authoritative seat claiming.** Acceptance: a valid open-seat claim updates the seat, player pointer, roster, and event in one transaction. Session creation must provision the stable core-seat catalog and the existing client routes must expose callable-backed claim/release; request replay, setup revision, reconnect, audit, and direct-write denial are part of the production contract.
 - **Prompt 031 — [PRESERVE] Resolve seat-claim races.** Acceptance: simultaneous claims yield one winner and one truthful conflict without orphaning either member.
+- **Prompt 031a — [EXTEND] Unify fleet and console entry without weakening first-entry claims.** Acceptance: after the current setup/readiness slice, compose the separate fleet/flag and console/seat selection pages into one cohesive catalog in which every entitled authenticated player can inspect all enabled consoles and nonsecret status without claiming; first entry into an open core console atomically claims it server-side, simultaneous entry has one winner, and all clients converge in real time. Preserve stable IDs, authoritative CAS/idempotency/audit, reconnect, release/handoff/GM intervention, deep-link/Back behavior, Press's distinct non-counted station, claimed read-only state, and the exact audited shared-flag choreography from `5ea9b74` plus its named refinements. Prove no dual claim or direct write; keyboard, screen-reader, visible-focus, 44px touch, safe-area/rotation/reduced-motion, interruption/performance, and nonoverlap at 320×844, 390×844, 1440×900, and 844×390. This is one new unified flow whose existing flag presentation remains intact.
 - **Prompt 032 — [PRESERVE] Implement authoritative seat release.** Acceptance: a player can release only a seat that still points to that player, with retry-safe cleanup.
 - **Prompt 033 — [PRESERVE] Deny forged or stale seat release.** Acceptance: another player's seat and a newly reclaimed seat survive hostile or delayed release requests.
 - **Prompt 034 — [PRESERVE] Implement session resume.** Acceptance: a returning device receives current session, player, seat, mode, and route authority rather than trusting cache.
@@ -2715,6 +2930,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 106 — [PRESERVE] Replay lifecycle announcements.** Acceptance: reconnecting members see the latest relevant turn/phase state without duplicate visual effects.
 - **Prompt 106a — [PRESERVE] Enforce FleetBroadcast precedence.** Acceptance: urgent authoritative transmissions preempt lower-priority ticker content, queue safely, and drain once without losing a higher-priority state.
 - **Prompt 106b — [PRESERVE] Verify exact turn-transmission timing.** Acceptance: Turn 0, Turn 1, ordinary turn, lockout, and finale copy appears, fades, and replays at its specified lifecycle moment.
+- **Prompt 106c — [EXTEND] Make fleet-ticker lifecycle server-authoritative.** Acceptance: one transaction-owned stream gives automatic, Admiral, and Press transmissions deterministic session-scoped identities, revisions, precedence, current/queued/draining state, dismissals, pass counts, and replay cursors. Concurrent send/replace/dismiss and Red Alert activation/stand-down serialize once; idempotent retry, reconnect, replay, late join, and every live client converge without local resurrection, duplication, reorder, or early tail disposal. Enforce authenticated role/holder/GM authority, schemas, CAS, privacy-safe projections/audit, direct-write denial, and screen-reader announcement identity before P652a/P652b presentation work.
 - **Prompt 107 — [DECISION] Decide split-fleet clock semantics.** Acceptance: one recorded policy governs whether groups share phase windows; no group learns forbidden location state.
 - **Prompt 108 — [PRESERVE] Reconnect during a live timer.** Acceptance: the device receives current server-derived remaining time and permitted actions, discarding local timer authority.
 - **Prompt 109 — [PRESERVE] Reconcile delayed lifecycle updates.** Acceptance: clients converge on the newest phase and never expose an action from an older window.
@@ -3162,6 +3378,7 @@ a presentation/data primitive, not proof of a playable attack.
 #### Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)
 
 - **Prompt 485 — [REPAIR] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
+- **Prompt 485a — [REPAIR] Restore alert-scoped Pursuit Track color.** Acceptance: restore the normal ship/faction presentation from `0215488` whenever authoritative Red Alert is inactive, and use hostile danger red only while that shared alert is active; `0d64e25` documents the always-danger departure to repair. Stand-down, reconnect, late join, stale revision, split-fleet scope, reduced motion, and terminal text converge on authority without changing countdown placement, pursuit math, or claiming P485's broader server-value repair complete. Prove non-color alert/terminal meaning, CIC contrast, and 320×844, 390×844, 1440×900, and 844×390 containment.
 - **Prompt 486 — [PROVE] Verify the per-turn pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
 - **Prompt 487 — [PROVE] Verify jump-based pursuit reduction.** Acceptance: attack pressure uses each group's selected-chart depth and never client-reported distance.
 - **Prompt 488 — [PROVE] Verify Ion Nebula threat suppression.** Acceptance: system I prevents the specified rise for that group while preserving environmental damage.
@@ -3283,7 +3500,7 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 588 — [EXTEND] Present private loyalty assignment.** Acceptance: the entitled player sees exact card/suspicion and unrelated clients receive no serialized secret.
 - **Prompt 589 — [EXTEND] Teach the table ground rules.** Acceptance: onboarding covers private briefs, no out-of-game communication/photos, Wolf humanity, and resource components with exact approved copy.
 - **Prompt 589a — [PRESERVE] Audit the motion-safety gate.** Acceptance: every browser is blocked until normal or reduced motion is chosen, the choice applies globally, and a fresh acknowledgement is required after 24 hours.
-- **Prompt 589b — [PRESERVE] Audit the authenticated-session waiver.** Acceptance: exact safety/privacy/game expectations gate entry for the documented lifetime and remain distinct from GM access expiry.
+- **Prompt 589b — [REPAIR] Simplify the authenticated-session waiver's human-first copy.** Acceptance: the human-first regulation body is owned only by the authenticated-session waiver and is exactly `Be bold. Remember the human on the other side.` with that casing and punctuation. Preserve the gate's title/eyebrow, acknowledgement lifetime, checkbox and focus semantics, reconnect/resume behavior, audit/privacy boundary, and distinction from GM access expiry; do not duplicate the live sentence into debrief or rewrite historical changelog evidence. Prove exact accessible copy and complete responsive text at 320×844, 390×844, 1440×900, and 844×390.
 - **Prompt 590 — [EXTEND] Teach the core game loop.** Acceptance: help explains Team, Coordination, pursuit failure, jump announcements, attack docking, and away missions without unsupported mechanics.
 - **Prompt 591 — [EXTEND] Show vessel-specific maintenance help.** Acceptance: the active ship sees its exact numbered steps, rations, unrest, damage, charging, and fuel expiry.
 - **Prompt 592 — [EXTEND] Show craft-specific help.** Acceptance: each shuttle/fighter shows only its printed owner, fuel, cargo, phase, combat, mission, and action rules.
@@ -3311,7 +3528,8 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 608 — [EXTEND] Own dialog focus correctly.** Acceptance: settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.
 - **Prompt 609 — [EXTEND] Announce live changes once.** Acceptance: phase, attack, parking, denial, threshold, and ending updates use appropriate live regions without listener-repeat noise.
 - **Prompt 610 — [EXTEND] Honor reduced motion globally.** Acceptance: all authoritative information remains while flashes, sweeps, transitions, and continuous effects are removed or reduced.
-- **Prompt 611 — [EXTEND] Distinguish status without color alone.** Acceptance: danger, damage, privacy, offline, pending, and success use text/icon semantics and verified CIC contrast.
+- **Prompt 611 — [EXTEND] Distinguish status without color alone.** Acceptance: danger, damage, privacy, offline, pending, and success use text/icon semantics and verified CIC contrast. In particular, minimized/compact and expanded DRADIS both expose a stable non-color `RED ALERT` text/icon cue derived from authoritative `fleetRedAlert`; activation, stand-down, reconnect, replay, late join, stale cache, rotation, and reduced motion cannot leave a false or color-only alert. Prove keyboard/screen-reader semantics and unobscured placement at 320×844, 390×844, 1440×900, and 844×390 without expanding P605a's deferred attack visualization.
+- **Prompt 611a — [REPAIR] Repair CIC status typography without redesign.** Acceptance: characterize the exact rendered `CONSOLE ACCESS // WRITE // CREW INCOMPLETE` surface and other directly comparable label/readout outliers, then make only proven inconsistencies use the named CIC mono type, tracking, casing, contrast, and wrapping tokens. Preserve copy ownership, semantic heading order, long-label accessibility, normal/reduced motion, safe-area/rotation behavior, and 320×844, 390×844, 1440×900, and 844×390 containment; do not introduce a global type scale, broad recasing, or visual redesign.
 - **Prompt 612 — [PRESERVE] Render a persisted snapshot before resume.** Acceptance: the last permitted view appears promptly with a stale marker and cannot authorize actions.
 - **Prompt 613 — [PRESERVE] Clear invalid persisted sessions.** Acceptance: not-found, permission-denied, and failed-precondition clear stale identity/route state while transient failures preserve recoverability.
 - **Prompt 614 — [PRESERVE] Reconcile presence leases under load.** Acceptance: cadence and expiry retain current ownership and never release another device's seat.
@@ -3353,12 +3571,14 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 650 — [PROVE] Prove authoritative terminal failure and recovery paths.** Acceptance: server-owned pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play; a client-only `GAME OVER` label or presentation state is not terminal authority.
 - **Prompt 651 — [PROVE] Run the final release-readiness audit.** Acceptance: aggregate current prompt and milestone evidence; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, capacity, version, changelog, and docs gates are green; the final executable gates pass and no placeholder control remains, without manually repeating every earlier review.
 - **Prompt 652 — [EXTEND] Prevent FleetTicker messages from overlapping.** Acceptance: when standing/broadcast copy changes, outgoing text drains and queued replacement enters without two strings covering each other; urgent FleetBroadcast precedence and replacement ordering remain intact; rapid updates serialize without duplicate tracks; screen-reader announcements are not duplicated; reduced-motion mode remains readable; and narrow phone, wide desktop, and short landscape layouts show one legible lane with no overlap/clipping.
+- **Prompt 652a — [REPAIR] Keep every moving ticker glyph visible through its real exit.** Acceptance: restore `a91a020`'s continuous visible-tail baseline so a Red Alert group keeps every glyph, including its final painted bounds, fully visible until actually outside the viewport; audit `080457e` and later measured-copy/window geometry before changing code. Replacement, dismissal, stand-down, font load, resize/rotation, and authoritative P106c updates cannot cause nested clipping, fade, truncation, early unmount, remeasurement jump, or overlap. Preserve one constant linear speed, discard only unentered repetitions, announce each identity once, provide a readable reduced-motion equivalent, and prove exact boundary geometry at 320×844, 390×844, 1440×900, and 844×390.
+- **Prompt 652b — [NEW] Run a reversible mobile sticky-ticker experiment.** Acceptance: behind an explicit experiment control, keep the current non-sticky layout at scroll top and switch to a top sticky/frozen row only when the ticker's measured lower edge crosses the named `safe-area-inset-top` threshold. Reserve the ticker's exact block in flow and recompute safely on wrapped copy, live resize, rotation, keyboard, and safe-area changes; never overlap content, controls, focus outlines, session ticket, or Role Select. Preserve the non-sticky fallback and stationary reduced-motion equivalent; prove 320×844, 390×844, 844×390, short landscape, touch/keyboard/screen-reader, interruption, layout-shift, and scroll-performance evidence, with 1440×900 as the non-sticky reference. Roll back under named criterion `TICKER-STICKY-OCCLUSION` for any supported-viewport occlusion, threshold oscillation, more than one unexpected layout shift per crossing, material baseline jank, or lost/duplicate announcement; do not silently make the experiment permanent.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
-The backlog contains **713 independently executable prompts** in this
-snapshot: 653 base IDs plus 60 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **160 `[PRESERVE]`, 102
-`[EXTEND]`, 363 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 15 `[REPAIR]`, and 1
+The backlog contains **719 independently executable prompts** in this
+snapshot: 653 base IDs plus 66 lettered child IDs placed beside their closest
+dependency. The current evidence classification is **159 `[PRESERVE]`, 104
+`[EXTEND]`, 364 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 19 `[REPAIR]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:
