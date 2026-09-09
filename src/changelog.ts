@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [138],
+    implementationProgress: {
+      completed: 75,
+      total: 721,
+      percentage: '10.40%',
+      done: 75,
+      partial: 26,
+      active: 0,
+      missing: 620,
+    },
+    changes: [
+      'Improved GM server logic so maintenance actions are safer and do not run twice.',
+    ],
+  },
+  {
+    version: '0.3.17',
     implementationPrompts: [177],
     implementationProgress: {
       completed: 74,

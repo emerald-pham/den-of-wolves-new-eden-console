@@ -22,6 +22,34 @@ export function requireSessionRequest(data: {
   return { sessionId: requiredId(data.sessionId, 'sessionId') };
 }
 
+export function requireMaintenanceRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  requestId?: unknown;
+  instanceId?: unknown;
+  action?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  shipId: string;
+  requestId: string;
+  instanceId?: string;
+  action: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    shipId: requiredId(data.shipId, 'shipId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    action: requiredText(data.action, 'action', 32),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireSessionCreationRequest(data: {
   requestId?: unknown;
   playerCount?: unknown;

@@ -15,6 +15,14 @@ const mock = vi.hoisted(() => ({
     ready: Promise<void>;
     release: () => void;
     version: number;
+    barrier?: boolean;
+    maintenance?: {
+      session: Record<string, unknown>;
+      receipts: Record<string, Record<string, unknown>>;
+      undo: Record<string, Record<string, unknown>>;
+      events: Record<string, Record<string, unknown>>;
+      damageDraws: Record<string, Record<string, unknown>>;
+    };
   } | undefined,
   pressEnabled: true,
   activeConsoleRoleId: undefined as string | undefined,
@@ -30,6 +38,74 @@ vi.mock('firebase-admin/firestore', () => ({
     runTransaction: async (callback: (tx: unknown) => unknown) => {
       if (mock.race) {
         const race = mock.race;
+        if (race.maintenance) {
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const baseVersion = race.version;
+            const state = race.maintenance;
+            const snapshot = structuredClone(state.session);
+            const updates: Array<readonly [string, Record<string, unknown>]> = [];
+            const sets: Array<readonly [string, Record<string, unknown>]> = [];
+            const document = (path: string) => {
+              if (path.includes('/maintenanceRequests/')) {
+                const fields = state.receipts[path];
+                return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path.includes('/maintenanceUndo/')) {
+                const fields = state.undo[path] ?? { entries: [] };
+                return { exists: true, get: (key: string) => fields[key] };
+              }
+              if (path.includes('/players/')) {
+                return { exists: true, get: (key: string) => ({
+                  role: mock.role, connected: mock.connected,
+                  activeConsoleRoleId: mock.activeConsoleRoleId,
+                } as Record<string, unknown>)[key] };
+              }
+              if (path.includes('/gmInstances/')) {
+                return { exists: true, get: (key: string) => key === 'uid' ? mock.owner : undefined };
+              }
+              if (path.endsWith('/gmInstances')) return { exists: true, docs: [] };
+              return { exists: true, get: (key: string) => snapshot[key] };
+            };
+            const tx = {
+              get: async (path: string) => document(path),
+              update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
+              set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+            };
+            const result = await callback(tx);
+            race.attempts += 1;
+            if (race.barrier && race.attempts === 1) await race.ready;
+            else if (race.barrier && race.attempts === 2) race.release();
+            if (race.version !== baseVersion) continue;
+            const assign = (path: string, key: string, value: unknown) => {
+              if (path !== 'sessions/s1') return;
+              const parts = key.split('.');
+              if (parts.length === 1) state.session[key] = value;
+              else {
+                const root = parts[0]!;
+                const child = parts.slice(1).join('.');
+                const current = typeof state.session[root] === 'object' && state.session[root] !== null
+                  ? structuredClone(state.session[root]) as Record<string, unknown>
+                  : {};
+                current[child] = value;
+                state.session[root] = current;
+              }
+            };
+            for (const [path, fields] of updates) {
+              mock.update(path, fields);
+              for (const [key, value] of Object.entries(fields)) assign(path, key, value);
+            }
+            for (const [path, fields] of sets) {
+              mock.set(path, fields);
+              if (path.includes('/maintenanceRequests/')) state.receipts[path] = fields;
+              else if (path.includes('/maintenanceUndo/')) state.undo[path] = fields;
+              else if (path.includes('/damageDraws/')) state.damageDraws[path] = fields;
+              else if (path.includes('/events/')) state.events[path] = fields;
+            }
+            if (updates.length > 0 || sets.length > 0) race.version += 1;
+            return result;
+          }
+          throw new Error('Mock transaction exceeded optimistic retry limit.');
+        }
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const baseVersion = race.version;
           const snapshot = {
@@ -108,9 +184,9 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 
-function request(data: Record<string, unknown>, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<{
-    sessionId: string; shipId: string; instanceId: string; action: string; expectedRevision: number;
+function request(data: Record<string, unknown>, uid: string | null = 'u1') {
+  return { data, auth: uid === null ? undefined : { uid } } as CallableRequest<{
+    sessionId: string; shipId: string; requestId: string; instanceId: string; action: string; expectedRevision: number;
   }>;
 }
 
@@ -142,6 +218,12 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/maintenanceRequests/')) {
+      return { exists: false, get: () => undefined };
+    }
+    if (path.includes('/maintenanceUndo/')) {
+      return { exists: true, get: (key: string) => key === 'entries' ? [] : undefined };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? {
           role: mock.role, connected: mock.connected,
@@ -177,7 +259,7 @@ it('rejects a second maintenance cycle in the same turn', async () => {
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', action: 'begin', expectedRevision: 0 };
+const data = { sessionId: 's1', shipId: 'aegis', requestId: 'maintenance-base', instanceId: 'bridge', action: 'begin', expectedRevision: 0 };
 
 
 it('begins maintenance atomically with a server-owned revision', async () => {
@@ -186,6 +268,101 @@ it('begins maintenance atomically with a server-owned revision', async () => {
     'maintenanceCycles.aegis': expect.objectContaining({ step: 1, revision: 1 }),
   }));
 });
+
+it('commits maintenance resources, charges, fuel, and damage once across duplicate and stale CAS requests', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-09T16:10:00.000Z'));
+  mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, maintenanceCycles: {},
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
+      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
+      shuttleDockings: [{ shipId: 'aegis', shuttleId: 'starlight' }],
+      shuttleCargo: { starlight: { ore: 2 } }, shuttleFuelled: { starlight: false },
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => { release = resolve; });
+  mock.race = { attempts: 0, ready, release, version: 0, barrier: true, maintenance };
+
+  const duplicate = await Promise.all([
+    runMaintenance.run(request({ ...data, requestId: 'maintenance-duplicate' })),
+    runMaintenance.run(request({ ...data, requestId: 'maintenance-duplicate' })),
+  ]);
+  expect(duplicate.map((reply) => (reply as Record<string, unknown>).status).sort())
+    .toEqual(['committed', 'replayed']);
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(Object.keys(maintenance.events)).toHaveLength(1);
+
+  mock.race.barrier = false;
+  const step = (action: string, expectedRevision: number, choices: Record<string, unknown> = {}) =>
+    runMaintenance.run(request({
+      ...data, action, expectedRevision, requestId: `maintenance-${action}`, ...choices,
+    }));
+  await step('storage', 1);
+  await step('rations', 2, { foodLevel: 1, waterLevel: 1 });
+  await step('unrest', 3);
+
+  let riotRelease!: () => void;
+  const riotReady = new Promise<void>((resolve) => { riotRelease = resolve; });
+  mock.race.barrier = true;
+  mock.race.attempts = 0;
+  mock.race.ready = riotReady;
+  mock.race.release = riotRelease;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  const riot = await Promise.all([
+    runMaintenance.run(request({ ...data, action: 'riot', expectedRevision: 4, requestId: 'riot-a' })),
+    runMaintenance.run(request({ ...data, action: 'riot', expectedRevision: 4, requestId: 'riot-b' })),
+  ]);
+  const committed = riot.find((reply) => (reply as Record<string, unknown>).status === 'committed') as Record<string, unknown>;
+  const stale = riot.find((reply) => (reply as Record<string, unknown>).status === 'stale') as Record<string, unknown>;
+  expect(committed).toMatchObject({ action: 'riot', expectedRevision: 4, committedRevision: 5 });
+  expect(stale).toMatchObject({ status: 'stale', expectedRevision: 4, currentRevision: 5 });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(Object.keys(maintenance.damageDraws)).toHaveLength(1);
+  expect(Object.keys(maintenance.events).filter((path) => path.includes('/events/maintenance-riot-')))
+    .toHaveLength(1);
+
+  const randomCallsAfterCommit = mock.randomInt.mock.calls.length;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  const replay = await step('riot', 4, { requestId: committed.requestId });
+  expect(replay).toMatchObject({ status: 'replayed', requestId: committed.requestId, cycle: committed.cycle });
+  expect(mock.randomInt.mock.calls.length).toBe(randomCallsAfterCommit);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  await step('reactor', 5, { consoles: ['jump-drive'] });
+  await step('bays', 6, { refuels: { 'shuttle-bay-zeta': 'starlight' } });
+  await step('end', 7);
+
+  const session = maintenance.session;
+  expect((session.shipResources as Record<string, Record<string, number>>).aegis)
+    .toMatchObject({ food: 5, water: 4, fuel: 3 });
+  expect(session.maintenanceCycles).toMatchObject({
+    aegis: expect.objectContaining({ step: 0, revision: 8, charges: ['jump-drive'], refuelled: ['starlight'] }),
+  });
+  expect(session.shuttleFuelled).toEqual({ starlight: true });
+  expect(session.shipDamage).toEqual({
+    aegis: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false },
+  });
+  expect(Object.keys(maintenance.receipts)).toHaveLength(8);
+  const riotReceipt = maintenance.receipts[`sessions/s1/maintenanceRequests/${committed.requestId}`]!;
+  const riotEvent = maintenance.events[`sessions/s1/events/maintenance-${committed.requestId}`]!;
+  expect(riotReceipt).toMatchObject({
+    actorUid: 'u1', sessionId: 's1', shipId: 'aegis', action: 'riot',
+    expectedRevision: 4, committedRevision: 5, serverTime: '2026-09-09T16:10:00.000Z',
+  });
+  expect(riotReceipt.serverEntropy).toBe(0);
+  expect(riotReceipt.serverRolls).toEqual([1, 1]);
+  expect(riotEvent).toMatchObject({ requestId: committed.requestId, serverTime: riotReceipt.serverTime });
+});
+
 it('rejects Team maintenance while the server phase is Coordination', async () => {
   mock.turnPhase = {
     turn: 1,
@@ -198,6 +375,7 @@ it('rejects Team maintenance while the server phase is Coordination', async () =
   expect(mock.update).not.toHaveBeenCalled();
 });
 it('denies unauthenticated, disconnected, unassigned players and foreign GM instances', async () => {
+  await expect(runMaintenance.run(request(data, null))).rejects.toMatchObject({ code: 'unauthenticated' });
   mock.connected = false;
   await expect(runMaintenance.run(request(data))).rejects.toMatchObject({ code: 'permission-denied' });
   mock.connected = true; mock.role = 'player';
@@ -207,6 +385,8 @@ it('denies unauthenticated, disconnected, unassigned players and foreign GM inst
   expect(mock.update).not.toHaveBeenCalled();
 });
 it('rejects invalid steps and client-supplied dice', async () => {
+  await expect(runMaintenance.run(request({ ...data, requestId: undefined }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  await expect(runMaintenance.run(request({ ...data, requestId: 'maintenance/invalid' }))).rejects.toMatchObject({ code: 'invalid-argument' });
   await expect(runMaintenance.run(request({ ...data, action: 'riot' }))).rejects.toMatchObject({ code: 'failed-precondition' });
   await expect(runMaintenance.run(request({ ...data, rolls: [6, 6] }))).rejects.toMatchObject({ code: 'invalid-argument' });
   expect(mock.update).not.toHaveBeenCalled();
@@ -219,7 +399,8 @@ it('rejects observer authority even if a prior console role remains stored', asy
 });
 it('allows a ship officer and assigned joint engineer, but denies another ship', async () => {
   mock.activeRoleIds = recommendedRoleIds(14);
-  mock.get.mockImplementation(async (path: string) => ({
+  mock.get.mockImplementation(async (path: string) => path.includes('/maintenanceRequests/')
+    ? { exists: false, get: () => undefined } : ({
     exists: true,
     get: (key: string) => path.includes('/players/')
       ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
@@ -231,7 +412,8 @@ it('allows a ship officer and assigned joint engineer, but denies another ship',
 
 it('accepts the paired Joint Engineering console identity for its maintenance workspace', async () => {
   mock.activeRoleIds = recommendedRoleIds(14);
-  mock.get.mockImplementation(async (path: string) => ({
+  mock.get.mockImplementation(async (path: string) => path.includes('/maintenanceRequests/')
+    ? { exists: false, get: () => undefined } : ({
     exists: true,
     get: (key: string) => path.includes('/players/')
       ? ({ connected: true, role: 'player', activeConsoleRoleId: 'joint-engineering-quellon-refinery' } as Record<string, unknown>)[key]
@@ -988,6 +1170,7 @@ it('denies turn advancement without an active GM instance', async () => {
 it('checks the viewed console against the live crew before maintenance writes', async () => {
   let full = false;
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/maintenanceRequests/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { connected: true, role: 'player', activeConsoleRoleId: 'wing-commander' } : {};
     if (path.endsWith('/players')) return { docs: (full ? ['admiral', 'executive-officer', 'wing-commander'] : ['wing-commander']).map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
@@ -1039,10 +1222,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
       record[parts.at(-1)!] = structuredClone(value);
     }
   });
-  await runMaintenance.run(request(data));
-  await runMaintenance.run(request({ ...data, action: 'storage', expectedRevision: 1 }));
+  await runMaintenance.run(request({ ...data, requestId: 'rollback-begin' }));
+  await runMaintenance.run(request({ ...data, action: 'storage', expectedRevision: 1, requestId: 'rollback-storage' }));
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(10);
-  await runMaintenance.run(request({ ...data, action: 'rations', expectedRevision: 2, foodLevel: 1, waterLevel: 1 }));
+  await runMaintenance.run(request({ ...data, action: 'rations', expectedRevision: 2, requestId: 'rollback-rations', foodLevel: 1, waterLevel: 1 }));
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(7);
   for (const expectedRevision of [3, 4]) {
     await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision }));

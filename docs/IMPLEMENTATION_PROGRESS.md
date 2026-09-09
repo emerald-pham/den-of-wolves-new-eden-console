@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**74 / 721 prompts complete (10.26%)**
+**75 / 721 prompts complete (10.40%)**
 
-Status breakdown: **74 done · 26 partial · 0 active · 621 missing**.
+Status breakdown: **75 done · 26 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -64,6 +64,20 @@ event. Lifecycle ordinals are 2*turn-1 for Team and 2*turn for Coordination;
 a stateful optimistic-CAS test proves mixed Team/Press expiry observers and
 two distinct GM advances commit once, expire resources once, and leave stale
 retries write-free.
+
+### Version 0.3.18 progress evidence
+
+The release boundary records Prompt 138 complete at **75 / 721 = 10.40%**
+with **75 done · 26 partial · 0 active · 620 missing**. The printed maintenance
+path now requires an authority-bound client request ID, checks authority and
+phase before replay, and commits the resource, charge, fuel, damage, undo,
+event, and private replay receipt together. A stateful optimistic-CAS fixture
+proves duplicate replay and two distinct same-revision requests produce one
+winner, one resource/damage mutation, one event, and a write-free stale loser;
+retries reuse one server timestamp and one server-owned entropy/dice outcome.
+Firestore rules deny direct maintenance-receipt access. Prompt 138a rollback,
+Prompt 139 audience projection, and Prompt 140 all-vessel coverage remain
+outside this release.
 
 ### Version 0.3.17 progress evidence
 
@@ -380,7 +394,7 @@ release classification and evidence.
 | 135 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 136 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 137 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 138 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 138 | done | feature | 0.3.18 | Authority-bound request IDs, pre-replay guards, one atomic resource/charge/fuel/damage/undo/event/receipt transaction, stateful CAS winner/stale proof, and write-free exact replay prevent duplicate maintenance effects; 138a/139/140 remain separate. |
 | 138a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 139 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 140 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |

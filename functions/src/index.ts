@@ -63,6 +63,7 @@ import {
   requireShipUnrestRequest,
   requireUnrestDismissalRequest,
   requireSessionRequest,
+  requireMaintenanceRequest,
   requireSessionCreationRequest,
   requireCastingPreferenceRequest,
   requireRoleAssignmentRequest,
@@ -4899,34 +4900,116 @@ export const dismissPopulationAlert = onCall<{
   });
 });
 
+type MaintenanceRequestFingerprint = Readonly<{
+  sessionId: string;
+  shipId: string;
+  actorUid: string;
+  action: string;
+  expectedRevision: number;
+  instanceId: string | null;
+  foodLevel: number | null;
+  waterLevel: number | null;
+  consoles: readonly string[];
+  refuels: readonly (readonly [string, string])[];
+  consoleRoleId: string | null;
+}>;
+
+type MaintenanceCommand = ReturnType<typeof requireMaintenanceRequest> & {
+  foodLevel?: number;
+  waterLevel?: number;
+  consoles?: string[];
+  refuels?: Record<string, string>;
+  consoleRoleId?: string;
+};
+
+function maintenanceRequestFingerprint(command: MaintenanceCommand, actorUid: string): MaintenanceRequestFingerprint {
+  return {
+    sessionId: command.sessionId,
+    shipId: command.shipId,
+    actorUid,
+    action: command.action,
+    expectedRevision: command.expectedRevision,
+    instanceId: command.instanceId ?? null,
+    foodLevel: command.foodLevel ?? null,
+    waterLevel: command.waterLevel ?? null,
+    consoles: [...(command.consoles ?? [])],
+    refuels: Object.entries(command.refuels ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    consoleRoleId: command.consoleRoleId ?? null,
+  };
+}
+
+function sameMaintenanceRequestFingerprint(
+  value: unknown,
+  expected: MaintenanceRequestFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const samePairs = (stored: unknown, wanted: readonly (readonly [string, string])[]) =>
+    Array.isArray(stored) && stored.length === wanted.length && stored.every((pair, index) =>
+      Array.isArray(pair) && pair.length === 2 && pair[0] === wanted[index]?.[0] && pair[1] === wanted[index]?.[1]);
+  return candidate.sessionId === expected.sessionId &&
+    candidate.shipId === expected.shipId &&
+    candidate.actorUid === expected.actorUid &&
+    candidate.action === expected.action &&
+    candidate.expectedRevision === expected.expectedRevision &&
+    candidate.instanceId === expected.instanceId &&
+    candidate.foodLevel === expected.foodLevel &&
+    candidate.waterLevel === expected.waterLevel &&
+    Array.isArray(candidate.consoles) && candidate.consoles.length === expected.consoles.length &&
+    candidate.consoles.every((item, index) => item === expected.consoles[index]) &&
+    samePairs(candidate.refuels, expected.refuels) &&
+    candidate.consoleRoleId === expected.consoleRoleId;
+}
+
 /** One atomic, revision-checked maintenance action. Dice are never supplied by a client. */
 export const runMaintenance = onCall<{
-  sessionId: string; shipId: string; action: string; expectedRevision: number;
-  instanceId?: string; foodLevel?: number; waterLevel?: number;
-  consoles?: string[]; refuels?: Record<string, string>; consoleRoleId?: string;
+  sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
+  instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
+  consoles?: unknown; refuels?: unknown; consoleRoleId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
-  const data = request.data;
-  const allowed = ['sessionId', 'shipId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'consoleRoleId'];
-  if (!data || Object.keys(data).some(key => !allowed.includes(key)) ||
-    typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
-    typeof data.shipId !== 'string' || !MAINTENANCE_RULES[data.shipId] ||
+  const raw = request.data;
+  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'consoleRoleId'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
+  }
+  const parsed = requireMaintenanceRequest(raw);
+  const data: MaintenanceCommand = {
+    ...parsed,
+    ...(raw.foodLevel === undefined ? {} : { foodLevel: raw.foodLevel as number }),
+    ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
+    ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
+    ...(raw.refuels === undefined ? {} : { refuels: raw.refuels as Record<string, string> }),
+    ...(raw.consoleRoleId === undefined ? {} : { consoleRoleId: raw.consoleRoleId as string }),
+  };
+  if (!MAINTENANCE_RULES[data.shipId] ||
     (data.consoleRoleId !== undefined && (
       typeof data.consoleRoleId !== 'string' ||
       (shipForRole(data.consoleRoleId) !== data.shipId &&
         !jointEngineeringShipsForRole(data.consoleRoleId).includes(data.shipId))
     )) ||
-    typeof data.action !== 'string' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0 ||
-    (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
+    (data.instanceId !== undefined && !/^[\w-]{1,128}$/.test(data.instanceId)) ||
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
     (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(id => typeof id !== 'string'))) ||
-    (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string')))) {
+    (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string'))) ||
+    (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }
-  const entropy = randomInt(0, 0x1_0000_0000) / 0x1_0000_0000;
-  const rolls = [randomInt(1, 7), randomInt(1, 7)];
-  const eventId = randomUUID();
+  const fingerprint = maintenanceRequestFingerprint(data, uid);
+  const eventId = `maintenance-${data.requestId}`;
   const ref = db.doc(`sessions/${data.sessionId}`);
+  const requestRef = db.doc(`sessions/${data.sessionId}/maintenanceRequests/${data.requestId}`);
+  const eventRef = db.doc(`sessions/${data.sessionId}/events/${eventId}`);
+  let occurredAt: string | undefined;
+  let serverEntropy: number | undefined;
+  let serverRolls: number[] | undefined;
+  let alertCreatedAt: string | undefined;
+  const captureOccurredAt = (): string => occurredAt ??= new Date().toISOString();
+  const captureRandomness = (): { entropy: number; rolls: number[] } => {
+    serverEntropy ??= randomInt(0, 0x1_0000_0000) / 0x1_0000_0000;
+    serverRolls ??= [randomInt(1, 7), randomInt(1, 7)];
+    return { entropy: serverEntropy, rolls: serverRolls };
+  };
   return db.runTransaction(async tx => {
     // Joint engineering authority is scoped to the two ships on its assigned station.
     const [player, snapshot] = await Promise.all([
@@ -4961,24 +5044,59 @@ export const runMaintenance = onCall<{
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
         snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
+    const prior = await tx.get(requestRef);
+    if (prior.exists) {
+      if (
+        prior.get('sessionId') !== data.sessionId ||
+        prior.get('shipId') !== data.shipId ||
+        prior.get('actorUid') !== uid ||
+        !sameMaintenanceRequestFingerprint(prior.get('fingerprint'), fingerprint)
+      ) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different maintenance command or actor.');
+      }
+      const storedReply = prior.get('reply');
+      if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
+        throw new HttpsError('failed-precondition', 'This maintenance request has no replayable result.');
+      }
+      return { ...(storedReply as Record<string, unknown>), status: 'replayed' as const };
+    }
     const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
     const currentTurn = sessionTurn(snapshot.get('currentTurn'));
+    const currentCycle = current[data.shipId] ?? emptyMaintenanceCycle();
+    if (currentCycle.revision !== data.expectedRevision) {
+      return {
+        status: 'stale' as const,
+        requestId: data.requestId,
+        sessionId: data.sessionId,
+        shipId: data.shipId,
+        action: data.action,
+        expectedRevision: data.expectedRevision,
+        currentRevision: currentCycle.revision,
+      };
+    }
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
     const populationAlerts = { ...(snapshot.get('populationAlerts') ?? {}) } as Record<string, StoredPopulationAlert>;
     if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
+    const stepForAction: Readonly<Record<string, number>> = {
+      begin: 0, storage: 1, rations: 2, unrest: 3, riot: 4, reactor: 5, bays: 6, end: 7,
+    };
+    const random = data.action === 'unrest' || data.action === 'riot'
+      ? (currentCycle.step === stepForAction[data.action]
+        ? captureRandomness() : { entropy: 0, rolls: [0, 0] })
+      : { entropy: 0, rolls: [0, 0] };
+    const serverTime = captureOccurredAt();
     let result: ReturnType<typeof advanceMaintenance>;
-    const occurredAt = new Date().toISOString();
     try {
       result = advanceMaintenance({
-        ...data, cycle: current[data.shipId] ?? emptyMaintenanceCycle(), currentTurn,
+        ...data, cycle: currentCycle, currentTurn,
         resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
         damage: shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? { damagedSystemIds: [], destroyed: false },
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
         cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
-        upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls, entropy,
-        now: occurredAt, damageDrawId: eventId,
+        upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: random.rolls,
+        entropy: random.entropy, now: serverTime, damageDrawId: eventId,
       });
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');
@@ -4988,7 +5106,8 @@ export const runMaintenance = onCall<{
       const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
       const targetGmInstanceIds = instances.docs.map(instance => instance.id);
       if (targetGmInstanceIds.length) {
-        const alert = { shipId: data.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId, targetGmInstanceIds, createdAt: new Date().toISOString() };
+        alertCreatedAt ??= serverTime;
+        const alert = { shipId: data.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId, targetGmInstanceIds, createdAt: alertCreatedAt };
         if (unrest < 8 && result.unrest >= 8) unrestAlerts[data.shipId] = alert;
         if (populationThreshold) populationAlerts[data.shipId] = { ...alert, population: result.population };
       }
@@ -5006,25 +5125,69 @@ export const runMaintenance = onCall<{
     };
     const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch) });
+    const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
+      ? player.get('activeConsoleRoleId') as string : null;
+    const reply = {
+      ...result.cycle,
+      status: 'committed' as const,
+      requestId: data.requestId,
+      sessionId: data.sessionId,
+      shipId: data.shipId,
+      action: data.action,
+      expectedRevision: data.expectedRevision,
+      committedRevision: result.cycle.revision,
+      currentTurn,
+      phase: 'active' as const,
+      serverTime,
+      cycle: result.cycle,
+      result: {
+        resources: result.resources, damage: result.damage, unrest: result.unrest,
+        population: result.population, cargo: result.cargo, fuelled: result.fuelled,
+      },
+    };
     tx.set(undoRef, { turn: currentTurn, entries });
     tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
-    tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), {
-      type: 'maintenance', shipId: data.shipId,
+    tx.set(eventRef, {
+      ...buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId, turn: currentTurn,
+        phase: 'active', type: 'maintenance', requestId: data.requestId,
+        revision: result.cycle.revision, serverTime, visibility: EventVisibility.Member,
+      }),
+      shipId: data.shipId,
       shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
       byUid: uid, action: data.action,
-      revision: result.cycle.revision, results: result.cycle.results,
+      results: result.cycle.results,
       createdAt: FieldValue.serverTimestamp(),
     });
     if (result.damageDraw) {
       const draw = result.damageDraw;
       tx.set(db.doc(`sessions/${data.sessionId}/damageDraws/${eventId}`), {
-        shipId: data.shipId, createdAt: FieldValue.serverTimestamp(),
+        shipId: data.shipId, requestId: data.requestId, eventId,
+        createdAt: FieldValue.serverTimestamp(),
         ...(draw.destroyed ? { type: 'ship-destroyed' } : {
           type: 'ship-damage', ...draw.card, recycled: draw.recycled,
         }),
       });
     }
-    return result.cycle;
+    tx.set(requestRef, {
+      ...fingerprint,
+      requestId: data.requestId,
+      sessionId: data.sessionId,
+      shipId: data.shipId,
+      actorUid: uid,
+      expectedRevision: data.expectedRevision,
+      committedRevision: result.cycle.revision,
+      turn: currentTurn,
+      phase: 'active',
+      serverTime,
+      serverEntropy: serverEntropy ?? null,
+      serverRolls: serverRolls ?? null,
+      eventId,
+      ...(result.damageDraw ? { damageDrawId: eventId } : {}),
+      fingerprint, reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 

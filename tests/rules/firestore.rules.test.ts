@@ -604,6 +604,7 @@ describe('complete server-owned denial matrix', () => {
     const db = as('alice');
     const targets = [
       SESSION + '/events/forged',
+      SESSION + '/maintenanceRequests/maintenance-1',
       SESSION + '/damageDraws/forged',
       SESSION + '/seats/seat1',
       SESSION + '/shipConfetti/aegis',
@@ -626,6 +627,7 @@ describe('complete server-owned denial matrix', () => {
       'players',
       'seats',
       'events',
+      'maintenanceRequests',
       'damageDraws',
       'gmInstances',
       'secrets',

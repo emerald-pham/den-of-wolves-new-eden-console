@@ -90,6 +90,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Maintenance receipts are server-owned replay state and may contain
+      // authoritative command details that are not part of the read model.
+      match /maintenanceRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       match /damageDraws/{drawId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;
