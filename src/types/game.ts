@@ -370,6 +370,14 @@ export interface FullscreenAlertEvent {
   readonly createdAt: Timestamp;
 }
 
+export const MAINTENANCE_EVENT_ACTIONS = [
+  'begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'end',
+] as const;
+export type MaintenanceEventAction = typeof MAINTENANCE_EVENT_ACTIONS[number];
+export const MAINTENANCE_EVENT_RESULT_STEPS = ['1', '2', '3', '4', '5', '6', '7'] as const;
+export type MaintenanceEventResultStep = typeof MAINTENANCE_EVENT_RESULT_STEPS[number];
+export type MaintenanceEventResults = Partial<Record<MaintenanceEventResultStep, string>>;
+
 export interface MaintenanceEvent {
   readonly id: Id;
   readonly sessionId: Id;
@@ -380,11 +388,6 @@ export interface MaintenanceEvent {
   readonly results: MaintenanceEventResults;
   readonly createdAt: Timestamp;
 }
-
-export type MaintenanceEventAction =
-  | 'begin' | 'storage' | 'rations' | 'unrest' | 'riot' | 'reactor' | 'bays' | 'end';
-export type MaintenanceEventResultStep = '1' | '2' | '3' | '4' | '5' | '6' | '7';
-export type MaintenanceEventResults = Partial<Record<MaintenanceEventResultStep, string>>;
 
 export interface TimerPauseEvent {
   readonly id: Id;

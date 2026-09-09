@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import type { GameSession } from '@/types/game';
+import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
+import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 
 vi.mock('firebase/firestore', () => ({
   collection: vi.fn(),
@@ -293,6 +295,15 @@ it('parses only audience-safe maintenance result fields from member events', () 
       }, {
         id: 'maintenance-invalid-1',
         data: () => ({ type: 'maintenance', action: 'unknown', shipId: 'aegis', shipName: 'AEGIS', results: {} }),
+      }, {
+        id: 'maintenance-legacy-begin',
+        data: () => ({ type: 'maintenance', action: 'begin', shipId: 'aegis', shipName: 'AEGIS' }),
+      }, {
+        id: 'maintenance-legacy-end',
+        data: () => ({ type: 'maintenance', action: 'end', shipId: 'aegis', shipName: 'AEGIS' }),
+      }, {
+        id: 'maintenance-malformed-results',
+        data: () => ({ type: 'maintenance', action: 'end', shipId: 'aegis', shipName: 'AEGIS', results: [] }),
       }],
     });
     return vi.fn();
@@ -305,7 +316,17 @@ it('parses only audience-safe maintenance result fields from member events', () 
     shipId: 'aegis', shipName: 'AEGIS', action: 'rations',
     results: { '2': 'Spent 3 food and 2 water. Ration bonus +9.' },
     createdAt: expect.any(String),
+  }, {
+    id: 'maintenance-legacy-begin', sessionId: 's1', type: 'maintenance',
+    shipId: 'aegis', shipName: 'AEGIS', action: 'begin', results: {},
+    createdAt: expect.any(String),
+  }, {
+    id: 'maintenance-legacy-end', sessionId: 's1', type: 'maintenance',
+    shipId: 'aegis', shipName: 'AEGIS', action: 'end', results: {},
+    createdAt: expect.any(String),
   }]);
+  expect(CLIENT_MAINTENANCE_EVENT_ACTIONS).toEqual(SERVER_MAINTENANCE_EVENT_ACTIONS);
+  expect(CLIENT_MAINTENANCE_EVENT_RESULT_STEPS).toEqual(SERVER_MAINTENANCE_EVENT_RESULT_STEPS);
   const serialized = JSON.stringify(onEvents.mock.calls[0]?.[0]);
   expect(serialized).not.toContain('facilitator-only note');
   expect(serialized).not.toContain('private fingerprint');
