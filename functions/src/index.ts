@@ -57,6 +57,7 @@ import {
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
   requireShipDamageRequest,
+  requireMaintenanceRollbackRequest,
   requireShipJumpRequest,
   requireShipNavigationMoveRequest,
   requireShipConsoleLockRequest,
@@ -5176,7 +5177,14 @@ export const runMaintenance = onCall<{
       unrestAlerts, populationAlerts,
     };
     const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
-    entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch) });
+    const immutableFields = result.damageDraw ? [
+      `shipDamage.${data.shipId}`,
+      `shipSurvivors.${data.shipId}`,
+      `shipUnrest.${data.shipId}`,
+      'unrestAlerts',
+      'populationAlerts',
+    ] : [];
+    entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
     const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
       ? player.get('activeConsoleRoleId') as string : null;
     const reply = {
@@ -5445,38 +5453,127 @@ export const repairAllShipDamage = onCall<{
   });
 });
 
+type MaintenanceRollbackFingerprint = Readonly<{
+  sessionId: string;
+  shipId: string;
+  instanceId: string;
+  expectedRevision: number;
+  actorUid: string;
+}>;
+
+function maintenanceRollbackFingerprint(
+  change: { sessionId: string; shipId: string; instanceId: string; expectedRevision: number },
+  actorUid: string,
+): MaintenanceRollbackFingerprint {
+  return { ...change, actorUid };
+}
+
+function sameMaintenanceRollbackFingerprint(
+  value: unknown,
+  expected: MaintenanceRollbackFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+}
+
+function maintenanceRollbackReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: MaintenanceRollbackFingerprint,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (!sameMaintenanceRollbackFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw new HttpsError('failed-precondition', 'This rollback request id was already used for a different payload or actor.');
+  }
+  const storedReply = prior.get('reply');
+  if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
+    throw new HttpsError('failed-precondition', 'This rollback request has no replayable result.');
+  }
+  const reply = storedReply as Record<string, unknown>;
+  return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
+}
+
 /** Undo only recorded steps whose resulting state has not subsequently changed. */
 export const rollbackMaintenance = onCall<{
-  sessionId: string; shipId: string; instanceId: string; expectedRevision: number;
+  sessionId?: unknown; shipId?: unknown; instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
-  const { expectedRevision, ...input } = request.data ?? {};
-  const change = requireShipDamageRequest(input);
-  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new HttpsError('invalid-argument', 'Invalid maintenance revision.');
+  const raw = request.data;
+  const allowed = ['sessionId', 'shipId', 'instanceId', 'requestId', 'expectedRevision'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid maintenance rollback request.');
+  }
+  const change = requireMaintenanceRollbackRequest(raw);
+  const fingerprint = maintenanceRollbackFingerprint(change, uid);
   const ref = db.doc(`sessions/${change.sessionId}`);
   const undoRef = db.doc(`sessions/${change.sessionId}/maintenanceUndo/${change.shipId}`);
-  const eventId = randomUUID();
+  const requestRef = db.doc(`sessions/${change.sessionId}/maintenanceRollbackRequests/${change.requestId}`);
+  const eventId = `maintenance-rollback-${change.requestId}`;
   return db.runTransaction(async tx => {
+    const authority = await requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId);
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
-    const session = await tx.get(ref);
+    const prior = await tx.get(requestRef);
+    const replay = maintenanceRollbackReceiptReply(prior, fingerprint);
+    if (replay) return replay;
+    requireTurnOneForGameplay(authority.session);
+    requireActionPhase(authority.session, 'maintenance', 'facilitator');
     const undo = await tx.get(undoRef);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    const cycle = session.get(`maintenanceCycles.${change.shipId}`) as MaintenanceCycle | undefined;
+    const cycle = authority.session.get(`maintenanceCycles.${change.shipId}`) as MaintenanceCycle | undefined;
     const entries = (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     const last = entries.at(-1);
-    if (session.get('phase') === 'closed' || !last || cycle?.revision !== expectedRevision ||
-        undo.get('turn') !== sessionTurn(session.get('currentTurn'))) {
-      throw new HttpsError('failed-precondition', 'No current maintenance step is available to roll back.');
+    const currentTurn = sessionTurn(authority.session.get('currentTurn'));
+    if (authority.session.get('phase') === 'closed' || !last || cycle?.revision !== change.expectedRevision ||
+        undo.get('turn') !== currentTurn) {
+      const reply = {
+        status: 'stale' as const,
+        requestId: change.requestId,
+        sessionId: change.sessionId,
+        shipId: change.shipId,
+        expectedRevision: change.expectedRevision,
+        currentRevision: cycle?.revision ?? 0,
+      };
+      tx.set(requestRef, {
+        requestId: change.requestId,
+        sessionId: change.sessionId,
+        shipId: change.shipId,
+        instanceId: change.instanceId,
+        actorUid: uid,
+        fingerprint,
+        reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
     let patch: Record<string, unknown>;
-    try { patch = restoreMaintenanceUndo(last.fields, field => session.get(field), change.shipId, expectedRevision); }
+    try { patch = restoreMaintenanceUndo(last.fields, field => authority.session.get(field), change.shipId, change.expectedRevision); }
     catch (cause) { throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Rollback failed.'); }
+    const reply = {
+      status: 'committed' as const,
+      requestId: change.requestId,
+      sessionId: change.sessionId,
+      shipId: change.shipId,
+      expectedRevision: change.expectedRevision,
+      revision: change.expectedRevision + 1,
+      eventId,
+    };
     tx.update(ref, { ...Object.fromEntries(Object.entries(patch).map(([field, value]) => [field, value === undefined ? FieldValue.delete() : value])), updatedAt: FieldValue.serverTimestamp() });
     tx.set(undoRef, { turn: undo.get('turn'), entries: entries.slice(0, -1) });
     tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), {
-      type: 'maintenance-rollback', shipId: change.shipId, actorUid: uid,
-      revision: expectedRevision + 1, createdAt: FieldValue.serverTimestamp(),
+      type: 'maintenance-rollback', requestId: change.requestId, eventId,
+      sessionId: change.sessionId, shipId: change.shipId, actorUid: uid,
+      revision: change.expectedRevision + 1, createdAt: FieldValue.serverTimestamp(),
     });
-    return { revision: expectedRevision + 1 };
+    tx.set(requestRef, {
+      requestId: change.requestId,
+      sessionId: change.sessionId,
+      shipId: change.shipId,
+      instanceId: change.instanceId,
+      actorUid: uid,
+      fingerprint,
+      eventId,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });

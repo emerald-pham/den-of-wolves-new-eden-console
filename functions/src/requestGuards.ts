@@ -551,6 +551,29 @@ export function requireShipDamageRequest(data: {
   };
 }
 
+export function requireMaintenanceRollbackRequest(data: {
+  sessionId?: unknown;
+  shipId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  shipId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    ...requireShipDamageRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
 export function requireShipNavigationMoveRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

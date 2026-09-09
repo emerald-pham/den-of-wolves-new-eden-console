@@ -8,6 +8,14 @@ const ALL_STATUSES = [...FINAL_STATUSES, 'in-progress'];
 const CHANGE_CLASSES = ['feature', 'non-feature'];
 const APPLICATION_VERSION_PATTERN = /^\d+\.\d+\.\d+$/;
 const PROMPT_ID_PATTERN = /^\d{3}[a-z]*$/i;
+const RETIRED_HISTORICAL_PROMPT_COVERAGE = Object.freeze({
+  // Prompt 071 was retired from the 723-prompt canonical plan; its 0.3.5 and
+  // 0.3.13 release notes remain historical because Prompt 654 supersedes it.
+  '071': Object.freeze({
+    allowedVersions: Object.freeze(['0.3.5', '0.3.13']),
+    rationale: 'Superseded by Prompt 654.',
+  }),
+});
 
 export function normalizePromptId(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -126,6 +134,12 @@ function parseStatusBreakdown(source, errors) {
 
 function countStringLiterals(source) {
   return [...source.matchAll(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g)].length;
+}
+
+function allowsRetiredHistoricalCoverage(prompt, entries, applicationVersion) {
+  const policy = RETIRED_HISTORICAL_PROMPT_COVERAGE[prompt];
+  return policy !== undefined && entries.length > 0 && entries.every((entry) =>
+    entry.version !== applicationVersion && policy.allowedVersions.includes(entry.version));
 }
 
 function parseChangelogEntries(source, applicationVersion, errors) {
@@ -315,6 +329,7 @@ function validateChangelogCoverage({
   for (const [prompt, entries] of coveredPrompts) {
     const row = ledgerRows.find((candidate) => candidate.prompt === prompt);
     if (!row) {
+      if (allowsRetiredHistoricalCoverage(prompt, entries, applicationVersion)) continue;
       errors.push(`changelog ${entries.map((entry) => entry.version).join(', ')} references unknown Prompt ${promptLabel(prompt)}`);
     } else if (row.changeClass !== 'feature') {
       errors.push(

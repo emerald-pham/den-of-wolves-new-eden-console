@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['138a'],
+    implementationProgress: {
+      completed: 74,
+      total: 723,
+      percentage: '10.24%',
+      done: 74,
+      partial: 27,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'GMs can now safely retry an undo of the latest maintenance step during Team phase without duplicate effects, erasing damage, or changing maintenance history — Roadmap progress: 74 of 723 prompts complete (10.24%).',
+    ],
+  },
+  {
+    version: '0.3.18',
     implementationPrompts: [138],
     implementationProgress: {
       completed: 75,

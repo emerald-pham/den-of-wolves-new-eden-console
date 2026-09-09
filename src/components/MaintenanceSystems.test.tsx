@@ -195,11 +195,18 @@ it('shows repair only to GMs and repairs a destroyed ship', async () => {
 });
 
 it('offers rollback only to the GM and sends the current revision', async () => {
-  useSessionStore.setState({ session: { ...session, maintenanceCycles: { aegis: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
+  const coordinationPhase = { turn: 1, teamPhaseEndsAt: '2026-09-09T16:00:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: false } };
+  const teamPhase = { ...coordinationPhase, airspace: { ...coordinationPhase.airspace, state: 'restricted' as const } };
+  useSessionStore.setState({ session: { ...session, currentTurn: 1, turnPhase: coordinationPhase, maintenanceCycles: { aegis: { step: 2, revision: 2, results: {}, charges: [], refuelled: [] } } } });
   render(<MaintenanceSystems name="AEGIS" shipId="aegis" systems={[]} renderSystem={() => null} rations={null} />);
   expect(screen.queryByRole('button', { name: 'Roll back maintenance step' })).not.toBeInTheDocument();
   act(() => useSessionStore.setState({ me: { ...me, role: 'gm' } }));
-  await userEvent.click(screen.getByRole('button', { name: 'Roll back maintenance step' }));
+  const rollbackButton = screen.getByRole('button', { name: 'Roll back maintenance step' });
+  expect(rollbackButton).toBeDisabled();
+  expect(rollbackButton).toHaveAccessibleDescription('Roll back maintenance step is available only during Team Phase.');
+  act(() => useSessionStore.setState({ session: { ...useSessionStore.getState().session!, turnPhase: teamPhase } }));
+  expect(rollbackButton).toBeEnabled();
+  await userEvent.click(rollbackButton);
   expect(rollback).toHaveBeenCalledWith('aegis', 2);
 });
 

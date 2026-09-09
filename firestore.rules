@@ -96,6 +96,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Rollback receipts are server-owned replay state and remain private to
+      // the callable even when the caller is an active GM.
+      match /maintenanceRollbackRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       match /damageDraws/{drawId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

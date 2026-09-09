@@ -20,7 +20,16 @@ interface PendingMaintenanceRequest {
   readonly requestId: string;
 }
 
+interface PendingRollbackRequest {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly shipId: string;
+  readonly expectedRevision: number;
+  readonly requestId: string;
+}
+
 let pendingMaintenanceRequest: PendingMaintenanceRequest | null = null;
+let pendingRollbackRequest: PendingRollbackRequest | null = null;
 
 function commandId(): string {
   return window.crypto.randomUUID();
@@ -47,6 +56,17 @@ function sameMaintenanceAttempt(
     pending.expectedRevision === expected.expectedRevision &&
     pending.choices === expected.choices &&
     pending.consoleRoleId === expected.consoleRoleId;
+}
+
+function sameRollbackAttempt(
+  pending: PendingRollbackRequest | null,
+  expected: Omit<PendingRollbackRequest, 'requestId'>,
+): pending is PendingRollbackRequest {
+  return pending !== null &&
+    pending.sessionId === expected.sessionId &&
+    pending.instanceId === expected.instanceId &&
+    pending.shipId === expected.shipId &&
+    pending.expectedRevision === expected.expectedRevision;
 }
 
 function maintenanceErrorCode(cause: unknown): string | undefined {
@@ -100,10 +120,43 @@ export async function runMaintenance(
   // console submits a step or the reply arrives before the snapshot.
 }
 
-export async function rollbackMaintenance(shipId: string, expectedRevision: number) {
+export async function rollbackMaintenance(
+  shipId: string,
+  expectedRevision: number,
+  requestId?: string,
+): Promise<unknown> {
   const { session, me, gmInstance, connection } = useSessionStore.getState();
   if (!session || me?.role !== 'gm' || !gmInstance || connection !== 'live') {
     throw new Error('A connected GM instance is required to roll back maintenance.');
   }
-  await httpsCallable(functions(), 'rollbackMaintenance')({ sessionId: session.id, shipId, expectedRevision, instanceId: gmInstance.id });
+  const expectedAttempt = {
+    sessionId: session.id,
+    instanceId: gmInstance.id,
+    shipId,
+    expectedRevision,
+  };
+  const stableRequestId = requestId ?? (
+    sameRollbackAttempt(pendingRollbackRequest, expectedAttempt)
+      ? pendingRollbackRequest.requestId
+      : commandId()
+  );
+  pendingRollbackRequest = { ...expectedAttempt, requestId: stableRequestId };
+  const payload = {
+    sessionId: session.id,
+    shipId,
+    expectedRevision,
+    requestId: stableRequestId,
+    instanceId: gmInstance.id,
+  };
+  try {
+    const reply = await httpsCallable<typeof payload, unknown>(functions(), 'rollbackMaintenance')(payload);
+    if (pendingRollbackRequest?.requestId === stableRequestId) pendingRollbackRequest = null;
+    return reply.data;
+  } catch (cause) {
+    if (!TRANSIENT_MAINTENANCE_ERRORS.has(maintenanceErrorCode(cause) ?? '') &&
+      pendingRollbackRequest?.requestId === stableRequestId) {
+      pendingRollbackRequest = null;
+    }
+    throw cause;
+  }
 }

@@ -72,7 +72,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 75/721 complete; 26 partial; 620 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 74/723 complete; 27 partial; 622 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -81,36 +81,37 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(result.summary).toMatchObject({
-      complete: 75,
-      total: 721,
-      partial: 26,
-      missing: 620,
+      complete: 74,
+      total: 723,
+      partial: 27,
+      missing: 622,
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
       version: applicationVersion,
-      completed: 75,
-      total: 721,
-      percentage: '10.40%',
-      done: 75,
-      partial: 26,
+      completed: 74,
+      total: 723,
+      percentage: '10.24%',
+      done: 74,
+      partial: 27,
       active: 0,
-      missing: 620,
+      missing: 622,
     });
+    expect(changelogSource).toContain('Roadmap progress: 74 of 723 prompts complete (10.24%).');
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
-      changelogSource: changelogSource.replace("percentage: '10.40%'", "percentage: '9.7%'")
-        .replace('partial: 26', 'partial: 27'),
+      changelogSource: changelogSource.replace("percentage: '10.24%'", "percentage: '9.7%'")
+        .replace('partial: 27', 'partial: 28'),
     });
 
     expect(badPercentage.errors.join('\n')).toContain(
       `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
     );
     expect(badPercentage.errors.join('\n')).toContain(
-      `changelog ${applicationVersion} implementation progress partial count is 27, but the ledger has 26`,
+      `changelog ${applicationVersion} implementation progress partial count is 28, but the ledger has 27`,
     );
   });
 
@@ -124,11 +125,11 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 75, total: 721, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ complete: 74, total: 723, resumePrompt: '012' });
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
-    expect(progressSource).toContain('| 598 | done | feature | 0.3.6, 0.3.10 |');
+    expect(progressSource).toContain('| 598 | partial | feature | 0.3.6, 0.3.10 |');
   });
 
   it('rejects an unknown or duplicate prompt row', () => {
@@ -137,6 +138,24 @@ describe('implementation progress integrity gate', () => {
       progressSource: progressSource.replace('| 001 | done |', '| 999 | done |'),
     });
     expect(unknown.errors.join('\n')).toContain('unknown Prompt 999');
+
+    const retiredInCurrentRelease = validateImplementationProgress({
+      ...validationInputs,
+      changelogSource: changelogSource.replace(
+        "implementationPrompts: ['138a'],",
+        "implementationPrompts: ['138a', 071],",
+      ),
+    });
+    expect(retiredInCurrentRelease.errors.join('\n')).toContain('unknown Prompt 071');
+
+    const retiredInUnlistedRelease = validateImplementationProgress({
+      ...validationInputs,
+      changelogSource: changelogSource.replace(
+        "  {\n    version: '0.3.4',",
+        "  {\n    version: '0.3.99',\n    implementationPrompts: [071],\n    changes: [\n      'Historical release coverage fixture.',\n    ],\n  },\n  {\n    version: '0.3.4',",
+      ),
+    });
+    expect(retiredInUnlistedRelease.errors.join('\n')).toContain('unknown Prompt 071');
 
     const duplicate = validateImplementationProgress({
       ...validationInputs,
@@ -251,7 +270,7 @@ describe('implementation progress integrity gate', () => {
       ...validationInputs,
       changelogSource: changelogSource.replace(
         'implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],',
-        'implementationPrompts: [18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],',
+        'implementationPrompts: [18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 72, 73, 74, 75, 77, 78, 84, 86],',
       ),
     });
 
@@ -266,11 +285,14 @@ describe('implementation progress integrity gate', () => {
       changelogSource: changelogSource.replace(
         "      'Authorized facilitators can now regain census, suspicion, notes, and hidden resolution state while members remain denied.',\n",
         '',
+      ).replace(
+        "      'The start transaction now initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, and the opening event together.',\n",
+        '',
       ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'changelog 0.3.5 covers 23 implementation-plan feature prompts but has only 22 player-facing changes',
+      'changelog 0.3.5 covers 23 implementation-plan feature prompts but has only 21 player-facing changes',
     );
   });
 
