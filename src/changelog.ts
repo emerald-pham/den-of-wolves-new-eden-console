@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [92],
+    implementationProgress: {
+      completed: 78,
+      total: 723,
+      percentage: '10.79%',
+      done: 78,
+      partial: 25,
+      active: 0,
+      missing: 620,
+    },
+    changes: [
+      'Turn advancement now waits for the correct game phase. — Roadmap progress: 78 of 723 prompts complete (10.79%).',
+    ],
+  },
+  {
+    version: '0.3.20',
     implementationPrompts: [139],
     implementationProgress: {
       completed: 77,

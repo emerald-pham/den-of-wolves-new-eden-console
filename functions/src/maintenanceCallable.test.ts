@@ -575,7 +575,7 @@ it('retires every legacy setup mutator behind the complete confirmSetup transact
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('starts Turn 1 with a ten-minute team phase and later turns with the shorter real-time schedule', async () => {
+it('rejects illegal phase transitions and advances only valid numbered turns with the configured schedule', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
   mock.currentTurn = 0;
@@ -589,32 +589,58 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
     quellon: 10_000,
     'refinery-124': 5_000,
   };
+  mock.update.mockClear();
+  mock.set.mockClear();
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
-  }))).resolves.toEqual({
-    currentTurn: 1,
-    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_042 },
-    turnPhase: {
-      turn: 1,
-      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
-      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
-      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-    },
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn 0|setup/i),
   });
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    currentTurn: 1,
-    turnStartAnnouncement: { turn: 1, survivorPopulation: 156_042 },
-    fleetSurvivorPopulationAdjustment: 41,
-    turnPhase: {
-      turn: 1,
-      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
-      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
-      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
-    },
-  }));
+  expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 
   mock.currentTurn = 1;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/valid current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.turnPhase = { turn: 1, teamPhaseEndsAt: 'not-a-timestamp', openAirspaceEndsAt: 'not-a-timestamp' };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/valid current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/valid current server phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
   mock.fleetSurvivorPopulationAdjustment = 41;
   mock.turnPhase = {
     turn: 1,
@@ -625,8 +651,28 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
   mock.update.mockClear();
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
-  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/timer/i) });
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/phase|timer/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
+
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/coordination|phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
@@ -653,9 +699,62 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
     expect.objectContaining({ reason: 'override', revision: 2 }),
   );
 
+  mock.currentTurn = 2;
+  mock.fleetSurvivorPopulationAdjustment = 41;
+  mock.maintenanceCycles = {
+    aegis: {
+      step: 0,
+      revision: 8,
+      turn: 2,
+      results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'],
+      refuelled: ['starlight'],
+    },
+  };
+  mock.shuttleFuelled = { starlight: true };
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2,
+  }))).resolves.toEqual({
+    currentTurn: 3,
+    turnStartAnnouncement: { turn: 3, survivorPopulation: 156_041 },
+    maintenanceCycles: {
+      aegis: expect.objectContaining({ charges: [], refuelled: [] }),
+    },
+    shuttleFuelled: { starlight: false },
+    turnPhase: {
+      turn: 3,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/turn-advanced-2',
+    expect.objectContaining({
+      reason: 'expiry',
+      fromTurn: 2,
+      toTurn: 3,
+      revision: 4,
+    }),
+  );
+
+  mock.update.mockClear();
+  mock.set.mockClear();
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('expires charged consoles and shuttle fuel when a numbered turn hands off', async () => {
@@ -702,8 +801,10 @@ it('expires charged consoles and shuttle fuel when a numbered turn hands off', a
   expect(patch).not.toHaveProperty('shipResources');
 });
 
-it('keeps the authoritative fleet total non-negative when a turn begins at zero', async () => {
-  mock.currentTurn = 0;
+it('keeps the authoritative fleet total non-negative when a numbered turn begins at zero', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
+  mock.currentTurn = 1;
   mock.capybaraEnabled = false;
   mock.shipSurvivors = {
     aegis: 1_000,
@@ -715,21 +816,28 @@ it('keeps the authoritative fleet total non-negative when a turn begins at zero'
     'refinery-124': 5_000,
   };
   mock.fleetSurvivorPopulationAdjustment = -156_000;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
 
   await expect(advanceTurn.run(request({
-    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
   }))).resolves.toMatchObject({
-    turnStartAnnouncement: { turn: 1, survivorPopulation: 42 },
+    currentTurn: 2,
+    turnStartAnnouncement: { turn: 2, survivorPopulation: 42 },
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     fleetSurvivorPopulationAdjustment: -155_959,
   }));
 });
 
-it('skips the Turn 1 fullscreen transmission when requested', async () => {
+it('skips the numbered-turn fullscreen transmission when requested', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:00:00.000Z'));
-  mock.currentTurn = 0;
+  mock.currentTurn = 1;
   mock.turnStartAnnouncement = { turn: 1, survivorPopulation: 156_042 };
   mock.capybaraEnabled = false;
   mock.shipSurvivors = {
@@ -741,21 +849,29 @@ it('skips the Turn 1 fullscreen transmission when requested', async () => {
     quellon: 10_000,
     'refinery-124': 5_000,
   };
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
 
   await expect(advanceTurn.run(request({
-    sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
     skipTurnStartAnnouncement: true,
   }))).resolves.toEqual({
-    currentTurn: 1,
+    currentTurn: 2,
+    maintenanceCycles: {},
+    shuttleFuelled: {},
     turnPhase: {
-      turn: 1,
-      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
-      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    currentTurn: 1,
+    currentTurn: 2,
     turnStartAnnouncement: 'delete-field',
   }));
 });

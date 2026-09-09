@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**77 / 723 prompts complete (10.65%)**
+**78 / 723 prompts complete (10.79%)**
 
-Status breakdown: **77 done · 26 partial · 0 active · 620 missing**.
+Status breakdown: **78 done · 25 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -98,6 +98,20 @@ Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
 queued missing repairs with no production evidence.
 Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
+
+### Version 0.3.21 progress evidence
+
+The release boundary records Prompt 092 complete at **78 / 723 = 10.79%**
+with **78 done · 25 partial · 0 active · 620 missing**. The authoritative
+`advanceTurn` callable now keeps Turn 0 as setup-only, requires a structurally
+valid phase whose turn matches the session, allows normal handoff only from an
+expired lifted Coordination phase, and preserves explicit GM timer overrides
+for valid numbered Team or Coordination phases. The existing transition test
+covers absent, malformed, mismatched, restricted, and Turn 0 rejection without
+writes, exact numbered-turn timing and resource expiry, deterministic handoff
+events, and presentation-only announcement skipping; the existing optimistic
+CAS overlap proof remains intact. `startGame` remains the sole production
+Turn 0-to-1 path. Prompt 103a remains outside this release.
 
 ### Version 0.3.20 progress evidence
 
@@ -385,7 +399,7 @@ release classification and evidence.
 | 089 | missing | non-feature | — | General event replay/reconstruction remains open. |
 | 090 | missing | non-feature | — | Full serialized hidden-state redaction proof remains open. |
 | 091 | partial | non-feature | — | Server turn clock exists; complete turn entity remains open. |
-| 092 | partial | non-feature | — | Team transition exists; single transition-machine proof remains open. |
+| 092 | done | feature | 0.3.21 | `functions/src/index.ts` keeps Turn 0 setup-only, validates the current numbered phase, permits normal handoff only after lifted Coordination expiry, and preserves explicit numbered-phase GM overrides; the existing `functions/src/maintenanceCallable.test.ts` transition case proves illegal-phase no-write rejection, exact schedule/resource/event handoff, and presentation-only announcement skipping. |
 | 093 | done | non-feature | — | Existing `beginOpenAirspacePhase` and Team-action boundary are preserved by the composed `functions/src/maintenanceCallable.test.ts` proof: early/exact-deadline/stale/duplicate transitions and late `runMaintenance` denial are write-free where required, with deterministic `airspace-opened` identity and the existing concurrent expiry proof retained. |
 | 094 | done | non-feature | — | Server Team timer duration tests. |
 | 095 | done | non-feature | — | Server Coordination timer duration tests. |

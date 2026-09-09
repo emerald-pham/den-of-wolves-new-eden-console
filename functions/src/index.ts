@@ -3246,13 +3246,27 @@ export const advanceTurn = onCall<{
       throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
     }
     const activePhase = turnPhaseState(session.get('turnPhase'));
+    if (currentTurn === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Turn 0 is for setup. Start the game before advancing turns.',
+      );
+    }
+    if (!activePhase || activePhase.turn !== currentTurn) {
+      throw new HttpsError(
+        'failed-precondition',
+        'No valid current server phase is available for turn advancement.',
+      );
+    }
     if (
-      activePhase?.turn === currentTurn && isTurnPhaseTimerActive(activePhase) &&
-      !advance.overridePhaseTimer
+      !advance.overridePhaseTimer &&
+      (activePhase.airspace.state !== 'lifted' || isTurnPhaseTimerActive(activePhase))
     ) {
       throw new HttpsError(
         'failed-precondition',
-        'A turn phase timer is still active. Confirm the override to advance early.',
+        activePhase.airspace.state !== 'lifted'
+          ? 'Advance is available only after the current Team Phase opens Coordination.'
+          : 'A turn phase timer is still active. Confirm the override to advance early.',
       );
     }
     return advanceTurnInTransaction(
