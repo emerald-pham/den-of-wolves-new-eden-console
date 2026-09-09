@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 723-prompt catalog from top to bottom for an ordinary
+Do **not** read this 728-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-723-prompts-001656-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-728-prompts-001661-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 723-prompt roadmap.
+claim completion of the remaining 728-prompt roadmap.
 
 ## Scope and baseline
 
@@ -2045,9 +2045,9 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 723-ID queue (Prompts 001–656 plus the lettered prompts, with the
+The complete 728-ID queue (Prompts 001–661 plus the lettered prompts, with the
 retired Prompt 071 removed) is in scope for the active completion campaign. All
-723 canonical prompt IDs (001–656 plus the lettered prompts, with the retired
+728 canonical prompt IDs (001–661 plus the lettered prompts, with the retired
 Prompt 071 removed) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -2092,7 +2092,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 723 prompts (001–656 plus lettered IDs; Prompt 071 retired)
+#### Execution checklist — all 728 prompts (001–661 plus lettered IDs; Prompt 071 retired)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2820,6 +2820,11 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 654
 - [ ] Prompt 655
 - [ ] Prompt 656
+- [ ] Prompt 657
+- [ ] Prompt 658
+- [ ] Prompt 659
+- [ ] Prompt 660
+- [ ] Prompt 661
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -3583,12 +3588,17 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 654 — [REPAIR] Start production after a confirmed roster without treating unfilled roles as a blocker.** Acceptance: an authenticated active facilitator with a valid confirmed canonical setup can authoritatively start exactly once with zero, partial, or full role occupancy; unfilled roles are never blockers. Reject only genuine missing or invalid tuple, lifecycle/revision/closed/authority/malformed/unavailable server-result blockers with a stable nonsecret reason; never fabricate a role, player, or loyalty and never accept client randomness. Define an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. After confirmation the existing start control is enabled and accessible, and role status names the actual blocker rather than stale `Start blocked // confirm...` copy. Preserve focus, 44px targets, reduced motion, and mobile CIC behavior. This repair supersedes the retired Prompt 071 acceptance and depends on Milestone 1; later server, client, UI, and security tests must replace the old missing-role blockers.
 - **Prompt 655 — [REPAIR] Restore the Press evidence-shredder docked-cockpit warning.** Acceptance: exact visible and accessible copy states firing sends `SHREDDED EVIDENCE INTO COCKPITS OF DOCKED SHIPS AS WELL`. Preserve server targeting of docked SNN to SNN plus the authoritative host only, undocked SNN to SNN only, no client-selected or unrelated target, no ordinary GM event, and no duplicate on replay or reconnect. Focus, live-region, reduced-motion, and responsive CIC semantics remain covered.
 - **Prompt 656 — [REPAIR] Route an already-connected launcher to its current session.** Acceptance: cached, current, or resume-in-flight state at `/` never calls create or join; accessible reconnecting/stale state then resolves to the authoritative last route or `/roles`. Back, refresh, and reconnect converge; terminal denial clears only an established path while transient failure preserves recovery; an unexpected create race gives a truthful alert/link; and the launcher never auto-disconnects, releases, or mutates a session.
+- **Prompt 657 — [REPAIR] Remove roadmap jargon from player-facing changelog history and future entries.** Acceptance: all rendered `CHANGELOG` changes have no case-insensitive standalone `prompt` or `prompts`; existing meaning and every numeric done/total percentage marker remain unchanged; internal `implementationPrompts` and other provenance terminology stays intact. Add a deterministic player-field-only guard plus focused copy/accessibility/layout regression coverage.
+- **Prompt 658 — [POLISH] Use CIC language for seat-change confirmation when the page remains.** Acceptance: the retained `/roles` route shows the exact visible and accessible status text `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat ownership, retry/idempotency, stale/reconnect behavior, privacy, and existing layout/accessibility. If a future flow removes the page, remove this status with it rather than duplicating it elsewhere.
+- **Prompt 659 — [PRESERVE] Enforce in-universe player-facing copy app-wide.** Acceptance: inventory reachable visible and accessible copy across screens, errors, toasts, onboarding, install/update surfaces, and changelog; distinguish internal/developer text; check in an approved CIC lexicon, known-forbidden jargon, and reviewed exceptions; and enforce it with a deterministic guard rather than prose judgment. Preserve meaning, security, localization, and accessibility. This prompt explicitly includes removing the rendered sentence `System reduced motion is off.` while preserving system-versus-effective reduced-motion behavior and meaningful remaining accessibility text.
+- **Prompt 660 — [REPAIR] Make exact validation self-prepare a collision-safe emulator slot.** Acceptance: non-documentation exact validation with a missing local emulator config uses the existing atomic `auto` allocator, preserves an existing config, releases only configuration/reservation state it created on success or failure, and provides the exact actionable `emulators:configure -- auto` fallback. Add focused lifecycle/concurrency coverage without cross-worktree collisions.
+- **Prompt 661 — [POLISH] Add a safe copy-only validation fast path.** Acceptance: an explicit, mechanically verified classification permits only static player-copy changes to run focused copy/accessibility checks plus lightweight lint/build/progress/diff gates without `test:all`; mixed or uncertain changes, including behavior/state/routing/ARIA structure/security/authority/localization/CSS/server/rules/config/version/release-infrastructure changes, force the full gate. The path cannot rely on self-attestation or bypass protection; document exact usage and add focused gate coverage.
 
-The backlog contains **723 independently executable prompts** in this
-snapshot: 655 base IDs plus 68 lettered child IDs placed beside their closest
+The backlog contains **728 independently executable prompts** in this
+snapshot: 660 base IDs plus 68 lettered child IDs placed beside their closest
 dependency; retired Prompt 071 is preserved only in historical release notes.
 The current evidence classification is **159 `[PRESERVE]`, 104 `[EXTEND]`,
-366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 21 `[REPAIR]`, and 1
+366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 23 `[REPAIR]`, 2 `[POLISH]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 723 Prompts
+# Implementation Plan Progress — All 728 Prompts
 
-This tracker records all 723 canonical prompt IDs in
+This tracker records all 728 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,14 +15,15 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**82 / 723 prompts complete (11.34%)**
+**82 / 728 prompts complete (11.26%)**
 
-Status breakdown: **82 done · 24 partial · 0 active · 617 missing**.
+Status breakdown: **82 done · 24 partial · 0 active · 622 missing**.
 
 Active prompt: **none**.
 
-The six-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
-P652a, and P652b as missing without changing any landed implementation status.
+The eleven-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
+P652a, P652b, P657, P658, P659, P660, and P661 as missing without changing
+any landed implementation status.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 The country-flag regression report is retracted: P031a instead composes the
@@ -101,8 +102,8 @@ outside this release.
 
 ### Version 0.3.21 progress evidence
 
-The release boundary records Prompt 092 complete, proof-only Prompts 099, 101, 108, and 115 at **82 / 723 = 11.34%**
-with **82 done · 24 partial · 0 active · 617 missing**. The authoritative
+The release boundary records Prompt 092 complete, proof-only Prompts 099, 101, 108, and 115 at **82 / 728 = 11.26%**
+with **82 done · 24 partial · 0 active · 622 missing**. The authoritative
 `advanceTurn` callable now keeps Turn 0 as setup-only, requires a structurally
 valid phase whose turn matches the session, allows normal handoff only from an
 expired lifted Coordination phase, and preserves explicit GM timer overrides
@@ -1030,6 +1031,11 @@ release classification and evidence.
 | 654 | missing | non-feature | — | Planned [REPAIR] prompt: after a confirmed canonical roster, zero, partial, or full role occupancy must not block an authoritative one-time production start; preserve real blocker reasons, authority, private setup, client-RNG denial, accessible start status, and mobile/reduced-motion CIC behavior. Supersedes retired Prompt 071 and depends on Milestone 1. |
 | 655 | missing | non-feature | — | Planned [REPAIR] prompt: restore the exact visible and accessible evidence-shredder warning for docked ship cockpits while preserving authoritative SNN targeting, no unrelated/client targets, no ordinary GM event, and replay/reconnect deduplication. |
 | 656 | missing | non-feature | — | Planned [REPAIR] prompt: route a cached, current, or resume-in-flight launcher at `/` to the authoritative current session/last route without create/join, mutation, release, or misleading recovery copy. |
+| 657 | missing | non-feature | — | Planned [REPAIR] prompt: remove standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. |
+| 658 | missing | non-feature | — | Planned [POLISH] prompt: retain `/roles` seat-change confirmation as the exact visible and accessible `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat/retry/stale/reconnect/privacy behavior and existing layout. |
+| 659 | missing | non-feature | — | Planned [PRESERVE] prompt: inventory reachable player-facing copy, check in the approved CIC lexicon, forbidden jargon, and reviewed exceptions, and enforce the contract deterministically; this includes removing `System reduced motion is off.` while preserving system/effective reduced-motion behavior and meaningful accessibility. |
+| 660 | missing | non-feature | — | Planned [REPAIR] prompt: make non-documentation exact validation self-prepare a missing local emulator config through the atomic `auto` allocator, preserve existing ownership, release only self-created state, and provide an actionable fallback with lifecycle/concurrency coverage. |
+| 661 | missing | non-feature | — | Planned [POLISH] prompt: add an explicit mechanically verified copy-only validation path with focused copy/accessibility plus lightweight gates; mixed or uncertain behavior/security/contract/infrastructure changes must force the full gate. |
 
 ## Working notes
 
