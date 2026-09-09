@@ -1,4 +1,5 @@
 import { captureMaintenanceUndo, restoreMaintenanceUndo, type MaintenanceUndoField } from './maintenanceRollback';
+import { projectMaintenanceEvent } from './maintenanceEvent';
 import { canOperateRole, shipForRole } from './crewAccess';
 import { advanceMaintenance, MAINTENANCE_RULES, emptyMaintenanceCycle, type MaintenanceCycle } from './maintenance';
 import {
@@ -5213,10 +5214,12 @@ export const runMaintenance = onCall<{
         phase: 'active', type: 'maintenance', requestId: data.requestId,
         revision: result.cycle.revision, serverTime, visibility: EventVisibility.Member,
       }),
-      shipId: data.shipId,
-      shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
-      byUid: uid, action: data.action,
-      results: result.cycle.results,
+      ...projectMaintenanceEvent({
+        shipId: data.shipId,
+        shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
+        action: data.action,
+        results: result.cycle.results,
+      }),
       createdAt: FieldValue.serverTimestamp(),
     });
     if (result.damageDraw) {

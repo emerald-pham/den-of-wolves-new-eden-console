@@ -2242,7 +2242,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 137
 - [x] Prompt 138
 - [x] Prompt 138a
-- [ ] Prompt 139
+- [x] Prompt 139
 - [ ] Prompt 140
 - [ ] Prompt 140a
 - [ ] Prompt 140b

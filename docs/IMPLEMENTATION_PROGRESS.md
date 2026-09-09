@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**74 / 723 prompts complete (10.24%)**
+**75 / 723 prompts complete (10.37%)**
 
-Status breakdown: **74 done · 27 partial · 0 active · 622 missing**.
+Status breakdown: **75 done · 27 partial · 0 active · 621 missing**.
 
 Active prompt: **none**.
 
@@ -98,6 +98,16 @@ Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
 queued missing repairs with no production evidence.
 Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
+
+### Version 0.3.20 progress evidence
+
+The release boundary records Prompt 139 complete at **75 / 723 = 10.37%**
+with **75 done · 27 partial · 0 active · 621 missing**. Maintenance events now
+carry an explicit crew-safe projection of costs and outcomes through the
+member-visible event stream; the client parser accepts only those allowlisted
+fields and drops hidden deck order, private facilitator data, and unknown
+payload fields. Existing maintenance receipts remain private and retry-safe.
+Prompt 140 all-vessel maintenance coverage remains outside this release.
 
 ### Version 0.3.17 progress evidence
 
@@ -415,7 +425,7 @@ release classification and evidence.
 | 137 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 138 | done | feature | 0.3.18 | Authority-bound request IDs, pre-replay guards, one atomic resource/charge/fuel/damage/undo/event/receipt transaction, stateful CAS winner/stale proof, and write-free exact replay prevent duplicate maintenance effects; 138a/139/140 remain separate. |
 | 138a | done | feature | 0.3.19 | Current-turn rollback restores only reversible maintenance state under the matching revision, preserves damage and existing audit events, and rejects stale repeated rollback without writes; Prompt 139/140 remain separate. |
-| 139 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 139 | done | feature | 0.3.20 | Maintenance events publish an explicit crew-safe projection of costs and outcomes; client parsing drops hidden deck order, private facilitator data, and unknown fields while existing private receipts and replay identity remain unchanged. Prompt 140 remains separate. |
 | 140 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 140a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
