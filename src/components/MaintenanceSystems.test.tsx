@@ -203,6 +203,7 @@ it('offers rollback only to the GM and sends the current revision', async () => 
   act(() => useSessionStore.setState({ me: { ...me, role: 'gm' } }));
   const rollbackButton = screen.getByRole('button', { name: 'Roll back maintenance step' });
   expect(rollbackButton).toBeDisabled();
+  expect(rollbackButton).toHaveAccessibleDescription('Roll back maintenance step is available only during Team Phase.');
   act(() => useSessionStore.setState({ session: { ...useSessionStore.getState().session!, turnPhase: teamPhase } }));
   expect(rollbackButton).toBeEnabled();
   await userEvent.click(rollbackButton);

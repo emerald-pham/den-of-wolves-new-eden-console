@@ -53,6 +53,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const turnZeroLocked = session?.currentTurn === 0;
   const maintenancePhaseBlocked = session?.turnPhase !== undefined &&
     phaseForSession(session)?.airspace.state !== 'restricted';
+  const maintenanceRollbackHelpId = `${shipId}-maintenance-rollback-phase-help`;
   const blocked = !access.writable || pending || !session || !me || connection !== 'live' || turnZeroLocked;
   const disabled = (at: number) => blocked || step !== at ||
     (at === 0 && cycle?.turn === currentTurn) || (damage?.destroyed === true && at !== 7);
@@ -148,7 +149,11 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
       <button className="cic-action-button" disabled={disabled(7)} onClick={() => void execute('end')}>End maintenance cycle</button>
       {cycle?.results['7'] && <p role="status">{cycle.results['7']}</p>}
       {me?.role === 'gm' && <div className="maintenance-controls" aria-label="GM damage controls">
+        <span id={maintenanceRollbackHelpId} className="turn-start-announcement__sr">
+          Roll back maintenance step is available only during Team Phase.
+        </span>
         {(['Assign damage', 'Repair all damage', 'Roll back maintenance step'] as const).map(label => <button key={label} className="cic-action-button"
+          aria-describedby={label === 'Roll back maintenance step' && maintenancePhaseBlocked ? maintenanceRollbackHelpId : undefined}
           disabled={!access.writable || pending || connection !== 'live' || session?.phase === 'closed' ||
             (label === 'Assign damage' ? damage?.destroyed === true : label === 'Repair all damage' ? !damage?.destroyed && !damage?.damagedSystemIds.length : revision === 0 || maintenancePhaseBlocked)}
           onClick={() => {
