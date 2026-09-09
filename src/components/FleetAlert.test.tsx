@@ -4,8 +4,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { subscribeSessionState } from '@/lib/firestore';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
+import AirspaceControl from './AirspaceControl';
+import EmergencyTimerPauseControl from './EmergencyTimerPauseControl';
 import FleetBroadcast from './FleetBroadcast';
 import FleetAlertControl from './FleetAlertControl';
+import { DradisAirspaceTimer } from './TurnPhaseTimer';
 const firestoreMocks = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
 }));
@@ -35,6 +38,17 @@ beforeEach(() => {
   useSessionStore.getState().setConnection('live');
 });
 afterEach(() => vi.useRealTimers());
+
+function ReconnectedPhaseSurface() {
+  const phase = useSessionStore((state) => state.session?.turnPhase);
+  const connection = useSessionStore((state) => state.connection);
+  return <>
+    <DradisAirspaceTimer phase={phase} />
+    <EmergencyTimerPauseControl phase={phase} connection={connection} />
+    <AirspaceControl />
+  </>;
+}
+
 it('runs the Admiral command, waits for authority, then offers stand down', async () => {
   render(<><FleetAlertControl /><FleetBroadcast /></>);
   expect(screen.queryByLabelText('Fleet broadcasts')).not.toBeInTheDocument();
@@ -145,13 +159,14 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   })).toBeVisible();
 });
 
-it('names the lifted window as an Airspace Control bulletin', () => {
+it('rehydrates the live timer and permitted actions from the same server phase after reconnect', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-09T17:10:00.000Z'));
   const listeners: Array<{ path: string; callback: (snapshot: unknown) => void }> = [];
   firestoreMocks.onSnapshot.mockImplementation((target: { path: string }, callback: (snapshot: unknown) => void) => {
     listeners.push({ path: target.path, callback });
     return vi.fn();
   });
-  const now = new Date(Date.now());
   const authoritativeSnapshot = {
     name: 'Table',
     joinCode: '1234',
@@ -159,13 +174,21 @@ it('names the lifted window as an Airspace Control bulletin', () => {
     currentTurn: 1,
     turnPhase: {
       turn: 1,
-      teamPhaseEndsAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
-      openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
-      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      teamPhaseEndsAt: '2026-09-09T17:15:00.000Z',
+      openAirspaceEndsAt: '2026-09-09T17:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
     ownerUid: 'u1',
     createdAt: '2026-09-09T17:00:00.000Z',
     updatedAt: '2026-09-09T17:05:00.000Z',
+  };
+  const liftedSnapshot = {
+    ...authoritativeSnapshot,
+    turnPhase: {
+      ...authoritativeSnapshot.turnPhase,
+      teamPhaseEndsAt: '2026-09-09T17:05:00.000Z',
+      airspace: { state: 'lifted' as const, tickerActive: true, pressAccess: false },
+    },
   };
   const subscribeToAuthoritativeSession = () => {
     const start = listeners.length;
@@ -178,31 +201,45 @@ it('names the lifted window as an Airspace Control bulletin', () => {
     });
     const sessionListener = listeners.slice(start).find(({ path }) => path === 'sessions/s1');
     if (!sessionListener) throw new Error('Expected the session Firestore listener.');
-    act(() => {
-      sessionListener.callback({
-        exists: () => true,
-        id: 's1',
-        data: () => authoritativeSnapshot,
-      });
-    });
-    return stop;
+    return { stop, sessionListener };
   };
 
-  const firstStop = subscribeToAuthoritativeSession();
-  const view = render(<FleetBroadcast />);
-  const expectedBulletin = 'AIRSPACE CONTROL // AIRSPACE OPEN';
-  expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
-  expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
+  const feed = (listener: { callback: (snapshot: unknown) => void }, data: typeof authoritativeSnapshot) => {
+    act(() => {
+      listener.callback({
+        exists: () => true,
+        id: 's1',
+        data: () => data,
+      });
+    });
+  };
+
+  const first = subscribeToAuthoritativeSession();
+  feed(first.sessionListener, authoritativeSnapshot);
+  const view = render(<><FleetBroadcast /><ReconnectedPhaseSurface /></>);
+  expect(screen.getByRole('status', { name: 'Airspace closed // 05:00 remaining' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Disarm interlock // Pause timer' })).toBeEnabled();
+  fireEvent.click(screen.getByText('Systems control'));
+  expect(screen.getByRole('button', { name: 'Unlock airspace // Press' })).toBeEnabled();
+
+  act(() => { vi.advanceTimersByTime(2 * 60_000); });
+  expect(screen.getByRole('status', { name: 'Airspace closed // 03:00 remaining' })).toBeVisible();
 
   view.unmount();
-  firstStop();
+  first.stop();
   listeners.length = 0;
-  const reconnectStop = subscribeToAuthoritativeSession();
-  render(<FleetBroadcast />);
+  const reconnect = subscribeToAuthoritativeSession();
+  feed(reconnect.sessionListener, authoritativeSnapshot);
+  render(<><FleetBroadcast /><ReconnectedPhaseSurface /></>);
 
-  expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
-  expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
-  reconnectStop();
+  expect(screen.getByRole('status', { name: 'Airspace closed // 03:00 remaining' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Disarm interlock // Pause timer' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Unlock airspace // Press' })).toBeEnabled();
+
+  feed(reconnect.sessionListener, liftedSnapshot);
+  expect(screen.getByRole('status', { name: 'Airspace open // 18:00 remaining' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Unlock airspace // Press' })).toBeDisabled();
+  reconnect.stop();
 });
 
 it('broadcasts an emergency timer hold as a fleetwide Airspace Control bulletin', () => {
