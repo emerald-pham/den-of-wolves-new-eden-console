@@ -468,7 +468,7 @@ function validationReceiptErrors(entry, release) {
       errors.push('a required test-growth review must record an explicit justification');
     }
 
-    const measuredTestGrowth = release.testGrowth;
+    const measuredTestGrowth = entry.validation?.testGrowth ?? release.testGrowth;
     if (!measuredTestGrowth) {
       errors.push('test-file changes could not be measured by the test-growth gate');
     } else if (receipt.testGrowth) {

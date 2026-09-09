@@ -760,6 +760,43 @@ describe('local emulator coordination', () => {
     })).toThrow(/test-growth/i);
   });
 
+  it('uses the validated test-growth receipt after main reconciliation widens the live diff', () => {
+    const validatedTestGrowth = {
+      baseSha: 'main-before-merge',
+      headSha: 'branch-sha',
+      changedTestFiles: ['src/example.test.ts'],
+      addedTestFiles: 1,
+      addedTestLines: 80,
+      addedTestCases: 2,
+      linesPerAddedCase: 40,
+      passed: true,
+      reviewRequired: false,
+      waived: false,
+      justification: '',
+    };
+
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        validation: {
+          ...codeValidation,
+          files: ['src/example.test.ts'],
+          testGrowth: validatedTestGrowth,
+        } as typeof codeValidation & { testGrowth: typeof validatedTestGrowth },
+      },
+      release: releaseState({
+        changedFiles: ['src/example.test.ts'],
+        testGrowth: {
+          ...validatedTestGrowth,
+          baseSha: 'task-start-sha',
+          addedTestLines: 420,
+          addedTestCases: 3,
+          linesPerAddedCase: 140,
+        },
+      }),
+    })).not.toThrow();
+  });
+
   it('requires the human review attestation that matches documentation or UI scope', () => {
     const documentationEntry = {
       ...releaseEntry,
