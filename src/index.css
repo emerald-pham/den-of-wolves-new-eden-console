@@ -577,6 +577,8 @@ body {
 }
 
 .settings-dialog__close {
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--cic-muted);
@@ -3677,6 +3679,19 @@ body {
       clamp(6rem, 14vh, 9rem),
       calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 1rem)
     );
+  }
+
+  .session-mode.ship-role-select {
+    align-content: start;
+    padding-top: calc(
+      var(--console-plot-top) + 1rem +
+      var(--ship-plot-widget-size) + 1rem
+    );
+  }
+
+  .settings-button {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

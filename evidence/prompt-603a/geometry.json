@@ -1,0 +1,720 @@
+{
+  "prompt": "603a",
+  "generatedAt": "2026-09-09T12:31:26.250Z",
+  "command": "npm run test:geometry:603a",
+  "source": "Chrome DevTools Protocol DOMRect capture against the local Vite build; no mocked layout values.",
+  "viewports": [
+    {
+      "name": "portrait-phone",
+      "width": 320,
+      "height": 844
+    },
+    {
+      "name": "wide-phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "name": "short-landscape",
+      "width": 844,
+      "height": 390
+    },
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "records": [
+    {
+      "route": "/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 308,
+        "bottom": 196.36,
+        "width": 296,
+        "height": 184.36
+      },
+      "ticket": {
+        "x": 229.25,
+        "y": 12,
+        "top": 12,
+        "right": 308,
+        "bottom": 52,
+        "width": 78.75,
+        "height": 40
+      },
+      "content": {
+        "x": 16,
+        "y": 212.36,
+        "top": 212.36,
+        "right": 304,
+        "bottom": 360.09,
+        "width": 288,
+        "height": 147.73
+      },
+      "plot": null,
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "212.359px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "motion": "full",
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 320,
+        "scrollWidth": 320,
+        "clientHeight": 844,
+        "scrollHeight": 926,
+        "horizontalOverflow": false,
+        "mainHeight": 926.234375
+      },
+      "interactive": {
+        "count": 5,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "portrait-phone",
+        "width": 320,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-320x844.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 308,
+        "bottom": 196.36,
+        "width": 296,
+        "height": 184.36
+      },
+      "ticket": {
+        "x": 99.16,
+        "y": 12,
+        "top": 12,
+        "right": 177.91,
+        "bottom": 52,
+        "width": 78.75,
+        "height": 40
+      },
+      "content": {
+        "x": 16,
+        "y": 376.36,
+        "top": 376.36,
+        "right": 304,
+        "bottom": 1165.52,
+        "width": 288,
+        "height": 789.16
+      },
+      "plot": {
+        "x": 172,
+        "y": 208.36,
+        "top": 208.36,
+        "right": 308,
+        "bottom": 344.36,
+        "width": 136,
+        "height": 136
+      },
+      "headerContentGap": 180,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "376.359px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "motion": "full",
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 320,
+        "scrollWidth": 320,
+        "clientHeight": 844,
+        "scrollHeight": 1198,
+        "horizontalOverflow": false,
+        "mainHeight": 1197.515625
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "portrait-phone",
+        "width": 320,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-320x844.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 378,
+        "bottom": 196.36,
+        "width": 366,
+        "height": 184.36
+      },
+      "ticket": {
+        "x": 299.25,
+        "y": 12,
+        "top": 12,
+        "right": 378,
+        "bottom": 52,
+        "width": 78.75,
+        "height": 40
+      },
+      "content": {
+        "x": 19.5,
+        "y": 212.36,
+        "top": 212.36,
+        "right": 370.5,
+        "bottom": 328.09,
+        "width": 351,
+        "height": 115.73
+      },
+      "plot": null,
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "212.359px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "motion": "full",
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 894,
+        "horizontalOverflow": false,
+        "mainHeight": 894.234375
+      },
+      "interactive": {
+        "count": 5,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-390x844.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 378,
+        "bottom": 196.36,
+        "width": 366,
+        "height": 184.36
+      },
+      "ticket": {
+        "x": 169.16,
+        "y": 12,
+        "top": 12,
+        "right": 247.91,
+        "bottom": 52,
+        "width": 78.75,
+        "height": 40
+      },
+      "content": {
+        "x": 16,
+        "y": 380.75,
+        "top": 380.75,
+        "right": 370.5,
+        "bottom": 1137.91,
+        "width": 354.5,
+        "height": 757.16
+      },
+      "plot": {
+        "x": 237.61,
+        "y": 208.36,
+        "top": 208.36,
+        "right": 378,
+        "bottom": 348.75,
+        "width": 140.39,
+        "height": 140.39
+      },
+      "headerContentGap": 184.39,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "380.759px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "motion": "full",
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 1170,
+        "horizontalOverflow": false,
+        "mainHeight": 1169.90625
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-390x844.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 832,
+        "bottom": 56,
+        "width": 820,
+        "height": 44
+      },
+      "ticket": {
+        "x": 12,
+        "y": 14,
+        "top": 14,
+        "right": 155.66,
+        "bottom": 54,
+        "width": 143.66,
+        "height": 40
+      },
+      "content": {
+        "x": 42.19,
+        "y": 96,
+        "top": 96,
+        "right": 650.19,
+        "bottom": 217.38,
+        "width": 608,
+        "height": 121.38
+      },
+      "plot": null,
+      "headerContentGap": 40,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "44px",
+      "sessionPaddingTop": "96px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "motion": "full",
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 844,
+        "scrollWidth": 844,
+        "clientHeight": 390,
+        "scrollHeight": 695,
+        "horizontalOverflow": false,
+        "mainHeight": 695.328125
+      },
+      "interactive": {
+        "count": 5,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "short-landscape",
+        "width": 844,
+        "height": 390
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-844x390.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 832,
+        "bottom": 56,
+        "width": 820,
+        "height": 44
+      },
+      "ticket": {
+        "x": 12,
+        "y": 14,
+        "top": 14,
+        "right": 146.88,
+        "bottom": 54,
+        "width": 134.88,
+        "height": 40
+      },
+      "content": {
+        "x": 33.75,
+        "y": 285.67,
+        "top": 285.67,
+        "right": 612.56,
+        "bottom": 1193.58,
+        "width": 578.81,
+        "height": 907.91
+      },
+      "plot": {
+        "x": 646.33,
+        "y": 68,
+        "top": 68,
+        "right": 832,
+        "bottom": 253.67,
+        "width": 185.67,
+        "height": 185.67
+      },
+      "headerContentGap": 229.67,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": 32,
+      "appHeaderHeight": "44px",
+      "sessionPaddingTop": "285.68px",
+      "sessionAlignContent": "start",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "motion": "full",
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 844,
+        "scrollWidth": 844,
+        "clientHeight": 390,
+        "scrollHeight": 1226,
+        "horizontalOverflow": false,
+        "mainHeight": 1225.578125
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "short-landscape",
+        "width": 844,
+        "height": 390
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-844x390.png"
+    },
+    {
+      "route": "/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 1428,
+        "bottom": 53.19,
+        "width": 1416,
+        "height": 41.19
+      },
+      "ticket": {
+        "x": 12,
+        "y": 12.59,
+        "top": 12.59,
+        "right": 184.67,
+        "bottom": 52.59,
+        "width": 172.67,
+        "height": 40
+      },
+      "content": {
+        "x": 224,
+        "y": 213.84,
+        "top": 213.84,
+        "right": 832,
+        "bottom": 340.58,
+        "width": 608,
+        "height": 126.73
+      },
+      "plot": null,
+      "headerContentGap": 160.65,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "41.1875px",
+      "sessionPaddingTop": "126px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "motion": "full",
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "clientHeight": 900,
+        "scrollHeight": 900,
+        "horizontalOverflow": false,
+        "mainHeight": 900
+      },
+      "interactive": {
+        "count": 5,
+        "minimumHeight": 40,
+        "under44": [
+          {
+            "tag": "button",
+            "label": "Settings",
+            "rect": {
+              "x": 1388,
+              "y": 12.59,
+              "top": 12.59,
+              "right": 1428,
+              "bottom": 52.59,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ]
+      },
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-1440x900.png"
+    },
+    {
+      "route": "/ships/aegis/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 1428,
+        "bottom": 53.19,
+        "width": 1416,
+        "height": 41.19
+      },
+      "ticket": {
+        "x": 12,
+        "y": 12.59,
+        "top": 12.59,
+        "right": 184.67,
+        "bottom": 52.59,
+        "width": 172.67,
+        "height": 40
+      },
+      "content": {
+        "x": 48,
+        "y": 206.42,
+        "top": 206.42,
+        "right": 1108,
+        "bottom": 787.58,
+        "width": 1060,
+        "height": 581.16
+      },
+      "plot": {
+        "x": 1156,
+        "y": 65.19,
+        "top": 65.19,
+        "right": 1428,
+        "bottom": 337.19,
+        "width": 272,
+        "height": 272
+      },
+      "headerContentGap": 153.23,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": -130.77,
+      "appHeaderHeight": "41.1875px",
+      "sessionPaddingTop": "126px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT // AEGIS",
+      "sessionNameLength": 74,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": "Rank: Admiral",
+      "motion": "full",
+      "shipPlotTransitionDuration": "0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s, 0.2s",
+      "scroll": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "clientHeight": 900,
+        "scrollHeight": 900,
+        "horizontalOverflow": false,
+        "mainHeight": 900
+      },
+      "interactive": {
+        "count": 6,
+        "minimumHeight": 40,
+        "under44": [
+          {
+            "tag": "button",
+            "label": "Settings",
+            "rect": {
+              "x": 1388,
+              "y": 12.59,
+              "top": 12.59,
+              "right": 1428,
+              "bottom": 52.59,
+              "width": 40,
+              "height": 40
+            }
+          }
+        ]
+      },
+      "viewport": {
+        "name": "desktop",
+        "width": 1440,
+        "height": 900
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-1440x900.png"
+    }
+  ],
+  "variants": {
+    "longLabels": {
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "horizontalOverflow": false
+    },
+    "settings": {
+      "dialog": {
+        "x": 16,
+        "y": 16,
+        "top": 16,
+        "right": 374,
+        "bottom": 892.56,
+        "width": 358,
+        "height": 876.56
+      },
+      "sessionTicket": {
+        "x": 37,
+        "y": 110,
+        "top": 110,
+        "right": 353,
+        "bottom": 150,
+        "width": 316,
+        "height": 40
+      },
+      "controlCount": 5,
+      "minimumControlHeight": 44,
+      "horizontalOverflow": false,
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-settings-390x844.png"
+    },
+    "keyboardFocus": {
+      "element": "settings-button",
+      "focusVisible": true,
+      "outline": "rgb(232, 137, 43) solid 2px",
+      "outlineWidth": "2px",
+      "rect": {
+        "x": 334,
+        "y": 104.78125,
+        "width": 44,
+        "height": 44
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-focus-390x844.png"
+    },
+    "reducedMotion": {
+      "route": "/roles",
+      "header": {
+        "x": 12,
+        "y": 12,
+        "top": 12,
+        "right": 378,
+        "bottom": 196.36,
+        "width": 366,
+        "height": 184.36
+      },
+      "ticket": {
+        "x": 299.25,
+        "y": 12,
+        "top": 12,
+        "right": 378,
+        "bottom": 52,
+        "width": 78.75,
+        "height": 40
+      },
+      "content": {
+        "x": 19.5,
+        "y": 212.36,
+        "top": 212.36,
+        "right": 370.5,
+        "bottom": 328.09,
+        "width": 351,
+        "height": 115.73
+      },
+      "plot": null,
+      "headerContentGap": 16,
+      "ticketContentIntersection": false,
+      "plotContentIntersection": false,
+      "plotContentVerticalGap": null,
+      "appHeaderHeight": "184.359375px",
+      "sessionPaddingTop": "212.359px",
+      "sessionAlignContent": "center",
+      "sessionName": "VISUAL REVIEW // LONG CIC SESSION TICKET LABEL FOR WRAPPED LAYOUT",
+      "sessionNameLength": 65,
+      "indicator": "NOT CONNECTED — AWAITING IRIS AUTHENTICATION",
+      "rank": null,
+      "motion": "reduce",
+      "shipPlotTransitionDuration": null,
+      "scroll": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 894,
+        "horizontalOverflow": false,
+        "mainHeight": 894.234375
+      },
+      "interactive": {
+        "count": 5,
+        "minimumHeight": 44,
+        "under44": []
+      },
+      "viewport": {
+        "name": "wide-phone",
+        "width": 390,
+        "height": 844
+      },
+      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-reduced-motion-390x844.png"
+    }
+  },
+  "assertions": {
+    "headerBeforeContent": true,
+    "sessionTicketOutsideRoleContent": true,
+    "shipDradisOutsideShipRoleContent": true,
+    "noHorizontalOverflow": true,
+    "touchViewportInteractiveTargetsAtLeast44px": true,
+    "settingsControlsAtLeast44px": true,
+    "portraitAndLandscapeCovered": true
+  }
+}
