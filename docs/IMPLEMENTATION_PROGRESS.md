@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**81 / 723 prompts complete (11.20%)**
+**82 / 723 prompts complete (11.34%)**
 
-Status breakdown: **81 done · 24 partial · 0 active · 618 missing**.
+Status breakdown: **82 done · 24 partial · 0 active · 617 missing**.
 
 Active prompt: **none**.
 
@@ -101,8 +101,8 @@ outside this release.
 
 ### Version 0.3.21 progress evidence
 
-The release boundary records Prompt 092 complete, proof-only Prompts 099 and 101, and proof-only Prompt 108 at **81 / 723 = 11.20%**
-with **81 done · 24 partial · 0 active · 618 missing**. The authoritative
+The release boundary records Prompt 092 complete, proof-only Prompts 099, 101, 108, and 115 at **82 / 723 = 11.34%**
+with **82 done · 24 partial · 0 active · 617 missing**. The authoritative
 `advanceTurn` callable now keeps Turn 0 as setup-only, requires a structurally
 valid phase whose turn matches the session, allows normal handoff only from an
 expired lifted Coordination phase, and preserves explicit GM timer overrides
@@ -111,7 +111,7 @@ covers absent, malformed, mismatched, restricted, and Turn 0 rejection without
 writes, exact numbered-turn timing and resource expiry, deterministic handoff
 events, and presentation-only announcement skipping; the existing optimistic
 CAS overlap proof remains intact. `startGame` remains the sole production
-Turn 0-to-1 path. The same proof extends the existing late-maintenance case with valid `begin`, `storage`, `rations`, `unrest`, `riot`, `reactor`, `bays`, and `end` requests while Coordination is lifted; each receives the stable Team-phase denial with no session, event, undo, damage, or receipt writes. The valid `bays` payload proves phase denial precedes docking/fuelling validation. Prompt 101 preserves the same authoritative transition: `beginOpenAirspacePhase` commits the lifted phase and deterministic `airspace-opened-${turn}` event, while the existing `src/components/FleetAlert.test.tsx` lifted-airspace case feeds that committed Firestore-shaped state through the actual `subscribeSessionState` listener callback, renders exactly one accessible `AIRSPACE CONTROL // AIRSPACE OPEN` bulletin, unsubscribes/unmounts, and reconnects the listener to observe the identical single bulletin. Prompt 108 preserves the same server-owned clock on reconnect: the existing `src/components/FleetAlert.test.tsx` case feeds an active Team phase through the actual `subscribeSessionState` listener, renders the timer and live action controls, advances the client clock, unsubscribes, re-subscribes, and observes the reduced server-deadline time before converging to the lifted Coordination timer and disabled Press exception action. Prompt 102 and Prompt 103a remain outside this release.
+Turn 0-to-1 path. The same proof extends the existing late-maintenance case with valid `begin`, `storage`, `rations`, `unrest`, `riot`, `reactor`, `bays`, and `end` requests while Coordination is lifted; each receives the stable Team-phase denial with no session, event, undo, damage, or receipt writes. The valid `bays` payload proves phase denial precedes docking/fuelling validation. Prompt 101 preserves the same authoritative transition: `beginOpenAirspacePhase` commits the lifted phase and deterministic `airspace-opened-${turn}` event, while the existing `src/components/FleetAlert.test.tsx` lifted-airspace case feeds that committed Firestore-shaped state through the actual `subscribeSessionState` listener callback, renders exactly one accessible `AIRSPACE CONTROL // AIRSPACE OPEN` bulletin, unsubscribes/unmounts, and reconnects the listener to observe the identical single bulletin. Prompt 108 preserves the same server-owned clock on reconnect: the existing `src/components/FleetAlert.test.tsx` case feeds an active Team phase through the actual `subscribeSessionState` listener, renders the timer and live action controls, advances the client clock, unsubscribes, re-subscribes, and observes the reduced server-deadline time before converging to the lifted Coordination timer and disabled Press exception action. Prompt 115 preserves the printed Storage rule: `functions/src/maintenance.test.ts` and the existing stateful `functions/src/maintenanceCallable.test.ts` case prove odd/even ship and docked-shuttle losses round down, undocked cargo stays unchanged, the exact loss audit is persisted in `cycle.results['1']`, and the callable atomically persists the resource/cargo result and member-visible maintenance event. Prompt 102 and Prompt 103a remain outside this release.
 
 ### Version 0.3.20 progress evidence
 
@@ -426,7 +426,7 @@ release classification and evidence.
 | 112 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 113 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 114 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 115 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 115 | done | non-feature | — | Existing `functions/src/maintenance.test.ts` and stateful `functions/src/maintenanceCallable.test.ts` evidence proves damaged Storage halves ship and docked-shuttle resources with printed floor rounding, leaves undocked cargo unchanged, and atomically persists exact `cycle.results['1']` audit detail plus the session resource/cargo update and maintenance event. |
 | 116 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 117 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 118 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

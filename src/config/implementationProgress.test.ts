@@ -72,7 +72,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 81/723 complete; 24 partial; 618 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 82/723 complete; 24 partial; 617 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -81,29 +81,29 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(result.summary).toMatchObject({
-      complete: 81,
+      complete: 82,
       total: 723,
       partial: 24,
-      missing: 618,
+      missing: 617,
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
       version: applicationVersion,
-      completed: 81,
+      completed: 82,
       total: 723,
-      percentage: '11.20%',
-      done: 81,
+      percentage: '11.34%',
+      done: 82,
       partial: 24,
       active: 0,
-      missing: 618,
+      missing: 617,
     });
-    expect(changelogSource).toContain('Roadmap progress: 81 of 723 prompts complete (11.20%).');
+    expect(changelogSource).toContain('Roadmap progress: 82 of 723 prompts complete (11.34%).');
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
-      changelogSource: changelogSource.replace("percentage: '11.20%'", "percentage: '9.7%'")
+      changelogSource: changelogSource.replace("percentage: '11.34%'", "percentage: '9.7%'")
         .replace('partial: 24', 'partial: 25'),
     });
 
@@ -125,7 +125,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 81, total: 723, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ complete: 82, total: 723, resumePrompt: '012' });
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');

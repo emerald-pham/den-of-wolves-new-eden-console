@@ -302,11 +302,14 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   const maintenance = {
     session: {
       phase: 'active', currentTurn: 1, maintenanceCycles: {},
-      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
-      shipDamage: { aegis: { damagedSystemIds: [], destroyed: false } },
+      shipResources: { aegis: { ore: 5, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
+      shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } },
       shipUnrest: { aegis: 0 }, shipSurvivors: { aegis: 2_500 },
       shuttleDockings: [{ shipId: 'aegis', shuttleId: 'starlight' }],
-      shuttleCargo: { starlight: { ore: 2 } }, shuttleFuelled: { starlight: false },
+      shuttleCargo: {
+        starlight: { ore: 5, food: 4, water: 3, materials: 1, securityTeams: 2 },
+        pallas: { food: 5, water: 3 },
+      }, shuttleFuelled: { starlight: false, pallas: false },
       unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
     } as Record<string, unknown>,
     receipts: {}, undo: {}, events: {}, damageDraws: {},
@@ -329,7 +332,29 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
     runMaintenance.run(request({
       ...data, action, expectedRevision, requestId: `maintenance-${action}`, ...choices,
     }));
-  await step('storage', 1);
+  const storage = await step('storage', 1);
+  const expectedStorageResult = 'Storage damaged. Lost: 2 ore, 2 fuel, 4 food, 3 water, 4 securityTeams, 2 ore (starlight), 2 food (starlight), 1 water (starlight), 1 securityTeams (starlight).';
+  expect(storage).toMatchObject({
+    status: 'committed', action: 'storage',
+    cycle: { results: { '1': expectedStorageResult } },
+    result: {
+      resources: { ore: 3, fuel: 2, food: 4, water: 3, materials: 1, securityTeams: 5 },
+      cargo: {
+        starlight: { ore: 3, food: 2, water: 2, materials: 1, securityTeams: 1 },
+        pallas: { food: 5, water: 3 },
+      },
+    },
+  });
+  expect(maintenance.session.shipResources).toEqual({
+    aegis: { ore: 3, fuel: 2, food: 4, water: 3, materials: 1, securityTeams: 5 },
+  });
+  expect(maintenance.session.shuttleCargo).toEqual({
+    starlight: { ore: 3, food: 2, water: 2, materials: 1, securityTeams: 1 },
+    pallas: { food: 5, water: 3 },
+  });
+  expect(maintenance.events['sessions/s1/events/maintenance-maintenance-storage']).toMatchObject({
+    type: 'maintenance', action: 'storage', results: { '1': expectedStorageResult },
+  });
   await step('rations', 2, { foodLevel: 1, waterLevel: 1 });
   await step('unrest', 3);
 
@@ -403,13 +428,13 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
 
   const session = maintenance.session;
   expect((session.shipResources as Record<string, Record<string, number>>).aegis)
-    .toMatchObject({ food: 5, water: 4, fuel: 3 });
+    .toMatchObject({ food: 1, water: 1, fuel: 1 });
   expect(session.maintenanceCycles).toMatchObject({
     aegis: expect.objectContaining({ step: 0, revision: 8, charges: ['jump-drive'], refuelled: ['starlight'] }),
   });
-  expect(session.shuttleFuelled).toEqual({ starlight: true });
+  expect(session.shuttleFuelled).toEqual({ starlight: true, pallas: false });
   expect(session.shipDamage).toEqual({
-    aegis: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false },
+    aegis: { damagedSystemIds: ['storage', 'fighter-bay-alpha'], destroyed: false },
   });
   expect(Object.keys(maintenance.receipts)).toHaveLength(9);
   const riotReceipt = maintenance.receipts[`sessions/s1/maintenanceRequests/${committed.requestId}`]!;

@@ -23,16 +23,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     version: APP_VERSION,
     implementationPrompts: [92],
     implementationProgress: {
-      completed: 81,
+      completed: 82,
       total: 723,
-      percentage: '11.20%',
-      done: 81,
+      percentage: '11.34%',
+      done: 82,
       partial: 24,
       active: 0,
-      missing: 618,
+      missing: 617,
     },
     changes: [
-      'Turn advancement now waits for the correct game phase. — Roadmap progress: 81 of 723 prompts complete (11.20%).',
+      'Turn advancement now waits for the correct game phase. — Roadmap progress: 82 of 723 prompts complete (11.34%).',
     ],
   },
   {
