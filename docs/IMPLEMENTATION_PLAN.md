@@ -778,19 +778,20 @@ fixtures cannot conflate a catalog with a playable start:
    073: atomically persist the full authoritative configuration, provision and
    expose production seats, and represent one-GM/optional-multi-GM staffing.
    Prompt 051 receives production configuration evidence but remains partial.
-2. Complete Prompt 051/054/071 with the setup portion of Prompt 075: readiness
+2. Release 0.3.13 (active) completes Prompt 051/054/071 with the setup portion
+   of Prompt 075: readiness
    consumes authoritative seats/casting and start derives the
    Wolf count and default private loyalty state server-side, writes an
    audience-correct calculation receipt, and is retry/race safe without
    claiming the remaining deck/craft/resource initializer breadth.
-3. Complete Prompt 020 only after the dependencies above: one production-path
+3. Complete Prompt 020 only after release 0.3.13 is merged: one production-path
    create → join → seat → cast → private setup → single-GM start → Turn 1
    fixture passes without direct client gameplay writes.
 4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
    turn and maintenance composition.
 
-The following stories are the queued walking-skeleton contract, not acceptance
-for the current Prompt 004 catalog release.
+The following stories are the active 0.3.13 walking-skeleton contract. They are
+not by themselves Prompt 020's later composed production-path acceptance.
 
 - **Given** a new or unlocked session, **when** its creator or authorized GM
   selects a supported base count from 8 through 18, **then** the server persists
@@ -880,15 +881,26 @@ Those queued releases carry the interaction matrix as follows:
 | Accessibility and aesthetics | Reuse CIC hierarchy/tokens; keep controls keyboard/touch operable with 44px targets, live pending/rejected/committed text, no color-only meaning, no clipping at required viewports, and equivalent reduced-motion access. |
 | Multiple GMs | One instance suffices; additional instances use expected revisions and optional lane sharing without adding players, rerolling setup, or becoming required acknowledgers. |
 
-**Queued dependency and delivery order:** (1) retain the base and Press
-characterization floor; (2) make the exact client/server 8–20 configuration
-matrix fail; (3) make one-GM responsibility/readiness fail; (4) make automatic
-Wolf/loyalty setup, audience-correct receipt, retry, and GM race fail; (5) make
-the ordinary GM start route and reconnect projection fail; (6) implement the
-narrowest shared server/client changes; (7) run the composed production-path
-fixture; and (8) complete the reconciled release gate. Do not mark Prompt 054
-done from a count helper, Prompt 071/073 done from a boolean-only unit test, or
-Prompt 020 done from direct fixture writes around the callables.
+**Release 0.3.13 dependency and delivery order:** (1) retain the base roster,
+Press, configuration, seat, and responsibility characterization floor; (2) make
+seat-backed 8/19/20 readiness and one-live-GM effective responsibility coverage
+fail; (3) make automatic Wolf/loyalty setup, audience-correct receipt,
+payload-bound retry, and the two-GM race fail; (4) make the ordinary GM start
+route, private reconnect projection, and rules-denial boundary fail; (5)
+implement the narrowest shared server/client changes; and (6) complete focused,
+emulator/security, visual/accessibility, full, reconciled release gates. The
+separate Prompt 020 composed production fixture follows only after the release
+lands. Do not mark Prompt 054 done from a count helper, Prompt 071 done from a
+boolean-only unit test, or Prompt 020 done from direct fixture writes around the
+callables.
+
+The current false-green fixtures are requirements to repair: start tests that
+supply role IDs and two responsibility booleans without seat documents do not
+prove readiness; helper-only Wolf tests do not prove locked production
+derivation; debug `advanceTurn` controls do not prove the ordinary start route;
+and generic event readability does not prove private receipt redaction. Replace
+those assumptions with composed callable, client service/route, projection,
+and Firestore-rules assertions while preserving unrelated passing behavior.
 
 **Queued compatibility and rollback:** missing legacy mode fields continue through
 the existing documented normalization until an authorized configuration
@@ -901,13 +913,16 @@ the new high-count or dual-responsibility shape. A rollback may leave additive
 receipt and responsibility fields in place, but must not restore a client that
 can bypass start authority or a server that rerolls an already committed setup.
 
-**Queued walking-skeleton non-goals:** do not invent lower-count Capybara substitutions;
+**Release 0.3.13 non-goals:** do not invent lower-count Capybara substitutions;
 enable optional special loyalties; complete Capybara maintenance, Scrap,
 Macaw/Boa, damage, targeting, specialist work, or balance dials; implement a
 later turn or whole-game loop; implement a Wolf attack; or add the deferred
 DRADIS attack visualization. Prompts 055–058, 063–070, the remaining Prompt 075
 initializer breadth, Milestone 2+, Prompt 638 capacity, and Prompt 605a remain
-open unless independently proven by their own acceptance.
+open unless independently proven by their own acceptance. Prompt 275b Dispatch
+Desk restoration, Prompt 602a ordinary shuttle return, Prompt 603a mobile ticket
+occupancy, and Prompt 122a Reactor confirmation remain separately scheduled
+regressions and must not be silently folded into setup/start evidence.
 
 **Queued Prompt 020 exit gate:** a production-path ATDD fixture creates a session, joins the
 configured members, claims one GM instance, commits the supported configuration,

@@ -17,15 +17,53 @@ session can resume at the first unresolved acceptance.
 
 **66 / 713 prompts complete (9.26%)**
 
-Status breakdown: **66 done · 31 partial · 0 active · 616 missing**.
+Status breakdown: **66 done · 30 partial · 1 active · 616 missing**.
 
-Active prompt: **none**.
+Active prompt: **Prompt 051**.
 
-Version 0.3.12 closes Prompt 021 authoritative configuration, Prompt 030
-production seating, and Prompt 073 one-GM staffing. Prompt 030 is reclassified
-as a feature for this release. Prompt 051 remains partial: configuration and
-seating evidence is appended, while readiness and start remain outside the
-release boundary.
+Version 0.3.13 is active for authoritative seat-backed readiness, automatic
+private Wolf/loyalty setup, an audience-correct setup calculation receipt, and
+retry-safe one-GM Turn 1 start. It may close Prompts 051, 054, and 071 only when
+the production callable, client route, projection, privacy, race/replay, and
+rendered interaction evidence all land. Prompt 075 remains partial because its
+deck, craft, complete resource/economy, and alert initialization breadth is out
+of this release.
+
+### Active version 0.3.13 objectives and exit evidence
+
+The release begins at **66 / 713 = 9.26%** with **66 done · 30 partial · 1
+active · 616 missing** after selecting Prompt 051. If and only if the exact
+acceptance closes Prompt 051, 054, and 071, the release records **69 / 713 =
+9.68%** with **69 done · 28 partial · 0 active · 616 missing**. Partial work or
+an unmerged branch does not earn that percentage.
+
+The chronological failing-first record must expose the current production gaps:
+readiness can pass without provisioned seat documents or reciprocal player seat
+pointers; start reads only legacy singular facilitator responsibilities; the
+callable accepts prewritten loyalty documents rather than composing private
+setup; Wolf assignment trusts caller-selected cardinality and is not bound to a
+setup revision/request receipt; the GM console advances a debug turn instead of
+calling an ordinary production start path; and current generic rules tests do
+not prove own-loyalty/GM-receipt access with member and cross-session denial.
+
+Closure evidence must cover 8, 19, and 20 core players; exact stable seats and
+unique roles; one live GM and optional additional GMs; default-enabled claimed,
+unclaimed, and disabled Press as a distinct non-counted twenty-first player;
+one Wolf at core 8–13 and two at 14–20 without a third; automatic default and
+complete explicit loyalty paths; partial/stale loyalty denial; same-request
+replay, conflicting reuse, and two-GM race; private reconnect/redaction; and
+one authoritative Turn 1 transition with pursuit 2 and the existing clock and
+announcement. The shared event may expose safe rule/count/revision metadata but
+never selected Wolf IDs or another player's loyalty.
+
+The exit gate is chronological focused red/green evidence, isolated emulator
+rules proof, keyboard/screen-reader/touch and CIC review at 320x844, 390x844,
+1440x900, and 844x390 under normal and reduced motion, lint, all unit/Functions
+and rules tests, client and Functions builds, bundle, documentation/progress,
+diff, independent security/privacy review, current-main reconciliation,
+machine coordination validation, merge, push, verified local/remote SHA, and
+coordination cleanup. Prompt 020 and P122a/P275b/P602a/P603a remain outside this
+release and retain their own dependency-ordered evidence.
 
 ### Version 0.3.12 progress evidence
 
@@ -195,7 +233,7 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | feature | 0.3.9, 0.3.12 | Version 0.3.12 adds authoritative 8–20 core configuration, vessel derivation, stable-seat provisioning, and Press-excluded hydration evidence to the existing 0.3.9 production-path matrix. Readiness, start, Wolf/setup receipt, and the remaining owner-revised composition boundary remain open, so this prompt stays partial. |
+| 051 | in-progress | feature | 0.3.9, 0.3.12 | Version 0.3.13 is actively composing release 0.3.12's authoritative 8–20 configuration, stable seats, and one-GM staffing into exact seat-backed readiness, private setup, and Turn 1. Completion requires the named callable/client/privacy/race/rendered evidence; Prompt 075 and Prompt 020 remain separately incomplete. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover the shared helper, including owner-set 19/20 rows, but not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
