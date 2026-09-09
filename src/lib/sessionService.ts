@@ -7,6 +7,7 @@ import type {
   GameSession,
   GmInstance,
   Player,
+  SetupReceipt,
   ShipJumpState,
   ShipJumpTransition,
 } from '@/types/game';
@@ -128,6 +129,31 @@ function deviceLabel(): string {
 
 function commandId(): string {
   return window.crypto.randomUUID();
+}
+
+interface PendingStartRequest {
+  readonly sessionId: string;
+  readonly instanceId: string;
+  readonly expectedSetupRevision: number;
+  readonly requestId: string;
+}
+
+// A start is not placed in the general outbox because it must never be
+// replayed by a different GM instance. Keep only an ambiguous transport
+// attempt, keyed to the exact authority inputs, so a retry can ask the server
+// for its committed/replayed result instead of creating a second start.
+let pendingStartRequest: PendingStartRequest | null = null;
+
+function sameStartAttempt(
+  request: PendingStartRequest | null,
+  sessionId: string,
+  instanceId: string,
+  expectedSetupRevision: number,
+): request is PendingStartRequest {
+  return request !== null &&
+    request.sessionId === sessionId &&
+    request.instanceId === instanceId &&
+    request.expectedSetupRevision === expectedSetupRevision;
 }
 
 function expectedSetupRevision(session: GameSession): number {
@@ -1219,6 +1245,98 @@ interface TurnAdvanceReply {
   readonly shuttleFuelled?: GameSession['shuttleFuelled'];
 }
 
+export interface StartGameReceiptReply extends TurnAdvanceReply {
+  readonly status: 'committed' | 'replayed';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly setupRevision: number;
+  readonly setupReceipt: SetupReceipt;
+}
+
+export interface StartGameStaleReply {
+  readonly status: 'stale';
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly expectedSetupRevision: number;
+  readonly currentSetupRevision: number;
+}
+
+export type StartGameReply = StartGameReceiptReply | StartGameStaleReply;
+
+/** Commit the ordinary production start; the server derives Wolf/loyalty state. */
+export interface StartGameOptions {
+  /** Reuse a caller-held id after an ambiguous transport failure. */
+  readonly requestId?: string;
+}
+
+export async function startGame(options: StartGameOptions = {}): Promise<StartGameReply> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('Claim GM before starting the game.');
+  if (store.connection !== 'live') throw new Error('Reconnect before starting the game.');
+  await ensureSignedIn();
+  const sessionId = store.session.id;
+  const instanceId = store.gmInstance.id;
+  const revision = expectedSetupRevision(store.session);
+  const requestId = options.requestId ?? (
+    sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision)
+      ? pendingStartRequest.requestId
+      : commandId()
+  );
+  const attempt: PendingStartRequest = {
+    sessionId,
+    instanceId,
+    expectedSetupRevision: revision,
+    requestId,
+  };
+  pendingStartRequest = attempt;
+  const payload = {
+    sessionId,
+    instanceId,
+    requestId,
+    expectedSetupRevision: revision,
+  };
+  const call = httpsCallable<typeof payload, StartGameReply>(functions(), 'startGame');
+  try {
+    const reply = (await call(payload)).data;
+    if (sameStartAttempt(
+      pendingStartRequest,
+      payload.sessionId,
+      payload.instanceId,
+      payload.expectedSetupRevision,
+    ) && pendingStartRequest.requestId === payload.requestId) {
+      pendingStartRequest = null;
+    }
+    if (reply.status === 'stale') return reply;
+    applyTurnAdvanceReply(store.session.id, reply, false);
+    const current = useSessionStore.getState().session;
+    if (current?.id === store.session.id) {
+      useSessionStore.getState().setSession({
+        ...current,
+        phase: 'active',
+        configurationLocked: true,
+        currentTurn: reply.currentTurn,
+        setupRevision: reply.setupRevision,
+        pursuitGroups: { ...current.pursuitGroups, fleet: 2 },
+      });
+    }
+    useSessionStore.getState().setGmSetupReceipt(reply.setupReceipt);
+    return reply;
+  } catch (cause) {
+    if (!TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
+      if (sameStartAttempt(
+        pendingStartRequest,
+        payload.sessionId,
+        payload.instanceId,
+        payload.expectedSetupRevision,
+      ) && pendingStartRequest.requestId === payload.requestId) {
+        pendingStartRequest = null;
+      }
+    }
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
 function applyTurnAdvanceReply(
   sessionId: string,
   reply: TurnAdvanceReply,
@@ -1526,73 +1644,6 @@ export async function setActiveRoleConfiguration(
     },
     createdAt: new Date().toISOString(),
   });
-}
-
-export async function assignWolves(count: 1 | 2): Promise<readonly string[]> {
-  const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
-    throw new Error('Claim GM before assigning wolves.');
-  }
-  await ensureSignedIn();
-  const call = httpsCallable<
-    { sessionId: string; instanceId: string; count: 1 | 2 },
-    { roleIds: string[] }
-  >(functions(), 'assignWolves');
-  try {
-    const reply = await call({
-      sessionId: store.session.id,
-      instanceId: store.gmInstance.id,
-      count,
-    });
-    return reply.data.roleIds;
-  } catch (cause) {
-    store.setCommunicationError(interception(cause));
-    throw cause;
-  }
-}
-
-export async function assignWolfRoles(roleIds: readonly string[]): Promise<readonly string[]> {
-  const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
-    throw new Error('Claim GM before assigning wolves.');
-  }
-  await ensureSignedIn();
-  const call = httpsCallable<
-    { sessionId: string; instanceId: string; roleIds: readonly string[] },
-    { roleIds: string[] }
-  >(functions(), 'assignWolfRoles');
-  try {
-    const reply = await call({
-      sessionId: store.session.id,
-      instanceId: store.gmInstance.id,
-      roleIds,
-    });
-    return reply.data.roleIds;
-  } catch (cause) {
-    store.setCommunicationError(interception(cause));
-    throw cause;
-  }
-}
-
-export async function resetWolves(): Promise<void> {
-  const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance) {
-    throw new Error('Claim GM before resetting wolves.');
-  }
-  await ensureSignedIn();
-  const call = httpsCallable<
-    { sessionId: string; instanceId: string },
-    { reset: true }
-  >(functions(), 'resetWolves');
-  try {
-    await call({
-      sessionId: store.session.id,
-      instanceId: store.gmInstance.id,
-    });
-  } catch (cause) {
-    store.setCommunicationError(interception(cause));
-    throw cause;
-  }
 }
 
 export async function popShipConfetti(shipId: string, roleId: string): Promise<CommandDisposition> {

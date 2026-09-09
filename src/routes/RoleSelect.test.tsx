@@ -286,6 +286,37 @@ describe('RoleSelect', () => {
     expect(releaseSeat).toHaveBeenCalledWith('admiral');
   });
 
+  it('hides core seat claims from a GM but preserves legacy own-seat release', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral', 'seat-1'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe({ ...gm, role: 'gm', seatId: 'seat-1' });
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSeats([
+      {
+        id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+        status: 'open', holderUid: null, factionId: 'aegis', claimedAt: null,
+      },
+      {
+        id: 'seat-1', sessionId: 's1', roleId: 'seat-1', label: 'Seat 1',
+        status: 'claimed', holderUid: 'gm1', factionId: 'aegis', claimedAt: 'legacy-claim',
+      },
+    ]);
+    vi.mocked(releaseSeat).mockResolvedValue('applied');
+    renderRoute();
+
+    expect(screen.queryByRole('button', { name: /claim station/i })).not.toBeInTheDocument();
+    const release = screen.getByRole('button', { name: /release station.*seat 1/i });
+    await user.click(release);
+    expect(releaseSeat).toHaveBeenCalledWith('seat-1');
+  });
+
   it('gives an active GM an accessible reasoned intervention for a stale occupied seat', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession({

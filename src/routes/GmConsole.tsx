@@ -28,9 +28,6 @@ import {
   recommendedRoleIds,
 } from '@/data/rolePresets';
 import {
-  assignWolves,
-  assignWolfRoles,
-  resetWolves,
   kickGmInstance,
   kickPlayer,
   confirmSetup,
@@ -40,6 +37,7 @@ import {
   setFacilitatorResponsibility,
   applyShipCounterSteps,
   advanceTurn,
+  startGame,
   extendAirspaceWindow,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
@@ -230,6 +228,7 @@ export default function GmConsole() {
   const isGm = useSessionStore(selectIsGm);
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const connection = useSessionStore((state) => state.connection);
+  const setupReceipt = useSessionStore((state) => state.gmSetupReceipt);
   const queuedKicks = new Set(
     pendingCommands.flatMap((command) =>
       command.kind === 'kickGmInstance' ? [command.payload.targetInstanceId] : []),
@@ -286,9 +285,12 @@ export default function GmConsole() {
     useState<TurnStartReplayAudience | null>(null);
   const [changingDebrief, setChangingDebrief] = useState(false);
   const [confirmFinale, setConfirmFinale] = useState(false);
-  const [assigningWolves, setAssigningWolves] = useState(false);
-  const [manualWolfRoleIds, setManualWolfRoleIds] = useState<readonly string[]>([]);
-  const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
+  const [startingGame, setStartingGame] = useState(false);
+  const [confirmGameStart, setConfirmGameStart] = useState(false);
+  const [startMutationState, setStartMutationState] = useState<
+    'idle' | 'pending' | 'blocked' | 'stale' | 'committed' | 'replayed'
+  >('idle');
+  const [startMutationMessage, setStartMutationMessage] = useState<string | null>(null);
   const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
   const [confirmingRoster, setConfirmingRoster] = useState(false);
   const [rosterMutationState, setRosterMutationState] = useState<
@@ -344,7 +346,6 @@ export default function GmConsole() {
     const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
     return role && canOfferJointEngineeringRole(draftRoleIds, roleId) ? [role] : [];
   });
-  const wolvesLockedByRoster = hasUnconfirmedRosterChanges || confirmingRoster || rosterQueued;
   const availableShips = SHIPS.filter(
     (ship) =>
       (capybaraEnabled || ship.id !== 'capybara') &&
@@ -544,6 +545,17 @@ export default function GmConsole() {
   }, [pendingPressEnabled]);
 
   useEffect(() => {
+    if (!confirmGameStart) return;
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setConfirmGameStart(false);
+    };
+    document.addEventListener('keydown', cancelOnEscape);
+    return () => document.removeEventListener('keydown', cancelOnEscape);
+  }, [confirmGameStart]);
+
+  useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
     const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
     setDraftRoleIds((current) =>
@@ -586,6 +598,7 @@ export default function GmConsole() {
     setConfirmTurnOverride(false);
     setConfirmTurnSkip(false);
     setConfirmAirspaceExtension(null);
+    if (currentTurn !== 0) setConfirmGameStart(false);
   }, [activeAirspaceWindow, currentTurn]);
 
   if (!session || !me) return <Navigate to="/" replace />;
@@ -850,6 +863,48 @@ export default function GmConsole() {
     void moveToNextTurn(false, true);
   }
 
+  async function commitProductionStart(): Promise<void> {
+    if (startingGame || currentTurn !== 0 || !confirmGameStart) return;
+    setConfirmGameStart(false);
+    setStartingGame(true);
+    setStartMutationState('pending');
+    setStartMutationMessage('Start pending // validating live seats, roles, vessels, loyalty, and GM staffing.');
+    try {
+      const reply = await startGame();
+      if (reply.status === 'stale') {
+        setStartMutationState('stale');
+        setStartMutationMessage(
+          `Start stale // setup revision ${reply.currentSetupRevision} superseded the expected ${reply.expectedSetupRevision}. Refresh the live roster and retry.`,
+        );
+      } else {
+        setStartMutationState(reply.status === 'replayed' ? 'replayed' : 'committed');
+        setStartMutationMessage(
+          reply.status === 'replayed'
+            ? 'Start replayed // the existing Turn 1 result was preserved.'
+            : 'Start committed // Turn 1, pursuit 2, and private setup are live.',
+        );
+      }
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'The server rejected the production start.';
+      const stale = /setup changed|stale|revision|refresh/i.test(message);
+      setStartMutationState(stale ? 'stale' : 'blocked');
+      setStartMutationMessage(
+        `${stale ? 'Start stale' : 'Start blocked'} // ${message.replace(/^Start blocked:\s*/i, '')}`,
+      );
+    } finally {
+      setStartingGame(false);
+    }
+  }
+
+  function requestProductionStart(): void {
+    if (startingGame || currentTurn !== 0) return;
+    if (!confirmGameStart) {
+      setConfirmGameStart(true);
+      return;
+    }
+    void commitProductionStart();
+  }
+
   async function requestAirspaceExtension(window: AirspaceWindow): Promise<void> {
     if (activeAirspaceWindow !== window || extendingAirspace !== null) return;
     if (confirmAirspaceExtension !== window) {
@@ -879,43 +934,6 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setReplayingTurnAnnouncement(null);
-    }
-  }
-
-  async function randomizeWolves(count: 1 | 2): Promise<void> {
-    setAssigningWolves(true);
-    setAssignedWolfRoleIds([]);
-    try {
-      setAssignedWolfRoleIds(await assignWolves(count));
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setAssigningWolves(false);
-    }
-  }
-
-  async function assignSelectedWolves(): Promise<void> {
-    setAssigningWolves(true);
-    setAssignedWolfRoleIds([]);
-    try {
-      setAssignedWolfRoleIds(await assignWolfRoles(manualWolfRoleIds));
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setAssigningWolves(false);
-    }
-  }
-
-  async function resetWolfAssignment(): Promise<void> {
-    setAssigningWolves(true);
-    try {
-      await resetWolves();
-      setAssignedWolfRoleIds([]);
-      setManualWolfRoleIds([]);
-    } catch {
-      // The shared interception notice reports the server rejection.
-    } finally {
-      setAssigningWolves(false);
     }
   }
 
@@ -1012,18 +1030,24 @@ export default function GmConsole() {
               </p>
             )}
             <div className="gm-turn-control__actions">
-              <button
-                className={`cic-action-button${confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer) ? ' cic-action-button--confirm' : ''}`}
-                type="button"
-                disabled={changingTurn || replayingTurnAnnouncement !== null}
-                onClick={requestTurnAdvance}
-              >
-                {advancingTurn
-                  ? `Advancing to Turn ${currentTurn + 1}…`
-                  : confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer)
-                    ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
-                    : `Advance to Turn ${currentTurn + 1}`}
-              </button>
+              {currentTurn === 0 ? (
+                <p className="gm-console__status" role="status">
+                  Turn 0 // ordinary production start is available in Setup.
+                </p>
+              ) : (
+                <button
+                  className={`cic-action-button${confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer) ? ' cic-action-button--confirm' : ''}`}
+                  type="button"
+                  disabled={changingTurn || replayingTurnAnnouncement !== null}
+                  onClick={requestTurnAdvance}
+                >
+                  {advancingTurn
+                    ? `Advancing to Turn ${currentTurn + 1}…`
+                    : confirmTurnAdvance || (confirmTurnOverride && activeTurnTimer)
+                      ? `ARE YOU SURE? // Advance to Turn ${currentTurn + 1}`
+                      : `Advance to Turn ${currentTurn + 1}`}
+                </button>
+              )}
               <button
                 className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
                 type="button"
@@ -1454,90 +1478,61 @@ export default function GmConsole() {
                     Wobbly and Ally are available only with their confirmed Union replacement station.
                   </p>
                 </fieldset>
-                <fieldset className="gm-wolf-setup">
-                  <legend>Wolf assignment</legend>
-                  {wolvesLockedByRoster && (
-                    <p className="gm-role-setup__note" role="status">
-                      Confirm the roster before assigning wolves.
-                    </p>
-                  )}
-                  <div className="gm-wolf-actions" aria-label="Random wolf assignment">
-                    <button
-                      className="gm-controls-lock"
-                      type="button"
-                      disabled={
-                        assignedWolfRoleIds.length > 0 || assigningWolves ||
-                        activeRoleIds.length < 1 || wolvesLockedByRoster
-                      }
-                      onClick={() => void randomizeWolves(1)}
-                    >
-                      {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 1 wolf'}
-                    </button>
-                    <button
-                      className="gm-controls-lock"
-                      type="button"
-                      disabled={
-                        assignedWolfRoleIds.length > 0 || assigningWolves ||
-                        activeRoleIds.length < 2 || wolvesLockedByRoster
-                      }
-                      onClick={() => void randomizeWolves(2)}
-                    >
-                      {assigningWolves ? 'Assigning wolves…' : 'Randomly assign 2 wolves'}
-                    </button>
-                  </div>
-                  <fieldset className="gm-wolf-manual">
-                    <legend>Manual wolf assignment</legend>
-                    <ShipRoleGroups
-                      roles={CONSOLE_ROLES.filter((role) =>
-                        normalizedServerRoleIds.includes(role.id) ||
-                        (role.id === 'press-officer' && pressEnabled &&
-                          connectedPlayers.some((player) => player.activeConsoleRoleId === 'press-officer')))}
-                      renderRole={(role) => (
-                      <label className="gm-wolf-role" key={role.id}>
-                        <span>{role.name}</span>
-                        <input
-                          type="checkbox"
-                          aria-label={`${role.name} manual wolf assignment`}
-                          checked={(assignedWolfRoleIds.length > 0
-                            ? assignedWolfRoleIds
-                            : manualWolfRoleIds).includes(role.id)}
-                          disabled={assignedWolfRoleIds.length > 0 || assigningWolves || wolvesLockedByRoster ||
-                            (!manualWolfRoleIds.includes(role.id) && manualWolfRoleIds.length === 2)}
-                          onChange={() => setManualWolfRoleIds((selected) =>
-                            selected.includes(role.id)
-                              ? selected.filter((id) => id !== role.id)
-                              : [...selected, role.id])}
-                        />
-                      </label>
-                      )}
-                    />
-                    <button
-                      className="gm-controls-lock"
-                      type="button"
-                      disabled={
-                        assignedWolfRoleIds.length > 0 || assigningWolves || wolvesLockedByRoster ||
-                        manualWolfRoleIds.length === 0
-                      }
-                      onClick={() => void assignSelectedWolves()}
-                    >
-                      {assigningWolves ? 'Assigning wolves…' : 'Assign selected wolves'}
-                    </button>
-                  </fieldset>
-                  {assignedWolfRoleIds.length > 0 && (
-                    <>
-                      <p className="gm-wolf-result" role="status">
-                        Assigned // {assignedWolfRoleIds.map((roleId) =>
-                          CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId).join(', ')}
-                      </p>
-                      <button
-                        className="gm-controls-lock"
-                        type="button"
-                        disabled={assigningWolves}
-                        onClick={() => void resetWolfAssignment()}
-                      >
-                        {assigningWolves ? 'Resetting wolves…' : 'Reset wolves'}
-                      </button>
-                    </>
+                <fieldset className="gm-production-start" aria-label="Ordinary production start">
+                  <legend>Ordinary production start</legend>
+                  <p className="gm-role-setup__note">
+                    The server derives the routine Wolf count and private loyalty cards from the locked roster.
+                    Wolf selection is not a caller-controlled setup step.
+                  </p>
+                  <p
+                    className="gm-role-setup__note"
+                    role="status"
+                    aria-live="polite"
+                    aria-busy={startMutationState === 'pending'}
+                    data-state={startMutationState}
+                  >
+                    {startMutationMessage ?? (
+                      currentTurn !== 0
+                        ? 'Start unavailable // this session has already left Turn 0.'
+                        : session.phase !== 'casting'
+                          ? 'Start blocked // confirm the locked roster before production start.'
+                          : 'Ready // validate the live roster, reciprocal seats, vessels, loyalty, and GM staffing.'
+                    )}
+                  </p>
+                  <button
+                    className={`cic-action-button${confirmGameStart ? ' cic-action-button--confirm' : ''}`}
+                    type="button"
+                    disabled={startingGame || currentTurn !== 0 || session.phase !== 'casting'}
+                    onClick={requestProductionStart}
+                  >
+                    {startingGame
+                      ? 'Starting production // awaiting server receipt…'
+                      : confirmGameStart
+                        ? 'ARE YOU SURE? // ADVANCE TO TURN 1'
+                      : 'Start production // Advance to Turn 1'}
+                  </button>
+                  {setupReceipt && (
+                    <section className="gm-start-receipt" aria-label="Production start receipt">
+                      <h3 className="gm-console__section-title">Production start receipt</h3>
+                      <dl className="gm-start-receipt__list">
+                        <div><dt>Disposition</dt><dd>{startMutationState}</dd></div>
+                        <div><dt>Source</dt><dd>{setupReceipt.source}</dd></div>
+                        <div><dt>Locked configuration</dt><dd>{setupReceipt.mode} // {setupReceipt.playerCount} core</dd></div>
+                        <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // {setupReceipt.wolfCount} // {setupReceipt.resultCount} private cards</dd></div>
+                        <div><dt>Press input</dt><dd>
+                          {setupReceipt.pressEligibility.enabled === false ? 'disabled' : 'enabled'} // {
+                            typeof setupReceipt.pressEligibility.activeClaimCount === 'number'
+                              ? setupReceipt.pressEligibility.activeClaimCount
+                              : 0
+                          } live claim(s) // {
+                            setupReceipt.pressEligibility.claimed === true ? 'claimed' : 'not claimed'
+                          }
+                        </dd></div>
+                        <div><dt>Excluded GMs</dt><dd>{setupReceipt.excludedGmCount}</dd></div>
+                        <div><dt>Modifiers</dt><dd>{setupReceipt.orderedModifiers.length === 0 ? 'none' : JSON.stringify(setupReceipt.orderedModifiers)}</dd></div>
+                        <div><dt>Setup revisions</dt><dd>{setupReceipt.expectedSetupRevision} → {setupReceipt.committedSetupRevision}</dd></div>
+                      </dl>
+                    </section>
                   )}
                 </fieldset>
               </div>

@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { GameSession, GmInstance, Player, Seat, TurnStartReplay } from '@/types/game';
+import type {
+  GameSession,
+  GmInstance,
+  Player,
+  PrivateLoyalty,
+  Seat,
+  SetupReceipt,
+  TurnStartReplay,
+} from '@/types/game';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
@@ -226,6 +234,8 @@ interface SessionState {
   gmInstance: GmInstance | null;
   gmAccessAuthenticatedAt: number | null;
   turnStartReplay: TurnStartReplay | null;
+  privateLoyalty: PrivateLoyalty | null;
+  gmSetupReceipt: SetupReceipt | null;
   pendingCommands: readonly PendingCommand[];
   communicationError: CommunicationError | null;
   mode: ConsoleMode | null;
@@ -240,6 +250,8 @@ interface SessionState {
   setGmAccessAuthenticatedAt: (authenticatedAt: number | null) => void;
   clearGmAccess: () => void;
   setTurnStartReplay: (replay: TurnStartReplay | null) => void;
+  setPrivateLoyalty: (loyalty: PrivateLoyalty | null) => void;
+  setGmSetupReceipt: (receipt: SetupReceipt | null) => void;
   enqueueCommand: (command: PendingCommand) => void;
   removeCommand: (id: string) => void;
   setCommunicationError: (error: CommunicationError | null) => void;
@@ -257,6 +269,8 @@ const initial = {
   gmInstance: null,
   gmAccessAuthenticatedAt: null,
   turnStartReplay: null,
+  privateLoyalty: null,
+  gmSetupReceipt: null,
   pendingCommands: [] as readonly PendingCommand[],
   communicationError: null,
   mode: null,
@@ -265,7 +279,7 @@ const initial = {
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'communicationError' | 'mode' | 'lastRoute' | 'connection'
+  'privateLoyalty' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection'
 >;
 
 function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
@@ -297,6 +311,8 @@ export const useSessionStore = create<SessionState>()(
       setGmAccessAuthenticatedAt: (gmAccessAuthenticatedAt) => set({ gmAccessAuthenticatedAt }),
       clearGmAccess: () => set({ gmAccessAuthenticatedAt: null }),
       setTurnStartReplay: (turnStartReplay) => set({ turnStartReplay }),
+      setPrivateLoyalty: (privateLoyalty) => set({ privateLoyalty }),
+      setGmSetupReceipt: (gmSetupReceipt) => set({ gmSetupReceipt }),
       enqueueCommand: (command) =>
         set((state) => ({ pendingCommands: [...state.pendingCommands, command] })),
       removeCommand: (id) =>
@@ -314,6 +330,8 @@ export const useSessionStore = create<SessionState>()(
           me: null,
           gmInstance: null,
           turnStartReplay: null,
+          privateLoyalty: null,
+          gmSetupReceipt: null,
           mode: null,
           lastRoute: null,
           // Queued disconnect and logout commands must survive local teardown

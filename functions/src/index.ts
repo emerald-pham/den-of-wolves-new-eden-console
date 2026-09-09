@@ -73,8 +73,6 @@ import {
   requireGameStartRequest,
   requireSessionSeatRequest,
   requireUid,
-  requireWolfAssignmentRequest,
-  requireManualWolfAssignmentRequest,
   requireSetupConfirmationRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
@@ -90,7 +88,7 @@ import {
   type JumpDriveState,
   type JumpTransition,
 } from './jumpDrive';
-import { chooseWolfRoles } from './wolfAssignment';
+import { deriveRoutineWolfAssignment } from './wolfAssignment';
 import { expireTurnScopedResources } from './turnTransition';
 import {
   DEFAULT_ACTIVE_ROLE_IDS,
@@ -101,15 +99,17 @@ import {
   recommendedRoleIds,
 } from './roleConfiguration';
 import {
-  activeVesselIdsForRoles,
   canonicalSessionSetup,
+  composeDefaultLoyaltyAssignments,
   defaultSuspicionForLoyalty,
+  isLiveSetupGm,
   loyaltyAssignmentDecision,
   normalizeSessionConfiguration,
   normalizePersistedSessionConfiguration,
   readinessForSetup,
   roleAssignmentDecision,
   stableSeatsForRoles,
+  validateExplicitLoyaltySetup,
   type LoyaltyKind,
 } from './gameSetup';
 import {
@@ -284,6 +284,11 @@ function hasCoreAssignment(player: DocumentSnapshot): boolean {
   const assignedRoleId = player.get('assignedRoleId');
   return typeof assignedRoleId === 'string' && assignedRoleId.trim().length > 0 &&
     assignedRoleId !== 'press-officer';
+}
+
+function hasCoreSeat(player: DocumentSnapshot): boolean {
+  const seatId = player.get('seatId');
+  return typeof seatId === 'string' && seatId.trim().length > 0 && seatId !== 'press-officer';
 }
 
 function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
@@ -521,6 +526,7 @@ function advanceTurnInTransaction(
   sessionRef: DocumentReference,
   session: DocumentSnapshot,
   skipTurnStartAnnouncement: boolean,
+  additionalFields: Record<string, unknown> = {},
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const nextTurn = currentTurn + 1;
@@ -553,6 +559,7 @@ function advanceTurnInTransaction(
         shuttleFuelled: expiredTurnResources.shuttleFuelled,
       }
       : {}),
+    ...additionalFields,
     updatedAt: FieldValue.serverTimestamp(),
   });
   return {
@@ -1164,20 +1171,29 @@ async function requireFacilitatorInstance(
   sessionId: string,
   uid: string,
   instanceId: string,
-): Promise<{ session: DocumentSnapshot; player: DocumentSnapshot }> {
+): Promise<{ session: DocumentSnapshot; player: DocumentSnapshot; instance: DocumentSnapshot }> {
   const [session, player, instance] = await Promise.all([
     tx.get(db.doc(`sessions/${sessionId}`)),
     tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
     tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)),
   ]);
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  const liveInstance = instance.exists
+    ? {
+      id: instance.id,
+      uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
+      connected: instance.get('connected') !== false,
+      lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+    }
+    : null;
   if (
     !isActivePlayer(player) || player.get('role') !== 'gm' ||
-    !instance.exists || instance.get('uid') !== uid
+    liveInstance === null || liveInstance.uid !== uid ||
+    !isLiveSetupGm(liveInstance)
   ) {
     throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
   }
-  return { session, player };
+  return { session, player, instance };
 }
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
@@ -1364,6 +1380,45 @@ export const setFacilitatorResponsibility = onCall<{
 });
 
 /** Start a ready casting roster exactly once through an active facilitator. */
+type StartRequestFingerprint = {
+  readonly sessionId: string;
+  readonly requestId: string;
+  readonly actorUid: string;
+  readonly instanceId: string;
+  readonly expectedSetupRevision: number;
+};
+
+function sameStartRequestFingerprint(
+  value: unknown,
+  expected: StartRequestFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+}
+
+function startLoyaltyRecord(
+  secret: DocumentSnapshot,
+  uid: string,
+  roleId: string,
+) {
+  const payload = secret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return { uid, roleId, kind: '', suspicion: null };
+  }
+  const value = payload as Record<string, unknown>;
+  return {
+    uid,
+    roleId,
+    kind: typeof value.kind === 'string' ? value.kind : '',
+    suspicion: typeof value.suspicion === 'number' || value.suspicion === null
+      ? value.suspicion
+      : null,
+    ...(typeof value.partnerUid === 'string' ? { partnerUid: value.partnerUid } : {}),
+  };
+}
+
+/** Start a ready casting roster exactly once through an active facilitator. */
 export const startGame = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
@@ -1372,67 +1427,163 @@ export const startGame = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const start = requireGameStartRequest(request.data ?? {});
+  const fingerprint: StartRequestFingerprint = {
+    sessionId: start.sessionId,
+    requestId: start.requestId,
+    actorUid: uid,
+    instanceId: start.instanceId,
+    expectedSetupRevision: start.expectedSetupRevision,
+  };
   const sessionRef = db.doc(`sessions/${start.sessionId}`);
   const startRequestRef = db.doc(`sessionStartRequests/${start.sessionId}_${start.requestId}`);
   const eventRef = db.doc(`sessions/${start.sessionId}/events/start-${start.requestId}`);
   const playersRef = db.collection(`sessions/${start.sessionId}/players`);
   const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
+  const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
 
   return db.runTransaction(async (tx) => {
-    const [prior, authority, players, instances, secrets] = await Promise.all([
+    const [prior, authority, players, instances, seats, secrets] = await Promise.all([
       tx.get(startRequestRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
       tx.get(playersRef),
       tx.get(instancesRef),
+      tx.get(seatsRef),
       tx.get(secretsRef),
     ]);
     if (prior.exists) {
+      if (!sameStartRequestFingerprint(prior.get('fingerprint'), fingerprint)) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different start payload or actor.');
+      }
       const result = prior.get('reply');
-      if (typeof result === 'object' && result !== null) return result;
+      if (typeof result === 'object' && result !== null) {
+        if ((result as Record<string, unknown>).status === 'stale') return result;
+        // A replay is the same committed result with a truthful disposition.
+        // Never recompute private identities, clocks, or setup writes here.
+        return { ...(result as Record<string, unknown>), status: 'replayed' };
+      }
       throw new HttpsError('failed-precondition', 'This start request has no replayable result.');
     }
     if (setupRevision(authority.session) !== start.expectedSetupRevision) {
-      throw new HttpsError('failed-precondition', 'Setup changed. Refresh the roster before starting.');
+      const reply = {
+        status: 'stale' as const,
+        sessionId: start.sessionId,
+        requestId: start.requestId,
+        expectedSetupRevision: start.expectedSetupRevision,
+        currentSetupRevision: setupRevision(authority.session),
+      };
+      tx.set(startRequestRef, {
+        sessionId: start.sessionId,
+        requestId: start.requestId,
+        actorUid: uid,
+        instanceId: start.instanceId,
+        expectedSetupRevision: start.expectedSetupRevision,
+        fingerprint,
+        reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
     requireCastingWindow(authority.session);
-    const activeRoleIds = configuredRoleIds(authority.session);
-    const connectedPlayers = players.docs.filter(isActivePlayer).map((player) => player.id);
-    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
+    const persistedActiveRoleIds = authority.session.get('activeRoleIds');
+    const activeRoleIds = Array.isArray(persistedActiveRoleIds)
+      ? configuredRoleIds(authority.session)
+      : [];
+    const connectedPlayerDocs = players.docs.filter(isActivePlayer);
+    const connectedPlayers = connectedPlayerDocs.map((player) => player.id);
+    const activePressHolders = connectedPlayerDocs.filter(isAuthoritativePressHolder);
     const storedPressHolderUid = authority.session.get('pressHolderUid');
-    const pressPlayerUids = (typeof storedPressHolderUid === 'string'
-      ? activePressHolders.filter((player) => player.id === storedPressHolderUid)
-      : activePressHolders.length === 1 ? activePressHolders : [])
-      .map((player) => player.id);
-    const facilitatorPlayerUids = players.docs
-      .filter((player) => isActivePlayer(player) && player.get('role') === 'gm')
+    const pressPlayerUids = activePressHolders.map((player) => player.id);
+    const facilitatorPlayerUids = connectedPlayerDocs
+      .filter((player) => player.get('role') === 'gm')
       .map((player) => player.id);
     const assignments = players.docs.flatMap((player) => {
       const roleId = player.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: player.id, roleId }] : [];
     });
-    const loyaltyUids = secrets.docs
-      .map((secret) => secret.id)
-      .filter((id) => id.startsWith('loyalty-'))
-      .map((id) => id.slice('loyalty-'.length));
-    const responsibilities = {
-      main: instances.docs.some((instance) => instance.get('responsibility') === 'main'),
-      assistant: instances.docs.some((instance) => instance.get('responsibility') === 'assistant'),
-    };
+    const pressEnabled = authority.session.get('pressEnabled') !== false;
+    const claimedPressPlayerUids = pressEnabled && pressPlayerUids.length === 1 &&
+      (storedPressHolderUid === undefined || storedPressHolderUid === pressPlayerUids[0])
+      ? pressPlayerUids
+      : [];
+    const coreAssignments = assignments.filter((assignment) =>
+      assignment.roleId !== 'press-officer' && !facilitatorPlayerUids.includes(assignment.uid));
+    const holderByUid = new Map(coreAssignments.map((assignment) => [assignment.uid, assignment.roleId]));
+    for (const pressUid of claimedPressPlayerUids) holderByUid.set(pressUid, 'press-officer');
+    const holders = [...holderByUid.entries()].map(([holderUid, roleId]) => ({ uid: holderUid, roleId }));
+    const loyaltySecrets = secrets.docs.filter((secret) => secret.id.startsWith('loyalty-'));
+    const loyaltyUids = loyaltySecrets.map((secret) => secret.id.slice('loyalty-'.length));
+    const seatDocuments = (seats.docs ?? []).map((seat) => ({
+      id: seat.id,
+      roleId: seat.get('roleId'),
+      label: seat.get('label'),
+      factionId: seat.get('factionId'),
+      status: seat.get('status'),
+      holderUid: seat.get('holderUid'),
+      claimedAt: seat.get('claimedAt'),
+    })).filter((seat): seat is {
+      id: string; roleId: string; label: string; factionId: string;
+      status: 'open' | 'claimed' | 'locked'; holderUid: string | null;
+      claimedAt: string | number | Date | null | undefined;
+    } => typeof seat.roleId === 'string' &&
+      typeof seat.label === 'string' && typeof seat.factionId === 'string' &&
+      (seat.status === 'open' || seat.status === 'claimed' || seat.status === 'locked') &&
+      (typeof seat.holderUid === 'string' || seat.holderUid === null));
+    const playerSeatPointers = connectedPlayerDocs
+      .filter((player) => !facilitatorPlayerUids.includes(player.id) && !pressPlayerUids.includes(player.id))
+      .map((player) => ({ uid: player.id, seatId: typeof player.get('seatId') === 'string' ? player.get('seatId') : null }));
+    const liveGmInstances = instances.docs.map((instance) => {
+      const owner = connectedPlayerDocs.find((player) => player.id === instance.get('uid'));
+      const storedLastSeen = instance.get('lastSeenAt') ?? owner?.get('lastSeenAt');
+      return {
+        id: instance.id,
+        uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
+        connected: instance.get('connected') !== false && owner?.get('role') === 'gm',
+        lastSeenAt: storedLastSeen,
+        responsibilities: normalizedResponsibilities(instance),
+      };
+    });
     const playerCount = typeof authority.session.get('playerCount') === 'number'
       ? authority.session.get('playerCount') as number
-      : connectedPlayers.length;
+      : coreAssignments.length;
+    const canonicalRosterIds = [...recommendedRoleIds(playerCount)];
+    const configuredVesselIds = authority.session.get('activeVesselIds');
+    const activeVesselIds = Array.isArray(configuredVesselIds)
+      ? configuredVesselIds.filter((value): value is string => typeof value === 'string')
+      : [];
+    const setupNowMs = Date.now();
+    const effectiveLiveGmInstances = liveGmInstances.filter((instance) =>
+      isLiveSetupGm(instance, setupNowMs));
+    // Older sessions stored only one printed lane on their sole GM instance.
+    // The authorized start transaction upgrades that legacy record durably so
+    // later reads do not have to infer the second lane forever.
+    if (effectiveLiveGmInstances.length === 1) {
+      const sole = instances.docs.find((instance) => instance.id === effectiveLiveGmInstances[0]?.id);
+      if (sole && !Array.isArray(sole.get('responsibilities'))) {
+        const legacyResponsibility = sole.get('responsibility');
+        tx.update(sole.ref, {
+          responsibilities: ['main', 'assistant'],
+          responsibility: legacyResponsibility === 'assistant' ? 'assistant' : 'main',
+        });
+      }
+    }
     const readiness = readinessForSetup({
       phase: String(authority.session.get('phase')),
       playerCount,
       connectedPlayers,
       assignments,
       loyaltyUids,
-      facilitatorResponsibilities: responsibilities,
+      facilitatorResponsibilities: { main: true, assistant: true },
       activeRoleIds,
-      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      activeVesselIds,
       pressPlayerUids,
+      pressEnabled: authority.session.get('pressEnabled') !== false,
+      pressHolderUid: typeof storedPressHolderUid === 'string' ? storedPressHolderUid : null,
       facilitatorPlayerUids,
+      seatDocuments,
+      playerSeatPointers,
+      gmInstances: liveGmInstances,
+      nowMs: setupNowMs,
     });
     if (!readiness.ready) {
       throw new HttpsError(
@@ -1441,24 +1592,120 @@ export const startGame = onCall<{
       );
     }
 
-    const transition = advanceTurnInTransaction(tx, sessionRef, authority.session, false);
-    const result = {
-      sessionId: start.sessionId,
-      currentTurn: transition.currentTurn,
-      setupRevision: start.expectedSetupRevision + 1,
-      turnStartAnnouncement: transition.turnStartAnnouncement,
-      turnPhase: transition.turnPhase,
-    };
-    tx.update(sessionRef, {
+    const routineWolf = deriveRoutineWolfAssignment({
+      playerCount,
+      occupiedCoreRoleIds: canonicalRosterIds.filter((roleId) =>
+        coreAssignments.some((assignment) => assignment.roleId === roleId)),
+      pressEnabled,
+      claimedPressRoleId: claimedPressPlayerUids.length === 1 ? 'press-officer' : null,
+      randomIndex: randomInt,
+    });
+    const explicitRecords = loyaltySecrets.map((secret) => {
+      const uidForSecret = secret.id.slice('loyalty-'.length);
+      return startLoyaltyRecord(secret, uidForSecret, holderByUid.get(uidForSecret) ?? '');
+    });
+    let loyaltyAssignments: Readonly<Record<string, { kind: LoyaltyKind; suspicion: number | null }>>;
+    let selectedWolfRoleIds = [...routineWolf.selectedRoleIds];
+    let loyaltySource: 'automatic-default' | 'explicit-preserved';
+    if (explicitRecords.length === 0) {
+      loyaltyAssignments = composeDefaultLoyaltyAssignments(holders, routineWolf.selectedRoleIds, randomInt);
+      loyaltySource = 'automatic-default';
+    } else {
+      const validation = validateExplicitLoyaltySetup(holders, explicitRecords);
+      if (!validation.valid) {
+        throw new HttpsError('failed-precondition', `Start blocked: loyalties-${validation.reason}.`);
+      }
+      const explicitWolfRoles = holders
+        .filter((holder) => validation.assignments[holder.uid]?.kind === 'wolf-agent')
+        .map((holder) => holder.roleId);
+      if (explicitWolfRoles.length !== routineWolf.wolfCount) {
+        throw new HttpsError('failed-precondition', 'Start blocked: loyalties-conflicting-wolf-count.');
+      }
+      const roleOrder = new Map(canonicalRosterIds.map((roleId, index) => [roleId, index]));
+      selectedWolfRoleIds = [...explicitWolfRoles].sort((left, right) =>
+        (roleOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (roleOrder.get(right) ?? Number.MAX_SAFE_INTEGER));
+      loyaltyAssignments = validation.assignments;
+      loyaltySource = 'explicit-preserved';
+    }
+
+    const committedSetupRevision = start.expectedSetupRevision + 1;
+    const gmUids = [...new Set(effectiveLiveGmInstances
+      .map((instance) => instance.uid))];
+    const serverTime = new Date().toISOString();
+    const setupReceipt = {
+      source: 'routine-start',
+      playerCount,
+      mode: authority.session.get('expansion') === 'capybara' ||
+        authority.session.get('expansion') === 'none'
+        ? authority.session.get('expansion') as 'capybara' | 'none'
+        : 'base',
+      rosterIds: canonicalRosterIds,
+      pressEligibility: {
+        enabled: authority.session.get('pressEnabled') !== false,
+        activeClaimCount: activePressHolders.length,
+        claimed: claimedPressPlayerUids.length === 1,
+      },
+      excludedGmCount: players.docs.filter((player) => player.get('role') === 'gm').length,
+      wolfCount: routineWolf.wolfCount,
+      wolfRule: routineWolf.rule,
+      selectedWolfRoleIds,
+      eligibleRoleIds: [...routineWolf.eligibleRoleIds],
+      orderedModifiers: [],
+      resultCount: holders.length,
+      loyaltySource,
+      request: fingerprint,
+      expectedSetupRevision: start.expectedSetupRevision,
+      committedSetupRevision,
+      actorUid: uid,
+      serverTime,
+      event: 'game-started',
+    } as const;
+    for (const holder of holders) {
+      if (loyaltySource === 'automatic-default') {
+        const assignment = loyaltyAssignments[holder.uid];
+        if (!assignment) throw new HttpsError('failed-precondition', 'Start blocked: loyalties-missing-result.');
+        tx.set(db.doc(`sessions/${start.sessionId}/secrets/loyalty-${holder.uid}`), {
+          visibleToUids: [holder.uid],
+          payload: { type: 'loyalty', ...assignment },
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    tx.set(db.doc(`sessions/${start.sessionId}/secrets/wolf-assignment`), {
+      visibleToUids: gmUids,
+      payload: { type: 'wolf-assignment', roleIds: selectedWolfRoleIds },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${start.sessionId}/secrets/setup-receipt-${start.requestId}`), {
+      visibleToUids: gmUids,
+      payload: { type: 'setup-receipt', ...setupReceipt },
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    const transition = advanceTurnInTransaction(tx, sessionRef, authority.session, false, {
       phase: 'active',
       configurationLocked: true,
-      setupRevision: result.setupRevision,
+      setupRevision: committedSetupRevision,
       pursuitGroups: { fleet: 2 },
-      updatedAt: FieldValue.serverTimestamp(),
     });
+    const result = {
+      status: 'committed' as const,
+      sessionId: start.sessionId,
+      requestId: start.requestId,
+      currentTurn: transition.currentTurn,
+      setupRevision: committedSetupRevision,
+      turnStartAnnouncement: transition.turnStartAnnouncement,
+      turnPhase: transition.turnPhase,
+      setupReceipt,
+    };
     tx.set(startRequestRef, {
       sessionId: start.sessionId,
       requestId: start.requestId,
+      actorUid: uid,
+      instanceId: start.instanceId,
+      expectedSetupRevision: start.expectedSetupRevision,
+      fingerprint,
       reply: result,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -1469,6 +1716,7 @@ export const startGame = onCall<{
       turn: 1,
       phase: 'active',
       revision: result.setupRevision,
+      expectedSetupRevision: start.expectedSetupRevision,
       createdAt: FieldValue.serverTimestamp(),
     });
     return result;
@@ -2213,6 +2461,9 @@ export const claimGmInstance = onCall<{
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    if (hasCoreSeat(player) || hasCoreAssignment(player)) {
+      throw new HttpsError('failed-precondition', 'Release your core station before joining as GM.');
+    }
     if (
       !existing.exists &&
       !mayClaimGmInstance(session.get('gmControlsLocked') === true, activeInstances.size)
@@ -3231,127 +3482,6 @@ export const applyRolePreset = onCall<{
   return rejectLegacySetupMutation();
 });
 
-/** Securely choose one or two wolf roles and keep the result GM-only. */
-export const assignWolves = onCall<{
-  sessionId?: string;
-  instanceId?: string;
-  count?: number;
-}>(async (request) => {
-  const uid = requireUid(request.auth);
-  const assignment = requireWolfAssignmentRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
-  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
-  );
-  const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
-  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
-
-  const roleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance, players] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(playersRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    const enabledRoleIds = [...configuredRoleIds(session)];
-    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
-    if (session.get('pressEnabled') !== false && activePressHolders.length === 1) {
-      enabledRoleIds.push('press-officer');
-    }
-    if (enabledRoleIds.length < assignment.count) {
-      throw new HttpsError('failed-precondition', 'Not enough enabled roles for that many wolves.');
-    }
-    const selected = chooseWolfRoles(enabledRoleIds, assignment.count, randomInt);
-    tx.set(secretRef, {
-      visibleToUids: [],
-      payload: { type: 'wolf-assignment', roleIds: selected },
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    return selected;
-  });
-
-  return { roleIds };
-});
-
-/** Save a GM-selected wolf assignment after validating active roles. */
-export const assignWolfRoles = onCall<{
-  sessionId?: string;
-  instanceId?: string;
-  roleIds?: string[];
-}>(async (request) => {
-  const uid = requireUid(request.auth);
-  const assignment = requireManualWolfAssignmentRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
-  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
-  );
-  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance, players] = await Promise.all([
-      tx.get(sessionRef),
-      tx.get(playerRef),
-      tx.get(instanceRef),
-      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (!isActivePlayer(player) || player.get('role') !== 'gm' || !instance.exists || instance.get('uid') !== uid) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    const active = configuredRoleIds(session);
-    const pressClaimed = session.get('pressEnabled') !== false &&
-      players.docs.some(isAuthoritativePressHolder);
-    if (assignment.roleIds.some((roleId) =>
-      roleId === 'press-officer' ? !pressClaimed : !active.includes(roleId))) {
-      throw new HttpsError('failed-precondition', 'Every selected wolf must be active.');
-    }
-    tx.set(secretRef, {
-      visibleToUids: [],
-      payload: { type: 'wolf-assignment', roleIds: assignment.roleIds },
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  });
-
-  return { roleIds: assignment.roleIds };
-});
-
-/** Remove the current wolf assignment so Setup can choose again. */
-export const resetWolves = onCall<{
-  sessionId?: string;
-  instanceId?: string;
-}>(async (request) => {
-  const uid = requireUid(request.auth);
-  const assignment = requireGmInstanceRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
-  const playerRef = db.doc(`sessions/${assignment.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
-  );
-  const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.delete(secretRef);
-  });
-
-  return { reset: true as const };
-});
-
 /** Fire a ship's one-use confetti dispenser and atomically add its GM log event. */
 export const popShipConfetti = onCall<{
   sessionId?: string; shipId?: string; roleId?: string;
@@ -3904,6 +4034,9 @@ export const claimSeat = onCall<{
         if (!isActivePlayer(player)) {
           throw new HttpsError('permission-denied', 'Join the session first.');
         }
+        if (player.get('role') === 'gm') {
+          throw new HttpsError('permission-denied', 'GMs cannot claim core seats.');
+        }
         if (prior.exists) {
           if (
             prior.get('action') !== 'claim' ||
@@ -4014,16 +4147,14 @@ export const releaseSeat = onCall<{
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
+        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
         if (revisioned.instanceId || revisioned.reason) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
           }
-          const interventionInstance = await tx.get(
-            db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`),
-          );
-          if (!interventionInstance.exists || interventionInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-          }
+          gmInstance = (await requireFacilitatorInstance(
+            tx, sessionId, uid, revisioned.instanceId,
+          )).instance;
         }
         if (prior.exists) {
           if (
@@ -4063,14 +4194,14 @@ export const releaseSeat = onCall<{
         const holderUid = seat.get('holderUid') as string;
         // Establish actor authority before reading the holder record. An ordinary
         // non-holder must not learn whether another player's seat pointer is stale.
-        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
         if (holderUid !== uid) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
           }
-          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
-          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          if (!gmInstance) {
+            gmInstance = (await requireFacilitatorInstance(
+              tx, sessionId, uid, revisioned.instanceId,
+            )).instance;
           }
         }
         if (setupRevision(session) !== revisioned.expectedSetupRevision) {
@@ -4096,10 +4227,9 @@ export const releaseSeat = onCall<{
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
           }
-          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
-          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-          }
+          gmInstance = (await requireFacilitatorInstance(
+            tx, sessionId, uid, revisioned.instanceId,
+          )).instance;
         }
         const nextRevision = revisioned.expectedSetupRevision + 1;
         const reply: SeatMutationReceipt = {
@@ -4151,6 +4281,12 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
       }
       if (!isActivePlayer(target)) {
         throw new HttpsError('failed-precondition', 'That player is not connected.');
+      }
+      if (
+        hasCoreSeat(target) || hasCoreAssignment(target) || hasPressState(target) ||
+        sessionSnap.get('pressHolderUid') === targetUid
+      ) {
+        throw new HttpsError('failed-precondition', 'Release the target station before elevating to GM.');
       }
       tx.update(targetRef, { role: 'gm' });
       return { targetUid, role: 'gm' };

@@ -32,6 +32,10 @@ service cloud.firestore {
       ).data.role == 'gm';
     }
 
+    function isGmPrivateSecret(secretId) {
+      return secretId == 'wolf-assignment' || secretId.matches('setup-receipt-.*');
+    }
+
     match /sessions/{sessionId} {
       // Joining by code goes through the callable function, so session headers
       // never need to be exposed to strangers or enumerable from the client.
@@ -76,7 +80,8 @@ service cloud.firestore {
 
       match /secrets/{secretId} {
         allow get, list: if isMember(sessionId)
-          && (isGm(sessionId) || uid() in resource.data.visibleToUids);
+          && uid() in resource.data.visibleToUids
+          && (!isGmPrivateSecret(secretId) || isGm(sessionId));
         allow write: if false;
       }
 

@@ -3,6 +3,7 @@ import {
   isJointEngineeringRoleId,
   recommendedRoleIds,
 } from './roleConfiguration';
+import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 
 export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 export const SUPPORTED_CHART_IDS = ['A', 'B', 'C'] as const;
@@ -184,6 +185,90 @@ export function defaultSuspicionForLoyalty(kind: LoyaltyKind): readonly number[]
   return LOYALTY_SUSPICION[kind];
 }
 
+export interface SetupHolder {
+  readonly uid: string;
+  readonly roleId: string;
+}
+
+export interface ExplicitLoyaltyRecord extends SetupHolder {
+  readonly kind: string;
+  readonly suspicion: number | null;
+  readonly partnerUid?: string | null;
+}
+
+export type ExplicitLoyaltyValidation =
+  | { readonly valid: true; readonly assignments: Readonly<Record<string, SetupLoyalty>> }
+  | { readonly valid: false; readonly reason: 'partial' | 'conflicting' | 'malformed' | 'stale' };
+
+/** Validate a fully authored pre-start loyalty setup without exposing secrets. */
+export function validateExplicitLoyaltySetup(
+  holders: readonly SetupHolder[],
+  records: readonly ExplicitLoyaltyRecord[],
+): ExplicitLoyaltyValidation {
+  const holderUids = new Set(holders.map((holder) => holder.uid));
+  const holderByUid = new Map(holders.map((holder) => [holder.uid, holder]));
+  if (records.length !== holders.length) return { valid: false, reason: 'partial' };
+  const byUid = new Map(records.map((record) => [record.uid, record]));
+  if (byUid.size !== records.length) return { valid: false, reason: 'conflicting' };
+  if ([...byUid.keys()].some((uid) => !holderUids.has(uid))) return { valid: false, reason: 'stale' };
+  if ([...holderUids].some((uid) => !byUid.has(uid))) return { valid: false, reason: 'partial' };
+
+  const assignments: Record<string, SetupLoyalty> = {};
+  for (const record of records) {
+    const holder = holderByUid.get(record.uid);
+    if (!holder || holder.roleId !== record.roleId) return { valid: false, reason: 'stale' };
+    const decision = loyaltyAssignmentDecision(record.kind, record.suspicion);
+    if (!decision.allowed) return { valid: false, reason: 'malformed' };
+    if (record.kind === 'friend' &&
+      (typeof record.partnerUid !== 'string' || record.partnerUid === record.uid || !holderUids.has(record.partnerUid))) {
+      return { valid: false, reason: 'malformed' };
+    }
+    if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) {
+      return { valid: false, reason: 'conflicting' };
+    }
+    assignments[record.uid] = { kind: record.kind as LoyaltyKind, suspicion: decision.suspicion };
+  }
+  for (const record of records) {
+    if (record.kind !== 'friend') continue;
+    const partner = byUid.get(record.partnerUid!);
+    if (!partner || partner.kind !== 'friend' || partner.partnerUid !== record.uid) {
+      return { valid: false, reason: 'conflicting' };
+    }
+  }
+  return { valid: true, assignments };
+}
+
+/** The automatic production setup has no optional faction policy enabled. */
+export function composeDefaultLoyaltyAssignments(
+  holders: readonly SetupHolder[],
+  wolfRoleIds: readonly string[],
+  randomIndex: (upperBound: number) => number,
+): Readonly<Record<string, SetupLoyalty>> {
+  const byRole = new Map(holders.map((holder) => [holder.roleId, holder]));
+  const uniqueWolfRoles = [...new Set(wolfRoleIds)];
+  if (uniqueWolfRoles.length !== wolfRoleIds.length || uniqueWolfRoles.length < 1 || uniqueWolfRoles.length > 2) {
+    throw new Error('Routine setup requires one or two distinct Wolf roles.');
+  }
+  const wolfUids = uniqueWolfRoles.map((roleId) => byRole.get(roleId)?.uid);
+  if (wolfUids.some((uid) => typeof uid !== 'string')) {
+    throw new Error('Every selected Wolf role must be an occupied setup role.');
+  }
+  const wolfUidSet = new Set(wolfUids as string[]);
+  const loyalistUids = holders.map((holder) => holder.uid).filter((uid) => !wolfUidSet.has(uid));
+  const suspicionCards: number[] = loyalistUids.map((_uid, index) => index < 2 ? 5 : index === 2 ? 10 : 0);
+  for (let index = suspicionCards.length - 1; index > 0; index -= 1) {
+    const swapWith = randomIndex(index + 1);
+    [suspicionCards[index], suspicionCards[swapWith]] = [suspicionCards[swapWith]!, suspicionCards[index]!];
+  }
+  const loyalties: Record<string, SetupLoyalty> = {};
+  for (const holder of holders) {
+    loyalties[holder.uid] = wolfUidSet.has(holder.uid)
+      ? { kind: 'wolf-agent', suspicion: 0 }
+      : { kind: 'fleet-loyalist', suspicion: suspicionCards[loyalistUids.indexOf(holder.uid)] ?? 0 };
+  }
+  return loyalties;
+}
+
 export type LoyaltyAssignmentDecision =
   | { readonly allowed: true; readonly suspicion: number | null }
   | { readonly allowed: false; readonly reason: 'invalid-kind' | 'invalid-suspicion' };
@@ -298,7 +383,38 @@ export type SetupReadinessReason =
   | 'loyalties'
   | 'main-facilitator'
   | 'assistant-facilitator'
-  | 'vessels';
+  | 'vessels'
+  | 'seat-documents'
+  | 'seat-pointers'
+  | 'gm-staffing'
+  | 'press';
+
+/** The server-facing shape of a provisioned, role-keyed seat document. */
+export interface SetupSeatDocument {
+  readonly id: string;
+  readonly roleId: string;
+  readonly label: string;
+  readonly factionId: string;
+  readonly status: 'open' | 'claimed' | 'locked';
+  readonly holderUid: string | null;
+  readonly claimedAt?: string | number | Date | null;
+}
+
+/** A player pointer read beside its seat document during start readiness. */
+export interface SetupPlayerSeatPointer {
+  readonly uid: string;
+  readonly seatId: string | null;
+}
+
+/** Minimal normalized GM instance input used by the pure readiness policy. */
+export interface SetupGmInstance {
+  readonly id: string;
+  readonly uid: string;
+  readonly connected: boolean;
+  readonly lastSeenAt?: string | number | Date | null;
+  readonly responsibilities?: readonly ('main' | 'assistant')[];
+  readonly responsibility?: 'main' | 'assistant' | null;
+}
 
 export interface SetupReadinessInput {
   readonly phase: string;
@@ -311,8 +427,20 @@ export interface SetupReadinessInput {
   readonly activeVesselIds: readonly string[];
   /** Optional Press holders are live station occupancy, never core roster members. */
   readonly pressPlayerUids?: readonly string[];
+  /** Press is an optional station; disabled/stale occupancy is excluded from core math. */
+  readonly pressEnabled?: boolean;
+  /** Stored station owner used to reject a stale or mismatched Press claim. */
+  readonly pressHolderUid?: string | null;
   /** Connected GM-only observers do not consume a player or Press station. */
   readonly facilitatorPlayerUids?: readonly string[];
+  /** Canonical role-keyed seat documents provisioned by the server. */
+  readonly seatDocuments?: readonly SetupSeatDocument[];
+  /** Exact reciprocal player -> seat pointers from the same read. */
+  readonly playerSeatPointers?: readonly SetupPlayerSeatPointer[];
+  /** Live normalized GM instances; one instance covers both printed lanes. */
+  readonly gmInstances?: readonly SetupGmInstance[];
+  /** Testable clock for GM lease normalization; defaults to Date.now(). */
+  readonly nowMs?: number;
 }
 
 function vesselIdsForRole(roleId: string): readonly string[] {
@@ -323,21 +451,53 @@ function vesselIdsForRole(roleId: string): readonly string[] {
   return ship ? [ship[1]!] : roleId === 'press-officer' ? ['press'] : [];
 }
 
+function setupTimestampMs(value: unknown): number | undefined {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (typeof value !== 'object' || value === null) return undefined;
+  const candidate = value as { toMillis?: () => unknown; toDate?: () => unknown };
+  if (typeof candidate.toMillis === 'function') {
+    const millis = candidate.toMillis();
+    return typeof millis === 'number' && Number.isFinite(millis) ? millis : undefined;
+  }
+  if (typeof candidate.toDate === 'function') return setupTimestampMs(candidate.toDate());
+  return undefined;
+}
+
+/** Apply the same connection and presence lease used by authoritative starts. */
+export function isLiveSetupGm(instance: SetupGmInstance, nowMs = Date.now()): boolean {
+  if (!instance.connected) return false;
+  if (instance.lastSeenAt === undefined || instance.lastSeenAt === null) return true;
+  const seen = setupTimestampMs(instance.lastSeenAt);
+  return seen !== undefined && nowMs - seen < PRESENCE_LEASE_MS;
+}
+
 export function readinessForSetup(input: SetupReadinessInput): {
   readonly ready: boolean;
   readonly reasons: readonly SetupReadinessReason[];
 } {
   const reasons: SetupReadinessReason[] = [];
+  const strictSeatBackedReadiness = input.seatDocuments !== undefined ||
+    input.playerSeatPointers !== undefined;
   if (input.phase !== 'casting') reasons.push('wrong-phase');
   if (!isOneOf(input.playerCount, SUPPORTED_PLAYER_COUNTS)) reasons.push('player-count');
-  const pressPlayerUids = new Set(input.pressPlayerUids ?? []);
-  const assignedCorePlayerUids = new Set(input.assignments
-    .filter((assignment) => assignment.roleId !== 'press-officer')
-    .map((assignment) => assignment.uid));
-  const facilitatorOnlyUids = new Set((input.facilitatorPlayerUids ?? [])
-    .filter((uid) => !assignedCorePlayerUids.has(uid)));
+  const pressCandidateUids = new Set(input.pressPlayerUids ?? []);
+  const pressPlayerUids = input.pressEnabled === false ? new Set<string>() : pressCandidateUids;
+  const assignedPressUids = strictSeatBackedReadiness
+    ? input.assignments
+      .filter((assignment) => assignment.roleId === 'press-officer')
+      .map((assignment) => assignment.uid)
+    : [];
+  const pressExcludedUids = new Set([...pressCandidateUids, ...assignedPressUids]);
+  // A GM browser is a facilitator device, never a core seat holder, even if a
+  // legacy player document still carries an old assignedRoleId.
+  const facilitatorOnlyUids = new Set(input.facilitatorPlayerUids ?? []);
   const coreConnectedPlayers = input.connectedPlayers.filter((uid) =>
-    !pressPlayerUids.has(uid) && !facilitatorOnlyUids.has(uid));
+    !pressExcludedUids.has(uid) && !facilitatorOnlyUids.has(uid));
   const coreAssignments = input.assignments.filter((assignment) =>
     !pressPlayerUids.has(assignment.uid) && !facilitatorOnlyUids.has(assignment.uid) &&
     assignment.roleId !== 'press-officer');
@@ -363,21 +523,69 @@ export function readinessForSetup(input: SetupReadinessInput): {
     coreAssignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
   ) reasons.push('roles');
 
+  if (strictSeatBackedReadiness) {
+    const seatDocuments = input.seatDocuments ?? [];
+    const seatByRole = new Map(seatDocuments.map((seat) => [seat.roleId, seat]));
+    const validSeatDocuments = seatDocuments.length === printedRoleIds.length &&
+      seatByRole.size === seatDocuments.length &&
+      printedRoleIds.every((roleId) => {
+        const seat = seatByRole.get(roleId);
+        const metadata = ROLE_SEAT_METADATA[roleId];
+        return seat?.id === roleId && seat.roleId === roleId &&
+          metadata !== undefined && seat.label === metadata.label && seat.factionId === metadata.factionId &&
+          seat.status === 'claimed' && typeof seat.holderUid === 'string' &&
+          seat.holderUid.length > 0;
+      });
+    if (!validSeatDocuments) reasons.push('seat-documents');
+
+    const pointers = input.playerSeatPointers ?? [];
+    const pointerByUid = new Map(pointers.map((pointer) => [pointer.uid, pointer]));
+    const assignmentByUid = new Map(coreAssignments.map((assignment) => [assignment.uid, assignment]));
+    const reciprocalPointers = pointers.length === coreConnectedPlayers.length &&
+      pointerByUid.size === pointers.length &&
+      coreConnectedPlayers.every((uid) => {
+        const pointer = pointerByUid.get(uid);
+        const assignment = assignmentByUid.get(uid);
+        const seat = assignment ? seatByRole.get(assignment.roleId) : undefined;
+        return pointer?.seatId !== null && pointer?.seatId !== undefined &&
+          seat?.id === pointer.seatId && seat.holderUid === uid;
+      });
+    if (!reciprocalPointers) reasons.push('seat-pointers');
+
+    const nowMs = input.nowMs ?? Date.now();
+    const liveGmInstances = (input.gmInstances ?? []).filter((instance) =>
+      isLiveSetupGm(instance, nowMs));
+    if (liveGmInstances.length === 0) reasons.push('gm-staffing');
+
+    if (input.pressEnabled !== false) {
+      if (pressCandidateUids.size > 1 ||
+          (input.pressHolderUid !== undefined && input.pressHolderUid !== null &&
+            (pressCandidateUids.size !== 1 || !pressCandidateUids.has(input.pressHolderUid)))) {
+        reasons.push('press');
+      }
+    }
+  }
+
   const expectedLoyaltyUids = new Set([...coreConnectedPlayers, ...pressPlayerUids]);
   const relevantLoyaltyUids = input.loyaltyUids.filter((uid) => expectedLoyaltyUids.has(uid));
   const loyaltyIds = new Set(relevantLoyaltyUids);
   if (
-    loyaltyIds.size !== relevantLoyaltyUids.length ||
+    !(strictSeatBackedReadiness && input.loyaltyUids.length === 0) &&
+    (loyaltyIds.size !== relevantLoyaltyUids.length ||
+    (strictSeatBackedReadiness && relevantLoyaltyUids.length !== input.loyaltyUids.length) ||
     expectedLoyaltyUids.size !== loyaltyIds.size ||
-    [...expectedLoyaltyUids].some((uid) => !loyaltyIds.has(uid))
+    [...expectedLoyaltyUids].some((uid) => !loyaltyIds.has(uid)))
   ) reasons.push('loyalties');
 
-  if (!input.facilitatorResponsibilities.main) reasons.push('main-facilitator');
-  if (!input.facilitatorResponsibilities.assistant) reasons.push('assistant-facilitator');
+  if (!strictSeatBackedReadiness) {
+    if (!input.facilitatorResponsibilities.main) reasons.push('main-facilitator');
+    if (!input.facilitatorResponsibilities.assistant) reasons.push('assistant-facilitator');
+  }
 
   const assignedVessels = new Set(coreAssignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
   const configuredVessels = new Set(input.activeVesselIds);
   if (
+    configuredVessels.size !== input.activeVesselIds.length ||
     assignedVessels.size !== configuredVessels.size ||
     [...configuredVessels].some((vesselId) => !assignedVessels.has(vesselId))
   ) reasons.push('vessels');
