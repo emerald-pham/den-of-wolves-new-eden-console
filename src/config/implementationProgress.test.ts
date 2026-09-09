@@ -139,6 +139,24 @@ describe('implementation progress integrity gate', () => {
     });
     expect(unknown.errors.join('\n')).toContain('unknown Prompt 999');
 
+    const retiredInCurrentRelease = validateImplementationProgress({
+      ...validationInputs,
+      changelogSource: changelogSource.replace(
+        "implementationPrompts: ['138a'],",
+        "implementationPrompts: ['138a', 071],",
+      ),
+    });
+    expect(retiredInCurrentRelease.errors.join('\n')).toContain('unknown Prompt 071');
+
+    const retiredInUnlistedRelease = validateImplementationProgress({
+      ...validationInputs,
+      changelogSource: changelogSource.replace(
+        "  {\n    version: '0.3.4',",
+        "  {\n    version: '0.3.99',\n    implementationPrompts: [071],\n    changes: [\n      'Historical release coverage fixture.',\n    ],\n  },\n  {\n    version: '0.3.4',",
+      ),
+    });
+    expect(retiredInUnlistedRelease.errors.join('\n')).toContain('unknown Prompt 071');
+
     const duplicate = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace('| 002 | done |', '| 001 | done |'),
@@ -251,7 +269,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress({
       ...validationInputs,
       changelogSource: changelogSource.replace(
-        'implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 72, 73, 74, 75, 77, 78, 84, 86],',
+        'implementationPrompts: [15, 18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 71, 72, 73, 74, 75, 77, 78, 84, 86],',
         'implementationPrompts: [18, 21, 22, 57, 58, 59, 60, 61, 62, 64, 65, 66, 67, 72, 73, 74, 75, 77, 78, 84, 86],',
       ),
     });
@@ -274,7 +292,7 @@ describe('implementation progress integrity gate', () => {
     });
 
     expect(result.errors.join('\n')).toContain(
-      'changelog 0.3.5 covers 22 implementation-plan feature prompts but has only 21 player-facing changes',
+      'changelog 0.3.5 covers 23 implementation-plan feature prompts but has only 21 player-facing changes',
     );
   });
 
