@@ -3580,7 +3580,7 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
 The backlog contains **721 independently executable prompts** in this
-snapshot: 653 base IDs plus 66 lettered child IDs placed beside their closest
+snapshot: 653 base IDs plus 68 lettered child IDs placed beside their closest
 dependency. The current evidence classification is **159 `[PRESERVE]`, 104
 `[EXTEND]`, 366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 19 `[REPAIR]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
