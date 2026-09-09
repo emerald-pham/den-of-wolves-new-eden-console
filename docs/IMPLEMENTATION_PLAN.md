@@ -2115,7 +2115,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 017
 - [x] Prompt 018
 - [ ] Prompt 019
-- [ ] Prompt 020
+- [x] Prompt 020
 - [x] Prompt 021
 - [x] Prompt 022
 - [x] Prompt 023
