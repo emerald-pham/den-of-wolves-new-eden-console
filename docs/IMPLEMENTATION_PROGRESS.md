@@ -15,15 +15,18 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**82 / 728 prompts complete (11.26%)**
+**84 / 728 prompts complete (11.54%)**
 
-Status breakdown: **82 done · 24 partial · 0 active · 622 missing**.
+Status breakdown: **84 done · 24 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
 The eleven-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
-P652a, P652b, P657, P658, P659, P660, and P661 as missing without changing
-any landed implementation status.
+P652a, P652b, P657, P658, and P659 as missing without changing any landed
+implementation status. P660 and P661 are now complete as tooling-only
+validation infrastructure: exact validation can self-prepare and safely clean
+an isolated emulator row, while copy-only eligibility is derived from a
+committed AST/diff proof and fails closed to the full gate.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 The country-flag regression report is retracted: P031a instead composes the
@@ -102,8 +105,8 @@ outside this release.
 
 ### Version 0.3.21 progress evidence
 
-The release boundary records Prompt 092 complete, proof-only Prompts 099, 101, 108, and 115 at **82 / 728 = 11.26%**
-with **82 done · 24 partial · 0 active · 622 missing**. The authoritative
+The release boundary records Prompt 092 complete, proof-only Prompts 099, 101, 108, and 115, plus tooling-only Prompts 660 and 661, at **84 / 728 = 11.54%**
+with **84 done · 24 partial · 0 active · 620 missing**. The authoritative
 `advanceTurn` callable now keeps Turn 0 as setup-only, requires a structurally
 valid phase whose turn matches the session, allows normal handoff only from an
 expired lifted Coordination phase, and preserves explicit GM timer overrides
@@ -113,6 +116,12 @@ writes, exact numbered-turn timing and resource expiry, deterministic handoff
 events, and presentation-only announcement skipping; the existing optimistic
 CAS overlap proof remains intact. `startGame` remains the sole production
 Turn 0-to-1 path. The same proof extends the existing late-maintenance case with valid `begin`, `storage`, `rations`, `unrest`, `riot`, `reactor`, `bays`, and `end` requests while Coordination is lifted; each receives the stable Team-phase denial with no session, event, undo, damage, or receipt writes. The valid `bays` payload proves phase denial precedes docking/fuelling validation. Prompt 101 preserves the same authoritative transition: `beginOpenAirspacePhase` commits the lifted phase and deterministic `airspace-opened-${turn}` event, while the existing `src/components/FleetAlert.test.tsx` lifted-airspace case feeds that committed Firestore-shaped state through the actual `subscribeSessionState` listener callback, renders exactly one accessible `AIRSPACE CONTROL // AIRSPACE OPEN` bulletin, unsubscribes/unmounts, and reconnects the listener to observe the identical single bulletin. Prompt 108 preserves the same server-owned clock on reconnect: the existing `src/components/FleetAlert.test.tsx` case feeds an active Team phase through the actual `subscribeSessionState` listener, renders the timer and live action controls, advances the client clock, unsubscribes, re-subscribes, and observes the reduced server-deadline time before converging to the lifted Coordination timer and disabled Press exception action. Prompt 115 preserves the printed Storage rule: `functions/src/maintenance.test.ts` and the existing stateful `functions/src/maintenanceCallable.test.ts` case prove odd/even ship and docked-shuttle losses round down, undocked cargo stays unchanged, the exact loss audit is persisted in `cycle.results['1']`, and the callable atomically persists the resource/cargo result and member-visible maintenance event. Prompt 102 and Prompt 103a remain outside this release.
+
+Exact validation now allocates a missing worktree emulator configuration
+atomically and removes only its own unchanged files afterward; a committed
+AST/diff proof derives a safe copy-only profile and sends mixed or uncertain
+changes through the full gate. Application version 0.3.21 and player-facing
+changelog wording remain unchanged.
 
 ### Version 0.3.20 progress evidence
 
@@ -1034,8 +1043,8 @@ release classification and evidence.
 | 657 | missing | non-feature | — | Planned [REPAIR] prompt: remove standalone `prompt`/`prompts` jargon from rendered changelog changes while preserving meaning, numeric roadmap markers, internal provenance terminology, and deterministic player-field-only guard coverage. |
 | 658 | missing | non-feature | — | Planned [POLISH] prompt: retain `/roles` seat-change confirmation as the exact visible and accessible `SEAT CHANGES COMMIT THROUGH THE CIC.` while preserving authoritative seat/retry/stale/reconnect/privacy behavior and existing layout. |
 | 659 | missing | non-feature | — | Planned [PRESERVE] prompt: inventory reachable player-facing copy, check in the approved CIC lexicon, forbidden jargon, and reviewed exceptions, and enforce the contract deterministically; this includes removing `System reduced motion is off.` while preserving system/effective reduced-motion behavior and meaningful accessibility. |
-| 660 | missing | non-feature | — | Planned [REPAIR] prompt: make non-documentation exact validation self-prepare a missing local emulator config through the atomic `auto` allocator, preserve existing ownership, release only self-created state, and provide an actionable fallback with lifecycle/concurrency coverage. |
-| 661 | missing | non-feature | — | Planned [POLISH] prompt: add an explicit mechanically verified copy-only validation path with focused copy/accessibility plus lightweight gates; mixed or uncertain behavior/security/contract/infrastructure changes must force the full gate. |
+| 660 | done | non-feature | — | Completed as tooling-only infrastructure: exact full validation self-prepares a missing local emulator configuration through the atomic allocator, records configuration/content identity, preserves pre-existing or replaced files, and releases only its own reservation/files with the exact `npm run emulators:configure -- auto` fallback. |
+| 661 | done | non-feature | — | Completed as tooling-only infrastructure: exact validation derives an AST/diff-proven static-copy profile requiring an allowlisted player source plus focused test, runs focused copy/a11y and lightweight gates only for that profile, and fails closed to `test:all` for mixed, uncertain, structural, security, or infrastructure changes. |
 
 ## Working notes
 

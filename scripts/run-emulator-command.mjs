@@ -30,7 +30,7 @@ const execFileAsync = promisify(execFile);
 function localSetupRequired() {
   return new Error(
     'No firebase.local.json exists for this worktree. Claim a free slot, then run ' +
-      'npm run emulators:configure -- <slot>.',
+      'npm run emulators:configure -- auto.',
   );
 }
 

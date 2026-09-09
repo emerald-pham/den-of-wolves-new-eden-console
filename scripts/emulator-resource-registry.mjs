@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   mkdir,
   open,
@@ -18,9 +18,14 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
   EMULATOR_SLOT_COUNT,
+  emulatorEnvironmentForSlot,
   emulatorPortsForSlot,
+  firebaseConfigForSlot,
   vitePortForSlot,
 } from './emulator-slots.js';
+import { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
+
+export { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
 import {
   normalizePromptId,
   readImplementationProgress,
@@ -100,13 +105,15 @@ function isVisualFile(filePath) {
 }
 
 /** Derive the checks and explicit human attestations required by changed files. */
-export function validationPlanForFiles(changedFiles = []) {
+export function validationPlanForFiles(changedFiles = [], { profile } = {}) {
   const files = (Array.isArray(changedFiles) ? changedFiles : [])
     .filter((filePath) => typeof filePath === 'string' && filePath.trim());
   const documentationOnly = files.length > 0 && files.every(isDocumentationFile);
   const requiresDocumentationReview = files.some(isDocumentationFile);
   const commands = documentationOnly
     ? ['git diff --check', 'npm run coordination:docs']
+    : profile?.kind === 'copy-only'
+      ? ['git diff --check', ...profile.commands]
     : [
         'git diff --check',
         'npm run validate:implementation-progress',
@@ -121,6 +128,200 @@ export function validationPlanForFiles(changedFiles = []) {
     requiresDocumentationReview,
     requiresVisualReview: files.some(isVisualFile),
     commands,
+    ...(profile ? { profile } : {}),
+  };
+}
+
+function contentIdentity(content) {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+async function writeValidationFileAtomically(path, content) {
+  const handle = await open(path, 'wx', 0o600);
+  try {
+    await handle.writeFile(content, 'utf8');
+  } catch (error) {
+    await unlink(path).catch(() => undefined);
+    throw error;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function fileContent(path) {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+async function fileIdentity(path) {
+  try {
+    const [content, metadata] = await Promise.all([fileContent(path), stat(path)]);
+    if (content === undefined) return undefined;
+    return {
+      contentHash: contentIdentity(content),
+      device: metadata.dev,
+      inode: metadata.ino,
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function sameFileIdentity(left, right) {
+  return Boolean(left && right &&
+    left.contentHash === right.contentHash &&
+    left.device === right.device &&
+    left.inode === right.inode);
+}
+
+/**
+ * Create the local emulator setup only for a full validation that needs it.
+ * The returned identities make cleanup conditional: a later process or user
+ * cannot have its replacement config removed by this invocation.
+ */
+export async function prepareValidationEmulator({
+  repositoryDirectory = process.cwd(),
+  coordinationPath = coordinationFilePath(),
+  localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json'),
+  localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local'),
+  reserve = reserveAvailableConfiguredEmulatorSlot,
+  release = releaseConfiguredEmulatorSlot,
+  baseConfig,
+  configForSlot = firebaseConfigForSlot,
+  environmentForSlot = emulatorEnvironmentForSlot,
+} = {}) {
+  const setupLockPath = `${localFirebaseConfigPath}.validation.lock`;
+  return withCoordinationLock(setupLockPath, async () => {
+    const preexistingConfig = await fileIdentity(localFirebaseConfigPath);
+    const preexistingEnvironment = await fileIdentity(localEnvironmentPath);
+    if (preexistingConfig || process.env.CI) {
+      return {
+        created: false,
+        configurationId: undefined,
+        slot: undefined,
+        preexistingConfigIdentity: preexistingConfig?.contentHash ?? 'ci-configured',
+        preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash,
+        files: [],
+      };
+    }
+
+    const configuration = await reserve({
+      filePath: coordinationPath,
+      worktree: repositoryDirectory,
+      availableSlots: Array.from({ length: EMULATOR_SLOT_COUNT }, (_, slot) => slot),
+      portsForSlot: (slot) => [
+        ...Object.values(emulatorPortsForSlot(slot)),
+        vitePortForSlot(slot),
+      ],
+    });
+    const files = [];
+    const prepared = {
+      created: true,
+      configurationId: configuration.id,
+      slot: configuration.slot,
+      preexistingConfigIdentity: preexistingConfig?.contentHash ?? 'absent',
+      preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash,
+      files,
+      configuration,
+      coordinationPath,
+    };
+    try {
+      const configSource = baseConfig ?? JSON.parse(
+        await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'),
+      );
+      const localConfig = configForSlot(configSource, configuration.slot);
+      const configContent = `${JSON.stringify(localConfig, null, 2)}\n`;
+      const environment = environmentForSlot(configuration.slot);
+      const environmentContent = `${Object.entries(environment)
+        .map(([name, value]) => `${name}=${value}`)
+        .join('\n')}\n`;
+      const targets = [
+        { path: localFirebaseConfigPath, content: configContent, preexisting: preexistingConfig },
+        { path: localEnvironmentPath, content: environmentContent, preexisting: preexistingEnvironment },
+      ];
+
+      // The setup lock serializes same-worktree validators. Recheck every
+      // path after allocation so an external writer is never overwritten.
+      for (const target of targets) {
+        const current = await fileIdentity(target.path);
+        if (target.preexisting) {
+          continue;
+        }
+        if (current) {
+          throw new Error(
+            `Emulator setup raced with another owner at ${target.path}; retry validation after preserving that config.`,
+          );
+        }
+      }
+      for (const target of targets) {
+        if (target.preexisting) continue;
+        await mkdir(dirname(target.path), { recursive: true });
+        await writeValidationFileAtomically(target.path, target.content);
+        const identity = await fileIdentity(target.path);
+        if (!identity) {
+          throw new Error(`Emulator setup could not verify the created file at ${target.path}.`);
+        }
+        files.push({ path: target.path, content: target.content, identity });
+      }
+    } catch (error) {
+      await cleanupValidationEmulator(prepared, {
+        release,
+        localFirebaseConfigPath,
+        localEnvironmentPath,
+      });
+      throw error;
+    }
+
+    return prepared;
+  });
+}
+
+/** Release only this invocation's configuration and still-identical files. */
+export async function cleanupValidationEmulator(
+  prepared,
+  {
+    release = releaseConfiguredEmulatorSlot,
+    localFirebaseConfigPath = resolve(process.cwd(), 'firebase.local.json'),
+    localEnvironmentPath = resolve(process.cwd(), '.env.emulators.local'),
+  } = {},
+) {
+  if (!prepared?.created) return { released: false, removedFiles: [], outcome: 'preserved' };
+  const removedFiles = [];
+  const cleanupErrors = [];
+  try {
+    for (const file of prepared.files ?? []) {
+      try {
+        const current = await fileIdentity(file.path);
+        if (sameFileIdentity(current, file.identity)) {
+          await unlink(file.path).catch((error) => {
+            if (error?.code !== 'ENOENT') throw error;
+          });
+          removedFiles.push(file.path);
+        }
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+  } finally {
+    // The durable row must be released even if a file is locked or replaced.
+    if (prepared.configuration) {
+      await release(prepared.configuration, prepared.coordinationPath);
+    }
+  }
+  // Keep optional paths in the API for callers that used the earlier shape;
+  // cleanup is driven only by the identity recorded for each created file.
+  void localFirebaseConfigPath;
+  void localEnvironmentPath;
+  if (cleanupErrors.length > 0) throw cleanupErrors[0];
+  return {
+    released: Boolean(prepared.configuration?.id),
+    removedFiles,
+    outcome: 'cleaned',
   };
 }
 
@@ -430,7 +631,9 @@ function validationReceiptErrors(entry, release) {
   const errors = [];
   const receipt = entry.validation;
   const changedFiles = Array.isArray(receipt?.files) ? receipt.files : release.changedFiles;
-  const plan = validationPlanForFiles(changedFiles);
+  const plan = validationPlanForFiles(changedFiles, {
+    profile: receipt?.profile,
+  });
 
   if (!Array.isArray(changedFiles) || changedFiles.length === 0) {
     errors.push('no committed task changes were found from the coordination start SHA');
@@ -452,6 +655,30 @@ function validationReceiptErrors(entry, release) {
   }
   if (receipt.docsOnly !== plan.documentationOnly) {
     errors.push('validation receipt scope does not match the current changed files');
+  }
+  if (receipt.profile?.kind !== plan.profile?.kind) {
+    errors.push('validation receipt profile does not match the commands it recorded');
+  }
+  if (receipt.profile) {
+    const evidence = receipt.profile.evidence;
+    const expectedBaseSha = changedFilesBaseRef({
+      mainSha: release.mainSha,
+      startBranchSha: release.startBranchSha,
+      mainContainsBranch: release.mainContainsBranch,
+    });
+    if (!evidence || typeof evidence !== 'object') {
+      errors.push('validation receipt does not record derived profile evidence');
+    } else {
+      if (evidence.baseSha !== expectedBaseSha) {
+        errors.push('validation receipt profile evidence base SHA is stale');
+      }
+      if (evidence.branchSha !== release.branchSha) {
+        errors.push('validation receipt profile evidence branch SHA is stale');
+      }
+      if (typeof evidence.diffIdentity !== 'string' || !evidence.diffIdentity) {
+        errors.push('validation receipt profile evidence has no committed diff identity');
+      }
+    }
   }
   const recordedCommands = Array.isArray(receipt.commands) ? receipt.commands : [];
   for (const command of plan.commands) {
@@ -576,6 +803,50 @@ async function readTaskChangedFiles(baseSha, branchSha, cwd) {
   return output.split('\n').map((filePath) => filePath.trim()).filter(Boolean);
 }
 
+async function deriveValidationProfile({ release, startBranchSha, cwd }) {
+  const baseSha = changedFilesBaseRef({
+    mainSha: release.mainSha,
+    startBranchSha,
+    mainContainsBranch: release.mainContainsBranch,
+  });
+  const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${release.branchSha}`], cwd);
+  const sources = {};
+  for (const filePath of release.changedFiles ?? []) {
+    try {
+      sources[filePath] = {
+        before: await runGit(['show', `${baseSha}:${filePath}`], cwd),
+        after: await runGit(['show', `${release.branchSha}:${filePath}`], cwd),
+      };
+    } catch {
+      // A missing blob is intentionally a full-gate result. The classifier
+      // must never infer that a new/deleted file is safe copy-only work.
+      return {
+        kind: 'full',
+        reason: `missing Git blob for ${filePath}`,
+        commands: [],
+        evidence: {
+          baseSha,
+          branchSha: release.branchSha,
+          diffIdentity: contentIdentity(diffText),
+        },
+      };
+    }
+  }
+  const profile = deriveCopyOnlyValidationProfile({
+    changedFiles: release.changedFiles,
+    diffText,
+    sources,
+  });
+  return {
+    ...profile,
+    evidence: {
+      baseSha,
+      branchSha: release.branchSha,
+      diffIdentity: contentIdentity(diffText),
+    },
+  };
+}
+
 /** Read the live checkout and remote state used by the completion gate. */
 export async function readReleaseState({ cwd = process.cwd(), startBranchSha } = {}) {
   const [branchName, branchSha, mainSha, remoteMainLine] = await Promise.all([
@@ -647,19 +918,110 @@ const VALIDATION_COMMANDS = new Map([
   ['npm run build --prefix functions', ['run', 'build', '--prefix', 'functions']],
 ]);
 
-async function runValidationCommand(command, cwd) {
+function terminateValidationProcess(child, signal) {
+  if (!child?.pid) return;
+  if (process.platform === 'win32') {
+    child.kill(signal);
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error?.code !== 'ESRCH') throw error;
+  }
+}
+
+function executeValidationProcess(command, args, cwd, { signalSource = process, signal } = {}) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const controller = new AbortController();
+    let child;
+    let receivedSignal;
+    let settled = false;
+    const cleanup = () => {
+      signalSource.removeListener('SIGINT', onInterrupt);
+      signalSource.removeListener('SIGTERM', onTerminate);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const rejectOnce = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      rejectPromise(error);
+    };
+    const resolveOnce = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolvePromise(value);
+    };
+    const abort = (value) => {
+      if (receivedSignal) return;
+      receivedSignal = typeof value === 'string' ? value : 'SIGTERM';
+      try {
+        terminateValidationProcess(child, receivedSignal);
+      } catch (error) {
+        rejectOnce(error);
+        return;
+      }
+      controller.abort(receivedSignal);
+    };
+    const onInterrupt = () => abort('SIGINT');
+    const onTerminate = () => abort('SIGTERM');
+    const onAbort = () => abort(signal?.reason);
+
+    if (signal) {
+      if (signal.aborted) {
+        abort(signal.reason);
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
+    } else {
+      signalSource.once('SIGINT', onInterrupt);
+      signalSource.once('SIGTERM', onTerminate);
+    }
+
+    try {
+      child = execFile(command, args, {
+        cwd,
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+        timeout: 60 * 60 * 1000,
+        signal: controller.signal,
+        detached: process.platform !== 'win32',
+      }, (error, stdout, stderr) => {
+        if (receivedSignal) {
+          rejectOnce(new Error(`${command} validation was interrupted by ${receivedSignal}.`, {
+            cause: error,
+          }));
+        } else if (error) {
+          rejectOnce(error);
+        } else {
+          resolveOnce({ stdout, stderr });
+        }
+      });
+    } catch (error) {
+      rejectOnce(error);
+    }
+  });
+}
+
+async function runValidationCommand(command, cwd, options = {}) {
   if (command === 'git diff --check') {
     await runGit(['diff', '--check', 'main...HEAD'], cwd);
     return;
   }
+  const copyTestPrefix = 'npm test -- --run ';
+  if (command.startsWith(copyTestPrefix)) {
+    const testPath = command.slice(copyTestPrefix.length).trim();
+    if (!testPath || testPath.includes('..') || testPath.startsWith('/')) {
+      throw new Error(`Invalid focused copy test path: ${testPath || 'missing path'}.`);
+    }
+    await executeValidationProcess('npm', ['test', '--', '--run', testPath], cwd, options);
+    return;
+  }
   const args = VALIDATION_COMMANDS.get(command);
   if (!args) throw new Error(`No executable validation mapping exists for ${command}.`);
-  await execFileAsync('npm', args, {
-    cwd,
-    encoding: 'utf8',
-    maxBuffer: 32 * 1024 * 1024,
-    timeout: 60 * 60 * 1000,
-  });
+  await executeValidationProcess('npm', args, cwd, options);
 }
 
 function validPid(value) {
@@ -822,6 +1184,7 @@ function reservationBlocksSlot(reservation, request) {
   // process may share the Firebase processes, but two Firebase-backed
   // processes must never point at the same Firestore instance.
   if (reservation.worktree !== request.worktree) return true;
+  if (reservation.kind === 'configuration' && request.kind === 'configuration') return true;
   if (reservation.kind === 'configuration') return false;
   if (reservation.kind === 'vite' || request.kind === 'vite') {
     return reservation.kind === request.kind;
@@ -1241,7 +1604,8 @@ export async function reserveAvailableConfiguredEmulatorSlot({
     if (firstCandidate === undefined) {
       throw new Error(
         'No unreserved emulator slot is available for configuration. ' +
-          `See ${filePath}; configured rows remain reserved for their worktrees.`,
+          `See ${filePath}; configured rows remain reserved for their worktrees. ` +
+          'Run npm run emulators:configure -- auto after a slot is released.',
       );
     }
 
@@ -1280,7 +1644,8 @@ export async function reserveAvailableConfiguredEmulatorSlot({
 
     throw new Error(
       'No free emulator port set is available for configuration. ' +
-        `See ${filePath}; stop a listening process or release a configured worktree row.`,
+        `See ${filePath}; stop a listening process or release a configured worktree row. ` +
+        'Run npm run emulators:configure -- auto after a slot is released.',
     );
   });
 }
@@ -1662,7 +2027,8 @@ async function beginEntry(filePath, options) {
  *   ['visual-review']?: string,
  *   ['test-growth-justification']?: string,
  *   release?: any,
- *   commandRunner?: (command: string, cwd: string) => Promise<void>,
+ *   commandRunner?: (command: string, cwd: string, options?: Record<string, unknown>) => Promise<void>,
+ *   signalSource?: NodeJS.Process,
  * }} options
  */
 export async function validateCoordinationEntry(filePath, options) {
@@ -1722,7 +2088,14 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
 
-    const plan = validationPlanForFiles(release.changedFiles);
+    const profile = options.release
+      ? { kind: 'full', reason: 'release supplied by test harness', commands: [] }
+      : await deriveValidationProfile({
+          release,
+          startBranchSha,
+          cwd: process.cwd(),
+        });
+    const plan = validationPlanForFiles(release.changedFiles, { profile });
     const documentationReview = text(options['documentation-review']);
     const visualReview = text(options['visual-review']);
     if (plan.requiresDocumentationReview && !documentationReview) {
@@ -1751,15 +2124,60 @@ export async function validateCoordinationEntry(filePath, options) {
   });
 
   const commandRunner = options.commandRunner ?? runValidationCommand;
-  for (const command of preparation.plan.commands) {
-    try {
-      await commandRunner(command, process.cwd());
-    } catch (error) {
-      throw new Error(
-        `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
+  const needsEmulator = preparation.plan.commands.includes('npm run test:all');
+  const signalSource = options.signalSource ?? process;
+  const validationAbort = new AbortController();
+  let interruptedSignal;
+  const onValidationSignal = (signal) => {
+    if (interruptedSignal) return;
+    interruptedSignal = signal;
+    validationAbort.abort(signal);
+  };
+  const onValidationInterrupt = () => onValidationSignal('SIGINT');
+  const onValidationTerminate = () => onValidationSignal('SIGTERM');
+  signalSource.once('SIGINT', onValidationInterrupt);
+  signalSource.once('SIGTERM', onValidationTerminate);
+  let preparedEmulator;
+  let cleanupOutcome;
+  try {
+    if (interruptedSignal) {
+      throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
     }
+    preparedEmulator = needsEmulator
+      ? await prepareValidationEmulator({
+          repositoryDirectory: process.cwd(),
+          coordinationPath: filePath,
+        })
+      : undefined;
+    for (const command of preparation.plan.commands) {
+      if (interruptedSignal) {
+        throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
+      }
+      try {
+        await commandRunner(command, process.cwd(), {
+          signal: validationAbort.signal,
+          signalSource,
+        });
+      } catch (error) {
+        throw new Error(
+          `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        );
+      }
+    }
+  } finally {
+    try {
+      if (preparedEmulator) {
+        cleanupOutcome = await cleanupValidationEmulator(preparedEmulator);
+      }
+    } finally {
+      signalSource.removeListener('SIGINT', onValidationInterrupt);
+      signalSource.removeListener('SIGTERM', onValidationTerminate);
+    }
+  }
+
+  if (interruptedSignal) {
+    throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
   }
 
   const finalRelease = options.release ?? await readReleaseState({
@@ -1768,6 +2186,22 @@ export async function validateCoordinationEntry(filePath, options) {
   if (finalRelease.branchSha !== preparation.release.branchSha) {
     throw new Error(
       `Cannot record validation for ${options.id}: branch SHA changed from ${preparation.release.branchSha} to ${finalRelease.branchSha} while checks ran; rerun validation.`,
+    );
+  }
+  const finalProfile = options.release
+    ? preparation.plan.profile
+    : await deriveValidationProfile({
+        release: finalRelease,
+        startBranchSha: preparation.startBranchSha,
+        cwd: process.cwd(),
+      });
+  const finalPlan = validationPlanForFiles(finalRelease.changedFiles, {
+    profile: finalProfile,
+  });
+  if (JSON.stringify(finalPlan.commands) !== JSON.stringify(preparation.plan.commands) ||
+    JSON.stringify(finalPlan.profile) !== JSON.stringify(preparation.plan.profile)) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: the derived validation profile changed while checks ran; rerun validation.`,
     );
   }
   const finalErrors = releaseMetadataErrors({
@@ -1819,9 +2253,21 @@ export async function validateCoordinationEntry(filePath, options) {
       commitSha: finalRelease.branchSha,
       completedAt: new Date().toISOString(),
       passed: true,
-      commands: preparation.plan.commands,
+      commands: finalPlan.commands,
       files: preparation.release.changedFiles,
-      docsOnly: preparation.plan.documentationOnly,
+      docsOnly: finalPlan.documentationOnly,
+      profile: finalPlan.profile,
+      ...(preparedEmulator
+        ? {
+            emulator: {
+              setup: preparedEmulator.created ? 'auto' : 'existing',
+              configurationId: preparedEmulator.configurationId,
+              slot: preparedEmulator.slot,
+              preexistingConfigIdentity: preparedEmulator.preexistingConfigIdentity,
+              cleanup: cleanupOutcome,
+            },
+          }
+        : {}),
       reviews: {
         ...(preparation.documentationReview
           ? { documentation: preparation.documentationReview }

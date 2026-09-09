@@ -64,6 +64,23 @@ export interface ValidationReceipt {
   readonly commands: readonly string[];
   readonly files: readonly string[];
   readonly docsOnly: boolean;
+  readonly profile?: {
+    readonly kind: 'full' | 'copy-only';
+    readonly reason: string;
+    readonly commands: readonly string[];
+    readonly evidence?: {
+      readonly baseSha: string;
+      readonly branchSha: string;
+      readonly diffIdentity: string;
+    };
+  };
+  readonly emulator?: {
+    readonly setup: 'auto' | 'existing';
+    readonly configurationId?: string;
+    readonly slot?: number;
+    readonly preexistingConfigIdentity?: string;
+    readonly cleanup?: Readonly<Record<string, unknown>>;
+  };
   readonly reviews?: {
     readonly documentation?: string;
     readonly visual?: string;
@@ -75,6 +92,16 @@ export interface ValidationPlan {
   readonly requiresDocumentationReview: boolean;
   readonly requiresVisualReview: boolean;
   readonly commands: readonly string[];
+  readonly profile?: {
+    readonly kind: 'full' | 'copy-only';
+    readonly reason: string;
+    readonly commands: readonly string[];
+    readonly evidence?: {
+      readonly baseSha: string;
+      readonly branchSha: string;
+      readonly diffIdentity: string;
+    };
+  };
 }
 
 export interface ChangelogSnapshotEntry {
@@ -139,7 +166,17 @@ export function ensureSshOrigin(cwd?: string): Promise<{
 }>;
 export function validationPlanForFiles(
   changedFiles?: readonly string[],
+  options?: { readonly profile?: ValidationPlan['profile'] },
 ): ValidationPlan;
+export function deriveCopyOnlyValidationProfile(options?: {
+  readonly changedFiles?: readonly string[];
+  readonly diffText?: string;
+  readonly sources?: Readonly<Record<string, { before: string; after: string }>>;
+}): {
+  readonly kind: 'full' | 'copy-only';
+  readonly reason: string;
+  readonly commands: readonly string[];
+};
 export function parseChangelogSnapshot(
   source: string,
   applicationVersion: string,
@@ -214,6 +251,11 @@ export function releaseConfiguredEmulatorSlot(
   configuration: ConfiguredEmulatorSlot,
   filePath?: string,
 ): Promise<void>;
+export function prepareValidationEmulator(options?: Record<string, unknown>): Promise<Record<string, unknown>>;
+export function cleanupValidationEmulator(
+  prepared: Record<string, unknown>,
+  options?: Record<string, unknown>,
+): Promise<Record<string, unknown>>;
 export function reserveEmulatorSlot(options: {
   filePath?: string;
   slot: number;

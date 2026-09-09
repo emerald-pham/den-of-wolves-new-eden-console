@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -21,6 +21,9 @@ import {
   reserveConfiguredEmulatorSlot,
   reserveEmulatorSlot,
   validationPlanForFiles,
+  deriveCopyOnlyValidationProfile,
+  prepareValidationEmulator,
+  cleanupValidationEmulator,
   validateImplementationPromptClaims,
   validateCoordinationEntry,
   validateReleaseCompletion,
@@ -318,6 +321,288 @@ describe('local emulator coordination', () => {
     expect(validationPlanForFiles(['CLAUDE.md', 'scripts/release.mjs']).commands).toContain(
       'npm run coordination:docs',
     );
+  });
+
+  it('fails closed for uncertain copy-only diffs and derives a bounded focused plan', () => {
+    const before = `export function RoleSelect() { return <p aria-label="Old status">Old status</p>; }\n`;
+    const after = `export function RoleSelect() { return <p aria-label="New status">New status</p>; }\n`;
+    const copyDiff = [
+      'diff --git a/src/components/RoleSelect.tsx b/src/components/RoleSelect.tsx',
+      '@@ -1 +1 @@',
+      '-export function RoleSelect() { return <p aria-label="Old status">Old status</p>; }',
+      '+export function RoleSelect() { return <p aria-label="New status">New status</p>; }',
+      'diff --git a/src/components/RoleSelect.test.tsx b/src/components/RoleSelect.test.tsx',
+      '@@ -1 +1 @@',
+      '-expect(screen.getByLabelText("Old status")).toBeInTheDocument();',
+      '+expect(screen.getByLabelText("New status")).toBeInTheDocument();',
+    ].join('\n');
+
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: ['src/components/RoleSelect.tsx', 'src/components/RoleSelect.test.tsx'],
+      diffText: copyDiff,
+      sources: {
+        'src/components/RoleSelect.tsx': { before, after },
+        'src/components/RoleSelect.test.tsx': {
+          before: 'expect(screen.getByLabelText("Old status")).toBeInTheDocument();\n',
+          after: 'expect(screen.getByLabelText("New status")).toBeInTheDocument();\n',
+        },
+      },
+    })).toMatchObject({
+      kind: 'copy-only',
+      commands: expect.arrayContaining([
+        'npm test -- --run src/components/RoleSelect.test.tsx',
+        'npm run lint',
+        'npm run build',
+      ]),
+    });
+
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: ['src/components/RoleSelect.tsx', 'src/components/RoleSelect.test.tsx'],
+      diffText: copyDiff.replace('aria-label="Old status"', 'role="alert"'),
+      sources: {
+        'src/components/RoleSelect.tsx': { before, after: after.replace('aria-label="New status"', 'role="alert"') },
+        'src/components/RoleSelect.test.tsx': {
+          before: 'expect(screen.getByLabelText("Old status")).toBeInTheDocument();\n',
+          after: 'expect(screen.getByLabelText("New status")).toBeInTheDocument();\n',
+        },
+      },
+    })).toMatchObject({ kind: 'full', reason: expect.stringMatching(/ARIA|structure|allowlist/i) });
+  });
+
+  it('fails closed when committed diff evidence is missing or the test is not a companion', () => {
+    const before = `export function RoleSelect() { return <p>Old status</p>; }\n`;
+    const after = `export function RoleSelect() { return <p>New status</p>; }\n`;
+    const sources = {
+      'src/components/RoleSelect.tsx': { before, after },
+      'src/components/RoleSelect.test.tsx': {
+        before: 'expect(screen.getByText("Old status")).toBeInTheDocument();\n',
+        after: 'expect(screen.getByText("New status")).toBeInTheDocument();\n',
+      },
+    };
+
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: Object.keys(sources),
+      diffText: '',
+      sources,
+    })).toMatchObject({ kind: 'full' });
+
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: ['src/components/RoleSelect.tsx', 'src/components/Other.test.tsx'],
+      diffText: [
+        'diff --git a/src/components/RoleSelect.tsx b/src/components/RoleSelect.tsx',
+        '@@ -1 +1 @@',
+        '-export function RoleSelect() { return <p>Old status</p>; }',
+        '+export function RoleSelect() { return <p>New status</p>; }',
+        'diff --git a/src/components/Other.test.tsx b/src/components/Other.test.tsx',
+        '@@ -1 +1 @@',
+        '-expect(screen.getByText("Old status")).toBeInTheDocument();',
+        '+expect(screen.getByText("New status")).toBeInTheDocument();',
+      ].join('\n'),
+      sources: {
+        ...sources,
+        'src/components/Other.test.tsx': sources['src/components/RoleSelect.test.tsx'],
+      },
+    })).toMatchObject({ kind: 'full' });
+  });
+
+  it('rejects application-root copy and test import changes from the fast path', () => {
+    const appSources = {
+      'src/App.tsx': {
+        before: 'export function App() { return <p>Old status</p>; }\n',
+        after: 'export function App() { return <p>New status</p>; }\n',
+      },
+      'src/App.test.tsx': {
+        before: 'expect(screen.getByText("Old status")).toBeInTheDocument();\n',
+        after: 'expect(screen.getByText("New status")).toBeInTheDocument();\n',
+      },
+    };
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: Object.keys(appSources),
+      diffText: [
+        'diff --git a/src/App.tsx b/src/App.tsx',
+        '@@ -1 +1 @@',
+        '-export function App() { return <p>Old status</p>; }',
+        '+export function App() { return <p>New status</p>; }',
+        'diff --git a/src/App.test.tsx b/src/App.test.tsx',
+        '@@ -1 +1 @@',
+        '-expect(screen.getByText("Old status")).toBeInTheDocument();',
+        '+expect(screen.getByText("New status")).toBeInTheDocument();',
+      ].join('\n'),
+      sources: appSources,
+    })).toMatchObject({ kind: 'full' });
+
+    const sourceFiles = {
+      'src/components/RoleSelect.tsx': {
+        before: 'export function RoleSelect() { return <p>Old status</p>; }\n',
+        after: 'export function RoleSelect() { return <p>New status</p>; }\n',
+      },
+      'src/components/RoleSelect.test.tsx': {
+        before: 'vi.mock("old-module"); expect(screen.getByText("Old status")).toBeInTheDocument();\n',
+        after: 'vi.mock("new-module"); expect(screen.getByText("New status")).toBeInTheDocument();\n',
+      },
+    };
+    expect(deriveCopyOnlyValidationProfile({
+      changedFiles: Object.keys(sourceFiles),
+      diffText: [
+        'diff --git a/src/components/RoleSelect.tsx b/src/components/RoleSelect.tsx',
+        '@@ -1 +1 @@',
+        '-export function RoleSelect() { return <p>Old status</p>; }',
+        '+export function RoleSelect() { return <p>New status</p>; }',
+        'diff --git a/src/components/RoleSelect.test.tsx b/src/components/RoleSelect.test.tsx',
+        '@@ -1 +1 @@',
+        '-vi.mock("old-module"); expect(screen.getByText("Old status")).toBeInTheDocument();',
+        '+vi.mock("new-module"); expect(screen.getByText("New status")).toBeInTheDocument();',
+      ].join('\n'),
+      sources: sourceFiles,
+    })).toMatchObject({ kind: 'full' });
+  });
+
+  it('prepares and cleans only the emulator config it created', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-auto-validation-${randomUUID()}`);
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const filePath = resolve(tmpdir(), `den-of-wolves-auto-validation-${randomUUID()}.json`);
+    const configuration = {
+      id: 'configuration-owned', slot: 3, worktree: root,
+      configuredAt: '2026-09-09T00:00:00.000Z', ports: [5031],
+    };
+    const released: unknown[] = [];
+    try {
+      const prepared = await prepareValidationEmulator({
+        repositoryDirectory: root,
+        coordinationPath: filePath,
+        localFirebaseConfigPath: configurationPath,
+        localEnvironmentPath: environmentPath,
+        reserve: async () => configuration,
+        release: async () => undefined,
+        baseConfig: { emulators: {} },
+        configForSlot: () => ({ emulators: { firestore: { port: 5031 } } }),
+        environmentForSlot: () => ({ VITE_USE_EMULATORS: '1' }),
+      });
+      expect(prepared).toMatchObject({
+        created: true,
+        configurationId: 'configuration-owned',
+        slot: 3,
+      });
+      await writeFile(configurationPath, 'replacement-owned-by-another-process');
+      await cleanupValidationEmulator(prepared, {
+        release: async (ownedConfiguration: typeof configuration) => { released.push(ownedConfiguration); },
+        localFirebaseConfigPath: configurationPath,
+        localEnvironmentPath: environmentPath,
+        replaceFile: async (path: string, content: string) => writeFile(path, content),
+      });
+      expect(await readFile(configurationPath, 'utf8')).toBe('replacement-owned-by-another-process');
+      expect(await readFile(environmentPath).catch(() => undefined)).toBeUndefined();
+      expect(released).toEqual([configuration]);
+
+      await writeFile(configurationPath, 'pre-existing');
+      const preserved = await prepareValidationEmulator({
+        repositoryDirectory: root,
+        coordinationPath: filePath,
+        localFirebaseConfigPath: configurationPath,
+        localEnvironmentPath: environmentPath,
+        reserve: async () => { throw new Error('must not allocate with existing config'); },
+      });
+      expect(preserved.created).toBe(false);
+      expect(await readFile(configurationPath, 'utf8')).toBe('pre-existing');
+
+      const failureRoot = resolve(tmpdir(), `den-of-wolves-auto-validation-failure-${randomUUID()}`);
+      const failureConfig = resolve(failureRoot, 'firebase.local.json');
+      const failureEnvironment = resolve(failureRoot, '.env.emulators.local');
+      const failureFilePath = resolve(tmpdir(), `den-of-wolves-auto-validation-failure-${randomUUID()}.json`);
+      const failedReleases: unknown[] = [];
+      await expect(prepareValidationEmulator({
+        repositoryDirectory: failureRoot,
+        coordinationPath: failureFilePath,
+        localFirebaseConfigPath: failureConfig,
+        localEnvironmentPath: failureEnvironment,
+        reserve: async () => ({ ...configuration, worktree: failureRoot }),
+        release: async (ownedConfiguration: typeof configuration) => { failedReleases.push(ownedConfiguration); },
+        baseConfig: { emulators: {} },
+        configForSlot: () => { throw new Error('invalid base config'); },
+      })).rejects.toThrow('invalid base config');
+      expect(failedReleases).toHaveLength(1);
+      expect(await readFile(failureConfig).catch(() => undefined)).toBeUndefined();
+      expect(await readFile(failureEnvironment).catch(() => undefined)).toBeUndefined();
+    } finally {
+      await unlink(configurationPath).catch(() => undefined);
+      await unlink(environmentPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('preserves a pre-existing environment file when it creates only the missing config', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-auto-validation-env-${randomUUID()}`);
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const filePath = resolve(tmpdir(), `den-of-wolves-auto-validation-env-${randomUUID()}.json`);
+    const configuration = {
+      id: 'configuration-owned-env', slot: 3, worktree: root,
+      configuredAt: '2026-09-09T00:00:00.000Z', ports: [5031],
+    };
+    const existingEnvironment = 'VITE_USE_EMULATORS=1\n';
+    try {
+      await mkdir(root, { recursive: true });
+      await writeFile(environmentPath, existingEnvironment, 'utf8');
+      const prepared = await prepareValidationEmulator({
+        repositoryDirectory: root,
+        coordinationPath: filePath,
+        localFirebaseConfigPath: configurationPath,
+        localEnvironmentPath: environmentPath,
+        reserve: async () => configuration,
+        release: async () => undefined,
+        baseConfig: { emulators: {} },
+        configForSlot: () => ({ emulators: { firestore: { port: 5031 } } }),
+        environmentForSlot: () => ({ VITE_USE_EMULATORS: '1' }),
+      });
+
+      expect(prepared.created).toBe(true);
+      expect(await readFile(environmentPath, 'utf8')).toBe(existingEnvironment);
+      await cleanupValidationEmulator(prepared, { release: async () => undefined });
+      expect(await readFile(environmentPath, 'utf8')).toBe(existingEnvironment);
+      expect(await readFile(configurationPath).catch(() => undefined)).toBeUndefined();
+    } finally {
+      await unlink(configurationPath).catch(() => undefined);
+      await unlink(environmentPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('preserves a same-content replacement made after setup', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-auto-validation-identity-${randomUUID()}`);
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const filePath = resolve(tmpdir(), `den-of-wolves-auto-validation-identity-${randomUUID()}.json`);
+    const configuration = {
+      id: 'configuration-owned-identity', slot: 3, worktree: root,
+      configuredAt: '2026-09-09T00:00:00.000Z', ports: [5031],
+    };
+    try {
+      const prepared = await prepareValidationEmulator({
+        repositoryDirectory: root,
+        coordinationPath: filePath,
+        localFirebaseConfigPath: configurationPath,
+        localEnvironmentPath: environmentPath,
+        reserve: async () => configuration,
+        release: async () => undefined,
+        baseConfig: { emulators: {} },
+        configForSlot: () => ({ emulators: { firestore: { port: 5031 } } }),
+        environmentForSlot: () => ({ VITE_USE_EMULATORS: '1' }),
+      });
+      const generatedConfig = await readFile(configurationPath, 'utf8');
+      await unlink(configurationPath);
+      await writeFile(configurationPath, generatedConfig, 'utf8');
+
+      await cleanupValidationEmulator(prepared, { release: async () => undefined });
+      expect(await readFile(configurationPath, 'utf8')).toBe(generatedConfig);
+    } finally {
+      await unlink(configurationPath).catch(() => undefined);
+      await unlink(environmentPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
   });
 
   it('blocks validation when test growth needs review and no justification is supplied', async () => {
@@ -746,6 +1031,28 @@ describe('local emulator coordination', () => {
       },
       release: releaseState(),
     })).toThrow(/validation.*branch-sha|branch-sha.*validation/i);
+  });
+
+  it('rejects a validation receipt whose derived profile evidence is stale', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        validation: {
+          ...codeValidation,
+          profile: {
+            kind: 'full',
+            reason: 'derived full profile',
+            commands: [],
+            evidence: {
+              baseSha: 'older-base-sha',
+              branchSha: 'branch-sha',
+              diffIdentity: 'committed-diff-hash',
+            },
+          },
+        },
+      },
+      release: releaseState(),
+    })).toThrow(/profile.*evidence|evidence.*base/i);
   });
 
   it('rejects completion without a test-growth receipt for changed test files', () => {

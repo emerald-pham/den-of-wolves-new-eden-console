@@ -541,6 +541,32 @@ but it must not infer that a still-live child is safe to stop. Diagnose a stuck
 process with the reservation's owner PID, child PID, command, and worktree
 together.
 
+### Exact validation setup and the copy-only fast path
+
+`npm run coordination:validate -- --id <id>` derives its validation profile
+from the committed `main...HEAD` diff. When that profile requires the rules
+emulator and this worktree has no `firebase.local.json`, validation atomically
+claims a complete row as if `npm run emulators:configure -- auto` had been
+run. It records the configuration ID and content identity in the receipt,
+uses the setup only for that validation, and removes only files whose content
+still matches the setup. Existing configuration files and replacements made
+by another process are preserved. If allocation cannot succeed, follow the
+exact actionable command `npm run emulators:configure -- auto` after a slot
+is released; validation never falls back to the shared/default project.
+
+The same command may choose a copy-only profile only when its parser proves
+that an allowlisted `src/components` or `src/routes` player-facing JSX file
+and its focused `.test.tsx`/`.spec.tsx` companion changed static text values
+without changing syntax, imports, JSX structure, ARIA names/semantics,
+control flow, state, routing, security, localization, formatting, styling,
+configuration, or test assertions. The profile is re-derived from the exact
+committed diff and current branch SHA; missing blobs, uncertain syntax,
+test-only changes, deleted assertions, and any other path fail closed to the
+full `test:all` profile. A proven copy-only profile runs the affected focused
+test(s), progress validation, lint, build, and diff checks and makes no
+emulator claim. There is no self-attested copy-only flag. Any mixed or
+uncertain change must use the full validation profile.
+
 ## 2. Merge once done
 
 - Branch from `main`. Short-lived, one concern per branch.

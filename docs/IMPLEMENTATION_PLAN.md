@@ -2823,8 +2823,8 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 657
 - [ ] Prompt 658
 - [ ] Prompt 659
-- [ ] Prompt 660
-- [ ] Prompt 661
+- [x] Prompt 660
+- [x] Prompt 661
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
