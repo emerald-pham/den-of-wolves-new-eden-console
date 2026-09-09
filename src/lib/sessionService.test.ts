@@ -1298,6 +1298,45 @@ describe('authoritative setup and seating wrappers', () => {
     });
   });
 
+  it('projects the complete canonical setup tuple from the committed server receipt', async () => {
+    const activeRoleIds = ['admiral', 'wing-commander'];
+    const activeVesselIds = ['aegis', 'icebreaker'];
+    const canonicalSetup = {
+      playerCount: 19,
+      chartId: 'B' as const,
+      expansion: 'capybara' as const,
+      turnLimit: 7 as const,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds,
+      activeVesselIds,
+    };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        status: 'committed', requestId: 'setup-projection', setupRevision: 5,
+        setup: canonicalSetup, activeRoleIds, activeVesselIds,
+      },
+    }));
+
+    await expect(authorityService.confirmSetup({
+      playerCount: 19, chartId: 'B', expansion: 'capybara', turnLimit: 7,
+      dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
+    })).resolves.toBe('applied');
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      setupRevision: 5,
+      playerCount: 19,
+      chartId: 'B',
+      expansion: 'capybara',
+      turnLimit: 7,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds,
+      activeVesselIds,
+      setup: canonicalSetup,
+    });
+  });
+
   it('claims a stable seat with a revision-bound idempotency request', async () => {
     const call = callableReturning({
       data: { status: 'replayed', requestId: 'claim-1', setupRevision: 5, seatId: 'admiral', holderUid: 'u1' },
@@ -1352,10 +1391,14 @@ describe('authoritative setup and seating wrappers', () => {
       responsibility: 'main', mode: 'share', targetInstanceId: 'other',
     })).resolves.toBe('stale');
 
-    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'seat' } }));
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { ...stale, entity: 'seat', seatId: 'admiral' },
+    }));
     await expect(authorityService.claimSeat('admiral')).resolves.toBe('stale');
 
-    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'seat' } }));
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { ...stale, entity: 'seat', seatId: 'admiral' },
+    }));
     await expect(authorityService.releaseSeat('admiral', 'Retry after live refresh')).resolves.toBe('stale');
   });
 });

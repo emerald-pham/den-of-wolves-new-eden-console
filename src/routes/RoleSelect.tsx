@@ -245,10 +245,8 @@ export default function RoleSelect() {
                       type="button"
                       disabled={pendingSeatId !== null}
                       aria-label={`CLEAR STALE HOLDER // ${seat.label}`}
-                      onClick={() => {
-                        interventionTriggerRef.current = document.activeElement instanceof HTMLButtonElement
-                          ? document.activeElement
-                          : null;
+                      onClick={(event) => {
+                        interventionTriggerRef.current = event.currentTarget;
                         setInterventionSeatId(seat.id);
                         setInterventionReason('');
                       }}

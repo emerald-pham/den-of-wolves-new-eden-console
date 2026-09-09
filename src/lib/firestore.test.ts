@@ -156,6 +156,32 @@ it('projects normalized dual-lane GM responsibilities during hydration', () => {
   ]);
 });
 
+it('projects a sole legacy GM responsibility into both canonical lanes on each direct listener update', () => {
+  const onInstances = vi.fn();
+  vi.mocked(onSnapshot).mockImplementation(((_query: unknown, callback: unknown) => {
+    (callback as (snapshot: unknown) => void)({
+      docs: [{
+        id: 'bridge',
+        data: () => ({
+          uid: 'gm1', name: 'Bridge', deviceLabel: 'Chrome',
+          responsibility: 'assistant', claimedAt: '2026-09-08T19:00:00.000Z',
+        }),
+      }],
+    });
+    return vi.fn();
+  }) as never);
+
+  subscribeGmInstances('s1', onInstances, vi.fn());
+
+  expect(onInstances).toHaveBeenCalledWith([
+    expect.objectContaining({
+      id: 'bridge',
+      responsibility: 'assistant',
+      responsibilities: ['main', 'assistant'],
+    }),
+  ]);
+});
+
 it('hydrates stable seat role ids without treating Press as a core seat', () => {
   const onSeats = vi.fn();
   let snapshotNumber = 0;

@@ -215,16 +215,26 @@ describe('claimSeat', () => {
     player('u1');
     seat('admiral');
 
-    await expect(claimSeat.run(request({
+    const command = {
       sessionId: 's1', seatId: 'admiral', requestId: 'claim-stale', expectedSetupRevision: 2,
-    }))).resolves.toEqual({
+    };
+    const staleReply = {
       status: 'stale', requestId: 'claim-stale', entity: 'seat', seatId: 'admiral',
       expectedRevision: 2, currentRevision: 3,
-    });
+    };
+    await expect(claimSeat.run(request(command))).resolves.toEqual(staleReply);
     expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'open', holderUid: null });
+    expect(read('sessions/s1/events/seat-claim-claim-stale')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: null });
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
     expect(read('sessions/s1/events/seat-claim-claim-stale')).toBeUndefined();
+
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 2, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
+    await expect(claimSeat.run(request(command))).resolves.toEqual(staleReply);
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'open', holderUid: null });
   });
 
   it('returns safe stale receipts for claim and release without mutating authority state', async () => {
@@ -253,6 +263,59 @@ describe('claimSeat', () => {
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
     expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: 'admiral' });
+
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 2, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'release-stale-receipt', expectedSetupRevision: 2,
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'release-stale-receipt', entity: 'seat', seatId: 'admiral',
+      expectedRevision: 2, currentRevision: 3,
+    });
+    expect(read('sessions/s1/events/seat-release-release-stale-receipt')).toBeUndefined();
+  });
+
+  it('does not replay a claim or release receipt for an inactive or foreign member', async () => {
+    player('u1');
+    seat('seat-1');
+    const claimCommand = {
+      sessionId: 's1', seatId: 'seat-1', requestId: 'claim-replay-authority', expectedSetupRevision: 0,
+    };
+    await claimSeat.run(request(claimCommand));
+    player('u1', { connected: false, seatId: 'seat-1' });
+    await expect(claimSeat.run(request(claimCommand))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(claimSeat.run(request(claimCommand, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 1, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
+    player('u1', { connected: true, seatId: 'seat-1' });
+    seat('seat-1', { status: 'claimed', holderUid: 'u1' });
+    const releaseCommand = {
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-replay-authority', expectedSetupRevision: 1,
+    };
+    await releaseSeat.run(request(releaseCommand));
+    player('u1', { connected: false, seatId: null });
+    await expect(releaseSeat.run(request(releaseCommand))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(releaseSeat.run(request(releaseCommand, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  it('does not replay a GM intervention after its live instance is gone', async () => {
+    player('u1', { role: 'gm' });
+    player('u2', { seatId: 'seat-1' });
+    seat('seat-1', { status: 'claimed', holderUid: 'u2' });
+    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
+    const command = {
+      sessionId: 's1', seatId: 'seat-1', requestId: 'release-gm-replay-authority',
+      expectedSetupRevision: 0, instanceId: 'bridge', reason: 'Clear stale browser',
+    };
+    await expect(releaseSeat.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+    mock.documents.delete('sessions/s1/gmInstances/bridge');
+
+    await expect(releaseSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
   });
 
   it('requires an explicit active roster and an exact stable role id', async () => {

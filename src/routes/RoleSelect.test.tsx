@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -339,7 +339,7 @@ describe('RoleSelect', () => {
     renderRoute();
 
     const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
-    await user.click(intervene);
+    fireEvent.click(intervene);
     const dialog = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
     const reason = within(dialog).getByRole('textbox', { name: /reason for clearing stale seat/i });
     const confirm = within(dialog).getByRole('button', { name: /confirm clear stale seat/i });
@@ -358,7 +358,7 @@ describe('RoleSelect', () => {
     expect(intervene).toHaveFocus();
     expect(releaseSeat).not.toHaveBeenCalled();
 
-    await user.click(intervene);
+    fireEvent.click(intervene);
     const reopened = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
     const backdrop = reopened.parentElement;
     if (!backdrop) throw new Error('Expected stale-seat dialog backdrop.');

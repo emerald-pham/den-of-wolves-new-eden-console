@@ -333,13 +333,23 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   };
 }
 
-function gmInstanceFrom(sessionId: string, id: string, data: DocumentData): GmInstance {
-  const responsibilities = Array.isArray(data.responsibilities)
-    ? data.responsibilities.filter((responsibility): responsibility is 'main' | 'assistant' =>
+function gmInstanceFrom(
+  sessionId: string,
+  id: string,
+  data: DocumentData,
+  promoteSoleLegacyResponsibility = false,
+): GmInstance {
+  const hasCanonicalResponsibilities = Array.isArray(data.responsibilities);
+  const storedResponsibilities = hasCanonicalResponsibilities
+    ? data.responsibilities.filter((responsibility: unknown): responsibility is 'main' | 'assistant' =>
       responsibility === 'main' || responsibility === 'assistant')
     : data.responsibility === 'main' || data.responsibility === 'assistant'
       ? [data.responsibility]
       : [];
+  const responsibilities = promoteSoleLegacyResponsibility && !hasCanonicalResponsibilities &&
+    storedResponsibilities.length === 1
+    ? ['main', 'assistant'] as const
+    : storedResponsibilities;
   return {
     id,
     sessionId,
@@ -397,7 +407,7 @@ export function subscribeGmInstances(
   return onSnapshot(
     query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
     (snapshot) => onInstances(snapshot.docs.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data()))),
+      gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1))),
     onError,
   );
 }

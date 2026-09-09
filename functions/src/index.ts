@@ -1077,6 +1077,11 @@ export const confirmSetup = onCall<{
   const eventRef = db.doc(`sessions/${command.sessionId}/events/setup-confirm-${command.requestId}`);
 
   return db.runTransaction(async (tx) => {
+    const fingerprint = setupCommandFingerprint(
+      command.configuration,
+      command.activeRoleIds,
+      command.expectedSetupRevision,
+    );
     const [prior, authority] = await Promise.all([
       tx.get(requestRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
@@ -1102,26 +1107,29 @@ export const confirmSetup = onCall<{
       if (typeof reply !== 'object' || reply === null) {
         throw new HttpsError('failed-precondition', 'This setup request has no replayable result.');
       }
+      if (reply.status === 'stale') return reply;
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
     }
     if (setupRevision(authority.session) !== command.expectedSetupRevision) {
-      return {
+      const reply = {
         status: 'stale' as const,
         requestId: command.requestId,
         entity: 'setup' as const,
         expectedRevision: command.expectedSetupRevision,
         currentRevision: setupRevision(authority.session),
       };
+      tx.set(requestRef, {
+        action: 'confirm-setup', requestId: command.requestId,
+        sessionId: command.sessionId, actorUid: uid, instanceId: command.instanceId,
+        fingerprint, reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
     requireCastingWindow(authority.session);
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
-    const fingerprint = setupCommandFingerprint(
-      command.configuration,
-      command.activeRoleIds,
-      command.expectedSetupRevision,
-    );
     const reply = {
       status: 'committed' as const,
       requestId: command.requestId,
@@ -1213,7 +1221,6 @@ export const setFacilitatorResponsibility = onCall<{
     `sessions/${responsibility.sessionId}/events/gm-responsibility-${responsibility.requestId}`,
   );
   return db.runTransaction(async (tx) => {
-    const prior = await tx.get(requestRef);
     const fingerprint = {
       action: 'set-facilitator-responsibility',
       sessionId: responsibility.sessionId,
@@ -1224,6 +1231,10 @@ export const setFacilitatorResponsibility = onCall<{
       targetInstanceId: responsibility.targetInstanceId ?? null,
       expectedSetupRevision: responsibility.expectedSetupRevision,
     } as const;
+    const [authority, prior] = await Promise.all([
+      requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
+      tx.get(requestRef),
+    ]);
     if (prior.exists) {
       const stored = prior.get('fingerprint');
       const same = typeof stored === 'object' && stored !== null &&
@@ -1236,24 +1247,29 @@ export const setFacilitatorResponsibility = onCall<{
       if (typeof reply !== 'object' || reply === null) {
         throw new HttpsError('failed-precondition', 'This responsibility request has no replayable result.');
       }
+      if (reply.status === 'stale') return reply;
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
     }
 
-    const [authority, instance, instances] = await Promise.all([
-      requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
-      tx.get(instanceRef),
-      tx.get(instancesRef),
-    ]);
+    const [instance, instances] = await Promise.all([tx.get(instanceRef), tx.get(instancesRef)]);
     requireCastingWindow(authority.session);
     if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
     if (setupRevision(authority.session) !== responsibility.expectedSetupRevision) {
-      return {
+      const reply = {
         status: 'stale' as const,
         requestId: responsibility.requestId,
         entity: 'facilitator' as const,
         expectedRevision: responsibility.expectedSetupRevision,
         currentRevision: setupRevision(authority.session),
       };
+      tx.set(requestRef, {
+        ...fingerprint,
+        requestId: responsibility.requestId,
+        expectedSetupRevision: responsibility.expectedSetupRevision,
+        fingerprint, reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
 
     const targetInstanceId = responsibility.targetInstanceId ?? responsibility.instanceId;
@@ -3884,6 +3900,10 @@ export const claimSeat = onCall<{
         const [prior, session, seat, player] = await Promise.all([
           tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
         ]);
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!isActivePlayer(player)) {
+          throw new HttpsError('permission-denied', 'Join the session first.');
+        }
         if (prior.exists) {
           if (
             prior.get('action') !== 'claim' ||
@@ -3898,19 +3918,16 @@ export const claimSeat = onCall<{
           if (typeof reply !== 'object' || reply === null) {
             throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
           }
+          if (reply.status === 'stale') return reply as SeatMutationReceipt;
           const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
           return { ...committedReply, status: 'replayed' };
         }
-        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         requireCastingWindow(session);
-        if (!isActivePlayer(player)) {
-          throw new HttpsError('permission-denied', 'Join the session first.');
-        }
         if (!canClaimSeat(player.get('seatId'))) {
           throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
         }
         if (setupRevision(session) !== revisioned.expectedSetupRevision) {
-          return {
+          const reply = {
             status: 'stale',
             requestId: revisioned.requestId,
             entity: 'seat',
@@ -3918,6 +3935,11 @@ export const claimSeat = onCall<{
             expectedRevision: revisioned.expectedSetupRevision,
             currentRevision: setupRevision(session),
           } satisfies StaleAuthorityReceipt;
+          tx.set(requestRef, {
+            requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
+            fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+          });
+          return reply;
         }
         const configuredRoles = session.get('activeRoleIds');
         if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
@@ -3990,6 +4012,19 @@ export const releaseSeat = onCall<{
         const [prior, session, seat, actor] = await Promise.all([
           tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
         ]);
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
+        if (revisioned.instanceId || revisioned.reason) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
+          }
+          const interventionInstance = await tx.get(
+            db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`),
+          );
+          if (!interventionInstance.exists || interventionInstance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
+        }
         if (prior.exists) {
           if (
             prior.get('action') !== 'release' ||
@@ -4004,13 +4039,12 @@ export const releaseSeat = onCall<{
           if (typeof reply !== 'object' || reply === null) {
             throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
           }
+          if (reply.status === 'stale') return reply as SeatMutationReceipt;
           const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
           return { ...committedReply, status: 'replayed' };
         }
-        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         requireCastingWindow(session);
         if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
-        if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
 
         const configuredRoles = session.get('activeRoleIds');
         if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
@@ -4040,7 +4074,7 @@ export const releaseSeat = onCall<{
           }
         }
         if (setupRevision(session) !== revisioned.expectedSetupRevision) {
-          return {
+          const reply = {
             status: 'stale',
             requestId: revisioned.requestId,
             entity: 'seat',
@@ -4048,6 +4082,12 @@ export const releaseSeat = onCall<{
             expectedRevision: revisioned.expectedSetupRevision,
             currentRevision: setupRevision(session),
           } satisfies StaleAuthorityReceipt;
+          tx.set(requestRef, {
+            requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
+            reason: revisioned.reason ?? null,
+            fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+          });
+          return reply;
         }
         const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
         const holder = await tx.get(holderRef);

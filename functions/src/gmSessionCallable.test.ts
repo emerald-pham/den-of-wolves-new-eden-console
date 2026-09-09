@@ -244,8 +244,38 @@ describe('GM instance ownership', () => {
       status: 'stale', requestId: 'responsibility-stale-receipt', entity: 'facilitator',
       expectedRevision: 4, currentRevision: 5,
     });
+    expect(read('sessions/s1/gmResponsibilityRequests/responsibility-stale-receipt'))
+      .toMatchObject({ reply: expect.objectContaining({ status: 'stale' }) });
     expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('responsibilities');
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 5 });
+
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 4, configurationLocked: false });
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-stale-receipt', expectedSetupRevision: 4, mode: 'share',
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'responsibility-stale-receipt', entity: 'facilitator',
+      expectedRevision: 4, currentRevision: 5,
+    });
+  });
+
+  it('does not replay a responsibility receipt for an inactive or foreign facilitator', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    const command = {
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main' as const,
+      requestId: 'responsibility-replay-authority', expectedSetupRevision: 0, mode: 'share' as const,
+    };
+    await setFacilitatorResponsibility.run(request(command));
+
+    player('u1', { role: 'gm', connected: false });
+    await expect(setFacilitatorResponsibility.run(request(command))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+    await expect(setFacilitatorResponsibility.run(request(command, 'u2'))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
   });
 
   it('lets one active GM instance carry both printed responsibilities', async () => {

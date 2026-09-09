@@ -243,28 +243,85 @@ it('denies a downsize that would remove a claimed stable seat without mutating s
 
 it('returns a safe stale receipt when setup revision changed before confirmation', async () => {
   const activeRoleIds = recommendedRoleIds(8);
+  let currentSetupRevision = 5;
+  let staleReceiptPersisted = false;
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') {
       return snapshot({
-        phase: 'lobby', configurationLocked: false, setupRevision: 5,
+        phase: 'lobby', configurationLocked: false, setupRevision: currentSetupRevision,
         activeRoleIds,
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
     if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/setupMutationRequests/setup-stale-receipt' && staleReceiptPersisted) {
+      return snapshot({
+        action: 'confirm-setup', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+        fingerprint: {
+          playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+          dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+          expectedSetupRevision: 4,
+        },
+        reply: {
+          status: 'stale', requestId: 'setup-stale-receipt', entity: 'setup',
+          expectedRevision: 4, currentRevision: 5,
+        },
+      });
+    }
     return snapshot({}, false);
   });
 
-  await expect(confirmSetup.run(request({
+  const command = request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'setup-stale-receipt',
     expectedSetupRevision: 4, playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
     dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
-  }))).resolves.toEqual({
+  });
+  const staleReply = {
     status: 'stale', requestId: 'setup-stale-receipt', entity: 'setup',
     expectedRevision: 4, currentRevision: 5,
-  });
+  };
+  await expect(confirmSetup.run(command)).resolves.toEqual(staleReply);
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/setupMutationRequests/setup-stale-receipt' }),
+    expect.objectContaining({ reply: staleReply, action: 'confirm-setup' }),
+  );
+
+  staleReceiptPersisted = true;
+  currentSetupRevision = 4;
+  await expect(confirmSetup.run(command)).resolves.toEqual(staleReply);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set.mock.calls.map(([ref]) => (ref as { path: string }).path))
+    .not.toContain('sessions/s1/events/setup-confirm-setup-stale-receipt');
+});
+
+it('does not replay a setup receipt for an inactive or foreign facilitator', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+  const command = request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'setup-replay-authority',
+    expectedSetupRevision: 0, playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  });
+  await confirmSetup.run(command);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 1, activeRoleIds });
+    }
+    return snapshot({}, false);
+  });
+  await expect(confirmSetup.run(command)).rejects.toMatchObject({ code: 'permission-denied' });
+  await expect(confirmSetup.run({ ...command, auth: { uid: 'u2' } })).rejects.toMatchObject({
+    code: 'permission-denied',
+  });
 });
 
 it('does not claim a code already owned by another session', async () => {

@@ -90,6 +90,21 @@ function isTurnStartAnnouncement(value: unknown): value is NonNullable<GameSessi
   );
 }
 
+function isCanonicalSessionSetup(value: unknown): value is NonNullable<GameSession['setup']> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const setup = value as Record<string, unknown>;
+  return (
+    typeof setup.playerCount === 'number' && Number.isSafeInteger(setup.playerCount) && setup.playerCount > 0 &&
+    (setup.chartId === 'A' || setup.chartId === 'B' || setup.chartId === 'C') &&
+    (setup.expansion === 'base' || setup.expansion === 'capybara' || setup.expansion === 'none') &&
+    (setup.turnLimit === 6 || setup.turnLimit === 7 || setup.turnLimit === 8) &&
+    typeof setup.dioneEnabled === 'boolean' &&
+    typeof setup.capybaraEnabled === 'boolean' &&
+    Array.isArray(setup.activeRoleIds) && setup.activeRoleIds.every((roleId) => typeof roleId === 'string') &&
+    Array.isArray(setup.activeVesselIds) && setup.activeVesselIds.every((vesselId) => typeof vesselId === 'string')
+  );
+}
+
 function errorCode(cause: unknown): string | undefined {
   if (typeof cause !== 'object' || cause === null || !('code' in cause)) return undefined;
   return typeof cause.code === 'string' ? cause.code : undefined;
@@ -132,10 +147,22 @@ function isRevisionedAuthorityCommand(command: PendingCommand): boolean {
     command.kind === 'releaseSeat';
 }
 
-function isStaleAuthorityReply(command: PendingCommand, result: unknown): boolean {
-  return isRevisionedAuthorityCommand(command) &&
-    typeof result === 'object' && result !== null &&
-    'status' in result && result.status === 'stale';
+function isStaleAuthorityReply(command: PendingCommand, result: unknown): result is {
+  readonly status: 'stale';
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly entity: 'setup' | 'facilitator' | 'seat';
+  readonly seatId?: string;
+} {
+  if (!isRevisionedAuthorityCommand(command) || typeof result !== 'object' || result === null) return false;
+  const reply = result as Record<string, unknown>;
+  return reply.status === 'stale' &&
+    typeof reply.requestId === 'string' &&
+    typeof reply.expectedRevision === 'number' && Number.isSafeInteger(reply.expectedRevision) &&
+    typeof reply.currentRevision === 'number' && Number.isSafeInteger(reply.currentRevision) &&
+    (reply.entity === 'setup' || reply.entity === 'facilitator' || reply.entity === 'seat') &&
+    (reply.entity !== 'seat' || typeof reply.seatId === 'string');
 }
 
 function recordStaleAuthorityReply(): void {
@@ -187,17 +214,32 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     typeof result === 'object' && result !== null
   ) {
     const reply = result as Record<string, unknown>;
+    const canonicalSetup = isCanonicalSessionSetup(reply.setup) ? reply.setup : null;
+    const canonicalRoleIds = canonicalSetup?.activeRoleIds ?? (
+      Array.isArray(reply.activeRoleIds)
+        ? reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
+        : undefined
+    );
+    const canonicalVesselIds = canonicalSetup?.activeVesselIds ?? (
+      Array.isArray(reply.activeVesselIds)
+        ? reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string')
+        : undefined
+    );
     const nextSession = {
       ...store.session,
       ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0
         ? { setupRevision: reply.setupRevision } : {}),
-      ...(Array.isArray(reply.activeRoleIds)
-        ? { activeRoleIds: reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string') }
-        : {}),
-      ...(typeof reply.setup === 'object' && reply.setup !== null ? { setup: reply.setup } : {}),
-      ...(Array.isArray(reply.activeVesselIds)
-        ? { activeVesselIds: reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string') }
-        : {}),
+      ...(canonicalSetup ? {
+        setup: canonicalSetup,
+        playerCount: canonicalSetup.playerCount,
+        chartId: canonicalSetup.chartId,
+        expansion: canonicalSetup.expansion,
+        turnLimit: canonicalSetup.turnLimit,
+        dioneEnabled: canonicalSetup.dioneEnabled,
+        capybaraEnabled: canonicalSetup.capybaraEnabled,
+      } : {}),
+      ...(canonicalRoleIds ? { activeRoleIds: canonicalRoleIds } : {}),
+      ...(canonicalVesselIds ? { activeVesselIds: canonicalVesselIds } : {}),
     } as GameSession;
     store.setSession(nextSession);
   }
