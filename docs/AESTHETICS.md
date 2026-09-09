@@ -99,6 +99,66 @@ The rest is prose because the rest needs eyes: whether a screen is dense with
 real values or busy with fake ones, whether motion is a machine working or an
 interface performing, is not something a regular expression can tell you.
 
+### Slice conformance gate
+
+Before tests are treated as complete for any new or changed feature, the
+implementation record must map the affected surfaces to this document and
+include representative visual and accessibility evidence. Preserve the CIC
+hierarchy, state colors, exact copy semantics, viewport containment, keyboard,
+touch, screen-reader and non-color cues, 44px touch targets, and
+motion/reduced-motion behavior at `320x844`, `390x844` where the ship gate
+uses it, `1440x900`, and `844x390`, including a
+`prefers-reduced-motion` pass. Review intact/damaged and pending/rejected
+states plus reconnect and return paths. An intentional deviation needs a
+necessity rationale and a named interaction contract; a new control is not
+complete as an isolated widget.
+
+For the Prompt 275a Press recovery, the required mapping is concrete:
+ConnectionIndicator uses the established connection copy/state treatment;
+Independent Stations Press toggle, card, and console reuse the shared CIC and
+shuttle patterns; and DRADIS labels keep complete fleet/shuttle names inside
+the plot at every edge. The evidence must also show the composed route,
+projection/privacy, reconnect, multiple-GM, and reduced-motion behavior rather
+than only a static component rendering.
+
+Prompt 275b restores, rather than redesigns, the SNN Dispatch Desk. Recover the
+last working route and instrument from git history, preserve its SNN identity,
+and keep the desk visible and actionable for the enabled, claimed Press Officer
+during Turn Zero: generic Turn Zero disabled styling, focus suppression, and
+action guards do not apply to this desk. Its authoring, publish, dismiss,
+pending/replayed/error, dispatch history, and bridge-delivery states use the
+same square CIC and FleetBroadcast language at every required viewport. Prove
+keyboard/screen-reader operation, long-copy wrapping, reduced motion, reconnect,
+and return navigation; do not use a cosmetic mock to stand in for restored
+server authority.
+
+### Calculation receipts and facilitator interventions
+
+The New Eden Console is automation-first and intervention-rich. A single
+facilitator can run routine deterministic play without doing arithmetic or
+copying results between screens; additional GMs remain optional collaborators.
+Every automatic result uses the established CIC instrument language: amber
+structure, cyan measured values, bone explanatory copy, square hairline rows,
+and explicit non-color state. Show entered inputs, cited rule/source, ordered
+modifiers, computed result, and before/after mutations in one readable receipt;
+do not hide required arithmetic behind hover, animation, another screen, or an
+uncited total.
+
+Keep the automatic happy path visually primary. `PAUSE`, `INSPECT`, `OVERRIDE`,
+and `CORRECT` are distinct GM controls with a required reason, visible scoped
+delta, revision/idempotency status, and audit/recovery result. High-impact
+interventions reuse the danger-red second-click `ARE YOU SURE?` pattern. Show
+pending, rejected/stale, committed, and recovered states with text and icons as
+well as color; concurrent-GM conflicts identify the committed result without
+discarding the losing GM's input.
+
+Receipt and intervention evidence includes a one-GM keyboard/screen-reader
+walkthrough and a two-GM race, 44px targets, visible focus, concise live status,
+and complete content at `320x844`, `390x844` where applicable, `1440x900`, and
+`844x390` under normal and reduced motion. Genuine hidden choices and
+facilitator rulings remain clearly labeled decisions rather than fake
+automation.
+
 ### Installed app icon
 
 The installed New Eden Console uses a static DRADIS ball for its browser
@@ -176,7 +236,9 @@ visible without relying on colour or movement alone.
 Arrival readouts show a value with its descriptive label underneath: SHIPS IN
 CONVOY, PERSONNEL GRANTED CIC DATA ACCESS, WOLVES AMONG US, and POPULATION
 ESTIMATE AFTER INITIAL STARVATION, in that order. PERSONNEL GRANTED CIC DATA
-ACCESS is the 8–21 player-held posts—not the roughly 200,000 souls in the fleet.
+ACCESS is the 8–20 core player-held posts, plus a separate optional Press
+Officer post when Press is enabled and claimed—not the roughly 200,000 souls
+in the fleet.
 Keep these labels visible at every viewport size. Hide the sequences of possible
 numbers; do not confuse those sequences with the descriptive labels. Do not
 show a SCENARIO SIGNAL footer. Avoid other franchise-specific terminology
@@ -562,6 +624,17 @@ specialize the accent and modules but must not replace the shell.
   Each row pairs the report copy with its own square dismissal action, stacks
   the control beneath the copy on phones, and leaves server-confirmed reports
   in place while a command is pending.
+- Every ordinary shuttle console owns one explicit `BACK TO [SHIP]` return in
+  the identity rail. Its target comes from authoritative shuttle association
+  and route entitlement; it is not a decorative browser-history shortcut and
+  does not release the user's seat, role, or shuttle state. Keep the existing
+  Press `BACK TO INDEPENDENT STATIONS`, Joint Engineering Union, and GM leave
+  controls as semantically distinct labels. The ordinary return uses the
+  shared square CIC text-button treatment, at least a 44px target, visible
+  focus, and an accessible name that includes the actual destination. It
+  remains reachable without overlapping identity or instruments at 320×844,
+  390×844, 1440×900, and 844×390. Reduced motion removes route transition
+  effects, not the control.
 - Wide screens place identity low-left, navigation high-right, optional craft
   modules low-right, and DRADIS above them. At phone widths these panels leave
   absolute positioning and stack in DOM order beneath the compact DRADIS so
@@ -578,6 +651,12 @@ Use the [Capybara ship template](SHIP_TEMPLATE.md) for the remaining fleet
 ships. It specifies identity statistics, census survivor steps, capacity
 warnings and GM threshold alerts, implemented for Capybara and reusable as
 other ships receive their own specifications.
+
+The Capybara rules and labels follow the printed v1.1 source; their CIC
+presentation follows this product contract. Future Macaw and Boa surfaces may
+show only authoritative values that the domain and printed sheet actually
+hold. Do not invent speed, fuel, heading, ETA, occupancy, or other telemetry
+to fill an unfinished module.
 
 Capacity-warning triangles are compact visual marks with 44px interaction
 targets. Hover, keyboard focus and tap reveal the same bordered CIC tooltip;
@@ -870,7 +949,8 @@ assistive technology.
 Readouts turn over every 5 seconds (`CYCLE_MS`), staggered by 0.3 and 0.6 of a
 cycle so the three never move together — first changes at 5/6.5/8 seconds.
 SHIPS IN CONVOY alternates between 6 and 7, while PERSONNEL GRANTED CIC DATA
-ACCESS draws from 8–21;
+ACCESS draws from 8–20 core posts; an enabled/claimed Press Officer is a
+separate extension and does not change the core readout;
 WOLVES AMONG US walks its listed order, 1, ?, 2. Every readout refuses to land on the value it
 is already showing: a readout that "changes" to what it already reads looks like
 a panel that has stopped working.
@@ -946,6 +1026,24 @@ check controls during an intrusion and with reduced motion. The contact plot is
 sized in `vmin`/`vw` so it reflows with the viewport and needs no breakpoint of
 its own.
 
+### Mobile session ticket occupancy
+
+The shared session-code badge in `SessionReadouts` is the session ticket. It is
+part of the measured `AppHeader`, not a decorative overlay. On Role Select and
+every other route, the ticket's real occupied rectangle reserves layout space:
+the intro, cards, labels, controls, focus outlines, and other chrome move or
+reflow outside it. Never fix collision by raising z-index, letting content hide
+behind the ticket, clipping either element, making it transparent, or removing
+information. Safe-area insets and the live measured `--app-header-height` must
+remain the source of spacing when the header wraps or changes height.
+
+Review the connected-player, rank, connection, and Settings variants with long
+labels at 320×844, 390×844, and 844×390, including rotation and reduced motion.
+Record nonintersecting geometry for the ticket and each Role Select region,
+visible focus outlines, logical keyboard order, and 44px touch targets. Preserve
+the one shared header/ticket component and existing navigation; do not fork a
+Role Select-only copy.
+
 ### Interactive maintenance
 
 The shared maintenance path keeps Begin immediately beneath the amber heading.
@@ -959,6 +1057,19 @@ Ration and refuelling selects and checkbox labels have 44px minimum touch target
 wrap within the path, and use native fieldsets to disable future steps together.
 Both AEGIS bays share step 6; End follows the path and unlocks after refuelling.
 Reviewed at 1440×900, 390×844, and 844×390 with intact and damaged configurations.
+
+Reactor power-up is also high impact because it replaces every unused charge
+with the newly selected console set. Keep selection editable until activation;
+the first `POWER UP REACTOR` press changes that same square control to the exact
+danger-red `ARE YOU SURE?` treatment and presents the selected consoles plus any
+charge that will be lost. Only the second press sends the authoritative command.
+Cancel, blur, Escape, route change, and any shared backdrop dismiss the pending
+confirmation, restore focus where applicable, and change no state. While the
+request is pending, prevent resubmission and show a text status; replay, stale,
+denied, and committed outcomes are distinct without color alone. Long console
+names wrap and the confirmation never obscures the selection at 320×844,
+390×844, 1440×900, or 844×390. Reduced motion removes transitions without
+removing the confirmation or receipt.
 
 The GM event log treats maintenance start and completion as ordinary operational
 readouts. An active cycle that reaches five minutes becomes a hostile-red alert
@@ -998,7 +1109,9 @@ than the ordinary ship-role checklist. It appears only in its printed low-count
 roster rows (8/9/14/15 as applicable) after both paired Engineer roles are
 absent, and it disappears again when the replacement condition no longer
 holds. Wobbly and Ally are reported as part of that confirmed Union station,
-never as ordinary 20/21-player craft. While a draft is unconfirmed,
+never as ordinary Capybara-expanded roster entries. The core roster ends at 20;
+an enabled and claimed Press station is a separate optional twenty-first
+extension, not a core craft. While a draft is unconfirmed,
 wolf-assignment controls remain visibly unavailable so a GM cannot assign
 against a roster that has not yet reached the server.
 
@@ -1006,6 +1119,44 @@ The native player-count select, staged-role readout, and confirmation button
 share the same minimum 44px control height and wrap into one readable column on
 narrow or short screens. Review the synchronized, staged, confirmation-pending,
 and invalid-replacement states at 1440×900, 320×844, and 844×390.
+
+### Configuration, seats, and facilitator staffing
+
+The confirmed roster is one setup instrument, not a cluster of independent
+network toggles. Continue to let the GM stage locally, but make the one
+`CONFIRM ROSTER` command visibly summarize core count, mode, chart, turn limit,
+Capybara/Dione state, active vessels, and the next setup revision before it
+transmits. After completion, show a compact calculation-style receipt with
+source catalog, accepted inputs, derived role/vessel totals, prior/new revision,
+and `COMMITTED` or `REPLAYED`. Show `STALE — REFRESHED FROM SERVER` and the
+authoritative values when another GM wins. Do not turn this into a new wizard,
+pill stepper, or modal maze; keep it in the existing ruled Setup workspace.
+
+Core seats use the existing role-selection route as a square, scan-friendly
+station board. Each row keeps the full seat/station name in the viewport and
+shows vessel/faction, `OPEN`, `HELD BY YOU`, or a nonsecret occupied label.
+The user's `CLAIM STATION` or `RELEASE STATION` action stays beside its state,
+has a 44px minimum target, visible keyboard focus, pending/replayed text, and a
+concise live-region result. Long names wrap instead of truncating. Ordinary
+players never see another player's release control; a GM release is a clearly
+separate intervention, asks for a reason, and uses danger red only in its final
+high-impact confirmation. The board must remain usable with 20 core rows and a
+separate Press station without presenting Press as core seat 21.
+
+Facilitator staffing remains in the existing GM workspace. Render the printed
+`MAIN FACILITATOR` and `ASSISTANT FACILITATOR` duties as square ruled lane rows,
+not exclusive radio choices. One active instance may visibly cover both;
+additional GMs appear as optional collaborators and can share or hand off a
+lane without suggesting they are players. Always show effective server state,
+revision, pending/conflict/replayed status, and legacy-normalized state in text
+as well as color. The automatic one-GM happy path is primary; collaboration
+controls stay available but do not imply that a second person is required.
+
+Review synchronized, staged, pending, replayed, stale-race, claimed-seat,
+long-name, one-GM dual-lane, and multi-GM handoff states at 320×844, 390×844,
+1440×900, and 844×390 in both normal and reduced motion. Confirm logical focus
+order, screen-reader names/status, no horizontal clipping, and preserved
+navigation, DRADIS, FleetBroadcast, star-map, Press, shuttle, and Turn 0 layout.
 
 ### Fleet broadcast scroller
 
@@ -1053,12 +1204,22 @@ compact: SNN’s monospaced lettering must never be clipped at the bottom edge.
 
 The SNN shuttle's dispatch desk is a real instrument available to the active
 Press Officer. SNN Press is an added independent station rather than a printed
-roster slot, so the `Independent stations` group always presents its shuttle
-and Press Officer route after a player joins without changing the printed
-setup count. It presents a fixed `SNN //` prefix, accepts a concise dispatch,
-and publishes through server authority with exclusive live role ownership and
-revision checks. The current copy remains visible on the desk; other shuttle
-viewers may see the instrument but cannot transmit from it.
+roster slot. New and legacy missing-field sessions enable it by default; the
+`Independent stations` group presents its shuttle and Press Officer route only
+while authoritative `pressEnabled` is true, without changing the printed
+setup count. When disabled, discovery, role claim/presence/reconnect, and Press
+actions are absent or truthfully denied. When enabled, the desk presents a
+fixed `SNN //` prefix, accepts a concise dispatch, and publishes through server
+authority with exclusive live role ownership and revision checks. The current
+copy remains visible on the desk; other shuttle viewers may see the instrument
+but cannot transmit from it.
+
+The SNN identity block renders its authoritative current host, never a blanket
+decorative dock. Preserve the historic product-extension default: AEGIS at
+8–11 core players, where printed authority removes Dione entirely, and Dione
+at 12+ when it is present. At every viewport the host/docking line remains
+complete and agrees with the server snapshot; legacy missing-docking sessions
+use the same roster-derived fallback without rewriting valid visit history.
 
 Press, stand-down, and the Admiral’s active warning remain uppercase. Every
 active Admiral warning starts `ICSN ADMIRAL //`, including edited copy; the
@@ -1103,6 +1264,13 @@ has not yet occurred, the light uses cyan-blue instrumentation and says
 restores the usual green in-session light, marking CIC as fully uplinked and the
 fleet as ready to launch. These labels describe the player-facing game uplink;
 they do not grant or withhold command authority by themselves.
+
+The indicator's accessible name/title describes the same live state as its
+visible label. Pre-session startup optimism may show `CONNECTED` only while no
+explicit offline signal exists; joined Turn 0 offline after the grace window is
+announced as offline, never as “Connected to Firebase” beside a visible
+`NOT CONNECTED` label. Turn 1 and legacy `currentTurn` snapshots retain the
+same live/offline/grace semantics.
 
 When a browser restores a cached in-session identity after a refresh, loses page
 context, or returns from the background, its header light keeps the last known

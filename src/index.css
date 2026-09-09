@@ -906,6 +906,120 @@ body {
   line-height: 1.6;
 }
 
+.role-seat-board {
+  display: grid;
+  gap: 0.8rem;
+  padding: clamp(0.8rem, 2vw, 1.25rem);
+}
+
+.role-seat-board__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--cic-rule);
+  padding-bottom: 0.7rem;
+}
+
+.role-seat-board__header .eyebrow { margin: 0 0 0.35rem; }
+.role-seat-board__header h2 {
+  margin: 0;
+  color: var(--cic-cyan);
+  font: 400 clamp(1.15rem, 3vw, 1.7rem)/1.1 var(--cic-display);
+  text-transform: uppercase;
+}
+
+.role-seat-board__count,
+.role-seat__state,
+.role-seat-board__note {
+  color: var(--cic-muted);
+  font: 0.64rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.role-seat-board__count { white-space: nowrap; }
+.role-seat-board__list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; }
+.role-seat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 4rem;
+  border-top: 1px solid var(--cic-rule);
+  padding: 0.5rem 0;
+}
+
+.role-seat__identity { display: grid; gap: 0.25rem; min-width: 0; }
+.role-seat__identity strong {
+  color: var(--cic-ink);
+  font: 0.82rem/1.3 var(--cic-mono);
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+.role-seat__state[data-state='you'] { color: var(--cic-cyan); }
+.role-seat__state[data-state='claimed'],
+.role-seat__state[data-state='held'] { color: var(--cic-amber); }
+.role-seat__action { min-width: 11rem; }
+.role-seat-board__note { margin: 0; }
+.cic-danger-button {
+  min-height: 44px;
+  border: 1px solid var(--cic-danger);
+  border-radius: 0;
+  padding: 0.65rem 0.8rem;
+  color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 10%, transparent);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cic-danger-button:hover:not(:disabled),
+.cic-danger-button:focus-visible {
+  background: color-mix(in srgb, var(--cic-danger) 20%, transparent);
+}
+.cic-danger-button:disabled { cursor: wait; opacity: 0.55; }
+.role-seat-intervention-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.58);
+}
+.role-seat-intervention {
+  display: grid;
+  gap: 0.6rem;
+  width: min(34rem, 100%);
+  border-color: var(--cic-danger);
+}
+.role-seat-intervention h3,
+.role-seat-intervention p { margin: 0; }
+.role-seat-intervention label { color: var(--cic-muted); font-size: 0.75rem; }
+.role-seat-intervention textarea {
+  width: 100%;
+  min-height: 5rem;
+  border: 1px solid var(--cic-rule);
+  border-radius: 0;
+  padding: 0.65rem;
+  color: var(--cic-ink);
+  background: var(--cic-panel);
+  font: inherit;
+  resize: vertical;
+}
+.role-seat-intervention__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+
+@media (max-width: 560px) {
+  .role-seat-board__header { align-items: start; flex-direction: column; }
+  .role-seat { grid-template-columns: 1fr; align-items: stretch; }
+  .role-seat__action { width: 100%; }
+  .role-seat-intervention__actions { align-items: stretch; flex-direction: column; }
+  .role-seat-intervention__actions > * { width: 100%; }
+}
+
 .role-card--static {
   width: min(22rem, 100%);
   cursor: default;
@@ -985,6 +1099,33 @@ body {
   color: var(--cic-muted);
   font: 0.68rem/1.5 var(--cic-mono);
 }
+
+.gm-responsibility-board {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--cic-rule);
+  padding-top: 0.6rem;
+}
+
+.gm-responsibility-lane {
+  display: grid;
+  gap: 0.45rem;
+  color: var(--cic-muted);
+  font: 0.62rem/1.4 var(--cic-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gm-responsibility-lane__held { color: var(--cic-cyan); }
+
+.gm-responsibility-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.gm-responsibility-actions button { min-height: 44px; }
 
 .gm-player-roster__count {
   margin: 0.75rem 0 0;
@@ -3477,6 +3618,11 @@ body {
   .app-header {
     flex-wrap: wrap;
     gap: 0.4rem;
+  }
+
+  .settings-button {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .role-select,

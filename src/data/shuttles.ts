@@ -42,9 +42,10 @@ export const SHUTTLECRAFT: readonly Shuttlecraft[] = [
   ally,
 ];
 
-/** The standard 20/21-player fleet; optional Union craft stay GM-controlled. */
+/** The standard core fleet; optional Union craft stay GM-controlled. */
 export const DEFAULT_ENABLED_SHUTTLECRAFT = SHUTTLECRAFT.filter((shuttle) =>
-  shuttle.availability === 'standard' && DEFAULT_ACTIVE_ROLE_IDS.includes(shuttle.captainRoleId),
+  shuttle.id === 'snn-press-shuttle' ||
+  (shuttle.availability === 'standard' && DEFAULT_ACTIVE_ROLE_IDS.includes(shuttle.captainRoleId)),
 );
 
 /** Active roles are server-authoritative and may only be changed from GM setup. */
@@ -66,14 +67,105 @@ export const INITIAL_SHUTTLE_VISITS: readonly ShuttleVisit[] = DEFAULT_ENABLED_S
   (shuttle) => shuttle.initialVisit ? [{ ...shuttle.initialVisit, shuttleId: shuttle.id }] : [],
 );
 
+/**
+ * SNN is an optional Press station, but its initial docking follows the
+ * locked/core roster. Dione is absent from the 8–11 player presets, so those
+ * sessions use the historical Aegis starting host; 12+ presets with Dione use
+ * Dione. The persisted session remains authoritative once it exists.
+ */
+export function initialShuttleDockingsForRoles(
+  activeRoleIds: readonly string[],
+): readonly ShuttleDocking[] {
+  const initialHost = activeRoleIds.some((roleId) => roleId.startsWith('dione-'))
+    ? 'dione'
+    : 'aegis';
+  return INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId === 'snn-press-shuttle'
+    ? { ...docking, shipId: initialHost }
+    : docking);
+}
+
+function initialShuttleDockingsForSession(
+  activeRoleIds: readonly string[] | undefined,
+  playerCount: number | undefined,
+): readonly ShuttleDocking[] {
+  if (activeRoleIds !== undefined) return initialShuttleDockingsForRoles(activeRoleIds);
+  if (playerCount !== undefined) {
+    return initialShuttleDockingsForRoles(playerCount >= 12
+      ? ['dione-presence-for-legacy-session']
+      : []);
+  }
+  return INITIAL_SHUTTLE_DOCKINGS;
+}
+
+export function initialShuttleVisitsForDockings(
+  dockings: readonly ShuttleDocking[],
+): readonly ShuttleVisit[] {
+  return dockings.map((docking) => ({
+    id: docking.shuttleId === 'snn-press-shuttle'
+      ? `snn-initial-${docking.shipId}-docking`
+      : `${docking.shuttleId}-initial-${docking.shipId}-docking`,
+    shuttleId: docking.shuttleId,
+    shipId: docking.shipId,
+    action: 'docked' as const,
+    occurredAt: 'SESSION START',
+  }));
+}
+
+export interface NormalizedShuttleManifest {
+  readonly dockings: readonly ShuttleDocking[];
+  readonly visits: readonly ShuttleVisit[];
+}
+
+/** Fill only missing legacy SNN state; never replace a persisted docking/history. */
+export function normalizeShuttleManifest(
+  dockings: readonly ShuttleDocking[] | undefined,
+  visits: readonly ShuttleVisit[] | undefined,
+  activeRoleIds?: readonly string[],
+  playerCount?: number,
+): NormalizedShuttleManifest {
+  const generatedDockings = initialShuttleDockingsForSession(activeRoleIds, playerCount);
+  const generatedVisits = initialShuttleVisitsForDockings(generatedDockings);
+  const normalizedDockings = dockings === undefined ? [...generatedDockings] : [...dockings];
+  const hadSnnDocking = normalizedDockings.some(
+    (docking) => docking.shuttleId === 'snn-press-shuttle',
+  );
+  const legacyDockingCanBeAdded = normalizedDockings.length > 0 && !hadSnnDocking;
+  if (legacyDockingCanBeAdded) {
+    const snnDocking = generatedDockings.find(
+      (docking) => docking.shuttleId === 'snn-press-shuttle',
+    );
+    if (snnDocking) normalizedDockings.push(snnDocking);
+  }
+
+  const normalizedVisits = visits === undefined
+    ? (dockings === undefined ? [...generatedVisits] : [])
+    : [...visits];
+  const hadSnnVisit = normalizedVisits.some(
+    (visit) => visit.shuttleId === 'snn-press-shuttle',
+  );
+  if ((legacyDockingCanBeAdded || (dockings === undefined && !hadSnnDocking)) && !hadSnnVisit) {
+    const snnVisit = generatedVisits.find((visit) => visit.shuttleId === 'snn-press-shuttle');
+    if (snnVisit) normalizedVisits.push(snnVisit);
+  }
+  return { dockings: normalizedDockings, visits: normalizedVisits };
+}
+
 interface ShuttleSessionState {
   readonly shuttleDockings?: readonly ShuttleDocking[];
   readonly shuttleVisitLog?: readonly ShuttleVisit[];
+  readonly activeRoleIds?: readonly string[];
+  readonly playerCount?: number;
 }
 
 export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) {
-  const dockings = session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS;
-  const visits = session.shuttleVisitLog ?? INITIAL_SHUTTLE_VISITS;
+  const manifest = normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  );
+  const dockings = manifest.dockings;
+  const visits = manifest.visits;
   const dockedShuttles = dockings.filter((item) => item.shipId === shipId).flatMap((docking) => {
       const shuttle = SHUTTLECRAFT.find((item) => item.id === docking.shuttleId);
       return shuttle ? [{ ...shuttle, dockedAt: docking.dockedAt }] : [];
@@ -91,6 +183,11 @@ export function shuttlebayForShip(session: ShuttleSessionState, shipId: string) 
 }
 
 export function dockingForShuttle(session: ShuttleSessionState, shuttleId: string): ShuttleDocking | undefined {
-  return (session.shuttleDockings ?? INITIAL_SHUTTLE_DOCKINGS)
+  return normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  ).dockings
     .find((docking) => docking.shuttleId === shuttleId);
 }

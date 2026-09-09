@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => {
     filters: ReadonlyArray<readonly [string, unknown]>;
     where: (field: string, operator: string, value: unknown) => Query;
     orderBy: () => Query;
+    get: () => Promise<{ docs: Array<ReturnType<typeof snapshot>>; size: number }>;
   };
 
   const documents = new Map<string, StoredDocument>();
@@ -55,6 +56,7 @@ const mock = vi.hoisted(() => {
       return query(path, [...filters, [field, value]]);
     },
     orderBy: () => query(path, filters),
+    get: async () => querySnapshot(query(path, filters)),
   });
   const querySnapshot = (target: Query) => {
     const docs = [...documents.keys()]
@@ -131,7 +133,9 @@ import {
   loginGmAccess,
   logoutGmAccess,
   kickPlayer,
+  listGmInstances,
   releaseGmInstance,
+  setFacilitatorResponsibility,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 
@@ -228,6 +232,138 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('returns a safe stale receipt when facilitator revision changed before saving', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 5, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-stale-receipt', expectedSetupRevision: 4, mode: 'share',
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'responsibility-stale-receipt', entity: 'facilitator',
+      expectedRevision: 4, currentRevision: 5,
+    });
+    expect(read('sessions/s1/gmResponsibilityRequests/responsibility-stale-receipt'))
+      .toMatchObject({ reply: expect.objectContaining({ status: 'stale' }) });
+    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('responsibilities');
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 5 });
+
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 4, configurationLocked: false });
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-stale-receipt', expectedSetupRevision: 4, mode: 'share',
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'responsibility-stale-receipt', entity: 'facilitator',
+      expectedRevision: 4, currentRevision: 5,
+    });
+  });
+
+  it('does not replay a responsibility receipt for an inactive or foreign facilitator', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    const command = {
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main' as const,
+      requestId: 'responsibility-replay-authority', expectedSetupRevision: 0, mode: 'share' as const,
+    };
+    await setFacilitatorResponsibility.run(request(command));
+
+    player('u1', { role: 'gm', connected: false });
+    await expect(setFacilitatorResponsibility.run(request(command))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+    await expect(setFacilitatorResponsibility.run(request(command, 'u2'))).rejects.toMatchObject({
+      code: 'permission-denied',
+    });
+  });
+
+  it('lets one active GM instance carry both printed responsibilities', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 1,
+      responsibilities: ['main', 'assistant'],
+      coverage: { main: ['bridge'], assistant: ['bridge'] },
+    });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      responsibilities: ['main', 'assistant'],
+    });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({ status: 'replayed', setupRevision: 1 });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
+      requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-1', expectedSetupRevision: 1, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
+  it('projects a legacy singular responsibility to both labels for the sole active GM', async () => {
+    session({ phase: 'lobby', setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'), responsibility: 'main',
+    });
+
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      instances: [expect.objectContaining({
+        id: 'bridge', responsibilities: ['main', 'assistant'], responsibility: 'main',
+      })],
+    });
+  });
+
+  it('applies share and handoff to the requested target instance and binds target in replay', async () => {
+    session({ phase: 'lobby', setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm' });
+    instance('bridge', 'u1');
+    instance('tablet', 'u2');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'), responsibilities: ['main', 'assistant'], responsibility: 'main',
+    });
+    put('sessions/s1/gmInstances/tablet', {
+      ...read('sessions/s1/gmInstances/tablet'), responsibilities: [],
+    });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'tablet', responsibility: 'main',
+      requestId: 'responsibility-share-target', expectedSetupRevision: 0, mode: 'share',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 1,
+      coverage: { main: ['bridge', 'tablet'], assistant: ['bridge'] },
+    });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ responsibilities: ['main'] });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'tablet', responsibility: 'assistant',
+      requestId: 'responsibility-handoff-target', expectedSetupRevision: 1, mode: 'handoff',
+    }))).resolves.toMatchObject({
+      status: 'committed', setupRevision: 2,
+      coverage: { main: ['bridge', 'tablet'], assistant: ['tablet'] },
+    });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ responsibilities: ['main'] });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({ responsibilities: ['main', 'assistant'] });
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-share-target', expectedSetupRevision: 0, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
   it('logs in and out of persistent GM access', async () => {
     await expect(loginGmAccess.run(request({ password: 'bananasplit' })))
       .resolves.toEqual({ authenticated: true });

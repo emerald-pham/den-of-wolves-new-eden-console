@@ -42,7 +42,7 @@ export const JOINT_ENGINEERING_ROLE_IDS = [
 ] as const;
 
 export const DEFAULT_ACTIVE_ROLE_IDS = CONSOLE_ROLES
-  .filter((role) => !JOINT_ENGINEERING_ROLE_IDS.includes(
+  .filter((role) => role.id !== 'press-officer' && !JOINT_ENGINEERING_ROLE_IDS.includes(
     role.id as typeof JOINT_ENGINEERING_ROLE_IDS[number],
   ))
   .map((role) => role.id);

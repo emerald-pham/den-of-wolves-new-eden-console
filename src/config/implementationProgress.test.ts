@@ -9,10 +9,12 @@ const progressPath = resolve(process.cwd(), 'docs/IMPLEMENTATION_PROGRESS.md');
 const planPath = resolve(process.cwd(), 'docs/IMPLEMENTATION_PLAN.md');
 const changelogPath = resolve(process.cwd(), 'src/changelog.ts');
 const packagePath = resolve(process.cwd(), 'package.json');
+const claudePath = resolve(process.cwd(), 'CLAUDE.md');
 const progressSource = readFileSync(progressPath, 'utf8');
 const planSource = readFileSync(planPath, 'utf8');
 const changelogSource = readFileSync(changelogPath, 'utf8');
 const applicationVersion = JSON.parse(readFileSync(packagePath, 'utf8')).version as string;
+const claudeSource = readFileSync(claudePath, 'utf8');
 
 const validationInputs = {
   progressSource,
@@ -21,25 +23,112 @@ const validationInputs = {
   applicationVersion,
 };
 
+const PROGRESS_STATUS_PATTERN = 'done|partial|missing|blocked|in-progress';
+
+function replaceLedgerStatus(source: string, prompt: string, status: string): string {
+  const row = new RegExp(
+    `^(\\|\\s*${prompt}\\s*\\|\\s*)(${PROGRESS_STATUS_PATTERN})(\\s*\\|)`,
+    'im',
+  );
+  if (!row.test(source)) throw new Error(`Expected Prompt ${prompt} in the progress fixture.`);
+  return source.replace(row, `$1${status}$3`);
+}
+
+function withSyntheticActivePrompt(source: string, prompt: string): string {
+  const activeDeclarationPattern = /Active prompts?:\s+\*\*(?:none|Prompt\s+(\d{3}[a-z]*))\*\*(?:\.|(?=\s+[—-]))/i;
+  const activeDeclaration = source.match(activeDeclarationPattern);
+  if (!activeDeclaration) throw new Error('Expected an active-prompt declaration in the progress fixture.');
+
+  const currentActive = activeDeclaration[1];
+  let fixture = currentActive ? replaceLedgerStatus(source, currentActive, 'partial') : source;
+  fixture = replaceLedgerStatus(fixture, prompt, 'in-progress');
+  fixture = fixture.replace(
+    activeDeclarationPattern,
+    `Active prompt: **Prompt ${prompt}**.`,
+  );
+
+  const counts = new Map<string, number>();
+  const rows = fixture.matchAll(
+    new RegExp(`^\\|\\s*\\d{3}[a-z]*\\s*\\|\\s*(${PROGRESS_STATUS_PATTERN})\\s*\\|`, 'gim'),
+  );
+  for (const row of rows) {
+    const status = row[1];
+    if (!status) throw new Error('Expected a status capture in the progress fixture.');
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  const breakdown = ['done', 'partial', 'missing', 'blocked', 'in-progress']
+    .filter((status) => (counts.get(status) ?? 0) > 0)
+    .map((status) => `${counts.get(status)} ${status}`)
+    .join(' · ');
+  return fixture.replace(
+    /Status breakdown:\s+\*\*[^*]+\*\*\./,
+    `Status breakdown: **${breakdown}**.`,
+  );
+}
+
 describe('implementation progress integrity gate', () => {
   it('accepts the checked-in ledger and emits the canonical status sentence', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 68/705 complete; 26 partial; 611 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 66/713 complete; 31 partial; 616 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
-  it('accepts the landed connectivity change as Prompt 598 without remapping Prompt 041', () => {
+  it('requires the current release to carry exact two-decimal progress metadata', () => {
+    const result = validateImplementationProgress(validationInputs);
+
+    expect(result.errors).toEqual([]);
+    expect(result.summary).toMatchObject({
+      complete: 66,
+      total: 713,
+      partial: 31,
+      missing: 616,
+      inProgress: 0,
+    });
+    expect(result.releaseProgress).toEqual({
+      version: '0.3.12',
+      completed: 66,
+      total: 713,
+      percentage: '9.26%',
+      done: 66,
+      partial: 31,
+      active: 0,
+      missing: 616,
+    });
+  });
+
+  it('rejects release metadata whose percentage or raw status counts drift', () => {
+    const badPercentage = validateImplementationProgress({
+      ...validationInputs,
+      changelogSource: changelogSource.replace("percentage: '9.26%'", "percentage: '9.3%'")
+        .replace('partial: 31', 'partial: 32'),
+    });
+
+    expect(badPercentage.errors.join('\n')).toContain(
+      'changelog 0.3.12 implementation progress percentage must use two decimals',
+    );
+    expect(badPercentage.errors.join('\n')).toContain(
+      'changelog 0.3.12 implementation progress partial count is 32, but the ledger has 31',
+    );
+  });
+
+  it('documents the progress metadata contract for every future version increment', () => {
+    expect(claudeSource).toMatch(/every version increment[\s\S]*implementation-plan progress/i);
+    expect(claudeSource).toMatch(/two-decimal\s+percentage/i);
+    expect(claudeSource).toMatch(/done[\s,/]\s*partial[\s,/]\s*active[\s,/]\s*missing/i);
+  });
+
+  it('keeps the landed connectivity evidence on Prompt 598 without remapping Prompt 041', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 68, total: 705 });
-    expect(progressSource).toContain('| 004 | done | feature | 0.3.9 |');
-    expect(progressSource).toContain('| 051 | done | feature | 0.3.9 |');
+    expect(result.summary).toMatchObject({ complete: 66, total: 713, resumePrompt: '012' });
+    expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
+    expect(progressSource).toContain('| 051 | partial | feature | 0.3.9, 0.3.12 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
-    expect(progressSource).toContain('| 598 | done | feature | 0.3.6 |');
+    expect(progressSource).toContain('| 598 | done | feature | 0.3.6, 0.3.10 |');
   });
 
   it('rejects an unknown or duplicate prompt row', () => {
@@ -72,28 +161,38 @@ describe('implementation progress integrity gate', () => {
   });
 
   it('rejects a headline that disagrees with the done rows', () => {
+    const baseline = validateImplementationProgress(validationInputs).summary;
+    if (!baseline) throw new Error('Expected a parsed implementation-progress summary.');
+    const headline = progressSource.match(
+      /\*\*(\d+)\s*\/\s*(\d+)\s+prompts\s+complete\s+\((\d+(?:\.\d+)?)%\)\*\*/,
+    );
+    if (!headline) throw new Error('Expected the canonical progress headline.');
+    const mismatchedComplete = baseline.complete + 1;
     const result = validateImplementationProgress({
       ...validationInputs,
-      progressSource: progressSource.replace(
-        '**68 / 705 prompts complete (10%)**',
-        '**69 / 705 prompts complete (10%)**',
-      ),
+      progressSource: progressSource.replace(headline[0],
+        `**${mismatchedComplete} / ${headline[2]} prompts complete (${headline[3]}%)**`),
     });
 
-    expect(result.errors.join('\n')).toContain('headline complete count is 69, but the ledger has 68 done prompts');
+    expect(result.errors.join('\n')).toContain(
+      `headline complete count is ${mismatchedComplete}, but the ledger has ${baseline.complete} done prompts`,
+    );
   });
 
   it('rejects a resume pointer that skips the first unresolved prompt', () => {
+    const baseline = validateImplementationProgress(validationInputs).summary;
+    if (!baseline?.resumePrompt) throw new Error('Expected a first unresolved prompt.');
+    const skippedPrompt = String(Number.parseInt(baseline.resumePrompt, 10) + 1).padStart(3, '0');
     const result = validateImplementationProgress({
       ...validationInputs,
       progressSource: progressSource.replace(
-        'Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and',
-        'Resume pointer: Prompt 013 is the lowest-numbered unchecked acceptance and',
+        /Resume pointer:\s*Prompt\s+\d{3}[a-z]*\s+is the lowest-numbered unchecked acceptance and/i,
+        `Resume pointer: Prompt ${skippedPrompt} is the lowest-numbered unchecked acceptance and`,
       ),
     });
 
     expect(result.errors.join('\n')).toContain(
-      'resume pointer is Prompt 013, but the first unresolved prompt is 012',
+      `resume pointer is Prompt ${skippedPrompt}, but the first unresolved prompt is ${baseline.resumePrompt}`,
     );
   });
 
@@ -110,14 +209,8 @@ describe('implementation progress integrity gate', () => {
 
   it('keeps the move-on gate open while a prompt is in progress', () => {
     const result = validateImplementationProgress({
-        ...validationInputs,
-        progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 012**.')
-        .replace('| 012 | partial | non-feature | — |', '| 012 | in-progress | non-feature | — |')
-        .replace(
-          'Status breakdown: **68 done · 26 partial · 611 missing**.',
-          'Status breakdown: **68 done · 25 partial · 611 missing · 1 in-progress**.',
-        ),
+      ...validationInputs,
+      progressSource: withSyntheticActivePrompt(progressSource, '012'),
     });
 
     expect(result.errors.join('\n')).toContain(
@@ -127,14 +220,8 @@ describe('implementation progress integrity gate', () => {
 
   it('allows a dependency-ready prompt to start past the triage resume pointer', () => {
     const result = validateImplementationProgress({
-        ...validationInputs,
-        progressSource: progressSource
-        .replace('Active prompt: **none**.', 'Active prompt: **Prompt 020**.')
-        .replace('| 020 | missing | non-feature | — |', '| 020 | in-progress | non-feature | — |')
-        .replace(
-          'Status breakdown: **68 done · 26 partial · 611 missing**.',
-          'Status breakdown: **68 done · 26 partial · 610 missing · 1 in-progress**.',
-        ),
+      ...validationInputs,
+      progressSource: withSyntheticActivePrompt(progressSource, '020'),
     });
 
     expect(result.errors.join('\n')).not.toContain(

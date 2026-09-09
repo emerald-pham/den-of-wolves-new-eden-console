@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 705-prompt catalog from top to bottom for an ordinary
+Do **not** read this 713-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,17 +63,20 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-705-prompts-001653-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-713-prompts-001653-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
 
 The implementation is complete only when all of these objectives are met:
 
-1. **Run a complete game.** A facilitator can create and configure a session,
-   cast the supported player count, run every turn through Team and
-   Coordination phases, resolve the fleet's meaningful decisions, reach a
-   defined New Eden outcome or failure state, and show a coherent debrief.
+1. **Let one facilitator run a complete game.** A single authorized
+   facilitator can create and configure a session, cast the supported player
+   count, run every turn through Team and Coordination phases, resolve the
+   fleet's meaningful decisions, reach a defined New Eden outcome or failure
+   state, and show a coherent debrief. Multiple simultaneous GMs remain
+   supported as optional collaborators, never as a readiness or workload
+   dependency.
 2. **Match the printed game.** Ship sheets, shuttle sheets, role briefs,
    loyalty rules, star charts, Wolf attacks, away missions, resources,
    maintenance, population tracks, and endgame requirements use the printed
@@ -88,8 +91,12 @@ The implementation is complete only when all of these objectives are met:
    configuration, every selected role has meaningful work during the game,
    replacement roles can be used before the game ends, and the Capybara
    expansion is distinct from the base-game small-ship Capybara. The supported
-   Capybara-expanded core roster reaches 8–20 players. SNN Press is a deliberate
-   New Eden Console extension outside the original reference documentation: an
+   Capybara-expanded core roster reaches 8–20 players under the source-derived
+   expansion contract. The owner-set high-count rows are 19 = printed base-17
+   plus the atomic Captain/Recycler pair and 20 = printed base-18 plus that
+   pair; both use two Wolves. Exact lower-count 8–18 expansion substitutions
+   remain an explicit facilitator/product decision until recorded. SNN Press is a deliberate New
+   Eden Console extension outside the original reference documentation: an
    enabled Press Officer may be the twenty-first player without changing core
    roster, readiness, loyalty, Wolf, or facilitator math.
 5. **Preserve the shared console system.** New ships, shuttles, roles, and
@@ -109,27 +116,93 @@ The implementation is complete only when all of these objectives are met:
 8. **Ship safely.** Every product increment has failing-first tests, relevant
    security and UI verification, rendered review where applicable, aligned
    version/changelog metadata, local release gates, and a concise handoff.
+9. **Automate routine play and keep intervention rich.** Deterministic
+   arithmetic, randomness, validation, phase progression, and resulting
+   mutations run through server-authoritative game systems with a visible
+   calculation receipt. The facilitator remains the RPG GM: they can pause,
+   inspect, override, correct, and resolve genuine choices or ambiguities, but
+   do not perform mental arithmetic, duplicate a calculation, or transcribe a
+   result between screens.
+
+### Active goal addendum — owner-set completion contract
+
+Bind every roadmap slice and review to these explicit product goals:
+
+1. Start with the existing-app evidence dossier, history, characterization
+   tests, and narrowest compatible extension; repair stale green gates instead
+   of allowing them to redefine known working behavior.
+2. One facilitator can run the whole game through automation-first routine
+   paths and intervention-rich controls; multiple GMs remain supported but
+   optional.
+3. Core casting is the Capybara-expanded 8–20 target. The 19/20 rows are the
+   owner-set base-17/base-18 plus atomic Captain/Recycler pair; lower-count
+   Capybara substitutions remain undecided. Optional Press is a distinct,
+   non-counting twenty-first player station.
+4. Press is a deliberate product extension outside the printed references,
+   enabled by default but authoritatively toggleable. It remains isolated from
+   core roster/readiness/Wolf-count math, preserves the one-player-role rule,
+   and gives its distinct claimant a private loyalty and normal Wolf eligibility
+   without adding a third Wolf.
+5. Connection copy, Press controls, and complete DRADIS contact names satisfy
+   the mapped CIC/aesthetic, viewport, keyboard/screen-reader, touch, privacy,
+   and reduced-motion contracts.
+6. Every feature carries the interaction-contract matrix across navigation,
+   docking/transit/airspace, DRADIS, turns, canonical IDs, callables/audit,
+   broadcasts, damage/resources, reconnect/replay, accessibility, and optional
+   multiple GMs.
+7. Wolf attacks become fully playable from the GM console through affected
+   player consoles with authoritative automation, calculation receipts,
+   interventions, and stable DRADIS-ready projections/events. Ultimate DRADIS
+   attack visualization remains explicitly owner-deferred.
+8. SNN initial host is derived from the locked roster: preserve AEGIS at 8–11,
+   where Dione is absent, and use Dione at 12+ when present; legacy missing-
+   docking hydration follows the same compatibility rule.
+9. The Capybara printed v1.1 source and provenance are routed into every
+   affected prompt. The Scrap Refinery visual authority is `7♠`; hidden `5♦`
+   extraction text is provenance-only, not a gameplay ambiguity.
+10. Carry the full roadmap through failing-first and composed acceptance,
+    security, visual/accessibility, focused, and full release gates. Each
+    completed slice is committed, reconciled with current `main`, merged,
+    pushed, closed in coordination, and reported with verified local and remote
+    SHAs; no local or partial result counts as roadmap completion.
+11. For this active completion campaign, the root coordinator remains
+    read-only for product code and owns orchestration/documentation. All
+    application, Functions, rules, configuration, script, and test changes are
+    delegated to authorized implementation subagents under the plan's scoped
+    Luna-max contract below; integration conflicts that touch those files are
+    delegated too.
+
+Validation must prove this list is still represented in the applicable plan,
+contract, progress, aesthetic, test, and acceptance records. A bounded release
+may implement only its declared slice, but it must not contradict or falsely
+claim completion of the remaining 713-prompt roadmap.
 
 ## Scope and baseline
 
 ### Intended product scope
 
-- Base game: the documented 8–18 player roster, two facilitators, six core
-  fleet ships, Wolf agents, extra roles, and the reference game's six-to-eight
-  turn structure.
+- Base game: the documented 8–18 player roster, six core fleet ships, Wolf
+  agents, extra roles, and the reference game's six-to-eight turn structure.
+  The printed facilitation source assumes two fixed facilitators; the New Eden
+  Console deliberately extends that operating model so one facilitator can
+  perform both responsibilities while any additional GMs collaborate
+  optionally.
 - Expansion path: the S.A.N.S. Capybara as a separately enabled two-player
   ship, with Scrap, Macaw, Boa, Captain, and Recycler. It replaces the base
   extra small-ship Capybara when enabled; the two versions must never be
   merged by name alone. The Capybara-expanded core casting target is 8–20
-  players; its detailed role matrices remain a source-authoritative roster
-  slice rather than a reason to count an optional Press station as core crew.
+  players. The 19/20 rows are settled as printed base-17/base-18 plus the atomic
+  Captain/Recycler pair; exact 8–18 replacement rows remain a source/facilitator
+  decision rather than a reason to invent a matrix or count an optional Press
+  station as core crew.
 - Product extension: SNN Press is not defined by the original printed
   references. It is an independently configurable New Eden Console station,
   outside the core roster and facilitator population. When enabled, exactly one
   player may hold Press authority as an optional twenty-first role holder;
   multiple authorized GM instances remain separate and consume neither a core
   nor Press seat.
-- Operating target: one table/game with up to 20 players and up to 60
+- Operating target: one table/game with up to 20 core players, an optional
+  twenty-first Press player, multiple non-counting GM instances, and up to 60
   concurrent browser clients. The load target is a validation requirement,
   not permission to weaken per-session authority or rate limits.
 - Product surfaces: player role consoles, shuttle consoles, shared fleet
@@ -191,10 +264,64 @@ Apply these gates before implementation:
    retained old acceptance and the new acceptance, including their composed
    user journey.
 
+5. Before design or implementation, publish an existing-app evidence dossier
+   and reuse map for the selected slice. Inventory the current UI flows,
+   routes, components, styles, tokens, domain and schema, server callables,
+   rules/auth/audit paths, tests/fixtures/emulator stories, printed and
+   repository references, changelog and Git provenance, canonical names and
+   IDs, responsive/accessibility/reduced-motion behavior, and every affected
+   cross-system data/control flow. State assumptions and unknowns explicitly.
+   Write characterization tests for the retained behavior and prove the
+   composed interaction before introducing a new design. For the Press
+   recovery, this dossier includes the independent-station history and the
+   create-session-to-role-picker path; a passing isolated widget is not
+   evidence that the recovered station is composed correctly.
+
+6. Apply an aesthetic conformance gate to every new or changed surface before
+   its tests are treated as complete. Map the slice to the applicable sections
+   of [`AESTHETICS.md`](./AESTHETICS.md), preserve CIC visual language,
+   hierarchy, state colors, exact copy semantics, viewport containment,
+   keyboard and screen-reader behavior, 44px touch targets, motion behavior,
+   and `prefers-reduced-motion`, then capture representative visual and
+   accessibility evidence at 320x844, 390x844 where the ship gate uses it,
+   1440x900, and 844x390 plus reduced motion. Review intact/damaged and
+   pending/rejected states, keyboard/touch/screen-reader/non-color cues,
+   reconnect and return paths. An intentional deviation requires a necessity
+   rationale in the slice record. Prompt 275a therefore maps ConnectionIndicator
+   copy and state treatment, the Independent Stations Press toggle/card/console,
+   and DRADIS complete-name labels to those gates.
+
+7. Use an interaction-contract matrix for every slice. A feature may not ship
+   as an isolated widget: each affected existing system must be marked as
+   participating or intentionally excluded, with a reason, authority,
+   composed acceptance story, and regression test. Preserve existing behavior
+   unless an explicit necessity is recorded. The minimum matrix for Press
+   recovery and the Capybara plan is:
+
+   | Existing system | Press state | Capybara state |
+   |---|---|---|
+   | Star maps, navigation, routes, and distance | Participates through the shared Press route and return path; no new movement or distance math | Participates in the full-ship/stations integration; printed v1.1 rules are source authority, with canonical route and distance authority |
+   | Docking, transit, and airspace | Participates for the existing shared shuttle route; no invented transit authority in this slice | Participates in the full Capybara ship/stations slice, including its printed docking/transit contract; do not invent Macaw/Boa telemetry |
+   | DRADIS, contact naming, projection, and privacy | Participates in complete Press/shuttle labels and audience-safe projection; no hidden-coordinate leak | Participates with the expansion ship/stations contacts and privacy rules; CIC presentation remains a product contract |
+   | Turn 0/Turn 1, phases, and timing | Press roster selection remains outside core setup; the SNN Dispatch Desk is explicitly exempt from generic Turn Zero UI/action restrictions and must stay visible and actionable to its enabled claimed Press Officer. Other phase gates remain authoritative | Participates where Capybara actions require printed phase/timing rules |
+   | Canonical role/session/ship/shuttle names and IDs | Participates; reuse `press-officer` and `snn-press-shuttle` IDs and shared templates | Participates; reuse canonical expansion role, vessel, and shuttle IDs |
+   | Authoritative callables, rules, auth, and audit | Participates; toggle, claim, reconnect, presence, dispatch, dismiss, and confetti remain server-owned and auditable | Participates for every Capybara mutation; no client-only authority |
+   | Broadcasts and transmissions | Participates only for existing guarded Press dispatch behavior | Participates in the full ship/stations event and broadcast composition |
+   | Damage, resources, and capacity | Intentionally excluded from core math; Press is the optional 21st holder and does not alter readiness, loyalty, Wolf, or capacity | Participates in the full expansion resource/damage/capacity contract |
+   | Reconnect and replay | Participates through stale Press authority, replay-safe claims, and preserved dispatch history | Participates through full ship/stations reconnect and replay behavior |
+   | Accessibility and aesthetics | Participates in the conformance gate above, including reduced motion and all required viewports | Participates in the same gate for the full ship/stations surfaces |
+   | Multiple GMs | Participates; authorized instances remain independent and consume neither roster nor Press occupancy | Participates without coupling GM count to Capybara roster seats |
+
+   The matrix is a planning contract, not a claim that the listed future
+   Capybara mechanics already exist. The selected slice must attach named
+   characterization, composed, callable/rules, and visual/accessibility
+   evidence to each participating row and preserve an explicit exclusion.
+
 For the Press restoration, history is the required starting point. Commit
 `71b5ad7` added the unconditional independent station, `9c48e5d` made it
 toggleable through `activeRoleIds`, and `dced782` retained that behavior. The
-parent of release 0.3.4, `1418146`, is the last default-working release point.
+release 0.3.4 at `1418146` is the last default-working release point and direct
+parent of regression `9d68158`.
 Commit `9d68158` regressed discovery when session creation switched to the
 8–18 `recommendedRoleIds` presets, and `e5aca326` cemented the conflicting
 readiness model. A narrow `SessionMode` fixture that expected Press to hide,
@@ -275,13 +402,26 @@ into it.
   session, and revision checks; another player cannot impersonate Press and a
   rejected action makes no shared-state change. The dispatch, shuttle console,
   live status, focus, and reduced-motion presentation remain accessible.
+- **Given** the locked core roster excludes Dione below 12 players, **when** a
+  new 8- or 11-player session initializes SNN, **then** its product-extension
+  initial host is AEGIS, preserving the working `9c48e5d`/`dced782` behavior.
+  **Given** Dione is present at 12, 18, or 20, **then** SNN starts at Dione. The
+  server derives the host from the locked core roster and the client hydrates
+  that authority; neither side hard-codes blanket Dione. Legacy missing-docking
+  sessions normalize by the same rule without rewriting valid visit history.
 - **Given** a Capybara-expanded 20-player core roster, **when** Press is enabled
   and claimed, **then** the Press Officer is a valid optional twenty-first
   player-role holder while all core roster, start/readiness, loyalty, Wolf, and
-  capacity calculations remain unchanged. Multiple simultaneous authorized GMs
-  remain valid and consume neither core nor Press occupancy. Disabling Press
-  invalidates new Press authority consistently without collapsing unrelated GM
-  instances or mutating core assignments.
+  capacity calculations remain unchanged. The claimed Press holder has its own
+  Press assignment/private loyalty and remains eligible for the preserved Wolf
+  assignment rules, but Press never adds a third Wolf or changes core N. Press
+  remains one distinct player console role and cannot be a second role for a
+  core-role holder; the existing one-role assignment gate remains authoritative.
+  GM facilitator instances do not consume a player seat, and an enabled but
+  unclaimed Press never blocks start. Multiple
+  simultaneous authorized GMs remain valid and consume neither core nor Press
+  occupancy. Disabling Press invalidates new Press authority consistently
+  without collapsing unrelated GM instances or mutating core assignments.
 
 **Dependencies:** preserve the exact base-roster Prompt 004/051 casting and
 setup-readiness contracts while keeping the planned 8–20 Capybara-expanded core
@@ -301,17 +441,486 @@ the field and, when disabling Press, revokes any live Press claim without
 deleting core assignments or dispatch history. Deploy authoritative function
 denials before exposing the client toggle. Retain the additive field during a
 rollback; do not roll server authority back to a version that would honor Press
-actions while a session is explicitly disabled.
+actions while a session is explicitly disabled. SNN host migration is a narrow
+compatibility repair: `9c48e5d`/`dced782` used AEGIS, `4703e43` introduced
+blanket Dione even though printed authority removes Dione below 12. Preserve
+stored valid docking/visit history; derive only creation and legacy missing-
+docking defaults from the locked roster.
 
 **Exit gate:** characterization and focused tests first fail on the recovered
 Press/default-discovery, configuration, create-session-to-role-picker,
 disabled-denial, reconnect/stale-claim, 20-core-plus-Press, multi-GM, header,
-and DRADIS regressions, then pass. Misleading fixtures that blessed counted
+8/11/12/18/20 SNN-host compatibility, and DRADIS regressions, then pass.
+Misleading fixtures that blessed counted
 Press or hidden-by-default behavior are corrected rather than preserved. The
 authoritative Press claim/dispatch denial cases remain green; responsive and
 reduced-motion visual review finds no clipped contact name or trapped route;
 both retained and new acceptance stories pass the complete reconciled product
 release gate.
+
+### Release objective — Prompt 004 exact 8–20 roster catalog
+
+This bounded Milestone 1 prerequisite completes only Prompt 004. It extends the
+canonical client/server roster catalogs through the settled 19-player row and
+proves exact support for every integer from 8 through 20 without claiming that
+creation, persisted configuration, casting, readiness, automatic private setup,
+or Turn 1 composition is complete. Those production stories retain their own
+Prompt 021/051/054/071/073/075/020 evidence gates below.
+
+**Source and product decisions:** preserve every printed base roster from 8
+through 18 under `AMB-13`. The two settled expansion rows are exactly 19 = the
+printed base-17 roster plus the atomic `capybara-captain` and
+`capybara-recycler` pair, and 20 = the printed base-18 roster plus that pair;
+both derive two Wolves. The printed expansion permits lower-count substitution
+but does not define its exact roster rows, so Capybara expansion requests from
+8 through 18 remain unavailable until the owner records that decision. Base or
+no-Capybara modes cannot claim the 19/20 expansion rows. `press-officer` is the
+separate optional product-extension station and no GM instance is a core role;
+neither can fill, replace, or increase a core row.
+
+**Existing-app reuse dossier:** extend only the shared client/server
+`recommendedRoleIds` catalogs and their common count derivations. Reuse the
+current `GmConsole` Setup panel and local roster staging/one-confirmation
+interaction as the observable consumer; creation/guards/hydration may inherit
+the shared supported-count result but are not redesigned in this slice.
+Characterize and otherwise preserve `sessionService`, immutable session
+configuration, casting/start callables, readiness, turn transitions, event and
+secret paths, Wolf selection, live session, broad direct-write denial, and all
+canonical role/vessel/shuttle/route/event IDs. Preserve the `/roles`,
+`/console`, `/gm`, and Press routes; the SNN AEGIS-at-8–11/Dione-at-12+ host
+rule; current connection, DRADIS, ticker, return-navigation, reconnect, and
+reduced-motion behavior; and the shared CIC controls in `cic.css`. Do not add a
+parallel setup wizard, callable behavior, client-owned random choice, second
+roster catalog, or start-path change under Prompt 004.
+
+The chronological red-first proof was missed before implementation. A separate
+retrospective baseline reconstruction applied only the nine intended test diffs
+to the old runtime and produced 9 failed files, 13 failed tests, and 171 passed
+tests; that establishes regression sensitivity but is not a chronological TDD
+receipt. The reconciled 0.3.11 evidence now completes this catalog slice.
+Client/server tests prove exact ordered and unique rows for all 8–20 counts,
+invalid boundaries, Union/vessel and Dione derivation, two Wolves at 19/20,
+Press/GM exclusion, Dione-derived SNN hosting at 19, and the GM's locally
+staged 19-role Recommended player count. Creation guards and hydration prove
+only inherent shared-count propagation; production configuration persistence,
+casting, readiness, start, seat provisioning, and Turn 1 remain their
+follow-on prompt evidence.
+
+#### Prompt 004 acceptance stories
+
+- **Given** the canonical client and server roster catalogs, **when** every
+  integer count from 8 through 20 is requested, **then** each returns a unique,
+  canonically ordered roster with exactly that many roles. Rows 8–18 remain the
+  current printed/`AMB-13` base rows; row 19 is the ordered base-17 row followed
+  by `capybara-captain` and `capybara-recycler`; row 20 remains the ordered
+  base-18 row followed by the same atomic pair.
+- **Given** 19 or 20 core players, **when** shared derivations inspect the
+  roster, **then** Capybara is active once, Dione remains active, the SNN Press
+  Shuttle's existing roster-derived host is Dione, and the Wolf threshold
+  derives two. `press-officer` and GM instances never appear in or increase the
+  core catalog and no third Wolf can be inferred from them.
+- **Given** 7, 21, a fraction, malformed input, or any non-integer outside the
+  supported matrix, **when** the roster/count boundary is queried, **then** it
+  returns no roster or rejects through the existing typed validator without
+  inventing a nearby row. The source-permitted but unresolved 8–18 Capybara
+  substitution matrix remains unavailable and no catalog entry is fabricated
+  for it.
+- **Given** an authorized GM opens the existing Setup panel, **when** they select
+  19 in Recommended player count, **then** the current local-staging interaction
+  shows exactly 19 roles including both Capybara roles, makes no command before
+  confirmation, and retains the existing accessible status, role grouping,
+  return path, and CIC presentation. Production persistence and start remain
+  Prompt 051 work; this catalog release must not mark them complete.
+
+**Prompt 004 non-goals:** do not change callable persistence, assign players,
+create loyalty secrets, choose Wolves, remodel facilitator responsibilities,
+change readiness, start Turn 1, or add Capybara maintenance/craft/economy work.
+Creation guards and session hydration may receive narrow parity coverage only
+where the shared supported-count catalog propagates automatically; that evidence
+does not complete Prompt 021 or Prompt 051. Lower-count Capybara substitution
+remains unavailable pending an owner decision.
+
+**Prompt 004 exit gate:** first observe the client/server row-19 catalog and GM
+staging acceptance fail. Then prove exact ordered and unique rows for all 8–20,
+invalid 7/21/fraction/malformed boundaries, two Wolves at 19/20, no Press/GM in
+core math, Dione-derived SNN hosting at 19, client/server parity, and no command
+during local staging. Preserve all existing base/Press behavior. Run the full
+reconciled product release gate; because the GM Setup output changes, review
+320×844, 390×844, 1440×900, and 844×390 plus reduced motion for containment,
+focus, readable status, 44px operation, return navigation, and CIC consistency.
+
+### Release objective — authoritative configuration, production seating, and one-GM staffing
+
+Release 0.3.12 is the next dependency-ordered Milestone 1 slice. It completes
+Prompt 021, repairs and completes Prompt 030, and completes Prompt 073. It adds
+production configuration-and-seating evidence to Prompt 051, which remains
+partial until casting, readiness, start, and Turn 1 are proven in their own
+release. This slice must not assign Wolves, initialize private setup, evaluate
+start readiness, start the game, or claim Prompt 020, 054, 071, or 075.
+
+#### Session goals
+
+- [ ] Persist one canonical setup tuple instead of independent controls that
+  can drift: core player count, setup mode, chart, turn limit, Dione and
+  Capybara decisions, ordered core role IDs, and the derived active-vessel set.
+- [ ] Provision one stable, visible, authoritative seat for every core role in
+  the confirmed 8–20 roster; connect player claim/release to the existing
+  callable, projection, reconnect, and audit paths.
+- [ ] Make every setup mutation compare `expectedSetupRevision`, use a durable
+  `requestId`, commit atomically, and return an explicit committed/replayed/
+  stale receipt without orphaning seats or configuration.
+- [ ] Let one active GM instance carry both printed `main` and `assistant`
+  responsibility labels while optional additional GMs may share or hand off
+  either label. Responsibility labels describe facilitation work; they do not
+  create authority and do not require a second person.
+- [ ] Migrate legacy singular responsibility data deterministically without
+  invalidating live GM authority or rewriting unrelated sessions.
+- [ ] Preserve SNN Press as a default-enabled, separately toggleable
+  Independent Station: a claimed Press Officer is an optional distinct 21st
+  player, never a core seat, role, vessel, or count. GMs remain outside every
+  player count.
+
+#### Existing-app evidence and reuse boundary
+
+The production audit on the 0.3.11 baseline found useful primitives but no
+composed player path. `createSession` persists configuration and an owner
+player but creates no seat documents. `setActiveRoleConfiguration` and
+`applyRolePreset` update only role IDs, so player count, mode, Capybara/Dione,
+vessels, seats, and setup revision can disagree. `claimSeat` and `releaseSeat`
+update a seat and player pointer in isolation, but accept no request/revision,
+advance no setup revision, and append no roster event. Client hydration already
+subscribes to seats, but the service and route surfaces expose no claim/release
+command. GM instances store one singular responsibility and reject a second
+holder, so one GM cannot represent both duties. Existing green tests cover
+these isolated primitives; they are regression guards, not production
+composition evidence.
+
+Extend those seams rather than building a second setup system. Reuse the
+existing `/console`, `/roles`, and `GmConsole` setup surfaces, session store,
+callable transport, request/error conventions, session/event collections,
+presence/reconnect logic, canonical role/vessel IDs, star-map and navigation
+routes, Turn 0 phase, DRADIS and FleetBroadcast projections, and square CIC
+components. The server remains the authority for validation, roster/vessel
+derivation, revision arithmetic, transactions, and migration. The client owns
+only an accessible local draft and submits one complete command. Do not add a
+detached wizard, a client-writable seat collection, a second roster catalog,
+or UI-only responsibility authority.
+
+The legacy Capybara and Dione mutators are a coherence hazard: no callable may
+continue changing one member of the setup tuple outside the authoritative
+compare-and-set transaction. They may delegate to the unified command or be
+retired from the client surface, but their old wire names must not bypass the
+tuple validator. Press enablement remains a separate independent-station
+configuration because it is not part of the core tuple or seat catalog.
+
+#### Authoritative state and command contract
+
+- A confirmed setup has one nonnegative `setupRevision` and one canonical
+  tuple. The server derives and validates the exact ordered role and vessel IDs
+  from the count/mode; it rejects unsupported 7/21, fractions, malformed
+  fields, duplicate IDs, partial Capybara pairs, base-mode 19/20, unresolved
+  lower-count Capybara substitutions, and inconsistent chart/turn-limit
+  options before any write.
+- `createSession` writes revision zero, the canonical tuple, and deterministic
+  core seats in the same atomic creation. A seat ID is derived from its stable
+  canonical core role ID rather than list position, so reconnect and unchanged
+  configuration preserve identity. Seat label and vessel/faction metadata are
+  server-derived display data, never authority supplied by the client.
+- Confirming a changed unlocked tuple uses `requestId` and
+  `expectedSetupRevision`. One transaction validates live GM-instance
+  authority, compares revision, rejects removal of any claimed seat, writes the
+  whole tuple, creates/updates/removes only unclaimed derived seats, advances
+  one revision, and appends one redacted setup event. The request receipt binds
+  the actor, input fingerprint, prior/new revision, and result. An identical
+  retry replays the original result; reusing the ID with a different payload
+  rejects; two-GM races commit at most one revision.
+- A player's claim and self-release use the same request/revision discipline.
+  The transaction verifies active membership, Turn 0/unlocked state, stable
+  seat membership in the confirmed roster, vacancy or ownership, and agreement
+  between the player pointer and seat document. It updates the seat, player
+  pointer, session revision, and one append-only member-safe event together.
+  An authorized live GM may release a seat through an explicit intervention
+  carrying a reason; ordinary players cannot release another player.
+- Reconnect hydrates the server tuple, seats, player pointer, responsibilities,
+  and latest setup revision before replaying an outbox command. A stale local
+  draft may be shown as unsynchronized but cannot overwrite committed state.
+  Downsize, claim/release, and responsibility conflicts expose nonsecret
+  categories and recovery actions without leaking loyalty or future Wolf data.
+- GM-instance projection gains a normalized responsibility collection while
+  retaining read compatibility with legacy singular `responsibility`.
+  Migration maps a valid legacy value to the equivalent one-item collection;
+  if it is the sole active GM, the normalized effective assignment covers both
+  printed labels so the one-person contract is not lost. Invalid legacy values
+  become no assignment, not authority. The first active GM in a new session
+  starts with both labels; later GMs start unassigned. A revisioned GM command
+  may share, drop, or atomically hand off labels, and no label grants powers
+  beyond existing live-instance authorization.
+
+#### ATDD acceptance stories
+
+- **Given** any supported core count 8–20, **when** a session is created,
+  **then** one atomic revision-zero configuration contains the exact catalog
+  row, consistent mode/Capybara/Dione/chart/turn limit and derived vessels, and
+  exactly one open stable seat per core role. Base 8–18 rows stay unchanged;
+  19/20 contain the atomic Capybara pair; Press and all GMs are absent.
+- **Given** an unsupported or internally inconsistent setup payload, **when**
+  the creator or GM submits it, **then** validation rejects before session,
+  seat, event, or receipt writes. A base request for 19/20 and a lower-count
+  Capybara substitution are rejected rather than silently normalized.
+- **Given** two authorized GMs see the same setup revision, **when** both
+  confirm different valid tuples, **then** one whole tuple and one event commit
+  and the other receives a stable stale/conflict result. Retrying the winner
+  with the same request returns the same receipt and does not advance again;
+  changing a claimed seat out of the roster fails without partial mutation.
+- **Given** a joined core player and a visible open seat, **when** that player
+  claims it through the existing client route, **then** the seat holder,
+  player `seatId`, session revision, and one member-safe event commit together.
+  A second claimant, duplicate seat pointer, foreign session, nonmember,
+  invalid seat, stale revision, or direct Firestore write cannot mutate state.
+- **Given** a current holder, **when** they self-release or an authorized live
+  GM performs a reasoned release, **then** seat and pointer clear atomically and
+  reconnect reflects the result. A replay returns the original receipt; a
+  non-holder player, observer, inactive/foreign GM, post-lock actor, or stale
+  request is denied without an event or revision increment.
+- **Given** one active GM and no second human, **when** staffing is projected,
+  **then** that instance can visibly carry both main and assistant labels.
+  **Given** optional additional GMs, **when** labels are shared, dropped, or
+  handed off, **then** the transaction preserves live-instance authority,
+  revision order, and audit while never counting a GM as a player or making
+  either label a two-person dependency.
+- **Given** old GM documents with singular responsibility fields, **when** the
+  session hydrates or the first responsibility mutation occurs, **then** the
+  normalized result is deterministic, one-GM coverage is preserved for a sole
+  active instance, multiple legacy instances keep their recorded lanes, and no
+  unrelated session is rewritten.
+- **Given** Press is enabled but unclaimed, claimed by one authorized player,
+  disabled, or reconnected, **when** core configuration and seats change,
+  **then** the independent Press claim follows its existing unique authority
+  and never creates/removes a core seat, changes core count, or blocks this
+  release's configuration flow. This slice does not evaluate start readiness.
+
+#### Test-first, security, visual, and release gates
+
+Before production edits, focused tests must chronologically fail for: whole-
+tuple validation and CAS/replay; 8, 19, and 20 creation seat catalogs; claimed-
+seat downsize rejection; claim/release pointer+revision+event composition;
+foreign/member/observer/inactive-GM/direct-write denial; one-instance dual
+responsibilities; optional multi-GM share/handoff races; singular-field
+migration; reconnect/outbox hydration; and Press/non-counting preservation.
+Record the exact command, timestamp/order, failing assertions, and totals. Do
+not bless the gap by weakening existing tests.
+
+The client must never write session configuration, seats, GM instances, or
+events directly. Callable transactions require authenticated active
+membership, live GM-instance authority where applicable, Turn 0/unlocked
+phase, `requestId`, and `expectedSetupRevision`. Rules/emulator tests prove
+member/core/Press/observer/nonmember and cross-session denials. Events expose
+only role/seat/status/revision metadata; no loyalty or future Wolf identities
+are introduced or exposed.
+
+Map every changed setup, seat, responsibility, receipt, pending, replayed,
+stale, and error state to `docs/AESTHETICS.md`. Reuse amber structure, cyan
+values, bone copy, square hairlines, visible focus, concise live regions, and
+text/icon state—not color alone. Keep all interactive targets at least 44px,
+all contact/seat names visible, and the automatic happy path primary; use
+danger red only for a reasoned high-impact GM release. Provide real visual and
+keyboard/screen-reader evidence at 320×844, 390×844, 1440×900, and 844×390,
+including reduced motion, reconnect, long names, pending, stale, and multi-GM
+conflict. Preserve existing star map, DRADIS, turn, navigation, broadcast,
+Press, and shuttle behavior.
+
+Exit only after focused green, unique emulator/rules green, independent
+security and plan/diff review, `npm run lint`, `npm run test:all`, both client
+and Functions builds, affected bundle tests, `npm run coordination:docs`,
+implementation-progress validation, `git diff --check`, and exact-SHA
+coordination validation. Then commit, reconcile current `main`, rerun the full
+gate on the reconciled SHA, merge, push, prove local main = origin/main = SSH
+remote, release emulator resources, and close coordination. Completion evidence
+must leave Prompt 051 partial and make no live-deployment, 60-client, readiness,
+Wolf, receipt, start, or Turn 1 claim.
+
+#### Queued regression objective — Prompt 275b SNN Dispatch Desk
+
+The owner reports that the SNN Dispatch Desk is currently nonfunctional.
+Prompt 275b is therefore a dedicated `[REPAIR]` release after the current
+dependency slice, not optional bridge polish and not part of 0.3.12. Begin by
+using git history to identify and characterize the last working desk; preserve
+that implementation as the design baseline and change it only where an exact
+current authority, security, accessibility, or integration dependency makes
+the old composition invalid.
+
+Audit the complete path before selecting files: Press and SNN routes, models,
+session/claim projection, author/dismiss callables, Firestore rules, broadcast
+events and queue, history/replay/reconnect, audit records, shared shuttle and
+console templates, styles, return navigation, live-region/focus behavior,
+mobile/short-landscape containment, reduced motion, and CIC conventions. Add a
+chronological failing production regression that first proves the desk's
+current breakage, then restores discover → open → author → publish → intended
+bridge audience → dismiss/history → reconnect without direct client authority.
+Disabled Press, non-holder, ordinary/foreign player, observer, inactive GM,
+stale revision, and duplicate request cases must remain denied and replay-safe.
+
+The Dispatch Desk is explicitly exempt from generic Turn Zero restrictions.
+When Press is enabled and uniquely claimed, the holder can see and operate the
+desk during Turn Zero; route guards, disabled control logic, callable phase
+checks, and global Turn Zero overlays must preserve that exception. This does
+not unlock another station or action, weaken normal phase authority, change
+core readiness, or count Press among the 8–20 core roster. The future repair
+must reserve its own application version/changelog and pass the full security,
+visual/accessibility, test/build, reconciliation, merge, and push gate.
+
+#### Queued follow-on Milestone 1 releases
+
+Prompt 004 is followed by four separately evidenced releases so stale green
+fixtures cannot conflate a catalog with a playable start:
+
+1. Release 0.3.12 completes Prompt 021, repairs Prompt 030, and completes Prompt
+   073: atomically persist the full authoritative configuration, provision and
+   expose production seats, and represent one-GM/optional-multi-GM staffing.
+   Prompt 051 receives production configuration evidence but remains partial.
+2. Complete Prompt 051/054/071 with the setup portion of Prompt 075: readiness
+   consumes authoritative seats/casting and start derives the
+   Wolf count and default private loyalty state server-side, writes an
+   audience-correct calculation receipt, and is retry/race safe without
+   claiming the remaining deck/craft/resource initializer breadth.
+3. Complete Prompt 020 only after the dependencies above: one production-path
+   create → join → seat → cast → private setup → single-GM start → Turn 1
+   fixture passes without direct client gameplay writes.
+4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
+   turn and maintenance composition.
+
+The following stories are the queued walking-skeleton contract, not acceptance
+for the current Prompt 004 catalog release.
+
+- **Given** a new or unlocked session, **when** its creator or authorized GM
+  selects a supported base count from 8 through 18, **then** the server persists
+  that exact base count, mode, canonically ordered roster, active-vessel set,
+  Dione/Union decisions, and revision without Capybara expansion roles, Press,
+  or GM instances filling a row. Existing base sessions hydrate and reconnect
+  without a roster rewrite.
+- **Given** the Capybara expansion is selected, **when** the authorized GM
+  selects 19 or 20 in the existing Recommended player count control and
+  confirms once, **then** the client stages and the server atomically persists
+  the exact owner-set roster, player count, expansion mode, enabled Capybara,
+  active-vessel set, and setup revision. The Captain/Recycler pair is present
+  exactly once and cannot be partially enabled or replaced by Press. A base,
+  none, or unresolved low-count expansion request fails before any state
+  changes, with a nonsecret corrective message.
+- **Given** exactly the locked number of core members have unique active role
+  assignments and eligible loyalty state, **when** one live authorized GM
+  prepares the session, **then** that one GM can assume both printed main and
+  assistant responsibilities and sees one complete readiness result. A legacy
+  single-responsibility record remains readable and migrates only through an
+  authorized setup mutation. Additional active GMs may share or hand off
+  optional lanes, but absent, stale, duplicated, or disconnected collaborators
+  never block start and cannot broaden another instance's authority.
+- **Given** no complete explicit loyalty setup has been locked, **when** the
+  authorized GM starts the ready session, **then** the server derives one Wolf
+  for a locked core count of 8–13 and two for 14–20, selects from eligible core
+  role holders plus a uniquely claimed enabled Press holder, and assigns private
+  loyalty records in the same authoritative setup transaction. Claimed Press is
+  eligible but does not change the count or create a third Wolf; unclaimed or
+  disabled Press and GM-only participants are excluded. Non-Wolf holders receive
+  the printed default Fleet Loyalist distribution, including both suspicion-5
+  cards and one suspicion-10 card, without enabling optional Intelligence,
+  Arbour, Cult, Android, or Friend policies that belong to later decisions.
+- **Given** a complete valid explicit pre-start loyalty setup already exists,
+  **when** start is requested, **then** the server validates and preserves it
+  rather than silently rerolling or overwriting it. A partial, conflicting, or
+  stale explicit setup produces a precise blocker and no write. The normal
+  automatic path remains sufficient for one facilitator and never requires
+  manual assignment or cross-screen transcription.
+- **Given** the same start request is delivered twice or two authorized GM
+  instances race from the same expected setup revision, **when** the
+  transaction commits, **then** exactly one roster lock, Wolf/loyalty result,
+  setup receipt, Turn 1 transition, pursuit initialization, and start event are
+  created. The idempotent retry returns that original result and the losing
+  stale command cannot reroll, duplicate secrets, reset a clock, or publish a
+  second transmission.
+- **Given** an entitled player, Press holder, or facilitator reconnects after
+  start, **when** live authority replaces the cached snapshot, **then** each
+  player regains only their own role/loyalty result, facilitators regain the
+  authorized setup census/receipt, and no public, crew, DRADIS, event, or
+  member snapshot leaks Wolf identity, another loyalty, random ordering, or
+  facilitator-only notes.
+- **Given** the GM uses the ordinary start action in the existing GM console,
+  **when** readiness passes, **then** the UI calls the authoritative setup/start
+  path and visibly reaches Turn 1 with the durable announcement and a readable
+  committed setup summary. Missing/duplicate assignments, wrong modes, stale
+  revision, unauthorized actor, rejected randomness, or unavailable service
+  remain in Turn 0 with an accessible nonsecret failure result. Any retained
+  single-player/debug skip remains explicitly separate and is not evidence for
+  this production story.
+
+#### Queued walking-skeleton authority, receipts, and interaction contract
+
+The server owns the effective core count, mode compatibility, ordered roster,
+eligible loyalty pool, Wolf count, random selection, suspicion distribution,
+setup revision, and Turn 1 transition. The client supplies intent and expected
+revision only. The setup calculation receipt records the source/version,
+locked count and mode, canonical roster IDs, Press eligibility input, excluded
+GM count, Wolf threshold/rule, ordered modifiers, result count, command ID,
+expected/committed revision, actor, server time, and linked event. The
+facilitator projection may include the selected private result; the member
+projection exposes only the rule/count and that member's own loyalty. Public
+or crew projections never serialize selected Wolf identities.
+
+Those queued releases carry the interaction matrix as follows:
+
+| Existing system | Required participation or explicit exclusion |
+|---|---|
+| Routes and GM setup | Reuse `/gm` Setup, local staging, one confirmation, visible back path, and the ordinary production start control. No new wizard. |
+| Star map/navigation and DRADIS | Preserve existing coordinates, SNN roster-derived host, contact privacy, and full-name containment. No movement, group, or attack visualization is added. |
+| Turn structure and broadcasts | The authoritative start enters Turn 1 once through the existing clock and announcement path; raw debug advancement cannot satisfy the story. |
+| Roles, vessels, and shuttles | Persist canonical core role/vessel IDs; add the atomic Capybara pair only in 19/20 expansion rows. General Capybara craft ownership/actions remain deferred. |
+| Callables, rules, audit, and randomness | Configuration and start remain transaction-owned, direct client gameplay writes remain denied, random results use the deterministic test seam, and retry/race outcomes are auditable. |
+| Damage, resources, and economy | Preserve current initialized fields and do not claim complete Capybara maintenance, Scrap, Macaw, Boa, damage, or economy behavior from this casting/start release. |
+| Press | Preserve default-enabled/toggleable independent authority, unique claim, private loyalty, normal Wolf eligibility, SNN hosting, dispatch history, and non-counting readiness. |
+| Reconnect/replay | Live authority restores configuration, own private result, receipt projection, Turn 1 clock, and one announcement without duplicating setup. |
+| Accessibility and aesthetics | Reuse CIC hierarchy/tokens; keep controls keyboard/touch operable with 44px targets, live pending/rejected/committed text, no color-only meaning, no clipping at required viewports, and equivalent reduced-motion access. |
+| Multiple GMs | One instance suffices; additional instances use expected revisions and optional lane sharing without adding players, rerolling setup, or becoming required acknowledgers. |
+
+**Queued dependency and delivery order:** (1) retain the base and Press
+characterization floor; (2) make the exact client/server 8–20 configuration
+matrix fail; (3) make one-GM responsibility/readiness fail; (4) make automatic
+Wolf/loyalty setup, audience-correct receipt, retry, and GM race fail; (5) make
+the ordinary GM start route and reconnect projection fail; (6) implement the
+narrowest shared server/client changes; (7) run the composed production-path
+fixture; and (8) complete the reconciled release gate. Do not mark Prompt 054
+done from a count helper, Prompt 071/073 done from a boolean-only unit test, or
+Prompt 020 done from direct fixture writes around the callables.
+
+**Queued compatibility and rollback:** missing legacy mode fields continue through
+the existing documented normalization until an authorized configuration
+change materializes the settled shape. Stored valid base rosters, explicit
+loyalties, Press claims/history, and singular GM responsibility records are
+readable; migration is additive and revision-guarded. Do not reinterpret a
+stored low-count session as a Capybara expansion or silently discard a manual
+loyalty. Deploy server validation/projection support before a client can submit
+the new high-count or dual-responsibility shape. A rollback may leave additive
+receipt and responsibility fields in place, but must not restore a client that
+can bypass start authority or a server that rerolls an already committed setup.
+
+**Queued walking-skeleton non-goals:** do not invent lower-count Capybara substitutions;
+enable optional special loyalties; complete Capybara maintenance, Scrap,
+Macaw/Boa, damage, targeting, specialist work, or balance dials; implement a
+later turn or whole-game loop; implement a Wolf attack; or add the deferred
+DRADIS attack visualization. Prompts 055–058, 063–070, the remaining Prompt 075
+initializer breadth, Milestone 2+, Prompt 638 capacity, and Prompt 605a remain
+open unless independently proven by their own acceptance.
+
+**Queued Prompt 020 exit gate:** a production-path ATDD fixture creates a session, joins the
+configured members, claims one GM instance, commits the supported configuration,
+casts unique roles, runs automatic private setup, starts, and reaches Turn 1
+without a direct client gameplay write. It covers a retained base row, row 19,
+row 20 with enabled/claimed Press, optional extra GM instances, one- and
+two-Wolf thresholds, valid explicit-loyalty preservation, unauthorized/stale/
+duplicate/racing requests, reconnect/redaction, and unsupported mode/count
+denials. Focused tests, Firestore denial evidence, and the complete local release
+suite pass on the reconciled branch. If the GM Setup/start UI changes, rendered
+review at 320×844, 390×844, 1440×900, and 844×390 plus reduced motion confirms
+the existing CIC hierarchy, reachable controls, visible status, focus order,
+touch targets, return route, and no overflow before merge and push.
 
 ### Milestone 1 — Cast and start a real game
 
@@ -438,21 +1047,39 @@ and rejoin rules.
 ### Milestone 9 — Resolve a full Wolf attack and its aftermath
 
 **Given** a prepared Wolf composition and the current fleet state, **when** a
-Wolf Attack is declared, **then** all shuttles park, targeting resolves with
-the permitted modifiers, Long, Medium and Short Range actions resolve
-simultaneously, Short Range damage targets fighter wings first, Boarding
-Action resolves security dice and shuttle support, and surviving Wolf ships
-apply their step-specific damage and retreat/return behavior. The attack,
-damage cards, casualties, boarding results and public/private readouts are
-auditable and cannot be chosen by the client.
+Wolf Attack is declared from the GM console, **then** all shuttles park,
+targeting resolves with the permitted modifiers, Long, Medium and Short Range
+actions resolve simultaneously, Short Range damage targets fighter wings
+first, Boarding Action resolves security dice and shuttle support, and
+surviving Wolf ships apply their step-specific damage and retreat/return
+behavior. Each affected player console exposes every currently eligible
+choice, consequence, pending state, and audience-safe result needed to play the
+attack without facilitator transcription. The authoritative server owns target
+selection, dice, modifier order, phases, timeouts, damage, casualties,
+idempotency, revision, audit, and privacy; the client cannot choose a hidden
+result.
+
+The automatic happy path advances routine phases and publishes a calculation
+receipt. One GM can declare, pause, inspect, advance, reasonedly override, or
+recover the attack; concurrent GMs race through expected revisions and commit
+only one mutation. The attack model and events expose a stable DRADIS-ready
+projection with canonical attack, source, target/contact, phase, timestamp,
+range, bearing, effect/outcome, visibility, and redaction fields. That endpoint
+contract is part of the playable attack. The ultimate DRADIS attack
+visualization is explicitly deferred to the owner under Prompt 605a and is not
+an exit dependency for this milestone.
 
 The post-attack story continues through repair, resource loss, survivor
 changes, salvage and any newly triggered alert or mission consequence. Combat
 resolution and recovery must each have a failing-first acceptance fixture so a
 passing battle animation cannot be mistaken for a playable aftermath.
 
-**Dependencies:** Milestones 2–3 and 6, server randomness, damage authority,
-boarding state and the Wolf ship-card catalog.
+**Dependencies:** Milestones 2–3 and 6, authoritative group pursuit, server
+randomness, damage authority, boarding state and the Wolf ship-card catalog.
+Delivery order is attack state/catalog → server resolver → GM trigger/control →
+audience projections/player choices → retry/intervention → phase lifecycle →
+aftermath → complete playthrough. DRADIS contact behavior remains unchanged
+until the owner separately approves Prompt 605a.
 
 ### Milestone 10 — Make hidden loyalties and social deduction playable
 
@@ -528,22 +1155,56 @@ Every milestone above carries the following acceptance cases:
 - Every affected route has a visible, keyboard-accessible return path, and
   every supported viewport can reach the result without clipped, overlapping
   or unverified controls.
+- The automatic happy path owns every deterministic handoff that would
+  otherwise ask a player to give the facilitator a value, roll, count,
+  distance, damage, resource, time, or modifier. The server validates the
+  inputs, applies the printed or recorded product rule in the correct order,
+  commits the result, and advances the state machine without mental arithmetic,
+  duplicate calculation, or cross-screen transcription by the facilitator.
+- Each automatic result exposes an audience-correct calculation receipt:
+  entered inputs, cited source/rule and version, applicable modifiers in order,
+  computed result, resulting before/after deltas, actor, command/request ID,
+  expected and committed revision, turn/phase, server time, and linked audit
+  event. Secrets are redacted by audience rather than omitted from authority.
+- One GM can pause and inspect an automatic flow, then issue a scoped manual
+  override or correction only through an authoritative intervention record
+  containing a required reason, exact before/after delta, expected revision,
+  idempotency key, actor, and recovery or rollback path where the rule permits
+  one. High-impact changes reuse the danger-red second-click `ARE YOU SURE?`
+  confirmation; presentation alone never authorizes the intervention.
+- Two simultaneous GM instances racing the same command produce one committed
+  mutation and one safe stale/idempotent outcome. A single GM can complete the
+  same story without another GM acknowledging alerts, staffing a responsibility,
+  copying a result, or operating a second screen.
+- Genuine hidden choices and printed ambiguities remain deliberate player or
+  facilitator decisions until explicitly configured. Automation may present
+  the eligible choices and consequences, but must not invent a ruling or expose
+  private inputs.
+- Calculation receipts and intervention controls satisfy the same CIC,
+  keyboard, screen-reader, 44px touch-target, narrow/short viewport, live
+  status, and reduced-motion requirements as the gameplay surface.
 
 ### Recommended story order
 
-The shortest path to a meaningful playable loop is:
+The dependency-ordered path to a meaningful, single-facilitator playable loop
+is:
 
-1. Cast and start a real game.
-2. Complete one authoritative turn and maintenance loop.
-3. Make the fleet economy and specialist capabilities playable.
-4. Scout and learn a system.
-5. Jump independently to a legal destination and recover from failure.
-6. Fly a shuttle and make it useful; then complete an away mission.
-7. Operate and reunite a split fleet safely.
-8. Resolve a full Wolf attack and its aftermath.
-9. Make hidden loyalties and social deduction playable.
-10. Recover from catastrophe and resolve crises.
-11. Reach an explicit New Eden ending and closed debrief.
+1. Repair documentation/status contracts and stale-green evidence.
+2. Build the one-GM walking skeleton: start, automatic Wolf/loyalty casting,
+   alert ownership, Turn 1, and a complete setup receipt.
+3. Complete the authoritative turn, maintenance, and typed economy loop.
+4. Make chart, jump, split-group pursuit, and failure transitions one
+   server-owned composition.
+5. Make shuttle travel, docking, cargo, and capability actions playable.
+6. Complete scouting and away missions without hidden-data leakage.
+7. Resolve a full Wolf attack through GM and affected player consoles, and
+   publish its DRADIS-ready endpoint/event projection without yet adding the
+   owner-deferred DRADIS attack visualization.
+8. Complete hidden loyalties, deduction, crises, and authoritative endgame.
+9. Prove Capybara breadth, Press isolation, one-GM full runs, and multi-GM
+   races.
+10. Close accessibility, responsive/aesthetic, 20-core/optional-21st, and
+    measured 60-browser release-readiness gates.
 
 The 20-player roster and 60-browser-client scenario remain release-readiness
 evidence, not substitutes for these stories. They should be exercised after
@@ -613,8 +1274,11 @@ first code slice that depends on them:
 
 ### Known reference ambiguities to preserve and resolve deliberately
 
-- Refinery 124 Water Reclamation is treated as 5♦ by elimination; the
-  Capybara Scrap Refinery is treated as 7♠, with the stray 5♦ recorded.
+- Refinery 124 Water Reclamation remains the elimination-based 5♦ decision.
+  The Capybara Scrap Refinery is unambiguously 7♠ in the rendered visual
+  authority. The extracted 5♦ is a hidden OCR/text-layer overlap with the
+  Damage label, not printed gameplay text; retain it only as a provenance
+  warning, not as a rules ambiguity.
 - Several shuttle sheets contain copied names (Wobbly/Condor,
   Ally/Philia/Chacau); the ability belongs to the sheet's actual shuttle.
 - The Wolf Commander's Boarding Action text is incomplete and requires a
@@ -645,8 +1309,10 @@ authoritative state change and one user-visible outcome.
 **Work:**
 
 - Build a rule matrix for every planned action with columns for printed source,
-  inputs, authoritative state, callable/function, Firestore path, permitted
-  readers, denial behavior, client surface, audit record, and test location.
+  inputs, calculation owner, authoritative state, automatic mutation,
+  callable/function, Firestore path, permitted readers, denial behavior,
+  calculation receipt, intervention surface, genuine ambiguity, eliminated
+  facilitator handoff, client surface, audit record, and test location.
 - Mark each row as implemented, partial, planned, facilitator-only, or
   explicitly out of scope. Link the relevant source and record any erratum or
   product decision.
@@ -655,6 +1321,11 @@ authoritative state change and one user-visible outcome.
   extra/replacement roles, and the Capybara toggle.
 - Define the complete session state machine: lobby, briefing, active turns,
   debrief, success/failure, and closed retention behavior.
+- Inventory every current facilitator-math handoff in setup/Wolf assignment,
+  maintenance/damage/resources, transit/airspace/navigation/pursuit, shuttles,
+  missions, Wolf attacks, and Capybara actions. Map each deterministic handoff
+  to an automatic server owner and each genuine choice to an intervention or
+  decision surface before adding controls.
 - Define the first two or three vertical slices and their smallest observable
   outcomes. Do not begin with a broad “implement the rules” branch.
 
@@ -683,6 +1354,11 @@ and audit.
   revealed, movement, resource transfers, role/loyalty assignment, alerts,
   and facilitator calls. Store only information each reader is entitled to
   see.
+- Standardize action, result, calculation-receipt, and intervention records so
+  every server-owned operation carries rule/source, ordered inputs/modifiers,
+  before/after deltas, actor, command/idempotency key, expected/committed
+  revision, turn/phase, time, audience projection, and recovery status without
+  duplicating domain state.
 - Preserve reconnect behavior: stale snapshots are not authority, queued
   disconnects replay safely, presence expiry affects only that device, and a
   retry cannot duplicate an irreversible action.
@@ -704,14 +1380,20 @@ ship's maintenance sequence as server-resolved state.
   the final-turn transition.
 - Encode each ship's discrete population track, ration table and starred
   threshold; include the Dione and Capybara expansion eligibility rules.
+- Select the active population-specific ration table authoritatively and show
+  its source, inputs, modifiers, and delta; never ask the facilitator to choose
+  or transcribe deterministic table arithmetic.
 - Resolve storage loss, ration selection, unrest roll, riot/alternative small
   ship population loss, reactor charges, shuttle fuelling, AEGIS's second bay,
   console upgrades, and end-of-turn expiration in printed order.
 - Route every damage-causing step through the server damage deck. Record the
   card, system, casualty effect, armour recycling, failed check, empty-deck
   destruction, and linked audit ID in the crew-visible result where required.
-- Keep GM threshold alerts independently acknowledged per GM instance and
-  pause or gate later movement when the documented alert policy requires it.
+- Let one active facilitator own and clear every blocking threshold/maintenance
+  item. Additional GM instances receive collaborative information without
+  becoming required acknowledgers; stale or disconnected optional GMs cannot
+  deadlock maintenance or movement. Expose a one-GM outstanding-work queue and
+  safe multi-GM claim/handoff semantics.
 - Preserve maintenance undo as a bounded current-turn recovery action with
   revision checks; never erase damage or audit history.
 
@@ -795,7 +1477,8 @@ movement and action surfaces for every supported craft.
 ### Phase 5 — Wolf attacks, combat, loyalties, and hidden information
 
 **Objective:** provide the social-deduction and combat loop that makes the
-  fleet's choices consequential.
+fleet's choices consequential, with a fully playable GM-to-player attack path
+and server-owned routine resolution.
 
 **Work:**
 
@@ -814,6 +1497,19 @@ movement and action surfaces for every supported craft.
   Wolf Commander rerolls/adjustments, long/medium/short simultaneous actions,
   fighter-wing-first damage, boarding parties, security dice, Pallas/Chepu and
   engineering-shuttle support, and post-boarding damage/retreat.
+- Initiate and control attacks from the GM console and resolve every eligible
+  decision through the affected player consoles. The server owns the attack
+  state machine, targets, dice, modifier order, deadlines/timeouts, damage,
+  casualties, retries, revisions, audit, and audience projections. One GM can
+  run the happy path end to end; pause/inspect/override/correction remains
+  available through the cross-cutting reasoned intervention envelope.
+- Publish stable attack projections/events for later DRADIS consumption:
+  canonical attack and contact IDs, source and targets, phase, server
+  timestamps/deadlines, range, bearing/contact references, effects/outcomes,
+  audience visibility, and redacted/private fields. Contract-test the endpoint
+  shape and privacy while preserving current DRADIS contact behavior. Do not
+  implement the owner-deferred ultimate DRADIS attack visualization in this
+  phase.
 - Encode every Wolf ship card's capacity, step-specific destruction effect,
   return behavior, Strikecarrier bonus, Battlestation restriction, and
   attack-composition rules. Keep facilitator composition and pre-roll details
@@ -822,10 +1518,14 @@ movement and action surfaces for every supported craft.
   Ace, and other combat modules through authoritative action records. Resolve
   damage via the same server damage-draw path used by maintenance.
 
-**Exit gate:** a complete attack can be prepared, resolved in order, audited,
-and shown with correct private/public visibility; killing or leaving a Wolf
-ship at a different range produces the reference result; no player can choose
-the target, roll, hidden role, or damage card from the client.
+**Exit gate:** one GM can prepare and trigger a complete attack, affected
+players can submit every rules-defined choice from their existing consoles,
+and the server advances and resolves it in order with visible receipts,
+timeouts, recovery, audit, and correct private/public visibility. Killing or
+leaving a Wolf ship at a different range produces the reference result; no
+client can choose the target, roll, hidden role, or damage card. A concurrent-
+GM fixture commits one result, and a DRADIS-ready projection/privacy contract
+passes without requiring a new visualization.
 
 ### Phase 6 — Fleet roles, ship consoles, and roster completeness
 
@@ -864,14 +1564,26 @@ definitions.
 
 ### Phase 7 — Facilitator controls, crises, and explicit game end
 
-**Objective:** give two facilitators enough truthful control to run the table
-without bypassing authority or leaving the session in an ambiguous state.
+**Objective:** let one facilitator run the entire table through automatic
+routine paths and intervention-rich controls without bypassing authority or
+leaving the session in an ambiguous state; preserve multiple GMs as optional
+collaborators.
 
 **Work:**
 
-- Model the two-facilitator operating split, facilitator-only notes, chart
-  selection, loyalty assignment, crisis delivery, jump adjudication, mission
-  resolution, Wolf composition, and rules-call annotations.
+- Model one authorized facilitator as able to assume both printed
+  responsibilities. Preserve facilitator-only notes, chart selection, loyalty
+  assignment, crisis delivery, jump adjudication, mission resolution, Wolf
+  composition, and rules-call annotations; allow additional GMs to claim or
+  hand off optional lanes without making those lanes readiness requirements.
+- Replace routine facilitator arithmetic and transcription with automatic
+  server-owned actions and visible calculation receipts. Provide a consolidated
+  next-action/outstanding-exception queue so one GM never needs a second screen
+  or a second operator to identify the next required action.
+- Provide pause, inspect, reasoned override, correction, and rule-call controls
+  with revision/idempotency guards, exact deltas, audit/replay, and bounded
+  recovery. High-impact interventions use the danger-red second-click
+  `ARE YOU SURE?` pattern, and concurrent GMs receive a safe stale result.
 - Implement the five documented crisis types, political capital, presidential
   address/visit, mutiny, arrests, evacuations, destroyed ships, and difficulty
   dials as deliberate GM/facilitator actions with phase and role checks.
@@ -883,9 +1595,11 @@ without bypassing authority or leaving the session in an ambiguous state.
   presentation, and audit history without turning presentation-only effects
   into gameplay authority.
 
-**Exit gate:** a facilitator can complete a full end-to-end playthrough in a
-deterministic fixture, including at least one failure and one candidate
-success path, and every active session can reach `closed` with a readable
+**Exit gate:** one facilitator can complete a full end-to-end playthrough in a
+deterministic fixture without mental arithmetic, cross-screen transcription,
+or another GM acknowledgement, including at least one failure and one candidate
+success path. A second fixture proves optional multi-GM claim/handoff and one-
+winner concurrency. Every active session can reach `closed` with a readable
 outcome instead of an orphaned active state.
 
 ### Phase 8 — UI, accessibility, responsive behavior, and performance
@@ -899,6 +1613,11 @@ outcome instead of an orphaned active state.
 - Keep each screen's primary status, next action, authority, and failure state
   visible. Use truthful labels for loading, offline, stale, pending, denied,
   facilitator decision, and completed outcomes.
+- Render calculation receipts as CIC instruments: amber structure, cyan
+  measured results, bone explanatory copy, explicit source/modifier/delta
+  rows, square shared controls, and non-color pending/rejected/committed state.
+  Intervention controls remain visually distinct from the automatic happy path;
+  no receipt requires hover, motion, or another screen to understand.
 - Preserve a visible keyboard-accessible return route from every ship, shuttle,
   observer, GM, role, mission, attack, and debrief view. Preserve state when
   returning unless the user explicitly releases or resets it.
@@ -910,9 +1629,11 @@ outcome instead of an orphaned active state.
   tabs, or duplicate telemetry.
 
 **Exit gate:** visual review finds no clipped or overlapping critical content;
-keyboard and touch users can complete the same action; reduced motion removes
-nonessential motion; route-level tests prove forward and return navigation;
-bundle and render performance remain within the repository's measured limits.
+keyboard and touch users can complete the same action; calculation receipts and
+reasoned interventions remain readable at 320x844, 390x844 where applicable,
+1440x900, and 844x390; reduced motion removes nonessential motion; route-level
+tests prove forward and return navigation; bundle and render performance remain
+within the repository's measured limits.
 
 ### Phase 9 — Capacity, abuse protection, and release readiness
 
@@ -949,8 +1670,8 @@ respond, and the release evidence is recorded with the change.
 
 ## Review budget and evidence reuse
 
-The 2026-09-08 audit found 219 evidence-oriented entries in this catalog: 168
-`[PRESERVE]` and 51 `[PROVE]`. The coverage is useful; 219 separate review
+The 2026-09-08 audit found 213 evidence-oriented entries in this catalog: 163
+`[PRESERVE]` and 50 `[PROVE]`. The coverage is useful; 213 separate review
 ceremonies are not. The compact milestone route defines the full
 [review budget](./IMPLEMENTATION_MILESTONES.md#review-budget-and-evidence-reuse).
 
@@ -980,8 +1701,9 @@ gameplay-specific requirements:
 1. Name the exact printed source and the Given/When/Then player or facilitator
    result before writing code.
 2. For `[PRESERVE]`, close from current evidence when it already satisfies the
-   acceptance. For `[EXTEND]`/`[NEW]`, observe the smallest missing production-
-   path acceptance fail before implementation.
+   acceptance. For `[REPAIR]`, `[EXTEND]`, or `[NEW]`, observe the smallest
+   missing production-path acceptance fail before implementation. A
+   `[DEFERRED-OWNER]` prompt cannot begin until the recorded owner gate opens.
 3. Exercise server authority, direct-write denial, audience projection,
    idempotent retry/reconnect, visible success/failure, and stable audit output
    wherever the selected mechanic uses those boundaries.
@@ -1016,7 +1738,7 @@ ledger. Do not infer gameplay-completion percentage from test-file count.
 | Existing capability | Representative test anchors | Roadmap treatment |
 |---|---|---|
 | Session creation UI, join-code security, joining, resume, reconnect, presence expiry, seven-day empty-session retention, outbox replay, and disconnect | `src/routes/Landing.test.tsx`, `src/lib/sessionService.test.ts`, `functions/src/joinSessionCallable.test.ts`, `functions/src/sessionResumeCallable.test.ts`, `functions/src/sessionLifecycleCallable.test.ts` | Preserve. Add direct callable or emulator composition tests only where the current suite has a named gap. |
-| Seat claim/release, command-role ownership, crew relief, GM access, named GM instances, lock/recovery, kicking, observer mode, and return navigation | `functions/src/seatCallable.test.ts`, `functions/src/consoleRolePolicy.test.ts`, `functions/src/crewAccess.test.ts`, `functions/src/gmSessionCallable.test.ts`, `functions/src/gmControlsLock.test.ts`, `src/routes/RoleSelect.test.tsx` | Preserve. Extend into casting and two-facilitator stories without replacing current authority or routes. |
+| Seat claim/release, command-role ownership, crew relief, GM access, named GM instances, lock/recovery, kicking, observer mode, and return navigation | `functions/src/seatCallable.test.ts`, `functions/src/consoleRolePolicy.test.ts`, `functions/src/crewAccess.test.ts`, `functions/src/gmSessionCallable.test.ts`, `functions/src/gmControlsLock.test.ts`, `src/routes/RoleSelect.test.tsx` | Preserve. Extend into casting and the one-facilitator/optional-multi-GM stories without replacing current authority or routes. |
 | Turn 0, Team/Coordination clocks, turn advancement, airspace windows, extension, emergency pause/resume, announcements, replay, alerts, ticker precedence, and debrief-mode presentation | `functions/src/turnZero.test.ts`, `functions/src/maintenanceCallable.test.ts`, `functions/src/turnStartReplayCallable.test.ts`, `src/components/TurnStartAnnouncement.test.tsx`, `functions/src/fleetAlertCallable.test.ts`, `functions/src/debriefModeCallable.test.ts` | Preserve. Compose into multi-turn and endgame scenarios; do not rebuild the existing clock or finale control. |
 | Common maintenance sequencing, rations, unrest/riot, reactor charges, shuttle refuelling, turn expiry, resource counters, alert locks, and bounded rollback | `functions/src/maintenance.test.ts`, `functions/src/maintenanceCallable.test.ts`, `functions/src/maintenanceRollback.test.ts`, `functions/src/resources.test.ts`, `functions/src/shipCounterBatchCallables.test.ts` | Preserve the engine. Extend it with the still-descriptive per-ship production and specialist actions. |
 | Printed populations, thresholds, all current damage decks, authoritative draws, AEGIS armour recycling, empty-deck destruction, repair, and retry-stable damage identity | `src/data/printedPopulation.test.ts`, `functions/src/shipPopulationCallables.test.ts`, `functions/src/shipDamage.test.ts`, `functions/src/shipDamageCallable.test.ts` | Preserve. Extend into evacuation, destroyed-ship aftermath, combat, and every card-to-console effect. |
@@ -1044,6 +1766,10 @@ visual are real, but candidate resolution and a durable outcome are not.
 - **`[EXTEND]`** — production scaffolding or part of the behavior exists. Add
   the smallest missing authoritative edge while retaining every passing test,
   ID, route, template, and player-facing contract.
+- **`[REPAIR]`** — current production behavior or green evidence conflicts with
+  known working behavior or an owner-set contract. Complete the provenance and
+  contract-drift gate, replace the misleading test, and preserve unrelated
+  behavior through the narrowest compatible correction.
 - **`[NEW]`** — no complete production behavior or dedicated acceptance test
   was found. Add it as one failing-first vertical slice on top of the existing
   architecture.
@@ -1052,6 +1778,10 @@ visual are real, but candidate resolution and a durable outcome are not.
   prompt does not authorize a rewrite to make the fixture easier.
 - **`[DECISION]`** — resolve a genuine printed-rule or product ambiguity before
   exposing the affected action. Record the source and chosen policy.
+- **`[DEFERRED-OWNER]`** — the owner has explicitly postponed the surface. Keep
+  it missing and out of dependent exit gates until the prerequisite contract
+  is proven and the owner authorizes activation; do not implement it as an
+  unsolicited enhancement.
 
 At selection time, reconcile the chosen prompt with current `main`, active
 coordination claims, its progress row, and the relevant rule-matrix row. Do
@@ -1092,8 +1822,8 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 705-ID queue (Prompts 001–653 plus the lettered prompts) is in
-scope for the active completion campaign. All 705 canonical prompt IDs (001–653
+The complete 713-ID queue (Prompts 001–653 plus the lettered prompts) is in
+scope for the active completion campaign. All 713 canonical prompt IDs (001–653
 plus the lettered prompts) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -1138,7 +1868,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 705 prompts (001–653 plus lettered IDs)
+#### Execution checklist — all 713 prompts (001–653 plus lettered IDs)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -1193,10 +1923,10 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 048
 - [x] Prompt 049
 - [x] Prompt 050
-- [x] Prompt 051
+- [ ] Prompt 051
 - [x] Prompt 052
 - [x] Prompt 053
-- [x] Prompt 054
+- [ ] Prompt 054
 - [ ] Prompt 055
 - [ ] Prompt 056
 - [ ] Prompt 057
@@ -1213,7 +1943,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 068
 - [ ] Prompt 069
 - [ ] Prompt 070
-- [x] Prompt 071
+- [ ] Prompt 071
 - [x] Prompt 072
 - [x] Prompt 073
 - [x] Prompt 074
@@ -1267,6 +1997,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 120
 - [ ] Prompt 121
 - [ ] Prompt 122
+- [ ] Prompt 122a
 - [ ] Prompt 123
 - [ ] Prompt 124
 - [ ] Prompt 125
@@ -1444,7 +2175,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 273
 - [ ] Prompt 274
 - [ ] Prompt 275
-- [ ] Prompt 275a
+- [x] Prompt 275a
 - [ ] Prompt 275b
 - [ ] Prompt 276
 - [ ] Prompt 277
@@ -1610,8 +2341,12 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 430
 - [ ] Prompt 431
 - [ ] Prompt 432
+- [ ] Prompt 432a
 - [ ] Prompt 433
+- [ ] Prompt 433a
+- [ ] Prompt 433b
 - [ ] Prompt 434
+- [ ] Prompt 434a
 - [ ] Prompt 435
 - [ ] Prompt 436
 - [ ] Prompt 437
@@ -1797,9 +2532,12 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 600
 - [ ] Prompt 601
 - [ ] Prompt 602
+- [ ] Prompt 602a
 - [ ] Prompt 603
+- [ ] Prompt 603a
 - [ ] Prompt 604
 - [ ] Prompt 605
+- [ ] Prompt 605a
 - [ ] Prompt 606
 - [ ] Prompt 607
 - [ ] Prompt 608
@@ -1854,7 +2592,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 001 — [PRESERVE] Build the canonical rule-source index.** Acceptance: every planned mechanic resolves to a routed reference, with printed component sheets taking precedence over generic guides.
 - **Prompt 002 — [PRESERVE] Encode source precedence.** Acceptance: conflicting generic and ship-specific values resolve to the printed component value and the conflict remains traceable.
 - **Prompt 003 — [DECISION] Create the ambiguity ledger.** Acceptance: every known discrepancy is an explicit facilitator decision, product decision, or blocked action rather than a speculative control.
-- **Prompt 004 — [PRESERVE] Encode the supported player-count matrix.** Acceptance: each count from 8 through 18 produces only its printed roles, ships, Union assignments, and Wolf count.
+- **Prompt 004 — [EXTEND] Encode the supported player-count matrix.** Acceptance: each printed base-game count from 8 through 18 produces only its printed roles, ships, Union assignments, and Wolf count; the owner-set expansion rows are exactly 19 = printed base-17 plus atomic Capybara Captain/Recycler and 20 = printed base-18 plus the pair, both with two Wolves. Lower-count 8–18 Capybara substitutions remain undecided and must not be invented; Press and GM instances never fill a core row.
 - **Prompt 005 — [PROVE] Define the session capability matrix.** Acceptance: every action names its actor, role, phase, vessel, inputs, authority, visible result, denial, audit, and test surface.
 - **Prompt 006 — [PROVE] Define information projections.** Acceptance: public, member, crew, role-private, loyalty-private, GM, and facilitator snapshots contain only permitted fields.
 - **Prompt 007 — [PROVE] Define the authoritative event envelope.** Acceptance: each shared mutation records session, actor, role, turn, phase, type, request ID, revision, and server time.
@@ -1871,7 +2609,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 018 — [EXTEND] Define phase-eligible action metadata.** Acceptance: server guards reject otherwise valid actions in the wrong phase even when a stale UI still shows the control.
 - **Prompt 019 — [EXTEND] Define privacy-safe audit records.** Acceptance: facilitators can inspect decisions while players receive only the public or private facts their roles permit.
 - **Prompt 020 — [PROVE] Build the lobby-to-Team-Phase contract fixture.** Acceptance: one production-path scenario creates, joins, casts, starts, and enters Turn 1 without direct Firestore gameplay writes.
-- **Prompt 021 — [EXTEND] Validate session creation input.** Acceptance: unsupported player count, chart, expansion, turn limit, duplicate option, and malformed fields fail before writes.
+- **Prompt 021 — [EXTEND] Validate session creation input.** Acceptance: unsupported player count, chart, expansion, turn limit, duplicate option, and malformed fields fail before writes. Existing evidence covers the printed/base 8–18 matrix only; owner-revised 8–20 source-derived Capybara core inputs and separate optional Press/multiple-GM state require composed migration coverage.
 - **Prompt 022 — [EXTEND] Implement authoritative session creation.** Acceptance: one valid callable creates one lobby, owner/facilitator metadata, configuration, and event atomically.
 - **Prompt 023 — [EXTEND] Make session creation retry-safe.** Acceptance: repeating the same creation request returns one session and one join code.
 - **Prompt 024 — [PRESERVE] Authenticate join requests.** Acceptance: unauthenticated, revoked, or malformed identities cannot join or learn session state.
@@ -1880,7 +2618,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 027 — [PRESERVE] Throttle invalid joins safely.** Acceptance: repeated attempts receive non-enumerating limits while legitimate table retries remain recoverable.
 - **Prompt 028 — [PRESERVE] Authorize minimal session-header reads.** Acceptance: members read the lobby header; unauthenticated and nonmember reads and collection listing are denied.
 - **Prompt 029 — [PRESERVE] Enforce one seat per player.** Acceptance: concurrent claims cannot leave one player in two seats or one seat pointing to two players.
-- **Prompt 030 — [PRESERVE] Implement authoritative seat claiming.** Acceptance: a valid open-seat claim updates the seat, player pointer, roster, and event in one transaction.
+- **Prompt 030 — [REPAIR] Implement authoritative seat claiming.** Acceptance: a valid open-seat claim updates the seat, player pointer, roster, and event in one transaction. Session creation must provision the stable core-seat catalog and the existing client routes must expose callable-backed claim/release; request replay, setup revision, reconnect, audit, and direct-write denial are part of the production contract.
 - **Prompt 031 — [PRESERVE] Resolve seat-claim races.** Acceptance: simultaneous claims yield one winner and one truthful conflict without orphaning either member.
 - **Prompt 032 — [PRESERVE] Implement authoritative seat release.** Acceptance: a player can release only a seat that still points to that player, with retry-safe cleanup.
 - **Prompt 033 — [PRESERVE] Deny forged or stale seat release.** Acceptance: another player's seat and a newly reclaimed seat survive hostile or delayed release requests.
@@ -1901,10 +2639,10 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 048 — [PRESERVE] Enter GM Observer mode read-only.** Acceptance: an eligible GM can inspect a selected fleet ship while mutation remains disabled until separately authorized.
 - **Prompt 049 — [PRESERVE] Reset Observer elevation on ship change.** Acceptance: leaving the observed ship removes any scoped write grant before another ship loads.
 - **Prompt 050 — [PRESERVE] Add return paths to session modes.** Acceptance: lobby, roster, Console, GM, and Observer routes expose a visible keyboard-operable return to their logical parent.
-- **Prompt 051 — [PRESERVE] Prove the roster through creation and start.** Acceptance: session creation, roster application, persisted configuration, and start readiness use the exact Prompt 004 row across client and server and reject a mismatched or convenience role.
+- **Prompt 051 — [REPAIR] Prove the roster through creation and start.** Acceptance: session creation, roster application, persisted configuration, and start readiness use the exact printed Prompt 004 base row across client and server and reject a mismatched or convenience role. This remains partial until the owner-revised 8–20 Capybara core acceptance is composed without counting Press; earlier green counted-Press 19/21 fixtures are contract drift, not preservation evidence.
 - **Prompt 052 — [PRESERVE] Exclude Dione below 12 players.** Acceptance: Dione, its roles, resources, shuttles, and population are absent and cannot be re-enabled by payload edits.
 - **Prompt 053 — [PRESERVE] Configure Joint Engineering Union substitutions.** Acceptance: each count assigns the correct paired ships, roles, and Union shuttle set.
-- **Prompt 054 — [PRESERVE] Configure Wolf-agent count.** Acceptance: 8–13 players receive one hidden Wolf and 14–18 receive two, unless a recorded optional loyalty rule replaces one.
+- **Prompt 054 — [REPAIR] Derive Wolf-agent count authoritatively.** Acceptance: the server derives one hidden Wolf at 8–13 core players and two at 14–20 from the locked effective core roster, records the rule/input/result in the setup receipt, and never asks the facilitator to select a routine count. Optional Press never adds a third Wolf or changes core count; any genuine product-policy override is explicit, reasoned, revision-guarded, and audited.
 - **Prompt 055 — [EXTEND] Gate Intelligence Agent setup.** Acceptance: the optional Intelligence Agent appears only with at least one Wolf and remains private.
 - **Prompt 056 — [EXTEND] Gate Universal Arbour and Wolf Cult setup.** Acceptance: each optional configuration is explicit, preserves the intended Wolf count, and exposes no hidden assignment.
 - **Prompt 057 — [EXTEND] Select base or expansion vessel mode.** Acceptance: base Capybara, expansion Capybara, or neither is locked before casting and the two definitions never mix.
@@ -1921,11 +2659,11 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 068 — [PRESERVE] Assign role-owned craft.** Acceptance: every shuttle and fighter wing starts under its printed role without client-claimable ownership.
 - **Prompt 069 — [PRESERVE] Initialize vessel populations and stores.** Acceptance: active vessels receive exact printed survivors, ore, fuel, food, water, materials, and expansion Scrap.
 - **Prompt 070 — [PRESERVE] Initialize security teams.** Acceptance: each active ship begins with its printed authoritative team count.
-- **Prompt 071 — [NEW] Validate start readiness.** Acceptance: missing facilitators, seats, roles, loyalties, vessel ownership, or configuration blocks start with a precise nonsecret reason.
+- **Prompt 071 — [REPAIR] Validate start readiness for one facilitator.** Acceptance: missing seats, roles, loyalties, vessel ownership, configuration, or any one required active facilitator blocks start with a precise nonsecret reason. One authorized GM instance can assume both printed responsibilities; additional GM instances are optional and never block readiness. The owner-revised 8–20 core remains independent of an enabled/claimed Press holder, and an unclaimed enabled Press never blocks start.
 - **Prompt 072 — [NEW] Lock casting at start.** Acceptance: lobby commands cannot alter roles, loyalties, or starting state after the start transaction; later replacement uses its own path.
-- **Prompt 073 — [NEW] Represent two-facilitator readiness.** Acceptance: setup reports whether both physical responsibilities are staffed without conflating them with arbitrary local GM modes.
+- **Prompt 073 — [REPAIR] Represent facilitator responsibilities without a staffing dependency.** Acceptance: one authorized GM can assume both printed main/assistant responsibilities, while multiple GMs may claim, share, or hand off optional lanes without conflating local device mode with authority or making either lane a second-person readiness requirement.
 - **Prompt 074 — [NEW] Authorize game start.** Acceptance: only an active eligible facilitator/GM instance can start a ready roster.
-- **Prompt 075 — [NEW] Start the game atomically.** Acceptance: one transaction initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, and the first event.
+- **Prompt 075 — [EXTEND] Start the game atomically.** Acceptance: one transaction initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, automatic Wolf/loyalty composition, the setup calculation receipt, and the first event; existing partial start behavior remains a primitive until this full one-GM composition passes.
 - **Prompt 076 — [NEW] Make start retry-safe.** Acceptance: repeated start requests return the existing active game without resetting any state or clock.
 - **Prompt 077 — [NEW] Initialize pursuit at 2.** Acceptance: Turn 1 begins with one server-owned pursuit value per initial fleet group.
 - **Prompt 078 — [NEW] Configure the six-to-eight-turn limit.** Acceptance: the chosen printed range is locked and unsupported durations are rejected.
@@ -1978,6 +2716,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 120 — [PRESERVE] Resolve a riot.** Acceptance: rolling below current unrest applies the correct unrest/population consequence and authoritative damage path once.
 - **Prompt 121 — [EXTEND] Resolve small-ship maintenance loss.** Acceptance: base small ships and Voyage 33-0 use their printed population-loss/skip-charge exception, not full-ship riot behavior.
 - **Prompt 122 — [PRESERVE] Enforce Reactor capacity.** Acceptance: a vessel charges no more than its printed capacity after damage and upgrade modifiers.
+- **Prompt 122a — [REPAIR] Confirm Reactor power-up before authoritative mutation.** Acceptance: preserve the existing authoritative `runMaintenance` Reactor transaction and the repository's danger-red second-press convention, but require a confirmation before replacing unused charges or committing the selected consoles. The first activation changes the same control to the exact `ARE YOU SURE?` treatment with an accessible summary of the selected consoles and lost prior charge; only the confirmed activation may call the server. Cancel, blur, Escape, navigation, and any backdrop used by the chosen shared pattern restore focus and leave local/server state unchanged. Pending and rapid double-submit are disabled, retry is request-idempotent, stale/wrong-phase/over-capacity/damaged/ineligible/unauthorized inputs fail without mutation or audit, and only an accepted transaction creates one replayable event/receipt. Reuse the existing maintenance route, `MaintenanceSystems`, maintenance service/callable, revision arithmetic, event path, CIC styling, and established Begin-maintenance confirmation rather than a parallel dialog; prove keyboard, screen-reader, 44px touch, long selected labels, reduced motion, and unobscured mobile/short-landscape layout. This repair depends on the capacity, damage/upgrade, eligibility, expiry, and atomicity contracts in Prompts 122–125, 128, and 138 without claiming their broader vessel matrix complete.
 - **Prompt 123 — [EXTEND] Apply vessel-specific damaged-Reactor penalties.** Acceptance: Shepherd and Quellon use their own reductions and no generic value overwrites a ship sheet.
 - **Prompt 124 — [EXTEND] Apply Reactor upgrades.** Acceptance: only an authoritative completed upgrade adds the printed charge capacity.
 - **Prompt 125 — [PRESERVE] Enforce console charge eligibility.** Acceptance: nonexistent, damaged, already charged, wrong-phase, or otherwise unavailable consoles cannot be charged.
@@ -1989,7 +2728,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 131 — [PRESERVE] Destroy a ship on empty-deck draw.** Acceptance: a required draw with no cards enters one authoritative destruction flow.
 - **Prompt 132 — [PRESERVE] Recycle AEGIS Armoured Hull.** Acceptance: the hull absorbs survivor loss and returns to the deck only under the printed condition.
 - **Prompt 133 — [PRESERVE] Step discrete population tracks.** Acceptance: damage advances to the next printed value rather than subtracting an invented amount.
-- **Prompt 134 — [PRESERVE] Alert starred population thresholds.** Acceptance: each active GM instance receives its own acknowledgement and the smaller ration table becomes authoritative.
+- **Prompt 134 — [REPAIR] Alert starred population thresholds without a multi-GM deadlock.** Acceptance: the smaller ration table becomes authoritative and one active facilitator can acknowledge/own the blocking consequence; additional or stale GM instances may retain informational alerts but cannot prevent maintenance or movement. Competing acknowledgements commit once and return a safe stale/idempotent result.
 - **Prompt 135 — [PRESERVE] Add two unrest at population zero.** Acceptance: the transition applies once and replayed snapshots cannot add it again.
 - **Prompt 136 — [NEW] Enter mutiny at unrest 8.** Acceptance: the ship becomes unusable, its actions deny, and facilitators receive a named recovery requirement.
 - **Prompt 137 — [NEW] Resolve replacement-captain mutiny recovery.** Acceptance: an authorized facilitator records the permitted unrest reduction rather than an invented automatic value.
@@ -2008,9 +2747,9 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 142 — [NEW] Enforce Team Phase docking.** Acceptance: every shuttle has a valid host at Team start or appears as an explicit facilitator exception.
 - **Prompt 143 — [NEW] Bind shuttle holder and dock.** Acceptance: ownership, current holder, and host ship agree and cannot be rewritten by the client.
 - **Prompt 144 — [NEW] Resolve a legal shuttle move.** Acceptance: only the holder can request one eligible Coordination move to a valid ship.
-- **Prompt 145 — [NEW] Lock airspace for a Wolf attack.** Acceptance: declaring an attack blocks ordinary movement and begins server-owned parking for every shuttle.
+- **Prompt 145 — [EXTEND] Lock airspace for a Wolf attack.** Acceptance: extend the existing authoritative airspace/turn primitives so declaring an attack blocks ordinary movement and begins server-owned parking for every shuttle without weakening current restrictions.
 - **Prompt 146 — [DECISION] Decide nearest-ship parking ties.** Acceptance: one deterministic, recorded facilitator/product policy resolves equal-distance hosts.
-- **Prompt 147 — [NEW] Restrict battle-table craft.** Acceptance: only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.
+- **Prompt 147 — [EXTEND] Restrict battle-table craft.** Acceptance: extend current typed craft/docking catalogs so only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.
 - **Prompt 148 — [NEW] Preserve post-attack parking.** Acceptance: surviving craft stay at their authoritative hosts until normal movement reopens and never teleport home.
 - **Prompt 149 — [NEW] Restrict quarantined docking.** Acceptance: an affected ship accepts at most one shuttle dock per turn while retaining its allowed communication.
 - **Prompt 150 — [NEW] Prevent quarantine reset exploits.** Acceptance: reassignment, depart-return loops, reconnect, and stale retries cannot bypass the per-turn limit.
@@ -2048,7 +2787,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 179 — [NEW] Create the Admiral policy workspace.** Acceptance: the Admiral can publish permitted fleet policy and defence coordination without acquiring arbitrary GM authority.
 - **Prompt 180 — [NEW] Create the Executive Officer workspace.** Acceptance: maintenance, AEGIS weapons, Pallas, enriched warheads, and Command and Control route to real actions.
 - **Prompt 181 — [NEW] Create the Wing Commander workspace.** Acceptance: Starlight, both Fighter Bays, wings, scouting, missions, and fighter rebuilding show current authority and results.
-- **Prompt 182 — [NEW] Complete AEGIS combat-console registration.** Acceptance: Command and Control, both Fighter Bays, Missile Launchers, and Point Defence expose no action before their attack resolvers exist.
+- **Prompt 182 — [EXTEND] Complete AEGIS combat-console registration.** Acceptance: extend the existing console shell/data so Command and Control, both Fighter Bays, Missile Launchers, and Point Defence expose no action before their attack resolvers exist.
 - **Prompt 183 — [PRESERVE] Gate Dione by roster.** Acceptance: at 12+ players Dione starts with its exact population and stores; below 12 it is absent everywhere.
 - **Prompt 184 — [PRESERVE] Resolve Dione rations and thresholds.** Acceptance: its discrete population track selects the correct progressively smaller table.
 - **Prompt 185 — [PRESERVE] Resolve Dione Storage.** Acceptance: damaged 8♣ discards the authoritative half of Dione and docked-craft stores.
@@ -2137,12 +2876,12 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 249 — [NEW] Admit Voyage 33-0 through the crisis path.** Acceptance: facilitator acceptance creates the damaged cruiser with 40,000 survivors and its required fleet commitments.
 - **Prompt 250 — [NEW] Resolve Voyage 33-0 maintenance.** Acceptance: host stores fund steps 1–4, one console charges, and its failed unrest roll loses population and skips charging.
 - **Prompt 251 — [NEW] Resolve Voyage 33-0 movement.** Acceptance: it docks during Team and jumps for 1/1/2 host fuel without being treated as a base small ship in population logic.
-- **Prompt 252 — [PRESERVE] Gate the expansion Capybara.** Acceptance: immutable configuration replaces, never combines with, the base Capybara across the 8–20 core roster, catalogs, targeting, resources, and damage; optional Press and multiple GM instances remain orthogonal to that configuration.
+- **Prompt 252 — [REPAIR] Gate the expansion Capybara.** Acceptance: repair stale base/Capybara mode and counted-Press preset behavior so immutable configuration replaces, never combines with, the base Capybara across the owner-revised 8–20 core roster, catalogs, targeting, resources, and damage; exact 8–18 substitution matrices remain source/facilitator-defined until recorded. Optional Press and multiple GM instances remain orthogonal to that configuration.
 - **Prompt 253 — [EXTEND] Complete expansion Capybara identity.** Acceptance: 20,000 survivors, three charges, steps 1–6, 3/6/12 jump, and its own ration/population tracks render from one full-ship definition.
 - **Prompt 254 — [EXTEND] Resolve expansion Capybara Storage and Reactor.** Acceptance: Storage halves correct stores and the Reactor applies exact charge, damage, and upgrade behavior.
 - **Prompt 255 — [NEW] Resolve Capybara Advanced Hydroponics.** Acceptance: two water makes six food, optional one Scrap adds six, and upgrade/damage states apply once.
 - **Prompt 256 — [NEW] Resolve Capybara Water Production.** Acceptance: six water plus an optional six for one Scrap is transactional and unavailable when uncharged or damaged.
-- **Prompt 257 — [NEW] Resolve the Scrap Refinery.** Acceptance: charged 7♠ either creates one Scrap or converts one Scrap to three materials; the stray 5♦ remains documented errata.
+- **Prompt 257 — [NEW] Resolve the Scrap Refinery.** Acceptance: charged rendered-authority 7♠ either creates one Scrap or converts one Scrap to three materials; the hidden extracted 5♦ is provenance-only and creates no gameplay ambiguity.
 - **Prompt 258 — [NEW] Resolve Capybara Shuttle Bay choice.** Acceptance: the single bay fuels exactly one of Macaw or Boa per turn and unused fuel expires.
 - **Prompt 259 — [PROVE] Audit the expansion Capybara Jump Drive.** Acceptance: successful jumps cost 3/6/12 and all common charge, damage, route, failure, and retry cases hold.
 - **Prompt 260 — [PRESERVE] Register Starlight completely.** Acceptance: its owner, initial dock, scout ranges, fuel exception, cargo, mission bonuses, and UI route match the sheet.
@@ -2162,7 +2901,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 274 — [PRESERVE] Register J.E.U. Wobbly completely.** Acceptance: its cargo and fuelled recharge belong to Wobbly despite copied Condor text and follow the active Union assignment.
 - **Prompt 275 — [PRESERVE] Register J.E.U. Ally completely.** Acceptance: cargo, repair, dismantle, permission, and fuel rule belong to Ally despite copied Chacau/Philia text.
 - **Prompt 275a — [EXTEND] Restore the optional SNN Independent Press Shuttle.** Acceptance: recover the proven independent station from commits `71b5ad7`, `9c48e5d`, and `dced782` without retaining the `9d68158`/`e5aca326` counted-roster regression; an authorized GM controls dedicated `pressEnabled` state, enabled Press exposes one exclusive server-owned Press Officer/shuttle console and may be the twenty-first player beside a 20-player Capybara core, disabled Press is hidden and denied across claim/reconnect/presence/actions, multiple GM instances remain independent, and core readiness, loyalty, Wolf, roster, host, movement exception, dispatch authority, equipment, and return behavior stay truthful.
-- **Prompt 275b — [PROVE] Verify Press dispatch and bridge presentation.** Acceptance: an authorized dispatch reaches the intended audience and newspaper/confetti presentation follows current dock, accessibility, and reduced-motion rules without becoming authority.
+- **Prompt 275b — [REPAIR] Recover and restore the SNN Dispatch Desk regression.** Acceptance: audit git history and restore the last working end-to-end Dispatch Desk implementation as the design baseline unless a documented necessity requires change. The enabled, uniquely claimed Press Officer can discover, open, author, publish, dismiss, reconnect to, and audit the desk through the existing route, models, callables, rules, tests, styles, broadcast queue, and SNN shuttle/Press authority; ordinary, foreign, disabled, stale, and duplicate actors remain denied. The Dispatch Desk is explicitly excluded from generic Turn Zero UI and action restrictions: it remains visible and fully actionable during Turn Zero without weakening unrelated phase gates. Add chronological failing regression coverage proving the current breakage and composed restoration, including audience-correct bridge presentation, history/replay, accessibility, keyboard/screen-reader operation, mobile/short-landscape/reduced-motion containment, and established CIC aesthetics. Preserve SNN Press as a separate optional non-counted twenty-first station; do not invent printed behavior or silently fold this repair into an unrelated release.
 - **Prompt 276 — [PRESERVE] Assign the Quellon/Refinery Union pair.** Acceptance: the engineer runs only those two maintenance lanes and their configured craft during allowed movement.
 - **Prompt 277 — [PRESERVE] Assign the Shepherd/Icebreaker Union pair.** Acceptance: the alternate engineer receives only those two lanes and corresponding craft.
 - **Prompt 278 — [EXTEND] Build extra-ship Captain workspaces.** Acceptance: Gorgoneion, base Capybara, Warrior, and Vulcan Captains receive only their selected vessel's policy and actions.
@@ -2244,14 +2983,14 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 
 #### DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)
 
-- **Prompt 351 — [EXTEND] Show only arrived local ships on DRADIS.** Acceptance: a viewer sees ships whose authoritative coordinate and fleet group match their own.
-- **Prompt 352 — [PRESERVE] Represent jumping ships in transition.** Acceptance: departure removes the old arrived contact and destination does not appear before commit.
-- **Prompt 353 — [EXTEND] Publish sampled transit contacts.** Acceptance: DRADIS consumes server-owned samples and never derives hidden destination or movement authority from animation.
+- **Prompt 351 — [EXTEND] Show only arrived local ships on DRADIS.** Acceptance: extend the current ship-local presentation primitive so a viewer sees ships whose authoritative coordinate and fleet group match their own; current catalog/filter rendering alone is not composed split-fleet proof.
+- **Prompt 352 — [EXTEND] Represent jumping ships in transition.** Acceptance: extend the current presentation-only transition primitive so an authoritative departure removes the old arrived contact and destination does not appear before commit.
+- **Prompt 353 — [EXTEND] Publish sampled transit contacts.** Acceptance: DRADIS consumes server-owned samples and never derives hidden destination or movement authority from animation; later Wolf-attack contacts consume only Prompt 433a's audience-safe endpoint.
 - **Prompt 354 — [EXTEND] Remove stale contacts.** Acceptance: the newest server snapshot removes or changes a departed/destroyed contact despite cached local data.
 - **Prompt 355 — [EXTEND] Fold docked shuttles into host contacts.** Acceptance: a docked craft appears at its host rather than as an independent in-flight object.
 - **Prompt 356 — [EXTEND] Show undocked shuttle samples.** Acceptance: an eligible travelling craft appears only from authoritative sampled transit state.
 - **Prompt 357 — [EXTEND] Redact split-fleet contact metadata.** Acceptance: labels, counts, events, and empty space cannot reveal another group's location.
-- **Prompt 358 — [EXTEND] Reflect attack parking on DRADIS.** Acceptance: all craft resolve to parked hosts while only combat-capable craft enter the battle projection.
+- **Prompt 358 — [EXTEND] Reflect attack parking on DRADIS.** Acceptance: all craft resolve to parked hosts while only combat-capable craft enter the battle projection; consume Prompt 433a state without adding the owner-deferred attack visualization.
 - **Prompt 359 — [EXTEND] Merge contacts after rejoin.** Acceptance: valid ships and craft from both groups appear once only after the group transaction commits.
 - **Prompt 360 — [EXTEND] Deny direct DRADIS writes.** Acceptance: clients cannot forge contact, coordinate, transit, arrival, range, or visit-log state.
 - **Prompt 361 — [PRESERVE] Build the authoritative shuttle manifest.** Acceptance: every craft starts once at its printed host with exact owner, type, and enabled-mode rules.
@@ -2323,21 +3062,32 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 421 — [NEW] Encode Active Wolf Outpost L.** Acceptance: entry pressure, operational mission lock, clearing state, mission, and recurring attack behavior are exact.
 - **Prompt 421a — [NEW] Encode Active Wolf Fortress M.** Acceptance: minimum Battlestation/composition, repeated pressure, mission lock, clearing state, and mission behavior are exact.
 - **Prompt 422 — [PROVE] Run the complete away-mission scenario.** Acceptance: private deal, blind distribution, discard, assignment, bonuses, facilitator cards, success/failure, reward, overrun, and reconnect all work without leaks.
-- **Prompt 423 — [PROVE] Run the shuttle-airspace scenario.** Acceptance: departure, DRADIS transit, retarget, arrival, transfer, restriction parking, attack parking, reopen, and retry all remain authoritative.
+- **Prompt 423 — [PROVE] Run the shuttle-airspace scenario.** Acceptance: departure, current DRADIS transit/contact presentation, retarget, arrival, transfer, restriction parking, attack parking, reopen, and retry all remain authoritative; this proof does not introduce or imply the owner-deferred Wolf-attack visualization.
 - **Prompt 424 — [PROVE] Run the split-fleet exploration scenario.** Acceptance: two groups scout, jump independently, hide contacts/comms, ferry a legal payload, complete a mission, rejoin, and retain correct pursuit.
 
 #### Wolf attack engine, fleet combat, and boarding (Prompts 425–484)
 
+Implement this block in dependency order: 425 → 426 → 428 → 427 → 432/432a
+→ 433/433a/433b → 434/434a → 435–444 → 445–473 → 475–482 → 474/484
+→ 621 → 645. Prompts 351 and 353–360 consume the stable 433a contract only
+after it exists; Prompts 485–494 must become authoritative before attack
+pressure depends on them. Existing DRADIS, pursuit, damage, and console code is
+a presentation/data primitive, not proof of a playable attack.
+
 - **Prompt 425 — [NEW] Define the Wolf ship catalog.** Acceptance: Fighter Wing, Assault Transport, Destroyer, Cruiser, Strikecarrier, and Battlestation capacities/effects match every range and return rule.
 - **Prompt 426 — [NEW] Define attack-composition rules.** Acceptance: Turn 1 and later attacks meet their exact composition/capacity constraints without player-selected hidden cards.
-- **Prompt 427 — [NEW] Prepare an attack privately.** Acceptance: facilitators can stage cards, targets, modifiers, and notes before declaration while players receive nothing early.
-- **Prompt 428 — [NEW] Centralize combat randomness.** Acceptance: targeting, attack, defence, and damage rolls are server-generated, recorded, and impossible to submit as outcomes.
+- **Prompt 427 — [NEW] Prepare an attack privately from the GM console.** Acceptance: one GM can stage eligible cards, targets, modifiers, and notes before declaration while players receive nothing early; a second GM sees the same revision without becoming required.
+- **Prompt 428 — [NEW] Centralize combat math and randomness.** Acceptance: target selection, dice, modifier order, phase deadlines, damage, and casualties are server-generated/validated, recorded in a calculation receipt, and impossible to submit as outcomes.
 - **Prompt 429 — [NEW] Encode base targeting.** Acceptance: d6 maps exactly to the six core ships from authoritative active configuration.
 - **Prompt 430 — [NEW] Encode expansion targeting.** Acceptance: enabled Capybara uses d8 result 7 while 8 rerolls; base small Capybara is never a full-ship target.
 - **Prompt 431 — [NEW] Resolve target-number wraparound.** Acceptance: every permitted ±1 shift uses the correct configured target ring and clients cannot select the final ship directly.
-- **Prompt 432 — [NEW] Declare the attack atomically.** Acceptance: attack state, airspace lock, parked craft, current step, and one announcement commit together.
-- **Prompt 433 — [NEW] Project attack state by audience.** Acceptance: players see phase and permitted actions; facilitators retain hidden composition, unresolved dice, and notes.
-- **Prompt 434 — [NEW] Make attack commands retry-safe.** Acceptance: duplicate declaration, roll, action, or advancement returns one result and never resolves a step twice.
+- **Prompt 432 — [NEW] Declare the attack atomically.** Acceptance: a GM-console declaration commits attack state, airspace lock, parked craft, current step/deadline, calculation receipt, and one announcement together.
+- **Prompt 432a — [EXTEND] Operate the attack from the GM console.** Acceptance: one GM can declare, advance, pause, inspect, and resume the automatic lifecycle from the established GM surface; additional GMs observe the same authority and never become required operators.
+- **Prompt 433 — [NEW] Project attack state by audience.** Acceptance: affected players see phase, deadlines, status, permitted actions, and audience-safe results; facilitators retain hidden composition, unresolved dice, notes, and intervention state.
+- **Prompt 433a — [NEW] Publish a stable DRADIS-ready attack contract.** Acceptance: audience-safe endpoints/events expose canonical attack, source, target/contact, phase, server timestamp/deadline, range, bearing/contact reference, effect/outcome, visibility, and redaction fields with schema/privacy/reconnect tests; no new DRADIS attack visualization is implied.
+- **Prompt 433b — [EXTEND] Resolve choices in affected player consoles.** Acceptance: each existing entitled console shows all and only the eligible attack information, choices, pending/timeout state, denial, and committed result without facilitator transcription or hidden-state leakage.
+- **Prompt 434 — [NEW] Make attack commands retry-safe.** Acceptance: duplicate declaration, roll, player action, timeout, or advancement returns one result and never resolves a step twice.
+- **Prompt 434a — [EXTEND] Intervene and recover safely during an attack.** Acceptance: a GM pause, override, correction, or recovery requires a reason, danger confirmation when high impact, expected revision, idempotency key, scoped before/after delta, audit/replay, and bounded rollback where allowed; a concurrent stale GM cannot overwrite the winner.
 - **Prompt 435 — [NEW] Resolve Wolf Commander target rerolls.** Acceptance: the assigned Commander rerolls each eligible die no more than once before Command and Control.
 - **Prompt 436 — [NEW] Resolve AEGIS Command and Control.** Acceptance: charged, undamaged authority may redirect one Wolf ship to AEGIS only after Commander rerolls.
 - **Prompt 437 — [NEW] Lock Gorgoneion Force Field timing.** Acceptance: one ship is selected before targeting and receives exactly two less final damage.
@@ -2382,21 +3132,21 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 471 — [NEW] Enforce Battlestation Short Range immunity.** Acceptance: Short damage is denied while Long/Medium vulnerability remains.
 - **Prompt 472 — [NEW] Apply Strikecarrier wing bonus.** Acceptance: the final bonus uses authoritative surviving-wing state at the correct step.
 - **Prompt 473 — [NEW] Apply surviving Wolf ship damage.** Acceptance: after Boarding, every surviving card damages its resolved target by its printed value.
-- **Prompt 474 — [NEW] Publish the immediate attack result.** Acceptance: affected crews see damage, casualties, boarding, and remaining threats while hidden prep stays private.
-- **Prompt 475 — [NEW] Reuse the common damage draw path.** Acceptance: combat damage covers the drawn console, applies armour, records the card, and never exposes remaining deck order.
-- **Prompt 476 — [NEW] Destroy a ship on combat deck exhaustion.** Acceptance: an empty required draw enters the same authoritative catastrophe flow used elsewhere.
-- **Prompt 477 — [NEW] Apply combat casualties.** Acceptance: each applicable hit steps the target's exact population track and triggers thresholds once.
+- **Prompt 474 — [EXTEND] Publish the immediate attack result.** Acceptance: extend current crew/broadcast projection surfaces so affected crews see damage, casualties, boarding, and remaining threats while hidden prep stays private.
+- **Prompt 475 — [EXTEND] Reuse the common damage draw path.** Acceptance: extend the existing authoritative damage primitive so combat damage covers the drawn console, applies armour, records the card, and never exposes remaining deck order.
+- **Prompt 476 — [EXTEND] Destroy a ship on combat deck exhaustion.** Acceptance: extend the existing damage-deck exhaustion primitive so an empty required combat draw enters the same authoritative catastrophe flow used elsewhere.
+- **Prompt 477 — [EXTEND] Apply combat casualties.** Acceptance: extend the existing population/threshold primitive so each applicable hit steps the target's exact population track and triggers thresholds once.
 - **Prompt 478 — [NEW] Apply Doctor casualty mitigation.** Acceptance: one ship is halved, and each additional ship costs exactly three food and three water from valid stores.
 - **Prompt 479 — [NEW] Resolve Warrior post-attack salvage.** Acceptance: one server die per authoritative damage dealt by either side yields one material on each 5+.
 - **Prompt 480 — [NEW] Resolve Capybara post-attack Scrap.** Acceptance: each ship taking at least three damage creates exactly one Scrap opportunity per attack.
 - **Prompt 481 — [NEW] Collect Scrap with Macaw or Boa.** Acceptance: each craft moves only its printed salvage/cargo after the threshold event.
-- **Prompt 482 — [NEW] Resolve post-attack repairs.** Acceptance: eligible craft repair or permission-dismantle using correct costs, hosts, fuel, and audit events.
+- **Prompt 482 — [EXTEND] Resolve post-attack repairs.** Acceptance: extend the existing damage/correction and typed craft primitives into ordinary eligible repair or permission-dismantle using correct costs, hosts, fuel, and audit events.
 - **Prompt 483 — [NEW] Rebuild fighters after combat.** Acceptance: the AEGIS Construction Bay spends one material per fighter up to the current wing cap.
-- **Prompt 484 — [NEW] Publish the complete aftermath.** Acceptance: each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work.
+- **Prompt 484 — [EXTEND] Publish the complete aftermath.** Acceptance: extend current crew/GM/broadcast surfaces so each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work with one-GM next-action visibility.
 
 #### Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)
 
-- **Prompt 485 — [PROVE] Verify pursuit initializes at Turn 1.** Acceptance: attack scheduling and threat views consume the same server-owned value of 2 as navigation.
+- **Prompt 485 — [REPAIR] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
 - **Prompt 486 — [PROVE] Verify the per-turn pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
 - **Prompt 487 — [PROVE] Verify jump-based pursuit reduction.** Acceptance: attack pressure uses each group's selected-chart depth and never client-reported distance.
 - **Prompt 488 — [PROVE] Verify Ion Nebula threat suppression.** Acceptance: system I prevents the specified rise for that group while preserving environmental damage.
@@ -2407,7 +3157,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 493 — [NEW] Trigger Ancient Space Station attacks.** Acceptance: P creates and repeats the required attacks while any Wolf force survives.
 - **Prompt 494 — [NEW] Resolve the Wolf Commander attack dial.** Acceptance: only the assigned Commander can marshal ten capacity plus current pursuit once per turn.
 - **Prompt 495 — [NEW] Assign hidden loyalties authoritatively.** Acceptance: every configured player receives one valid private card and starting suspicion.
-- **Prompt 496 — [NEW] Enforce Wolf count by roster.** Acceptance: one or two agents exist exactly as configured and invalid overrides require a recorded facilitator decision.
+- **Prompt 496 — [REPAIR] Enforce the server-derived Wolf count.** Acceptance: the locked core roster deterministically produces one or two agents, including two for the owner-set 19/20 Capybara rows; optional Press remains eligible for random assignment when claimed but cannot change that count or create a third Wolf. Any exceptional override is reasoned, revision-guarded, audited, and visible in the setup receipt.
 - **Prompt 497 — [NEW] Authorize one Wolf action per turn.** Acceptance: only a living active Wolf with the correct cover role can submit one eligible action.
 - **Prompt 498 — [NEW] Resolve console sabotage.** Acceptance: recent-visit rules, random or chosen target mode, damage, and +2/+4 suspicion remain server-owned.
 - **Prompt 499 — [NEW] Resolve supply sabotage.** Acceptance: half of one valid resource on the Wolf-controlled shuttle is destroyed with correct rounding and +2 suspicion.
@@ -2436,7 +3186,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 521 — [NEW] Complete Wolf Commander powers.** Acceptance: address, composition, target manipulation, amnesty, attack dial, and boarding each have separate phase/authority/audit contracts.
 - **Prompt 521a — [NEW] Resolve the Wolf Commander address.** Acceptance: the assigned Commander can deliver the permitted fleet message with one attributable event and no hidden composition leak.
 - **Prompt 521b — [DECISION] Resolve Wolf Commander amnesty.** Acceptance: the offer, responses, deadline, and facilitator consequence are explicit private/public records rather than an invented automatic bargain.
-- **Prompt 522 — [NEW] Model two facilitator operating lanes.** Acceptance: main and assistant responsibilities, private views, shared calls, and handoff are explicit without over-broad reads.
+- **Prompt 522 — [REPAIR] Model one-facilitator ownership with optional GM lanes.** Acceptance: one authorized GM can own both printed responsibilities and the complete next-action queue; additional GMs may claim/share/handoff optional lanes, private views, and calls without over-broad reads, readiness coupling, or stale-instance deadlock.
 - **Prompt 523 — [DECISION] Record facilitator rule calls.** Acceptance: ambiguity, source, decision, actor, timestamp, audience, and supersession are durable and distinguishable from random rules results.
 - **Prompt 523a — [DECISION] Configure Wolf Attack difficulty.** Acceptance: facilitators adjust frequency/size through bounded pre-attack choices and the player UI cannot mutate the dial.
 - **Prompt 523b — [DECISION] Configure Crisis difficulty.** Acceptance: facilitators increase or decrease crisis pressure through explicit delivery decisions with no hidden client rule change.
@@ -2486,7 +3236,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 559 — [NEW] Power New Eden Station.** Acceptance: valid contributions rename/activate the station and publish its candidate-specific defence result.
 - **Prompt 560 — [NEW] Freeze play at pursuit failure.** Acceptance: pursuit 10 creates one terminal result and every normal gameplay callable rejects afterward.
 - **Prompt 561 — [NEW] Distinguish total fleet loss.** Acceptance: all usable ships lost/destroyed creates its own outcome while remaining players, pods, and shuttles stay readable.
-- **Prompt 562 — [NEW] Aggregate survivor outcomes.** Acceptance: the server totals ship populations, evacuations, pods, lost/destroyed ships, and final survivors from authoritative ledgers.
+- **Prompt 562 — [NEW] Aggregate real survivor outcomes.** Acceptance: the server totals ship populations, evacuations, pods, lost/destroyed ships, and final survivors from authoritative ledgers and excludes any theatrical announcement-only population adjustment.
 - **Prompt 563 — [NEW] Explain candidate results.** Acceptance: debrief shows path, met/unmet prerequisites, rolls, losses, and facilitator calls without private-loyalty leakage.
 - **Prompt 564 — [NEW] Enter debrief once.** Acceptance: success/failure freezes actions and creates one immutable outcome despite concurrent close requests.
 - **Prompt 565 — [NEW] Close the session authoritatively.** Acceptance: the server transitions from readable debrief to closed retention without losing permitted history.
@@ -2497,7 +3247,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 570 — [NEW] Apply d8 Capybara targeting.** Acceptance: 7 selects the full ship, 8 rerolls, and base d6 sessions never target the hybrid.
 - **Prompt 571 — [PROVE] Run full Capybara maintenance.** Acceptance: steps 1–6, rations, population, three charges, storage, production, bay, and jump all resolve in order.
 - **Prompt 572 — [NEW] Resolve Capybara population thresholds.** Acceptance: exact discrete values swap ration tables and population zero adds two unrest once.
-- **Prompt 573 — [DECISION] Resolve Capybara damage cards.** Acceptance: its own deck, 7♠ Scrap Refinery decision, and documented empty-deck ambiguity remain authoritative.
+- **Prompt 573 — [DECISION] Resolve Capybara damage cards.** Acceptance: its own deck and rendered-authority 7♠ Scrap Refinery decision remain authoritative; only the empty-deck behavior remains a recorded ambiguity, with the hidden extracted 5♦ excluded from gameplay.
 - **Prompt 574 — [NEW] Resolve Macaw refuelling.** Acceptance: only Team-docked Macaw can consume the single bay choice and unused fuel expires.
 - **Prompt 575 — [NEW] Resolve Macaw repairs.** Acceptance: one Scrap repairs each of up to two consoles, with fuel permitting a second eligible ship.
 - **Prompt 576 — [DECISION] Resolve Macaw salvage dismantling.** Acceptance: target permission and the recorded self-dismantling policy govern deliberate damage and Scrap gain.
@@ -2527,17 +3277,20 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 595 — [PRESERVE] Display the derived application version.** Acceptance: Settings reads runtime package metadata and never carries a handwritten version.
 - **Prompt 596 — [PRESERVE] Display bounded changelog history.** Acceptance: newest player-facing entry appears first in an independently scrollable accessible region.
 - **Prompt 597 — [PRESERVE] Complete exact disconnect confirmation.** Acceptance: danger styling and the required two-step `ARE YOU SURE?` flow queue presence cleanup, clear local state, and reach landing.
-- **Prompt 598 — [PRESERVE] Explain connectivity truthfully.** Acceptance: connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
-- **Prompt 599 — [EXTEND] Build the facilitator setup checklist.** Acceptance: two-facilitator duties, room/components, chart, casting, loyalties, and readiness are tracked without mutating gameplay.
+- **Prompt 598 — [REPAIR] Explain connectivity truthfully.** Acceptance: repair the stale default/Turn-0 copy contract so connected, offline, stale, pending, denied, retrying, and closed states derive from real signals; the no-session default is exactly `CONNECTED`, while only a joined pre-Turn-1 session says exactly `NOT CONNECTED — AWAITING IRIS AUTHENTICATION`.
+- **Prompt 599 — [EXTEND] Build the single-facilitator setup checklist.** Acceptance: one complete checklist tracks both printed responsibilities, room/components, chart, casting, loyalties, automatic setup math, and readiness without mutating gameplay; optional additional-GM lane assignments remain collaborative and nonblocking.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
 #### Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)
 
 - **Prompt 601 — [EXTEND] Make primary status universal.** Acceptance: every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names turn, phase, location, authority, next action, and failure state.
 - **Prompt 602 — [PROVE] Prove return navigation everywhere.** Acceptance: every nonlanding route has a visible keyboard-accessible logical return that preserves state unless explicitly released.
+- **Prompt 602a — [REPAIR] Restore shuttle-to-associated-ship return navigation.** Acceptance: audit current `ShuttleConsole`, `ShuttleConsoleTemplate`, shuttle/role/docking catalogs, route policy, tests, responsive styles, and the history around `d259cb0`, `9009807`, `dced782`, and `3299767`; if a prior generic return exists, preserve it as the design baseline. Every entitled ordinary shuttle console exposes one explicit visible return to its deterministic associated ship console, resolved from authoritative docking/association state and canonical route helpers rather than a client guess. If no entitled target exists, return safely to the established role-selection parent instead of inventing a ship. Navigation preserves session, seat, active console, shuttle state, and pending authoritative work; it does not release authority or mutate gameplay. Direct deep links, reconnect hydration, browser Back/Forward, and route replacement converge on the same permitted target without loops or cross-ship access. Preserve Press's `Back to Independent Stations`, Joint Engineering's Union return, and GM leave behavior as distinct cases. The control has an exact accessible name, visible focus, at least 44px target, screen-reader semantics, and nonoverlapping placement on mobile and short landscape; reduced motion removes decorative transition only. Add chronological route/entitlement/state/reconnect/history regression tests and real viewport proof before marking the universal Prompt 602 complete.
 - **Prompt 603 — [EXTEND] Make ship consoles work on narrow phones.** Acceptance: maintenance order, stores, damage, status, and primary action remain readable without clipped critical content.
+- **Prompt 603a — [REPAIR] Keep the mobile session ticket out of routed content.** Acceptance: audit the shared `SessionReadouts` session-code badge (the session ticket), `AppHeader`, `RoleSelect`, safe-area offsets, measured `--app-header-height`, responsive breakpoints, and the history beginning at `54f4409` and `b668e2a` before changing layout. At 320×844, 390×844, and 844×390, the ticket's occupied rectangle never intersects the Role Select intro, cards, labels, controls, focus outlines, or any other viewport element; surrounding content must move or reflow around the ticket instead of hiding beneath it, clipping, being covered by z-index, or depending on transparent overlap. The same spatial contract survives connected-player/rank/connection/settings variants, safe-area insets, long localized labels, keyboard focus, 44px touch targets, rotation, and reduced motion. Add a failing geometry regression that proves the current overlap and a real-browser composed route review; preserve shared session chrome and Role Select navigation rather than creating a route-specific duplicate ticket.
 - **Prompt 604 — [EXTEND] Make maintenance work in short landscape.** Acceptance: every step and result is reachable with intentional scrolling and no obscured control.
 - **Prompt 605 — [EXTEND] Make DRADIS responsive.** Acceptance: group-local ships, transit samples, parked craft, and hidden contacts remain truthful across supported orientations and sizes; every complete visible contact name stays inside the DRADIS viewport at every supported edge, orientation, and motion preference.
+- **Prompt 605a — [DEFERRED-OWNER] Visualize Wolf attacks on DRADIS.** Acceptance: only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval, render attack source, targets, phases, ranges, bearings, effects, and outcomes from the authoritative projection without changing current contact privacy or inventing telemetry. This visualization is intentionally excluded from, and cannot block, the playable Wolf-attack exit gate.
 - **Prompt 606 — [EXTEND] Make shuttle travel touch-operable.** Acceptance: departure, destination, retarget, dock, park, and denial use 44px targets without hover or precision drag.
 - **Prompt 607 — [EXTEND] Make jump controls keyboard-complete.** Acceptance: digit editing, lock, power rail alternative, submission, pending, denial, success, and recovery work without a pointer.
 - **Prompt 608 — [EXTEND] Own dialog focus correctly.** Acceptance: settings, danger confirmations, private results, facilitator calls, and endgame dialogs trap/restore focus and announce purpose.
@@ -2570,27 +3323,28 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 635 — [EXTEND] Standardize action audit records.** Acceptance: actor, session, action, phase, request, revision, outcome, random/facilitator source, and redaction policy are queryable.
 - **Prompt 636 — [PROVE] Measure callable and snapshot health.** Acceptance: latency, listener delay, retries, denials, 429/unavailable responses, and contention have privacy-safe metrics.
 - **Prompt 637 — [PROVE] Establish render-performance baselines.** Acceptance: landing bundle, route startup, DRADIS, attack updates, mission hands, and mobile frame behavior have measured thresholds.
-- **Prompt 638 — [EXTEND] Support and exercise the 20-player core target.** Acceptance: align authoritative session validation, the source-authoritative 8–20 Capybara roster, Wolf/vessel setup, client configuration, and start transactions, then record one deterministic 20-player expansion run covering join, cast, heartbeat, listeners, a real action, and reconnect. Repeat with enabled and claimed Press as a twenty-first player-role holder plus multiple simultaneous authorized GMs; Press and GM occupancy must not change core readiness, loyalty, Wolf, or capacity math, and the evidence must not claim support before the measured run passes.
+- **Prompt 638 — [EXTEND] Support and exercise the 20-player core target.** Acceptance: align authoritative session validation, the source-authoritative 8–20 Capybara roster, Wolf/vessel setup, client configuration, and start transactions, then record one deterministic 20-player expansion run covering join, cast, heartbeat, listeners, a real action, and reconnect with one facilitator. Repeat with enabled and claimed Press as a twenty-first player-role holder plus multiple simultaneous authorized GMs; Press and GM occupancy must not change core readiness, loyalty, Wolf, or capacity math, and the evidence must not claim support before the measured run passes.
 - **Prompt 639 — [PROVE] Exercise the 60-browser target.** Acceptance: a committed repeatable capacity command runs an isolated 15-minute production-shaped scenario and records the tested commit/environment, heartbeats, listeners, concurrent real actions, contention, reconnect, 429/unavailable recovery, latency/error thresholds, usage, and cost in a reviewable artifact.
 - **Prompt 640 — [PROVE] Publish capacity conclusions.** Acceptance: supported envelope, failed thresholds, retry guidance, cost, and follow-up work reflect measurements rather than the nominal target.
-- **Prompt 641 — [PROVE] Run a complete base-game playthrough.** Acceptance: six core ships and two facilitators progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief.
-- **Prompt 642 — [PROVE] Run a complete Capybara playthrough.** Acceptance: both roles, Scrap, Macaw, Boa, d8 targeting, mission, combat, jump, and one candidate path complete.
+- **Prompt 641 — [PROVE] Run a complete base-game playthrough.** Acceptance: six core ships and one facilitator progress from lobby through maintenance, jump, scout, mission, combat, deduction, crisis, and debrief without manual arithmetic or transcription; repeat the mutation races with optional additional GMs.
+- **Prompt 642 — [PROVE] Run a complete Capybara playthrough.** Acceptance: one facilitator runs both roles, Scrap, Macaw, Boa, d8 targeting, mission, combat, jump, and one candidate path; optional Press remains independent and an additional-GM race cannot double-mutate.
 - **Prompt 643 — [PROVE] Run a complete split-fleet playthrough.** Acceptance: independent jumps, contacts, communications, pursuit, taxi, local actions, rejoin, and failure recovery remain correct.
-- **Prompt 644 — [PROVE] Run a complete shuttle-airspace playthrough.** Acceptance: every craft type travels, docks, transfers/acts, appears on DRADIS, parks under each restriction, and recovers after reconnect.
+- **Prompt 644 — [PROVE] Run a complete shuttle-airspace playthrough.** Acceptance: every craft type travels, docks, transfers/acts, appears through the current DRADIS contact contract, parks under each restriction, and recovers after reconnect; the proof consumes attack state but does not add the owner-deferred Wolf-attack visualization.
 - **Prompt 645 — [PROVE] Run a complete Wolf attack playthrough.** Acceptance: private prep, targeting, all ranges, fighters, boarding, damage, casualties, salvage, repair, returning threats, and aftermath resolve.
 - **Prompt 646 — [PROVE] Run a complete away-mission playthrough.** Acceptance: eligibility, private cards, distribution, discards, placement, bonuses, totals, rewards, failure, overrun, drop-off, and reconnect resolve.
 - **Prompt 647 — [PROVE] Prove Ancient Jump Ring success.** Acceptance: discovery, research, repair, contribution uniqueness, per-ship fuel, passage, sabotage call, and debrief complete.
 - **Prompt 648 — [PROVE] Prove Deep Nebula success and loss.** Acceptance: hidden scout bonus, one lost ship, later bonus, one successful ship, fleet-success policy, and debrief complete.
 - **Prompt 649 — [PROVE] Prove Ancient Space Station success.** Acceptance: arrival pressure, repeated attacks, liberation, 18 Reactor power, activation, and debrief complete.
-- **Prompt 650 — [PROVE] Prove terminal failure and recovery paths.** Acceptance: pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play.
+- **Prompt 650 — [PROVE] Prove authoritative terminal failure and recovery paths.** Acceptance: server-owned pursuit 10, total loss, destroyed ship, escape pods, evacuation, mutiny, arrest deadline, abandoned candidate, and unresolved call cannot orphan play; a client-only `GAME OVER` label or presentation state is not terminal authority.
 - **Prompt 651 — [PROVE] Run the final release-readiness audit.** Acceptance: aggregate current prompt and milestone evidence; all roles, vessels, craft, candidate paths, privacy, accessibility, resilience, security, capacity, version, changelog, and docs gates are green; the final executable gates pass and no placeholder control remains, without manually repeating every earlier review.
 - **Prompt 652 — [EXTEND] Prevent FleetTicker messages from overlapping.** Acceptance: when standing/broadcast copy changes, outgoing text drains and queued replacement enters without two strings covering each other; urgent FleetBroadcast precedence and replacement ordering remain intact; rapid updates serialize without duplicate tracks; screen-reader announcements are not duplicated; reduced-motion mode remains readable; and narrow phone, wide desktop, and short landscape layouts show one legible lane with no overlap/clipping.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
-The backlog contains **705 independently executable prompts** in this
-snapshot: 653 base IDs plus 52 lettered child IDs placed beside their closest
-dependency. The current evidence classification is **168 `[PRESERVE]`, 86
-`[EXTEND]`, 377 `[NEW]`, 51 `[PROVE]`, and 23 `[DECISION]`**. That distribution
+The backlog contains **713 independently executable prompts** in this
+snapshot: 653 base IDs plus 60 lettered child IDs placed beside their closest
+dependency. The current evidence classification is **160 `[PRESERVE]`, 102
+`[EXTEND]`, 363 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 15 `[REPAIR]`, and 1
+`[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:
 reclassify prompts as `main` advances, retain completed IDs, add a suffix when a

@@ -1,6 +1,7 @@
 import { useSessionStore } from '@/store/useSessionStore';
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import ContactPlot, {
   SPASM_MS,
 } from './ContactPlot';
@@ -463,6 +464,135 @@ it('anchors nearby contact names on different sides of their returns', () => {
 
   expect(anchors.every(Boolean)).toBe(true);
   expect(new Set(anchors)).toHaveLength(2);
+});
+
+it('keeps complete long edge names readable with intrinsic-width labels', () => {
+  const css = readFileSync('src/styles/plot.css', 'utf8');
+  expect(css).toMatch(/\.contact-plot__tag\s*\{[^}]*width:\s*max-content/s);
+  expect(css).toMatch(/\.contact-plot__tag\s*\{[^}]*white-space:\s*nowrap/s);
+  expect(css).not.toMatch(/\.contact-plot__tag\s*\{[^}]*overflow-wrap:/s);
+
+  const edgeContacts = [
+    { tag: 'REFINERY 124 PDF COLONEL LONG FLEET NAME', x: 0.99, y: 0.01, z: 0, color: 'white' },
+    { tag: 'SNN INDEPENDENT PRESS SHUTTLE LONG NAME', x: -0.99, y: -0.01, z: 0, color: 'white' },
+  ];
+  const { container } = render(<ContactPlot contacts={edgeContacts} />);
+  expect(contactsIn(container)).toHaveLength(2);
+  expect([...container.querySelectorAll('.contact-plot__tag')].map((tag) => tag.textContent))
+    .toEqual(expect.arrayContaining(edgeContacts.map(({ tag }) => `${tag}SHORT`)));
+});
+
+it.each([
+  { width: 1440, height: 900, placement: 'field' as const, reduced: false },
+  { width: 320, height: 844, placement: 'widget' as const, reduced: true },
+  { width: 844, height: 390, placement: 'inset' as const, reduced: false },
+  { width: 1440, height: 900, placement: 'widget' as const, reduced: true },
+])('clamps long canonical labels inward on both axes at $width x $height ($placement, reduced=$reduced)', ({
+  width,
+  height,
+  placement,
+  reduced,
+}) => {
+  vi.mocked(matchMedia).mockReturnValue({
+    matches: reduced,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  } as unknown as MediaQueryList);
+  const edgeContacts = [
+    {
+      tag: 'REFINERY 124 PDF COLONEL LONG FLEET NAME',
+      x: 0.99, y: -0.99, z: 0, color: 'white',
+    },
+    {
+      tag: 'SNN INDEPENDENT PRESS SHUTTLE LONG NAME',
+      x: 0.99, y: 0.99, z: 0, color: 'white',
+    },
+    {
+      tag: 'DIONE LONG-RANGE SURVEYOR CONTACT',
+      x: -0.99, y: 0.99, z: 0, color: 'white',
+    },
+    {
+      tag: 'CAPYBARA CONVOY COMMAND CONTACT',
+      x: -0.99, y: -0.99, z: 0, color: 'white',
+    },
+  ];
+  const baseRects = [
+    { left: width - 4, right: width + 220, top: -100, bottom: -80 },
+    { left: width - 4, right: width + 220, top: height - 20, bottom: height + 10 },
+    { left: -220, right: 4, top: height - 20, bottom: height + 10 },
+    { left: -220, right: 4, top: -100, bottom: -80 },
+  ];
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) {
+      return { left: 0, top: 0, right: width, bottom: height, width, height } as DOMRect;
+    }
+    if (this.classList.contains('contact-plot__tag')) {
+      const index = [...document.querySelectorAll<HTMLElement>('.contact-plot__tag')].indexOf(this as HTMLElement);
+      const base = baseRects[index] ?? baseRects[0]!;
+      const offsetX = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-x')) || 0;
+      const offsetY = Number.parseFloat((this as HTMLElement).style.getPropertyValue('--label-clamp-y')) || 0;
+      return {
+        left: base.left + offsetX,
+        right: base.right + offsetX,
+        top: base.top + offsetY,
+        bottom: base.bottom + offsetY,
+        width: base.right - base.left,
+        height: base.bottom - base.top,
+      } as DOMRect;
+    }
+    return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 } as DOMRect;
+  });
+
+  const { container, unmount } = render(
+    <ContactPlot placement={placement} contacts={edgeContacts} />,
+  );
+  const plot = plotIn(container);
+  expect(plot).toHaveAttribute('data-still', String(reduced));
+  const labels = [...container.querySelectorAll<HTMLElement>('.contact-plot__tag')];
+  expect(labels).toHaveLength(edgeContacts.length);
+  expect([...container.querySelectorAll<HTMLElement>('.contact-plot__contact')]
+    .map((contact) => contact.dataset.labelAnchor))
+    .toEqual(['north-east', 'south-east', 'south-west', 'north-west']);
+
+  for (const [index, label] of labels.entries()) {
+    const rect = label.getBoundingClientRect();
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(width);
+    expect(rect.top).toBeGreaterThanOrEqual(0);
+    expect(rect.bottom).toBeLessThanOrEqual(height);
+    expect(label.style.getPropertyValue('--label-clamp-x')).not.toBe('');
+    expect(label.style.getPropertyValue('--label-clamp-y')).not.toBe('');
+    expect(label).toHaveTextContent(edgeContacts[index]!.tag);
+  }
+  unmount();
+});
+
+it('keeps ambient contact names private until acquisition while labels are clamped', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime('2026-01-01T00:10:00.000Z');
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    if (this.classList.contains('contact-plot')) {
+      return { left: 0, top: 0, right: 320, bottom: 844, width: 320, height: 844 } as DOMRect;
+    }
+    if (this.classList.contains('contact-plot__tag')) {
+      return { left: 8, top: 8, right: 160, bottom: 28, width: 152, height: 20 } as DOMRect;
+    }
+    return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 } as DOMRect;
+  });
+  const { container } = render(<ContactPlot contacts={[]} ambientSession={ambientSession} />);
+  act(() => vi.advanceTimersByTime(
+    ambientContactIntervalMs(ambientSession.id, 1) - 10 * 60 * 1000,
+  ));
+  const contact = container.querySelector<HTMLElement>("[data-ambient='true']");
+  if (!contact) throw new Error('Expected the passing unknown contact.');
+  expect(contact).toHaveTextContent('UNKNOWN CONTACT');
+  expect(contact.querySelector('.contact-plot__tag')).toBeInTheDocument();
+  act(() => {
+    vi.advanceTimersByTime(AMBIENT_CLASSIFICATION_MS);
+    contact.dispatchEvent(new CustomEvent(CONTACT_SCAN_EVENT, { bubbles: true }));
+  });
+  expect(contact).not.toHaveTextContent('UNKNOWN CONTACT');
 });
 
 it('holds the hostile tracks on the board after an intrusion so they can break up, then drops them', () => {

@@ -2,11 +2,16 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
-import { GM_ACCESS_TIMEOUT_MS, useSessionStore } from '@/store/useSessionStore';
+import {
+  GM_ACCESS_TIMEOUT_MS,
+  SESSION_STORAGE_KEY,
+  useSessionStore,
+} from '@/store/useSessionStore';
 import type { GameSession, GmInstance, Player } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
+import { recommendedRoleIds } from '@/data/rolePresets';
 
 vi.mock('@/lib/sessionService', () => ({
   connect: vi.fn().mockResolvedValue(undefined),
@@ -514,6 +519,92 @@ describe('App', () => {
     expect(screen.getByText(/shuttle location.*docked.*dione/i)).toBeInTheDocument();
     expect(container.querySelector('.contact-plot__origin')).toHaveTextContent('DIONE');
     expect(container.querySelectorAll('.contact-plot__tag')).not.toContain('SNN');
+  });
+
+  it.each([
+    [8, 'AEGIS'],
+    [11, 'AEGIS'],
+    [12, 'DIONE'],
+    [20, 'DIONE'],
+  ] as const)(
+    'rehydrates a legacy %i-player Press route with the roster-derived %s host projection',
+    async (playerCount, hostName) => {
+      window.location.hash = '#/press';
+      const legacySession: GameSession = {
+        ...session,
+        playerCount,
+        activeRoleIds: recommendedRoleIds(playerCount),
+      };
+      const pressPlayer: Player = {
+        ...player,
+        role: 'player',
+        activeConsoleRoleId: 'press-officer',
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+        version: 1,
+        state: {
+          session: legacySession,
+          me: pressPlayer,
+          gmInstance: null,
+          mode: 'press',
+          lastRoute: '/press',
+        },
+      }));
+
+      await useSessionStore.persist.rehydrate();
+      const { container } = render(<App />);
+
+      expect(await screen.findByRole('heading', { name: /snn.*system news network/i }))
+        .toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`shuttle location.*docked.*${hostName}`, 'i')))
+        .toBeInTheDocument();
+      expect(container.querySelector('.contact-plot__origin')).toHaveTextContent(hostName);
+      expect(useSessionStore.getState().session?.shuttleDockings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            shuttleId: 'snn-press-shuttle',
+            shipId: hostName.toLowerCase(),
+          }),
+        ]),
+      );
+    },
+  );
+
+  it('preserves a valid stored Press docking and visit history during composed rehydration', async () => {
+    window.location.hash = '#/press';
+    const storedDocking = {
+      shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'TURN 3',
+    } as const;
+    const storedVisit = {
+      id: 'snn-visit-3', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+      action: 'docked' as const, occurredAt: 'TURN 3',
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      state: {
+        session: {
+          ...session,
+          playerCount: 20,
+          activeRoleIds: recommendedRoleIds(20),
+          shuttleDockings: [storedDocking],
+          shuttleVisitLog: [storedVisit],
+        },
+        me: { ...player, role: 'player', activeConsoleRoleId: 'press-officer' },
+        gmInstance: null,
+        mode: 'press',
+        lastRoute: '/press',
+      },
+    }));
+
+    await useSessionStore.persist.rehydrate();
+    const { container } = render(<App />);
+
+    expect(await screen.findByRole('heading', { name: /snn.*system news network/i }))
+      .toBeInTheDocument();
+    expect(screen.getByText(/shuttle location.*docked.*aegis/i)).toBeInTheDocument();
+    expect(container.querySelector('.contact-plot__origin')).toHaveTextContent('AEGIS');
+    expect(useSessionStore.getState().session?.shuttleDockings).toEqual([storedDocking]);
+    expect(useSessionStore.getState().session?.shuttleVisitLog).toEqual([storedVisit]);
   });
 
   it('rebases the named fleet contacts around the joined ship and returns to the AEGIS view', async () => {

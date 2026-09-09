@@ -34,6 +34,7 @@ const CONNECTION_STATUS_STARTUP_LIE_MS = 5_000;
 function useStartupConnectionStatusLie(
   status: ReturnType<typeof selectConnectionStatus>,
   hasCachedSession: boolean,
+  explicitlyOffline: boolean,
 ): ReturnType<typeof selectConnectionStatus> {
   const [showRealStatus, setShowRealStatus] = useState(false);
   const hasKnownConnection = useRef(status !== 'red' || hasCachedSession);
@@ -47,7 +48,9 @@ function useStartupConnectionStatusLie(
     return () => window.clearTimeout(timeout);
   }, []);
 
-  return showRealStatus || hasKnownConnection.current || status !== 'red' ? status : 'yellow';
+  return showRealStatus || hasKnownConnection.current || status !== 'red' || explicitlyOffline
+    ? status
+    : 'yellow';
 }
 
 /**
@@ -208,12 +211,14 @@ export default function AppHeader() {
   const closeButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLElement>(null);
   const status = useSessionStore(selectConnectionStatus);
+  const explicitlyOffline = useSessionStore((state) => state.connection === 'offline');
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
   const reconnectDisplayStatus = useConnectionStatusGrace(status, Boolean(sessionId && playerUid));
   const displayStatus = useStartupConnectionStatusLie(
     reconnectDisplayStatus,
     Boolean(sessionId && playerUid),
+    explicitlyOffline,
   );
   const joinCode = useSessionStore((state) => state.session?.joinCode);
   const hasSession = sessionId !== undefined && joinCode !== undefined;

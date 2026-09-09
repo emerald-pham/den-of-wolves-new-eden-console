@@ -3,6 +3,8 @@ import {
   DEFAULT_ENABLED_SHUTTLECRAFT,
   INITIAL_SHUTTLE_DOCKINGS,
   INITIAL_SHUTTLE_VISITS,
+  initialShuttleDockingsForRoles,
+  normalizeShuttleManifest,
   isShuttleEnabled,
   SHUTTLECRAFT,
   shuttlebayForShip,
@@ -65,7 +67,58 @@ describe('fleet shuttlebays', () => {
     ]));
   });
 
-  it('keeps GM-controlled Union craft out of the default 20/21-player roster', () => {
+  it.each([
+    [8, 'aegis'],
+    [11, 'aegis'],
+    [12, 'dione'],
+    [18, 'dione'],
+    [19, 'dione'],
+    [20, 'dione'],
+  ] as const)('derives the SNN host from the locked %i-player core roster', (playerCount, shipId) => {
+    expect(initialShuttleDockingsForRoles(recommendedRoleIds(playerCount))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId }),
+      ]),
+    );
+  });
+
+  it('normalizes a legacy manifest without overwriting stored docking or visit history', () => {
+    const storedDocking = {
+      shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'TURN 3',
+    } as const;
+    const storedVisit = {
+      id: 'snn-visit-3', shuttleId: 'snn-press-shuttle', shipId: 'aegis',
+      action: 'docked' as const, occurredAt: 'TURN 3',
+    };
+    const result = normalizeShuttleManifest(
+      [storedDocking], [storedVisit], recommendedRoleIds(20), 20,
+    );
+    expect(result.dockings).toEqual([storedDocking]);
+    expect(result.visits).toEqual([storedVisit]);
+  });
+
+  it('adds the count-derived SNN docking to a legacy history that predates the Press field', () => {
+    const oldDocking = {
+      shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START',
+    } as const;
+    const oldVisit = {
+      id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'docked' as const, occurredAt: 'SESSION START',
+    };
+    const result = normalizeShuttleManifest(
+      [oldDocking], [oldVisit], recommendedRoleIds(11), 11,
+    );
+    expect(result.dockings).toEqual(expect.arrayContaining([
+      oldDocking,
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'aegis' }),
+    ]));
+    expect(result.visits).toEqual(expect.arrayContaining([
+      oldVisit,
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'aegis' }),
+    ]));
+  });
+
+  it('keeps GM-controlled Union craft out of the default core roster', () => {
     const gmControlled = SHUTTLECRAFT.filter((shuttle) => shuttle.availability === 'gm-controlled');
 
     expect(gmControlled.map((shuttle) => shuttle.id)).toEqual(['wobbly', 'ally']);
@@ -74,7 +127,7 @@ describe('fleet shuttlebays', () => {
     );
     expect(gmControlled.every((shuttle) =>
       !DEFAULT_ACTIVE_ROLE_IDS.includes(shuttle.captainRoleId))).toBe(true);
-    for (const playerCount of [20, 21]) {
+    for (const playerCount of [20]) {
       expect(gmControlled.every((shuttle) =>
         !isShuttleEnabled(shuttle, recommendedRoleIds(playerCount)))).toBe(true);
     }

@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
+  pressEnabled: true,
   activeConsoleRoleId: undefined as string | undefined,
   activeRoleIds: undefined as readonly string[] | undefined,
   randomInt: vi.fn(() => 3_100_000_000), randomUUID: vi.fn(() => 'damage-event'),
@@ -38,9 +39,11 @@ import {
   setShipConsoleLock,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
+  setCapybaraEnabled,
+  setDioneEnabled,
   unlockPressAirspace,
 } from './index';
-import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{
@@ -63,6 +66,7 @@ beforeEach(() => {
   mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
   mock.pressDispatch = undefined;
+  mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
   mock.activeRoleIds = undefined;
   mock.retry = false;
@@ -92,6 +96,7 @@ beforeEach(() => {
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
           pressDispatch: mock.pressDispatch,
+          pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
         };
     return { exists: true, get: (key: string) => fields[key] };
@@ -203,19 +208,17 @@ it('does not let a GM add a Union role alongside the engineers it replaces', asy
   expect(mock.update).not.toHaveBeenCalled();
 });
 
-it('accepts one confirmed Union roster and rejects an invalid replacement combination', async () => {
+it('retires the partial role configuration callable and preserves invalid-combination denial', async () => {
   const validRoleIds = recommendedRoleIds(14);
-  const expectedRoleIds = ROLE_IDS.filter((roleId) => validRoleIds.includes(roleId));
   await expect(setActiveRoleConfiguration.run(request({
     sessionId: 's1',
     instanceId: 'bridge',
     activeRoleIds: validRoleIds,
-  }))).resolves.toEqual({ activeRoleIds: expectedRoleIds });
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
-    activeRoleIds: expectedRoleIds,
-  }));
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/confirmSetup/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
 
-  mock.update.mockClear();
   await expect(setActiveRoleConfiguration.run(request({
     sessionId: 's1',
     instanceId: 'bridge',
@@ -225,6 +228,33 @@ it('accepts one confirmed Union roster and rejects an invalid replacement combin
       'quellon-engineer',
     ],
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('retires every legacy setup mutator behind the complete confirmSetup transaction', async () => {
+  const commands = [
+    () => setActiveRoleEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', roleId: 'admiral', enabled: false,
+    })),
+    () => setActiveRoleConfiguration.run(request({
+      sessionId: 's1', instanceId: 'bridge', activeRoleIds: recommendedRoleIds(14),
+    })),
+    () => import('./index').then(({ applyRolePreset }) => applyRolePreset.run(request({
+      sessionId: 's1', instanceId: 'bridge', playerCount: 14,
+    }))),
+    () => setCapybaraEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', capybaraEnabled: false,
+    })),
+    () => setDioneEnabled.run(request({
+      sessionId: 's1', instanceId: 'bridge', dioneEnabled: false,
+    })),
+  ];
+
+  for (const command of commands) {
+    await expect(command()).rejects.toMatchObject({
+      code: 'failed-precondition', message: expect.stringMatching(/confirmSetup/i),
+    });
+  }
   expect(mock.update).not.toHaveBeenCalled();
 });
 
@@ -665,6 +695,25 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     }),
   }));
+});
+
+it('denies Press airspace unlock while Press is disabled without writing', async () => {
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.pressEnabled = false;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/press.*disabled/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('holds the player ICN travel lock at Turn 0', async () => {

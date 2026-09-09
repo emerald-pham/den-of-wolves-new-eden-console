@@ -4,7 +4,7 @@ import {
   recommendedRoleIds,
 } from './roleConfiguration';
 
-export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 export const SUPPORTED_CHART_IDS = ['A', 'B', 'C'] as const;
 export const SUPPORTED_EXPANSION_MODES = ['base', 'capybara', 'none'] as const;
 export const SUPPORTED_TURN_LIMITS = [6, 7, 8] as const;
@@ -20,6 +20,22 @@ export interface SessionConfiguration {
   readonly turnLimit: SessionTurnLimit;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
+}
+
+/** The immutable setup tuple persisted alongside the legacy session fields. */
+export interface CanonicalSessionSetup extends SessionConfiguration {
+  readonly activeRoleIds: readonly string[];
+  readonly activeVesselIds: readonly string[];
+}
+
+export interface StableSeatRecord {
+  readonly id: string;
+  readonly roleId: string;
+  readonly label: string;
+  readonly factionId: string | null;
+  readonly status: 'open';
+  readonly holderUid: null;
+  readonly claimedAt: null;
 }
 
 /** Defaults preserve sessions created before setup configuration was added. */
@@ -55,14 +71,18 @@ export function normalizeSessionConfiguration(
     ? DEFAULT_SESSION_CONFIGURATION.playerCount
     : input.playerCount;
   if (!isOneOf(playerCount, SUPPORTED_PLAYER_COUNTS)) {
-    throw new Error('playerCount must be an integer from 8 through 18.');
+    throw new Error('playerCount must be an integer from 8 through 20.');
   }
 
   const chartId = input.chartId === undefined ? DEFAULT_SESSION_CONFIGURATION.chartId : input.chartId;
   if (!isOneOf(chartId, SUPPORTED_CHART_IDS)) throw new Error('chartId must be A, B, or C.');
 
+  // The legacy empty shape remains base-game compatible. For the two
+  // expansion-only player counts, an omitted mode means the printed Capybara
+  // pair; an explicit base/none request is rejected below rather than being
+  // silently converted.
   const expansion = input.expansion === undefined
-    ? DEFAULT_SESSION_CONFIGURATION.expansion
+    ? (playerCount >= 19 ? 'capybara' : DEFAULT_SESSION_CONFIGURATION.expansion)
     : input.expansion;
   if (!isOneOf(expansion, SUPPORTED_EXPANSION_MODES)) {
     throw new Error('expansion must be base, capybara, or none.');
@@ -89,6 +109,12 @@ export function normalizeSessionConfiguration(
   if (expansion === 'none' && capybaraEnabled) {
     throw new Error('Capybara cannot be enabled when expansion mode is none.');
   }
+  if (playerCount >= 19 && expansion !== 'capybara') {
+    throw new Error('The Capybara expansion is required for 19 or 20 players.');
+  }
+  if (playerCount < 19 && expansion === 'capybara') {
+    throw new Error('The Capybara expansion is available only for 19 or 20 players.');
+  }
 
   const options = input.options;
   if (options !== undefined) {
@@ -108,9 +134,29 @@ export function normalizeSessionConfiguration(
   };
 }
 
+/** Read legacy stored sessions without allowing that shape for new writes. */
+export function normalizePersistedSessionConfiguration(
+  input: Readonly<Record<string, unknown>>,
+): SessionConfiguration {
+  const expansion = input.expansion;
+  const playerCount = input.playerCount;
+  if (expansion === 'capybara' && typeof playerCount === 'number' && playerCount < 19) {
+    const base = normalizeSessionConfiguration({
+      ...input,
+      expansion: 'base',
+      capybaraEnabled: input.capybaraEnabled === undefined ? true : input.capybaraEnabled,
+    });
+    // A pre-0.3.12 session could carry the old optional Capybara marker at a
+    // lower count. Hydrate it deterministically as a base-game tuple; the
+    // strict creation/configuration validator still rejects that shape.
+    return base;
+  }
+  return normalizeSessionConfiguration(input);
+}
+
 export function wolfCountForPlayerCount(playerCount: number): 1 | 2 {
   if (!isOneOf(playerCount, SUPPORTED_PLAYER_COUNTS)) {
-    throw new Error('playerCount must be an integer from 8 through 18.');
+    throw new Error('playerCount must be an integer from 8 through 20.');
   }
   return playerCount <= 13 ? 1 : 2;
 }
@@ -263,6 +309,10 @@ export interface SetupReadinessInput {
   readonly facilitatorResponsibilities: { readonly main: boolean; readonly assistant: boolean };
   readonly activeRoleIds: readonly string[];
   readonly activeVesselIds: readonly string[];
+  /** Optional Press holders are live station occupancy, never core roster members. */
+  readonly pressPlayerUids?: readonly string[];
+  /** Connected GM-only observers do not consume a player or Press station. */
+  readonly facilitatorPlayerUids?: readonly string[];
 }
 
 function vesselIdsForRole(roleId: string): readonly string[] {
@@ -280,11 +330,24 @@ export function readinessForSetup(input: SetupReadinessInput): {
   const reasons: SetupReadinessReason[] = [];
   if (input.phase !== 'casting') reasons.push('wrong-phase');
   if (!isOneOf(input.playerCount, SUPPORTED_PLAYER_COUNTS)) reasons.push('player-count');
-  if (input.connectedPlayers.length !== input.playerCount) reasons.push('players');
+  const pressPlayerUids = new Set(input.pressPlayerUids ?? []);
+  const assignedCorePlayerUids = new Set(input.assignments
+    .filter((assignment) => assignment.roleId !== 'press-officer')
+    .map((assignment) => assignment.uid));
+  const facilitatorOnlyUids = new Set((input.facilitatorPlayerUids ?? [])
+    .filter((uid) => !assignedCorePlayerUids.has(uid)));
+  const coreConnectedPlayers = input.connectedPlayers.filter((uid) =>
+    !pressPlayerUids.has(uid) && !facilitatorOnlyUids.has(uid));
+  const coreAssignments = input.assignments.filter((assignment) =>
+    !pressPlayerUids.has(assignment.uid) && !facilitatorOnlyUids.has(assignment.uid) &&
+    assignment.roleId !== 'press-officer');
+  const pressHasCoreAssignment = input.assignments.some((assignment) =>
+    pressPlayerUids.has(assignment.uid) && assignment.roleId !== 'press-officer');
+  if (coreConnectedPlayers.length !== input.playerCount) reasons.push('players');
 
-  const playerIds = new Set(input.connectedPlayers);
-  const roleIds = new Set(input.assignments.map((assignment) => assignment.roleId));
-  const assignedPlayers = new Set(input.assignments.map((assignment) => assignment.uid));
+  const playerIds = new Set(coreConnectedPlayers);
+  const roleIds = new Set(coreAssignments.map((assignment) => assignment.roleId));
+  const assignedPlayers = new Set(coreAssignments.map((assignment) => assignment.uid));
   const printedRoleIds = recommendedRoleIds(input.playerCount);
   const configuredRoleSet = new Set(input.activeRoleIds);
   const exactPrintedRoster =
@@ -292,24 +355,27 @@ export function readinessForSetup(input: SetupReadinessInput): {
     input.activeRoleIds.length === printedRoleIds.length &&
     printedRoleIds.every((roleId) => configuredRoleSet.has(roleId));
   if (
-    assignedPlayers.size !== input.assignments.length ||
-    roleIds.size !== input.assignments.length ||
-    input.assignments.length !== input.connectedPlayers.length ||
+    assignedPlayers.size !== coreAssignments.length ||
+    roleIds.size !== coreAssignments.length ||
+    coreAssignments.length !== coreConnectedPlayers.length ||
     !exactPrintedRoster ||
-    input.assignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
+    pressHasCoreAssignment ||
+    coreAssignments.some((assignment) => !playerIds.has(assignment.uid) || !input.activeRoleIds.includes(assignment.roleId))
   ) reasons.push('roles');
 
-  const loyaltyIds = new Set(input.loyaltyUids);
+  const expectedLoyaltyUids = new Set([...coreConnectedPlayers, ...pressPlayerUids]);
+  const relevantLoyaltyUids = input.loyaltyUids.filter((uid) => expectedLoyaltyUids.has(uid));
+  const loyaltyIds = new Set(relevantLoyaltyUids);
   if (
-    loyaltyIds.size !== input.loyaltyUids.length ||
-    loyaltyIds.size !== input.connectedPlayers.length ||
-    input.connectedPlayers.some((uid) => !loyaltyIds.has(uid))
+    loyaltyIds.size !== relevantLoyaltyUids.length ||
+    expectedLoyaltyUids.size !== loyaltyIds.size ||
+    [...expectedLoyaltyUids].some((uid) => !loyaltyIds.has(uid))
   ) reasons.push('loyalties');
 
   if (!input.facilitatorResponsibilities.main) reasons.push('main-facilitator');
   if (!input.facilitatorResponsibilities.assistant) reasons.push('assistant-facilitator');
 
-  const assignedVessels = new Set(input.assignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
+  const assignedVessels = new Set(coreAssignments.flatMap((assignment) => vesselIdsForRole(assignment.roleId)));
   const configuredVessels = new Set(input.activeVesselIds);
   if (
     assignedVessels.size !== configuredVessels.size ||
@@ -332,10 +398,6 @@ export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly st
       vessels.add('aegis');
       continue;
     }
-    if (roleId === 'press-officer') {
-      vessels.add('press');
-      continue;
-    }
     const jointShips = isJointEngineeringRoleId(roleId)
       ? (roleId === 'joint-engineering-quellon-refinery'
         ? ['quellon', 'refinery-124']
@@ -346,4 +408,70 @@ export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly st
     if (ship) vessels.add(ship[1]!);
   }
   return [...vessels];
+}
+
+/** Build the one canonical tuple used by creation and every later setup write. */
+export function canonicalSessionSetup(
+  configuration: SessionConfiguration,
+  activeRoleIds: readonly string[] = recommendedRoleIds(configuration.playerCount),
+): CanonicalSessionSetup {
+  return {
+    ...configuration,
+    activeRoleIds: [...activeRoleIds],
+    activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+  };
+}
+
+export interface RoleSeatMetadata {
+  readonly label: string;
+  readonly factionId: string;
+}
+
+/** Shared printed role/vessel names used by seat records and the CIC. */
+export const ROLE_SEAT_METADATA: Readonly<Record<string, RoleSeatMetadata>> = {
+  admiral: { label: 'AEGIS // Admiral', factionId: 'aegis' },
+  'executive-officer': { label: 'AEGIS // Executive Officer', factionId: 'aegis' },
+  'wing-commander': { label: 'AEGIS // Wing Commander', factionId: 'aegis' },
+  'dione-captain': { label: 'Dione // Captain', factionId: 'dione' },
+  'dione-engineer': { label: 'Dione // Engineer', factionId: 'dione' },
+  'dione-president': { label: 'Dione // President', factionId: 'dione' },
+  'icebreaker-captain': { label: 'Icebreaker // Captain', factionId: 'icebreaker' },
+  'icebreaker-engineer': { label: 'Icebreaker // Engineer', factionId: 'icebreaker' },
+  'icebreaker-miner': { label: 'Icebreaker // Miner', factionId: 'icebreaker' },
+  'shepherd-captain': { label: 'Shepherd // Captain', factionId: 'shepherd' },
+  'shepherd-engineer': { label: 'Shepherd // Engineer', factionId: 'shepherd' },
+  'shepherd-scientist': { label: 'Shepherd // Scientist', factionId: 'shepherd' },
+  'quellon-captain': { label: 'Quellon // Captain', factionId: 'quellon' },
+  'quellon-engineer': { label: 'Quellon // Engineer', factionId: 'quellon' },
+  'quellon-explorer': { label: 'Quellon // Explorer', factionId: 'quellon' },
+  'refinery-124-captain': { label: 'Refinery 124 // Captain', factionId: 'refinery-124' },
+  'refinery-124-engineer': { label: 'Refinery 124 // Engineer', factionId: 'refinery-124' },
+  'refinery-124-pdf-colonel': { label: 'Refinery 124 // P.D.F. Colonel', factionId: 'refinery-124' },
+  'capybara-captain': { label: 'Capybara // Capybara Captain', factionId: 'capybara' },
+  'capybara-recycler': { label: 'Capybara // Capybara Recycler', factionId: 'capybara' },
+  'joint-engineering-quellon-refinery': {
+    label: 'Joint Engineering Union // Quellon / Refinery Engineer',
+    factionId: 'joint-engineering-union',
+  },
+  'joint-engineering-shepherd-icebreaker': {
+    label: 'Joint Engineering Union // Shepherd / Icebreaker Engineer',
+    factionId: 'joint-engineering-union',
+  },
+};
+
+/** Stable role-keyed seats are created once and reconciled by role id. */
+export function stableSeatsForRoles(roleIds: readonly string[]): readonly StableSeatRecord[] {
+  return roleIds.map((roleId) => {
+    const metadata = ROLE_SEAT_METADATA[roleId];
+    if (!metadata) throw new Error(`No canonical seat metadata for role ${roleId}.`);
+    return {
+      id: roleId,
+      roleId,
+      label: metadata.label,
+      factionId: metadata.factionId,
+      status: 'open',
+      holderUid: null,
+      claimedAt: null,
+    };
+  });
 }

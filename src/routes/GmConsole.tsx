@@ -1,5 +1,5 @@
 import { populationForShip, populationTrackForShip } from '@/data/shipPopulation';
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import ContactPlot from '@/components/ContactPlot';
 import DradisEffectControls from '@/components/DradisEffectControls';
@@ -33,11 +33,11 @@ import {
   resetWolves,
   kickGmInstance,
   kickPlayer,
-  setCapybaraEnabled,
+  confirmSetup,
   setDebriefMode,
-  setDioneEnabled,
+  setPressEnabled,
   setGmControlsLocked,
-  setActiveRoleConfiguration,
+  setFacilitatorResponsibility,
   applyShipCounterSteps,
   advanceTurn,
   extendAirspaceWindow,
@@ -188,12 +188,14 @@ function groupConnectedPlayers(players: readonly Player[]): readonly PlayerRoleG
 }
 
 function knownRoleIds(roleIds: readonly string[]): readonly string[] {
-  return roleIds.filter((roleId) => KNOWN_CONSOLE_ROLE_IDS.has(roleId));
+  return roleIds.filter((roleId) => roleId !== 'press-officer' && KNOWN_CONSOLE_ROLE_IDS.has(roleId));
 }
 
 function normalizeRoleDraft(roleIds: readonly string[]): readonly string[] {
-  const selected = new Set(roleIds);
-  const knownRoleIds = CONSOLE_ROLES.filter((role) => selected.has(role.id)).map((role) => role.id);
+  const knownRoleIds = roleIds.filter((roleId) =>
+    roleId !== 'press-officer' && KNOWN_CONSOLE_ROLE_IDS.has(roleId));
+  const recommendedPlayerCount = recommendedPlayerCountForRoleIds(knownRoleIds);
+  if (recommendedPlayerCount !== undefined) return [...recommendedRoleIds(recommendedPlayerCount)];
   return knownRoleIds.filter((roleId) =>
     !isJointEngineeringRoleId(roleId) ||
     canOfferJointEngineeringRole(knownRoleIds, roleId));
@@ -216,7 +218,11 @@ export default function GmConsole() {
   const { reducedMotion } = useMotionPreference();
   const session = useSessionStore((state) => state.session);
   const sessionId = session?.id;
-  const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const activeRoleIds = useMemo(
+    () => (session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS)
+      .filter((roleId) => roleId !== 'press-officer'),
+    [session?.activeRoleIds],
+  );
   const serverRoleIds = knownRoleIds(activeRoleIds);
   const normalizedServerRoleIds = normalizeRoleDraft(serverRoleIds);
   const me = useSessionStore((state) => state.me);
@@ -251,8 +257,23 @@ export default function GmConsole() {
   const [viewerId, setViewerId] = useState('aegis');
   const [changingCapybara, setChangingCapybara] = useState(false);
   const [pendingCapybaraEnabled, setPendingCapybaraEnabled] = useState<boolean | null>(null);
+  const [draftCapybaraEnabled, setDraftCapybaraEnabled] = useState(
+    () => session?.capybaraEnabled !== false,
+  );
   const [changingDione, setChangingDione] = useState(false);
   const [pendingDioneEnabled, setPendingDioneEnabled] = useState<boolean | null>(null);
+  const [draftDioneEnabled, setDraftDioneEnabled] = useState(
+    () => session?.dioneEnabled !== false,
+  );
+  const [changingPress, setChangingPress] = useState(false);
+  const [pendingPressEnabled, setPendingPressEnabled] = useState<boolean | null>(null);
+  const [pressMutationState, setPressMutationState] = useState<
+    'idle' | 'pending' | 'stale' | 'rejected' | 'committed'
+  >('idle');
+  const [pressMutationMessage, setPressMutationMessage] = useState<string | null>(null);
+  const pressTriggerRef = useRef<HTMLButtonElement>(null);
+  const pressDialogRef = useRef<HTMLElement>(null);
+  const restorePressTriggerFocus = useRef(false);
   const [changingLock, setChangingLock] = useState(false);
   const [advancingTurn, setAdvancingTurn] = useState(false);
   const [skippingTurn, setSkippingTurn] = useState(false);
@@ -270,15 +291,29 @@ export default function GmConsole() {
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
   const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
   const [confirmingRoster, setConfirmingRoster] = useState(false);
+  const [rosterMutationState, setRosterMutationState] = useState<
+    'idle' | 'pending' | 'stale' | 'rejected' | 'committed'
+  >('idle');
+  const [rosterMutationMessage, setRosterMutationMessage] = useState<string | null>(null);
   const previousServerRoleIds = useRef<readonly string[]>(serverRoleIds);
-  const capybaraEnabled = session?.capybaraEnabled !== false;
-  const capybaraQueued = pendingCommands.some(
-    (command) => command.kind === 'setCapybaraEnabled',
+  const serverCapybaraEnabled = session?.capybaraEnabled !== false;
+  const serverDioneEnabled = session?.dioneEnabled !== false;
+  const capybaraEnabled = draftCapybaraEnabled;
+  const dioneEnabled = draftDioneEnabled;
+  const setupQueued = pendingCommands.some(
+    (command) => command.kind === 'confirmSetup',
   );
-  const dioneEnabled = session?.dioneEnabled !== false;
-  const dioneQueued = pendingCommands.some(
-    (command) => command.kind === 'setDioneEnabled',
+  // The convoy controls stage into the same atomic setup command now. Keep
+  // their existing queued presentation while that command is in flight.
+  const capybaraQueued = setupQueued;
+  const dioneQueued = setupQueued;
+  const pressEnabled = session?.pressEnabled !== false;
+  const pressQueued = pendingCommands.some(
+    (command) => command.kind === 'setPressEnabled',
   );
+  const pressProjectionMessage = instances.length > 1
+    ? `Shared Press projection // ${instances.length} active GM instances`
+    : 'Shared Press projection // one active GM is sufficient; additional GMs are optional';
   const controlsLocked = session?.gmControlsLocked === true;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
@@ -304,9 +339,7 @@ export default function GmConsole() {
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
-  const rosterQueued = pendingCommands.some(
-    (command) => command.kind === 'setActiveRoleConfiguration',
-  );
+  const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
     const role = CONSOLE_ROLES.find((candidate) => candidate.id === roleId);
     return role && canOfferJointEngineeringRole(draftRoleIds, roleId) ? [role] : [];
@@ -449,6 +482,68 @@ export default function GmConsole() {
   }, [dioneEnabled, viewerId]);
 
   useEffect(() => {
+    setDraftCapybaraEnabled(serverCapybaraEnabled);
+  }, [serverCapybaraEnabled]);
+
+  useEffect(() => {
+    setDraftDioneEnabled(serverDioneEnabled);
+  }, [serverDioneEnabled]);
+
+  useEffect(() => {
+    if (pendingPressEnabled === null) {
+      if (restorePressTriggerFocus.current) {
+        restorePressTriggerFocus.current = false;
+        pressTriggerRef.current?.focus();
+      }
+      return;
+    }
+    const dialog = pressDialogRef.current;
+    if (!dialog) return;
+    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+    )];
+    const focusFirst = () => {
+      const first = focusableElements()[0];
+      if (first) first.focus();
+      else dialog.focus();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (!dialog.contains(event.target as Node)) focusFirst();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        restorePressTriggerFocus.current = true;
+        setPendingPressEnabled(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = focusableElements();
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    focusFirst();
+    document.addEventListener('focusin', onFocusIn);
+    dialog.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      dialog.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pendingPressEnabled]);
+
+  useEffect(() => {
     const nextServerRoleIds = knownRoleIds(activeRoleIds);
     const nextDraftRoleIds = normalizeRoleDraft(nextServerRoleIds);
     setDraftRoleIds((current) =>
@@ -565,6 +660,22 @@ export default function GmConsole() {
     };
   }
 
+  async function changeFacilitatorResponsibility(
+    responsibility: 'main' | 'assistant',
+    mode: 'share' | 'handoff' | 'drop',
+    targetInstanceId?: string,
+  ): Promise<void> {
+    try {
+      await setFacilitatorResponsibility({
+        responsibility,
+        mode,
+        ...(targetInstanceId ? { targetInstanceId } : {}),
+      });
+    } catch {
+      // The shared interception notice reports the server rejection.
+    }
+  }
+
   async function kick(instance: GmInstance): Promise<void> {
     try {
       const disposition = await kickGmInstance(instance.id);
@@ -590,7 +701,9 @@ export default function GmConsole() {
   async function changeCapybara(enabled: boolean): Promise<void> {
     setChangingCapybara(true);
     try {
-      await setCapybaraEnabled(enabled);
+      // Capybara is part of the authoritative setup tuple. Stage the local
+      // choice here; only Confirm setup can send it with the revisioned CAS.
+      setDraftCapybaraEnabled(enabled);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
@@ -602,13 +715,55 @@ export default function GmConsole() {
   async function changeDione(enabled: boolean): Promise<void> {
     setChangingDione(true);
     try {
-      await setDioneEnabled(enabled);
+      // Dione is part of the authoritative setup tuple. Stage the local
+      // choice here; only Confirm setup can send it with the revisioned CAS.
+      setDraftDioneEnabled(enabled);
     } catch {
       // The shared interception notice reports the server rejection.
     } finally {
       setChangingDione(false);
       setPendingDioneEnabled(null);
     }
+  }
+
+  async function changePress(enabled: boolean): Promise<void> {
+    setChangingPress(true);
+    setPressMutationState('pending');
+    setPressMutationMessage(null);
+    try {
+      const disposition = await setPressEnabled(enabled);
+      const committed = disposition === 'applied';
+      setPressMutationState(committed ? 'committed' : 'pending');
+      setPressMutationMessage(
+        !committed
+          ? 'Press availability pending // queued for reconnection.'
+          : 'Press availability committed by the server.',
+      );
+    } catch (cause) {
+      const code = typeof cause === 'object' && cause !== null && 'code' in cause &&
+        typeof cause.code === 'string' ? cause.code : '';
+      setPressMutationState(code.includes('failed-precondition') ? 'stale' : 'rejected');
+      setPressMutationMessage(
+        code.includes('failed-precondition')
+          ? 'Press availability stale // a newer GM revision committed; review the live state and retry.'
+          : 'Press availability rejected // the server did not commit this change.',
+      );
+    } finally {
+      setChangingPress(false);
+      restorePressTriggerFocus.current = true;
+      setPendingPressEnabled(null);
+    }
+  }
+
+  function openPressDialog(): void {
+    setPressMutationState('idle');
+    setPressMutationMessage(null);
+    setPendingPressEnabled(!pressEnabled);
+  }
+
+  function closePressDialog(): void {
+    restorePressTriggerFocus.current = true;
+    setPendingPressEnabled(null);
   }
 
   async function toggleLock(): Promise<void> {
@@ -771,9 +926,13 @@ export default function GmConsole() {
 
   function chooseRecommendedRoster(playerCount: number): void {
     setDraftRoleIds(normalizeRoleDraft(recommendedRoleIds(playerCount)));
+    setRosterMutationState('idle');
+    setRosterMutationMessage(null);
   }
 
   function toggleDraftRole(roleId: string, enabled: boolean): void {
+    setRosterMutationState('idle');
+    setRosterMutationMessage(null);
     setDraftRoleIds((current) => {
       if (isJointEngineeringRoleId(roleId) && enabled && !canOfferJointEngineeringRole(current, roleId)) {
         return current;
@@ -786,12 +945,37 @@ export default function GmConsole() {
   }
 
   async function confirmRoster(): Promise<void> {
-    if (!hasUnconfirmedRosterChanges || !rosterConfigurationValid) return;
+    if (!rosterConfigurationValid) return;
+    const activeSession = session;
+    if (!activeSession) return;
     setConfirmingRoster(true);
+    setRosterMutationState('pending');
+    setRosterMutationMessage('Roster confirmation pending // awaiting server receipt.');
+    const playerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
+    const persistedExpansion = activeSession.setup?.expansion ?? activeSession.expansion;
+    const expansion = playerCount >= 19
+      ? 'capybara'
+      : persistedExpansion === 'none' ? 'none' : 'base';
     try {
-      await setActiveRoleConfiguration(draftRoleIds);
+      const disposition = await confirmSetup({
+        playerCount,
+        chartId: activeSession.setup?.chartId ?? activeSession.chartId ?? 'A',
+        expansion,
+        turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
+        dioneEnabled: playerCount >= 12 && draftDioneEnabled,
+        capybaraEnabled: expansion === 'capybara' ? true : draftCapybaraEnabled,
+        activeRoleIds: draftRoleIds,
+      });
+      if (disposition === 'stale') {
+        setRosterMutationState('stale');
+        setRosterMutationMessage('Roster confirmation stale // refresh the live setup and retry.');
+      } else {
+        setRosterMutationState('committed');
+        setRosterMutationMessage('Roster synchronized // server receipt committed.');
+      }
     } catch {
-      // The shared interception notice reports the server rejection.
+      setRosterMutationState('rejected');
+      setRosterMutationMessage('Roster confirmation rejected // review the live setup and retry.');
     } finally {
       setConfirmingRoster(false);
     }
@@ -1132,6 +1316,32 @@ export default function GmConsole() {
                 >
                   Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
                 </button>
+                <button
+                  className="gm-dradis__availability"
+                  type="button"
+                  aria-label={`Turn Press ${pressEnabled ? 'off' : 'on'}`}
+                  aria-pressed={pressEnabled}
+                  ref={pressTriggerRef}
+                  disabled={changingPress || pressQueued}
+                  onClick={openPressDialog}
+                >
+                  Press // {pressQueued ? 'Change queued' : pressEnabled ? 'Available' : 'Offline'}
+                </button>
+                <p
+                  className="gm-role-setup__note"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Press availability status"
+                  aria-busy={pressMutationState === 'pending' && changingPress}
+                  data-state={pressMutationState}
+                >
+                  {pressMutationMessage ?? (pressMutationState === 'pending'
+                    ? 'Press availability pending // awaiting server confirmation.'
+                    : `Press availability // ${pressEnabled ? 'enabled' : 'disabled'} // revision ${session?.pressAvailabilityRevision ?? 0}`)}
+                </p>
+                <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
+                  {pressProjectionMessage}
+                </p>
                 <fieldset className="gm-role-setup">
                   <legend>Active roles</legend>
                   <label className="gm-role-preset">
@@ -1163,12 +1373,18 @@ export default function GmConsole() {
                     paired Engineer roles are disabled.
                   </p>
                   <div className="gm-roster-draft" aria-live="polite">
-                    <p>
+                    <p
+                      role={rosterMutationMessage ? 'status' : undefined}
+                      aria-label={rosterMutationMessage ? 'Roster confirmation status' : undefined}
+                      data-state={rosterMutationState}
+                    >
                       {confirmingRoster
                         ? 'Confirming roster…'
                         : rosterQueued
                           ? 'Roster command queued // awaiting server'
-                          : hasUnconfirmedRosterChanges
+                          : rosterMutationMessage
+                            ? rosterMutationMessage
+                            : hasUnconfirmedRosterChanges
                             ? `Unconfirmed changes // ${draftRoleIds.length} roles staged`
                             : `Roster synchronized // ${normalizedServerRoleIds.length} roles active`}
                     </p>
@@ -1178,17 +1394,19 @@ export default function GmConsole() {
                     <button
                       className="cic-action-button"
                       type="button"
+                      aria-label="Confirm setup // Confirm roster"
                       disabled={
-                        !hasUnconfirmedRosterChanges || !rosterConfigurationValid ||
+                        !rosterConfigurationValid ||
                         confirmingRoster || rosterQueued
                       }
                       onClick={() => void confirmRoster()}
                     >
-                      {confirmingRoster ? 'Confirming roster…' : 'Confirm roster'}
+                      {confirmingRoster ? 'Confirming setup…' : 'Confirm setup'}
                     </button>
                   </div>
-                  <ShipRoleGroups
-                    roles={CONSOLE_ROLES.filter((role) => !isJointEngineeringRoleId(role.id))}
+                    <ShipRoleGroups
+                      roles={CONSOLE_ROLES.filter((role) =>
+                        role.id !== 'press-officer' && !isJointEngineeringRoleId(role.id))}
                     renderRole={(role) => {
                       const enabled = draftRoleIds.includes(role.id);
                       return (
@@ -1270,7 +1488,10 @@ export default function GmConsole() {
                   <fieldset className="gm-wolf-manual">
                     <legend>Manual wolf assignment</legend>
                     <ShipRoleGroups
-                      roles={CONSOLE_ROLES.filter((role) => normalizedServerRoleIds.includes(role.id))}
+                      roles={CONSOLE_ROLES.filter((role) =>
+                        normalizedServerRoleIds.includes(role.id) ||
+                        (role.id === 'press-officer' && pressEnabled &&
+                          connectedPlayers.some((player) => player.activeConsoleRoleId === 'press-officer')))}
                       renderRole={(role) => (
                       <label className="gm-wolf-role" key={role.id}>
                         <span>{role.name}</span>
@@ -1387,12 +1608,66 @@ export default function GmConsole() {
               <ul className="gm-instance-list">
                 {instances.map((instance) => {
                   const own = instance.id === local.id;
+                  const otherInstance = instances.find((candidate) => candidate.id !== instance.id);
+                  const normalizedResponsibilities = instance.responsibilities?.length
+                    ? instance.responsibilities
+                    : instances.length === 1 && instance.responsibility
+                      ? ['main', 'assistant'] as const
+                      : instance.responsibility
+                        ? [instance.responsibility]
+                        : [];
                   return (
                     <li className="gm-instance cic-frame" key={instance.id}>
                       <div>
                         <strong>{instance.name}</strong>
                         <span>{instance.deviceLabel}</span>
                         {own && <span>THIS DEVICE</span>}
+                        <div className="gm-responsibility-board" aria-label={`${instance.name} facilitator responsibilities`}>
+                          {(['main', 'assistant'] as const).map((responsibility) => {
+                            const label = responsibility === 'main'
+                              ? 'MAIN FACILITATOR'
+                              : 'ASSISTANT FACILITATOR';
+                            const held = normalizedResponsibilities.includes(responsibility);
+                            return (
+                              <div className="gm-responsibility-lane" key={responsibility}>
+                                <span className={held ? 'gm-responsibility-lane__held' : undefined}>
+                                  {label} // {held ? 'HELD' : 'AVAILABLE'}
+                                </span>
+                                {own && otherInstance && held && (
+                                  <div className="gm-responsibility-actions">
+                                    <button
+                                      className="cic-action-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'share', otherInstance.id,
+                                      )}
+                                    >
+                                      Share {responsibility} facilitator
+                                    </button>
+                                    <button
+                                      className="cic-action-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'handoff', otherInstance.id,
+                                      )}
+                                    >
+                                      Hand off {responsibility} facilitator
+                                    </button>
+                                    <button
+                                      className="cic-text-button"
+                                      type="button"
+                                      onClick={() => void changeFacilitatorResponsibility(
+                                        responsibility, 'drop', otherInstance.id,
+                                      )}
+                                    >
+                                      Drop {responsibility} facilitator
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                       {!own && (
                         <button
@@ -1586,6 +1861,48 @@ export default function GmConsole() {
               onClick={() => void changeDione(pendingDioneEnabled)}
             >
               Confirm {pendingDioneEnabled ? 'add' : 'remove'} Dione
+            </button>
+          </section>
+        </div>
+      )}
+      {pendingPressEnabled !== null && (
+        <div
+          className="settings-backdrop"
+          onMouseDown={closePressDialog}
+        >
+          <section
+            className="settings-dialog cic-frame"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="press-availability-confirm-title"
+            aria-describedby="press-availability-confirm-copy"
+            ref={pressDialogRef}
+            tabIndex={-1}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="settings-dialog__header">
+              <h2 id="press-availability-confirm-title">Change Press availability</h2>
+            </div>
+            <p id="press-availability-confirm-copy">
+              {pendingPressEnabled
+                ? 'Enable Press discovery and the SNN shuttle console?'
+                : 'Disable Press discovery and revoke every live SNN shuttle claim?'}
+            </p>
+            <button
+              className="cic-text-button"
+              type="button"
+              autoFocus
+              onClick={closePressDialog}
+            >
+              Cancel Press change
+            </button>
+            <button
+              className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
+              type="button"
+              disabled={changingPress}
+              onClick={() => void changePress(pendingPressEnabled)}
+            >
+              ARE YOU SURE? // {pendingPressEnabled ? 'Enable' : 'Disable'} Press
             </button>
           </section>
         </div>

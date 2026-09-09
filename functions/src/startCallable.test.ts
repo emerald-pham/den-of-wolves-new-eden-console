@@ -37,7 +37,8 @@ vi.mock('firebase-admin/firestore', () => ({
   },
 }));
 
-import { setFacilitatorResponsibility, startGame } from './index';
+import { assignWolves, setFacilitatorResponsibility, startGame } from './index';
+import { wolfCountForPlayerCount } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
@@ -107,10 +108,15 @@ it('records a distinct facilitator responsibility', async () => {
   mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1' } }];
   await expect(setFacilitatorResponsibility.run(request({
     sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
-  }))).resolves.toEqual({ responsibility: 'main' });
+    requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
+  }))).resolves.toMatchObject({
+    status: 'committed', setupRevision: 1,
+    responsibilities: ['main', 'assistant'],
+    coverage: { main: ['bridge'], assistant: ['bridge'] },
+  });
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/gmInstances/bridge' }),
-    { responsibility: 'main' },
+    { responsibilities: ['main', 'assistant'], responsibility: 'main' },
   );
 });
 
@@ -168,4 +174,94 @@ it('blocks incomplete readiness without writing and replays a completed start re
   }))).resolves.toEqual(mock.priorReply);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('keeps a claimed Press outside core readiness but requires its own private loyalty beside extra GM instances', async () => {
+  const coreRoleIds = [...recommendedRoleIds(20)];
+  const pressUid = 'press-21';
+  mock.session = {
+    ...mock.session,
+    playerCount: 20,
+    activeRoleIds: coreRoleIds,
+    pressEnabled: true,
+  };
+  mock.playerDocs = coreRoleIds.map((roleId, index) => ({
+    id: `u${index + 1}`,
+    fields: {
+      connected: true,
+      role: index === 0 ? 'gm' : 'player',
+      assignedRoleId: roleId,
+      activeConsoleRoleId: null,
+    },
+  }));
+  mock.playerDocs.push({
+    id: pressUid,
+    fields: {
+      connected: true,
+      role: 'player',
+      assignedRoleId: null,
+      activeConsoleRoleId: 'press-officer',
+    },
+  });
+  mock.playerDocs.push(
+    {
+      id: 'gm-observer-1',
+      fields: { connected: true, role: 'gm', assignedRoleId: null, activeConsoleRoleId: null },
+    },
+    {
+      id: 'gm-observer-2',
+      fields: { connected: true, role: 'gm', assignedRoleId: null, activeConsoleRoleId: null },
+    },
+  );
+  mock.instanceDocs = [
+    { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
+    { id: 'desk', fields: { uid: 'u9', responsibility: 'assistant' } },
+    { id: 'extra-gm', fields: { uid: 'u10' } },
+  ];
+  mock.secretDocs = coreRoleIds.map((_roleId, index) => `loyalty-u${index + 1}`);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-press-without-loyalty',
+    expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/loyalties/i),
+  });
+
+  mock.secretDocs.push(`loyalty-${pressUid}`, 'loyalty-former-press');
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-press-with-loyalty',
+    expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ sessionId: 's1', currentTurn: 1 });
+});
+
+it('keeps a claimed Press eligible in the callable Wolf pool without creating a third Wolf', async () => {
+  mock.session = {
+    ...mock.session,
+    playerCount: 20,
+    activeRoleIds: ['admiral'],
+    pressEnabled: true,
+  };
+  mock.playerDocs = [
+    {
+      id: 'u1',
+      fields: { connected: true, role: 'gm', assignedRoleId: 'admiral', activeConsoleRoleId: null },
+    },
+    {
+      id: 'press-21',
+      fields: { connected: true, role: 'player', assignedRoleId: null, activeConsoleRoleId: 'press-officer' },
+    },
+  ];
+  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } }];
+
+  expect(wolfCountForPlayerCount(20)).toBe(2);
+  await expect(assignWolves.run(request({
+    sessionId: 's1', instanceId: 'bridge', count: wolfCountForPlayerCount(20),
+  }))).resolves.toMatchObject({
+    roleIds: expect.arrayContaining(['press-officer', 'admiral']),
+  });
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/wolf-assignment' }),
+    expect.objectContaining({ payload: { type: 'wolf-assignment', roleIds: expect.any(Array) } }),
+  );
 });

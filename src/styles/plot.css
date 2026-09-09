@@ -308,9 +308,19 @@
   position: absolute;
   display: grid;
   gap: 0.14rem;
-  font: 0.55rem/1 var(--cic-mono);
+  box-sizing: border-box;
+  width: max-content;
+  min-inline-size: max-content;
+  max-inline-size: none;
+  font: clamp(0.45rem, 1.4vw, 0.55rem)/1 var(--cic-mono);
   letter-spacing: 0.18em;
   white-space: nowrap;
+  overflow: visible;
+  transform: translate3d(
+    var(--label-clamp-x, 0px),
+    var(--label-clamp-y, 0px),
+    0
+  );
   color: color-mix(in srgb, var(--contact-ink) 72%, var(--cic-ink));
   opacity: 1;
 }
@@ -322,12 +332,13 @@
 }
 
 .contact-plot__contact[data-label-anchor$='east'] .contact-plot__tag {
-  left: 11px;
+  right: 11px;
+  text-align: right;
 }
 
 .contact-plot__contact[data-label-anchor$='west'] .contact-plot__tag {
-  right: 11px;
-  text-align: right;
+  left: 11px;
+  text-align: left;
 }
 
 .contact-plot__contact[data-label-anchor^='north'] .contact-plot__tag {

@@ -9,19 +9,22 @@ import {
   roleAssignmentDecision,
   projectPrivateSetup,
   wolfCountForPlayerCount,
+  normalizePersistedSessionConfiguration,
+  stableSeatsForRoles,
+  ROLE_SEAT_METADATA,
 } from './gameSetup';
-import { recommendedRoleIds } from './roleConfiguration';
+import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
 
 describe('authoritative setup configuration', () => {
   it('normalizes the legacy session shape to a printed base-game configuration', () => {
     expect(normalizeSessionConfiguration({})).toEqual(DEFAULT_SESSION_CONFIGURATION);
     expect(normalizeSessionConfiguration({
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
     })).toEqual({
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
@@ -32,6 +35,9 @@ describe('authoritative setup configuration', () => {
 
   it.each([
     ['playerCount', { playerCount: 7 }],
+    ['playerCount', { playerCount: 21 }],
+    ['playerCount', { playerCount: 19.5 }],
+    ['playerCount', { playerCount: '19' }],
     ['chartId', { chartId: 'D' }],
     ['expansion', { expansion: 'mixed' }],
     ['turnLimit', { turnLimit: 9 }],
@@ -40,11 +46,74 @@ describe('authoritative setup configuration', () => {
     expect(() => normalizeSessionConfiguration(input)).toThrow();
   });
 
+  it('rejects a base 19/20 request and lower-count Capybara substitution before any write', () => {
+    expect(() => normalizeSessionConfiguration({
+      playerCount: 19,
+      expansion: 'base',
+      capybaraEnabled: false,
+    })).toThrow(/Capybara expansion/i);
+    expect(() => normalizeSessionConfiguration({
+      playerCount: 18,
+      expansion: 'capybara',
+    })).toThrow(/19 or 20/i);
+  });
+
+  it('hydrates a legacy lower-count Capybara marker as a valid base tuple', () => {
+    expect(normalizePersistedSessionConfiguration({
+      playerCount: 14,
+      chartId: 'A',
+      expansion: 'capybara',
+      turnLimit: 8,
+      capybaraEnabled: true,
+    })).toEqual({
+      playerCount: 14,
+      chartId: 'A',
+      expansion: 'base',
+      turnLimit: 8,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+    });
+  });
+
+  it('uses the canonical CIC role and vessel labels for stable seats', () => {
+    expect(stableSeatsForRoles([
+      'admiral', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'capybara-recycler',
+    ])).toEqual([
+      expect.objectContaining({
+        id: 'admiral', label: 'AEGIS // Admiral', factionId: 'aegis',
+      }),
+      expect.objectContaining({
+        id: 'refinery-124-pdf-colonel', label: 'Refinery 124 // P.D.F. Colonel', factionId: 'refinery-124',
+      }),
+      expect.objectContaining({
+        id: 'joint-engineering-quellon-refinery',
+        label: 'Joint Engineering Union // Quellon / Refinery Engineer',
+        factionId: 'joint-engineering-union',
+      }),
+      expect.objectContaining({
+        id: 'capybara-recycler', label: 'Capybara // Capybara Recycler', factionId: 'capybara',
+      }),
+    ]);
+  });
+
+  it('has canonical metadata for every counted role, including long and joint labels', () => {
+    const countedRoleIds = ROLE_IDS.filter((roleId) => roleId !== 'press-officer');
+    expect(Object.keys(ROLE_SEAT_METADATA).sort()).toEqual([...countedRoleIds].sort());
+    for (const roleId of countedRoleIds) {
+      const [seat] = stableSeatsForRoles([roleId]);
+      expect(seat).toMatchObject({ roleId, factionId: expect.any(String), label: expect.stringContaining(' // ') });
+      expect(seat?.factionId).not.toBeNull();
+    }
+  });
+
   it('maps the printed player-count range to one or two hidden wolves', () => {
     expect(wolfCountForPlayerCount(8)).toBe(1);
     expect(wolfCountForPlayerCount(13)).toBe(1);
     expect(wolfCountForPlayerCount(14)).toBe(2);
     expect(wolfCountForPlayerCount(18)).toBe(2);
+    expect(wolfCountForPlayerCount(19)).toBe(2);
+    expect(wolfCountForPlayerCount(20)).toBe(2);
   });
 });
 
@@ -105,7 +174,7 @@ describe('casting and private setup policy', () => {
 });
 
 describe('start readiness', () => {
-  it.each([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18])(
+  it.each([8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20])(
     'accepts one unique legal assignment for every printed %s-player roster',
     (playerCount) => {
       const activeRoleIds = [...recommendedRoleIds(playerCount)];
@@ -116,13 +185,20 @@ describe('start readiness', () => {
       }));
       const expectedVessels = playerCount < 12
         ? ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124']
-        : ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+        : [
+          'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+          ...(playerCount >= 19 ? ['capybara'] : []),
+        ];
 
       expect(activeRoleIds).toHaveLength(playerCount);
       expect(new Set(activeRoleIds).size).toBe(playerCount);
       expect(activeRoleIds).not.toContain('press-officer');
-      expect(activeRoleIds).not.toContain('capybara-captain');
-      expect(activeRoleIds).not.toContain('capybara-recycler');
+      if (playerCount < 19) {
+        expect(activeRoleIds).not.toContain('capybara-captain');
+        expect(activeRoleIds).not.toContain('capybara-recycler');
+      } else {
+        expect(activeRoleIds.slice(-2)).toEqual(['capybara-captain', 'capybara-recycler']);
+      }
       expect(activeRoleIds.some((roleId) => roleId.startsWith('dione-'))).toBe(playerCount >= 12);
       expect(activeRoleIds.includes('joint-engineering-quellon-refinery'))
         .toBe([8, 9, 14, 15].includes(playerCount));
@@ -146,7 +222,7 @@ describe('start readiness', () => {
   it('derives active vessels without treating a Union role as a new vessel', () => {
     expect(activeVesselIdsForRoles([
       'admiral', 'joint-engineering-quellon-refinery', 'press-officer',
-    ])).toEqual(['aegis', 'quellon', 'refinery-124', 'press']);
+    ])).toEqual(['aegis', 'quellon', 'refinery-124']);
   });
   it('names every missing setup responsibility without leaking private reasons', () => {
     expect(readinessForSetup({
@@ -209,5 +285,125 @@ describe('start readiness', () => {
       activeRoleIds,
       activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
     })).toEqual({ ready: false, reasons: ['roles'] });
+  });
+
+  it('keeps an enabled Press holder and multiple GM instances outside core readiness and vessel math', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const assignments = coreRoleIds.map((roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId,
+    }));
+    const readinessInput = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid],
+      assignments,
+      loyaltyUids: [...corePlayers, pressUid],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      gmInstances: ['gm-main', 'gm-assistant'],
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+    } as Parameters<typeof readinessForSetup>[0];
+
+    expect(readinessForSetup(readinessInput)).toEqual({ ready: true, reasons: [] });
+    expect(activeVesselIdsForRoles(coreRoleIds)).not.toContain('snn-press-shuttle');
+  });
+
+  it('excludes connected GM-only observers from core and Press readiness counts', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const gmOnlyUids = ['gm-observer-1', 'gm-observer-2'];
+    const input = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid, ...gmOnlyUids],
+      assignments: coreRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId })),
+      loyaltyUids: [...corePlayers, pressUid],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+      facilitatorPlayerUids: gmOnlyUids,
+    } as Parameters<typeof readinessForSetup>[0] & { facilitatorPlayerUids: string[] };
+
+    expect(readinessForSetup(input)).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('ignores orphaned Press loyalty after the station is unclaimed', () => {
+    const coreRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+
+    expect(readinessForSetup({
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments: coreRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId })),
+      loyaltyUids: [...corePlayers, 'former-press'],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [],
+    })).toEqual({ ready: true, reasons: [] });
+  });
+
+  it('requires a claimed Press holder to carry private loyalty without changing core readiness', () => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const pressUid = 'press-21';
+    const assignments = coreRoleIds.map((_roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId: coreRoleIds[index]!,
+    }));
+    const input = {
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, pressUid],
+      assignments,
+      loyaltyUids: corePlayers,
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: [pressUid],
+    };
+
+    expect(readinessForSetup(input)).toEqual({ ready: false, reasons: ['loyalties'] });
+    expect(readinessForSetup({
+      ...input,
+      loyaltyUids: [...corePlayers, pressUid],
+    })).toEqual({ ready: true, reasons: [] });
+  });
+
+  it.each([
+    ['missing core assignment', (assignments: Array<{ uid: string; roleId: string }>) => assignments.slice(0, -1)],
+    ['duplicate core role', (assignments: Array<{ uid: string; roleId: string }>) => assignments.map((assignment, index) =>
+      index === assignments.length - 1 ? { ...assignment, roleId: assignments[0]!.roleId } : assignment)],
+    ['extra core assignment attached to the Press holder', (assignments: Array<{ uid: string; roleId: string }>) => [
+      ...assignments,
+      { uid: 'press-21', roleId: assignments[0]!.roleId },
+    ]],
+  ])('keeps %s core-roster errors visible beside an optional Press claim', (_label, mutate) => {
+    const coreRoleIds = [...recommendedRoleIds(20)];
+    const corePlayers = coreRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const baseAssignments = coreRoleIds.map((_roleId, index) => ({
+      uid: corePlayers[index]!,
+      roleId: coreRoleIds[index]!,
+    }));
+    const result = readinessForSetup({
+      phase: 'casting',
+      playerCount: 20,
+      connectedPlayers: [...corePlayers, 'press-21'],
+      assignments: mutate(baseAssignments),
+      loyaltyUids: [...corePlayers, 'press-21'],
+      facilitatorResponsibilities: { main: true, assistant: true },
+      activeRoleIds: coreRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(coreRoleIds),
+      pressPlayerUids: ['press-21'],
+    });
+
+    expect(result).toEqual({ ready: false, reasons: ['roles'] });
   });
 });

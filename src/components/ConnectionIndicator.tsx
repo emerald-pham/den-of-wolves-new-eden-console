@@ -13,9 +13,9 @@ type IndicatorStatus = ConnectionStatus | 'blue';
 
 const LABELS: Record<IndicatorStatus, string> = {
   red: 'Offline',
-  yellow: 'Connected',
+  yellow: 'CONNECTED',
   green: 'In session',
-  blue: 'Connected, Awaiting Iris Authentication',
+  blue: 'NOT CONNECTED — AWAITING IRIS AUTHENTICATION',
 };
 
 const TITLES: Record<IndicatorStatus, string> = {

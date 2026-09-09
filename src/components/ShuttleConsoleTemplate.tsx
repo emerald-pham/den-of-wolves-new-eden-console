@@ -25,7 +25,12 @@ interface Props {
   readonly canLeave: boolean;
   readonly docking?: ShuttleDocking | undefined;
   readonly fuelled?: boolean;
-  readonly returnTo?: { readonly to: string; readonly label: string } | undefined;
+  readonly returnTo?: {
+    readonly to: string;
+    readonly label: string;
+    readonly onClick?: (() => void) | undefined;
+    readonly busy?: boolean | undefined;
+  } | undefined;
 }
 
 /** Every shuttle uses this layout; vessel files supply identity and opt-in equipment. */
@@ -52,9 +57,18 @@ export default function ShuttleConsoleTemplate({
     >
       {shuttle.mark && <div className="shuttle-console__mark" aria-hidden="true">{shuttle.mark}</div>}
       <section className="ship-console__identity" aria-labelledby="shuttle-name">
-        {returnTo && (
+        {returnTo && (returnTo.onClick ? (
+          <button
+            className="ship-console__back cic-text-button"
+            type="button"
+            disabled={returnTo.busy}
+            onClick={returnTo.onClick}
+          >
+            {returnTo.label}
+          </button>
+        ) : (
           <Link className="ship-console__back cic-text-button" to={returnTo.to}>{returnTo.label}</Link>
-        )}
+        ))}
         {canLeave && (
           <Link className="ship-console__back cic-text-button" to="/console">Leave shuttle</Link>
         )}

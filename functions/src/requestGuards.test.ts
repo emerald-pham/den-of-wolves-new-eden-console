@@ -13,6 +13,7 @@ import {
   requireEmergencyTimerPauseRequest,
   requirePlayerKickRequest,
   requireDioneAvailabilityRequest,
+  requirePressAvailabilityRequest,
   requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipDamageRequest,
@@ -55,13 +56,12 @@ describe('callable request guards', () => {
 
   it('requires both session and seat ids', () => {
     expectHttpsError(
-      () => requireSessionSeatRequest({ sessionId: 's1', seatId: '' }),
+      () => requireSessionSeatRequest({ sessionId: 's1', seatId: '', requestId: 'seat-1', expectedSetupRevision: 0 }),
       'invalid-argument',
     );
-    expect(requireSessionSeatRequest({ sessionId: 's1', seatId: 'seat1' })).toEqual({
-      sessionId: 's1',
-      seatId: 'seat1',
-    });
+    expect(requireSessionSeatRequest({
+      sessionId: 's1', seatId: 'seat1', requestId: 'seat-1', expectedSetupRevision: 0,
+    })).toEqual({ sessionId: 's1', seatId: 'seat1', requestId: 'seat-1', expectedSetupRevision: 0 });
   });
 
   it('requires a session id when resuming', () => {
@@ -72,14 +72,14 @@ describe('callable request guards', () => {
   it('validates the immutable session-creation configuration and request id', () => {
     expect(requireSessionCreationRequest({
       requestId: 'create-1',
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
     })).toEqual({
       requestId: 'create-1',
       configuration: {
-        playerCount: 14,
+        playerCount: 19,
         chartId: 'B',
         expansion: 'capybara',
         turnLimit: 7,
@@ -131,8 +131,14 @@ describe('callable request guards', () => {
 
   it('validates facilitator responsibility and retry-safe start commands', () => {
     expect(requireFacilitatorResponsibilityRequest({
-      sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
-    })).toEqual({ sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant' });
+      sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
+      expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
+      expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
+    });
     expect(requireGameStartRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 3,
     })).toEqual({
@@ -434,6 +440,14 @@ describe('callable request guards', () => {
     expectHttpsError(() => requireRolePresetRequest({
       sessionId: 's1', instanceId: 'i1', playerCount: 22,
     }), 'invalid-argument');
+    for (const playerCount of [7, 21, 19.5, '19', null]) {
+      expectHttpsError(() => requireRolePresetRequest({
+        sessionId: 's1', instanceId: 'i1', playerCount,
+      }), 'invalid-argument');
+    }
+    expect(requireRolePresetRequest({
+      sessionId: 's1', instanceId: 'i1', playerCount: 19,
+    })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 19 });
     expect(requireRolePresetRequest({
       sessionId: 's1', instanceId: 'i1', playerCount: 14,
     })).toEqual({ sessionId: 's1', instanceId: 'i1', playerCount: 14 });
@@ -463,6 +477,24 @@ describe('callable request guards', () => {
     }), 'invalid-argument');
     expectHttpsError(() => requirePressDispatchDismissalRequest({
       sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: -1,
+    }), 'invalid-argument');
+  });
+
+  it('requires a Press availability request with a non-negative revision', () => {
+    expect(requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: false, expectedRevision: 4,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: false, expectedRevision: 4,
+    });
+    expectHttpsError(() => requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: true,
+    }), 'invalid-argument');
+    expectHttpsError(() => requirePressAvailabilityRequest({
+      sessionId: 's1', instanceId: 'gm-1', requestId: 'press-1',
+      pressEnabled: true, expectedRevision: -1,
     }), 'invalid-argument');
   });
 

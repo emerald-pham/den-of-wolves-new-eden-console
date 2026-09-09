@@ -165,6 +165,18 @@ export interface TurnStartReplay {
   readonly token: number;
 }
 
+/** The server-authoritative setup tuple and its derived core vessel projection. */
+export interface SessionSetup {
+  readonly playerCount: number;
+  readonly chartId: SessionChartId;
+  readonly expansion: SessionExpansionMode;
+  readonly turnLimit: 6 | 7 | 8;
+  readonly dioneEnabled: boolean;
+  readonly capybaraEnabled: boolean;
+  readonly activeRoleIds: readonly string[];
+  readonly activeVesselIds: readonly string[];
+}
+
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
@@ -203,9 +215,17 @@ export interface GameSession {
   readonly turnLimit?: 6 | 7 | 8;
   readonly configurationLocked?: boolean;
   readonly setupRevision?: number;
+  /** One canonical server-validated configuration tuple. */
+  readonly setup?: SessionSetup;
+  /** Derived counted vessels for the canonical active core roster. */
+  readonly activeVesselIds?: readonly string[];
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
+  /** Optional New Eden Console extension; absent legacy values are treated as enabled. */
+  readonly pressEnabled?: boolean;
+  /** Server-owned CAS revision for Press availability changes. */
+  readonly pressAvailabilityRevision?: number;
   /** Four-digit system code for every fleet ship; legacy sessions begin at 0000. */
   readonly shipGalacticCoordinates?: ShipGalacticCoordinates;
   /** Server-authored navigation events, newest first, by receiving ship. */
@@ -261,6 +281,8 @@ export type SeatStatus = 'open' | 'claimed' | 'locked';
 export interface Seat {
   readonly id: Id;
   readonly sessionId: Id;
+  /** Stable canonical role id; absent only on pre-0.3.12 legacy documents. */
+  readonly roleId?: Id;
   readonly label: string;
   readonly factionId: Id | null;
   readonly status: SeatStatus;
@@ -294,6 +316,8 @@ export interface GmInstance {
   readonly name: string;
   readonly deviceLabel: string;
   readonly responsibility?: 'main' | 'assistant';
+  /** Normalized responsibility projection; legacy singular data remains readable. */
+  readonly responsibilities?: readonly ('main' | 'assistant')[];
   readonly claimedAt: Timestamp;
 }
 

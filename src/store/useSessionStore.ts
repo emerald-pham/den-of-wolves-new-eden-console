@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { GameSession, GmInstance, Player, Seat, TurnStartReplay } from '@/types/game';
+import { normalizeShuttleManifest } from '@/data/shuttles';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -76,6 +77,18 @@ export type PendingCommand =
     }
   | {
       readonly id: string;
+      readonly kind: 'setPressEnabled';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly pressEnabled: boolean;
+        readonly expectedRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'setGmControlsLocked';
       readonly payload: {
         readonly sessionId: string;
@@ -122,6 +135,64 @@ export type PendingCommand =
         readonly sessionId: string;
         readonly instanceId: string;
         readonly activeRoleIds: readonly string[];
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'confirmSetup';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly setup: {
+          readonly playerCount: number;
+          readonly chartId: 'A' | 'B' | 'C';
+          readonly expansion: 'base' | 'capybara' | 'none';
+          readonly turnLimit: 6 | 7 | 8;
+          readonly dioneEnabled: boolean;
+          readonly capybaraEnabled: boolean;
+          readonly activeRoleIds: readonly string[];
+        };
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'setFacilitatorResponsibility';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly responsibility: 'main' | 'assistant';
+        readonly mode: 'share' | 'handoff' | 'drop';
+        readonly targetInstanceId?: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'claimSeat';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly seatId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'releaseSeat';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly seatId: string;
+        readonly requestId: string;
+        readonly expectedSetupRevision: number;
+        readonly instanceId?: string;
+        readonly reason?: string;
       };
       readonly createdAt: string;
     }
@@ -197,6 +268,21 @@ const initial = {
   'communicationError' | 'mode' | 'lastRoute' | 'connection'
 >;
 
+function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
+  if (!session) return null;
+  const manifest = normalizeShuttleManifest(
+    session.shuttleDockings,
+    session.shuttleVisitLog,
+    session.activeRoleIds,
+    session.playerCount,
+  );
+  return {
+    ...session,
+    shuttleDockings: manifest.dockings,
+    shuttleVisitLog: manifest.visits,
+  };
+}
+
 export const useSessionStore = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -253,6 +339,18 @@ export const useSessionStore = create<SessionState>()(
         mode,
         lastRoute,
       }),
+      merge: (persisted, current) => {
+        const restored = persisted && typeof persisted === 'object'
+          ? persisted as Partial<SessionState>
+          : {};
+        return {
+          ...current,
+          ...restored,
+          session: Object.hasOwn(restored, 'session')
+            ? normalizePersistedSession(restored.session)
+            : current.session,
+        };
+      },
     },
   ),
 );

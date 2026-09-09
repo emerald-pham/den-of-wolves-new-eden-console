@@ -76,6 +76,23 @@ const EXPECTED_PRINTED_ROSTERS: Readonly<Record<number, readonly string[]>> = {
     'quellon-engineer', 'quellon-explorer', 'refinery-124-captain',
     'refinery-124-engineer', 'refinery-124-pdf-colonel',
   ],
+  19: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+    'dione-president', 'icebreaker-captain', 'icebreaker-engineer',
+    'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer',
+    'shepherd-scientist', 'quellon-captain', 'quellon-engineer',
+    'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer',
+    'refinery-124-pdf-colonel', 'capybara-captain', 'capybara-recycler',
+  ],
+  20: [
+    'admiral', 'executive-officer', 'wing-commander', 'dione-captain',
+    'dione-engineer', 'dione-president', 'icebreaker-captain',
+    'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain',
+    'shepherd-engineer', 'shepherd-scientist', 'quellon-captain',
+    'quellon-engineer', 'quellon-explorer', 'refinery-124-captain',
+    'refinery-124-engineer', 'refinery-124-pdf-colonel', 'capybara-captain',
+    'capybara-recycler',
+  ],
 };
 
 describe('recommended player-count role presets', () => {
@@ -87,8 +104,13 @@ describe('recommended player-count role presets', () => {
       expect(actual).toHaveLength(playerCount);
       expect(new Set(actual).size).toBe(playerCount);
       expect(actual).not.toContain('press-officer');
-      expect(actual).not.toContain('capybara-captain');
-      expect(actual).not.toContain('capybara-recycler');
+      expect(actual).not.toContain('gm');
+      if (playerCount < 19) {
+        expect(actual).not.toContain('capybara-captain');
+        expect(actual).not.toContain('capybara-recycler');
+      } else {
+        expect(actual.slice(-2)).toEqual(['capybara-captain', 'capybara-recycler']);
+      }
     }
   });
 
@@ -137,15 +159,18 @@ describe('recommended player-count role presets', () => {
     ])).toBe(false);
   });
 
-  it('keeps Capybara for 20+ and combines Capybara with Press at 21', () => {
-    expect(recommendedRoleIds(19)).toContain('press-officer');
-    expect(recommendedRoleIds(19)).not.toContain('capybara-captain');
-    expect(recommendedRoleIds(20)).toEqual(expect.arrayContaining([
-      'capybara-captain', 'capybara-recycler',
-    ]));
+  it('keeps Capybara in the owner-set 20-core preset while Press stays separate', () => {
+    expect(recommendedRoleIds(19).slice(-2)).toEqual(['capybara-captain', 'capybara-recycler']);
+    expect(recommendedRoleIds(20).slice(-2)).toEqual(['capybara-captain', 'capybara-recycler']);
     expect(recommendedRoleIds(20)).not.toContain('press-officer');
-    expect(recommendedRoleIds(21)).toEqual(expect.arrayContaining([
-      'capybara-captain', 'capybara-recycler', 'press-officer',
-    ]));
+    expect(recommendedRoleIds(21)).toEqual([]);
+    expect(isValidRoleConfiguration([...recommendedRoleIds(20), 'press-officer'])).toBe(false);
   });
+
+  it.each([7, 21, 19.5, Number.NaN])(
+    'does not invent a neighboring roster for malformed count %s',
+    (playerCount) => {
+      expect(recommendedRoleIds(playerCount)).toEqual([]);
+    },
+  );
 });

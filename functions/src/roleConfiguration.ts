@@ -12,7 +12,7 @@ export const ROLE_IDS = [
 ] as const;
 
 export const DEFAULT_ACTIVE_ROLE_IDS = ROLE_IDS.filter(
-  (id) => !id.startsWith('joint-engineering-'),
+  (id) => id !== 'press-officer' && !id.startsWith('joint-engineering-'),
 );
 
 const CORE_18 = ROLE_IDS.filter((id) =>
@@ -24,6 +24,14 @@ const A = 'admiral';
 const W = 'wing-commander';
 const QR = 'joint-engineering-quellon-refinery';
 const SI = 'joint-engineering-shepherd-icebreaker';
+const CORE_17 = [
+  A, 'executive-officer', W, 'dione-captain', 'dione-president',
+  'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
+  'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist',
+  'quellon-captain', 'quellon-engineer', 'quellon-explorer',
+  'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+] as const;
+const CAPYBARA_PAIR = ['capybara-captain', 'capybara-recycler'] as const;
 
 export const JOINT_ENGINEERING_ROLE_IDS = [QR, SI] as const;
 export type JointEngineeringRoleId = typeof JOINT_ENGINEERING_ROLE_IDS[number];
@@ -57,15 +65,14 @@ const PRESETS: Readonly<Record<number, readonly string[]>> = {
   14: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   15: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   16: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
-  17: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+  17: CORE_17,
   18: CORE_18,
-  19: [...CORE_18, 'press-officer'],
-  20: [...CORE_18, 'capybara-captain', 'capybara-recycler'],
-  21: [...CORE_18, 'capybara-captain', 'capybara-recycler', 'press-officer'],
+  19: [...CORE_17, ...CAPYBARA_PAIR],
+  20: [...CORE_18, ...CAPYBARA_PAIR],
 };
 
 export function recommendedRoleIds(playerCount: number): readonly string[] {
-  return PRESETS[playerCount] ?? PRESETS[21] ?? [];
+  return PRESETS[playerCount] ?? [];
 }
 
 export function isJointEngineeringRoleId(roleId: string): roleId is JointEngineeringRoleId {
@@ -94,6 +101,7 @@ export function jointEngineeringShipsForRole(roleId: string): readonly string[] 
 /** Keep the server’s roster authority aligned with the printed replacement matrix. */
 export function isValidRoleConfiguration(activeRoleIds: readonly string[]): boolean {
   if (new Set(activeRoleIds).size !== activeRoleIds.length) return false;
+  if (activeRoleIds.includes('press-officer')) return false;
   if (activeRoleIds.some((roleId) => !(ROLE_IDS as readonly string[]).includes(roleId))) return false;
   return JOINT_ENGINEERING_ROLE_IDS.every((roleId) =>
     !activeRoleIds.includes(roleId) || isJointEngineeringRoleAvailable(activeRoleIds, roleId));

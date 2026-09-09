@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => {
   return {
     get: vi.fn(), set: vi.fn(), update: vi.fn(), post: 'dione-engineer', full: true, currentTurn: 1,
     activeRoleIds: undefined as readonly string[] | undefined,
+    pressEnabled: true,
     usedShipIds: [] as readonly string[],
     Timestamp: MockTimestamp,
   };
@@ -25,6 +26,7 @@ import { popShipConfetti } from './index';
 const data = { sessionId: 's1', shipId: 'dione', roleId: 'dione-captain' };
 beforeEach(() => {
   mock.post = 'dione-engineer'; mock.full = true; mock.currentTurn = 1; mock.activeRoleIds = undefined;
+  mock.pressEnabled = true;
   mock.usedShipIds = [];
   mock.set.mockReset(); mock.update.mockReset();
   mock.get.mockImplementation(async (ref: string | { path: string }) => {
@@ -32,7 +34,7 @@ beforeEach(() => {
     if (path.endsWith('/players')) return { docs: (mock.full ? ['dione-engineer', 'dione-captain', 'dione-president'] : [mock.post]).map((post, id) => ({ id: String(id), exists: true, get: (key: string) => ({ role: 'player', connected: true, activeConsoleRoleId: post, lastSeenAt: new mock.Timestamp() } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/') ?
       { role: 'player', connected: true, activeConsoleRoleId: mock.post, lastSeenAt: new mock.Timestamp() } :
-      { currentTurn: mock.currentTurn, activeRoleIds: mock.activeRoleIds, confettiUsedShipIds: mock.usedShipIds };
+      { currentTurn: mock.currentTurn, activeRoleIds: mock.activeRoleIds, pressEnabled: mock.pressEnabled, confettiUsedShipIds: mock.usedShipIds };
     return { exists: !path.includes('/shipConfetti/'), get: (key: string) => fields[key] };
   });
 });
@@ -197,5 +199,29 @@ it('holds bridge confetti until Turn 1 for a player console', async () => {
 
   await expect(popShipConfetti.run({ data, auth: { uid: 'u1' } } as CallableRequest<typeof data>))
     .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/turn 1/i) });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('denies the Press dispenser when Press is disabled without changing its history', async () => {
+  mock.post = 'press-officer';
+  mock.full = false;
+  mock.pressEnabled = false;
+
+  await expect(popShipConfetti.run({
+    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
+    auth: { uid: 'u1' },
+  } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not let an enabled Press dispenser be forged by a connected non-Press member', async () => {
+  mock.full = false;
+  mock.post = 'admiral';
+  mock.activeRoleIds = ['admiral'];
+
+  await expect(popShipConfetti.run({
+    data: { sessionId: 's1', shipId: 'snn-press-shuttle', roleId: 'press-officer' },
+    auth: { uid: 'u1' },
+  } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();
 });

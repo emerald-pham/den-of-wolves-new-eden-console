@@ -13,6 +13,14 @@ const A = 'admiral';
 const W = 'wing-commander';
 const QR = 'joint-engineering-quellon-refinery';
 const SI = 'joint-engineering-shepherd-icebreaker';
+const CORE_17 = [
+  A, 'executive-officer', W, 'dione-captain', 'dione-president',
+  'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner',
+  'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist',
+  'quellon-captain', 'quellon-engineer', 'quellon-explorer',
+  'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel',
+] as const;
+const CAPYBARA_PAIR = ['capybara-captain', 'capybara-recycler'] as const;
 
 export const JOINT_ENGINEERING_ROLE_IDS = [QR, SI] as const;
 export type JointEngineeringRoleId = typeof JOINT_ENGINEERING_ROLE_IDS[number];
@@ -43,20 +51,19 @@ const MATRIX_PRESETS: Readonly<Record<number, readonly string[]>> = {
   14: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   15: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-miner', 'shepherd-captain', 'shepherd-scientist', 'quellon-captain', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-pdf-colonel', QR, SI],
   16: [A, W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
-  17: [A, 'executive-officer', W, 'dione-captain', 'dione-president', 'icebreaker-captain', 'icebreaker-engineer', 'icebreaker-miner', 'shepherd-captain', 'shepherd-engineer', 'shepherd-scientist', 'quellon-captain', 'quellon-engineer', 'quellon-explorer', 'refinery-124-captain', 'refinery-124-engineer', 'refinery-124-pdf-colonel'],
+  17: CORE_17,
   18: CORE_18,
-  19: [...CORE_18, 'press-officer'],
-  20: [...CORE_18, 'capybara-captain', 'capybara-recycler'],
-  21: [...CORE_18, 'capybara-captain', 'capybara-recycler', 'press-officer'],
+  19: [...CORE_17, ...CAPYBARA_PAIR],
+  20: [...CORE_18, ...CAPYBARA_PAIR],
 };
 
 export const MIN_PLAYER_PRESET = 8;
-export const MAX_PLAYER_PRESET = 21;
+export const MAX_PLAYER_PRESET = 20;
 
 const KNOWN_ROLE_IDS = new Set(CONSOLE_ROLES.map((role) => role.id));
 
 export function recommendedRoleIds(playerCount: number): readonly string[] {
-  return MATRIX_PRESETS[playerCount] ?? MATRIX_PRESETS[MAX_PLAYER_PRESET] ?? [];
+  return MATRIX_PRESETS[playerCount] ?? [];
 }
 
 export function isJointEngineeringRoleId(roleId: string): roleId is JointEngineeringRoleId {
@@ -92,6 +99,7 @@ export function canOfferJointEngineeringRole(
 export function isValidRoleConfiguration(activeRoleIds: readonly string[]): boolean {
   if (new Set(activeRoleIds).size !== activeRoleIds.length) return false;
   if (activeRoleIds.some((roleId) => !KNOWN_ROLE_IDS.has(roleId))) return false;
+  if (activeRoleIds.includes('press-officer')) return false;
   return JOINT_ENGINEERING_ROLE_IDS.every((roleId) =>
     !activeRoleIds.includes(roleId) || isJointEngineeringRoleAvailable(activeRoleIds, roleId));
 }

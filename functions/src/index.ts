@@ -40,7 +40,7 @@ import {
 import {
   requireDiceRequest,
   requireDebriefModeRequest,
-  requireDioneAvailabilityRequest,
+  requirePressAvailabilityRequest,
   requireElevationRequest,
   requireGmAccessLoginRequest,
   requireGmAccessLogoutRequest,
@@ -53,7 +53,6 @@ import {
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
-  requireShipAvailabilityRequest,
   requireShipConfettiRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
@@ -76,9 +75,7 @@ import {
   requireUid,
   requireWolfAssignmentRequest,
   requireManualWolfAssignmentRequest,
-  requireActiveRoleSettingRequest,
-  requireRoleConfigurationRequest,
-  requireRolePresetRequest,
+  requireSetupConfirmationRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
 } from './requestGuards';
@@ -99,17 +96,20 @@ import {
   DEFAULT_ACTIVE_ROLE_IDS,
   isJointEngineeringRoleAvailable,
   isJointEngineeringRoleId,
-  isValidRoleConfiguration,
   jointEngineeringShipsForRole,
   ROLE_IDS,
   recommendedRoleIds,
 } from './roleConfiguration';
 import {
   activeVesselIdsForRoles,
+  canonicalSessionSetup,
   defaultSuspicionForLoyalty,
   loyaltyAssignmentDecision,
+  normalizeSessionConfiguration,
+  normalizePersistedSessionConfiguration,
   readinessForSetup,
   roleAssignmentDecision,
+  stableSeatsForRoles,
   type LoyaltyKind,
 } from './gameSetup';
 import {
@@ -135,7 +135,11 @@ import {
   applyUnrestSteps,
 } from './shipCounterBatch';
 import { pressDispatchState } from './pressDispatchState';
-import { INITIAL_SHUTTLE_DOCKINGS, INITIAL_SHUTTLE_VISITS } from './shuttlecraft';
+import {
+  INITIAL_SHUTTLE_DOCKINGS,
+  initialShuttleDockingsForRoles,
+  initialShuttleVisitsForDockings,
+} from './shuttlecraft';
 import { CALLABLE_RUNTIME_OPTIONS } from './runtimeOptions';
 import {
   isJoinCode,
@@ -276,6 +280,61 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+function hasCoreAssignment(player: DocumentSnapshot): boolean {
+  const assignedRoleId = player.get('assignedRoleId');
+  return typeof assignedRoleId === 'string' && assignedRoleId.trim().length > 0 &&
+    assignedRoleId !== 'press-officer';
+}
+
+function isAuthoritativePressHolder(player: DocumentSnapshot): boolean {
+  return isActivePlayer(player) && player.get('role') === 'player' &&
+    player.get('activeConsoleRoleId') === 'press-officer' && !hasCoreAssignment(player);
+}
+
+function hasPressState(player: DocumentSnapshot): boolean {
+  return player.get('activeConsoleRoleId') === 'press-officer' ||
+    player.get('assignedRoleId') === 'press-officer';
+}
+
+function releasedPressFields(player: DocumentSnapshot): Record<string, unknown> {
+  return {
+    activeConsoleRoleId: null,
+    ...(player.get('assignedRoleId') === 'press-officer' ? { assignedRoleId: null } : {}),
+  };
+}
+
+function removePressWolfRole(
+  tx: Transaction,
+  wolfSecretRef: DocumentReference,
+  wolfSecret: DocumentSnapshot,
+): void {
+  const payload = wolfSecret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return;
+  const roleIds = (payload as { roleIds?: unknown }).roleIds;
+  if (!Array.isArray(roleIds) || !roleIds.includes('press-officer')) return;
+  const remainingRoleIds = roleIds.filter((roleId) => roleId !== 'press-officer');
+  if (remainingRoleIds.length === 0) tx.delete(wolfSecretRef);
+  else {
+    tx.update(wolfSecretRef, {
+      payload: { ...(payload as Record<string, unknown>), roleIds: remainingRoleIds },
+    });
+  }
+}
+
+function clearPressPrivateState(
+  tx: Transaction,
+  sessionId: string,
+  player: DocumentSnapshot,
+  wolfSecretRef: DocumentReference,
+  wolfSecret: DocumentSnapshot,
+  removeWolfRole: boolean,
+): void {
+  if (!hasCoreAssignment(player)) {
+    tx.delete(db.doc(`sessions/${sessionId}/secrets/loyalty-${player.id}`));
+  }
+  if (removeWolfRole) removePressWolfRole(tx, wolfSecretRef, wolfSecret);
+}
+
 type ReturningSeat = Readonly<{
   seatId: string | null;
   clearPointer: boolean;
@@ -322,6 +381,10 @@ async function reconcileReturningSeat(
 
 function sessionTurn(value: unknown): number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 1;
+}
+
+function pressAvailabilityRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
 type TurnStartAnnouncement = {
@@ -622,6 +685,10 @@ export const createSession = onCall<{
       // here would silently create more role holders than configured players
       // and would mix base and expansion Capybara rules.
       const activeRoleIds = [...recommendedRoleIds(creation.configuration.playerCount)];
+      const setup = canonicalSessionSetup(creation.configuration, activeRoleIds);
+      const stableSeats = stableSeatsForRoles(activeRoleIds);
+      const initialShuttleDockings = initialShuttleDockingsForRoles(activeRoleIds);
+      const initialShuttleVisits = initialShuttleVisitsForDockings(initialShuttleDockings);
       const reply = {
         session: {
           id: sessionRef.id,
@@ -635,6 +702,11 @@ export const createSession = onCall<{
           turnLimit: creation.configuration.turnLimit,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          setup,
+          activeVesselIds: setup.activeVesselIds,
+          pressEnabled: true,
+          pressAvailabilityRevision: 0,
+          pressHolderUid: null,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -650,8 +722,8 @@ export const createSession = onCall<{
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
-          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          shuttleDockings: initialShuttleDockings,
+          shuttleVisitLog: initialShuttleVisits,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: now,
@@ -714,6 +786,11 @@ export const createSession = onCall<{
           setupRevision: 0,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          setup,
+          activeVesselIds: setup.activeVesselIds,
+          pressEnabled: true,
+          pressAvailabilityRevision: 0,
+          pressHolderUid: null,
           shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
           shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
           shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
@@ -729,8 +806,8 @@ export const createSession = onCall<{
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: INITIAL_SHUTTLE_DOCKINGS,
-          shuttleVisitLog: INITIAL_SHUTTLE_VISITS,
+          shuttleDockings: initialShuttleDockings,
+          shuttleVisitLog: initialShuttleVisits,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -738,6 +815,12 @@ export const createSession = onCall<{
           deleteAfter: null,
           deletingAt: null,
         });
+        for (const seat of stableSeats) {
+          tx.set(db.doc(`sessions/${sessionRef.id}/seats/${seat.id}`), {
+            ...seat,
+            sessionId: sessionRef.id,
+          });
+        }
         // GM authority is claimed per named browser instance after creation.
         tx.set(db.doc(`sessions/${sessionRef.id}/players/${uid}`), {
           uid,
@@ -789,6 +872,293 @@ function requireCastingWindow(session: DocumentSnapshot): void {
   }
 }
 
+function canonicalSetupForSession(
+  session: DocumentSnapshot,
+  activeRoleIds: readonly string[],
+  playerCountOverride?: number,
+) {
+  const playerCount = playerCountOverride ?? (
+    Number.isSafeInteger(session.get('playerCount')) ? session.get('playerCount') as number : 18
+  );
+  const expansion = playerCount >= 19
+    ? 'capybara'
+    : playerCountOverride === undefined && session.get('expansion') === 'capybara'
+      ? 'capybara'
+      : session.get('expansion') === 'none' ? 'none' : 'base';
+  const configurationInput = {
+    playerCount,
+    chartId: session.get('chartId'),
+    expansion,
+    turnLimit: session.get('turnLimit'),
+    dioneEnabled: session.get('dioneEnabled') !== false && playerCount >= 12,
+    capybaraEnabled: expansion !== 'none' && (playerCount >= 19 || session.get('capybaraEnabled') !== false),
+  };
+  const configuration = playerCountOverride === undefined
+    ? normalizePersistedSessionConfiguration(configurationInput)
+    : normalizeSessionConfiguration(configurationInput);
+  return canonicalSessionSetup(configuration, activeRoleIds);
+}
+
+/** Reconcile role-keyed seats before writing the tuple that advertises them. */
+async function reconcileStableSeats(
+  tx: Transaction,
+  sessionId: string,
+  currentRoleIds: readonly string[],
+  nextRoleIds: readonly string[],
+): Promise<void> {
+  const next = new Set(nextRoleIds);
+  const current = new Set(currentRoleIds);
+  const roleIds = [...new Set([...currentRoleIds, ...nextRoleIds])];
+  const snapshots = await Promise.all(roleIds.map(async (roleId) => ({
+    roleId,
+    snapshot: await tx.get(db.doc(`sessions/${sessionId}/seats/${roleId}`)),
+  })));
+  const byRole = new Map(snapshots.map(({ roleId, snapshot }) => [roleId, snapshot]));
+  const removed = currentRoleIds.filter((roleId) => !next.has(roleId));
+  const claimedSeat = removed
+    .map((roleId) => ({ roleId, snapshot: byRole.get(roleId)! }))
+    .find(({ snapshot }) =>
+      snapshot.exists && snapshot.get('status') === 'claimed' && snapshot.get('holderUid'));
+  if (claimedSeat) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Seat ${claimedSeat.roleId} is claimed and cannot be removed from the setup.`,
+    );
+  }
+
+  for (const roleId of removed) {
+    if (byRole.get(roleId)?.exists) {
+      tx.update(db.doc(`sessions/${sessionId}/seats/${roleId}`), {
+        status: 'locked',
+        holderUid: null,
+        claimedAt: null,
+      });
+    }
+  }
+  for (const seat of stableSeatsForRoles(nextRoleIds)) {
+    const stored = byRole.get(seat.id);
+    if (stored?.exists && current.has(seat.id)) {
+      const canonicalFields = {
+        roleId: seat.roleId,
+        label: seat.label,
+        factionId: seat.factionId,
+      };
+      if (
+        stored.get('roleId') !== canonicalFields.roleId ||
+        stored.get('label') !== canonicalFields.label ||
+        stored.get('factionId') !== canonicalFields.factionId
+      ) {
+        tx.update(db.doc(`sessions/${sessionId}/seats/${seat.id}`), canonicalFields);
+      }
+      continue;
+    }
+    if (stored?.exists) {
+      tx.update(db.doc(`sessions/${sessionId}/seats/${seat.id}`), {
+        ...seat,
+        sessionId,
+      });
+      continue;
+    }
+    tx.set(db.doc(`sessions/${sessionId}/seats/${seat.id}`), {
+      ...seat,
+      sessionId,
+    });
+  }
+}
+
+/** Heal legacy sessions into the canonical setup/seat shape during join or resume. */
+async function hydrateCanonicalSessionSetup(
+  tx: Transaction,
+  sessionId: string,
+  session: DocumentSnapshot,
+): Promise<ReturnType<typeof canonicalSetupForSession>> {
+  const activeRoleIds = sessionActiveRoleIds(session);
+  await reconcileStableSeats(tx, sessionId, activeRoleIds, activeRoleIds);
+  const setup = canonicalSetupForSession(session, activeRoleIds);
+  const storedSetup = session.get('setup');
+  const hasSetup = typeof storedSetup === 'object' && storedSetup !== null &&
+    Array.isArray(session.get('activeVesselIds'));
+  if (!hasSetup) {
+    tx.update(db.doc(`sessions/${sessionId}`), {
+      ...setupWriteFields(setup),
+      setupRevision: setupRevision(session),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  return setup;
+}
+
+function setupWriteFields(setup: ReturnType<typeof canonicalSetupForSession>) {
+  return {
+    setup,
+    playerCount: setup.playerCount,
+    chartId: setup.chartId,
+    expansion: setup.expansion,
+    turnLimit: setup.turnLimit,
+    dioneEnabled: setup.dioneEnabled,
+    capybaraEnabled: setup.capybaraEnabled,
+    activeRoleIds: [...setup.activeRoleIds],
+    activeVesselIds: [...setup.activeVesselIds],
+  };
+}
+
+type SetupCommandFingerprint = {
+  readonly playerCount: number;
+  readonly chartId: string;
+  readonly expansion: string;
+  readonly turnLimit: number;
+  readonly dioneEnabled: boolean;
+  readonly capybaraEnabled: boolean;
+  readonly activeRoleIds: readonly string[];
+  readonly expectedSetupRevision: number;
+};
+
+function setupCommandFingerprint(
+  configuration: ReturnType<typeof normalizeSessionConfiguration>,
+  activeRoleIds: readonly string[],
+  expectedSetupRevision: number,
+): SetupCommandFingerprint {
+  return {
+    playerCount: configuration.playerCount,
+    chartId: configuration.chartId,
+    expansion: configuration.expansion,
+    turnLimit: configuration.turnLimit,
+    dioneEnabled: configuration.dioneEnabled,
+    capybaraEnabled: configuration.capybaraEnabled,
+    activeRoleIds: [...activeRoleIds],
+    expectedSetupRevision,
+  };
+}
+
+function sameSetupCommandFingerprint(
+  value: unknown,
+  expected: SetupCommandFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.playerCount === expected.playerCount &&
+    candidate.chartId === expected.chartId &&
+    candidate.expansion === expected.expansion &&
+    candidate.turnLimit === expected.turnLimit &&
+    candidate.dioneEnabled === expected.dioneEnabled &&
+    candidate.capybaraEnabled === expected.capybaraEnabled &&
+    candidate.expectedSetupRevision === expected.expectedSetupRevision &&
+    Array.isArray(candidate.activeRoleIds) &&
+    candidate.activeRoleIds.length === expected.activeRoleIds.length &&
+    candidate.activeRoleIds.every((roleId, index) => roleId === expected.activeRoleIds[index]);
+}
+
+function rejectLegacySetupMutation(): never {
+  throw new HttpsError(
+    'failed-precondition',
+    'Legacy setup mutations are disabled; submit the complete tuple through confirmSetup.',
+  );
+}
+
+/** Confirm the complete setup tuple in one authoritative, replayable write. */
+export const confirmSetup = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  setup?: unknown;
+  playerCount?: unknown;
+  chartId?: unknown;
+  expansion?: unknown;
+  turnLimit?: unknown;
+  dioneEnabled?: unknown;
+  capybaraEnabled?: unknown;
+  activeRoleIds?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const command = requireSetupConfirmationRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${command.sessionId}`);
+  const requestRef = db.doc(`sessions/${command.sessionId}/setupMutationRequests/${command.requestId}`);
+  const eventRef = db.doc(`sessions/${command.sessionId}/events/setup-confirm-${command.requestId}`);
+
+  return db.runTransaction(async (tx) => {
+    const fingerprint = setupCommandFingerprint(
+      command.configuration,
+      command.activeRoleIds,
+      command.expectedSetupRevision,
+    );
+    const [prior, authority] = await Promise.all([
+      tx.get(requestRef),
+      requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+    ]);
+    if (prior.exists) {
+      if (
+        prior.get('action') !== 'confirm-setup' ||
+        prior.get('sessionId') !== command.sessionId ||
+        prior.get('actorUid') !== uid ||
+        prior.get('instanceId') !== command.instanceId
+      ) {
+        throw new HttpsError('failed-precondition', 'This request id belongs to a different setup command.');
+      }
+      const expectedFingerprint = setupCommandFingerprint(
+        command.configuration,
+        command.activeRoleIds,
+        command.expectedSetupRevision,
+      );
+      if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different setup tuple.');
+      }
+      const reply = prior.get('reply');
+      if (typeof reply !== 'object' || reply === null) {
+        throw new HttpsError('failed-precondition', 'This setup request has no replayable result.');
+      }
+      if (reply.status === 'stale') return reply;
+      return { ...(reply as Record<string, unknown>), status: 'replayed' };
+    }
+    if (setupRevision(authority.session) !== command.expectedSetupRevision) {
+      const reply = {
+        status: 'stale' as const,
+        requestId: command.requestId,
+        entity: 'setup' as const,
+        expectedRevision: command.expectedSetupRevision,
+        currentRevision: setupRevision(authority.session),
+      };
+      tx.set(requestRef, {
+        action: 'confirm-setup', requestId: command.requestId,
+        sessionId: command.sessionId, actorUid: uid, instanceId: command.instanceId,
+        fingerprint, reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
+    }
+    requireCastingWindow(authority.session);
+    const currentRoleIds = sessionActiveRoleIds(authority.session);
+    await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
+    const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
+    const reply = {
+      status: 'committed' as const,
+      requestId: command.requestId,
+      setupRevision: command.expectedSetupRevision + 1,
+      setup,
+      activeRoleIds: [...setup.activeRoleIds],
+      activeVesselIds: [...setup.activeVesselIds],
+    };
+    tx.update(sessionRef, {
+      ...setupWriteFields(setup),
+      setupRevision: reply.setupRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'setup-confirm', action: 'confirm-setup', requestId: command.requestId,
+      actorUid: uid, instanceId: command.instanceId, revision: reply.setupRevision,
+      fingerprint,
+      activeRoleIds: [...setup.activeRoleIds], createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      action: 'confirm-setup', requestId: command.requestId,
+      sessionId: command.sessionId, actorUid: uid, instanceId: command.instanceId,
+      fingerprint, reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
+  });
+});
+
 async function requireFacilitatorInstance(
   tx: Transaction,
   sessionId: string,
@@ -811,32 +1181,185 @@ async function requireFacilitatorInstance(
 }
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
+type FacilitatorResponsibility = 'main' | 'assistant';
+
+function normalizedResponsibilities(instance: Pick<DocumentSnapshot, 'get'>): FacilitatorResponsibility[] {
+  const stored = instance.get('responsibilities');
+  if (Array.isArray(stored)) {
+    return ['main', 'assistant'].filter((responsibility) =>
+      stored.includes(responsibility)) as FacilitatorResponsibility[];
+  }
+  const legacy = instance.get('responsibility');
+  return legacy === 'main' || legacy === 'assistant' ? [legacy] : [];
+}
+
+function responsibilityCoverage(instances: readonly DocumentSnapshot[]) {
+  return {
+    main: instances.filter((instance) => normalizedResponsibilities(instance).includes('main')).map((instance) => instance.id),
+    assistant: instances.filter((instance) => normalizedResponsibilities(instance).includes('assistant')).map((instance) => instance.id),
+  };
+}
+
 export const setFacilitatorResponsibility = onCall<{
   sessionId?: unknown;
   instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
   responsibility?: unknown;
+  mode?: unknown;
+  targetInstanceId?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const responsibility = requireFacilitatorResponsibilityRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${responsibility.sessionId}`);
   const instanceRef = db.doc(`sessions/${responsibility.sessionId}/gmInstances/${responsibility.instanceId}`);
   const instancesRef = db.collection(`sessions/${responsibility.sessionId}/gmInstances`);
+  const requestRef = db.doc(
+    `sessions/${responsibility.sessionId}/gmResponsibilityRequests/${responsibility.requestId}`,
+  );
+  const eventRef = db.doc(
+    `sessions/${responsibility.sessionId}/events/gm-responsibility-${responsibility.requestId}`,
+  );
   return db.runTransaction(async (tx) => {
-    const [authority, instance, instances] = await Promise.all([
+    const fingerprint = {
+      action: 'set-facilitator-responsibility',
+      sessionId: responsibility.sessionId,
+      instanceId: responsibility.instanceId,
+      actorUid: uid,
+      responsibility: responsibility.responsibility,
+      mode: responsibility.mode,
+      targetInstanceId: responsibility.targetInstanceId ?? null,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
+    } as const;
+    const [authority, prior] = await Promise.all([
       requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
-      tx.get(instanceRef),
-      tx.get(instancesRef),
+      tx.get(requestRef),
     ]);
+    if (prior.exists) {
+      const stored = prior.get('fingerprint');
+      const same = typeof stored === 'object' && stored !== null &&
+        Object.entries(fingerprint).every(([key, value]) =>
+          (stored as Record<string, unknown>)[key] === value);
+      if (!same) {
+        throw new HttpsError('failed-precondition', 'This request id was already used for a different responsibility command.');
+      }
+      const reply = prior.get('reply');
+      if (typeof reply !== 'object' || reply === null) {
+        throw new HttpsError('failed-precondition', 'This responsibility request has no replayable result.');
+      }
+      if (reply.status === 'stale') return reply;
+      return { ...(reply as Record<string, unknown>), status: 'replayed' };
+    }
+
+    const [instance, instances] = await Promise.all([tx.get(instanceRef), tx.get(instancesRef)]);
     requireCastingWindow(authority.session);
     if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
-    const claimedByAnother = instances.docs.some((candidate) =>
-      candidate.id !== responsibility.instanceId &&
-      candidate.get('responsibility') === responsibility.responsibility,
-    );
-    if (claimedByAnother) {
-      throw new HttpsError('already-exists', 'That facilitator responsibility is already staffed.');
+    if (setupRevision(authority.session) !== responsibility.expectedSetupRevision) {
+      const reply = {
+        status: 'stale' as const,
+        requestId: responsibility.requestId,
+        entity: 'facilitator' as const,
+        expectedRevision: responsibility.expectedSetupRevision,
+        currentRevision: setupRevision(authority.session),
+      };
+      tx.set(requestRef, {
+        ...fingerprint,
+        requestId: responsibility.requestId,
+        expectedSetupRevision: responsibility.expectedSetupRevision,
+        fingerprint, reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
-    tx.update(instanceRef, { responsibility: responsibility.responsibility });
-    return { responsibility: responsibility.responsibility };
+
+    const targetInstanceId = responsibility.targetInstanceId ?? responsibility.instanceId;
+    if (
+      instances.docs.length > 1 &&
+      (responsibility.mode === 'share' || responsibility.mode === 'handoff') &&
+      responsibility.targetInstanceId === undefined
+    ) {
+      throw new HttpsError('invalid-argument', 'targetInstanceId is required when multiple facilitator instances are active.');
+    }
+    const target = instances.docs.find((candidate) => candidate.id === targetInstanceId);
+    if (!target) throw new HttpsError('not-found', 'No such target facilitator instance.');
+    const onlyInstance = instances.docs.length === 1;
+    if (onlyInstance && responsibility.mode === 'drop') {
+      throw new HttpsError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.');
+    }
+
+    const nextByInstance = new Map<string, FacilitatorResponsibility[]>(
+      instances.docs.map((candidate) => [candidate.id, normalizedResponsibilities(candidate)]),
+    );
+    const current = nextByInstance.get(instance.id) ?? [];
+    if (onlyInstance) {
+      nextByInstance.set(instance.id, ['main', 'assistant']);
+    } else if (responsibility.mode === 'drop') {
+      nextByInstance.set(
+        instance.id,
+        current.filter((lane) => lane !== responsibility.responsibility),
+      );
+    } else if (responsibility.mode === 'share') {
+      const targetResponsibilities = nextByInstance.get(target.id) ?? [];
+      nextByInstance.set(target.id, [...new Set([...targetResponsibilities, responsibility.responsibility])]);
+    } else {
+      for (const [candidateId, lanes] of nextByInstance) {
+        nextByInstance.set(candidateId, lanes.filter((lane) => lane !== responsibility.responsibility));
+      }
+      nextByInstance.set(target.id, [
+        ...new Set([...(nextByInstance.get(target.id) ?? []), responsibility.responsibility]),
+      ]);
+    }
+
+    for (const candidate of instances.docs) {
+      const responsibilities = nextByInstance.get(candidate.id) ?? [];
+      const legacyResponsibility = responsibilities[0] ?? null;
+      tx.update(candidate.ref, {
+        responsibilities,
+        // Keep the singular field for legacy clients; the array is authoritative.
+        responsibility: legacyResponsibility,
+      });
+    }
+
+    const nextRevision = responsibility.expectedSetupRevision + 1;
+    const nextInstances = instances.docs.map((candidate) => ({
+      ...candidate,
+      get: (field: string) => field === 'responsibilities'
+        ? nextByInstance.get(candidate.id) ?? []
+        : field === 'responsibility'
+          ? (nextByInstance.get(candidate.id)?.[0] ?? null)
+          : candidate.get(field),
+    } as DocumentSnapshot));
+    const reply = {
+      status: 'committed' as const,
+      requestId: responsibility.requestId,
+      setupRevision: nextRevision,
+      responsibilities: nextByInstance.get(instance.id) ?? [],
+      coverage: responsibilityCoverage(nextInstances),
+    };
+    tx.update(sessionRef, {
+      setupRevision: nextRevision,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(eventRef, {
+      type: 'gm-responsibility',
+      action: 'set-facilitator-responsibility',
+      actorUid: uid,
+      requestId: responsibility.requestId,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
+      revision: nextRevision,
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      ...fingerprint,
+      requestId: responsibility.requestId,
+      expectedSetupRevision: responsibility.expectedSetupRevision,
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 
@@ -875,6 +1398,15 @@ export const startGame = onCall<{
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
     const connectedPlayers = players.docs.filter(isActivePlayer).map((player) => player.id);
+    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
+    const storedPressHolderUid = authority.session.get('pressHolderUid');
+    const pressPlayerUids = (typeof storedPressHolderUid === 'string'
+      ? activePressHolders.filter((player) => player.id === storedPressHolderUid)
+      : activePressHolders.length === 1 ? activePressHolders : [])
+      .map((player) => player.id);
+    const facilitatorPlayerUids = players.docs
+      .filter((player) => isActivePlayer(player) && player.get('role') === 'gm')
+      .map((player) => player.id);
     const assignments = players.docs.flatMap((player) => {
       const roleId = player.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: player.id, roleId }] : [];
@@ -899,6 +1431,8 @@ export const startGame = onCall<{
       facilitatorResponsibilities: responsibilities,
       activeRoleIds,
       activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      pressPlayerUids,
+      facilitatorPlayerUids,
     });
     if (!readiness.ready) {
       throw new HttpsError(
@@ -1283,14 +1817,35 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         );
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
+      await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
       if (player.exists) {
         const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, player);
+        const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
+        const storedPressHolderUid = sessionDoc.get('pressHolderUid');
+        const releasePress = hasPressState(player) && (
+          !currentPressAuthority || sessionDoc.get('pressEnabled') === false ||
+          player.get('role') !== 'player' || hasCoreAssignment(player) ||
+          (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
+        );
         tx.update(playerRef, {
           connected: true,
           lastSeenAt: FieldValue.serverTimestamp(),
+          ...(releasePress ? releasedPressFields(player) : {}),
+          ...(!releasePress && currentPressAuthority && player.get('assignedRoleId') === 'press-officer'
+            ? { assignedRoleId: null } : {}),
           ...(returningSeat.clearPointer ? { seatId: null } : {}),
         });
-        tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+        tx.update(sessionRef, {
+          deleteAfter: null,
+          updatedAt: FieldValue.serverTimestamp(),
+          ...(currentPressAuthority
+            ? {
+              pressHolderUid: releasePress && typeof storedPressHolderUid === 'string'
+                ? storedPressHolderUid
+                : releasePress ? null : uid,
+            }
+            : {}),
+        });
         tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
         return returningSeat.seatId;
       } else {
@@ -1314,6 +1869,12 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+    const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+    const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
+    const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+      initialShuttleDockingsForRoles(activeRoleIds);
+    const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
+      initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
     return {
       session: {
         id: sessionId,
@@ -1332,10 +1893,14 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
           ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
         ...(typeof sessionSnap.get('setupRevision') === 'number'
           ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
+        setup,
+        activeVesselIds: [...setup.activeVesselIds],
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
+        pressEnabled: sessionSnap.get('pressEnabled') !== false,
+        pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
         shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
         shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
         shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
@@ -1353,12 +1918,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-        activeRoleIds:
-          (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
-        shuttleDockings:
-          (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
-        shuttleVisitLog:
-          (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+        activeRoleIds,
+        shuttleDockings,
+        shuttleVisitLog,
         pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
         confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
         ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
@@ -1442,13 +2004,32 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       );
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
+    await hydrateCanonicalSessionSetup(tx, sessionId, currentSession);
     const returningSeat = await reconcileReturningSeat(tx, sessionId, uid, currentPlayer);
+    const currentPressAuthority = currentPlayer.get('activeConsoleRoleId') === 'press-officer';
+    const storedPressHolderUid = currentSession.get('pressHolderUid');
+    const releasePress = hasPressState(currentPlayer) && (
+      !currentPressAuthority || currentSession.get('pressEnabled') === false ||
+      currentPlayer.get('role') !== 'player' || hasCoreAssignment(currentPlayer) ||
+      (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid)
+    );
     tx.update(playerRef, {
       connected: true,
       lastSeenAt: FieldValue.serverTimestamp(),
+      ...(releasePress ? releasedPressFields(currentPlayer) : {}),
+      ...(!releasePress && currentPressAuthority && currentPlayer.get('assignedRoleId') === 'press-officer'
+        ? { assignedRoleId: null } : {}),
       ...(returningSeat.clearPointer ? { seatId: null } : {}),
     });
-    tx.update(sessionRef, { deleteAfter: null, updatedAt: FieldValue.serverTimestamp() });
+    tx.update(sessionRef, {
+      deleteAfter: null,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(currentPressAuthority ? {
+        pressHolderUid: releasePress && typeof storedPressHolderUid === 'string'
+          ? storedPressHolderUid
+          : releasePress ? null : uid,
+      } : {}),
+    });
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
     return returningSeat.seatId;
   });
@@ -1457,6 +2038,12 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+  const activeRoleIds = sessionActiveRoleIds(sessionSnap);
+  const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
+  const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+    initialShuttleDockingsForRoles(activeRoleIds);
+  const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
+    initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
   return {
     session: {
       id: sessionId,
@@ -1475,10 +2062,14 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
         ? { configurationLocked: sessionSnap.get('configurationLocked') } : {}),
       ...(typeof sessionSnap.get('setupRevision') === 'number'
         ? { setupRevision: sessionSnap.get('setupRevision') } : {}),
+      setup,
+      activeVesselIds: [...setup.activeVesselIds],
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
+      pressEnabled: sessionSnap.get('pressEnabled') !== false,
+      pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
       shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
       shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
       shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
@@ -1496,12 +2087,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
-      activeRoleIds:
-        (sessionSnap.get('activeRoleIds') as string[] | undefined) ?? [...DEFAULT_ACTIVE_ROLE_IDS],
-      shuttleDockings:
-        (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ?? INITIAL_SHUTTLE_DOCKINGS,
-      shuttleVisitLog:
-        (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ?? INITIAL_SHUTTLE_VISITS,
+      activeRoleIds,
+      shuttleDockings,
+      shuttleVisitLog,
       pressDispatch: pressDispatchState(sessionSnap.get('pressDispatch')),
       confettiUsedShipIds: (sessionSnap.get('confettiUsedShipIds') as string[] | undefined) ?? [],
       ...optionalIsoOf(sessionSnap.get('dradisContactTriggeredAt')),
@@ -1530,13 +2118,20 @@ function gmInstanceFrom(
   sessionId: string,
   id: string,
   data: FirebaseFirestore.DocumentData,
+  projectLegacySingle = false,
 ) {
+  const responsibilities = Array.isArray(data.responsibilities)
+    ? ['main', 'assistant'].filter((responsibility) => data.responsibilities.includes(responsibility))
+    : data.responsibility === 'main' || data.responsibility === 'assistant'
+      ? projectLegacySingle ? ['main', 'assistant'] : [data.responsibility]
+      : [];
   return {
     id,
     sessionId,
     uid: data.uid as string,
     name: cleanName(data.name, 'GM instance', 40),
     deviceLabel: cleanName(data.deviceLabel, 'Unknown device', 160),
+    ...(responsibilities.length > 0 ? { responsibilities } : {}),
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
       ? { responsibility: data.responsibility } : {}),
     claimedAt: isoOf(data.claimedAt),
@@ -1627,14 +2222,29 @@ export const claimGmInstance = onCall<{
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
     }
+    const firstActiveGm = activeInstances.docs.length === 0;
     tx.set(instanceRef, {
       uid,
       sessionId: claim.sessionId,
       name: claim.name,
       deviceLabel: claim.deviceLabel,
+      ...(firstActiveGm
+        ? { responsibilities: ['main', 'assistant'], responsibility: 'main' }
+        : {}),
       claimedAt: existing.get('claimedAt') ?? FieldValue.serverTimestamp(),
     });
-    tx.update(playerRef, { role: 'gm' });
+    tx.update(playerRef, {
+      role: 'gm',
+      ...(hasPressState(player) ? releasedPressFields(player) : {}),
+    });
+    if (hasPressState(player)) {
+      if (!hasCoreAssignment(player)) {
+        tx.delete(db.doc(`sessions/${claim.sessionId}/secrets/loyalty-${uid}`));
+      }
+      if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
+        tx.update(sessionRef, { pressHolderUid: null });
+      }
+    }
   });
 
   const instance = await instanceRef.get();
@@ -1652,7 +2262,7 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
     .get();
   return {
     instances: instances.docs.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data())),
+      gmInstanceFrom(sessionId, instance.id, instance.data(), instances.docs.length === 1)),
   };
 });
 
@@ -1817,19 +2427,39 @@ export const setCapybaraEnabled = onCall<{
   instanceId?: string;
   capybaraEnabled?: boolean;
 }>(async (request) => {
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
+});
+
+/** Include or remove the optional SNN Press station independently of the core roster. */
+export const setPressEnabled = onCall<{
+  sessionId?: string;
+  instanceId?: string;
+  requestId?: string;
+  pressEnabled?: boolean;
+  expectedRevision?: number;
+}>(async (request) => {
   const uid = requireUid(request.auth);
-  const setting = requireShipAvailabilityRequest(request.data ?? {});
+  const setting = requirePressAvailabilityRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${setting.sessionId}`);
   const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
   const instanceRef = db.doc(
     `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
   );
+  const eventRef = db.doc(
+    `sessions/${setting.sessionId}/events/press-availability-${setting.requestId}`,
+  );
+  const playersRef = db.collection(`sessions/${setting.sessionId}/players`);
+  const wolfSecretRef = db.doc(`sessions/${setting.sessionId}/secrets/wolf-assignment`);
 
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
+  const result = await db.runTransaction(async (tx) => {
+    const [session, player, instance, players, prior, wolfSecret] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
+      tx.get(playersRef),
+      tx.get(eventRef),
+      tx.get(wolfSecretRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (
@@ -1838,13 +2468,71 @@ export const setCapybaraEnabled = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    if (prior.exists) {
+      const priorResult = prior.get('result');
+      if (typeof priorResult !== 'object' || priorResult === null ||
+          typeof (priorResult as { pressEnabled?: unknown }).pressEnabled !== 'boolean' ||
+          !Number.isSafeInteger((priorResult as { revision?: unknown }).revision)) {
+        throw new HttpsError('failed-precondition', 'This Press setting request has no replayable result.');
+      }
+      return priorResult as { pressEnabled: boolean; revision: number };
+    }
+
+    const storedRevision = session.get('pressAvailabilityRevision');
+    const currentRevision = Number.isSafeInteger(storedRevision) && storedRevision >= 0
+      ? storedRevision as number
+      : 0;
+    const currentEnabled = session.get('pressEnabled') !== false;
+    if (setting.expectedRevision !== currentRevision) {
+      if (setting.pressEnabled === currentEnabled) {
+        return { pressEnabled: currentEnabled, revision: currentRevision };
+      }
+      throw new HttpsError(
+        'failed-precondition',
+        'Press availability changed. Wait for the live update and try again.',
+      );
+    }
+    if (setting.pressEnabled === currentEnabled) {
+      return { pressEnabled: currentEnabled, revision: currentRevision };
+    }
+
+    const result = {
+      pressEnabled: setting.pressEnabled,
+      revision: currentRevision + 1,
+    } as const;
     tx.update(sessionRef, {
-      capybaraEnabled: setting.capybaraEnabled,
+      pressEnabled: setting.pressEnabled,
+      pressAvailabilityRevision: result.revision,
+      ...(!setting.pressEnabled ? { pressHolderUid: null } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    if (!setting.pressEnabled) {
+      // Revoke live and stale station authority, while preserving assignments,
+      // dispatch history, and every counted/core roster field.
+      players.docs
+        .filter(hasPressState)
+        .forEach((candidate) => {
+          tx.update(candidate.ref, releasedPressFields(candidate));
+          if (!hasCoreAssignment(candidate)) {
+            tx.delete(db.doc(`sessions/${setting.sessionId}/secrets/loyalty-${candidate.id}`));
+          }
+        });
+      removePressWolfRole(tx, wolfSecretRef, wolfSecret);
+    }
+    tx.set(eventRef, {
+      type: 'press-availability',
+      actorUid: uid,
+      requestId: setting.requestId,
+      expectedRevision: setting.expectedRevision,
+      previousPressEnabled: currentEnabled,
+      pressEnabled: setting.pressEnabled,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return result;
   });
 
-  return { capybaraEnabled: setting.capybaraEnabled };
+  return result;
 });
 
 /** Include or remove Dione for the whole session. */
@@ -1853,34 +2541,8 @@ export const setDioneEnabled = onCall<{
   instanceId?: string;
   dioneEnabled?: boolean;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireDioneAvailabilityRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(
-    `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
-  );
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef),
-      tx.get(playerRef),
-      tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, {
-      dioneEnabled: setting.dioneEnabled,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  });
-
-  return { dioneEnabled: setting.dioneEnabled };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Move one fleet ship on the organiser chart and write the bridge audit trail. */
@@ -2499,6 +3161,9 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
     await requireConsoleAuthority(tx, requestData.sessionId, player, 'admiral');
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('failed-precondition', 'Press is disabled.');
+    }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
       throw new HttpsError('failed-precondition', 'This session is closed.');
@@ -2542,40 +3207,8 @@ export const setActiveRoleEnabled = onCall<{
   roleId?: string;
   enabled?: boolean;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireActiveRoleSettingRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
-
-  const activeRoleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    const current = new Set(
-      (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS,
-    );
-    if (setting.enabled) current.add(setting.roleId);
-    else current.delete(setting.roleId);
-    const next = ROLE_IDS.filter((roleId) => current.has(roleId));
-    if (!isValidRoleConfiguration(next)) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
-      );
-    }
-    tx.update(sessionRef, { activeRoleIds: next, updatedAt: FieldValue.serverTimestamp() });
-    return next;
-  });
-
-  return { activeRoleIds };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Apply the GM-reviewed roster atomically; individual draft edits never reach the server. */
@@ -2584,34 +3217,8 @@ export const setActiveRoleConfiguration = onCall<{
   instanceId?: unknown;
   activeRoleIds?: unknown;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const configuration = requireRoleConfigurationRequest(request.data ?? {});
-  if (!isValidRoleConfiguration(configuration.activeRoleIds)) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Joint Engineering Union roles must replace both paired engineers in a lower-count roster.',
-    );
-  }
-  const sessionRef = db.doc(`sessions/${configuration.sessionId}`);
-  const playerRef = db.doc(`sessions/${configuration.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${configuration.sessionId}/gmInstances/${configuration.instanceId}`);
-  const activeRoleIds = ROLE_IDS.filter((roleId) => configuration.activeRoleIds.includes(roleId));
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
-  });
-
-  return { activeRoleIds };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Replace role availability with the recommended player-count template. */
@@ -2620,31 +3227,8 @@ export const applyRolePreset = onCall<{
   instanceId?: string;
   playerCount?: number;
 }>(async (request) => {
-  const uid = requireUid(request.auth);
-  const setting = requireRolePresetRequest(request.data ?? {});
-  const sessionRef = db.doc(`sessions/${setting.sessionId}`);
-  const playerRef = db.doc(`sessions/${setting.sessionId}/players/${uid}`);
-  const instanceRef = db.doc(`sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`);
-  const activeRoleIds = [...recommendedRoleIds(setting.playerCount)];
-  if (!isValidRoleConfiguration(activeRoleIds)) {
-    throw new HttpsError('internal', 'The recommended roster is invalid.');
-  }
-
-  await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
-    ]);
-    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
-      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-    }
-    tx.update(sessionRef, { activeRoleIds, updatedAt: FieldValue.serverTimestamp() });
-  });
-
-  return { activeRoleIds, playerCount: setting.playerCount };
+  requireUid(request.auth);
+  return rejectLegacySetupMutation();
 });
 
 /** Securely choose one or two wolf roles and keep the result GM-only. */
@@ -2660,11 +3244,12 @@ export const assignWolves = onCall<{
   const instanceRef = db.doc(
     `sessions/${assignment.sessionId}/gmInstances/${assignment.instanceId}`,
   );
+  const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
   const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
 
   const roleIds = await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, players] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef), tx.get(playersRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (
@@ -2673,8 +3258,11 @@ export const assignWolves = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    const enabledRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
-      DEFAULT_ACTIVE_ROLE_IDS;
+    const enabledRoleIds = [...configuredRoleIds(session)];
+    const activePressHolders = players.docs.filter(isAuthoritativePressHolder);
+    if (session.get('pressEnabled') !== false && activePressHolders.length === 1) {
+      enabledRoleIds.push('press-officer');
+    }
     if (enabledRoleIds.length < assignment.count) {
       throw new HttpsError('failed-precondition', 'Not enough enabled roles for that many wolves.');
     }
@@ -2706,15 +3294,21 @@ export const assignWolfRoles = onCall<{
   const secretRef = db.doc(`sessions/${assignment.sessionId}/secrets/wolf-assignment`);
 
   await db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+    const [session, player, instance, players] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(playerRef),
+      tx.get(instanceRef),
+      tx.get(db.collection(`sessions/${assignment.sessionId}/players`)),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player) || player.get('role') !== 'gm' || !instance.exists || instance.get('uid') !== uid) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    const active = (session.get('activeRoleIds') as string[] | undefined) ?? DEFAULT_ACTIVE_ROLE_IDS;
-    if (assignment.roleIds.some((roleId) => !active.includes(roleId))) {
+    const active = configuredRoleIds(session);
+    const pressClaimed = session.get('pressEnabled') !== false &&
+      players.docs.some(isAuthoritativePressHolder);
+    if (assignment.roleIds.some((roleId) =>
+      roleId === 'press-officer' ? !pressClaimed : !active.includes(roleId))) {
       throw new HttpsError('failed-precondition', 'Every selected wolf must be active.');
     }
     tx.set(secretRef, {
@@ -2785,6 +3379,28 @@ export const popShipConfetti = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     requireTurnOneForPlayer(session, player);
+    if (shipId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
+    }
+    if (
+      shipId === 'snn-press-shuttle' &&
+      (
+        activation.roleId !== 'press-officer' ||
+        !['player', 'gm'].includes(String(player.get('role'))) ||
+        player.get('connected') !== true ||
+        player.get('activeConsoleRoleId') !== 'press-officer' ||
+        hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid) ||
+        connectedPlayers.docs.some((candidate) =>
+          candidate.id !== uid && isAuthoritativePressHolder(candidate))
+      )
+    ) {
+      throw new HttpsError(
+        'permission-denied',
+        'Only the active Press Officer may fire this dispenser.',
+      );
+    }
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
     }
@@ -2821,7 +3437,11 @@ export const popShipConfetti = onCall<{
         throw new HttpsError('permission-denied', 'This console is read only with the current crew.');
       }
     }
-    if (!shipForRole(activation.roleId) && !activeRoleIds.includes(activation.roleId)) {
+    if (
+      !shipForRole(activation.roleId) &&
+      activation.roleId !== 'press-officer' &&
+      !activeRoleIds.includes(activation.roleId)
+    ) {
       throw new HttpsError('failed-precondition', 'That role is not active in this session.');
     }
     if (shipId !== 'aegis' && !canPopShipConfetti(used, shipId)) {
@@ -2905,8 +3525,12 @@ export const refreshPresence = onCall<{
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const { sessionId } = requireSessionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
+  const pressHoldersRef = db.collection(`sessions/${sessionId}/players`)
+    .where('activeConsoleRoleId', '==', 'press-officer');
+  const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
   await db.runTransaction(async (tx) => {
     const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
       ? request.data.activeConsoleRoleId
@@ -2915,34 +3539,89 @@ export const refreshPresence = onCall<{
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, holders] = await Promise.all([
+    const [player, session, holders, pressHolders, wolfSecret] = await Promise.all([
       tx.get(playerRef),
-      tx.get(db.doc(`sessions/${sessionId}`)),
+      tx.get(sessionRef),
       roleHolders ? tx.get(roleHolders) : null,
+      tx.get(pressHoldersRef),
+      tx.get(wolfSecretRef),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
     }
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
-    if (request.data?.activeConsoleRoleId === null) presenceUpdate.activeConsoleRoleId = null;
+    let pressHolderUidUpdate: string | null | undefined;
+    const otherActivePressHolders = pressHolders.docs.filter((holder) =>
+      holder.id !== uid && isAuthoritativePressHolder(holder));
+    const currentPressAuthority = player.get('activeConsoleRoleId') === 'press-officer';
+    const invalidCurrentPressAuthority = currentPressAuthority && (
+      session.get('pressEnabled') === false || player.get('role') !== 'player' ||
+      hasCoreAssignment(player) || otherActivePressHolders.length > 0
+    );
+    const explicitRelease = request.data?.activeConsoleRoleId === null;
+    const orphanedPressAssignment = player.get('assignedRoleId') === 'press-officer' &&
+      !currentPressAuthority;
+    if (explicitRelease || invalidCurrentPressAuthority || orphanedPressAssignment) {
+      Object.assign(presenceUpdate, releasedPressFields(player));
+      if (hasPressState(player)) {
+        clearPressPrivateState(
+          tx,
+          sessionId,
+          player,
+          wolfSecretRef,
+          wolfSecret,
+          otherActivePressHolders.length === 0,
+        );
+        const storedPressHolderUid = session.get('pressHolderUid');
+        pressHolderUidUpdate = otherActivePressHolders[0]?.id ??
+          (typeof storedPressHolderUid === 'string' && storedPressHolderUid !== uid
+            ? storedPressHolderUid
+            : null);
+      }
+    } else if (currentPressAuthority && player.get('assignedRoleId') === 'press-officer') {
+      presenceUpdate.assignedRoleId = null;
+      pressHolderUidUpdate = uid;
+    }
     else if (typeof request.data?.activeConsoleRoleId === 'string') {
-      const activeRoleIds = session.get('activeRoleIds') as string[] | undefined;
-      const configuredRoleIds = activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+      const requestedRoleId = request.data.activeConsoleRoleId;
+      const isPressRequest = requestedRoleId === 'press-officer';
+      if (isPressRequest && session.get('pressEnabled') === false) {
+        throw new HttpsError('failed-precondition', 'Press is disabled.');
+      }
+      if (isPressRequest && player.get('role') !== 'player') {
+        throw new HttpsError('permission-denied', 'Press is a player station.');
+      }
+      const assignedRoleId = player.get('assignedRoleId');
       if (
-        !configuredRoleIds.includes(request.data.activeConsoleRoleId) ||
-        (isJointEngineeringRoleId(request.data.activeConsoleRoleId) &&
-          !isJointEngineeringRoleAvailable(configuredRoleIds, request.data.activeConsoleRoleId))
+        isPressRequest &&
+        assignedRoleId !== null &&
+        assignedRoleId !== undefined &&
+        assignedRoleId !== ''
+      ) {
+        throw new HttpsError(
+          'failed-precondition',
+          'Release your core role before selecting Press.',
+        );
+      }
+      const configuredRoleIdsForSelection = configuredRoleIds(session);
+      if (
+        (!isPressRequest && !configuredRoleIdsForSelection.includes(requestedRoleId)) ||
+        (!isPressRequest && isJointEngineeringRoleId(requestedRoleId) &&
+          !isJointEngineeringRoleAvailable(configuredRoleIdsForSelection, requestedRoleId))
       ) {
         throw new HttpsError('failed-precondition', 'That console role is not active.');
       }
       const heldByAnotherPlayer = holders?.docs.some(
-        (holder) => holder.id !== uid && isActivePlayer(holder),
+        (holder) => holder.id !== uid && (
+          isPressRequest ? isAuthoritativePressHolder(holder) : isActivePlayer(holder)
+        ),
       ) ?? false;
       if (!canSelectConsoleRole(
         player.get('activeConsoleRoleId') as string | null | undefined,
-        request.data.activeConsoleRoleId,
+        requestedRoleId,
         player.get('role') === 'gm',
         heldByAnotherPlayer,
       )) {
@@ -2954,9 +3633,32 @@ export const refreshPresence = onCall<{
           'Release your current role in settings before selecting another.',
         );
       }
-      presenceUpdate.activeConsoleRoleId = request.data.activeConsoleRoleId;
+      if (isPressRequest) {
+        for (const holder of pressHolders.docs) {
+          if (holder.id === uid || isAuthoritativePressHolder(holder)) continue;
+          tx.update(holder.ref, releasedPressFields(holder));
+          clearPressPrivateState(tx, sessionId, holder, wolfSecretRef, wolfSecret, false);
+        }
+        if (player.get('assignedRoleId') === 'press-officer') {
+          presenceUpdate.assignedRoleId = null;
+        }
+        pressHolderUidUpdate = uid;
+      }
+      presenceUpdate.activeConsoleRoleId = requestedRoleId;
+    }
+    if (
+      currentPressAuthority && !invalidCurrentPressAuthority &&
+      request.data?.activeConsoleRoleId !== null
+    ) {
+      pressHolderUidUpdate = uid;
     }
     tx.update(playerRef, presenceUpdate);
+    if (pressHolderUidUpdate !== undefined) {
+      tx.update(sessionRef, {
+        pressHolderUid: pressHolderUidUpdate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
     tx.set(membershipRef, { sessionId, connectedAt: FieldValue.serverTimestamp() });
   });
   return { sessionId };
@@ -2971,14 +3673,16 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const players = db.collection(`sessions/${sessionId}/players`);
   const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
+  const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
 
   await db.runTransaction(async (tx) => {
-    const [sessionDoc, player, membership, connected, ownedInstances] = await Promise.all([
+    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(players.where('connected', '==', true)),
       tx.get(gmInstances.where('uid', '==', uid)),
+      tx.get(wolfSecretRef),
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -2987,8 +3691,24 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
     tx.update(playerRef, {
       connected: false,
       ...disconnectedRoleState(),
+      ...(hasPressState(player) ? releasedPressFields(player) : {}),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
+    if (hasPressState(player)) {
+      const anotherPressHolder = connected.docs.some((candidate) =>
+        candidate.id !== uid && isAuthoritativePressHolder(candidate));
+      clearPressPrivateState(
+        tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
+      );
+      if (sessionDoc.get('pressHolderUid') === uid || sessionDoc.get('pressHolderUid') === undefined) {
+        const successor = connected.docs.find((candidate) =>
+          candidate.id !== uid && isAuthoritativePressHolder(candidate));
+        tx.update(sessionRef, {
+          pressHolderUid: successor?.id ?? null,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
     for (const instance of ownedInstances.docs) tx.delete(instance.ref);
     if (membership.exists && membership.get('sessionId') === sessionId) {
       tx.delete(membershipRef);
@@ -3044,13 +3764,15 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const players = db.collection(`sessions/${sessionId}/players`);
     const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
+    const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
     await db.runTransaction(async (tx) => {
-      const [session, player, membership, connected, ownedInstances] = await Promise.all([
+      const [session, player, membership, connected, ownedInstances, wolfSecret] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(players.where('connected', '==', true)),
         tx.get(gmInstances.where('uid', '==', uid)),
+        tx.get(wolfSecretRef),
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
@@ -3065,8 +3787,24 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
       tx.update(playerRef, {
         connected: false,
         ...disconnectedRoleState(),
+        ...(hasPressState(player) ? releasedPressFields(player) : {}),
         lastSeenAt: FieldValue.serverTimestamp(),
       });
+      if (hasPressState(player)) {
+        const anotherPressHolder = connected.docs.some((connectedPlayer) =>
+          connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+        clearPressPrivateState(
+          tx, sessionId, player, wolfSecretRef, wolfSecret, !anotherPressHolder,
+        );
+        if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
+          const successor = connected.docs.find((connectedPlayer) =>
+            connectedPlayer.id !== uid && isAuthoritativePressHolder(connectedPlayer));
+          tx.update(sessionRef, {
+            pressHolderUid: successor?.id ?? null,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      }
       if (
         seatRef &&
         seat?.exists &&
@@ -3089,80 +3827,302 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
   }
 });
 
+type StaleAuthorityReceipt = {
+  readonly status: 'stale';
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly entity: 'setup' | 'facilitator' | 'seat';
+  readonly seatId?: string;
+};
+
+type SeatMutationReceipt = {
+  readonly status: 'committed' | 'replayed';
+  readonly requestId: string;
+  readonly setupRevision: number;
+  readonly seatId: string;
+  readonly holderUid?: string;
+} | StaleAuthorityReceipt;
+
+type SeatMutationFingerprint = {
+  readonly action: 'claim' | 'release';
+  readonly sessionId: string;
+  readonly seatId: string;
+  readonly actorUid: string;
+  readonly expectedSetupRevision: number;
+  readonly instanceId: string | null;
+  readonly reason: string | null;
+};
+
+function seatMutationFingerprint(
+  action: SeatMutationFingerprint['action'],
+  parsed: ReturnType<typeof requireSessionSeatRequest>,
+  actorUid: string,
+): SeatMutationFingerprint {
+  return {
+    action,
+    sessionId: parsed.sessionId,
+    seatId: parsed.seatId,
+    actorUid,
+    expectedSetupRevision: parsed.expectedSetupRevision,
+    instanceId: parsed.instanceId ?? null,
+    reason: parsed.reason ?? null,
+  };
+}
+
+function sameSeatMutationFingerprint(value: unknown, expected: SeatMutationFingerprint): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+}
+
 /** Claim an open seat. First transaction wins; losers get a clean error. */
-export const claimSeat = onCall<{ sessionId: string; seatId: string }>(
+export const claimSeat = onCall<{
+  sessionId: string;
+  seatId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+}>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
+    const parsed = requireSessionSeatRequest(request.data ?? {});
+    const { sessionId, seatId } = parsed;
+    const revisioned = parsed;
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
 
-    return db.runTransaction(async (tx) => {
-      const [seat, player] = await Promise.all([tx.get(seatRef), tx.get(playerRef)]);
-      if (!isActivePlayer(player)) {
-        throw new HttpsError('permission-denied', 'Join the session first.');
-      }
-      if (!canClaimSeat(player.get('seatId'))) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Release your current seat before claiming another.',
-        );
-      }
-      if (!seat.exists) {
-        throw new HttpsError('not-found', 'No such seat.');
-      }
-      if (seat.get('status') !== 'open') {
-        throw new HttpsError('aborted', 'That seat was just taken.');
-      }
+    const sessionRef = db.doc(`sessions/${sessionId}`);
+    const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const eventRef = db.doc(`sessions/${sessionId}/events/seat-claim-${revisioned.requestId}`);
+    const fingerprint = seatMutationFingerprint('claim', parsed, uid);
+    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+        const [prior, session, seat, player] = await Promise.all([
+          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
+        ]);
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!isActivePlayer(player)) {
+          throw new HttpsError('permission-denied', 'Join the session first.');
+        }
+        if (prior.exists) {
+          if (
+            prior.get('action') !== 'claim' ||
+            prior.get('sessionId') !== sessionId ||
+            prior.get('seatId') !== seatId ||
+            prior.get('actorUid') !== uid ||
+            !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
+          ) {
+            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+          }
+          const reply = prior.get('reply');
+          if (typeof reply !== 'object' || reply === null) {
+            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          }
+          if (reply.status === 'stale') return reply as SeatMutationReceipt;
+          const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
+          return { ...committedReply, status: 'replayed' };
+        }
+        requireCastingWindow(session);
+        if (!canClaimSeat(player.get('seatId'))) {
+          throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
+        }
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          const reply = {
+            status: 'stale',
+            requestId: revisioned.requestId,
+            entity: 'seat',
+            seatId,
+            expectedRevision: revisioned.expectedSetupRevision,
+            currentRevision: setupRevision(session),
+          } satisfies StaleAuthorityReceipt;
+          tx.set(requestRef, {
+            requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
+            fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+          });
+          return reply;
+        }
+        const configuredRoles = session.get('activeRoleIds');
+        if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
+          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+        }
+        if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
+        if (seat.get('roleId') !== seatId) {
+          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+        }
+        if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
+          throw new HttpsError('failed-precondition', 'Press is optional and cannot be claimed as a core seat.');
+        }
+        if (seat.get('status') !== 'open' || seat.get('holderUid') !== null) {
+          throw new HttpsError('aborted', 'That seat was just taken.');
+        }
+        const assignedRoleId = player.get('assignedRoleId');
+        if (typeof assignedRoleId === 'string' && assignedRoleId !== seatId) {
+          throw new HttpsError('failed-precondition', 'Your assigned role does not match that seat.');
+        }
 
-      tx.update(seatRef, {
-        status: 'claimed',
-        holderUid: uid,
-        claimedAt: FieldValue.serverTimestamp(),
-      });
-      tx.update(playerRef, { seatId });
-      return { seatId, holderUid: uid };
+        const nextRevision = revisioned.expectedSetupRevision + 1;
+        const reply: SeatMutationReceipt = {
+          status: 'committed',
+          requestId: revisioned.requestId,
+          setupRevision: nextRevision,
+          seatId,
+          holderUid: uid,
+        };
+        tx.update(seatRef, {
+          status: 'claimed', holderUid: uid, claimedAt: FieldValue.serverTimestamp(),
+        });
+        tx.update(playerRef, { seatId });
+        tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(eventRef, {
+          type: 'seat-claim', seatId, actorUid: uid, revision: nextRevision,
+          requestId: revisioned.requestId, expectedSetupRevision: revisioned.expectedSetupRevision,
+          fingerprint, createdAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(requestRef, {
+          requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
+          fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
     });
   },
 );
 
 /** Release a seat you hold, or -- as GM -- any seat. */
-export const releaseSeat = onCall<{ sessionId: string; seatId: string }>(
+export const releaseSeat = onCall<{
+  sessionId: string;
+  seatId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  instanceId?: string;
+  reason?: string;
+}>(
   async (request) => {
     const uid = requireUid(request.auth);
-    const { sessionId, seatId } = requireSessionSeatRequest(request.data ?? {});
+    const parsed = requireSessionSeatRequest(request.data ?? {});
+    const { sessionId, seatId } = parsed;
+    const revisioned = parsed;
 
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
+    const sessionRef = db.doc(`sessions/${sessionId}`);
+    const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const eventRef = db.doc(`sessions/${sessionId}/events/seat-release-${revisioned.requestId}`);
+    const fingerprint = seatMutationFingerprint('release', parsed, uid);
+    return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
+        const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+        const [prior, session, seat, actor] = await Promise.all([
+          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
+        ]);
+        if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+        if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
+        if (revisioned.instanceId || revisioned.reason) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
+          }
+          const interventionInstance = await tx.get(
+            db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`),
+          );
+          if (!interventionInstance.exists || interventionInstance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
+        }
+        if (prior.exists) {
+          if (
+            prior.get('action') !== 'release' ||
+            prior.get('sessionId') !== sessionId ||
+            prior.get('seatId') !== seatId ||
+            prior.get('actorUid') !== uid ||
+            !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
+          ) {
+            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+          }
+          const reply = prior.get('reply');
+          if (typeof reply !== 'object' || reply === null) {
+            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          }
+          if (reply.status === 'stale') return reply as SeatMutationReceipt;
+          const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
+          return { ...committedReply, status: 'replayed' };
+        }
+        requireCastingWindow(session);
+        if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
 
-    return db.runTransaction(async (tx) => {
-      const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-      const [seat, actor] = await Promise.all([tx.get(seatRef), tx.get(actorRef)]);
-      if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
-      if (!isActivePlayer(actor)) {
-        throw new HttpsError('permission-denied', 'Join the session first.');
-      }
+        const configuredRoles = session.get('activeRoleIds');
+        if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
+          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+        }
+        if (seat.get('roleId') !== seatId) {
+          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+        }
+        if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
+          throw new HttpsError('failed-precondition', 'Press is optional and cannot be released as a core seat.');
+        }
+        if (seat.get('status') !== 'claimed' || typeof seat.get('holderUid') !== 'string') {
+          throw new HttpsError('failed-precondition', 'That seat is not currently claimed.');
+        }
 
-      const holderUid = seat.get('holderUid') as string | null;
-      const holderRef = holderUid
-        ? db.doc(`sessions/${sessionId}/players/${holderUid}`)
-        : null;
-      const holder = holderRef ? await tx.get(holderRef) : null;
-      if (holderUid !== uid && actor.get('role') !== 'gm') {
-        throw new HttpsError('permission-denied', 'GM only.');
-      }
-
-      tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
-      if (
-        holderRef &&
-        holder?.exists &&
-        shouldClearSeatPointer(holder.get('seatId'), seatId)
-      ) {
-        tx.update(holderRef, {
-          seatId: null,
+        const holderUid = seat.get('holderUid') as string;
+        // Establish actor authority before reading the holder record. An ordinary
+        // non-holder must not learn whether another player's seat pointer is stale.
+        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
+        if (holderUid !== uid) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
+          }
+          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
+          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
+        }
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          const reply = {
+            status: 'stale',
+            requestId: revisioned.requestId,
+            entity: 'seat',
+            seatId,
+            expectedRevision: revisioned.expectedSetupRevision,
+            currentRevision: setupRevision(session),
+          } satisfies StaleAuthorityReceipt;
+          tx.set(requestRef, {
+            requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
+            reason: revisioned.reason ?? null,
+            fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+          });
+          return reply;
+        }
+        const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
+        const holder = await tx.get(holderRef);
+        const staleHolder = !holder.exists || !isActivePlayer(holder) || holder.get('seatId') !== seatId;
+        if (staleHolder && !gmInstance) {
+          if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
+            throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
+          }
+          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
+          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
+            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          }
+        }
+        const nextRevision = revisioned.expectedSetupRevision + 1;
+        const reply: SeatMutationReceipt = {
+          status: 'committed', requestId: revisioned.requestId,
+          setupRevision: nextRevision, seatId,
+        };
+        tx.update(seatRef, { status: 'open', holderUid: null, claimedAt: null });
+        if (!staleHolder && shouldClearSeatPointer(holder.get('seatId'), seatId)) {
+          tx.update(holderRef, { seatId: null });
+        }
+        tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
+        tx.set(eventRef, {
+          type: 'seat-release', seatId, actorUid: uid, revision: nextRevision,
+          requestId: revisioned.requestId, reason: revisioned.reason ?? null,
+          expectedSetupRevision: revisioned.expectedSetupRevision, fingerprint,
+          createdAt: FieldValue.serverTimestamp(),
         });
-      }
-      return { seatId };
+        tx.set(requestRef, {
+          requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
+          reason: revisioned.reason ?? null,
+          fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
     });
   },
 );
@@ -3209,8 +4169,22 @@ function roleShipId(roleId: unknown): string | undefined {
 
 function configuredRoleIds(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeRoleIds');
-  return Array.isArray(stored)
+  const configured = Array.isArray(stored)
     ? ROLE_IDS.filter((roleId) => stored.includes(roleId))
+    : DEFAULT_ACTIVE_ROLE_IDS;
+  // Press is a separate product-extension station. It is never part of the
+  // counted/core roster, even when a legacy session persisted the old role.
+  return configured.filter((roleId) => roleId !== 'press-officer');
+}
+
+function sessionActiveRoleIds(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeRoleIds');
+  if (Array.isArray(stored)) {
+    return (stored as string[]).filter((roleId) => roleId !== 'press-officer');
+  }
+  const playerCount = session.get('playerCount');
+  return Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20
+    ? recommendedRoleIds(playerCount)
     : DEFAULT_ACTIVE_ROLE_IDS;
 }
 
@@ -3882,18 +4856,22 @@ export const publishPressDispatch = onCall<{
   const dispatchId = randomUUID();
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
-    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(ref),
+    ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer') {
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(
         'permission-denied',
         'Only the active Press Officer may publish a fleet dispatch.',
       );
     }
-    const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
-      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
@@ -3935,18 +4913,22 @@ export const dismissPressDispatch = onCall<{
   const data = requirePressDispatchDismissalRequest(request.data ?? {});
   const ref = db.doc(`sessions/${data.sessionId}`);
   return db.runTransaction(async tx => {
-    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const [player, session] = await Promise.all([
+      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
+      tx.get(ref),
+    ]);
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
-        player.get('activeConsoleRoleId') !== 'press-officer') {
+        player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
+        (typeof session.get('pressHolderUid') === 'string' &&
+          session.get('pressHolderUid') !== uid)) {
       throw new HttpsError(
         'permission-denied',
         'Only the active Press Officer may dismiss a fleet dispatch.',
       );
     }
-    const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (player.get('role') !== 'gm' && !configuredRoleIds(session).includes('press-officer')) {
-      throw new HttpsError('permission-denied', 'The Press Officer role is not active in this session.');
+    if (session.get('pressEnabled') === false) {
+      throw new HttpsError('permission-denied', 'Press is disabled.');
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {

@@ -56,7 +56,7 @@ that documented outcome and explain why it could not merge.
 
 ### Implementation-plan reading route
 
-For numbered implementation-plan work, do not read the 705-prompt
+For numbered implementation-plan work, do not read the 713-prompt
 `docs/IMPLEMENTATION_PLAN.md` from top to bottom. Its fixed line numbers change
 as prompt evidence is updated, so required reading is defined by stable
 headings and targeted rows instead.
@@ -353,6 +353,12 @@ task and one release version; if the version is already claimed or `main` has
 advanced, reconcile the claim before editing.
 The final release note may refine that same entry, but it must never append to
 another task's entry or roll several tasks into a single version.
+Every version increment must also record implementation-plan progress metadata
+at that release boundary: completed prompts and canonical total, a two-decimal
+percentage, and raw done, partial, active, missing counts. Partial and active
+prompts never count as complete, and the canonical denominator may not change
+silently. The executable progress validator checks this metadata against the
+ledger and rejects a release entry that drifts from the checked-in counts.
 The one controlled exception is a tooling-only implementation-plan gate task
 that expands the current release's aggregate plan summary into prompt-level
 coverage; it may not rewrite older release entries or claim new behavior.

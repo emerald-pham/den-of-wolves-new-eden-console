@@ -68,6 +68,7 @@ function snapshot(fields: Readonly<Record<string, unknown>>, exists = true) {
 function prepareResume(
   seat: Readonly<Record<string, unknown>>,
   playerFields: Readonly<Record<string, unknown>> = {},
+  sessionFields: Readonly<Record<string, unknown>> = {},
 ) {
   const twoHoursAgo = mock.Timestamp.fromDate(new Date('2026-09-06T16:00:00.000Z'));
   const session = snapshot({
@@ -77,8 +78,9 @@ function prepareResume(
     ownerUid: 'owner',
     createdAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
     updatedAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
+    ...sessionFields,
   });
-  const player = snapshot({
+  const playerData: Record<string, unknown> = {
     uid: 'u1',
     sessionId: 's1',
     displayName: 'Returning player',
@@ -89,6 +91,13 @@ function prepareResume(
     lastSeenAt: twoHoursAgo,
     joinedAt: mock.Timestamp.fromDate(new Date('2026-09-01T00:00:00.000Z')),
     ...playerFields,
+  };
+  const player = snapshot(playerData);
+
+  mock.update.mockImplementation((ref: { path: string }, update: unknown) => {
+    if (ref.path === 'sessions/s1/players/u1' && typeof update === 'object' && update !== null) {
+      Object.assign(playerData, update);
+    }
   });
 
   mock.get.mockImplementation(({ path }: { path: string }) => {
@@ -96,6 +105,7 @@ function prepareResume(
     if (path === 'sessions/s1/players/u1') return player;
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/seats/seat-1') return snapshot(seat);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 }
@@ -129,6 +139,48 @@ it('lets a player return after two idle hours, clearing only an occupied old sea
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'activeMemberships/u1' }),
     expect.objectContaining({ sessionId: 's1' }),
+  );
+});
+
+it('defaults a legacy resume reply with no Press toggle to enabled', async () => {
+  prepareResume({ status: 'open', holderUid: null });
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: { pressEnabled: boolean };
+  };
+
+  expect(response.session.pressEnabled).toBe(true);
+});
+
+it('clears stale Press authority on disabled resume while preserving dispatch history', async () => {
+  prepareResume(
+    { status: 'claimed', holderUid: 'u1' },
+    { activeConsoleRoleId: 'press-officer' },
+    {
+      pressEnabled: false,
+      pressDispatch: {
+        dispatches: [{ id: 'dispatch-1', text: 'SNN // Earlier copy' }],
+        revision: 3,
+      },
+    },
+  );
+
+  const response = await resumeSession.run(request('s1')) as {
+    session: { pressEnabled: boolean; pressDispatch: unknown };
+    player: { activeConsoleRoleId: string | null };
+  };
+
+  expect(response.session).toMatchObject({
+    pressEnabled: false,
+    pressDispatch: {
+      dispatches: [{ id: 'dispatch-1', text: 'SNN // Earlier copy' }],
+      revision: 3,
+    },
+  });
+  expect(response.player.activeConsoleRoleId).toBeNull();
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u1' }),
+    expect.objectContaining({ activeConsoleRoleId: null }),
   );
 });
 
@@ -199,6 +251,7 @@ it('rejects a session that closes after the initial read but before resume commi
       });
     }
     if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -232,6 +285,7 @@ it('returns fresh server state after the resume transaction instead of its initi
       });
     }
     if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 
@@ -261,6 +315,7 @@ it('replaces a stale membership lock but refuses an active membership in another
       });
       if (path === 'activeMemberships/u1') return snapshot(membership);
       if (path === 'sessions/s2/players/u1') return snapshot(otherPlayer);
+      if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
       throw new Error('Unexpected read: ' + path);
     });
   };
