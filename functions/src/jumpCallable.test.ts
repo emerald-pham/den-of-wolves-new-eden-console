@@ -167,6 +167,46 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
       })]),
     }),
   }));
+
+  mock.transactionRetries = 0;
+  mock.coordinate = '0000';
+  mock.fuel = 4;
+  mock.charges = ['jump-drive'];
+  mock.jumpStates = {};
+  mock.upgrades = {};
+  mock.damage = {};
+  mock.randomInt.mockReset();
+  mock.randomInt.mockReturnValue(6);
+  mock.update.mockReset();
+
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
+    status: 'jumped',
+    shipId: 'aegis',
+    origin: '0000',
+    destination: '5143',
+    length: 'short',
+    fuelCost: 2,
+    remainingFuel: 2,
+  });
+
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipGalacticCoordinates.aegis': '5143',
+    'shipResources.aegis.fuel': 2,
+    'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
+    'shipJumpStates.aegis': { lastJumpTurn: 1 },
+    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-event' }),
+    shipNavigationLogs: expect.objectContaining({
+      aegis: expect.arrayContaining([expect.objectContaining({
+        id: 'jump-event-0',
+        type: 'self-jump',
+        origin: '0000',
+        destination: '5143',
+        navigationalError: false,
+      })]),
+    }),
+  }));
 });
 
 it('rejects Coordination jumps while the server phase is Team', async () => {
