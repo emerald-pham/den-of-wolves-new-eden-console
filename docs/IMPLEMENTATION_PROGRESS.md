@@ -43,12 +43,15 @@ The release boundary is recorded reproducibly as **71 / 719 = 9.87%** with
 **71 done · 27 partial · 0 active · 621 missing**. Prompt 603a extends the
 existing measured `AppHeader` contract to Role Select and session-mode routes
 on both narrow phones and short landscape screens. The focused red/green
-static CSS cascade test and 100 assertions across AppHeader, Role Select, App,
-and the shared layout suite pass. The checked-in CDP geometry command writes
-DOMRect evidence at 320×844, 390×844, 844×390, and 1440×900; it measured the
-session header before routed content, the ship-role DRADIS outside its panel,
-and scrollable content where the viewport was exceeded. Keyboard focus and
-the shared settings dialog retained visible CIC focus and 44px touch controls.
+static CSS cascade test and focused component/layout suites pass. The
+checked-in CDP geometry command writes DOMRect evidence at 320×844, 390×844,
+844×390, and 1440×900, records every rendered Role Select and Ship Role Select
+region, derives shared-chrome/DRADIS intersections, and produces a normalized
+comparison file. Its reviewed fixture covers connected-player variants,
+simulated safe areas, long labels, role-control keyboard order/focus
+rectangles, absolute-header scroll-away, settings, and a wrapped stationary
+reduced-motion FleetBroadcast; touch-sized controls retain 44px targets. This
+is local rendered evidence, not deployed or live-Firebase proof.
 
 ### Version 0.3.14 progress evidence
 
@@ -873,7 +876,7 @@ release classification and evidence.
 | 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 602a | missing | non-feature | — | Owner-reported shuttle return regression: ordinary shuttle consoles currently receive no `returnTo`; only Press, Joint Engineering, and GM special cases have exits. A dedicated repair must audit route/catalog/docking authority and history, restore prior working behavior if found, resolve one deterministic entitled associated-ship target without client guessing, and preserve session/seat/role/shuttle state. Prove deep link, reconnect, browser Back/Forward, denial/fallback, mobile/short-landscape, 44px keyboard/screen-reader, nonoverlap, and reduced-motion behavior without changing Press/Union/GM return semantics. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 603a | done | feature | 0.3.15 | Shared measured session-header padding now applies to Role Select and session-mode routes at max-width 42rem or max-height 42rem, while a higher-specificity shared ship-role rule preserves DRADIS clearance at 320×844, 390×844, and 844×390 without changing the absolute scrolling header or adding a route-specific ticket. The red/green static cascade test, focused suites, and checked-in CDP DOMRect evidence prove nonintersection, responsive scroll, keyboard focus, settings composition, and 44px touch controls; safe-area and reduced-motion contracts remain shared. |
+| 603a | done | feature | 0.3.15 | Shared measured session-header padding now applies to Role Select and session-mode routes at max-width 42rem or max-height 42rem, while a higher-specificity shared ship-role rule preserves DRADIS clearance at 320×844, 390×844, and 844×390 without changing the absolute scrolling header or adding a route-specific ticket. The red/green static cascade test, focused suites, and checked-in CDP DOMRect evidence cover every rendered Role Select region, derived nonintersection, connected-player variants, simulated safe areas, role-control keyboard focus/order, absolute-header scroll-away, settings, wrapped reduced-motion FleetBroadcast, and 44px touch targets. Evidence is local rendered review, not live-Firebase or deployed proof. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 605 | partial | feature | 0.3.10 | Prompt 275a's focused geometry tests now prove intrinsic complete-name containment and two-axis clamping at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |

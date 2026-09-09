@@ -1,6 +1,5 @@
 {
   "prompt": "603a",
-  "generatedAt": "2026-09-09T13:07:40.904Z",
   "command": "npm run test:geometry:603a",
   "source": "Chrome DevTools Protocol DOMRect capture against the local Vite build; layout values are not mocked. Connected-player counts use the development-only AppHeader session-storage seed so each rendered variant is deterministic.",
   "viewports": [
@@ -753,8 +752,7 @@
         "bottom": 16,
         "left": 10
       },
-      "connectedPlayersSeed": 1,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-320x844.png"
+      "connectedPlayersSeed": 1
     },
     {
       "route": "/ships/aegis/roles",
@@ -1199,8 +1197,7 @@
         "bottom": 16,
         "left": 10
       },
-      "connectedPlayersSeed": 1,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-320x844.png"
+      "connectedPlayersSeed": 1
     },
     {
       "route": "/roles",
@@ -1901,8 +1898,7 @@
         "bottom": 16,
         "left": 10
       },
-      "connectedPlayersSeed": 2,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-390x844.png"
+      "connectedPlayersSeed": 2
     },
     {
       "route": "/ships/aegis/roles",
@@ -2361,8 +2357,7 @@
         },
         "moved": true,
         "leavesViewport": true
-      },
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-390x844.png"
+      }
     },
     {
       "route": "/roles",
@@ -3063,8 +3058,7 @@
         "bottom": 10,
         "left": 24
       },
-      "connectedPlayersSeed": 8,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-844x390.png"
+      "connectedPlayersSeed": 8
     },
     {
       "route": "/ships/aegis/roles",
@@ -3509,8 +3503,7 @@
         "bottom": 10,
         "left": 24
       },
-      "connectedPlayersSeed": 8,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-844x390.png"
+      "connectedPlayersSeed": 8
     },
     {
       "route": "/roles",
@@ -4226,8 +4219,7 @@
         "bottom": 0,
         "left": 0
       },
-      "connectedPlayersSeed": 20,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-1440x900.png"
+      "connectedPlayersSeed": 20
     },
     {
       "route": "/ships/aegis/roles",
@@ -4687,8 +4679,7 @@
         "bottom": 0,
         "left": 0
       },
-      "connectedPlayersSeed": 20,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-1440x900.png"
+      "connectedPlayersSeed": 20
     }
   ],
   "variants": {
@@ -4730,8 +4721,7 @@
           "bottom": 16,
           "left": 10
         }
-      },
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-settings-390x844.png"
+      }
     },
     "keyboardFocus": {
       "settings": {
@@ -4756,8 +4746,7 @@
             "bottom": 16,
             "left": 10
           }
-        },
-        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-focus-390x844.png"
+        }
       },
       "roleSelect": {
         "order": [
@@ -4836,8 +4825,7 @@
             "bottom": 16,
             "left": 10
           }
-        },
-        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-role-focus-390x844.png"
+        }
       },
       "shipRoleSelect": {
         "order": [
@@ -4916,8 +4904,7 @@
             "bottom": 16,
             "left": 10
           }
-        },
-        "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/ship-roles-focus-390x844.png"
+        }
       }
     },
     "reducedMotion": {
@@ -5647,8 +5634,7 @@
         "bottom": 16,
         "left": 10
       },
-      "connectedPlayersSeed": 2,
-      "screenshot": "/Users/emeraldpham/.codex/worktrees/p603a-cascade-20260909/den-of-wolves-new-eden-console/evidence/prompt-603a/roles-reduced-motion-390x844.png"
+      "connectedPlayersSeed": 2
     }
   },
   "assertions": {

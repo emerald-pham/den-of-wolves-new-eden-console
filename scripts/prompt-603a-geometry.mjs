@@ -18,16 +18,29 @@ const OUTPUT_DIR = resolve(
 const CHROME = process.env.CHROME_BIN
   ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const VIEWPORTS = [
-  { name: 'portrait-phone', width: 320, height: 844 },
-  { name: 'wide-phone', width: 390, height: 844 },
-  { name: 'short-landscape', width: 844, height: 390 },
-  { name: 'desktop', width: 1440, height: 900 },
+  {
+    name: 'portrait-phone', width: 320, height: 844, connectedPlayers: 1,
+    safeArea: { top: 24, right: 10, bottom: 16, left: 10 },
+  },
+  {
+    name: 'wide-phone', width: 390, height: 844, connectedPlayers: 2,
+    safeArea: { top: 24, right: 10, bottom: 16, left: 10 },
+  },
+  {
+    name: 'short-landscape', width: 844, height: 390, connectedPlayers: 8,
+    safeArea: { top: 10, right: 24, bottom: 10, left: 24 },
+  },
+  {
+    name: 'desktop', width: 1440, height: 900, connectedPlayers: 20,
+    safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+  },
 ];
 const APP_BASE = 'http://127.0.0.1';
 const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 const WAIVER_STORAGE_KEY = 'dow-new-eden-session-waiver';
 const MOTION_SAFETY_STORAGE_KEY = 'dow-new-eden-motion-safety';
 const MOTION_OVERRIDE_STORAGE_KEY = 'new-eden-motion-override';
+const CONNECTED_PLAYERS_STORAGE_KEY = 'prompt-603a-connected-players';
 
 const wait = (milliseconds) => new Promise((resolvePromise) => {
   setTimeout(resolvePromise, milliseconds);
@@ -130,7 +143,11 @@ async function evaluate(cdp, expression) {
   return result?.result?.value;
 }
 
-function sessionSeed({ activeConsoleRoleId = null, reducedMotion = false } = {}) {
+function sessionSeed({
+  activeConsoleRoleId = null,
+  reducedMotion = false,
+  connectedPlayers = 1,
+} = {}) {
   const now = Date.now();
   const session = {
     id: 'prompt-603a-geometry',
@@ -153,9 +170,24 @@ function sessionSeed({ activeConsoleRoleId = null, reducedMotion = false } = {})
     joinedAt: new Date(now).toISOString(),
     ...(activeConsoleRoleId ? { activeConsoleRoleId } : {}),
   };
+  const seats = [
+    ['admiral', 'AEGIS // Admiral'],
+    ['executive-officer', 'AEGIS // Executive Officer'],
+    ['wing-commander', 'AEGIS // Wing Commander'],
+  ].map(([roleId, label]) => ({
+    id: roleId,
+    sessionId: session.id,
+    roleId,
+    label,
+    factionId: 'aegis',
+    status: 'open',
+    holderUid: null,
+    claimedAt: null,
+  }));
   const state = {
     session,
     me,
+    seats,
     gmInstance: null,
     gmAccessAuthenticatedAt: null,
     pendingCommands: [],
@@ -171,6 +203,7 @@ function sessionSeed({ activeConsoleRoleId = null, reducedMotion = false } = {})
     localStorage.setItem(${JSON.stringify(WAIVER_STORAGE_KEY)}, ${JSON.stringify(String(now))});
     localStorage.setItem(${JSON.stringify(MOTION_SAFETY_STORAGE_KEY)}, ${JSON.stringify(motionRecord)});
     localStorage.setItem(${JSON.stringify(MOTION_OVERRIDE_STORAGE_KEY)}, ${JSON.stringify(reducedMotion ? 'reduce' : 'full')});
+    sessionStorage.setItem(${JSON.stringify(CONNECTED_PLAYERS_STORAGE_KEY)}, ${JSON.stringify(String(connectedPlayers))});
   `;
 }
 
@@ -181,6 +214,7 @@ const rectScript = `
     return {
       x: Math.round(rect.x * 100) / 100,
       y: Math.round(rect.y * 100) / 100,
+      left: Math.round(rect.left * 100) / 100,
       top: Math.round(rect.top * 100) / 100,
       right: Math.round(rect.right * 100) / 100,
       bottom: Math.round(rect.bottom * 100) / 100,
@@ -193,19 +227,85 @@ const rectScript = `
 async function measurePage(cdp, route) {
   const raw = await evaluate(cdp, `(() => {
     const rect = ${rectScript};
-    const header = rect(document.querySelector('.app-header'));
-    const ticket = rect(document.querySelector('.session-readouts'));
-    const content = rect(
-      document.querySelector('.role-select__intro')
-      ?? document.querySelector('.ship-role-select .session-mode__panel')
-      ?? document.querySelector('.session-mode'),
-    );
-    const plot = rect(document.querySelector('.ship-plot[data-aboard="true"]'));
+    const describe = (element, key) => {
+      const bounds = rect(element);
+      if (!bounds) return null;
+      return {
+        key,
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 120),
+        rect: bounds,
+      };
+    };
+    const collect = (selector, key) => [...document.querySelectorAll(selector)]
+      .map((element, index) => describe(element, key + '[' + (index + 1) + ']'))
+      .filter(Boolean);
+    const first = (selector, key) => describe(document.querySelector(selector), key);
+    const header = first('.app-header', 'header');
+    const headerRegions = [
+      header,
+      first('.session-readouts', 'session-readouts'),
+      first('.session-badge', 'session-ticket'),
+      first('.personnel-count', 'connected-player-count'),
+      first('.fleet-ticker', 'fleet-broadcast'),
+      first('.player-rank', 'rank'),
+      first('.indicator', 'connection-indicator'),
+      first('.settings-button', 'settings'),
+    ].filter(Boolean);
+    const isShipRoute = ${JSON.stringify(route.startsWith('/ships/'))};
+    const routeRegions = isShipRoute
+      ? [
+          ...collect('.ship-role-select', 'ship-role-select'),
+          ...collect('.ship-role-select .session-mode__panel', 'ship-role-panel'),
+          ...collect('.ship-role-select__intro', 'ship-role-intro'),
+          ...collect('.ship-role-select__flag', 'ship-flag'),
+          ...collect('.ship-role-select .session-mode__back', 'ship-back'),
+          ...collect('.ship-role-select .role-select__title', 'ship-title'),
+          ...collect('.ship-role-select .role-select__grid', 'ship-role-grid'),
+          ...collect('.ship-role-select .role-card', 'ship-role-card'),
+          ...collect('.ship-role-select .role-card__name', 'ship-role-card-name'),
+          ...collect('.ship-role-select .role-card__description', 'ship-role-card-description'),
+        ]
+      : [
+          ...collect('.role-select', 'role-select'),
+          ...collect('.role-select__intro', 'role-intro'),
+          ...collect('.role-select__title', 'role-title'),
+          ...collect('.role-select__lede', 'role-lede'),
+          ...collect('.role-seat-board', 'seat-board'),
+          ...collect('.role-seat-board__header', 'seat-board-header'),
+          ...collect('.role-seat-board__list', 'seat-board-list'),
+          ...collect('.role-seat', 'seat'),
+          ...collect('.role-seat__identity', 'seat-identity'),
+          ...collect('.role-seat__state', 'seat-state'),
+          ...collect('.role-seat__action', 'seat-action'),
+          ...collect('.role-select__grid', 'role-grid'),
+          ...collect('.role-card', 'role-card'),
+          ...collect('.role-card__name', 'role-card-name'),
+          ...collect('.role-card__description', 'role-card-description'),
+          ...collect('.role-claim__button', 'gm-claim-control'),
+          ...collect('.role-claim__input', 'gm-name-input'),
+          ...collect('.role-controls-lock', 'gm-lock-control'),
+        ];
+    const content = isShipRoute
+      ? first('.ship-role-select .session-mode__panel', 'ship-role-panel')
+      : first('.role-select__intro', 'role-intro');
+    const plot = first('.ship-plot[data-aboard="true"]', 'ship-plot');
     const intersects = (left, right) => Boolean(left && right
-      && left.left < right.right && left.right > right.left
-      && left.top < right.bottom && left.bottom > right.top);
+      && left.rect.left < right.rect.right && left.rect.right > right.rect.left
+      && left.rect.top < right.rect.bottom && left.rect.bottom > right.rect.top);
+    const collisionRegions = routeRegions.filter((region) => (
+      !['role-select[1]', 'ship-role-select[1]'].includes(region.key)
+    ));
+    const intersections = [];
+    const collectIntersections = (leftRegions, rightRegions, type) => {
+      leftRegions.forEach((left) => rightRegions.forEach((right) => {
+        if (intersects(left, right)) intersections.push({ type, left: left.key, right: right.key });
+      }));
+    };
+    collectIntersections(headerRegions, collisionRegions, 'header-route');
+    if (plot) collectIntersections([plot], collisionRegions, 'plot-route');
     const interactive = [...document.querySelectorAll(
-      'button, a[href], input:not([type="checkbox"]), textarea, select',
+      'button, a[href], input, textarea, select',
     )]
       .map((element) => ({ element, rect: rect(element) }))
       .filter(({ rect: itemRect }) => itemRect && itemRect.width > 0 && itemRect.height > 0)
@@ -222,16 +322,37 @@ async function measurePage(cdp, route) {
     const sessionMode = document.querySelector('.session-mode, .role-select');
     const indicator = document.querySelector('.indicator');
     const rank = document.querySelector('.player-rank');
+    const personnel = document.querySelector('.personnel-count');
+    const connectedPlayerCount = personnel
+      ? Number((personnel.textContent || '').match(/\\d+/)?.[0] ?? NaN)
+      : null;
+    const reducedTicker = document.querySelector('.fleet-ticker[data-reduced="true"]');
+    const reducedMessage = reducedTicker?.querySelector('.fleet-ticker__message');
+    const reducedTickerGeometry = reducedTicker && reducedMessage ? {
+      ticker: rect(reducedTicker),
+      message: rect(reducedMessage),
+      text: reducedMessage.textContent?.trim() ?? '',
+      whiteSpace: getComputedStyle(reducedMessage).whiteSpace,
+      overflowWrap: getComputedStyle(reducedMessage).overflowWrap,
+      clientWidth: reducedTicker.clientWidth,
+      scrollWidth: reducedTicker.scrollWidth,
+      clientHeight: reducedTicker.clientHeight,
+      scrollHeight: reducedTicker.scrollHeight,
+    } : null;
     return {
       route: ${JSON.stringify(route)},
       header,
-      ticket,
+      sessionReadouts: first('.session-readouts', 'session-readouts'),
+      ticket: first('.session-badge', 'session-ticket'),
       content,
+      headerRegions,
+      routeRegions,
       plot,
-      headerContentGap: header && content ? Math.round((content.top - header.bottom) * 100) / 100 : null,
-      ticketContentIntersection: intersects(ticket, content),
-      plotContentIntersection: intersects(plot, content),
-      plotContentVerticalGap: plot && content ? Math.round((content.top - plot.bottom) * 100) / 100 : null,
+      intersections,
+      headerContentGap: header && content ? Math.round((content.rect.top - header.rect.bottom) * 100) / 100 : null,
+      ticketContentIntersection: intersections.some(({ left }) => left === 'session-ticket'),
+      plotContentIntersection: intersections.some(({ left }) => left === 'ship-plot'),
+      plotContentVerticalGap: plot && content ? Math.round((content.rect.top - plot.rect.bottom) * 100) / 100 : null,
       appHeaderHeight: getComputedStyle(document.documentElement).getPropertyValue('--app-header-height').trim(),
       sessionPaddingTop: sessionMode ? getComputedStyle(sessionMode).paddingTop : null,
       sessionAlignContent: sessionMode ? getComputedStyle(sessionMode).alignContent : null,
@@ -239,7 +360,9 @@ async function measurePage(cdp, route) {
       sessionNameLength: sessionName?.textContent?.trim().length ?? 0,
       indicator: indicator?.textContent?.trim() ?? null,
       rank: rank?.textContent?.trim() ?? null,
+      connectedPlayerCount: Number.isFinite(connectedPlayerCount) ? connectedPlayerCount : null,
       motion: root?.getAttribute('data-motion') ?? null,
+      reducedTicker: reducedTickerGeometry,
       shipPlotTransitionDuration: plot ? getComputedStyle(document.querySelector('.ship-plot')).transitionDuration : null,
       scroll: {
         clientWidth: document.documentElement.clientWidth,
@@ -260,13 +383,36 @@ async function measurePage(cdp, route) {
 }
 
 async function navigate(cdp, appUrl, route, seed) {
-  await evaluate(cdp, seed);
+  await cdp.send('Page.navigate', { url: 'about:blank' });
+  await waitFor(() => evaluate(cdp, 'location.href === "about:blank"'), 'blank document');
+  const seedScript = await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: seed });
   await cdp.send('Page.navigate', { url: `${appUrl}/?prompt603a=${Date.now()}#${route}` });
   await waitFor(
-    () => evaluate(cdp, `Boolean(document.querySelector('.app-header') && document.querySelector(${JSON.stringify(route === '/roles' ? '.role-select' : '.ship-role-select')}))`),
-    `${route} to render`,
+    () => evaluate(cdp, `Boolean(
+      location.hash.endsWith(${JSON.stringify(`#${route}`)}) &&
+      document.querySelector('.session-badge__code')?.textContent === '603A' &&
+      document.querySelector('.app-header') &&
+      document.querySelector(${JSON.stringify(route === '/roles' ? '.role-select' : '.ship-role-select')})
+    )`),
+    `${route} store hydration`,
   );
-  await wait(350);
+  await cdp.send('Page.removeScriptToEvaluateOnNewDocument', {
+    identifier: seedScript.identifier,
+  });
+  await waitForStableLayout(cdp, route);
+}
+
+async function waitForStableLayout(cdp, route) {
+  let previous = null;
+  let stableSamples = 0;
+  await waitFor(async () => {
+    const snapshot = await measurePage(cdp, route);
+    const signature = JSON.stringify(snapshot);
+    if (signature === previous) stableSamples += 1;
+    else stableSamples = 0;
+    previous = signature;
+    return stableSamples >= 2;
+  }, `${route} layout stabilization`);
 }
 
 async function ensureAppOrigin(cdp, appUrl) {
@@ -275,6 +421,20 @@ async function ensureAppOrigin(cdp, appUrl) {
     () => evaluate(cdp, `location.origin === ${JSON.stringify(appUrl)}`),
     'local app origin',
   );
+}
+
+async function setViewport(cdp, viewport) {
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: viewport.width,
+    height: viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+    screenWidth: viewport.width,
+    screenHeight: viewport.height,
+  });
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+    insets: viewport.safeArea,
+  });
 }
 
 async function screenshot(cdp, filename) {
@@ -341,23 +501,181 @@ async function measureFocus(cdp) {
   })()`);
 }
 
+async function measureKeyboardFocus(cdp, route) {
+  const target = await evaluate(cdp, `(() => {
+    const element = ${JSON.stringify(route.startsWith('/ships/'))}
+      ? document.querySelector('.ship-role-select a.role-card')
+      : document.querySelector('.role-select .role-claim__input:not(:disabled)')
+        ?? document.querySelector('.role-select button.role-card:not(:disabled)');
+    if (!element) return null;
+    return {
+      className: element.className,
+      label: (element.getAttribute('aria-label') || element.textContent || '').trim().slice(0, 80),
+    };
+  })()`);
+  await evaluate(cdp, 'document.activeElement?.blur()');
+  let initial = null;
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    await dispatchTab(cdp);
+    initial = await describeActiveFocus(cdp);
+    if (initial?.className === target?.className && initial?.label === target?.label) break;
+  }
+  const order = await evaluate(cdp, `(() => [...document.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled])',
+  )].map((element) => ({
+    tag: element.tagName.toLowerCase(),
+    className: element.className,
+    label: (element.getAttribute('aria-label') || element.textContent || '').trim().slice(0, 80),
+  })))()`);
+  await dispatchTab(cdp);
+  const after = await describeActiveFocus(cdp);
+  return { order, initial, afterTab: after };
+}
+
+async function dispatchTab(cdp) {
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Tab',
+    code: 'Tab',
+    windowsVirtualKeyCode: 9,
+    nativeVirtualKeyCode: 9,
+  });
+  await cdp.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Tab',
+    code: 'Tab',
+    windowsVirtualKeyCode: 9,
+    nativeVirtualKeyCode: 9,
+  });
+}
+
+async function describeActiveFocus(cdp) {
+  return evaluate(cdp, `(() => {
+    const active = document.activeElement;
+    const focusables = [...document.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled])',
+    )];
+    if (!(active instanceof HTMLElement)) return null;
+    const value = active.getBoundingClientRect();
+    const style = getComputedStyle(active);
+    return {
+      tag: active.tagName.toLowerCase(),
+      className: active.className,
+      label: (active.getAttribute('aria-label') || active.textContent || '').trim().slice(0, 80),
+      focusVisible: active.matches(':focus-visible'),
+      outline: style.outline,
+      rect: {
+        x: Math.round(value.x * 100) / 100,
+        y: Math.round(value.y * 100) / 100,
+        width: Math.round(value.width * 100) / 100,
+        height: Math.round(value.height * 100) / 100,
+      },
+      index: focusables.indexOf(active),
+    };
+  })()`);
+}
+
+async function measureHeaderScroll(cdp) {
+  const before = await evaluate(cdp, `(() => {
+    const element = document.querySelector('.app-header');
+    if (!element) return null;
+    const value = element.getBoundingClientRect();
+    return { top: value.top, bottom: value.bottom, scrollY: window.scrollY };
+  })()`);
+  await evaluate(cdp, 'window.scrollTo(0, document.documentElement.scrollHeight)');
+  await waitFor(() => evaluate(cdp, 'window.scrollY > 0'), 'document scroll to advance');
+  const after = await evaluate(cdp, `(() => {
+    const element = document.querySelector('.app-header');
+    if (!element) return null;
+    const value = element.getBoundingClientRect();
+    return { top: value.top, bottom: value.bottom, scrollY: window.scrollY };
+  })()`);
+  await evaluate(cdp, 'window.scrollTo(0, 0)');
+  await waitFor(() => evaluate(cdp, 'window.scrollY === 0'), 'document scroll to restore');
+  return {
+    before,
+    after,
+    moved: Boolean(before && after && after.top < before.top),
+    leavesViewport: Boolean(after && after.bottom <= 0),
+  };
+}
+
 function assertRecord(record) {
   if (!record.header || !record.ticket || !record.content) {
     throw new Error(`Missing shared geometry on ${record.route}.`);
   }
+  const requiredRegions = record.route.startsWith('/ships/')
+    ? ['ship-role-panel[1]', 'ship-role-intro[1]', 'ship-role-grid[1]', 'ship-role-card[1]']
+    : ['role-select[1]', 'role-intro[1]', 'role-grid[1]', 'role-card[1]'];
+  const regionKeys = new Set(record.routeRegions.map(({ key }) => key));
+  const missingRegions = requiredRegions.filter((key) => !regionKeys.has(key));
+  if (missingRegions.length > 0) {
+    throw new Error(`Missing Role Select regions on ${record.route}: ${missingRegions.join(', ')}`);
+  }
   if (record.headerContentGap === null || record.headerContentGap < 0) {
     throw new Error(`Header overlaps routed content on ${record.route}.`);
   }
-  if (record.ticketContentIntersection || record.plotContentIntersection) {
-    throw new Error(`Ticket/DRADIS overlaps routed content on ${record.route}.`);
+  if (record.intersections.length > 0) {
+    throw new Error(`Shared chrome overlaps routed content on ${record.route}: ${JSON.stringify(record.intersections)}`);
   }
   if (record.scroll.horizontalOverflow) {
     throw new Error(`Horizontal overflow found on ${record.route}.`);
+  }
+  const safeArea = record.safeArea;
+  const headerRect = record.header.rect;
+  if (
+    headerRect.top < safeArea.top - 0.5 ||
+    headerRect.left < safeArea.left - 0.5 ||
+    headerRect.right > record.viewport.width - safeArea.right + 0.5
+  ) {
+    throw new Error(`Header escapes the simulated safe area on ${record.route}.`);
+  }
+  if (record.connectedPlayerCount !== record.connectedPlayersSeed) {
+    throw new Error(`Connected-player seed did not hydrate on ${record.route}: expected ${record.connectedPlayersSeed}, got ${record.connectedPlayerCount}.`);
+  }
+  if (record.route.startsWith('/ships/') && record.viewport.width === 390 &&
+      record.viewport.height === 844 && !record.headerScroll?.leavesViewport) {
+    throw new Error('The absolute app header did not leave the viewport after document scroll.');
   }
   const isTouchViewport = record.viewport.width <= 600 || record.viewport.height <= 600;
   if (isTouchViewport && record.interactive.under44.length > 0) {
     throw new Error(`Interactive target under 44px found on ${record.route}: ${record.interactive.under44.map((item) => `${item.tag}:${item.label}:${item.rect.height}`).join(', ')}`);
   }
+  if (record.motion === 'reduce' && record.reducedTicker && (
+    record.reducedTicker.whiteSpace !== 'normal' ||
+    record.reducedTicker.overflowWrap !== 'anywhere' ||
+    record.reducedTicker.message === null
+  )) {
+    throw new Error(`Reduced-motion FleetBroadcast is not fully wrapped on ${record.route}.`);
+  }
+}
+
+function assertKeyboardFocus(focus, route) {
+  if (!focus.initial || !focus.afterTab || !focus.initial.rect || !focus.afterTab.rect) {
+    throw new Error(`Keyboard focus did not reach a visible control on ${route}.`);
+  }
+  if (!focus.initial.focusVisible || !focus.afterTab.focusVisible) {
+    throw new Error(`Keyboard focus ring was not visible on ${route}.`);
+  }
+  if (focus.afterTab.index !== focus.initial.index + 1) {
+    throw new Error(`Keyboard order skipped a focusable control on ${route}.`);
+  }
+  if (focus.initial.rect.width <= 0 || focus.initial.rect.height <= 0 ||
+      focus.afterTab.rect.width <= 0 || focus.afterTab.rect.height <= 0) {
+    throw new Error(`Keyboard focus rectangle was empty on ${route}.`);
+  }
+}
+
+function normalizeGeometry(value) {
+  if (Array.isArray(value)) return value.map(normalizeGeometry);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'generatedAt' && key !== 'screenshot')
+        .map(([key, entry]) => [key, normalizeGeometry(entry)]),
+    );
+  }
+  return value;
 }
 
 async function main() {
@@ -393,38 +711,52 @@ async function main() {
     await ensureAppOrigin(cdp, appUrl);
     const records = [];
     for (const viewport of VIEWPORTS) {
-      await cdp.send('Emulation.setDeviceMetricsOverride', {
-        width: viewport.width,
-        height: viewport.height,
-        deviceScaleFactor: 1,
-        mobile: false,
-        screenWidth: viewport.width,
-        screenHeight: viewport.height,
-      });
+      await setViewport(cdp, viewport);
       for (const routeConfig of [
         { route: '/roles', slug: 'roles', roleId: null },
         { route: '/ships/aegis/roles', slug: 'ship-roles', roleId: 'admiral' },
       ]) {
-        const recordSeed = sessionSeed({ activeConsoleRoleId: routeConfig.roleId });
+        const recordSeed = sessionSeed({
+          activeConsoleRoleId: routeConfig.roleId,
+          connectedPlayers: viewport.connectedPlayers,
+        });
         await navigate(cdp, appUrl, routeConfig.route, recordSeed);
         const record = await measurePage(cdp, routeConfig.route);
         record.viewport = viewport;
+        record.safeArea = viewport.safeArea;
+        record.connectedPlayersSeed = viewport.connectedPlayers;
+        if (routeConfig.roleId && viewport.width === 390 && viewport.height === 844) {
+          record.headerScroll = await measureHeaderScroll(cdp);
+        }
         record.screenshot = await screenshot(cdp, `${routeConfig.slug}-${viewport.width}x${viewport.height}.png`);
         assertRecord(record);
         records.push(record);
       }
     }
 
-    const variantViewport = { name: 'wide-phone', width: 390, height: 844 };
-    await cdp.send('Emulation.setDeviceMetricsOverride', {
-      width: variantViewport.width,
-      height: variantViewport.height,
-      deviceScaleFactor: 1,
-      mobile: false,
-      screenWidth: variantViewport.width,
-      screenHeight: variantViewport.height,
-    });
-    await navigate(cdp, appUrl, '/roles', sessionSeed());
+    const variantViewport = VIEWPORTS.find(({ width, height }) => width === 390 && height === 844);
+    if (!variantViewport) throw new Error('Missing 390x844 geometry viewport.');
+    await setViewport(cdp, variantViewport);
+    await navigate(cdp, appUrl, '/roles', sessionSeed({
+      connectedPlayers: variantViewport.connectedPlayers,
+    }));
+    const roleFocus = await measureKeyboardFocus(cdp, '/roles');
+    roleFocus.viewport = variantViewport;
+    roleFocus.screenshot = await screenshot(cdp, 'roles-role-focus-390x844.png');
+    assertKeyboardFocus(roleFocus, '/roles');
+
+    await navigate(cdp, appUrl, '/ships/aegis/roles', sessionSeed({
+      activeConsoleRoleId: 'admiral',
+      connectedPlayers: variantViewport.connectedPlayers,
+    }));
+    const shipRoleFocus = await measureKeyboardFocus(cdp, '/ships/aegis/roles');
+    shipRoleFocus.viewport = variantViewport;
+    shipRoleFocus.screenshot = await screenshot(cdp, 'ship-roles-focus-390x844.png');
+    assertKeyboardFocus(shipRoleFocus, '/ships/aegis/roles');
+
+    await navigate(cdp, appUrl, '/roles', sessionSeed({
+      connectedPlayers: variantViewport.connectedPlayers,
+    }));
     await clickSettings(cdp);
     const settings = await measureSettings(cdp);
     settings.viewport = variantViewport;
@@ -441,17 +773,44 @@ async function main() {
     focus.viewport = variantViewport;
     focus.screenshot = await screenshot(cdp, 'roles-focus-390x844.png');
 
-    await navigate(cdp, appUrl, '/roles', sessionSeed({ reducedMotion: true }));
+    await navigate(cdp, appUrl, '/roles', sessionSeed({
+      reducedMotion: true,
+      connectedPlayers: variantViewport.connectedPlayers,
+    }));
     const reducedMotion = await measurePage(cdp, '/roles');
     reducedMotion.viewport = variantViewport;
+    reducedMotion.safeArea = variantViewport.safeArea;
+    reducedMotion.connectedPlayersSeed = variantViewport.connectedPlayers;
     reducedMotion.screenshot = await screenshot(cdp, 'roles-reduced-motion-390x844.png');
+    assertRecord(reducedMotion);
     if (reducedMotion.motion !== 'reduce') throw new Error('Reduced-motion seed did not reach the rendered app.');
 
+    const expectedConnectedPlayerCounts = [...new Set(VIEWPORTS.map(({ connectedPlayers }) => connectedPlayers))]
+      .sort((left, right) => left - right);
+    const measuredConnectedPlayerCounts = [...new Set(records.map(({ connectedPlayerCount }) => connectedPlayerCount))]
+      .sort((left, right) => left - right);
+    const noIntersections = records.every(({ intersections }) => intersections.length === 0) &&
+      reducedMotion.intersections.length === 0;
+    const measuredRecords = [...records, reducedMotion];
+    const safeAreasVerified = measuredRecords.every((record) => {
+      const bounds = record.header.rect;
+      const insets = record.safeArea;
+      return bounds.top >= insets.top - 0.5 && bounds.left >= insets.left - 0.5 &&
+        bounds.right <= record.viewport.width - insets.right + 0.5;
+    });
+    const touchTargetsVerified = records
+      .filter(({ viewport }) => viewport.width <= 600 || viewport.height <= 600)
+      .every(({ interactive }) => interactive.under44.length === 0);
+    const reducedTickerWrapped = reducedMotion.reducedTicker?.whiteSpace === 'normal' &&
+      reducedMotion.reducedTicker.overflowWrap === 'anywhere' &&
+      reducedMotion.reducedTicker.message !== null;
+    const expectedViewportNames = VIEWPORTS.map(({ name }) => name);
+    const measuredViewportNames = [...new Set(records.map(({ viewport }) => viewport.name))];
     const output = {
       prompt: '603a',
       generatedAt: new Date().toISOString(),
       command: 'npm run test:geometry:603a',
-      source: 'Chrome DevTools Protocol DOMRect capture against the local Vite build; no mocked layout values.',
+      source: 'Chrome DevTools Protocol DOMRect capture against the local Vite build; layout values are not mocked. Connected-player counts use the development-only AppHeader session-storage seed so each rendered variant is deterministic.',
       viewports: VIEWPORTS,
       records,
       variants: {
@@ -461,25 +820,59 @@ async function main() {
           horizontalOverflow: records.some((record) => record.scroll.horizontalOverflow),
         },
         settings,
-        keyboardFocus: focus,
+        keyboardFocus: {
+          settings: focus,
+          roleSelect: roleFocus,
+          shipRoleSelect: shipRoleFocus,
+        },
         reducedMotion,
       },
       assertions: {
-        headerBeforeContent: true,
-        sessionTicketOutsideRoleContent: true,
-        shipDradisOutsideShipRoleContent: true,
-        noHorizontalOverflow: true,
-        touchViewportInteractiveTargetsAtLeast44px: true,
+        headerBeforeContent: records.every(({ headerContentGap }) => headerContentGap >= 0) &&
+          reducedMotion.headerContentGap >= 0,
+        sessionTicketOutsideRoleContent: records.every(({ ticketContentIntersection }) => !ticketContentIntersection) &&
+          !reducedMotion.ticketContentIntersection,
+        shipDradisOutsideShipRoleContent: records
+          .filter(({ route }) => route.startsWith('/ships/'))
+          .every(({ plotContentIntersection }) => !plotContentIntersection),
+        allRoleSelectRegionsMeasured: records.every(({ routeRegions }) => routeRegions.length > 0) &&
+          reducedMotion.routeRegions.length > 0,
+        noIntersections,
+        noHorizontalOverflow: records.every(({ scroll }) => !scroll.horizontalOverflow) &&
+          !reducedMotion.scroll.horizontalOverflow,
+        touchViewportInteractiveTargetsAtLeast44px: touchTargetsVerified,
         settingsControlsAtLeast44px: settings.minimumControlHeight >= 44,
-        portraitAndLandscapeCovered: true,
+        connectedPlayerCounts: measuredConnectedPlayerCounts,
+        connectedPlayerCountVariantsCovered: expectedConnectedPlayerCounts.every((count) =>
+          measuredConnectedPlayerCounts.includes(count)),
+        safeAreasVerified,
+        keyboardOrderAndFocusVerified: [roleFocus, shipRoleFocus]
+          .every(({ initial, afterTab }) => Boolean(
+            initial?.focusVisible && afterTab?.focusVisible &&
+            initial.rect?.width > 0 && initial.rect?.height > 0 &&
+            afterTab.rect?.width > 0 && afterTab.rect?.height > 0 &&
+            afterTab.index === initial.index + 1,
+          )),
+        absoluteHeaderLeavesViewportAfterScroll: Boolean(
+          records.find(({ headerScroll }) => headerScroll)?.headerScroll?.leavesViewport,
+        ),
+        reducedMotionTickerWrapped: reducedTickerWrapped,
+        portraitAndLandscapeCovered: expectedViewportNames.every((name) => measuredViewportNames.includes(name)),
       },
     };
     writeFileSync(resolve(OUTPUT_DIR, 'geometry.json'), `${JSON.stringify(output, null, 2)}\n`);
+    writeFileSync(
+      resolve(OUTPUT_DIR, 'geometry.normalized.json'),
+      `${JSON.stringify(normalizeGeometry(output), null, 2)}\n`,
+    );
     console.log(JSON.stringify({
       output: resolve(OUTPUT_DIR, 'geometry.json'),
+      normalizedOutput: resolve(OUTPUT_DIR, 'geometry.normalized.json'),
       screenshots: records.map((record) => record.screenshot).concat([
         settings.screenshot,
         focus.screenshot,
+        roleFocus.screenshot,
+        shipRoleFocus.screenshot,
         reducedMotion.screenshot,
       ]),
       viewports: VIEWPORTS.map(({ width, height }) => `${width}x${height}`),
@@ -494,7 +887,8 @@ async function main() {
           ${JSON.stringify(WAIVER_STORAGE_KEY)},
           ${JSON.stringify(MOTION_SAFETY_STORAGE_KEY)},
           ${JSON.stringify(MOTION_OVERRIDE_STORAGE_KEY)},
-        ].forEach((key) => localStorage.removeItem(key))`);
+        ].forEach((key) => localStorage.removeItem(key));
+        sessionStorage.removeItem(${JSON.stringify(CONNECTED_PLAYERS_STORAGE_KEY)});`);
         cdp.close();
       }
     } catch {
