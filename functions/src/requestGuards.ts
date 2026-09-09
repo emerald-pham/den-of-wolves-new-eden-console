@@ -1,6 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { WOLF_ROLE_IDS } from './wolfAssignment';
-import { ROLE_IDS } from './roleConfiguration';
+import { ROLE_IDS, recommendedRoleIds } from './roleConfiguration';
 import { RESOURCE_IDS, type ResourceId } from './resources';
 import { isStarSystemCoordinate } from './navigation';
 import {
@@ -142,15 +142,41 @@ export function requireAndroidDisclosureRequest(data: {
 export function requireFacilitatorResponsibilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
   responsibility?: unknown;
-}): { sessionId: string; instanceId: string; responsibility: 'main' | 'assistant' } {
+  mode?: unknown;
+  targetInstanceId?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  responsibility: 'main' | 'assistant';
+  mode: 'share' | 'handoff' | 'drop';
+  targetInstanceId?: string;
+} {
   if (data.responsibility !== 'main' && data.responsibility !== 'assistant') {
     throw new HttpsError('invalid-argument', 'responsibility must be main or assistant.');
   }
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  if (data.mode !== undefined && data.mode !== 'share' && data.mode !== 'handoff' && data.mode !== 'drop') {
+    throw new HttpsError('invalid-argument', 'mode must be share, handoff, or drop.');
+  }
+  const mode = data.mode === 'handoff' ? 'handoff' : data.mode === 'drop' ? 'drop' : 'share';
+  const targetInstanceId = data.targetInstanceId === undefined || data.targetInstanceId === null
+    ? undefined
+    : requiredId(data.targetInstanceId, 'targetInstanceId');
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
     responsibility: data.responsibility,
+    mode,
+    ...(targetInstanceId === undefined ? {} : { targetInstanceId }),
   };
 }
 
@@ -174,10 +200,29 @@ export function requireGameStartRequest(data: {
 export function requireSessionSeatRequest(data: {
   sessionId?: unknown;
   seatId?: unknown;
-}): { sessionId: string; seatId: string } {
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  instanceId?: unknown;
+  reason?: unknown;
+}): {
+  sessionId: string;
+  seatId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  instanceId?: string;
+  reason?: string;
+} {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  const reason = data.reason === undefined ? undefined : requiredText(data.reason, 'reason', 240);
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     seatId: requiredId(data.seatId, 'seatId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    ...(reason === undefined ? {} : { reason }),
   };
 }
 
@@ -742,6 +787,63 @@ export function requireRolePresetRequest(data: {
     sessionId: requiredId(data.sessionId, 'sessionId'),
     instanceId: requiredId(data.instanceId, 'instanceId'),
     playerCount: data.playerCount,
+  };
+}
+
+export function requireSetupConfirmationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedSetupRevision?: unknown;
+  setup?: unknown;
+  playerCount?: unknown;
+  chartId?: unknown;
+  expansion?: unknown;
+  turnLimit?: unknown;
+  dioneEnabled?: unknown;
+  capybaraEnabled?: unknown;
+  activeRoleIds?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedSetupRevision: number;
+  configuration: SessionConfiguration;
+  activeRoleIds: string[];
+} {
+  if (!Number.isSafeInteger(data.expectedSetupRevision) || (data.expectedSetupRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedSetupRevision must be a non-negative integer.');
+  }
+  const nested = typeof data.setup === 'object' && data.setup !== null && !Array.isArray(data.setup)
+    ? data.setup as Record<string, unknown>
+    : {};
+  const input = { ...data, ...nested };
+  let configuration: SessionConfiguration;
+  try {
+    configuration = normalizeSessionConfiguration(input);
+  } catch (error) {
+    throw new HttpsError(
+      'invalid-argument',
+      error instanceof Error ? error.message : 'Invalid setup configuration.',
+    );
+  }
+  const activeRoleIds = input.activeRoleIds === undefined
+    ? [...recommendedRoleIds(configuration.playerCount)]
+    : input.activeRoleIds;
+  if (!Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string')) {
+    throw new HttpsError('invalid-argument', 'activeRoleIds must be an ordered role list.');
+  }
+  const printed = recommendedRoleIds(configuration.playerCount);
+  if (activeRoleIds.length !== printed.length || activeRoleIds.some((roleId, index) => roleId !== printed[index])) {
+    throw new HttpsError('failed-precondition', 'The setup role order must match the printed player-count roster.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedSetupRevision: data.expectedSetupRevision as number,
+    configuration,
+    activeRoleIds: [...activeRoleIds],
   };
 }
 

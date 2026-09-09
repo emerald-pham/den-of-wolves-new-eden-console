@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -9,13 +9,15 @@ import RoleSelect from './RoleSelect';
 vi.mock('@/lib/sessionService', () => ({
   claimGmInstance: vi.fn(),
   setGmControlsLocked: vi.fn(),
+  claimSeat: vi.fn(),
+  releaseSeat: vi.fn(),
 }));
 
 vi.mock('@/lib/firestore', () => ({
   subscribeGmInstances: vi.fn(),
 }));
 
-const { claimGmInstance, setGmControlsLocked } = await import('@/lib/sessionService');
+const { claimGmInstance, setGmControlsLocked, claimSeat, releaseSeat } = await import('@/lib/sessionService');
 const { subscribeGmInstances } = await import('@/lib/firestore');
 
 const session: GameSession = {
@@ -231,5 +233,137 @@ describe('RoleSelect', () => {
     }));
 
     expect(setGmControlsLocked).toHaveBeenCalledWith(true);
+  });
+
+  it('shows accessible stable core stations with claim/release beside each state', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral', 'refinery-124-pdf-colonel', 'press-officer'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe({ ...gm, role: 'player' });
+    useSessionStore.getState().setSeats([
+      {
+        id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+        status: 'open', holderUid: null, factionId: 'aegis', claimedAt: null,
+      },
+      {
+        id: 'refinery-124-pdf-colonel', sessionId: 's1', roleId: 'refinery-124-pdf-colonel',
+        label: 'Refinery 124 // P.D.F. Colonel', status: 'open', holderUid: null,
+        factionId: 'refinery-124', claimedAt: null,
+      },
+      {
+        id: 'press-officer', sessionId: 's1', roleId: 'press-officer',
+        label: 'SNN // Press Officer', status: 'open', holderUid: null,
+        factionId: 'press', claimedAt: null,
+      },
+    ]);
+    vi.mocked(claimSeat).mockImplementation(async (seatId) => {
+      useSessionStore.getState().setSeats(useSessionStore.getState().seats.map((seat) =>
+        seat.id === seatId ? { ...seat, status: 'claimed', holderUid: 'gm1' } : seat));
+      return 'applied';
+    });
+    vi.mocked(releaseSeat).mockImplementation(async (seatId) => {
+      useSessionStore.getState().setSeats(useSessionStore.getState().seats.map((seat) =>
+        seat.id === seatId ? { ...seat, status: 'open', holderUid: null } : seat));
+      return 'applied';
+    });
+    renderRoute();
+
+    expect(screen.getByText('AEGIS // Admiral')).toBeInTheDocument();
+    expect(screen.getByText('Refinery 124 // P.D.F. Colonel')).toBeInTheDocument();
+    expect(screen.queryByText('SNN // Press Officer')).not.toBeInTheDocument();
+    const claim = screen.getByRole('button', { name: 'CLAIM STATION // AEGIS // Admiral' });
+    expect(claim).toHaveAttribute('type', 'button');
+    expect(claim).toHaveClass('cic-action-button');
+
+    await user.click(claim);
+    expect(claimSeat).toHaveBeenCalledWith('admiral');
+    expect(await screen.findByRole('button', { name: 'RELEASE STATION // AEGIS // Admiral' }))
+      .toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'RELEASE STATION // AEGIS // Admiral' }));
+    expect(releaseSeat).toHaveBeenCalledWith('admiral');
+  });
+
+  it('gives an active GM an accessible reasoned intervention for a stale occupied seat', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'ghost', factionId: 'aegis', claimedAt: 'legacy-claim',
+    }]);
+    vi.mocked(releaseSeat).mockResolvedValue('applied');
+    vi.mocked(releaseSeat).mockClear();
+    renderRoute();
+
+    const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
+    expect(intervene).toHaveClass('cic-danger-button');
+    await user.click(intervene);
+
+    const reason = screen.getByRole('textbox', { name: /reason for clearing stale seat/i });
+    expect(screen.getByRole('button', { name: /confirm clear stale seat/i })).toBeDisabled();
+    await user.type(reason, 'Ghost browser expired');
+    await user.click(screen.getByRole('button', { name: /confirm clear stale seat/i }));
+
+    expect(releaseSeat).toHaveBeenCalledWith('admiral', 'Ghost browser expired');
+  });
+
+  it('traps stale-seat intervention focus, cancels safely, and restores the trigger', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'ghost', factionId: 'aegis', claimedAt: 'legacy-claim',
+    }]);
+    vi.mocked(releaseSeat).mockResolvedValue('applied');
+    vi.mocked(releaseSeat).mockClear();
+    renderRoute();
+
+    const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
+    fireEvent.click(intervene);
+    const dialog = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
+    const reason = within(dialog).getByRole('textbox', { name: /reason for clearing stale seat/i });
+    const confirm = within(dialog).getByRole('button', { name: /confirm clear stale seat/i });
+    const cancel = within(dialog).getByRole('button', { name: /^cancel$/i });
+    expect(reason).toHaveFocus();
+
+    await user.type(reason, 'Do not clear during keyboard review');
+    await user.tab();
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+    await user.tab();
+    expect(reason).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog', { name: /clear stale station holder/i })).not.toBeInTheDocument();
+    expect(intervene).toHaveFocus();
+    expect(releaseSeat).not.toHaveBeenCalled();
+
+    fireEvent.click(intervene);
+    const reopened = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
+    const backdrop = reopened.parentElement;
+    if (!backdrop) throw new Error('Expected stale-seat dialog backdrop.');
+    await user.click(backdrop);
+    expect(screen.queryByRole('alertdialog', { name: /clear stale station holder/i })).not.toBeInTheDocument();
+    expect(releaseSeat).not.toHaveBeenCalled();
   });
 });

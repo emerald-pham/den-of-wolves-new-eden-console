@@ -50,6 +50,24 @@ const {
   triggerDradisContact,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
+const authorityService = await import('./sessionService') as unknown as {
+  confirmSetup: (setup: {
+    playerCount: number;
+    chartId: 'A' | 'B' | 'C';
+    expansion: 'base' | 'capybara' | 'none';
+    turnLimit: 6 | 7 | 8;
+    dioneEnabled: boolean;
+    capybaraEnabled: boolean;
+    activeRoleIds: readonly string[];
+  }) => Promise<unknown>;
+  claimSeat: (seatId: string) => Promise<unknown>;
+  releaseSeat: (seatId: string, reason: string) => Promise<unknown>;
+  setFacilitatorResponsibility: (change: {
+    responsibility: 'main' | 'assistant';
+    mode: 'share' | 'handoff' | 'drop';
+    targetInstanceId?: string;
+  }) => Promise<unknown>;
+};
 
 const session = {
   id: 's1',
@@ -1225,4 +1243,162 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   });
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
   expect(result).toEqual({ amount: 8, alertRaised: false });
+});
+
+describe('authoritative setup and seating wrappers', () => {
+  const setup = {
+    playerCount: 8,
+    chartId: 'A' as const,
+    expansion: 'base' as const,
+    turnLimit: 6 as const,
+    dioneEnabled: true,
+    capybaraEnabled: false,
+    activeRoleIds: [
+      'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
+      'quellon-explorer', 'refinery-124-pdf-colonel',
+      'joint-engineering-quellon-refinery', 'joint-engineering-shepherd-icebreaker',
+    ],
+  };
+
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session,
+      setupRevision: 4,
+      playerCount: setup.playerCount,
+      chartId: setup.chartId,
+      expansion: setup.expansion,
+      turnLimit: setup.turnLimit,
+      dioneEnabled: setup.dioneEnabled,
+      capybaraEnabled: setup.capybaraEnabled,
+      activeRoleIds: setup.activeRoleIds,
+    }, player);
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.mocked(httpsCallable).mockReset();
+  });
+
+  it('confirms the complete tuple with a request id and setup-revision CAS', async () => {
+    const call = callableReturning({
+      data: { status: 'committed', requestId: 'setup-1', setupRevision: 5 },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await authorityService.confirmSetup(setup);
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'confirmSetup');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      instanceId: 'bridge',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+      setup,
+    });
+  });
+
+  it('projects the complete canonical setup tuple from the committed server receipt', async () => {
+    const activeRoleIds = ['admiral', 'wing-commander'];
+    const activeVesselIds = ['aegis', 'icebreaker'];
+    const canonicalSetup = {
+      playerCount: 19,
+      chartId: 'B' as const,
+      expansion: 'capybara' as const,
+      turnLimit: 7 as const,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds,
+      activeVesselIds,
+    };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        status: 'committed', requestId: 'setup-projection', setupRevision: 5,
+        setup: canonicalSetup, activeRoleIds, activeVesselIds,
+      },
+    }));
+
+    await expect(authorityService.confirmSetup({
+      playerCount: 19, chartId: 'B', expansion: 'capybara', turnLimit: 7,
+      dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
+    })).resolves.toBe('applied');
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      setupRevision: 5,
+      playerCount: 19,
+      chartId: 'B',
+      expansion: 'capybara',
+      turnLimit: 7,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds,
+      activeVesselIds,
+      setup: canonicalSetup,
+    });
+  });
+
+  it('claims a stable seat with a revision-bound idempotency request', async () => {
+    const call = callableReturning({
+      data: { status: 'replayed', requestId: 'claim-1', setupRevision: 5, seatId: 'admiral', holderUid: 'u1' },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await expect(authorityService.claimSeat('admiral')).resolves.toBe('applied');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'claimSeat');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+    });
+  });
+
+  it('releases a seat through the active GM instance and preserves replay-safe acknowledgement', async () => {
+    const call = callableReturning({
+      data: { status: 'replayed', requestId: 'release-1', setupRevision: 5, seatId: 'admiral' },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(call);
+
+    await expect(authorityService.releaseSeat('admiral', 'Roster correction')).resolves.toBe('applied');
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'releaseSeat');
+    expect(call).toHaveBeenCalledWith({
+      sessionId: 's1',
+      seatId: 'admiral',
+      requestId: expect.any(String),
+      expectedSetupRevision: 4,
+      instanceId: 'bridge',
+      reason: 'Roster correction',
+    });
+  });
+
+  it('maps stale authority CAS failures to a safe stale disposition for every guarded command', async () => {
+    const stale = {
+      status: 'stale', requestId: 'authority-stale', entity: 'setup',
+      expectedRevision: 4, currentRevision: 5,
+    };
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: stale }));
+    await expect(authorityService.confirmSetup(setup)).resolves.toBe('stale');
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'stale',
+      message: 'The live session changed before this command committed. Refresh the live state and retry.',
+    });
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'facilitator' } }));
+    await expect(authorityService.setFacilitatorResponsibility({
+      responsibility: 'main', mode: 'share', targetInstanceId: 'other',
+    })).resolves.toBe('stale');
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { ...stale, entity: 'seat', seatId: 'admiral' },
+    }));
+    await expect(authorityService.claimSeat('admiral')).resolves.toBe('stale');
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { ...stale, entity: 'seat', seatId: 'admiral' },
+    }));
+    await expect(authorityService.releaseSeat('admiral', 'Retry after live refresh')).resolves.toBe('stale');
+  });
 });

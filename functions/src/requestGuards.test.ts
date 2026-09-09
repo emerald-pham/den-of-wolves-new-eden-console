@@ -56,13 +56,12 @@ describe('callable request guards', () => {
 
   it('requires both session and seat ids', () => {
     expectHttpsError(
-      () => requireSessionSeatRequest({ sessionId: 's1', seatId: '' }),
+      () => requireSessionSeatRequest({ sessionId: 's1', seatId: '', requestId: 'seat-1', expectedSetupRevision: 0 }),
       'invalid-argument',
     );
-    expect(requireSessionSeatRequest({ sessionId: 's1', seatId: 'seat1' })).toEqual({
-      sessionId: 's1',
-      seatId: 'seat1',
-    });
+    expect(requireSessionSeatRequest({
+      sessionId: 's1', seatId: 'seat1', requestId: 'seat-1', expectedSetupRevision: 0,
+    })).toEqual({ sessionId: 's1', seatId: 'seat1', requestId: 'seat-1', expectedSetupRevision: 0 });
   });
 
   it('requires a session id when resuming', () => {
@@ -73,14 +72,14 @@ describe('callable request guards', () => {
   it('validates the immutable session-creation configuration and request id', () => {
     expect(requireSessionCreationRequest({
       requestId: 'create-1',
-      playerCount: 14,
+      playerCount: 19,
       chartId: 'B',
       expansion: 'capybara',
       turnLimit: 7,
     })).toEqual({
       requestId: 'create-1',
       configuration: {
-        playerCount: 14,
+        playerCount: 19,
         chartId: 'B',
         expansion: 'capybara',
         turnLimit: 7,
@@ -132,8 +131,14 @@ describe('callable request guards', () => {
 
   it('validates facilitator responsibility and retry-safe start commands', () => {
     expect(requireFacilitatorResponsibilityRequest({
-      sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant',
-    })).toEqual({ sessionId: 's1', instanceId: 'bridge', responsibility: 'assistant' });
+      sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
+      expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
+    })).toEqual({
+      sessionId: 's1', instanceId: 'bridge', requestId: 'responsibility-1',
+      expectedSetupRevision: 3, responsibility: 'assistant', mode: 'handoff',
+      targetInstanceId: 'tablet',
+    });
     expect(requireGameStartRequest({
       sessionId: 's1', instanceId: 'bridge', requestId: 'start-1', expectedSetupRevision: 3,
     })).toEqual({

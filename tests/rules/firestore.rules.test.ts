@@ -352,6 +352,38 @@ describe('seats', () => {
       }),
     );
   });
+
+  it('denies direct setup, seat-receipt, responsibility-receipt, and event writes', async () => {
+    const db = as('gm1');
+    const targets = [
+      `${SESSION}/setupMutationRequests/request-1`,
+      `${SESSION}/seatMutationRequests/request-1`,
+      `${SESSION}/gmResponsibilityRequests/request-1`,
+      `${SESSION}/events/setup-confirm-request-1`,
+      `${SESSION}/events/seat-claim-request-1`,
+    ];
+
+    for (const path of targets) {
+      const target = doc(db, path);
+      await assertFails(setDoc(target, { forged: true }));
+      await assertFails(updateDoc(target, { forged: true }));
+      await assertFails(deleteDoc(target));
+    }
+    await assertFails(updateDoc(doc(db, SESSION), {
+      setup: {
+        playerCount: 8,
+        chartId: 'A',
+        expansion: 'base',
+        turnLimit: 6,
+        dioneEnabled: true,
+        capybaraEnabled: false,
+        activeRoleIds: ['admiral'],
+        activeVesselIds: ['aegis'],
+      },
+      activeVesselIds: ['aegis'],
+      setupRevision: 99,
+    }));
+  });
 });
 
 describe('players', () => {

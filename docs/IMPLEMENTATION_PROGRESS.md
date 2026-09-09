@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 710 Prompts
+# Implementation Plan Progress — All 713 Prompts
 
-This tracker records all 710 canonical prompt IDs in
+This tracker records all 713 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,11 +15,26 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**63 / 710 prompts complete (9%)**
+**66 / 713 prompts complete (9.26%)**
 
-Status breakdown: **63 done · 34 partial · 613 missing**.
+Status breakdown: **66 done · 31 partial · 0 active · 616 missing**.
 
 Active prompt: **none**.
+
+Version 0.3.12 closes Prompt 021 authoritative configuration, Prompt 030
+production seating, and Prompt 073 one-GM staffing. Prompt 030 is reclassified
+as a feature for this release. Prompt 051 remains partial: configuration and
+seating evidence is appended, while readiness and start remain outside the
+release boundary.
+
+### Version 0.3.12 progress evidence
+
+The release boundary is recorded reproducibly as **66 / 713 = 9.26%** with
+**66 done · 31 partial · 0 active · 616 missing**. Focused server authority,
+seat, responsibility, hydration, client-route, and rules-denial suites provide
+the implementation evidence; the release makes no claim for Prompt 054, 071,
+readiness, start, Wolf/setup receipt, Prompt 020, or the queued addenda
+P122a/P275b/P602a/P603a. Prompt 051 remains partial by design.
 
 The resume pointer is separate from the completion count. It is the
 lowest-numbered prompt that is not done, not a sequential cursor or a claim
@@ -150,7 +165,7 @@ release classification and evidence.
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | missing | non-feature | — | Full production create→join→cast→start→Turn 1 composition fixture remains open. |
-| 021 | partial | feature | 0.3.5 | Existing request guards cover the printed/base 8–18 inputs in `requestGuards.test.ts`, `gameSetup.test.ts`, and `createSessionCallable.test.ts`; owner-revised 8–20 Capybara core validation, optional Press separation, and multiple-GM composition require a new migration-safe contract. |
+| 021 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Full tuple validation, request replay/CAS, deterministic active-vessel derivation, and retired partial mutators are covered by the focused Functions suite; Press remains separate and GMs remain non-counted. |
 | 022 | partial | feature | 0.3.5 | Atomic creation path and direct test exist; standardized envelope event is still open. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
 | 024 | done | non-feature | — | `joinSessionCallable.test.ts` and rules tests. |
@@ -159,7 +174,7 @@ release classification and evidence.
 | 027 | done | non-feature | — | Non-enumerating limiter tests. |
 | 028 | done | non-feature | — | Session-header membership/listing rules tests. |
 | 029 | done | non-feature | — | Seat policy/callable one-seat tests. |
-| 030 | partial | non-feature | — | `claimSeat` has isolated transaction tests for seat/player-pointer ownership, but session creation does not provision a usable seat catalog, no client service/UI exposes the authoritative claim/release path, readiness/start does not inspect `seatId` or seat documents, and the claim transaction does not yet compose the roster/setup revision/event required by this prompt. Prompts 029 and 031–033 retain their narrower exclusivity, race, release, and stale-denial evidence; Prompt 030 must be repaired before one-GM readiness or Prompt 020 can close. |
+| 030 | done | feature | 0.3.12 | Version 0.3.12 provisions canonical stable core seats, exposes callable-backed claim/release through the existing role route, and records revisioned request receipts and append-only events. Reconnect hydration, race/denial, pointer integrity, and Press exclusion remain covered; readiness/start stays outside this release. |
 | 031 | done | non-feature | — | Seat race/conflict tests. |
 | 032 | done | non-feature | — | Seat release tests. |
 | 033 | done | non-feature | — | Foreign/stale seat release denial tests. |
@@ -180,7 +195,7 @@ release classification and evidence.
 | 048 | done | non-feature | — | GM Observer read-only tests. |
 | 049 | done | non-feature | — | Observer elevation reset tests. |
 | 050 | done | non-feature | — | Return-navigation route tests. |
-| 051 | partial | feature | 0.3.9 | Production-path create/apply/start evidence covers the exact printed 8–18 base matrix and rejects convenience/short rosters in `functions/src/createSessionCallable.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/startCallable.test.ts`; scoped 19 creation/guard/hydration propagation is covered separately, but owner-revised 8–20 Capybara core composition remains open, so the earlier 46-test green run is not completion evidence for that target. |
+| 051 | partial | feature | 0.3.9, 0.3.12 | Version 0.3.12 adds authoritative 8–20 core configuration, vessel derivation, stable-seat provisioning, and Press-excluded hydration evidence to the existing 0.3.9 production-path matrix. Readiness, start, Wolf/setup receipt, and the remaining owner-revised composition boundary remain open, so this prompt stays partial. |
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | partial | non-feature | — | Existing Wolf count/assignment tests cover the shared helper, including owner-set 19/20 rows, but not automatic production-path selection. The server must derive two Wolves for the owner-set 19/20 core rows, keep optional Press outside the count while allowing a claimed holder to remain eligible, and publish a setup calculation receipt without adding a third Wolf. |
@@ -202,7 +217,7 @@ release classification and evidence.
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
 | 071 | partial | feature | 0.3.5 | Existing readiness policy and `startCallable.test.ts` precise reasons cover the printed/base matrix but encode stale staffing assumptions. One-GM readiness, owner-set 8–20 core, optional enabled/claimed/unclaimed Press, and optional multiple GM instances need composed evidence. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
-| 073 | partial | feature | 0.3.5 | Main/assistant responsibility storage exists, but current tests enshrine the obsolete requirement for distinct holders. Repair readiness so one GM can assume both while optional additional GMs can collaborate without blocking start. |
+| 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; Prompt 071 retains the separate readiness/start acceptance. |
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
 | 075 | partial | feature | 0.3.5 | Atomic Turn 1/lock/timer/pursuit/event start exists; automatic Wolf/loyalty composition, complete decks/craft/resources, one-GM setup receipt, and alert ownership remain open. |
 | 076 | done | non-feature | — | Durable start request replay test. |
@@ -254,6 +269,7 @@ release classification and evidence.
 | 120 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 121 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 122 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 122a | missing | non-feature | — | Owner-requested Reactor confirmation repair: the current `MaintenanceSystems` control submits `runMaintenance(..., 'reactor', ...)` directly, while the transaction replaces prior charges and appends an event without request-id replay. A dedicated release must reuse the danger-red second-press `ARE YOU SURE?` pattern before mutation, make cancel/blur/Escape/navigation/backdrop paths no-ops with focus restoration, prevent pending/double-submit, add idempotent retry and accepted-only audit/replay, and prove stale/unauthorized/invalid denial plus accessible mobile/reduced-motion containment. |
 | 123 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 124 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 125 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -432,7 +448,7 @@ release classification and evidence.
 | 274 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 275a | done | feature | 0.3.10 | Failing-first and production-path coverage restores the default-enabled, authoritatively toggleable SNN Press station outside the counted core roster: dedicated CAS/audit state, unique stale-safe claim/reconnect, distinct private loyalty and Wolf eligibility, release/disconnect/disable cleanup, server action denial, multiple-GM/core-readiness separation, visible return navigation, roster-derived AEGIS-at-8/11 and Dione-at-12/18/20 hosting, exact connection copy, and viewport-safe DRADIS names are composed. Final focused evidence is **469/469** changed-surface tests plus **53/53** Firestore rules. Real Chrome review at 1440×900, 320×844, and 844×390 found no horizontal overflow and kept measured routed DRADIS labels in bounds; 320×844 reduced motion, keyboard return/focus, AEGIS/Dione host projection, the connection matrix, the GM Press revision/status surface, and the corrected 44×44 mobile Settings target also passed. Provenance: `71b5ad7` → `9c48e5d` → `dced782`; `1418146` is the last default-working release point and direct parent of regression `9d68158`, with counted-readiness conflict cemented by `e5aca326`; `4703e43` introduced the blanket-Dione drift. This release does not claim the still-missing owner-set 19-player Capybara runtime row. Literal field placement, an instant pre-acquisition capture, reduced-motion desktop/landscape, and live Firebase mutation were not part of the local browser fixture; deterministic geometry, authority, and emulator suites cover those non-live seams without claiming deployment proof. |
-| 275b | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 275b | missing | non-feature | — | Owner-reported regression: the SNN Dispatch Desk is not working. A dedicated follow-on release must recover the last working implementation from git history and restore the complete route/model/callable/rules/UI/reconnect/audit path. The enabled claimed Press Officer must be able to use the desk during Turn Zero because it is explicitly excluded from generic Turn Zero restrictions. Add chronological failing end-to-end regression, authority, bridge/audience, accessibility, mobile/landscape/reduced-motion, and CIC evidence; classify it as a feature with its own version only when that repair release is reserved. Do not fold it into 0.3.12 or count Press as core. |
 | 276 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 277 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 278 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
@@ -788,7 +804,9 @@ release classification and evidence.
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 602a | missing | non-feature | — | Owner-reported shuttle return regression: ordinary shuttle consoles currently receive no `returnTo`; only Press, Joint Engineering, and GM special cases have exits. A dedicated repair must audit route/catalog/docking authority and history, restore prior working behavior if found, resolve one deterministic entitled associated-ship target without client guessing, and preserve session/seat/role/shuttle state. Prove deep link, reconnect, browser Back/Forward, denial/fallback, mobile/short-landscape, 44px keyboard/screen-reader, nonoverlap, and reduced-motion behavior without changing Press/Union/GM return semantics. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 603a | missing | non-feature | — | Owner-reported mobile layout regression: the shared session ticket can overlap routed content, especially Role Select. No existing prompt guarantees nonintersection. Audit `SessionReadouts`, `AppHeader`, `.session-badge`, `.role-select`, safe areas/breakpoints, and history, then make surrounding elements reflow outside the ticket's measured rectangle—never z-index-cover, hide, or clip. Require failing geometry and real-browser evidence at 320×844, 390×844, and 844×390 with header variants, long labels, keyboard/focus/touch, rotation, and reduced motion. |
 | 604 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 605 | partial | feature | 0.3.10 | Prompt 275a's focused geometry tests now prove intrinsic complete-name containment and two-axis clamping at top/right/bottom/left across 320x844, 1440x900, 844x390, compact/expanded, acquisition/privacy, normal and reduced motion. Full group-local transit/parking projection remains open, so this viewport regression cannot complete Prompt 605. |
 | 605a | missing | non-feature | — | [DEFERRED-OWNER] Ultimate Wolf-attack DRADIS visualization awaits explicit owner activation after Prompt 433a endpoint/privacy proof and is not a playable-attack blocker. |

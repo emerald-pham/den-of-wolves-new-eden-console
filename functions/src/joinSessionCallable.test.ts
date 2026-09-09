@@ -89,6 +89,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
     if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
   });
 
@@ -158,6 +159,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
     });
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: false });
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
 

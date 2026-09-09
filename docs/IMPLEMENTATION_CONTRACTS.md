@@ -63,6 +63,44 @@ No feature may ship as an isolated widget: each participating row needs a
 composed acceptance/regression story and authoritative evidence, while each
 intentional exclusion names the preserved behavior and reason.
 
+Prompt 275b records an owner-reported regression, not an optional presentation
+proof: the SNN Dispatch Desk currently does not work. Its dedicated repair must
+start from the last working implementation located in git history and retain
+that behavior as the design baseline. Audit and compose its existing routes,
+models, callables, rules, tests, styles, reconnect/replay, event/audit,
+FleetBroadcast delivery, SNN Press authority, accessibility, responsive layout,
+and CIC aesthetics. The desk is explicitly excluded from generic Turn Zero UI
+and action restrictions and must remain fully visible and actionable to the
+enabled, uniquely claimed Press Officer during Turn Zero. This exception does
+not relax other phase gates or change Press into a counted core station.
+
+Prompt 603a records a distinct responsive-shell regression. The shared
+`SessionReadouts`/`.session-badge` session ticket lives in the absolutely
+positioned measured `AppHeader`; Role Select currently relies on responsive
+top padding and `--app-header-height`, but no regression proves the two occupied
+rectangles cannot intersect. The repair begins with `54f4409` and `b668e2a`
+history plus the current safe-area/breakpoint contract, then proves surrounding
+content reflows outside the ticket at 320×844, 390×844, and 844×390. Hiding,
+clipping, transparent overlap, or z-index coverage is a failed result.
+
+Prompt 122a records a distinct high-impact confirmation gap. The current
+`MaintenanceSystems` Reactor button invokes `runMaintenance` directly; the
+server validates a revision and replaces the prior charge set atomically, but
+the command has no request ID/replay record and the UI provides no confirmation
+before that irreversible choice. Reuse the existing Begin-maintenance
+danger-red second-press pattern and maintenance callable/event path. Only the
+confirmed request may mutate or audit; canceled, stale, unauthorized, invalid,
+duplicate, and escaped attempts leave state unchanged.
+
+Prompt 602a records a distinct return-navigation gap. Current
+`ShuttleConsole` supplies `returnTo` only for Press and Joint Engineering and
+uses a separate GM leave link; an ordinary shuttle receives no explicit return
+to its associated ship. Audit `d259cb0`, `9009807`, `dced782`, and `3299767`
+before choosing a repair and preserve any recovered working generic path.
+Resolve the target from authoritative docking/association state and existing
+route entitlement, preserve session/seat/active-console/shuttle state, and use
+the established safe role-selection parent when no ship target is permitted.
+
 For Press readiness specifically, an enabled but unclaimed Press never blocks
 start. A claimed Press holder has a separate Press assignment/private loyalty
 and remains eligible for the preserved Wolf assignment contract, but does not
@@ -259,7 +297,7 @@ composition or hidden-state story is complete.
 | 018 | verified | `functions/src/actionMetadata.ts` and its tests define Team/Coordination actor and phase gates; `functions/src/index.ts` applies the gate to movement, jumps, and maintenance when a server phase clock exists. The remaining action families are future matrix rows. |
 | 019 | partial | GM event-log paths and rules tests exist, but audience-safe event payloads are not centralized. Target event redaction test. |
 | 020 | missing | No production-path create→join→cast→start→Turn 1 fixture was found. Target `functions/src/sessionComposition.test.ts` with emulator/rules boundary. |
-| 021 | verified | `functions/src/requestGuards.test.ts`, `functions/src/gameSetup.test.ts`, and `functions/src/createSessionCallable.test.ts` cover unsupported configuration and duplicate-option rejection before writes. |
+| 021 | partial | Existing guards reject several unsupported inputs, but the production mutators can update role IDs, Capybara, or Dione without atomically persisting and validating the whole count/mode/chart/turn-limit/role/vessel tuple. Release 0.3.12 requires request-bound compare-and-set persistence, one revision/event, replay, and no-write rejection for the complete 8–20 contract. |
 | 022 | partial | `functions/src/index.ts` and `functions/src/createSessionCallable.test.ts` cover atomic lobby/config/player/membership creation; the creation record is durable, but a standardized event-envelope write is still a target. |
 | 023 | verified | `createSession` stores `sessionCreationRequests/{uid}_{requestId}` and `functions/src/createSessionCallable.test.ts` proves the same reply is replayed without a second write. |
 | 024 | verified | `functions/src/joinSessionCallable.test.ts` and `tests/rules/firestore.rules.test.ts`. |
@@ -311,7 +349,7 @@ composition or hidden-state story is complete.
 | 070 | partial | security/resource primitives exist in `functions/src/resources.ts` and callable tests; printed start initialization across all rosters is not composed. |
 | 071 | partial | `readinessForSetup` and `startGame` provide precise base blocked reasons, but current proof encodes obsolete separate main/assistant staffing and does not compose the owner-set 8–20 core, optional Press, or single-facilitator readiness. Target one-GM start plus optional multi-GM/non-counting Press fixtures. |
 | 072 | verified | `startGame` sets `configurationLocked`; `requireCastingWindow` makes preference, assignment, release, and loyalty callables reject afterward. Preference lock and start tests cover the boundary. |
-| 073 | partial | `setFacilitatorResponsibility` and current start tests encode the obsolete requirement for distinct main/assistant holders. Preserve the responsibility labels but repair authority/readiness so one GM may assume both and optional additional GMs can claim or hand off lanes without blocking play. |
+| 073 | partial | `setFacilitatorResponsibility` stores one exclusive singular label and current start tests encode the obsolete distinct-holder requirement. Release 0.3.12 normalizes legacy data and lets one active GM carry both labels while optional GMs share or hand off lanes; Prompt 071 separately repairs readiness/start consumption later. |
 | 074 | verified | `startGame` requires an active GM instance owned by the authenticated caller through `requireFacilitatorInstance`; the start callable test exercises the authorized path. |
 | 075 | partial | `startGame` atomically transitions to active Turn 1, locks setup, starts timers, initializes pursuit, writes the start result and event; full deck/craft/resource composition remains a target. |
 | 076 | verified | `sessionStartRequests/{sessionId}_{requestId}` stores the start reply and `functions/src/startCallable.test.ts` proves a retry returns it without another mutation. |

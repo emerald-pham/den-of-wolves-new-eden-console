@@ -215,6 +215,7 @@ function session(fields: StoredDocument = {}) {
     joinCode: '482109',
     phase: 'lobby',
     ownerUid: 'u1',
+    setupRevision: 0,
     deleteAfter: null,
     ...fields,
   });
@@ -261,7 +262,9 @@ describe('presence lease', () => {
     });
     put('sessions/s1/seats/seat-1', { status: 'open', holderUid: null });
 
-    await expect(claimSeat.run(request({ sessionId: 's1', seatId: 'seat-1' })))
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'seat-1', requestId: 'claim-expired-player', expectedSetupRevision: 0,
+    })))
       .rejects.toMatchObject({ code: 'permission-denied' });
     await expect(refreshPresence.run(request({ sessionId: 's1' })))
       .rejects.toMatchObject({ code: 'permission-denied' });

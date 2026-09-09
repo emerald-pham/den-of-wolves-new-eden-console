@@ -32,6 +32,22 @@ interface SessionReply {
   readonly player: Player;
 }
 
+export interface SetupConfirmationInput {
+  readonly playerCount: number;
+  readonly chartId: 'A' | 'B' | 'C';
+  readonly expansion: 'base' | 'capybara' | 'none';
+  readonly turnLimit: 6 | 7 | 8;
+  readonly dioneEnabled: boolean;
+  readonly capybaraEnabled: boolean;
+  readonly activeRoleIds: readonly string[];
+}
+
+export interface FacilitatorResponsibilityChange {
+  readonly responsibility: 'main' | 'assistant';
+  readonly mode: 'share' | 'handoff' | 'drop';
+  readonly targetInstanceId?: string;
+}
+
 export interface CreateSessionOptions {
   readonly playerCount?: number;
   readonly chartId?: 'A' | 'B' | 'C';
@@ -54,8 +70,11 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/unknown',
 ]);
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
-export type CommandDisposition = 'applied' | 'queued' | 'awaiting-officer';
+export type CommandDisposition = 'applied' | 'queued' | 'stale' | 'awaiting-officer';
 export type TurnStartReplayAudience = 'gm' | 'everyone';
+
+const SAFE_STALE_COMMAND_MESSAGE =
+  'The live session changed before this command committed. Refresh the live state and retry.';
 
 let localTurnStartReplayToken = 0;
 
@@ -68,6 +87,21 @@ function isTurnStartAnnouncement(value: unknown): value is NonNullable<GameSessi
     Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0 &&
     (announcement.revision === undefined ||
       (typeof announcement.revision === 'number' && Number.isSafeInteger(announcement.revision) && announcement.revision >= 0))
+  );
+}
+
+function isCanonicalSessionSetup(value: unknown): value is NonNullable<GameSession['setup']> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const setup = value as Record<string, unknown>;
+  return (
+    typeof setup.playerCount === 'number' && Number.isSafeInteger(setup.playerCount) && setup.playerCount > 0 &&
+    (setup.chartId === 'A' || setup.chartId === 'B' || setup.chartId === 'C') &&
+    (setup.expansion === 'base' || setup.expansion === 'capybara' || setup.expansion === 'none') &&
+    (setup.turnLimit === 6 || setup.turnLimit === 7 || setup.turnLimit === 8) &&
+    typeof setup.dioneEnabled === 'boolean' &&
+    typeof setup.capybaraEnabled === 'boolean' &&
+    Array.isArray(setup.activeRoleIds) && setup.activeRoleIds.every((roleId) => typeof roleId === 'string') &&
+    Array.isArray(setup.activeVesselIds) && setup.activeVesselIds.every((vesselId) => typeof vesselId === 'string')
   );
 }
 
@@ -96,8 +130,46 @@ function commandId(): string {
   return window.crypto.randomUUID();
 }
 
+function expectedSetupRevision(session: GameSession): number {
+  return Number.isSafeInteger(session.setupRevision) && (session.setupRevision ?? 0) >= 0
+    ? session.setupRevision ?? 0
+    : 0;
+}
+
 function queue(command: PendingCommand): void {
   useSessionStore.getState().enqueueCommand(command);
+}
+
+function isRevisionedAuthorityCommand(command: PendingCommand): boolean {
+  return command.kind === 'confirmSetup' ||
+    command.kind === 'setFacilitatorResponsibility' ||
+    command.kind === 'claimSeat' ||
+    command.kind === 'releaseSeat';
+}
+
+function isStaleAuthorityReply(command: PendingCommand, result: unknown): result is {
+  readonly status: 'stale';
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly entity: 'setup' | 'facilitator' | 'seat';
+  readonly seatId?: string;
+} {
+  if (!isRevisionedAuthorityCommand(command) || typeof result !== 'object' || result === null) return false;
+  const reply = result as Record<string, unknown>;
+  return reply.status === 'stale' &&
+    typeof reply.requestId === 'string' &&
+    typeof reply.expectedRevision === 'number' && Number.isSafeInteger(reply.expectedRevision) &&
+    typeof reply.currentRevision === 'number' && Number.isSafeInteger(reply.currentRevision) &&
+    (reply.entity === 'setup' || reply.entity === 'facilitator' || reply.entity === 'seat') &&
+    (reply.entity !== 'seat' || typeof reply.seatId === 'string');
+}
+
+function recordStaleAuthorityReply(): void {
+  useSessionStore.getState().setCommunicationError({
+    code: 'stale',
+    message: SAFE_STALE_COMMAND_MESSAGE,
+  });
 }
 
 async function executeCommand(command: PendingCommand): Promise<unknown> {
@@ -136,6 +208,92 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     store.setLastRoute('/roles');
   }
   if (command.kind === 'disconnectFromSession') store.disconnect();
+  if (
+    command.kind === 'confirmSetup' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const canonicalSetup = isCanonicalSessionSetup(reply.setup) ? reply.setup : null;
+    const canonicalRoleIds = canonicalSetup?.activeRoleIds ?? (
+      Array.isArray(reply.activeRoleIds)
+        ? reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
+        : undefined
+    );
+    const canonicalVesselIds = canonicalSetup?.activeVesselIds ?? (
+      Array.isArray(reply.activeVesselIds)
+        ? reply.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string')
+        : undefined
+    );
+    const nextSession = {
+      ...store.session,
+      ...(typeof reply.setupRevision === 'number' && Number.isSafeInteger(reply.setupRevision) && reply.setupRevision >= 0
+        ? { setupRevision: reply.setupRevision } : {}),
+      ...(canonicalSetup ? {
+        setup: canonicalSetup,
+        playerCount: canonicalSetup.playerCount,
+        chartId: canonicalSetup.chartId,
+        expansion: canonicalSetup.expansion,
+        turnLimit: canonicalSetup.turnLimit,
+        dioneEnabled: canonicalSetup.dioneEnabled,
+        capybaraEnabled: canonicalSetup.capybaraEnabled,
+      } : {}),
+      ...(canonicalRoleIds ? { activeRoleIds: canonicalRoleIds } : {}),
+      ...(canonicalVesselIds ? { activeVesselIds: canonicalVesselIds } : {}),
+    } as GameSession;
+    store.setSession(nextSession);
+  }
+  if (
+    (command.kind === 'claimSeat' || command.kind === 'releaseSeat') &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextRevision = reply.setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+    if (reply.seatId === command.payload.seatId) {
+      const me = store.me;
+      if (command.kind === 'claimSeat' && me && me.sessionId === command.payload.sessionId) {
+        store.setMe({ ...me, seatId: command.payload.seatId });
+      } else if (command.kind === 'releaseSeat' && me?.seatId === command.payload.seatId) {
+        store.setMe({ ...me, seatId: null });
+      }
+      store.setSeats(store.seats.map((seat) => seat.id === command.payload.seatId
+        ? {
+          ...seat,
+          status: command.kind === 'claimSeat' ? 'claimed' : 'open',
+          holderUid: command.kind === 'claimSeat' && typeof reply.holderUid === 'string'
+            ? reply.holderUid
+            : command.kind === 'claimSeat' ? store.me?.uid ?? seat.holderUid : null,
+          claimedAt: command.kind === 'claimSeat' ? seat.claimedAt : null,
+        }
+      : seat));
+    }
+  }
+  if (
+    command.kind === 'setFacilitatorResponsibility' &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const reply = result as Record<string, unknown>;
+    const nextRevision = reply.setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+    if (Array.isArray(reply.responsibilities) && store.gmInstance?.id === command.payload.instanceId) {
+      const responsibilities = reply.responsibilities.filter(
+        (responsibility): responsibility is 'main' | 'assistant' =>
+          responsibility === 'main' || responsibility === 'assistant',
+      );
+      store.setGmInstance({
+        ...store.gmInstance,
+        responsibilities,
+        ...(responsibilities.length > 0 ? { responsibility: responsibilities[0] } : {}),
+      });
+    }
+  }
   if (command.kind === 'setCapybaraEnabled' && store.session?.id === command.payload.sessionId) {
     const enabled =
       typeof result === 'object' && result !== null && 'capybaraEnabled' in result &&
@@ -241,6 +399,10 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
   try {
     await ensureSignedIn();
     const result = await executeCommand(command);
+    if (isStaleAuthorityReply(command, result)) {
+      recordStaleAuthorityReply();
+      return 'stale';
+    }
     applyCommandResult(command, result);
     if (
       command.kind === 'popShipConfetti' && typeof result === 'object' && result !== null &&
@@ -273,7 +435,9 @@ async function flushPendingCommands(): Promise<boolean> {
       continue;
     }
     try {
-      applyCommandResult(command, await executeCommand(command));
+      const result = await executeCommand(command);
+      if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
+      else applyCommandResult(command, result);
       store.removeCommand(command.id);
     } catch (cause) {
       if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;
@@ -551,6 +715,86 @@ export async function resumeSession(sessionId: string): Promise<boolean> {
   );
   const reply = await call({ sessionId });
   return applySession(reply.data, sessionId);
+}
+
+/** Confirm the entire setup tuple through one replay-safe authoritative command. */
+export async function confirmSetup(setup: SetupConfirmationInput): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before confirming setup.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'confirmSetup',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      setup: { ...setup, activeRoleIds: [...setup.activeRoleIds] },
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Change one printed facilitator lane through the revisioned authority command. */
+export async function setFacilitatorResponsibility(
+  change: FacilitatorResponsibilityChange,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before changing facilitator responsibilities.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setFacilitatorResponsibility',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      responsibility: change.responsibility,
+      mode: change.mode,
+      ...(change.targetInstanceId ? { targetInstanceId: change.targetInstanceId } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Claim a stable role seat through the server-owned CAS transaction. */
+export async function claimSeat(seatId: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before claiming a seat.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'claimSeat',
+    payload: {
+      sessionId: store.session.id,
+      seatId,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Release a held seat, optionally carrying the active GM audit reason. */
+export async function releaseSeat(seatId: string, reason?: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.me) throw new Error('Join a session before releasing a seat.');
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'releaseSeat',
+    payload: {
+      sessionId: store.session.id,
+      seatId,
+      requestId: commandId(),
+      expectedSetupRevision: expectedSetupRevision(store.session),
+      ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
+      ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
 }
 
 export async function loginGmAccess(password: string): Promise<CommandDisposition> {

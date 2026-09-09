@@ -5,12 +5,41 @@ export interface ChangelogEntry {
   readonly changes: readonly string[];
   /** Prompt IDs whose player-facing changes are described by this release. */
   readonly implementationPrompts?: readonly (number | string)[];
+  /** Reproducible implementation-plan progress at this release boundary. */
+  readonly implementationProgress?: {
+    readonly completed: number;
+    readonly total: number;
+    readonly percentage: string;
+    readonly done: number;
+    readonly partial: number;
+    readonly active: number;
+    readonly missing: number;
+  };
 }
 
 /** Release notes written for the people playing and facilitating the game. */
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [21, 30, 51, 73],
+    implementationProgress: {
+      completed: 66,
+      total: 713,
+      percentage: '9.26%',
+      done: 66,
+      partial: 31,
+      active: 0,
+      missing: 616,
+    },
+    changes: [
+      'Facilitators can now confirm one authoritative setup tuple for the settled 8–20 core roster, including chart, turn limit, Dione, Capybara, and ordered active roles.',
+      'Players can now claim and release stable core-role seats through the existing role route, with reconnect hydration preserving the server roster and seat state.',
+      'Setup evidence now covers the owner-set 8–20 core composition while readiness, start, and the optional Press station remain outside this release boundary.',
+      'A single GM can carry both printed facilitation responsibilities while optional additional GMs can share or hand off lanes; the optional Press station remains distinct and outside the core count.',
+    ],
+  },
+  {
+    version: '0.3.11',
     implementationPrompts: [4],
     changes: [
       'Facilitators can now stage an exact core-role roster for every player count from 8 through 20, including the source-authoritative Capybara Captain and Recycler pair at 19 and 20.',
