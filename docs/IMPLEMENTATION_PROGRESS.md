@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**76 / 723 prompts complete (10.51%)**
+**77 / 723 prompts complete (10.65%)**
 
-Status breakdown: **76 done · 27 partial · 0 active · 620 missing**.
+Status breakdown: **77 done · 26 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -101,8 +101,8 @@ outside this release.
 
 ### Version 0.3.20 progress evidence
 
-The current release records Prompt 139 complete and the proof-only Prompt 103
-preservation at **76 / 723 = 10.51%** with **76 done · 27 partial · 0 active ·
+The current release records Prompt 139 complete plus proof-only Prompts 103 and
+093 preservation at **77 / 723 = 10.65%** with **77 done · 26 partial · 0 active ·
 620 missing**. Maintenance events carry an explicit crew-safe projection of
 costs and outcomes through the member-visible event stream; the client parser
 accepts only those allowlisted fields and drops hidden deck order, private
@@ -112,7 +112,14 @@ initialization path: `functions/src/index.ts:597-654` and `:3217-3271` advance
 the turn atomically, `functions/src/turnTransition.ts:8-27` resets turn-scoped
 charges and shuttle fuel, and `functions/src/maintenanceCallable.test.ts:578-703`
 and `:792-937` cover schedule/expiry and overlapping advance/CAS/stale
-write-free behavior. Prompt 103a remains outside this release.
+write-free behavior. Prompt 093 preserves the existing authoritative
+Team-to-Coordination boundary: `functions/src/index.ts:3357-3397` enforces the
+server deadline, expected-turn, closed, paused, and active-membership guards,
+while the composed `functions/src/maintenanceCallable.test.ts` boundary proof
+covers early and exact-deadline opens, the deterministic `airspace-opened`
+event, stale and already-lifted no-write retries, and late maintenance denial.
+The existing concurrent expiry proof remains the overlap coverage. Prompt 103a
+remains outside this release.
 Prompt 140 all-vessel maintenance coverage remains outside this release.
 
 ### Version 0.3.17 progress evidence
@@ -379,7 +386,7 @@ release classification and evidence.
 | 090 | missing | non-feature | — | Full serialized hidden-state redaction proof remains open. |
 | 091 | partial | non-feature | — | Server turn clock exists; complete turn entity remains open. |
 | 092 | partial | non-feature | — | Team transition exists; single transition-machine proof remains open. |
-| 093 | partial | non-feature | — | Coordination transition exists; complete late/illegal edge proof remains open. |
+| 093 | done | non-feature | — | Existing `beginOpenAirspacePhase` and Team-action boundary are preserved by the composed `functions/src/maintenanceCallable.test.ts` proof: early/exact-deadline/stale/duplicate transitions and late `runMaintenance` denial are write-free where required, with deterministic `airspace-opened` identity and the existing concurrent expiry proof retained. |
 | 094 | done | non-feature | — | Server Team timer duration tests. |
 | 095 | done | non-feature | — | Server Coordination timer duration tests. |
 | 096 | done | non-feature | — | Turn 1-only override tests. |

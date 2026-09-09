@@ -72,7 +72,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 76/723 complete; 27 partial; 620 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 77/723 complete; 26 partial; 620 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -81,37 +81,37 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(result.summary).toMatchObject({
-      complete: 76,
+      complete: 77,
       total: 723,
-      partial: 27,
+      partial: 26,
       missing: 620,
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
       version: applicationVersion,
-      completed: 76,
+      completed: 77,
       total: 723,
-      percentage: '10.51%',
-      done: 76,
-      partial: 27,
+      percentage: '10.65%',
+      done: 77,
+      partial: 26,
       active: 0,
       missing: 620,
     });
-    expect(changelogSource).toContain('Roadmap progress: 76 of 723 prompts complete (10.51%).');
+    expect(changelogSource).toContain('Roadmap progress: 77 of 723 prompts complete (10.65%).');
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
-      changelogSource: changelogSource.replace("percentage: '10.51%'", "percentage: '9.7%'")
-        .replace('partial: 27', 'partial: 28'),
+      changelogSource: changelogSource.replace("percentage: '10.65%'", "percentage: '9.7%'")
+        .replace('partial: 26', 'partial: 27'),
     });
 
     expect(badPercentage.errors.join('\n')).toContain(
       `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
     );
     expect(badPercentage.errors.join('\n')).toContain(
-      `changelog ${applicationVersion} implementation progress partial count is 28, but the ledger has 27`,
+      `changelog ${applicationVersion} implementation progress partial count is 27, but the ledger has 26`,
     );
   });
 
@@ -125,7 +125,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 76, total: 723, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ complete: 77, total: 723, resumePrompt: '012' });
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');

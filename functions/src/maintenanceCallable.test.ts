@@ -762,7 +762,7 @@ it('skips the Turn 1 fullscreen transmission when requested', async () => {
 
 it('turns the ticker into an open-airspace bulletin after the team timer expires', async () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  vi.setSystemTime(new Date('2026-09-06T12:04:59.999Z'));
   mock.currentTurn = 2;
   mock.turnPhase = {
     turn: 2,
@@ -774,6 +774,16 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
 
   await expect(beginOpenAirspacePhase.run(request({
     sessionId: 's1', expectedTurn: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/timer is still active/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
   }))).resolves.toEqual({
     turnPhase: {
       turn: 2,
@@ -782,11 +792,61 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     },
   });
+  const expected = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+  };
+  mock.turnPhase = expected;
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     turnPhase: expect.objectContaining({
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     }),
   }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/airspace-opened-2',
+    expect.objectContaining({
+      type: 'airspace-opened',
+      sessionId: 's1',
+      actorUid: 'system',
+      actorRoleId: null,
+      turn: 2,
+      phase: 'active',
+      requestId: 'airspace-opened-2',
+      revision: 3,
+      serverTime: '2026-09-06T12:05:00.000Z',
+      visibility: 'member',
+      transition: 'restricted-to-lifted',
+      createdAt: 'server-time',
+    }),
+  );
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).resolves.toEqual({ turnPhase: expected });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.currentTurn = 3;
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn changed/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.currentTurn = 2;
+  await expect(runMaintenance.run(request(data))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/team phase/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('serializes simultaneous airspace expiry observers into one transition event', async () => {
