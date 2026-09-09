@@ -1264,9 +1264,29 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(10);
   await runMaintenance.run(request({ ...data, action: 'rations', expectedRevision: 2, requestId: 'rollback-rations', foodLevel: 1, waterLevel: 1 }));
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(7);
-  for (const expectedRevision of [3, 4]) {
+  await runMaintenance.run(request({ ...data, action: 'unrest', expectedRevision: 3, requestId: 'rollback-unrest' }));
+  await runMaintenance.run(request({ ...data, action: 'riot', expectedRevision: 4, requestId: 'rollback-riot' }));
+  const damageAfterRiot = structuredClone(read(records['sessions/s1'], 'shipDamage.aegis'));
+  const survivorsAfterRiot = read(records['sessions/s1'], 'shipSurvivors.aegis');
+  const riotEvent = structuredClone(records['sessions/s1/events/maintenance-rollback-riot']);
+  const preExistingEvent = structuredClone(records['sessions/s1/events/pre-existing']);
+  expect(damageAfterRiot).toMatchObject({ damagedSystemIds: ['storage', 'fighter-bay-alpha'], destroyed: false });
+  expect(riotEvent).toBeDefined();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 5 })))
+    .resolves.toMatchObject({ revision: 6 });
+  expect(read(records['sessions/s1'], 'shipDamage.aegis')).toEqual(damageAfterRiot);
+  expect(read(records['sessions/s1'], 'shipSurvivors.aegis')).toBe(survivorsAfterRiot);
+  expect(records['sessions/s1/events/maintenance-rollback-riot']).toEqual(riotEvent);
+  expect(records['sessions/s1/events/pre-existing']).toEqual(preExistingEvent);
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 5 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  for (const expectedRevision of [6, 7, 8]) {
     await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision }));
   }
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(20);
-  expect(read(records['sessions/s1'], 'maintenanceCycles.aegis')).toMatchObject({ step: 1, revision: 5 });
+  expect(read(records['sessions/s1'], 'maintenanceCycles.aegis')).toMatchObject({ step: 1, revision: 9 });
 });

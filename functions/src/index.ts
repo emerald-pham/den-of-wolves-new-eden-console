@@ -5176,7 +5176,14 @@ export const runMaintenance = onCall<{
       unrestAlerts, populationAlerts,
     };
     const entries = data.action === 'begin' ? [] : (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
-    entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch) });
+    const immutableFields = result.damageDraw ? [
+      `shipDamage.${data.shipId}`,
+      `shipSurvivors.${data.shipId}`,
+      `shipUnrest.${data.shipId}`,
+      'unrestAlerts',
+      'populationAlerts',
+    ] : [];
+    entries.push({ fields: captureMaintenanceUndo(field => snapshot.get(field), patch, immutableFields) });
     const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
       ? player.get('activeConsoleRoleId') as string : null;
     const reply = {
