@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -303,6 +303,7 @@ describe('RoleSelect', () => {
       status: 'claimed', holderUid: 'ghost', factionId: 'aegis', claimedAt: 'legacy-claim',
     }]);
     vi.mocked(releaseSeat).mockResolvedValue('applied');
+    vi.mocked(releaseSeat).mockClear();
     renderRoute();
 
     const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
@@ -315,5 +316,54 @@ describe('RoleSelect', () => {
     await user.click(screen.getByRole('button', { name: /confirm clear stale seat/i }));
 
     expect(releaseSeat).toHaveBeenCalledWith('admiral', 'Ghost browser expired');
+  });
+
+  it('traps stale-seat intervention focus, cancels safely, and restores the trigger', async () => {
+    const user = userEvent.setup();
+    useSessionStore.getState().setSession({
+      ...session,
+      activeRoleIds: ['admiral'],
+      setupRevision: 2,
+    });
+    useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSeats([{
+      id: 'admiral', sessionId: 's1', roleId: 'admiral', label: 'AEGIS // Admiral',
+      status: 'claimed', holderUid: 'ghost', factionId: 'aegis', claimedAt: 'legacy-claim',
+    }]);
+    vi.mocked(releaseSeat).mockResolvedValue('applied');
+    vi.mocked(releaseSeat).mockClear();
+    renderRoute();
+
+    const intervene = screen.getByRole('button', { name: /clear stale holder.*aegis \/\/ admiral/i });
+    await user.click(intervene);
+    const dialog = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
+    const reason = within(dialog).getByRole('textbox', { name: /reason for clearing stale seat/i });
+    const confirm = within(dialog).getByRole('button', { name: /confirm clear stale seat/i });
+    const cancel = within(dialog).getByRole('button', { name: /^cancel$/i });
+    expect(reason).toHaveFocus();
+
+    await user.type(reason, 'Do not clear during keyboard review');
+    await user.tab();
+    expect(confirm).toHaveFocus();
+    await user.tab();
+    expect(cancel).toHaveFocus();
+    await user.tab();
+    expect(reason).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog', { name: /clear stale station holder/i })).not.toBeInTheDocument();
+    expect(intervene).toHaveFocus();
+    expect(releaseSeat).not.toHaveBeenCalled();
+
+    await user.click(intervene);
+    const reopened = screen.getByRole('alertdialog', { name: /clear stale station holder/i });
+    const backdrop = reopened.parentElement;
+    if (!backdrop) throw new Error('Expected stale-seat dialog backdrop.');
+    await user.click(backdrop);
+    expect(screen.queryByRole('alertdialog', { name: /clear stale station holder/i })).not.toBeInTheDocument();
+    expect(releaseSeat).not.toHaveBeenCalled();
   });
 });

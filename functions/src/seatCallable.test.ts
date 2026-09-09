@@ -217,11 +217,42 @@ describe('claimSeat', () => {
 
     await expect(claimSeat.run(request({
       sessionId: 's1', seatId: 'admiral', requestId: 'claim-stale', expectedSetupRevision: 2,
-    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'claim-stale', entity: 'seat', seatId: 'admiral',
+      expectedRevision: 2, currentRevision: 3,
+    });
     expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'open', holderUid: null });
     expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: null });
     expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
     expect(read('sessions/s1/events/seat-claim-claim-stale')).toBeUndefined();
+  });
+
+  it('returns safe stale receipts for claim and release without mutating authority state', async () => {
+    put('sessions/s1', {
+      phase: 'lobby', currentTurn: 0, setupRevision: 3, configurationLocked: false,
+      activeRoleIds: ['admiral', 'seat-1', 'seat-2'],
+    });
+    player('u1');
+    seat('admiral');
+
+    await expect(claimSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'claim-stale-receipt', expectedSetupRevision: 2,
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'claim-stale-receipt', entity: 'seat', seatId: 'admiral',
+      expectedRevision: 2, currentRevision: 3,
+    });
+
+    put('sessions/s1/players/u1', { uid: 'u1', role: 'player', connected: true, seatId: 'admiral' });
+    put('sessions/s1/seats/admiral', { roleId: 'admiral', status: 'claimed', holderUid: 'u1' });
+    await expect(releaseSeat.run(request({
+      sessionId: 's1', seatId: 'admiral', requestId: 'release-stale-receipt', expectedSetupRevision: 2,
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'release-stale-receipt', entity: 'seat', seatId: 'admiral',
+      expectedRevision: 2, currentRevision: 3,
+    });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 3 });
+    expect(read('sessions/s1/seats/admiral')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ seatId: 'admiral' });
   });
 
   it('requires an explicit active roster and an exact stable role id', async () => {
@@ -321,7 +352,11 @@ describe('claimSeat', () => {
       }, 'u2')),
     ]);
 
-    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const committed = outcomes.filter((outcome) =>
+      outcome.status === 'fulfilled' && outcome.value.status === 'committed');
+    expect(committed).toHaveLength(1);
+    expect(outcomes.filter((outcome) =>
+      outcome.status === 'fulfilled' && outcome.value.status === 'stale')).toHaveLength(1);
     expect(read('sessions/s1/seats/seat-1')?.holderUid).toMatch(/u[12]/);
     expect([
       read('sessions/s1/players/u1')?.seatId,

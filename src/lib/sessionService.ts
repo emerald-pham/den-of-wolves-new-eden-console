@@ -70,8 +70,11 @@ const TRANSIENT_COMMAND_ERRORS = new Set([
   'functions/unknown',
 ]);
 export const COMMAND_RECONNECT_WINDOW_MS = 15_000;
-export type CommandDisposition = 'applied' | 'queued' | 'awaiting-officer';
+export type CommandDisposition = 'applied' | 'queued' | 'stale' | 'awaiting-officer';
 export type TurnStartReplayAudience = 'gm' | 'everyone';
+
+const SAFE_STALE_COMMAND_MESSAGE =
+  'The live session changed before this command committed. Refresh the live state and retry.';
 
 let localTurnStartReplayToken = 0;
 
@@ -120,6 +123,26 @@ function expectedSetupRevision(session: GameSession): number {
 
 function queue(command: PendingCommand): void {
   useSessionStore.getState().enqueueCommand(command);
+}
+
+function isRevisionedAuthorityCommand(command: PendingCommand): boolean {
+  return command.kind === 'confirmSetup' ||
+    command.kind === 'setFacilitatorResponsibility' ||
+    command.kind === 'claimSeat' ||
+    command.kind === 'releaseSeat';
+}
+
+function isStaleAuthorityReply(command: PendingCommand, result: unknown): boolean {
+  return isRevisionedAuthorityCommand(command) &&
+    typeof result === 'object' && result !== null &&
+    'status' in result && result.status === 'stale';
+}
+
+function recordStaleAuthorityReply(): void {
+  useSessionStore.getState().setCommunicationError({
+    code: 'stale',
+    message: SAFE_STALE_COMMAND_MESSAGE,
+  });
 }
 
 async function executeCommand(command: PendingCommand): Promise<unknown> {
@@ -334,6 +357,10 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
   try {
     await ensureSignedIn();
     const result = await executeCommand(command);
+    if (isStaleAuthorityReply(command, result)) {
+      recordStaleAuthorityReply();
+      return 'stale';
+    }
     applyCommandResult(command, result);
     if (
       command.kind === 'popShipConfetti' && typeof result === 'object' && result !== null &&
@@ -366,7 +393,9 @@ async function flushPendingCommands(): Promise<boolean> {
       continue;
     }
     try {
-      applyCommandResult(command, await executeCommand(command));
+      const result = await executeCommand(command);
+      if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
+      else applyCommandResult(command, result);
       store.removeCommand(command.id);
     } catch (cause) {
       if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;

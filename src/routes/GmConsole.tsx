@@ -192,8 +192,10 @@ function knownRoleIds(roleIds: readonly string[]): readonly string[] {
 }
 
 function normalizeRoleDraft(roleIds: readonly string[]): readonly string[] {
-  const selected = new Set(roleIds);
-  const knownRoleIds = CONSOLE_ROLES.filter((role) => selected.has(role.id)).map((role) => role.id);
+  const knownRoleIds = roleIds.filter((roleId) =>
+    roleId !== 'press-officer' && KNOWN_CONSOLE_ROLE_IDS.has(roleId));
+  const recommendedPlayerCount = recommendedPlayerCountForRoleIds(knownRoleIds);
+  if (recommendedPlayerCount !== undefined) return [...recommendedRoleIds(recommendedPlayerCount)];
   return knownRoleIds.filter((roleId) =>
     !isJointEngineeringRoleId(roleId) ||
     canOfferJointEngineeringRole(knownRoleIds, roleId));
@@ -289,6 +291,10 @@ export default function GmConsole() {
   const [assignedWolfRoleIds, setAssignedWolfRoleIds] = useState<readonly string[]>([]);
   const [draftRoleIds, setDraftRoleIds] = useState<readonly string[]>(() => normalizedServerRoleIds);
   const [confirmingRoster, setConfirmingRoster] = useState(false);
+  const [rosterMutationState, setRosterMutationState] = useState<
+    'idle' | 'pending' | 'stale' | 'rejected' | 'committed'
+  >('idle');
+  const [rosterMutationMessage, setRosterMutationMessage] = useState<string | null>(null);
   const previousServerRoleIds = useRef<readonly string[]>(serverRoleIds);
   const serverCapybaraEnabled = session?.capybaraEnabled !== false;
   const serverDioneEnabled = session?.dioneEnabled !== false;
@@ -920,9 +926,13 @@ export default function GmConsole() {
 
   function chooseRecommendedRoster(playerCount: number): void {
     setDraftRoleIds(normalizeRoleDraft(recommendedRoleIds(playerCount)));
+    setRosterMutationState('idle');
+    setRosterMutationMessage(null);
   }
 
   function toggleDraftRole(roleId: string, enabled: boolean): void {
+    setRosterMutationState('idle');
+    setRosterMutationMessage(null);
     setDraftRoleIds((current) => {
       if (isJointEngineeringRoleId(roleId) && enabled && !canOfferJointEngineeringRole(current, roleId)) {
         return current;
@@ -939,19 +949,33 @@ export default function GmConsole() {
     const activeSession = session;
     if (!activeSession) return;
     setConfirmingRoster(true);
+    setRosterMutationState('pending');
+    setRosterMutationMessage('Roster confirmation pending // awaiting server receipt.');
+    const playerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
+    const persistedExpansion = activeSession.setup?.expansion ?? activeSession.expansion;
+    const expansion = playerCount >= 19
+      ? 'capybara'
+      : persistedExpansion === 'none' ? 'none' : 'base';
     try {
-      await confirmSetup({
-        playerCount: activeSession.playerCount ?? draftRecommendedPlayerCount ?? draftRoleIds.length,
+      const disposition = await confirmSetup({
+        playerCount,
         chartId: activeSession.setup?.chartId ?? activeSession.chartId ?? 'A',
-        expansion: activeSession.setup?.expansion ?? activeSession.expansion ??
-          (draftCapybaraEnabled ? 'capybara' : 'base'),
+        expansion,
         turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
-        dioneEnabled: draftDioneEnabled,
-        capybaraEnabled: draftCapybaraEnabled,
+        dioneEnabled: playerCount >= 12 && draftDioneEnabled,
+        capybaraEnabled: expansion === 'capybara' ? true : draftCapybaraEnabled,
         activeRoleIds: draftRoleIds,
       });
+      if (disposition === 'stale') {
+        setRosterMutationState('stale');
+        setRosterMutationMessage('Roster confirmation stale // refresh the live setup and retry.');
+      } else {
+        setRosterMutationState('committed');
+        setRosterMutationMessage('Roster synchronized // server receipt committed.');
+      }
     } catch {
-      // The shared interception notice reports the server rejection.
+      setRosterMutationState('rejected');
+      setRosterMutationMessage('Roster confirmation rejected // review the live setup and retry.');
     } finally {
       setConfirmingRoster(false);
     }
@@ -1349,12 +1373,18 @@ export default function GmConsole() {
                     paired Engineer roles are disabled.
                   </p>
                   <div className="gm-roster-draft" aria-live="polite">
-                    <p>
+                    <p
+                      role={rosterMutationMessage ? 'status' : undefined}
+                      aria-label={rosterMutationMessage ? 'Roster confirmation status' : undefined}
+                      data-state={rosterMutationState}
+                    >
                       {confirmingRoster
                         ? 'Confirming roster…'
                         : rosterQueued
                           ? 'Roster command queued // awaiting server'
-                          : hasUnconfirmedRosterChanges
+                          : rosterMutationMessage
+                            ? rosterMutationMessage
+                            : hasUnconfirmedRosterChanges
                             ? `Unconfirmed changes // ${draftRoleIds.length} roles staged`
                             : `Roster synchronized // ${normalizedServerRoleIds.length} roles active`}
                     </p>

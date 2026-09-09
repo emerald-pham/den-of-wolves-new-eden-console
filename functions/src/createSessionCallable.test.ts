@@ -241,6 +241,32 @@ it('denies a downsize that would remove a claimed stable seat without mutating s
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('returns a safe stale receipt when setup revision changed before confirmation', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'lobby', configurationLocked: false, setupRevision: 5,
+        activeRoleIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'setup-stale-receipt',
+    expectedSetupRevision: 4, playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  }))).resolves.toEqual({
+    status: 'stale', requestId: 'setup-stale-receipt', entity: 'setup',
+    expectedRevision: 4, currentRevision: 5,
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('does not claim a code already owned by another session', async () => {
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValueOnce(1234).mockReturnValue(5678);

@@ -232,6 +232,22 @@ describe('elevateToGm', () => {
 });
 
 describe('GM instance ownership', () => {
+  it('returns a safe stale receipt when facilitator revision changed before saving', async () => {
+    session({ phase: 'lobby', currentTurn: 0, setupRevision: 5, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
+      requestId: 'responsibility-stale-receipt', expectedSetupRevision: 4, mode: 'share',
+    }))).resolves.toEqual({
+      status: 'stale', requestId: 'responsibility-stale-receipt', entity: 'facilitator',
+      expectedRevision: 4, currentRevision: 5,
+    });
+    expect(read('sessions/s1/gmInstances/bridge')).not.toHaveProperty('responsibilities');
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 5 });
+  });
+
   it('lets one active GM instance carry both printed responsibilities', async () => {
     session({ phase: 'lobby', currentTurn: 0, setupRevision: 0, configurationLocked: false });
     player('u1', { role: 'gm' });

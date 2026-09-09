@@ -62,6 +62,11 @@ const authorityService = await import('./sessionService') as unknown as {
   }) => Promise<unknown>;
   claimSeat: (seatId: string) => Promise<unknown>;
   releaseSeat: (seatId: string, reason: string) => Promise<unknown>;
+  setFacilitatorResponsibility: (change: {
+    responsibility: 'main' | 'assistant';
+    mode: 'share' | 'handoff' | 'drop';
+    targetInstanceId?: string;
+  }) => Promise<unknown>;
 };
 
 const session = {
@@ -1327,5 +1332,30 @@ describe('authoritative setup and seating wrappers', () => {
       instanceId: 'bridge',
       reason: 'Roster correction',
     });
+  });
+
+  it('maps stale authority CAS failures to a safe stale disposition for every guarded command', async () => {
+    const stale = {
+      status: 'stale', requestId: 'authority-stale', entity: 'setup',
+      expectedRevision: 4, currentRevision: 5,
+    };
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: stale }));
+    await expect(authorityService.confirmSetup(setup)).resolves.toBe('stale');
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'stale',
+      message: 'The live session changed before this command committed. Refresh the live state and retry.',
+    });
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'facilitator' } }));
+    await expect(authorityService.setFacilitatorResponsibility({
+      responsibility: 'main', mode: 'share', targetInstanceId: 'other',
+    })).resolves.toBe('stale');
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'seat' } }));
+    await expect(authorityService.claimSeat('admiral')).resolves.toBe('stale');
+
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { ...stale, entity: 'seat' } }));
+    await expect(authorityService.releaseSeat('admiral', 'Retry after live refresh')).resolves.toBe('stale');
   });
 });

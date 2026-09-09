@@ -1105,7 +1105,13 @@ export const confirmSetup = onCall<{
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
     }
     if (setupRevision(authority.session) !== command.expectedSetupRevision) {
-      throw new HttpsError('failed-precondition', 'Setup changed. Refresh the configuration before confirming.');
+      return {
+        status: 'stale' as const,
+        requestId: command.requestId,
+        entity: 'setup' as const,
+        expectedRevision: command.expectedSetupRevision,
+        currentRevision: setupRevision(authority.session),
+      };
     }
     requireCastingWindow(authority.session);
     const currentRoleIds = sessionActiveRoleIds(authority.session);
@@ -1241,7 +1247,13 @@ export const setFacilitatorResponsibility = onCall<{
     requireCastingWindow(authority.session);
     if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
     if (setupRevision(authority.session) !== responsibility.expectedSetupRevision) {
-      throw new HttpsError('failed-precondition', 'Setup changed. Refresh facilitator responsibilities before saving.');
+      return {
+        status: 'stale' as const,
+        requestId: responsibility.requestId,
+        entity: 'facilitator' as const,
+        expectedRevision: responsibility.expectedSetupRevision,
+        currentRevision: setupRevision(authority.session),
+      };
     }
 
     const targetInstanceId = responsibility.targetInstanceId ?? responsibility.instanceId;
@@ -3799,13 +3811,22 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
   }
 });
 
+type StaleAuthorityReceipt = {
+  readonly status: 'stale';
+  readonly requestId: string;
+  readonly expectedRevision: number;
+  readonly currentRevision: number;
+  readonly entity: 'setup' | 'facilitator' | 'seat';
+  readonly seatId?: string;
+};
+
 type SeatMutationReceipt = {
   readonly status: 'committed' | 'replayed';
   readonly requestId: string;
   readonly setupRevision: number;
   readonly seatId: string;
   readonly holderUid?: string;
-};
+} | StaleAuthorityReceipt;
 
 type SeatMutationFingerprint = {
   readonly action: 'claim' | 'release';
@@ -3877,22 +3898,30 @@ export const claimSeat = onCall<{
           if (typeof reply !== 'object' || reply === null) {
             throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
           }
-          return { ...(reply as SeatMutationReceipt), status: 'replayed' };
+          const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
+          return { ...committedReply, status: 'replayed' };
         }
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
-          throw new HttpsError('failed-precondition', 'Setup changed. Refresh the seat map and try again.');
-        }
         requireCastingWindow(session);
         if (!isActivePlayer(player)) {
           throw new HttpsError('permission-denied', 'Join the session first.');
         }
+        if (!canClaimSeat(player.get('seatId'))) {
+          throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
+        }
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          return {
+            status: 'stale',
+            requestId: revisioned.requestId,
+            entity: 'seat',
+            seatId,
+            expectedRevision: revisioned.expectedSetupRevision,
+            currentRevision: setupRevision(session),
+          } satisfies StaleAuthorityReceipt;
+        }
         const configuredRoles = session.get('activeRoleIds');
         if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
           throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
-        }
-        if (!canClaimSeat(player.get('seatId'))) {
-          throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
         }
         if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
         if (seat.get('roleId') !== seatId) {
@@ -3975,12 +4004,10 @@ export const releaseSeat = onCall<{
           if (typeof reply !== 'object' || reply === null) {
             throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
           }
-          return { ...(reply as SeatMutationReceipt), status: 'replayed' };
+          const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
+          return { ...committedReply, status: 'replayed' };
         }
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
-          throw new HttpsError('failed-precondition', 'Setup changed. Refresh the seat map and try again.');
-        }
         requireCastingWindow(session);
         if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
@@ -4011,6 +4038,16 @@ export const releaseSeat = onCall<{
           if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
             throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
           }
+        }
+        if (setupRevision(session) !== revisioned.expectedSetupRevision) {
+          return {
+            status: 'stale',
+            requestId: revisioned.requestId,
+            entity: 'seat',
+            seatId,
+            expectedRevision: revisioned.expectedSetupRevision,
+            currentRevision: setupRevision(session),
+          } satisfies StaleAuthorityReceipt;
         }
         const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
         const holder = await tx.get(holderRef);

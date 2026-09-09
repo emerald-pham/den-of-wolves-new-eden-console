@@ -962,6 +962,55 @@ it('stages a correction when an older roster has an invalid Union replacement', 
   expect(correctedRoleIds).toHaveLength(recommendedRoleIds(20).length);
 });
 
+it('submits the staged player count and expansion for an already configured session', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  const currentRoleIds = recommendedRoleIds(14);
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    playerCount: 14,
+    chartId: 'B',
+    expansion: 'base',
+    turnLimit: 7,
+    dioneEnabled: false,
+    capybaraEnabled: true,
+    activeRoleIds: currentRoleIds,
+    setupRevision: 12,
+    setup: {
+      playerCount: 14,
+      chartId: 'B',
+      expansion: 'base',
+      turnLimit: 7,
+      dioneEnabled: false,
+      capybaraEnabled: true,
+      activeRoleIds: currentRoleIds,
+      activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+    },
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: /^recommended player count$/i }),
+    '19',
+  );
+  await user.click(screen.getByRole('button', { name: /confirm roster/i }));
+
+  expect(confirmSetup).toHaveBeenCalledWith({
+    playerCount: 19,
+    chartId: 'B',
+    expansion: 'capybara',
+    turnLimit: 7,
+    dioneEnabled: false,
+    capybaraEnabled: true,
+    activeRoleIds: recommendedRoleIds(19),
+  });
+});
+
 it('groups setup roles by ship and labels every ship with its flag', async () => {
   const user = userEvent.setup();
   useSessionStore.getState().setGmInstance(local);
@@ -1506,7 +1555,7 @@ it('shows one-GM dual responsibility lanes and confirms the whole setup tuple', 
     chartId: 'A' as const,
     expansion: 'base' as const,
     turnLimit: 6 as const,
-    dioneEnabled: true,
+    dioneEnabled: false,
     capybaraEnabled: false,
     activeRoleIds,
     activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
@@ -1544,7 +1593,7 @@ it('shows one-GM dual responsibility lanes and confirms the whole setup tuple', 
     chartId: 'A',
     expansion: 'base',
     turnLimit: 6,
-    dioneEnabled: true,
+    dioneEnabled: false,
     capybaraEnabled: false,
     activeRoleIds,
   }));

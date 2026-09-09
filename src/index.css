@@ -981,10 +981,19 @@ body {
   background: color-mix(in srgb, var(--cic-danger) 20%, transparent);
 }
 .cic-danger-button:disabled { cursor: wait; opacity: 0.55; }
+.role-seat-intervention-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.58);
+}
 .role-seat-intervention {
   display: grid;
   gap: 0.6rem;
-  margin-top: 0.75rem;
+  width: min(34rem, 100%);
   border-color: var(--cic-danger);
 }
 .role-seat-intervention h3,
