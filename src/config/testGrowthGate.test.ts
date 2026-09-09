@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error The executable gate is intentionally plain JavaScript.
-import {
-  TEST_GROWTH_REVIEW_LIMITS,
-  findNewDuplicateTestMatrices,
-  reviewTestGrowth,
-  summarizeTestGrowthDiff,
-} from '../../scripts/test-growth-gate.mjs';
+import { TEST_GROWTH_REVIEW_LIMITS, findNewDuplicateTestMatrices, reviewTestGrowth, summarizeTestGrowthDiff } from '../../scripts/test-growth-gate.mjs';
 
 describe('test-growth review gate', () => {
   it('counts added test lines and declared cases without treating production code as tests', () => {
