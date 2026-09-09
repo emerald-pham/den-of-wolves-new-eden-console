@@ -72,9 +72,12 @@ vi.mock('firebase-admin/firestore', () => ({
               set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
             };
             const result = await callback(tx);
-            race.attempts += 1;
-            if (race.barrier && race.attempts === 1) await race.ready;
-            else if (race.barrier && race.attempts === 2) race.release();
+            const writes = updates.length > 0 || sets.length > 0;
+            if (writes) {
+              race.attempts += 1;
+              if (race.barrier && race.attempts === 1) await race.ready;
+              else if (race.barrier && race.attempts === 2) race.release();
+            }
             if (race.version !== baseVersion) continue;
             const assign = (path: string, key: string, value: unknown) => {
               if (path !== 'sessions/s1') return;
@@ -313,6 +316,7 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   mock.race.attempts = 0;
   mock.race.ready = riotReady;
   mock.race.release = riotRelease;
+  const randomCallsBeforeRiot = mock.randomInt.mock.calls.length;
   mock.update.mockClear();
   mock.set.mockClear();
   const riot = await Promise.all([
@@ -324,18 +328,51 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   expect(committed).toMatchObject({ action: 'riot', expectedRevision: 4, committedRevision: 5 });
   expect(stale).toMatchObject({ status: 'stale', expectedRevision: 4, currentRevision: 5 });
   expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.randomInt.mock.calls.length - randomCallsBeforeRiot).toBe(6);
   expect(Object.keys(maintenance.damageDraws)).toHaveLength(1);
   expect(Object.keys(maintenance.events).filter((path) => path.includes('/events/maintenance-riot-')))
     .toHaveLength(1);
 
+  const staleReceiptPath = `sessions/s1/maintenanceRequests/${stale.requestId}`;
+  expect(maintenance.receipts[staleReceiptPath]).toMatchObject({
+    actorUid: 'u1', sessionId: 's1', shipId: 'aegis', action: 'riot',
+    expectedRevision: 4, currentRevision: 5, reply: stale,
+  });
+  const staleRandomCalls = mock.randomInt.mock.calls.length;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(runMaintenance.run(request({
+    ...data, action: 'riot', expectedRevision: 4, requestId: stale.requestId,
+  }))).resolves.toEqual(stale);
+  expect(mock.randomInt.mock.calls.length).toBe(staleRandomCalls);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  await expect(runMaintenance.run(request({
+    ...data, action: 'begin', expectedRevision: 4, requestId: stale.requestId,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(runMaintenance.run(request({
+    ...data, action: 'riot', expectedRevision: 5, requestId: stale.requestId,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.owner = 'u2';
+  await expect(runMaintenance.run(request({
+    ...data, action: 'riot', expectedRevision: 4, requestId: stale.requestId,
+  }, 'u2'))).rejects.toMatchObject({ code: 'failed-precondition' });
+  mock.owner = 'u1';
+
   const randomCallsAfterCommit = mock.randomInt.mock.calls.length;
   mock.update.mockClear();
   mock.set.mockClear();
+  maintenance.session.phase = 'closed';
+  maintenance.session.unrestAlerts = { aegis: { shipId: 'aegis', shipName: 'AEGIS', targetGmInstanceIds: ['bridge'], createdAt: '2026-09-09T16:10:00.000Z' } };
+  vi.setSystemTime(new Date('2026-09-09T16:20:00.000Z'));
   const replay = await step('riot', 4, { requestId: committed.requestId });
   expect(replay).toMatchObject({ status: 'replayed', requestId: committed.requestId, cycle: committed.cycle });
+  expect((replay as Record<string, unknown>).serverTime).toBe('2026-09-09T16:10:00.000Z');
   expect(mock.randomInt.mock.calls.length).toBe(randomCallsAfterCommit);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+  maintenance.session.phase = 'active';
+  maintenance.session.unrestAlerts = {};
 
   await step('reactor', 5, { consoles: ['jump-drive'] });
   await step('bays', 6, { refuels: { 'shuttle-bay-zeta': 'starlight' } });
@@ -351,7 +388,7 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   expect(session.shipDamage).toEqual({
     aegis: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false },
   });
-  expect(Object.keys(maintenance.receipts)).toHaveLength(8);
+  expect(Object.keys(maintenance.receipts)).toHaveLength(9);
   const riotReceipt = maintenance.receipts[`sessions/s1/maintenanceRequests/${committed.requestId}`]!;
   const riotEvent = maintenance.events[`sessions/s1/events/maintenance-${committed.requestId}`]!;
   expect(riotReceipt).toMatchObject({

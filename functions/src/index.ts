@@ -4961,6 +4961,73 @@ function sameMaintenanceRequestFingerprint(
     candidate.consoleRoleId === expected.consoleRoleId;
 }
 
+type MaintenanceAuthority = Readonly<{
+  player: DocumentSnapshot;
+  snapshot: DocumentSnapshot;
+}>;
+
+async function requireMaintenanceAuthority(
+  tx: Transaction,
+  sessionId: string,
+  shipId: string,
+  instanceId: string | undefined,
+  consoleRoleId: string | undefined,
+  uid: string,
+  sessionRef: DocumentReference,
+): Promise<MaintenanceAuthority> {
+  const [player, snapshot] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(sessionRef),
+  ]);
+  if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
+    throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
+  }
+  if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+  const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
+  const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
+    DEFAULT_ACTIVE_ROLE_IDS;
+  const joint = player.get('role') === 'player' &&
+    isJointEngineeringRoleAvailable(activeRoleIds, ownRoleId) &&
+    jointEngineeringShipsForRole(ownRoleId).includes(shipId);
+  if (!joint) {
+    await requireShipCounterAuthority(tx, sessionId, uid, shipId, instanceId);
+  }
+  if (consoleRoleId && player.get('role') !== 'gm') {
+    if (joint) {
+      if (consoleRoleId !== ownRoleId) {
+        throw new HttpsError('permission-denied', 'Joint Engineering may only use its assigned console.');
+      }
+    } else {
+      await requireConsoleAuthority(tx, sessionId, player, consoleRoleId);
+    }
+  }
+  return { player, snapshot };
+}
+
+function maintenanceReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: MaintenanceRequestFingerprint,
+  uid: string,
+  sessionId: string,
+  shipId: string,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (
+    prior.get('sessionId') !== sessionId ||
+    prior.get('shipId') !== shipId ||
+    prior.get('actorUid') !== uid ||
+    !sameMaintenanceRequestFingerprint(prior.get('fingerprint'), fingerprint)
+  ) {
+    throw new HttpsError('failed-precondition', 'This request id was already used for a different maintenance command or actor.');
+  }
+  const storedReply = prior.get('reply');
+  if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
+    throw new HttpsError('failed-precondition', 'This maintenance request has no replayable result.');
+  }
+  const reply = storedReply as Record<string, unknown>;
+  return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
+}
+
 /** One atomic, revision-checked maintenance action. Dice are never supplied by a client. */
 export const runMaintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
@@ -5000,71 +5067,45 @@ export const runMaintenance = onCall<{
   const ref = db.doc(`sessions/${data.sessionId}`);
   const requestRef = db.doc(`sessions/${data.sessionId}/maintenanceRequests/${data.requestId}`);
   const eventRef = db.doc(`sessions/${data.sessionId}/events/${eventId}`);
-  let occurredAt: string | undefined;
-  let serverEntropy: number | undefined;
-  let serverRolls: number[] | undefined;
-  let alertCreatedAt: string | undefined;
-  const captureOccurredAt = (): string => occurredAt ??= new Date().toISOString();
-  const captureRandomness = (): { entropy: number; rolls: number[] } => {
-    serverEntropy ??= randomInt(0, 0x1_0000_0000) / 0x1_0000_0000;
-    serverRolls ??= [randomInt(1, 7), randomInt(1, 7)];
-    return { entropy: serverEntropy, rolls: serverRolls };
-  };
+  // Validate authority and replay before capturing server inputs. A replay must
+  // not consume a new clock value or random draw, even if mutable game state
+  // has since moved on.
+  const preflightReply = await db.runTransaction(async tx => {
+    await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, ref,
+    );
+    const prior = await tx.get(requestRef);
+    return maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId) ?? null;
+  });
+  if (preflightReply) return preflightReply;
+
+  // These server-owned values are fixed after request/authority validation and
+  // before the mutating transaction, so callback retries cannot reroll or
+  // replace the timestamp. Non-random steps intentionally avoid random draws.
+  const stableOccurredAt = new Date().toISOString();
+  const randomStep = data.action === 'unrest' || data.action === 'riot';
+  const stableEntropy = randomStep
+    ? randomInt(0, 0x1_0000_0000) / 0x1_0000_0000 : 0;
+  const stableRolls = randomStep ? [randomInt(1, 7), randomInt(1, 7)] : [0, 0];
+
   return db.runTransaction(async tx => {
-    // Joint engineering authority is scoped to the two ships on its assigned station.
-    const [player, snapshot] = await Promise.all([
-      tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
-      tx.get(ref),
-    ]);
-    if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
-      throw new HttpsError('permission-denied', 'An active ship officer or GM is required.');
-    }
-    if (!snapshot.exists) throw new HttpsError('not-found', 'No such session.');
+    const { player, snapshot } = await requireMaintenanceAuthority(
+      tx, data.sessionId, data.shipId, data.instanceId, data.consoleRoleId, uid, ref,
+    );
+    const prior = await tx.get(requestRef);
+    const replay = maintenanceReceiptReply(prior, fingerprint, uid, data.sessionId, data.shipId);
+    if (replay) return replay;
     requireTurnOneForGameplay(snapshot);
     requireActionPhase(snapshot, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
-    const ownRoleId = String(player.get('activeConsoleRoleId') ?? '');
-    const activeRoleIds = (snapshot.get('activeRoleIds') as string[] | undefined) ??
-      DEFAULT_ACTIVE_ROLE_IDS;
-    const joint = player.get('role') === 'player' &&
-      isJointEngineeringRoleAvailable(activeRoleIds, ownRoleId) &&
-      jointEngineeringShipsForRole(ownRoleId).includes(data.shipId);
-    if (!joint) {
-      await requireShipCounterAuthority(tx, data.sessionId, uid, data.shipId, data.instanceId);
-    }
-    if (data.consoleRoleId && player.get('role') !== 'gm') {
-      if (joint) {
-        if (data.consoleRoleId !== ownRoleId) {
-          throw new HttpsError('permission-denied', 'Joint Engineering may only use its assigned console.');
-        }
-      } else {
-        await requireConsoleAuthority(tx, data.sessionId, player, data.consoleRoleId);
-      }
-    }
     requireTurnOneForPlayer(snapshot, player);
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
         snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
-    const prior = await tx.get(requestRef);
-    if (prior.exists) {
-      if (
-        prior.get('sessionId') !== data.sessionId ||
-        prior.get('shipId') !== data.shipId ||
-        prior.get('actorUid') !== uid ||
-        !sameMaintenanceRequestFingerprint(prior.get('fingerprint'), fingerprint)
-      ) {
-        throw new HttpsError('failed-precondition', 'This request id was already used for a different maintenance command or actor.');
-      }
-      const storedReply = prior.get('reply');
-      if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
-        throw new HttpsError('failed-precondition', 'This maintenance request has no replayable result.');
-      }
-      return { ...(storedReply as Record<string, unknown>), status: 'replayed' as const };
-    }
     const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
     const currentTurn = sessionTurn(snapshot.get('currentTurn'));
     const currentCycle = current[data.shipId] ?? emptyMaintenanceCycle();
     if (currentCycle.revision !== data.expectedRevision) {
-      return {
+      const reply = {
         status: 'stale' as const,
         requestId: data.requestId,
         sessionId: data.sessionId,
@@ -5073,20 +5114,32 @@ export const runMaintenance = onCall<{
         expectedRevision: data.expectedRevision,
         currentRevision: currentCycle.revision,
       };
+      tx.set(requestRef, {
+        ...fingerprint,
+        requestId: data.requestId,
+        sessionId: data.sessionId,
+        shipId: data.shipId,
+        actorUid: uid,
+        expectedRevision: data.expectedRevision,
+        currentRevision: currentCycle.revision,
+        turn: currentTurn,
+        phase: 'active',
+        serverTime: stableOccurredAt,
+        serverEntropy: randomStep ? stableEntropy : null,
+        serverRolls: randomStep ? stableRolls : null,
+        eventId,
+        fingerprint,
+        reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
     }
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
     const populationAlerts = { ...(snapshot.get('populationAlerts') ?? {}) } as Record<string, StoredPopulationAlert>;
     if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
-    const stepForAction: Readonly<Record<string, number>> = {
-      begin: 0, storage: 1, rations: 2, unrest: 3, riot: 4, reactor: 5, bays: 6, end: 7,
-    };
-    const random = data.action === 'unrest' || data.action === 'riot'
-      ? (currentCycle.step === stepForAction[data.action]
-        ? captureRandomness() : { entropy: 0, rolls: [0, 0] })
-      : { entropy: 0, rolls: [0, 0] };
-    const serverTime = captureOccurredAt();
+    const serverTime = stableOccurredAt;
     let result: ReturnType<typeof advanceMaintenance>;
     try {
       result = advanceMaintenance({
@@ -5095,8 +5148,8 @@ export const runMaintenance = onCall<{
         damage: shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? { damagedSystemIds: [], destroyed: false },
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
         cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
-        upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: random.rolls,
-        entropy: random.entropy, now: serverTime, damageDrawId: eventId,
+        upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: stableRolls,
+        entropy: stableEntropy, now: serverTime, damageDrawId: eventId,
       });
     } catch (cause) {
       throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');
@@ -5106,8 +5159,7 @@ export const runMaintenance = onCall<{
       const instances = await tx.get(db.collection(`sessions/${data.sessionId}/gmInstances`));
       const targetGmInstanceIds = instances.docs.map(instance => instance.id);
       if (targetGmInstanceIds.length) {
-        alertCreatedAt ??= serverTime;
-        const alert = { shipId: data.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId, targetGmInstanceIds, createdAt: alertCreatedAt };
+        const alert = { shipId: data.shipId, shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId, targetGmInstanceIds, createdAt: serverTime };
         if (unrest < 8 && result.unrest >= 8) unrestAlerts[data.shipId] = alert;
         if (populationThreshold) populationAlerts[data.shipId] = { ...alert, population: result.population };
       }
@@ -5180,8 +5232,8 @@ export const runMaintenance = onCall<{
       turn: currentTurn,
       phase: 'active',
       serverTime,
-      serverEntropy: serverEntropy ?? null,
-      serverRolls: serverRolls ?? null,
+      serverEntropy: randomStep ? stableEntropy : null,
+      serverRolls: randomStep ? stableRolls : null,
       eventId,
       ...(result.damageDraw ? { damageDrawId: eventId } : {}),
       fingerprint, reply,
