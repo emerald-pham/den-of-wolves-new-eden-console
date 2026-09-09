@@ -86,11 +86,16 @@ The release boundary records Prompt 138a complete at **74 / 723 = 10.24%**
 with **74 done · 27 partial · 0 active · 622 missing**. The current-turn
 maintenance rollback restores only the recorded reversible cycle, resource,
 cargo, fuel, and non-damage alert state when the matching revision and turn
-still hold; damage state and its survivor/unrest consequences plus existing
-maintenance/audit events remain immutable. A stateful callable regression proves
-riot damage and a prior event survive rollback, while a repeated stale revision
-is rejected without writes. Prompt 598 is reopened as a partial connectivity
-repair; Prompts 654–656 are queued missing repairs with no production evidence.
+still hold; an active GM instance, ship authority, and Team phase are required
+before replay or mutation. A stable actor-bound canonical request ID replays the
+same result and deterministic event without writes; changed actor/payload reuse
+is rejected, while a distinct stale contender records only a private replayable
+receipt with no partial mutation. Damage state and its survivor/unrest
+consequences plus existing maintenance/audit events remain immutable. A
+stateful callable regression proves riot damage, prior events, exact replay,
+changed-request denial, stale receipt replay, and deterministic event identity.
+Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
+queued missing repairs with no production evidence.
 Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
 

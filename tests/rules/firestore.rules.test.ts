@@ -667,5 +667,8 @@ it('denies client access to maintenance rollback snapshots, including GM clients
     const undo = doc(as(uid), `${SESSION}/maintenanceUndo/aegis`);
     await assertFails(getDoc(undo));
     await assertFails(setDoc(undo, { turn: 1, entries: [] }));
+    const receipt = doc(as(uid), `${SESSION}/maintenanceRollbackRequests/rollback-1`);
+    await assertFails(getDoc(receipt));
+    await assertFails(setDoc(receipt, { forged: true }));
   }
 });

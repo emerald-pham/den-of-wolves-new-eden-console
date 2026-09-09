@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 622,
     },
     changes: [
-      'GMs can now undo the latest maintenance step from the current turn without erasing damage or maintenance history — Roadmap progress: 74 of 723 prompts complete (10.24%).',
+      'GMs can now safely retry an undo of the latest maintenance step during Team phase without duplicate effects, erasing damage, or changing maintenance history — Roadmap progress: 74 of 723 prompts complete (10.24%).',
     ],
   },
   {

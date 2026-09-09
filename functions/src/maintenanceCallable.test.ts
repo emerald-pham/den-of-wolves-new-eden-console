@@ -19,6 +19,7 @@ const mock = vi.hoisted(() => ({
     maintenance?: {
       session: Record<string, unknown>;
       receipts: Record<string, Record<string, unknown>>;
+      rollbackReceipts?: Record<string, Record<string, unknown>>;
       undo: Record<string, Record<string, unknown>>;
       events: Record<string, Record<string, unknown>>;
       damageDraws: Record<string, Record<string, unknown>>;
@@ -48,6 +49,10 @@ vi.mock('firebase-admin/firestore', () => ({
             const document = (path: string) => {
               if (path.includes('/maintenanceRequests/')) {
                 const fields = state.receipts[path];
+                return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path.includes('/maintenanceRollbackRequests/')) {
+                const fields = state.rollbackReceipts?.[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
               }
               if (path.includes('/maintenanceUndo/')) {
@@ -100,6 +105,7 @@ vi.mock('firebase-admin/firestore', () => ({
             for (const [path, fields] of sets) {
               mock.set(path, fields);
               if (path.includes('/maintenanceRequests/')) state.receipts[path] = fields;
+              else if (path.includes('/maintenanceRollbackRequests/')) (state.rollbackReceipts ??= {})[path] = fields;
               else if (path.includes('/maintenanceUndo/')) state.undo[path] = fields;
               else if (path.includes('/damageDraws/')) state.damageDraws[path] = fields;
               else if (path.includes('/events/')) state.events[path] = fields;
@@ -222,6 +228,9 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.includes('/maintenanceRequests/')) {
+      return { exists: false, get: () => undefined };
+    }
+    if (path.includes('/maintenanceRollbackRequests/')) {
       return { exists: false, get: () => undefined };
     }
     if (path.includes('/maintenanceUndo/')) {
@@ -1223,7 +1232,7 @@ it('denies maintenance rollback to players and observers', async () => {
   const { rollbackMaintenance } = await import('./index');
   for (const role of ['player', 'observer']) {
     mock.role = role;
-    await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 1 }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: `rollback-denied-${role}`, expectedRevision: 1 }))).rejects.toMatchObject({ code: 'permission-denied' });
   }
   expect(mock.update).not.toHaveBeenCalled();
 });
@@ -1232,19 +1241,22 @@ it('lets a GM roll back the latest maintenance step with a new revision', async 
   const previous = mock.get.getMockImplementation()!;
   mock.maintenanceCycles = { aegis: { step: 2, revision: 2 } };
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/maintenanceRollbackRequests/')) return { exists: false, get: () => undefined };
     if (path.includes('/maintenanceUndo/')) return { exists: true, get: (key: string) => ({ turn: 1, entries: [{ fields: [{ field: 'maintenanceCycles.aegis', before: { step: 1, revision: 1 }, after: { step: 2, revision: 2 }, existed: true }] }] } as Record<string, unknown>)[key] };
     if (path === 'sessions/s1') return { exists: true, get: (key: string) => ({ currentTurn: 1, 'maintenanceCycles.aegis': { step: 2, revision: 2 } } as Record<string, unknown>)[key] };
     return previous(path);
   });
-  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 2 }))).resolves.toMatchObject({ revision: 3 });
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-simple', expectedRevision: 2 }))).resolves.toMatchObject({ revision: 3 });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({ 'maintenanceCycles.aegis': { step: 1, revision: 3 } }));
 });
 it('records and rolls back successive steps while restoring spent supplies', async () => {
   const { rollbackMaintenance } = await import('./index');
+  mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
   const records: Record<string, Record<string, unknown>> = {
-    'sessions/s1': { currentTurn: 1, maintenanceCycles: { aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }, shipResources: { aegis: { food: 20, water: 20, fuel: 3, materials: 0, ore: 0 } }, shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } }, shipSurvivors: { aegis: 2000 }, shipUnrest: { aegis: 0 }, shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {} },
+    'sessions/s1': { currentTurn: 1, turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-09T16:20:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } }, maintenanceCycles: { aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }, shipResources: { aegis: { food: 20, water: 20, fuel: 3, materials: 0, ore: 0 } }, shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } }, shipSurvivors: { aegis: 2000 }, shipUnrest: { aegis: 1 }, shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {} },
     'sessions/s1/players/u1': { connected: true, role: 'gm' },
     'sessions/s1/gmInstances/bridge': { uid: 'u1' },
+    'sessions/s1/events/pre-existing': { type: 'historical-maintenance', revision: 0 },
   };
   const read = (record: Record<string, unknown> | undefined, key: string): unknown => key.split('.').reduce<unknown>((value, part) => value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, record);
   mock.get.mockImplementation(async (path: string) => ({ exists: Boolean(records[path]), get: (key: string) => read(records[path], key) }));
@@ -1272,20 +1284,69 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   const preExistingEvent = structuredClone(records['sessions/s1/events/pre-existing']);
   expect(damageAfterRiot).toMatchObject({ damagedSystemIds: ['storage', 'fighter-bay-alpha'], destroyed: false });
   expect(riotEvent).toBeDefined();
-  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 5 })))
-    .resolves.toMatchObject({ revision: 6 });
+  records['sessions/s1'].turnPhase = { turn: 1, teamPhaseEndsAt: '2026-09-09T16:00:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'lifted', tickerActive: true, pressAccess: false } };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-coordination', expectedRevision: 5 })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/team phase/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  records['sessions/s1'].turnPhase = { turn: 1, teamPhaseEndsAt: '2026-09-09T16:20:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } };
+  const firstRollback = await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-primary', expectedRevision: 5 }));
+  expect(firstRollback).toMatchObject({ status: 'committed', requestId: 'rollback-primary', revision: 6, eventId: 'maintenance-rollback-rollback-primary' });
   expect(read(records['sessions/s1'], 'shipDamage.aegis')).toEqual(damageAfterRiot);
   expect(read(records['sessions/s1'], 'shipSurvivors.aegis')).toBe(survivorsAfterRiot);
   expect(records['sessions/s1/events/maintenance-rollback-riot']).toEqual(riotEvent);
   expect(records['sessions/s1/events/pre-existing']).toEqual(preExistingEvent);
+  expect(records['sessions/s1/events/maintenance-rollback-rollback-primary']).toMatchObject({
+    type: 'maintenance-rollback', requestId: 'rollback-primary', revision: 6,
+  });
+  const stateAfterRollback = structuredClone(records['sessions/s1']);
+  const eventCountAfterRollback = Object.keys(records).filter(path => path.includes('/events/')).length;
   mock.update.mockClear();
   mock.set.mockClear();
-  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision: 5 })))
-    .rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-primary', expectedRevision: 5 })))
+    .resolves.toEqual({ ...(firstRollback as Record<string, unknown>), status: 'replayed' });
+  expect(records['sessions/s1']).toEqual(stateAfterRollback);
+  expect(Object.keys(records).filter(path => path.includes('/events/'))).toHaveLength(eventCountAfterRollback);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-primary', expectedRevision: 4 })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(records['sessions/s1']).toEqual(stateAfterRollback);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  records['sessions/s1/players/u2'] = { connected: true, role: 'gm' };
+  records['sessions/s1/gmInstances/bridge'] = { uid: 'u2' };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-primary', expectedRevision: 5 }, 'u2')))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(records['sessions/s1']).toEqual(stateAfterRollback);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  delete records['sessions/s1/players/u2'];
+  records['sessions/s1/gmInstances/bridge'] = { uid: 'u1' };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  const staleRollback = await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-stale', expectedRevision: 5 }));
+  expect(staleRollback).toMatchObject({ status: 'stale', requestId: 'rollback-stale', expectedRevision: 5, currentRevision: 6 });
+  expect(records['sessions/s1']).toEqual(stateAfterRollback);
+  expect(Object.keys(records).filter(path => path.includes('/events/'))).toHaveLength(eventCountAfterRollback);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(records['sessions/s1/maintenanceRollbackRequests/rollback-stale']).toMatchObject({ reply: staleRollback });
+  mock.set.mockClear();
+  await expect(rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-stale', expectedRevision: 5 })))
+    .resolves.toEqual(staleRollback);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  mock.update.mockClear();
+  mock.set.mockClear();
   for (const expectedRevision of [6, 7, 8]) {
-    await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', expectedRevision }));
+    await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: `rollback-follow-up-${expectedRevision}`, expectedRevision }));
   }
   expect(read(records['sessions/s1'], 'shipResources.aegis.food')).toBe(20);
   expect(read(records['sessions/s1'], 'maintenanceCycles.aegis')).toMatchObject({ step: 1, revision: 9 });
