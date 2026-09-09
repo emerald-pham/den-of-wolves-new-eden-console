@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**73 / 721 prompts complete (10.12%)**
+**74 / 721 prompts complete (10.26%)**
 
-Status breakdown: **73 done · 26 partial · 0 active · 622 missing**.
+Status breakdown: **74 done · 26 partial · 0 active · 621 missing**.
 
 Active prompt: **none**.
 
@@ -64,6 +64,18 @@ event. Lifecycle ordinals are 2*turn-1 for Team and 2*turn for Coordination;
 a stateful optimistic-CAS test proves mixed Team/Press expiry observers and
 two distinct GM advances commit once, expire resources once, and leave stale
 retries write-free.
+
+### Version 0.3.17 progress evidence
+
+Prompt 177 is complete at **74 / 721 = 10.26%** with **74 done · 26
+partial · 0 active · 621 missing**. The existing AEGIS jump console now
+enforces its printed 2/3/6 cost, charge, damage, upgrade, route,
+integrity-lockout, and once-per-turn boundaries. Focused domain and callable
+evidence cover upgraded damaged-drive rolls 1–4, exact and insufficient fuel,
+write-free failures, one committed retry-stable transaction, and the persisted
+coordinate, charge, transition, and navigation audit. Emergency jumps,
+broader jump failure adjudication, and universal concurrency/replay coverage
+remain outside this prompt.
 
 ### Version 0.3.14 progress evidence
 
@@ -415,7 +427,7 @@ release classification and evidence.
 | 174 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 175 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 176 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 177 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 177 | done | feature | 0.3.17 | Focused domain/callable evidence preserves AEGIS's printed 2/3/6 costs, upgrade discount, damaged-drive roll thresholds, charge/fuel bounds, route lockout, once-per-turn denial, retry-stable server roll, atomic transition, and navigation audit; emergency jumps and broader concurrency remain out of scope. |
 | 178 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 179 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 180 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

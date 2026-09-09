@@ -2960,6 +2960,9 @@ export const jumpShip = onCall<{
   const change = requireShipJumpRequest(request.data ?? {});
   const now = new Date();
   const transitionId = randomUUID();
+  // Firestore may retry the transaction callback. Capture the server-owned
+  // integrity roll once so contention cannot reroll a damaged drive.
+  const integrityRoll = randomInt(1, 7);
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
 
   return db.runTransaction(async (tx) => {
@@ -3020,7 +3023,7 @@ export const jumpShip = onCall<{
         now,
         transitionId,
         state,
-        integrityRoll: damage.damagedSystemIds.includes('jump-drive') ? randomInt(1, 7) : 6,
+        integrityRoll: damage.damagedSystemIds.includes('jump-drive') ? integrityRoll : 6,
       });
     } catch (cause) {
       throw new HttpsError(

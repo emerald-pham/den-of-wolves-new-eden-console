@@ -173,7 +173,8 @@ export function resolveJumpAttempt(input: JumpAttemptInput): JumpAttemptResult {
     throw new Error('This ship has already jumped this turn.');
   }
 
-  if (input.damaged && (input.integrityRoll ?? 6) <= 3) {
+  const failureRollLimit = input.upgraded ? 1 : 3;
+  if (input.damaged && (input.integrityRoll ?? 6) <= failureRollLimit) {
     return {
       status: 'drive-failure',
       origin: input.origin,

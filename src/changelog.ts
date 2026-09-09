@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [177],
+    implementationProgress: {
+      completed: 74,
+      total: 721,
+      percentage: '10.26%',
+      done: 74,
+      partial: 26,
+      active: 0,
+      missing: 621,
+    },
+    changes: [
+      'AEGIS crews can now rely on its printed 2 / 3 / 6 jump costs, upgrade discount, and damaged-drive limits while route failures and repeat jumps preserve their remaining fuel and charge.',
+    ],
+  },
+  {
+    version: '0.3.16',
     implementationPrompts: [98],
     implementationProgress: {
       completed: 73,

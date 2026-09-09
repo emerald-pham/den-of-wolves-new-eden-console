@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   jumpStates: {} as Record<string, unknown>,
   upgrades: {} as Record<string, unknown>,
   damage: {} as Record<string, unknown>,
+  transactionRetries: 0,
   randomInt: vi.fn(() => 6),
   randomUUID: vi.fn(() => 'jump-event'),
 }));
@@ -24,8 +25,21 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
-    runTransaction: async (callback: (tx: unknown) => unknown) =>
-      callback({ get: mock.get, update: mock.update }),
+    runTransaction: async (callback: (tx: unknown) => unknown) => {
+      let result: unknown;
+      const attempts = mock.transactionRetries + 1;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const writes: Array<[string, Record<string, unknown>]> = [];
+        result = await callback({
+          get: mock.get,
+          update: (path: string, fields: Record<string, unknown>) => writes.push([path, fields]),
+        });
+        if (attempt === attempts - 1) {
+          for (const [path, fields] of writes) mock.update(path, fields);
+        }
+      }
+      return result;
+    },
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
@@ -54,6 +68,7 @@ beforeEach(() => {
   mock.jumpStates = {};
   mock.upgrades = {};
   mock.damage = {};
+  mock.transactionRetries = 0;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(6);
   mock.randomUUID.mockReset();
@@ -109,26 +124,47 @@ it('rejects an unprinted locked coordinate with a server-owned one-hour integrit
     updatedAt: 'server-time',
   }));
   expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipGalacticCoordinates.aegis');
+  expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipResources.aegis.fuel');
+  expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('maintenanceCycles.aegis');
+  expect(mock.update.mock.calls[0]?.[1]).not.toHaveProperty('shipJumpTransitions.aegis');
 });
 
 it('uses the active GM instance and atomically moves, burns fuel, consumes charge, and publishes the transition', async () => {
+  mock.transactionRetries = 1;
+  mock.upgrades = { aegis: ['jump-drive'] };
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+  mock.randomInt.mockReset();
+  mock.randomInt.mockReturnValueOnce(4).mockReturnValueOnce(1);
+
   await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
     status: 'jumped',
     shipId: 'aegis',
     origin: '0000',
     destination: '5143',
     length: 'short',
-    fuelCost: 2,
-    remainingFuel: 2,
+    fuelCost: 1,
+    remainingFuel: 3,
     transition: expect.objectContaining({ id: 'jump-event', destination: '5143' }),
   });
 
+  expect(mock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.randomInt).toHaveBeenCalledWith(1, 7);
+  expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipGalacticCoordinates.aegis': '5143',
-    'shipResources.aegis.fuel': 2,
+    'shipResources.aegis.fuel': 3,
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
     'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-event' }),
+    shipNavigationLogs: expect.objectContaining({
+      aegis: expect.arrayContaining([expect.objectContaining({
+        id: 'jump-event-0',
+        type: 'self-jump',
+        origin: '0000',
+        destination: '5143',
+        navigationalError: false,
+      })]),
+    }),
   }));
 });
 
@@ -172,6 +208,23 @@ it('honours an existing integrity lock without changing authoritative state', as
   await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
     status: 'integrity-locked',
     shipId: 'aegis',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.jumpStates = {};
+  mock.damage = { aegis: { damagedSystemIds: ['jump-drive'], destroyed: false } };
+  mock.randomInt.mockReturnValue(1);
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).resolves.toMatchObject({
+    status: 'drive-failure',
+    shipId: 'aegis',
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.damage = {};
+  mock.jumpStates = { aegis: { lastJumpTurn: 1 } };
+  await expect(jumpShip.run(request({ ...data, destination: '5143' }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/already jumped/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
 });

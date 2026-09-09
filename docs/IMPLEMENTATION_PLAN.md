@@ -2287,7 +2287,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 174
 - [ ] Prompt 175
 - [ ] Prompt 176
-- [ ] Prompt 177
+- [x] Prompt 177
 - [ ] Prompt 178
 - [ ] Prompt 179
 - [ ] Prompt 180
