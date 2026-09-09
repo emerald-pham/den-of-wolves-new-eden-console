@@ -24,6 +24,7 @@ import {
   validateImplementationPromptClaims,
   validateCoordinationEntry,
   validateReleaseCompletion,
+  normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
 
 const codeValidation = {
@@ -83,6 +84,17 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('normalizes GitHub HTTPS origins to SSH without changing other transports', () => {
+    expect(normalizeGitHubOriginToSsh(
+      'https://github.com/emerald-pham/den-of-wolves-new-eden-console.git',
+    )).toBe('git@github.com:emerald-pham/den-of-wolves-new-eden-console.git');
+    expect(normalizeGitHubOriginToSsh(
+      'git@github.com:emerald-pham/den-of-wolves-new-eden-console.git',
+    )).toBe('git@github.com:emerald-pham/den-of-wolves-new-eden-console.git');
+    expect(normalizeGitHubOriginToSsh('https://gitlab.com/example/project.git'))
+      .toBe('https://gitlab.com/example/project.git');
+  });
+
   it('retains the task baseline when evaluating changed files after merge', () => {
     expect(changedFilesBaseRef({
       mainSha: 'main-sha',

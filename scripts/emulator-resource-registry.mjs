@@ -82,6 +82,13 @@ function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+/** Keep GitHub repository transport on SSH while preserving other remotes. */
+export function normalizeGitHubOriginToSsh(originUrl) {
+  const origin = typeof originUrl === 'string' ? originUrl.trim() : '';
+  const match = origin.match(/^https:\/\/github\.com\/(.+)$/i);
+  return match ? `git@github.com:${match[1]}` : origin;
+}
+
 function isDocumentationFile(filePath) {
   const fileName = basename(filePath);
   return /\.mdx?$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
@@ -532,6 +539,18 @@ async function runGit(args, cwd = process.cwd()) {
     encoding: 'utf8',
   });
   return result.stdout.trim();
+}
+
+/** Rewrite a GitHub HTTPS origin in this checkout to its equivalent SSH URL. */
+export async function ensureSshOrigin(cwd = process.cwd()) {
+  const currentOrigin = await runGit(['remote', 'get-url', 'origin'], cwd);
+  const sshOrigin = normalizeGitHubOriginToSsh(currentOrigin);
+  if (sshOrigin === currentOrigin) {
+    return { changed: false, origin: currentOrigin };
+  }
+
+  await runGit(['remote', 'set-url', 'origin', sshOrigin], cwd);
+  return { changed: true, previousOrigin: currentOrigin, origin: sshOrigin };
 }
 
 async function gitIsAncestor(ancestor, descendant, cwd) {
@@ -1950,7 +1969,11 @@ async function main() {
 
   const options = parseOptions(args);
   if (command === 'begin') {
+    const transport = await ensureSshOrigin();
     const entry = await beginEntry(filePath, options);
+    if (transport.changed) {
+      console.log(`Normalized origin to SSH: ${transport.origin}`);
+    }
     console.log(`Registered preemptive work entry ${entry.id} in ${filePath}.`);
     return;
   }
