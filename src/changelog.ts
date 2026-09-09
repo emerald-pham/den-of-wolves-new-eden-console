@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 622,
     },
     changes: [
-      'Connected consoles now converge on one airspace opening when the Team timer expires, so retries cannot replay the transition.',
+      'Connected consoles now converge on one airspace opening and one authoritative turn handoff at each phase transition, so retries cannot replay either transition.',
     ],
   },
   {

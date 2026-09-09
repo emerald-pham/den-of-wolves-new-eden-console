@@ -3,6 +3,7 @@ import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
   get: vi.fn(), update: vi.fn(), set: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   shuttleFuelled: {} as Record<string, boolean>,
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
@@ -31,17 +32,28 @@ vi.mock('firebase-admin/firestore', () => ({
         const race = mock.race;
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const baseVersion = race.version;
-          const snapshotTurnPhase = mock.turnPhase;
+          const snapshot = {
+            currentTurn: mock.currentTurn,
+            turnPhase: mock.turnPhase,
+            turnStartAnnouncement: mock.turnStartAnnouncement,
+            maintenanceCycles: mock.maintenanceCycles,
+            shuttleFuelled: mock.shuttleFuelled,
+            shipSurvivors: mock.shipSurvivors,
+            fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
+            capybaraEnabled: mock.capybaraEnabled,
+            dioneEnabled: mock.dioneEnabled,
+          };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
           const sets: Array<readonly [string, Record<string, unknown>]> = [];
           const tx = {
             get: async (path: string) => {
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
+                : path.includes('/gmInstances/')
+                  ? { uid: mock.gmInstanceOwners[path.split('/').at(-1) ?? ''] ?? mock.owner }
                 : {
-                    currentTurn: mock.currentTurn,
                     phase: 'active',
-                    turnPhase: snapshotTurnPhase,
+                    ...snapshot,
                   };
               return { exists: true, get: (key: string) => fields[key] };
             },
@@ -55,7 +67,16 @@ vi.mock('firebase-admin/firestore', () => ({
           if (race.version !== baseVersion) continue;
           for (const [path, fields] of updates) {
             mock.update(path, fields);
-            if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
+            if (path === 'sessions/s1') {
+              if ('currentTurn' in fields) mock.currentTurn = fields.currentTurn as number;
+              if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
+              if ('turnStartAnnouncement' in fields) mock.turnStartAnnouncement = fields.turnStartAnnouncement;
+              if ('maintenanceCycles' in fields) mock.maintenanceCycles = fields.maintenanceCycles as Record<string, unknown>;
+              if ('shuttleFuelled' in fields) mock.shuttleFuelled = fields.shuttleFuelled as Record<string, boolean>;
+              if ('fleetSurvivorPopulationAdjustment' in fields) {
+                mock.fleetSurvivorPopulationAdjustment = fields.fleetSurvivorPopulationAdjustment as number;
+              }
+            }
           }
           for (const [path, fields] of sets) mock.set(path, fields);
           race.version += 1;
@@ -96,6 +117,7 @@ function request(data: Record<string, unknown>, uid = 'u1') {
 beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
+  mock.gmInstanceOwners = {};
   mock.connected = true;
   mock.damage = {};
   mock.currentTurn = 1;
@@ -338,6 +360,7 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
       airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
     },
   }));
+  expect(mock.set).not.toHaveBeenCalled();
 
   mock.currentTurn = 1;
   mock.fleetSurvivorPopulationAdjustment = 41;
@@ -373,6 +396,10 @@ it('starts Turn 1 with a ten-minute team phase and later turns with the shorter 
     fleetSurvivorPopulationAdjustment: 40,
     turnPhase: expect.objectContaining({ turn: 2 }),
   }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/turn-advanced-1',
+    expect.objectContaining({ reason: 'override', revision: 2 }),
+  );
 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
@@ -512,7 +539,7 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
 
 it('serializes simultaneous airspace expiry observers into one transition event', async () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  vi.setSystemTime(new Date('2026-09-06T12:05:07.000Z'));
   mock.role = 'player';
   mock.activeConsoleRoleId = 'admiral';
   mock.currentTurn = 1;
@@ -547,10 +574,14 @@ it('serializes simultaneous airspace expiry observers into one transition event'
       type: 'airspace-opened',
       sessionId: 's1',
       actorUid: 'system',
+      actorRoleId: null,
       turn: 1,
       phase: 'active',
       requestId: 'airspace-opened-1',
+      revision: 1,
+      serverTime: '2026-09-06T12:05:07.000Z',
       visibility: 'member',
+      transition: 'restricted-to-lifted',
       createdAt: 'server-time',
     }),
   );
@@ -561,6 +592,117 @@ it('serializes simultaneous airspace expiry observers into one transition event'
     .resolves.toEqual({ turnPhase: expected });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+
+  vi.setSystemTime(new Date('2026-09-06T12:20:07.000Z'));
+  mock.role = 'gm';
+  mock.activeConsoleRoleId = undefined;
+  mock.currentTurn = 1;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.maintenanceCycles = {
+    aegis: {
+      step: 0,
+      revision: 3,
+      turn: 1,
+      results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'],
+      refuelled: ['starlight'],
+    },
+  };
+  mock.shuttleFuelled = { starlight: true, pallas: false };
+  mock.gmInstanceOwners = { 'bridge-a': 'u1', 'bridge-b': 'u2' };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  let advanceRelease!: () => void;
+  const advanceReady = new Promise<void>((resolve) => { advanceRelease = resolve; });
+  mock.race = { attempts: 0, ready: advanceReady, release: advanceRelease, version: 0 };
+
+  const advanceOutcomes = await Promise.allSettled([
+    advanceTurn.run(request({ sessionId: 's1', instanceId: 'bridge-a', expectedTurn: 1 }, 'u1')),
+    advanceTurn.run(request({ sessionId: 's1', instanceId: 'bridge-b', expectedTurn: 1 }, 'u2')),
+  ]);
+  const fulfilled = advanceOutcomes.filter(
+    (outcome): outcome is PromiseFulfilledResult<unknown> => outcome.status === 'fulfilled',
+  );
+  const rejected = advanceOutcomes.filter(
+    (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
+  );
+  const winningUid = advanceOutcomes[0]?.status === 'fulfilled' ? 'u1' : 'u2';
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+  expect(fulfilled[0]?.value).toMatchObject({
+    currentTurn: 2,
+    turnPhase: {
+      turn: 2,
+      teamPhaseEndsAt: '2026-09-06T12:25:07.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:40:07.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  });
+  expect(rejected[0]?.reason).toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/turn changed/i),
+  });
+  expect(mock.currentTurn).toBe(2);
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.maintenanceCycles).toEqual({
+    aegis: expect.objectContaining({ charges: [], refuelled: [] }),
+  });
+  expect(mock.shuttleFuelled).toEqual({ starlight: false, pallas: false });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/turn-advanced-1',
+    expect.objectContaining({
+      sessionId: 's1',
+      actorUid: winningUid,
+      actorRoleId: null,
+      turn: 1,
+      phase: 'active',
+      type: 'turn-advanced',
+      requestId: 'turn-advanced-1',
+      revision: 2,
+      serverTime: '2026-09-06T12:20:07.000Z',
+      visibility: 'member',
+      transition: 'coordination-to-next-turn',
+      fromTurn: 1,
+      toTurn: 2,
+      reason: 'expiry',
+      createdAt: 'server-time',
+    }),
+  );
+
+  mock.race = undefined;
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge-a', expectedTurn: 1,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:20:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:35:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(beginOpenAirspacePhase.run(request({ sessionId: 's1', expectedTurn: 2 })))
+    .resolves.toMatchObject({ turnPhase: { turn: 2, airspace: { state: 'lifted' } } });
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/airspace-opened-2',
+    expect.objectContaining({
+      type: 'airspace-opened',
+      requestId: 'airspace-opened-2',
+      revision: 3,
+      serverTime: '2026-09-06T12:20:07.000Z',
+    }),
+  );
 });
 
 it('lets the active GM add five minutes to a live restricted window', async () => {
@@ -769,6 +911,7 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
       airspace: { state: 'restricted', tickerActive: true, pressAccess: true },
     },
   });
+  expect(mock.set).not.toHaveBeenCalled();
 
   mock.update.mockClear();
   mock.activeConsoleRoleId = 'dione-captain';

@@ -58,9 +58,12 @@ is local rendered evidence, not deployed or live-Firebase proof.
 The release boundary records Prompt 098 complete at **73 / 721 = 10.12%**
 with **73 done · 26 partial · 0 active · 622 missing**. The existing
 restricted→lifted airspace transition now writes one deterministic,
-member-scoped event in the same transaction; a stateful optimistic-CAS test
-proves two simultaneous expiry observers commit one transition and one event,
-while a post-lifted replay returns the authoritative state without mutation.
+member-scoped `airspace-opened` event in the same transaction, while the
+Coordination handoff writes one deterministic member-scoped `turn-advanced`
+event. Lifecycle ordinals are 2*turn-1 for Team and 2*turn for Coordination;
+a stateful optimistic-CAS test proves mixed Team/Press expiry observers and
+two distinct GM advances commit once, expire resources once, and leave stale
+retries write-free.
 
 ### Version 0.3.14 progress evidence
 
@@ -320,7 +323,7 @@ release classification and evidence.
 | 095 | done | non-feature | — | Server Coordination timer duration tests. |
 | 096 | done | non-feature | — | Turn 1-only override tests. |
 | 097 | done | non-feature | — | Emergency pause interlock/audit tests. |
-| 098 | done | feature | 0.3.16 | Version 0.3.16 makes restricted→lifted airspace expiry one transaction-owned transition with one deterministic, member-scoped event across the shared callable paths. The stateful optimistic-CAS race fixture proves two simultaneous observers commit one update/event, loser retry and later replay return the authoritative lifted phase without changing deadlines or state. Existing auth, membership, expected-turn, pause, deadline, and client-write denial guards remain covered. |
+| 098 | done | feature | 0.3.16 | Version 0.3.16 makes Team expiry and Coordination handoff transaction-owned transitions with deterministic member-scoped `airspace-opened` and `turn-advanced` events. Lifecycle ordinals are 2*turn-1 and 2*turn (envelope ordinals, not stored phase revisions); the stateful optimistic-CAS fixture proves mixed expiry observers and distinct GM advances commit one transition/event, expire resources once, and leave stale retries write-free. Existing auth, membership, expected-turn, pause, deadline, override, and client-write denial guards remain covered. |
 | 099 | partial | non-feature | — | Maintenance wrong-phase gate exists; full Team-action family matrix remains open. |
 | 100 | partial | non-feature | — | Movement/jump Coordination gates exist; transfer/scouting/research coverage remains open. |
 | 101 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

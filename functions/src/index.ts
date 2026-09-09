@@ -182,14 +182,21 @@ const db = getFirestore();
 
 type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 
+type TurnAdvanceEvent = Readonly<{
+  actorUid: string;
+  transitionServerTime: string;
+  reason: 'expiry' | 'override';
+}>;
+
 function writeAirspaceOpenedEvent(
   tx: Transaction,
   sessionId: string,
   phase: ActiveTurnPhase,
+  transitionServerTime: string,
 ): void {
-  // The phase clock has no revision field. Use the logical expiry instant as
-  // the stable event time and the deterministic document/request ID as the
-  // transition identity; revision 0 is intentionally not a phase revision.
+  // Lifecycle event ordinals are shared across the two phases: Team is
+  // 2*turn-1 and Coordination is 2*turn. They are envelope ordinals, not a
+  // stored TurnPhase revision; the logical transition ID remains per-turn.
   const eventId = `airspace-opened-${phase.turn}`;
   tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), {
     ...buildAuthoritativeEventEnvelope({
@@ -200,11 +207,40 @@ function writeAirspaceOpenedEvent(
       phase: 'active',
       type: 'airspace-opened',
       requestId: eventId,
-      revision: 0,
-      serverTime: phase.teamPhaseEndsAt,
+      revision: (2 * phase.turn) - 1,
+      serverTime: transitionServerTime,
       visibility: EventVisibility.Member,
     }),
     transition: 'restricted-to-lifted',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
+function writeTurnAdvancedEvent(
+  tx: Transaction,
+  sessionId: string,
+  fromTurn: number,
+  toTurn: number,
+  transition: TurnAdvanceEvent,
+): void {
+  const eventId = `turn-advanced-${fromTurn}`;
+  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), {
+    ...buildAuthoritativeEventEnvelope({
+      sessionId,
+      actorUid: transition.actorUid,
+      actorRoleId: null,
+      turn: fromTurn,
+      phase: 'active',
+      type: 'turn-advanced',
+      requestId: eventId,
+      revision: 2 * fromTurn,
+      serverTime: transition.transitionServerTime,
+      visibility: EventVisibility.Member,
+    }),
+    transition: 'coordination-to-next-turn',
+    fromTurn,
+    toTurn,
+    reason: transition.reason,
     createdAt: FieldValue.serverTimestamp(),
   });
 }
@@ -558,9 +594,11 @@ type TurnAdvanceResult = {
 function advanceTurnInTransaction(
   tx: Transaction,
   sessionRef: DocumentReference,
+  sessionId: string,
   session: DocumentSnapshot,
   skipTurnStartAnnouncement: boolean,
   additionalFields: Record<string, unknown> = {},
+  transition?: TurnAdvanceEvent,
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const nextTurn = currentTurn + 1;
@@ -596,6 +634,9 @@ function advanceTurnInTransaction(
     ...additionalFields,
     updatedAt: FieldValue.serverTimestamp(),
   });
+  if (transition && currentTurn >= 1) {
+    writeTurnAdvancedEvent(tx, sessionId, currentTurn, nextTurn, transition);
+  }
   return {
     currentTurn: nextTurn,
     ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
@@ -1733,7 +1774,7 @@ export const startGame = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    const transition = advanceTurnInTransaction(tx, sessionRef, authority.session, false, {
+    const transition = advanceTurnInTransaction(tx, sessionRef, start.sessionId, authority.session, false, {
       phase: 'active',
       configurationLocked: true,
       setupRevision: committedSetupRevision,
@@ -3171,6 +3212,7 @@ export const advanceTurn = onCall<{
   const sessionRef = db.doc(`sessions/${advance.sessionId}`);
   const playerRef = db.doc(`sessions/${advance.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${advance.sessionId}/gmInstances/${advance.instanceId}`);
+  const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async (tx) => {
     const [session, player, instance] = await Promise.all([
@@ -3201,8 +3243,15 @@ export const advanceTurn = onCall<{
     return advanceTurnInTransaction(
       tx,
       sessionRef,
+      advance.sessionId,
       session,
       advance.skipTurnStartAnnouncement === true,
+      {},
+      {
+        actorUid: uid,
+        transitionServerTime,
+        reason: advance.overridePhaseTimer === true ? 'override' : 'expiry',
+      },
     );
   });
 });
@@ -3240,7 +3289,7 @@ export const startSinglePlayerDemo = onCall<{
         'The single-player demo requires this to be the only connected player.',
       );
     }
-    return advanceTurnInTransaction(tx, sessionRef, session, false);
+    return advanceTurnInTransaction(tx, sessionRef, sessionId, session, false);
   });
 });
 
@@ -3298,6 +3347,7 @@ export const beginOpenAirspacePhase = onCall<{
   const requestData = requireOpenAirspacePhaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
   const playerRef = db.doc(`sessions/${requestData.sessionId}/players/${uid}`);
+  const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async tx => {
     const [session, player] = await Promise.all([tx.get(sessionRef), tx.get(playerRef)]);
@@ -3328,7 +3378,7 @@ export const beginOpenAirspacePhase = onCall<{
       airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
     };
     tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
-    writeAirspaceOpenedEvent(tx, requestData.sessionId, phase);
+    writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
     return { turnPhase };
   });
 });
@@ -3457,6 +3507,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
   const uid = requireUid(request.auth);
   const requestData = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${requestData.sessionId}`);
+  const transitionServerTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${requestData.sessionId}/players/${uid}`));
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
@@ -3488,7 +3539,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
         airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
       };
       tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
-      writeAirspaceOpenedEvent(tx, requestData.sessionId, phase);
+      writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
       return { turnPhase };
     }
     if (phase.airspace.state !== 'restricted' || phase.airspace.pressAccess) {
