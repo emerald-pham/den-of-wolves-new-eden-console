@@ -4282,6 +4282,12 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
       if (!isActivePlayer(target)) {
         throw new HttpsError('failed-precondition', 'That player is not connected.');
       }
+      if (
+        hasCoreSeat(target) || hasCoreAssignment(target) || hasPressState(target) ||
+        sessionSnap.get('pressHolderUid') === targetUid
+      ) {
+        throw new HttpsError('failed-precondition', 'Release the target station before elevating to GM.');
+      }
       tx.update(targetRef, { role: 'gm' });
       return { targetUid, role: 'gm' };
     });
