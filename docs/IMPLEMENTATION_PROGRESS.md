@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**78 / 723 prompts complete (10.79%)**
+**79 / 723 prompts complete (10.93%)**
 
-Status breakdown: **78 done · 25 partial · 0 active · 620 missing**.
+Status breakdown: **79 done · 24 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -101,8 +101,8 @@ outside this release.
 
 ### Version 0.3.21 progress evidence
 
-The release boundary records Prompt 092 complete at **78 / 723 = 10.79%**
-with **78 done · 25 partial · 0 active · 620 missing**. The authoritative
+The release boundary records Prompt 092 complete and proof-only Prompt 099 at **79 / 723 = 10.93%**
+with **79 done · 24 partial · 0 active · 620 missing**. The authoritative
 `advanceTurn` callable now keeps Turn 0 as setup-only, requires a structurally
 valid phase whose turn matches the session, allows normal handoff only from an
 expired lifted Coordination phase, and preserves explicit GM timer overrides
@@ -111,7 +111,7 @@ covers absent, malformed, mismatched, restricted, and Turn 0 rejection without
 writes, exact numbered-turn timing and resource expiry, deterministic handoff
 events, and presentation-only announcement skipping; the existing optimistic
 CAS overlap proof remains intact. `startGame` remains the sole production
-Turn 0-to-1 path. Prompt 103a remains outside this release.
+Turn 0-to-1 path. The same proof extends the existing late-maintenance case with valid `begin`, `storage`, `rations`, `unrest`, `riot`, `reactor`, `bays`, and `end` requests while Coordination is lifted; each receives the stable Team-phase denial with no session, event, undo, damage, or receipt writes. The valid `bays` payload proves phase denial precedes docking/fuelling validation. Prompt 103a remains outside this release.
 
 ### Version 0.3.20 progress evidence
 
@@ -406,7 +406,7 @@ release classification and evidence.
 | 096 | done | non-feature | — | Turn 1-only override tests. |
 | 097 | done | non-feature | — | Emergency pause interlock/audit tests. |
 | 098 | done | feature | 0.3.16 | Version 0.3.16 makes Team expiry and Coordination handoff transaction-owned transitions with deterministic member-scoped `airspace-opened` and `turn-advanced` events. Lifecycle ordinals are 2*turn-1 and 2*turn (envelope ordinals, not stored phase revisions); the stateful optimistic-CAS fixture proves mixed expiry observers and distinct GM advances commit one transition/event, expire resources once, and leave stale retries write-free. Existing auth, membership, expected-turn, pause, deadline, override, and client-write denial guards remain covered. |
-| 099 | partial | non-feature | — | Maintenance wrong-phase gate exists; full Team-action family matrix remains open. |
+| 099 | done | non-feature | — | The existing `functions/src/maintenanceCallable.test.ts` late-maintenance case proves valid begin, storage, rations, unrest, riot, reactor, bays, and end requests are denied during lifted Coordination with the stable Team-phase error and no session, event, undo, damage, or receipt writes; the valid bays payload proves phase denial precedes docking/fuelling validation. |
 | 100 | partial | non-feature | — | Movement/jump Coordination gates exist; transfer/scouting/research coverage remains open. |
 | 101 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

@@ -963,6 +963,31 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+
+  const teamActions = [
+    { action: 'begin', expectedRevision: 0 },
+    { action: 'storage', expectedRevision: 1 },
+    { action: 'rations', expectedRevision: 2, foodLevel: 0, waterLevel: 0 },
+    { action: 'unrest', expectedRevision: 3 },
+    { action: 'riot', expectedRevision: 4 },
+    { action: 'reactor', expectedRevision: 5, consoles: ['jump-drive'] },
+    { action: 'bays', expectedRevision: 6, refuels: { 'shuttle-bay-zeta': 'starlight' } },
+    { action: 'end', expectedRevision: 7 },
+  ] as const;
+  for (const action of teamActions) {
+    mock.update.mockClear();
+    mock.set.mockClear();
+    await expect(runMaintenance.run(request({
+      ...data,
+      ...action,
+      requestId: `coordination-maintenance-${action.action}`,
+    }))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/only available during Team Phase/i),
+    });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  }
 });
 
 it('serializes simultaneous airspace expiry observers into one transition event', async () => {
