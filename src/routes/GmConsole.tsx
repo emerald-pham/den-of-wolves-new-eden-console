@@ -1516,7 +1516,7 @@ export default function GmConsole() {
                       <h3 className="gm-console__section-title">Production start receipt</h3>
                       <dl className="gm-start-receipt__list">
                         <div><dt>Disposition</dt><dd>{startMutationState}</dd></div>
-                        <div><dt>Source / version</dt><dd>{setupReceipt.source} // {setupReceipt.version}</dd></div>
+                        <div><dt>Source</dt><dd>{setupReceipt.source}</dd></div>
                         <div><dt>Locked configuration</dt><dd>{setupReceipt.mode} // {setupReceipt.playerCount} core</dd></div>
                         <div><dt>Wolf rule / result</dt><dd>{setupReceipt.wolfRule} // {setupReceipt.wolfCount} // {setupReceipt.resultCount} private cards</dd></div>
                         <div><dt>Press input</dt><dd>

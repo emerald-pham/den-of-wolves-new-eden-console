@@ -265,7 +265,6 @@ export interface GameSession {
 /** GM-private receipt returned by the authoritative ordinary start transaction. */
 export interface SetupReceipt {
   readonly source: string;
-  readonly version: string;
   readonly playerCount: number;
   readonly mode: string;
   readonly rosterIds: readonly string[];

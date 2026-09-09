@@ -339,7 +339,7 @@ it('starts production through one server receipt and hydrates the GM-private set
         airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
       },
       setupReceipt: {
-        source: 'routine-start', version: '0.3.13', playerCount: 8,
+        source: 'routine-start', playerCount: 8,
         mode: 'base', rosterIds: ['admiral'], pressEligibility: {},
         excludedGmCount: 1, wolfCount: 1, wolfRule: 'one-wolf-at-8-13',
         selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'],
@@ -364,7 +364,7 @@ it('starts production through one server receipt and hydrates the GM-private set
     pursuitGroups: { fleet: 2 },
   });
   expect(useSessionStore.getState().gmSetupReceipt).toMatchObject({
-    source: 'routine-start', version: '0.3.13', committedSetupRevision: 5,
+    source: 'routine-start', committedSetupRevision: 5,
   });
 });
 
@@ -383,7 +383,7 @@ it('reuses the same start request id after an ambiguous transport failure', asyn
     setupRevision: 5,
     turnStartAnnouncement: { turn: 1, survivorPopulation: 242_500 },
     setupReceipt: {
-      source: 'routine-start', version: '0.3.13', playerCount: 8, mode: 'base',
+      source: 'routine-start', playerCount: 8, mode: 'base',
       rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1, wolfCount: 1,
       wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'],
       orderedModifiers: [], resultCount: 8, loyaltySource: 'automatic-default', request: {},

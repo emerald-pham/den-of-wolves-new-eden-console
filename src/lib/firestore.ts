@@ -83,7 +83,7 @@ function setupReceipt(value: unknown): SetupReceipt | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
   if (
-    typeof raw.source !== 'string' || typeof raw.version !== 'string' ||
+    typeof raw.source !== 'string' ||
     typeof raw.playerCount !== 'number' || !Array.isArray(raw.rosterIds) ||
     typeof raw.wolfCount !== 'number' || (raw.wolfCount !== 1 && raw.wolfCount !== 2) ||
     !Array.isArray(raw.selectedWolfRoleIds) || !Array.isArray(raw.eligibleRoleIds) ||

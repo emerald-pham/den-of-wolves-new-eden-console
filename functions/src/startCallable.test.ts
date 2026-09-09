@@ -257,7 +257,7 @@ it('durably upgrades a sole legacy singular GM lane while committing the start',
 
 it('returns the original result as replayed without repeating start writes', async () => {
   const setupReceipt = {
-    source: 'routine-start', version: '0.3.13', playerCount: 8, mode: 'base',
+    source: 'routine-start', playerCount: 8, mode: 'base',
     rosterIds: [...roleIds], pressEligibility: { enabled: true, activeClaimCount: 0, claimed: false },
     excludedGmCount: 1, wolfCount: 1, wolfRule: 'one-wolf-at-8-13',
     selectedWolfRoleIds: ['admiral'], eligibleRoleIds: [...roleIds], orderedModifiers: [],
@@ -654,6 +654,18 @@ it('writes private automatic loyalties and a safe setup receipt in the same comm
   expect(mock.set).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/setup-receipt-start-receipt' }),
     expect.objectContaining({ payload: expect.objectContaining({ type: 'setup-receipt' }) }),
+  );
+});
+
+it('does not embed a release version in the server setup receipt', async () => {
+  const reply = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-receipt-version', expectedSetupRevision: 0,
+  }));
+
+  expect(reply.setupReceipt).not.toHaveProperty('version');
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/setup-receipt-start-receipt-version' }),
+    expect.objectContaining({ payload: expect.not.objectContaining({ version: expect.anything() }) }),
   );
 });
 

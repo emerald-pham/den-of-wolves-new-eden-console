@@ -10,8 +10,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
@@ -76,6 +78,13 @@ beforeEach(async () => {
       connected: true,
       activeConsoleRoleId: 'press-officer',
     });
+    await setDoc(doc(db, `${SESSION}/players/observer`), {
+      uid: 'observer',
+      role: 'observer',
+      displayName: 'Observer',
+      seatId: null,
+      connected: true,
+    });
     await setDoc(doc(db, `${SESSION}/gmInstances/bridge`), {
       uid: 'gm1',
       name: 'Bridge laptop',
@@ -101,7 +110,7 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `${SESSION}/secrets/setup-receipt-start-1`), {
       visibleToUids: ['gm1'],
-      payload: { type: 'setup-receipt', source: 'routine-start', version: '0.3.13' },
+      payload: { type: 'setup-receipt', source: 'routine-start' },
     });
     await setDoc(doc(db, `${SESSION}/damageDraws/draw1`), {
       shipId: 'aegis',
@@ -515,29 +524,45 @@ describe('secrets', () => {
     await assertSucceeds(getDoc(doc(as('alice'), `${SESSION}/secrets/sec1`)));
   });
 
-  it('are not readable by an unlisted player', async () => {
+  it('are readable by an allowlisted active GM', async () => {
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+  });
+
+  it('allows an allowlisted GM to query only its setup receipts', async () => {
+    await assertSucceeds(getDocs(query(
+      collection(as('gm1'), `${SESSION}/secrets`),
+      where('visibleToUids', 'array-contains', 'gm1'),
+    )));
+  });
+
+  it('deny unlisted or stale GMs and every other non-allowlisted reader', async () => {
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/sec2`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec2`)));
+    await assertFails(getDoc(doc(as('observer'), `${SESSION}/secrets/sec1`)));
+    await assertFails(getDoc(doc(as('stranger'), `${SESSION}/secrets/sec1`)));
+    await assertFails(getDoc(doc(as('alice'), 'sessions/s2/secrets/sec1')));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { connected: false });
+    });
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
   });
 
-  it('are readable by the gm', async () => {
-    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec2`)));
-  });
-
-  it('lets Press hydrate only its own loyalty and keeps the GM receipt private', async () => {
+  it('lets Press hydrate only its own loyalty and keeps every other secret private', async () => {
     await assertSucceeds(getDoc(doc(as('press'), `${SESSION}/secrets/loyalty-press`)));
     await assertFails(getDoc(doc(as('press'), `${SESSION}/secrets/sec1`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/loyalty-press`)));
-    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
     await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/sec1`)));
   });
 
-  it('cannot be written from the client', async () => {
-    await assertFails(
-      setDoc(doc(as('gm1'), `${SESSION}/secrets/sec3`), {
-        visibleToUids: ['gm1'],
-        payload: {},
-      }),
-    );
+  it('denies every client write', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      const secret = doc(as(uid), `${SESSION}/secrets/sec3`);
+      await assertFails(setDoc(secret, { visibleToUids: [uid], payload: {} }));
+      await assertFails(updateDoc(doc(as(uid), `${SESSION}/secrets/sec1`), { payload: {} }));
+      await assertFails(deleteDoc(doc(as(uid), `${SESSION}/secrets/sec1`)));
+    }
   });
 });
 

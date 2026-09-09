@@ -106,7 +106,7 @@ function streamInstances(instances: readonly typeof local[]) {
 }
 
 const productionReceipt = {
-  source: 'routine-start', version: '0.3.13', playerCount: 8, mode: 'base',
+  source: 'routine-start', playerCount: 8, mode: 'base',
   rosterIds: ['admiral'], pressEligibility: { enabled: true, activeClaimCount: 0, claimed: false },
   excludedGmCount: 1, wolfCount: 1 as const, wolfRule: 'one-wolf-at-8-13',
   selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'], orderedModifiers: [],
@@ -1063,7 +1063,8 @@ it('commits ordinary production only on the second click and renders the private
   expect(startGame).toHaveBeenCalledOnce();
   expect(await screen.findByText(/Start committed \/\/ Turn 1/)).toBeInTheDocument();
   const receipt = await screen.findByRole('region', { name: /production start receipt/i });
-  expect(receipt).toHaveTextContent(/routine-start \/\/ 0.3.13/);
+  expect(receipt).toHaveTextContent(/Source/);
+  expect(receipt).toHaveTextContent(/routine-start/);
   expect(receipt).toHaveTextContent(/base \/\/ 8 core/);
   expect(receipt).toHaveTextContent(/one-wolf-at-8-13 \/\/ 1 \/\/ 8 private cards/);
   expect(receipt).toHaveTextContent(/Press input/);

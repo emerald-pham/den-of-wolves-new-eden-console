@@ -246,7 +246,7 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
         docs: [{
           get: (field: string) => field === 'payload'
             ? {
-              type: 'setup-receipt', source: 'routine-start', version: '0.3.13', playerCount: 8,
+              type: 'setup-receipt', source: 'routine-start', playerCount: 8,
               mode: 'base', rosterIds: ['admiral'], pressEligibility: {}, excludedGmCount: 1,
               wolfCount: 1, wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
               eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 8,
@@ -274,7 +274,7 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
 
   expect(onPrivateLoyalty).toHaveBeenCalledWith({ kind: 'fleet-loyalist', suspicion: 5 });
   expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
-    source: 'routine-start', version: '0.3.13', committedSetupRevision: 1,
+    source: 'routine-start', committedSetupRevision: 1,
   }));
 });
 

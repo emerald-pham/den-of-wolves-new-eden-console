@@ -1166,7 +1166,7 @@ async function requireFacilitatorInstance(
   sessionId: string,
   uid: string,
   instanceId: string,
-): Promise<{ session: DocumentSnapshot; player: DocumentSnapshot }> {
+): Promise<{ session: DocumentSnapshot; player: DocumentSnapshot; instance: DocumentSnapshot }> {
   const [session, player, instance] = await Promise.all([
     tx.get(db.doc(`sessions/${sessionId}`)),
     tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
@@ -1188,7 +1188,7 @@ async function requireFacilitatorInstance(
   ) {
     throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
   }
-  return { session, player };
+  return { session, player, instance };
 }
 
 /** Record which of the two physical facilitator responsibilities an instance owns. */
@@ -1630,7 +1630,6 @@ export const startGame = onCall<{
     const serverTime = new Date().toISOString();
     const setupReceipt = {
       source: 'routine-start',
-      version: '0.3.13',
       playerCount,
       mode: authority.session.get('expansion') === 'capybara' ||
         authority.session.get('expansion') === 'none'
@@ -4137,16 +4136,14 @@ export const releaseSeat = onCall<{
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
+        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
         if (revisioned.instanceId || revisioned.reason) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
           }
-          const interventionInstance = await tx.get(
-            db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`),
-          );
-          if (!interventionInstance.exists || interventionInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-          }
+          gmInstance = (await requireFacilitatorInstance(
+            tx, sessionId, uid, revisioned.instanceId,
+          )).instance;
         }
         if (prior.exists) {
           if (
@@ -4186,14 +4183,14 @@ export const releaseSeat = onCall<{
         const holderUid = seat.get('holderUid') as string;
         // Establish actor authority before reading the holder record. An ordinary
         // non-holder must not learn whether another player's seat pointer is stale.
-        let gmInstance: FirebaseFirestore.DocumentSnapshot | null = null;
         if (holderUid !== uid) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('permission-denied', 'A live GM instance and release reason are required.');
           }
-          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
-          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+          if (!gmInstance) {
+            gmInstance = (await requireFacilitatorInstance(
+              tx, sessionId, uid, revisioned.instanceId,
+            )).instance;
           }
         }
         if (setupRevision(session) !== revisioned.expectedSetupRevision) {
@@ -4219,10 +4216,9 @@ export const releaseSeat = onCall<{
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
             throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
           }
-          gmInstance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${revisioned.instanceId}`));
-          if (!gmInstance.exists || gmInstance.get('uid') !== uid) {
-            throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
-          }
+          gmInstance = (await requireFacilitatorInstance(
+            tx, sessionId, uid, revisioned.instanceId,
+          )).instance;
         }
         const nextRevision = revisioned.expectedSetupRevision + 1;
         const reply: SeatMutationReceipt = {

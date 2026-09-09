@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
+import { Timestamp } from 'firebase-admin/firestore';
+import type * as FirestoreModule from 'firebase-admin/firestore';
 
 type StoredDocument = Record<string, unknown>;
 
@@ -95,11 +97,14 @@ const mock = vi.hoisted(() => {
 });
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
-vi.mock('firebase-admin/firestore', () => ({
-  getFirestore: () => mock.db,
-  FieldValue: { serverTimestamp: () => 'server-time' },
-  Timestamp: class {},
-}));
+vi.mock('firebase-admin/firestore', async () => {
+  const actual = await vi.importActual<typeof FirestoreModule>('firebase-admin/firestore');
+  return {
+    ...actual,
+    getFirestore: () => mock.db,
+    FieldValue: { ...actual.FieldValue, serverTimestamp: () => 'server-time' },
+  };
+});
 vi.mock('firebase-functions/v2', () => ({ setGlobalOptions: vi.fn() }));
 vi.mock('firebase-functions/v2/https', () => ({
   HttpsError: class HttpsError extends Error {
@@ -316,6 +321,40 @@ describe('claimSeat', () => {
     mock.documents.delete('sessions/s1/gmInstances/bridge');
 
     await expect(releaseSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+  });
+
+  it.each([
+    ['connected but stale', {
+      connected: true,
+      lastSeenAt: Timestamp.fromMillis(Date.now() - 120_000),
+    }],
+    ['disconnected', {
+      connected: false,
+      lastSeenAt: Timestamp.fromMillis(Date.now()),
+    }],
+  ] as const)('does not replay a %s GM intervention receipt', async (_label, instanceFields) => {
+    player('u1', { role: 'gm' });
+    player('u2', { seatId: 'seat-1' });
+    seat('seat-1', { status: 'claimed', holderUid: 'u2' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', connected: true, lastSeenAt: Timestamp.fromMillis(Date.now()),
+    });
+    const command = {
+      sessionId: 's1', seatId: 'seat-1', requestId: `release-gm-${_label.replaceAll(' ', '-')}`,
+      expectedSetupRevision: 0, instanceId: 'bridge', reason: 'Clear stale browser',
+    };
+
+    await expect(releaseSeat.run(request(command))).resolves.toMatchObject({ status: 'committed' });
+    player('u1', { role: 'gm' });
+    put('sessions/s1/gmInstances/bridge', { uid: 'u1', ...instanceFields });
+    mock.update.mockClear();
+    mock.set.mockClear();
+    mock.remove.mockClear();
+
+    await expect(releaseSeat.run(request(command))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.remove).not.toHaveBeenCalled();
   });
 
   it('requires an explicit active roster and an exact stable role id', async () => {
