@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 719-prompt catalog from top to bottom for an ordinary
+Do **not** read this 721-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-719-prompts-001653-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-721-prompts-001653-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 719-prompt roadmap.
+claim completion of the remaining 721-prompt roadmap.
 
 ## Scope and baseline
 
@@ -2045,8 +2045,8 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 719-ID queue (Prompts 001–653 plus the lettered prompts) is in
-scope for the active completion campaign. All 719 canonical prompt IDs (001–653
+The complete 721-ID queue (Prompts 001–653 plus the lettered prompts) is in
+scope for the active completion campaign. All 721 canonical prompt IDs (001–653
 plus the lettered prompts) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -2091,7 +2091,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 719 prompts (001–653 plus lettered IDs)
+#### Execution checklist — all 721 prompts (001–653 plus lettered IDs)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2116,6 +2116,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 018
 - [ ] Prompt 019
 - [x] Prompt 020
+- [ ] Prompt 020a
 - [x] Prompt 021
 - [x] Prompt 022
 - [x] Prompt 023
@@ -2200,6 +2201,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 101
 - [ ] Prompt 102
 - [ ] Prompt 103
+- [ ] Prompt 103a
 - [ ] Prompt 104
 - [ ] Prompt 105
 - [ ] Prompt 106
@@ -2838,6 +2840,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 018 — [EXTEND] Define phase-eligible action metadata.** Acceptance: server guards reject otherwise valid actions in the wrong phase even when a stale UI still shows the control.
 - **Prompt 019 — [EXTEND] Define privacy-safe audit records.** Acceptance: facilitators can inspect decisions while players receive only the public or private facts their roles permit.
 - **Prompt 020 — [PROVE] Build the lobby-to-Team-Phase contract fixture.** Acceptance: one production-path scenario creates, joins, casts, starts, and enters Turn 1 without direct Firestore gameplay writes.
+- **Prompt 020a — [NEW] Bound the single-player demo to Turn 1 without jump authority.** Acceptance: Given an authorized single-player demo using Prompt 020's production create→join→cast→start composition and the existing `startSinglePlayerDemo` app baseline, when it performs every supported setup/action through the end of Turn 1, then it stops at that boundary with an explicit Demo-mode result and never enters a later turn. Demo never exposes an executable jump control; any jump request, including stale, replayed, or unauthorized requests, is denied by the server-authoritative jump path before mutation, with zero mutation to fuel, location, pursuit, events, or turn/phase state. The client shows an on-screen accessible toast explicitly stating that jumps are unavailable in Demo mode. Keyboard order/focus, screen-reader status/live semantics, touch targets, reduced-motion behavior, reconnect/replay, stale retries, and multi-client projections remain truthful and cannot bypass the boundary. Dependencies: Prompt 020 plus the setup/start/Turn 1 contracts in Prompts 074–081 and the jump authority/readiness, route, mutation, and retry contracts in Prompts 177 and 287–304. Apply the routed `REFERENCE_ONLY_CORE_RULES.md`, `REFERENCE_ONLY_FACILITATION.md`, and `REFERENCE_ONLY_SHIPS.md` references; this prompt extends the existing demo baseline and does not imply full-game or post-Turn-1 demo support.
 - **Prompt 021 — [EXTEND] Validate session creation input.** Acceptance: unsupported player count, chart, expansion, turn limit, duplicate option, and malformed fields fail before writes. Existing evidence covers the printed/base 8–18 matrix only; owner-revised 8–20 source-derived Capybara core inputs and separate optional Press/multiple-GM state require composed migration coverage.
 - **Prompt 022 — [EXTEND] Implement authoritative session creation.** Acceptance: one valid callable creates one lobby, owner/facilitator metadata, configuration, and event atomically.
 - **Prompt 023 — [EXTEND] Make session creation retry-safe.** Acceptance: repeating the same creation request returns one session and one join code.
@@ -2925,6 +2928,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 101 — [PRESERVE] Announce Team completion.** Acceptance: one durable transition message follows the committed phase change and replays correctly after reconnect.
 - **Prompt 102 — [PRESERVE] Announce Coordination completion.** Acceptance: one durable message precedes the committed next-turn state and cannot be forged by clients.
 - **Prompt 103 — [PRESERVE] Initialize the next turn.** Acceptance: turn increments once, Team opens, and only defined per-turn counters reset or expire.
+- **Prompt 103a — [NEW] Hold the airspace deadline behind turn-advance interstitials.** Acceptance: Given a committed turn advance with an uncleared turn-advance interstitial, the turn-advance screen hides the `AIRSPACE CLOSED` timer while the authoritative airspace timer/deadline remains frozen at its captured remaining time; only one explicit clear/dismiss action after the committed transition reveals/resumes it from that preserved remaining time, never resetting, extending, or advancing it early. Stale, replayed, retried, reconnecting, and multi-client clear/advance attempts cannot decrement, resume, duplicate, or overwrite a newer deadline or transition event. The preserved/resumed status is accessible, has truthful keyboard order/focus and touch targets, and remains readable under reduced motion. Dependencies: Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. Apply the routed `REFERENCE_ONLY_CORE_RULES.md` and `REFERENCE_ONLY_FACILITATION.md` references and consume existing server-owned timing and broadcast precedence; do not invent a client timer or a new airspace rule.
 - **Prompt 104 — [NEW] Complete the configured final turn.** Acceptance: normal actions freeze and the game enters explicit endgame evaluation rather than an orphaned active phase.
 - **Prompt 105 — [NEW] Trigger pursuit-10 failure.** Acceptance: authoritative pursuit reaching 10 creates one failure outcome and blocks further normal actions.
 - **Prompt 106 — [PRESERVE] Replay lifecycle announcements.** Acceptance: reconnecting members see the latest relevant turn/phase state without duplicate visual effects.
@@ -3575,10 +3579,10 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 652b — [NEW] Run a reversible mobile sticky-ticker experiment.** Acceptance: behind an explicit experiment control, keep the current non-sticky layout at scroll top and switch to a top sticky/frozen row only when the ticker's measured lower edge crosses the named `safe-area-inset-top` threshold. Reserve the ticker's exact block in flow and recompute safely on wrapped copy, live resize, rotation, keyboard, and safe-area changes; never overlap content, controls, focus outlines, session ticket, or Role Select. Preserve the non-sticky fallback and stationary reduced-motion equivalent; prove 320×844, 390×844, 844×390, short landscape, touch/keyboard/screen-reader, interruption, layout-shift, and scroll-performance evidence, with 1440×900 as the non-sticky reference. Roll back under named criterion `TICKER-STICKY-OCCLUSION` for any supported-viewport occlusion, threshold oscillation, more than one unexpected layout shift per crossing, material baseline jank, or lost/duplicate announcement; do not silently make the experiment permanent.
 - **Prompt 653 — [EXTEND] Remove the ICN/Iris fleet-wide console lock.** Acceptance: for an authenticated entitled session member, the ICN/Iris authentication flag no longer imposes a global lock on any fleet ship/role console; controls are available whenever their existing specific role, phase, session, damage, resource, cooldown, GM-instance, and safety-confirmation rules permit. Remove the obsolete fleet-wide lockout UI state and `AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE` standing/ticker/broadcast copy in that future slice, including reconnect/cache behavior, without weakening callable/server authority or enabling pre-session/unauthorized actions. Require failing-first server/client/route/ticker tests, accessible truthful status, supported viewport/reduced-motion review if UI changes, version/changelog, and full release gates.
 
-The backlog contains **719 independently executable prompts** in this
+The backlog contains **721 independently executable prompts** in this
 snapshot: 653 base IDs plus 66 lettered child IDs placed beside their closest
 dependency. The current evidence classification is **159 `[PRESERVE]`, 104
-`[EXTEND]`, 364 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 19 `[REPAIR]`, and 1
+`[EXTEND]`, 366 `[NEW]`, 49 `[PROVE]`, 23 `[DECISION]`, 19 `[REPAIR]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 719 Prompts
+# Implementation Plan Progress — All 721 Prompts
 
-This tracker records all 719 canonical prompt IDs in
+This tracker records all 721 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**72 / 719 prompts complete (10.01%)**
+**72 / 721 prompts complete (9.99%)**
 
-Status breakdown: **72 done · 27 partial · 0 active · 620 missing**.
+Status breakdown: **72 done · 27 partial · 0 active · 622 missing**.
 
 Active prompt: **none**.
 
@@ -28,7 +28,7 @@ repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 The country-flag regression report is retracted: P031a instead composes the
 existing seat/console and flag-selection experiences while preserving the
 historical bespoke flag choreography. The version 0.3.13 release snapshot below
-therefore records the expanded 719-prompt denominator; older release snapshots
+therefore records the expanded 721-prompt denominator; older release snapshots
 remain historical rather than being retroactively restated.
 
 Version 0.3.13 closes Prompt 051 production roster-to-start composition, Prompt
@@ -39,8 +39,8 @@ resources/economy, and alert initialization are still outside this release.
 
 ### Version 0.3.15 progress evidence
 
-The release boundary is recorded reproducibly as **72 / 719 = 10.01%** with
-**72 done · 27 partial · 0 active · 620 missing**. Prompt 603a extends the
+The release boundary is recorded reproducibly as **72 / 721 = 9.99%** with
+**72 done · 27 partial · 0 active · 622 missing**. Prompt 603a extends the
 existing measured `AppHeader` contract to Role Select and session-mode routes
 on both narrow phones and short landscape screens. The focused red/green
 static CSS cascade test and focused component/layout suites pass. The
@@ -232,6 +232,7 @@ release classification and evidence.
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | done | non-feature | — | `functions/src/sessionComposition.test.ts` composes production create→join→GM authority→setup tuple→role/seat casting→private setup→Turn 1 for 8, 19, and 20 (claimed Press) without direct Firestore gameplay writes; focused callable evidence covers replay, stale, unauthorized, reconnect redaction, roster/loyalty/GM-instance invariants, and the existing 57-test `tests/rules/firestore.rules.test.ts` matrix covers member reads plus client-write denials. |
+| 020a | missing | non-feature | — | Planned [NEW] prompt: bound the existing single-player demo to setup and all supported actions through the end of Turn 1, deny jumps server-side with zero fuel/location/pursuit/event/turn mutation, and explain Demo mode in an accessible on-screen toast; no production-path evidence has been recorded. Depends on Prompt 020 plus Prompts 074–081, 177, and 287–304. |
 | 021 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Full tuple validation, request replay/CAS, deterministic active-vessel derivation, and retired partial mutators are covered by the focused Functions suite; Press remains separate and GMs remain non-counted. |
 | 022 | done | feature | 0.3.5, 0.3.14 | Version 0.3.14 completes the standardized member-visible `session.created` envelope inside the atomic creation transaction, bound to the authenticated actor and request ID, strictly redacted, replay-safe, and absent on authentication or code-collision failure. |
 | 023 | done | non-feature | — | Request record replay tested in `createSessionCallable.test.ts`. |
@@ -316,6 +317,7 @@ release classification and evidence.
 | 101 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 102 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 103 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 103a | missing | non-feature | — | Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no production-path evidence has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. |
 | 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
@@ -941,8 +943,9 @@ release classification and evidence.
   decisions before exposing ambiguous actions.
 - Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and
   the default triage suggestion, not a dependency or concurrency lock. Prompt
-  020 is the first missing production-path composition proof after the
-  documented preserve contracts.
+  020 is the landed production-path composition proof; Prompt 020a is a
+  separate queued single-player-demo boundary follow-on after the documented
+  preserve contracts.
 - Application versions `0.3.9` and `0.3.11` cover the Prompt 004 player-facing
   roster slice, with matching changelog coverage; Prompt 051 remains partial.
 - Prompt 011 implementation entry `1788869999219-85128-286eba87` is scoped to

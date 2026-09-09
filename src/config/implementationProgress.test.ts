@@ -72,7 +72,7 @@ describe('implementation progress integrity gate', () => {
 
     expect(result.errors).toEqual([]);
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 72/719 complete; 27 partial; 620 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      'Implementation progress: 72/721 complete; 27 partial; 622 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
     );
   });
 
@@ -82,27 +82,27 @@ describe('implementation progress integrity gate', () => {
     expect(result.errors).toEqual([]);
     expect(result.summary).toMatchObject({
       complete: 72,
-      total: 719,
+      total: 721,
       partial: 27,
-      missing: 620,
+      missing: 622,
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
       version: applicationVersion,
       completed: 72,
-      total: 719,
-      percentage: '10.01%',
+      total: 721,
+      percentage: '9.99%',
       done: 72,
       partial: 27,
       active: 0,
-      missing: 620,
+      missing: 622,
     });
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
-      changelogSource: changelogSource.replace("percentage: '10.01%'", "percentage: '9.7%'")
+      changelogSource: changelogSource.replace("percentage: '9.99%'", "percentage: '9.7%'")
         .replace('partial: 27', 'partial: 28'),
     });
 
@@ -124,7 +124,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 72, total: 719, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ complete: 72, total: 721, resumePrompt: '012' });
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');
