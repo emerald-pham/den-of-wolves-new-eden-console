@@ -1072,6 +1072,14 @@ it('commits ordinary production only on the second click and renders the private
   expect(screen.getByRole('button', { name: /skip to turn 1/i })).toBeInTheDocument();
 });
 
+it('stacks production receipt fields at the narrowest phone breakpoint', () => {
+  const index = readFileSync('src/index.css', 'utf8');
+
+  expect(index).toMatch(
+    /@media \(max-width: 30rem\)\s*\{[^]*?\.gm-start-receipt__list div\s*\{\s*grid-template-columns: 1fr;\s*\}/,
+  );
+});
+
 it('shows pending production state and ignores a second submit while the callable is unresolved', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

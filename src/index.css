@@ -3186,6 +3186,7 @@ body {
 @media (max-width: 30rem) {
   .press-dispatch__current-item { grid-template-columns: minmax(0, 1fr); }
   .press-dispatch__current-item .cic-action-button { width: 100%; }
+  .gm-start-receipt__list div { grid-template-columns: 1fr; }
 }
 
 .confetti-burst {
