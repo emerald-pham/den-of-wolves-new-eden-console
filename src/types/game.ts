@@ -376,9 +376,15 @@ export interface MaintenanceEvent {
   readonly type: 'maintenance';
   readonly shipId: Id;
   readonly shipName: string;
-  readonly action: 'begin' | 'end';
+  readonly action: MaintenanceEventAction;
+  readonly results: MaintenanceEventResults;
   readonly createdAt: Timestamp;
 }
+
+export type MaintenanceEventAction =
+  | 'begin' | 'storage' | 'rations' | 'unrest' | 'riot' | 'reactor' | 'bays' | 'end';
+export type MaintenanceEventResultStep = '1' | '2' | '3' | '4' | '5' | '6' | '7';
+export type MaintenanceEventResults = Partial<Record<MaintenanceEventResultStep, string>>;
 
 export interface TimerPauseEvent {
   readonly id: Id;

@@ -420,7 +420,17 @@ it('commits maintenance resources, charges, fuel, and damage once across duplica
   });
   expect(riotReceipt.serverEntropy).toBe(0);
   expect(riotReceipt.serverRolls).toEqual([1, 1]);
-  expect(riotEvent).toMatchObject({ requestId: committed.requestId, serverTime: riotReceipt.serverTime });
+  expect(riotEvent).toMatchObject({
+    requestId: committed.requestId,
+    serverTime: riotReceipt.serverTime,
+    type: 'maintenance',
+    action: 'riot',
+    results: { '4': expect.stringContaining('Riot') },
+  });
+  expect(riotEvent).not.toHaveProperty('reply');
+  expect(riotEvent).not.toHaveProperty('fingerprint');
+  expect(riotEvent).not.toHaveProperty('serverEntropy');
+  expect(riotEvent).not.toHaveProperty('serverRolls');
 });
 
 it('rejects Team maintenance while the server phase is Coordination', async () => {

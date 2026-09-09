@@ -1467,11 +1467,13 @@ it('relays maintenance cycle starts and completions to the GM event log', async 
       {
         id: 'maintenance-complete', sessionId: 's1', type: 'maintenance',
         shipId: 'aegis', shipName: 'AEGIS', action: 'end',
+        results: {},
         createdAt: '2026-01-01T00:04:00.000Z',
       },
       {
         id: 'maintenance-start', sessionId: 's1', type: 'maintenance',
         shipId: 'aegis', shipName: 'AEGIS', action: 'begin',
+        results: {},
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ]);

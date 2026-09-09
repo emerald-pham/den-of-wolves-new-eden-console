@@ -46,6 +46,7 @@ import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState } from './turnPhase';
+import { parseMaintenanceEvent } from './maintenanceEvent';
 
 let firestore: Firestore | undefined;
 
@@ -533,15 +534,10 @@ export function subscribeSessionEvents(
         message: data.message as string,
         createdAt: iso(data.createdAt),
       }];
-      if (data.type === 'maintenance' && (data.action === 'begin' || data.action === 'end')) return [{
-        id: event.id,
-        sessionId,
-        type: 'maintenance' as const,
-        shipId: data.shipId as string,
-        shipName: data.shipName as string,
-        action: data.action,
-        createdAt: iso(data.createdAt),
-      }];
+      if (data.type === 'maintenance') {
+        const maintenance = parseMaintenanceEvent(event.id, sessionId, data, iso(data.createdAt));
+        return maintenance ? [maintenance] : [];
+      }
       if (
         data.type === 'timer-pause' &&
         (data.action === 'paused' || data.action === 'resumed') &&

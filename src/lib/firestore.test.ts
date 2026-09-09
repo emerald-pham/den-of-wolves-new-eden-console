@@ -19,7 +19,7 @@ vi.mock('./firebaseConfig', () => ({
   useEmulators: false,
 }));
 
-const { sessionFrom, subscribeGmInstances, subscribeSessionState } = await import('./firestore');
+const { sessionFrom, subscribeGmInstances, subscribeSessionEvents, subscribeSessionState } = await import('./firestore');
 const { onSnapshot } = await import('firebase/firestore');
 
 function sessionData(playerCount: number) {
@@ -276,6 +276,41 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
     source: 'routine-start', committedSetupRevision: 1,
   }));
+});
+
+it('parses only audience-safe maintenance result fields from member events', () => {
+  const onEvents = vi.fn();
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    (callback as (snapshot: unknown) => void)({
+      docs: [{
+        id: 'maintenance-rations-1',
+        data: () => ({
+          type: 'maintenance', action: 'rations', shipId: 'aegis', shipName: 'AEGIS',
+          results: { '2': 'Spent 3 food and 2 water. Ration bonus +9.', hidden: 'deck order' },
+          privateNotes: 'facilitator-only note', fingerprint: 'private fingerprint',
+          serverRolls: [6, 6], maintenanceRequest: { reply: { result: 'private state' } },
+        }),
+      }, {
+        id: 'maintenance-invalid-1',
+        data: () => ({ type: 'maintenance', action: 'unknown', shipId: 'aegis', shipName: 'AEGIS', results: {} }),
+      }],
+    });
+    return vi.fn();
+  }) as never);
+
+  subscribeSessionEvents('s1', onEvents, vi.fn());
+
+  expect(onEvents).toHaveBeenCalledWith([{
+    id: 'maintenance-rations-1', sessionId: 's1', type: 'maintenance',
+    shipId: 'aegis', shipName: 'AEGIS', action: 'rations',
+    results: { '2': 'Spent 3 food and 2 water. Ration bonus +9.' },
+    createdAt: expect.any(String),
+  }]);
+  const serialized = JSON.stringify(onEvents.mock.calls[0]?.[0]);
+  expect(serialized).not.toContain('facilitator-only note');
+  expect(serialized).not.toContain('private fingerprint');
+  expect(serialized).not.toContain('deck order');
+  expect(serialized).not.toContain('private state');
 });
 
 it('hydrates legacy seat labels and factions from the canonical role catalog', () => {
