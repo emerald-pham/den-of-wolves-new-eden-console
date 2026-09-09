@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['603a'],
+    implementationProgress: {
+      completed: 71,
+      total: 719,
+      percentage: '9.87%',
+      done: 71,
+      partial: 27,
+      active: 0,
+      missing: 621,
+    },
+    changes: [
+      'The session ticket now reserves its real space across the console, keeping Role Select and routed controls clear on phones and short screens.',
+    ],
+  },
+  {
+    version: '0.3.14',
     implementationPrompts: [22],
     implementationProgress: {
       completed: 70,

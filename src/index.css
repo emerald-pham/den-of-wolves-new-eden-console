@@ -3670,6 +3670,16 @@ body {
   :root { --ship-plot-widget-size: clamp(8.5rem, 36vw, 11rem); }
 }
 
+@media (max-width: 42rem), (max-height: 42rem) {
+  .role-select,
+  .session-mode {
+    padding-top: max(
+      clamp(6rem, 14vh, 9rem),
+      calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 1rem)
+    );
+  }
+}
+
 @media (max-width: 32rem) {
   .ship-resources ul { grid-template-columns: 1fr; }
   .ship-plot[data-aboard='true'][data-expanded='false'] {
@@ -3683,14 +3693,6 @@ body {
   .settings-button {
     min-width: 44px;
     min-height: 44px;
-  }
-
-  .role-select,
-  .session-mode {
-    padding-top: max(
-      clamp(6rem, 14vh, 9rem),
-      calc(max(0.75rem, env(safe-area-inset-top)) + var(--app-header-height, 4.25rem) + 1rem)
-    );
   }
 
   .personnel-count {
