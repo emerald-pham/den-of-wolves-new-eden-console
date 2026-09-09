@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
+import { sessionFrom } from '@/lib/firestore';
 import AegisConsoleWorkspace from './AegisConsoleWorkspace';
 import FleetBroadcast from './FleetBroadcast';
 import FleetAlertControl from './FleetAlertControl';
@@ -126,26 +127,37 @@ it('posts the current airspace window as a compact looping Airspace Control bull
 });
 
 it('names the lifted window as an Airspace Control bulletin', () => {
-  act(() => {
-    const state = useSessionStore.getState();
-    const now = new Date(Date.now());
-    state.setSession({
-      ...state.session!,
-      currentTurn: 1,
-      turnPhase: {
-        turn: 1,
-        teamPhaseEndsAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
-        openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
-        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
-      },
-    } as never);
-  });
+  const state = useSessionStore.getState();
+  const now = new Date(Date.now());
+  const authoritativeSnapshot = {
+    ...state.session!,
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
+      openAirspaceEndsAt: new Date(now.getTime() + 30 * 60_000).toISOString(),
+      airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+    },
+  };
+  const hydrateAuthoritativeSession = () => {
+    const hydrated = sessionFrom('s1', authoritativeSnapshot);
+    useSessionStore.getState().setSession(hydrated);
+    return hydrated;
+  };
 
+  act(() => { hydrateAuthoritativeSession(); });
+
+  const view = render(<FleetBroadcast />);
+  const expectedBulletin = 'AIRSPACE CONTROL // AIRSPACE OPEN';
+  expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
+  expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
+
+  view.unmount();
+  act(() => { hydrateAuthoritativeSession(); });
   render(<FleetBroadcast />);
 
-  expect(screen.getByRole('status', {
-    name: 'AIRSPACE CONTROL // AIRSPACE OPEN',
-  })).toBeVisible();
+  expect(screen.getAllByRole('status', { name: expectedBulletin })).toHaveLength(1);
+  expect(screen.getByRole('status', { name: expectedBulletin })).toBeVisible();
 });
 
 it('broadcasts an emergency timer hold as a fleetwide Airspace Control bulletin', () => {
