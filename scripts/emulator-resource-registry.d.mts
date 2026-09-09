@@ -79,6 +79,16 @@ export interface ValidationReceipt {
     readonly configurationId?: string;
     readonly slot?: number;
     readonly preexistingConfigIdentity?: string;
+    readonly generatedFiles?: readonly {
+      readonly path: string;
+      readonly identity: {
+        readonly contentHash: string;
+        readonly device: number;
+        readonly inode: number;
+        readonly mtimeNs: string;
+        readonly ctimeNs: string;
+      };
+    }[];
     readonly cleanup?: Readonly<Record<string, unknown>>;
   };
   readonly reviews?: {
@@ -126,6 +136,7 @@ export interface ReleaseState {
   readonly mainLockVersion: string;
   readonly branchChangelog: readonly ChangelogSnapshotEntry[];
   readonly mainChangelog: readonly ChangelogSnapshotEntry[];
+  readonly validationProfile?: ValidationPlan['profile'];
 }
 
 export interface ConfiguredEmulatorSlot {
@@ -256,6 +267,16 @@ export function cleanupValidationEmulator(
   prepared: Record<string, unknown>,
   options?: Record<string, unknown>,
 ): Promise<Record<string, unknown>>;
+export function executeValidationProcess(
+  command: string,
+  args: readonly string[],
+  cwd: string,
+  options?: {
+    readonly signalSource?: NodeJS.Process;
+    readonly signal?: AbortSignal;
+    readonly timeoutMs?: number;
+  },
+): Promise<{ readonly stdout: string; readonly stderr: string }>;
 export function reserveEmulatorSlot(options: {
   filePath?: string;
   slot: number;

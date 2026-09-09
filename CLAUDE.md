@@ -217,7 +217,8 @@ Commands:
 ```bash
 npm test            # unit + component
 npm run test:rules  # security rules, wrapped in the Firestore emulator
-npm run test:all    # both — this is what CI runs
+npm run test:all    # both — this is what CI runs; exact validation may use the
+                    # mechanically proven copy-only exception below
 ```
 
 ### Shared test-runner contention
@@ -547,9 +548,10 @@ together.
 from the committed `main...HEAD` diff. When that profile requires the rules
 emulator and this worktree has no `firebase.local.json`, validation atomically
 claims a complete row as if `npm run emulators:configure -- auto` had been
-run. It records the configuration ID and content identity in the receipt,
-uses the setup only for that validation, and removes only files whose content
-still matches the setup. Existing configuration files and replacements made
+run. It records the configuration ID plus content/stat identities for generated
+files in the receipt,
+uses the setup only for that validation, and removes only files whose recorded
+ownership identity still matches the setup. Existing configuration files and replacements made
 by another process are preserved. If allocation cannot succeed, follow the
 exact actionable command `npm run emulators:configure -- auto` after a slot
 is released; validation never falls back to the shared/default project.
@@ -587,7 +589,10 @@ uncertain change must use the full validation profile.
 - For changes that are not documentation-only, local tests always run before
   deployment: `npm run lint`, `npm run test:all`,
   `npm run build`, and `npm run build --prefix functions`. Passing relevant
-  local checks is the normal merge gate. A known failure does not automatically
+  local checks is the normal merge gate. The exact coordination validator may
+  replace `test:all` only with the mechanically proven copy-only profile
+  described above; all other changes, including validation infrastructure,
+  use the full suite. A known failure does not automatically
   block deployment only when it is demonstrably unrelated or flaky and the
   deployment remains safe; changed-code, rules, authentication, authorization,
   data-integrity, or security failures always block.

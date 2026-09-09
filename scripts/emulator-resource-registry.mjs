@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  link,
   mkdir,
   open,
   readFile,
@@ -9,7 +10,7 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -137,14 +138,20 @@ function contentIdentity(content) {
 }
 
 async function writeValidationFileAtomically(path, content) {
-  const handle = await open(path, 'wx', 0o600);
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
   try {
-    await handle.writeFile(content, 'utf8');
-  } catch (error) {
-    await unlink(path).catch(() => undefined);
-    throw error;
+    const handle = await open(temporaryPath, 'wx', 0o600);
+    try {
+      await handle.writeFile(content, 'utf8');
+    } finally {
+      await handle.close();
+    }
+    // The temporary file is in the target directory, so a hard-link publish
+    // is an atomic same-filesystem no-clobber operation. Readers see either
+    // no target or the complete file; a concurrent owner gets EEXIST.
+    await link(temporaryPath, path);
   } finally {
-    await handle.close();
+    await unlink(temporaryPath).catch(() => undefined);
   }
 }
 
@@ -165,6 +172,8 @@ async function fileIdentity(path) {
       contentHash: contentIdentity(content),
       device: metadata.dev,
       inode: metadata.ino,
+      mtimeNs: (metadata.mtimeNs ?? BigInt(Math.round(metadata.mtimeMs * 1e6))).toString(),
+      ctimeNs: (metadata.ctimeNs ?? BigInt(Math.round(metadata.ctimeMs * 1e6))).toString(),
     };
   } catch (error) {
     if (error?.code === 'ENOENT') return undefined;
@@ -176,7 +185,9 @@ function sameFileIdentity(left, right) {
   return Boolean(left && right &&
     left.contentHash === right.contentHash &&
     left.device === right.device &&
-    left.inode === right.inode);
+    left.inode === right.inode &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs);
 }
 
 /**
@@ -627,21 +638,55 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
   return errors;
 }
 
+function normalizedPathSet(files) {
+  if (!Array.isArray(files)) return { valid: false, values: [], sorted: [] };
+  const values = files.map((filePath) => typeof filePath === 'string' ? filePath.trim() : '');
+  const sorted = values.slice().sort();
+  const hasDuplicate = sorted.some((filePath, index) => index > 0 && filePath === sorted[index - 1]);
+  return {
+    valid: values.every(Boolean) && !hasDuplicate,
+    values,
+    sorted,
+  };
+}
+
+function exactArrayMatch(left, right) {
+  return Array.isArray(left) && Array.isArray(right) &&
+    left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function validationReceiptErrors(entry, release) {
   const errors = [];
   const receipt = entry.validation;
-  const changedFiles = Array.isArray(receipt?.files) ? receipt.files : release.changedFiles;
-  const plan = validationPlanForFiles(changedFiles, {
-    profile: receipt?.profile,
-  });
+  const authoritativeFiles = normalizedPathSet(release.changedFiles);
+  const receiptFiles = normalizedPathSet(receipt?.files);
 
-  if (!Array.isArray(changedFiles) || changedFiles.length === 0) {
+  if (!authoritativeFiles.valid || authoritativeFiles.values.length === 0) {
     errors.push('no committed task changes were found from the coordination start SHA');
   }
   if (!receipt) {
     errors.push('no validation receipt is recorded; run coordination:validate first');
     return errors;
   }
+  if (!receiptFiles.valid || receiptFiles.values.length === 0) {
+    errors.push('validation receipt does not record a valid changed-file set');
+  } else if (!authoritativeFiles.valid ||
+    !exactArrayMatch(receiptFiles.sorted, authoritativeFiles.sorted)) {
+    errors.push('validation receipt files must exactly match the authoritative changed files');
+  }
+
+  // Completion uses independently derived release evidence, never a profile
+  // or file subset supplied by the receipt. Synthetic legacy fixtures without
+  // Git evidence conservatively use the full validation profile.
+  const expectedProfile = release.validationProfile ?? {
+    kind: 'full',
+    reason: 'independent committed-diff profile unavailable; full gate required',
+    commands: [],
+  };
+  const plan = validationPlanForFiles(authoritativeFiles.values, {
+    profile: expectedProfile,
+  });
+
   if (receipt.commitSha !== release.branchSha) {
     errors.push(
       `validation receipt commit ${receipt.commitSha} does not match final branch SHA ${release.branchSha}`,
@@ -650,41 +695,30 @@ function validationReceiptErrors(entry, release) {
   if (receipt.passed !== true) {
     errors.push('the recorded validation receipt is not passing');
   }
-  if (!Array.isArray(receipt.files) || receipt.files.length === 0) {
-    errors.push('validation receipt does not record the changed files it checked');
-  }
   if (receipt.docsOnly !== plan.documentationOnly) {
     errors.push('validation receipt scope does not match the current changed files');
   }
-  if (receipt.profile?.kind !== plan.profile?.kind) {
-    errors.push('validation receipt profile does not match the commands it recorded');
-  }
-  if (receipt.profile) {
-    const evidence = receipt.profile.evidence;
-    const expectedBaseSha = changedFilesBaseRef({
-      mainSha: release.mainSha,
-      startBranchSha: release.startBranchSha,
-      mainContainsBranch: release.mainContainsBranch,
-    });
-    if (!evidence || typeof evidence !== 'object') {
-      errors.push('validation receipt does not record derived profile evidence');
-    } else {
-      if (evidence.baseSha !== expectedBaseSha) {
-        errors.push('validation receipt profile evidence base SHA is stale');
-      }
-      if (evidence.branchSha !== release.branchSha) {
-        errors.push('validation receipt profile evidence branch SHA is stale');
-      }
-      if (typeof evidence.diffIdentity !== 'string' || !evidence.diffIdentity) {
-        errors.push('validation receipt profile evidence has no committed diff identity');
-      }
+  if (!receipt.profile) {
+    if (expectedProfile.kind === 'copy-only' || expectedProfile.evidence) {
+      errors.push('validation receipt does not record the independently derived profile');
     }
+  } else if (receipt.profile.kind !== expectedProfile.kind ||
+    !exactArrayMatch(receipt.profile.commands, expectedProfile.commands)) {
+    errors.push('validation receipt profile does not match the independently derived profile');
+  } else if (expectedProfile.evidence) {
+    const evidence = receipt.profile.evidence;
+    if (!evidence || typeof evidence !== 'object' ||
+      evidence.baseSha !== expectedProfile.evidence.baseSha ||
+      evidence.branchSha !== expectedProfile.evidence.branchSha ||
+      evidence.diffIdentity !== expectedProfile.evidence.diffIdentity) {
+      errors.push('validation receipt profile evidence does not match the independently derived committed diff');
+    }
+  } else if (receipt.profile.evidence) {
+    errors.push('validation receipt profile evidence cannot be accepted without independently derived committed-diff evidence');
   }
   const recordedCommands = Array.isArray(receipt.commands) ? receipt.commands : [];
-  for (const command of plan.commands) {
-    if (!recordedCommands.includes(command)) {
-      errors.push(`validation receipt is missing required command ${command}`);
-    }
+  if (!exactArrayMatch(recordedCommands, plan.commands)) {
+    errors.push('validation receipt commands do not match the independently derived command plan');
   }
   if (plan.requiresDocumentationReview && !text(receipt.reviews?.documentation)) {
     errors.push('documentation changes require a documentation review receipt');
@@ -884,7 +918,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
     cwd,
   });
 
-  return {
+  const release = {
     branchName,
     branchSha,
     mainSha,
@@ -906,6 +940,14 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
           branchBaselineIsAncestor: await gitIsAncestor(startBranchSha, branchSha, cwd),
         }
       : {}),
+  };
+  return {
+    ...release,
+    validationProfile: await deriveValidationProfile({
+      release,
+      startBranchSha,
+      cwd,
+    }),
   };
 }
 
@@ -931,13 +973,55 @@ function terminateValidationProcess(child, signal) {
   }
 }
 
-function executeValidationProcess(command, args, cwd, { signalSource = process, signal } = {}) {
+async function waitForValidationProcessGroupExit(pid, timeoutMs) {
+  if (!pid || process.platform === 'win32') return true;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-pid, 0);
+    } catch (error) {
+      if (error?.code === 'ESRCH') return true;
+      throw error;
+    }
+    await delay(25);
+  }
+  try {
+    process.kill(-pid, 0);
+    return false;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return true;
+    throw error;
+  }
+}
+
+const VALIDATION_PROCESS_TIMEOUT_MS = 60 * 60 * 1000;
+const VALIDATION_PROCESS_ESCALATION_MS = 1_000;
+
+export function executeValidationProcess(
+  command,
+  args,
+  cwd,
+  {
+    signalSource = process,
+    signal,
+    timeoutMs = VALIDATION_PROCESS_TIMEOUT_MS,
+  } = {},
+) {
   return new Promise((resolvePromise, rejectPromise) => {
     const controller = new AbortController();
     let child;
     let receivedSignal;
+    let processError;
+    let stdoutLength = 0;
+    let stderrLength = 0;
+    const stdout = [];
+    const stderr = [];
+    let timeoutTimer;
+    let escalationTimer;
     let settled = false;
     const cleanup = () => {
+      clearTimeout(timeoutTimer);
+      clearTimeout(escalationTimer);
       signalSource.removeListener('SIGINT', onInterrupt);
       signalSource.removeListener('SIGTERM', onTerminate);
       signal?.removeEventListener('abort', onAbort);
@@ -965,6 +1049,33 @@ function executeValidationProcess(command, args, cwd, { signalSource = process, 
       }
       controller.abort(receivedSignal);
     };
+    const onTimeout = () => {
+      if (receivedSignal) return;
+      receivedSignal = 'TIMEOUT';
+      try {
+        terminateValidationProcess(child, 'SIGTERM');
+        escalationTimer = setTimeout(() => {
+          if (settled) return;
+          try {
+            terminateValidationProcess(child, 'SIGKILL');
+          } catch (error) {
+            rejectOnce(error);
+          }
+        }, VALIDATION_PROCESS_ESCALATION_MS);
+      } catch (error) {
+        rejectOnce(error);
+      }
+    };
+    const onOutput = (chunks, length, chunk) => {
+      const nextLength = length + chunk.length;
+      if (nextLength > 32 * 1024 * 1024) {
+        processError = new Error(`${command} validation output exceeded the 32 MB limit.`);
+        abort('SIGTERM');
+        return length;
+      }
+      chunks.push(chunk);
+      return nextLength;
+    };
     const onInterrupt = () => abort('SIGINT');
     const onTerminate = () => abort('SIGTERM');
     const onAbort = () => abort(signal?.reason);
@@ -981,26 +1092,72 @@ function executeValidationProcess(command, args, cwd, { signalSource = process, 
     }
 
     try {
-      child = execFile(command, args, {
+      // execFile does not forward the detached option on this Node runtime;
+      // spawn is used directly so the child becomes its own process-group
+      // leader and descendants can be terminated as one bounded tree.
+      child = spawn(command, args, {
         cwd,
-        encoding: 'utf8',
-        maxBuffer: 32 * 1024 * 1024,
-        timeout: 60 * 60 * 1000,
         signal: controller.signal,
         detached: process.platform !== 'win32',
-      }, (error, stdout, stderr) => {
-        if (receivedSignal) {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      child.stdout?.on('data', (chunk) => {
+        stdoutLength = onOutput(stdout, stdoutLength, chunk);
+      });
+      child.stderr?.on('data', (chunk) => {
+        stderrLength = onOutput(stderr, stderrLength, chunk);
+      });
+      child.once('error', (error) => {
+        processError ??= error;
+      });
+      child.once('close', async (code, signalName) => {
+        if (receivedSignal || processError || code !== 0) {
+          try {
+            if (!receivedSignal && child?.pid) {
+              terminateValidationProcess(child, 'SIGTERM');
+            }
+            const groupExited = await waitForValidationProcessGroupExit(
+              child?.pid,
+              VALIDATION_PROCESS_ESCALATION_MS,
+            );
+            if (!groupExited && child?.pid) {
+              terminateValidationProcess(child, 'SIGKILL');
+              await waitForValidationProcessGroupExit(child.pid, VALIDATION_PROCESS_ESCALATION_MS);
+            }
+          } catch (error) {
+            processError ??= error;
+          }
+        }
+        if (receivedSignal === 'TIMEOUT') {
+          rejectOnce(new Error(
+            `${command} validation timed out after ${timeoutMs}ms.`,
+            { cause: processError },
+          ));
+        } else if (receivedSignal) {
           rejectOnce(new Error(`${command} validation was interrupted by ${receivedSignal}.`, {
-            cause: error,
+            cause: processError,
           }));
-        } else if (error) {
+        } else if (processError) {
+          rejectOnce(processError);
+        } else if (code !== 0) {
+          const error = new Error(
+            `${command} exited with ${signalName ? `signal ${signalName}` : `code ${code}`}.`,
+          );
+          error.code = code;
+          error.signal = signalName;
           rejectOnce(error);
         } else {
-          resolveOnce({ stdout, stderr });
+          resolveOnce({
+            stdout: Buffer.concat(stdout).toString('utf8'),
+            stderr: Buffer.concat(stderr).toString('utf8'),
+          });
         }
       });
     } catch (error) {
       rejectOnce(error);
+    }
+    if (timeoutMs !== undefined && timeoutMs !== null) {
+      timeoutTimer = setTimeout(onTimeout, timeoutMs);
     }
   });
 }
@@ -2264,6 +2421,10 @@ export async function validateCoordinationEntry(filePath, options) {
               configurationId: preparedEmulator.configurationId,
               slot: preparedEmulator.slot,
               preexistingConfigIdentity: preparedEmulator.preexistingConfigIdentity,
+              generatedFiles: preparedEmulator.files.map(({ path, identity }) => ({
+                path,
+                identity,
+              })),
               cleanup: cleanupOutcome,
             },
           }

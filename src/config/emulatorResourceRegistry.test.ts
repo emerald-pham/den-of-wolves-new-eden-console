@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -24,6 +24,7 @@ import {
   deriveCopyOnlyValidationProfile,
   prepareValidationEmulator,
   cleanupValidationEmulator,
+  executeValidationProcess,
   validateImplementationPromptClaims,
   validateCoordinationEntry,
   validateReleaseCompletion,
@@ -592,11 +593,54 @@ describe('local emulator coordination', () => {
         environmentForSlot: () => ({ VITE_USE_EMULATORS: '1' }),
       });
       const generatedConfig = await readFile(configurationPath, 'utf8');
-      await unlink(configurationPath);
       await writeFile(configurationPath, generatedConfig, 'utf8');
+      await chmod(configurationPath, 0o640);
 
       await cleanupValidationEmulator(prepared, { release: async () => undefined });
       expect(await readFile(configurationPath, 'utf8')).toBe(generatedConfig);
+    } finally {
+      await unlink(configurationPath).catch(() => undefined);
+      await unlink(environmentPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('serializes concurrent same-worktree setup without clobbering or partial JSON', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-auto-validation-concurrent-${randomUUID()}`);
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const filePath = resolve(tmpdir(), `den-of-wolves-auto-validation-concurrent-${randomUUID()}.json`);
+    const configuration = {
+      id: 'configuration-concurrent', slot: 3, worktree: root,
+      configuredAt: '2026-09-09T00:00:00.000Z', ports: [5031],
+    };
+    let allocations = 0;
+    const options = {
+      repositoryDirectory: root,
+      coordinationPath: filePath,
+      localFirebaseConfigPath: configurationPath,
+      localEnvironmentPath: environmentPath,
+      reserve: async () => { allocations += 1; return configuration; },
+      release: async () => undefined,
+      baseConfig: { emulators: {} },
+      configForSlot: () => ({ emulators: { firestore: { port: 5031 } } }),
+      environmentForSlot: () => ({ VITE_USE_EMULATORS: '1' }),
+    };
+    try {
+      const prepared = await Promise.all([
+        prepareValidationEmulator(options),
+        prepareValidationEmulator(options),
+      ]);
+      expect(prepared.filter(({ created }) => created)).toHaveLength(1);
+      expect(allocations).toBe(1);
+      expect(JSON.parse(await readFile(configurationPath, 'utf8'))).toEqual({
+        emulators: { firestore: { port: 5031 } },
+      });
+      expect(await readFile(environmentPath, 'utf8')).toBe('VITE_USE_EMULATORS=1\n');
+      await Promise.all(prepared.map((value) => cleanupValidationEmulator(value, { release: async () => undefined })));
+      expect(await readFile(configurationPath).catch(() => undefined)).toBeUndefined();
+      expect(await readFile(environmentPath).catch(() => undefined)).toBeUndefined();
     } finally {
       await unlink(configurationPath).catch(() => undefined);
       await unlink(environmentPath).catch(() => undefined);
@@ -726,6 +770,21 @@ describe('local emulator coordination', () => {
         commitSha: 'branch-sha',
         passed: true,
         docsOnly: false,
+        emulator: {
+          setup: 'auto',
+          generatedFiles: expect.arrayContaining([
+            expect.objectContaining({
+              path: expect.stringMatching(/firebase\.local\.json$/),
+              identity: expect.objectContaining({
+                contentHash: expect.any(String),
+                device: expect.any(Number),
+                inode: expect.any(Number),
+                mtimeNs: expect.any(String),
+                ctimeNs: expect.any(String),
+              }),
+            }),
+          ]),
+        },
       });
     } finally {
       await unlink(filePath).catch(() => undefined);
@@ -1053,6 +1112,66 @@ describe('local emulator coordination', () => {
       },
       release: releaseState(),
     })).toThrow(/profile.*evidence|evidence.*base/i);
+  });
+
+  it('rejects a fabricated copy-only receipt that omits authoritative changed files', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        validation: {
+          ...codeValidation,
+          files: ['src/components/RoleSelect.test.tsx'],
+          commands: [
+            'git diff --check',
+            'npm run validate:implementation-progress',
+            'npm run lint',
+            'npm run build',
+            'npm test -- --run src/components/RoleSelect.test.tsx',
+          ],
+          profile: {
+            kind: 'copy-only',
+            reason: 'fabricated static-copy result',
+            commands: [
+              'npm run validate:implementation-progress',
+              'npm run lint',
+              'npm run build',
+              'npm test -- --run src/components/RoleSelect.test.tsx',
+            ],
+            evidence: {
+              baseSha: 'main-sha',
+              branchSha: 'branch-sha',
+              diffIdentity: 'fabricated-diff-hash',
+            },
+          },
+        },
+      },
+      release: releaseState({
+        changedFiles: ['scripts/validation-profile.mjs', 'src/config/emulatorResourceRegistry.mjs'],
+      }),
+    })).toThrow(/receipt.*files|changed files|authoritative|exact/i);
+  });
+
+  it('kills detached validation descendants before reporting a timeout', async () => {
+    const markerPath = resolve(tmpdir(), `den-of-wolves-validation-child-${randomUUID()}.txt`);
+    const childCode = [
+      "const { spawn } = require('node:child_process');",
+      "const { writeFileSync } = require('node:fs');",
+      "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+      'writeFileSync(process.argv[1], String(child.pid));',
+      'setInterval(() => {}, 1000);',
+    ].join('\n');
+    try {
+      await expect(executeValidationProcess(
+        process.execPath,
+        ['-e', childCode, markerPath],
+        process.cwd(),
+        { timeoutMs: 250 },
+      )).rejects.toThrow(/timed out/i);
+      const childPid = Number(await readFile(markerPath, 'utf8'));
+      expect(() => process.kill(childPid, 0)).toThrow();
+    } finally {
+      await unlink(markerPath).catch(() => undefined);
+    }
   });
 
   it('rejects completion without a test-growth receipt for changed test files', () => {
