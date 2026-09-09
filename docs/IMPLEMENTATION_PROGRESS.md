@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**72 / 721 prompts complete (9.99%)**
+**73 / 721 prompts complete (10.12%)**
 
-Status breakdown: **72 done · 27 partial · 0 active · 622 missing**.
+Status breakdown: **73 done · 26 partial · 0 active · 622 missing**.
 
 Active prompt: **none**.
 
@@ -52,6 +52,15 @@ simulated safe areas, long labels, role-control keyboard order/focus
 rectangles, absolute-header scroll-away, settings, and a wrapped stationary
 reduced-motion FleetBroadcast; touch-sized controls retain 44px targets. This
 is local rendered evidence, not deployed or live-Firebase proof.
+
+### Version 0.3.16 progress evidence
+
+The release boundary records Prompt 098 complete at **73 / 721 = 10.12%**
+with **73 done · 26 partial · 0 active · 622 missing**. The existing
+restricted→lifted airspace transition now writes one deterministic,
+member-scoped event in the same transaction; a stateful optimistic-CAS test
+proves two simultaneous expiry observers commit one transition and one event,
+while a post-lifted replay returns the authoritative state without mutation.
 
 ### Version 0.3.14 progress evidence
 
@@ -311,7 +320,7 @@ release classification and evidence.
 | 095 | done | non-feature | — | Server Coordination timer duration tests. |
 | 096 | done | non-feature | — | Turn 1-only override tests. |
 | 097 | done | non-feature | — | Emergency pause interlock/audit tests. |
-| 098 | partial | non-feature | — | Transition paths exist; explicit expiry race proof remains open. |
+| 098 | done | feature | 0.3.16 | Version 0.3.16 makes restricted→lifted airspace expiry one transaction-owned transition with one deterministic, member-scoped event across the shared callable paths. The stateful optimistic-CAS race fixture proves two simultaneous observers commit one update/event, loser retry and later replay return the authoritative lifted phase without changing deadlines or state. Existing auth, membership, expected-turn, pause, deadline, and client-write denial guards remain covered. |
 | 099 | partial | non-feature | — | Maintenance wrong-phase gate exists; full Team-action family matrix remains open. |
 | 100 | partial | non-feature | — | Movement/jump Coordination gates exist; transfer/scouting/research coverage remains open. |
 | 101 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

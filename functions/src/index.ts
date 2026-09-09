@@ -179,6 +179,36 @@ initializeApp();
 setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 
 const db = getFirestore();
+
+type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
+
+function writeAirspaceOpenedEvent(
+  tx: Transaction,
+  sessionId: string,
+  phase: ActiveTurnPhase,
+): void {
+  // The phase clock has no revision field. Use the logical expiry instant as
+  // the stable event time and the deterministic document/request ID as the
+  // transition identity; revision 0 is intentionally not a phase revision.
+  const eventId = `airspace-opened-${phase.turn}`;
+  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), {
+    ...buildAuthoritativeEventEnvelope({
+      sessionId,
+      actorUid: 'system',
+      actorRoleId: null,
+      turn: phase.turn,
+      phase: 'active',
+      type: 'airspace-opened',
+      requestId: eventId,
+      revision: 0,
+      serverTime: phase.teamPhaseEndsAt,
+      visibility: EventVisibility.Member,
+    }),
+    transition: 'restricted-to-lifted',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+}
+
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
   aegis: '0000',
   dione: '0000',
@@ -3298,6 +3328,7 @@ export const beginOpenAirspacePhase = onCall<{
       airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
     };
     tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+    writeAirspaceOpenedEvent(tx, requestData.sessionId, phase);
     return { turnPhase };
   });
 });
@@ -3457,6 +3488,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
         airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
       };
       tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+      writeAirspaceOpenedEvent(tx, requestData.sessionId, phase);
       return { turnPhase };
     }
     if (phase.airspace.state !== 'restricted' || phase.airspace.pressAccess) {

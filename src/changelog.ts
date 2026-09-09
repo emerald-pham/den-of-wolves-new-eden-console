@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [98],
+    implementationProgress: {
+      completed: 73,
+      total: 721,
+      percentage: '10.12%',
+      done: 73,
+      partial: 26,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'Connected consoles now converge on one airspace opening when the Team timer expires, so retries cannot replay the transition.',
+    ],
+  },
+  {
+    version: '0.3.15',
     implementationPrompts: ['603a'],
     implementationProgress: {
       completed: 72,

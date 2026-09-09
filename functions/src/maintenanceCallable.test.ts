@@ -9,6 +9,12 @@ const mock = vi.hoisted(() => ({
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
+  race: undefined as {
+    attempts: number;
+    ready: Promise<void>;
+    release: () => void;
+    version: number;
+  } | undefined,
   pressEnabled: true,
   activeConsoleRoleId: undefined as string | undefined,
   activeRoleIds: undefined as readonly string[] | undefined,
@@ -21,6 +27,42 @@ vi.mock('firebase-admin/firestore', () => ({
     doc: (path: string) => path,
     collection: (path: string) => path,
     runTransaction: async (callback: (tx: unknown) => unknown) => {
+      if (mock.race) {
+        const race = mock.race;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const baseVersion = race.version;
+          const snapshotTurnPhase = mock.turnPhase;
+          const updates: Array<readonly [string, Record<string, unknown>]> = [];
+          const sets: Array<readonly [string, Record<string, unknown>]> = [];
+          const tx = {
+            get: async (path: string) => {
+              const fields: Record<string, unknown> = path.includes('/players/')
+                ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
+                : {
+                    currentTurn: mock.currentTurn,
+                    phase: 'active',
+                    turnPhase: snapshotTurnPhase,
+                  };
+              return { exists: true, get: (key: string) => fields[key] };
+            },
+            update: (path: string, fields: Record<string, unknown>) => updates.push([path, fields]),
+            set: (path: string, fields: Record<string, unknown>) => sets.push([path, fields]),
+          };
+          const result = await callback(tx);
+          race.attempts += 1;
+          if (race.attempts === 1) await race.ready;
+          else if (race.attempts === 2) race.release();
+          if (race.version !== baseVersion) continue;
+          for (const [path, fields] of updates) {
+            mock.update(path, fields);
+            if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
+          }
+          for (const [path, fields] of sets) mock.set(path, fields);
+          race.version += 1;
+          return result;
+        }
+        throw new Error('Mock transaction exceeded optimistic retry limit.');
+      }
       const tx = { get: mock.get, update: mock.update, set: mock.set };
       if (mock.retry) await callback(tx);
       return callback(tx);
@@ -65,6 +107,7 @@ beforeEach(() => {
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
+  mock.race = undefined;
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
@@ -465,6 +508,59 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
     }),
   }));
+});
+
+it('serializes simultaneous airspace expiry observers into one transition event', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  mock.role = 'player';
+  mock.activeConsoleRoleId = 'admiral';
+  mock.currentTurn = 1;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => { release = resolve; });
+  mock.race = { attempts: 0, ready, release, version: 0 };
+
+  const [first, second] = await Promise.all([
+    beginOpenAirspacePhase.run(request({ sessionId: 's1', expectedTurn: 1 }, 'u1')),
+    unlockPressAirspace.run(request({ sessionId: 's1' }, 'u2')),
+  ]);
+
+  const expected = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  expect(first).toEqual({ turnPhase: expected });
+  expect(second).toEqual({ turnPhase: expected });
+  expect(mock.update).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/events/airspace-opened-1',
+    expect.objectContaining({
+      type: 'airspace-opened',
+      sessionId: 's1',
+      actorUid: 'system',
+      turn: 1,
+      phase: 'active',
+      requestId: 'airspace-opened-1',
+      visibility: 'member',
+      createdAt: 'server-time',
+    }),
+  );
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(beginOpenAirspacePhase.run(request({ sessionId: 's1', expectedTurn: 1 }, 'u3')))
+    .resolves.toEqual({ turnPhase: expected });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('lets the active GM add five minutes to a live restricted window', async () => {
