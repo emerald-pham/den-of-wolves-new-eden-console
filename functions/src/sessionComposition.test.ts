@@ -43,6 +43,7 @@ const mock = vi.hoisted(() => {
   };
 
   const documents = new Map<string, StoredDocument>();
+  const versions = new Map<string, number>();
   let generatedSession = 0;
 
   function applyFields(
@@ -50,6 +51,7 @@ const mock = vi.hoisted(() => {
     fields: StoredDocument,
     replace: boolean,
     store: Map<string, StoredDocument> = documents,
+    versionStore: Map<string, number> = versions,
   ) {
     const next: StoredDocument = replace ? {} : { ...(store.get(path) ?? {}) };
     for (const [key, value] of Object.entries(fields)) {
@@ -57,6 +59,7 @@ const mock = vi.hoisted(() => {
       else next[key] = value;
     }
     store.set(path, next);
+    versionStore.set(path, (versionStore.get(path) ?? 0) + 1);
   }
 
   function documentId(path: string) {
@@ -114,29 +117,45 @@ const mock = vi.hoisted(() => {
 
   const get = vi.fn(async (target: Ref | Query) =>
     'query' in target ? querySnapshot(target) : snapshot(target));
-  const set = vi.fn((target: Ref, fields: StoredDocument, store = documents) =>
-    applyFields(target.path, fields, true, store));
-  const update = vi.fn((target: Ref, fields: StoredDocument, store = documents) =>
-    applyFields(target.path, fields, false, store));
-  const remove = vi.fn((target: Ref, store = documents) => { store.delete(target.path); });
-  let transactionTail: Promise<void> = Promise.resolve();
-  const runTransaction = vi.fn((callback: (tx: unknown) => unknown) => {
-    const run = transactionTail.then(async () => {
+  const set = vi.fn((target: Ref, fields: StoredDocument, store = documents,
+    versionStore = versions) => applyFields(target.path, fields, true, store, versionStore));
+  const update = vi.fn((target: Ref, fields: StoredDocument, store = documents,
+    versionStore = versions) => applyFields(target.path, fields, false, store, versionStore));
+  const remove = vi.fn((target: Ref, store = documents, versionStore = versions) => {
+    store.delete(target.path);
+    versionStore.set(target.path, (versionStore.get(target.path) ?? 0) + 1);
+  });
+  const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       const working = new Map([...documents.entries()].map(([path, fields]) => [path, { ...fields }]));
-      const transactionGet = async (target: Ref | Query) =>
-        'query' in target ? querySnapshot(target, working) : snapshot(target, working);
+      const workingVersions = new Map(versions);
+      const baseVersions = new Map(versions);
+      const readPaths = new Set<string>();
+      const transactionGet = async (target: Ref | Query) => {
+        if ('query' in target) {
+          const result = querySnapshot(target, working);
+          for (const item of result.docs) readPaths.add(item.ref.path);
+          return result;
+        }
+        readPaths.add(target.path);
+        return snapshot(target, working);
+      };
       const result = await callback({
         get: transactionGet,
-        set: (target: Ref, fields: StoredDocument) => set(target, fields, working),
-        update: (target: Ref, fields: StoredDocument) => update(target, fields, working),
-        delete: (target: Ref) => remove(target, working),
+        set: (target: Ref, fields: StoredDocument) => set(target, fields, working, workingVersions),
+        update: (target: Ref, fields: StoredDocument) => update(target, fields, working, workingVersions),
+        delete: (target: Ref) => remove(target, working, workingVersions),
       });
+      const conflicted = [...readPaths].some((path) =>
+        versions.get(path) !== baseVersions.get(path));
+      if (conflicted) continue;
       documents.clear();
       for (const [path, fields] of working) documents.set(path, fields);
+      versions.clear();
+      for (const [path, version] of workingVersions) versions.set(path, version);
       return result;
-    });
-    transactionTail = run.then(() => undefined, () => undefined);
-    return run;
+    }
+    throw new Error('Mock transaction exceeded optimistic retry limit.');
   });
   const collection = (path: string) => ({
     query: true as const,
@@ -151,12 +170,13 @@ const mock = vi.hoisted(() => {
     documents,
     reset: () => {
       documents.clear();
+      versions.clear();
       generatedSession = 0;
       get.mockClear();
       set.mockClear();
       update.mockClear();
       remove.mockClear();
-      transactionTail = Promise.resolve();
+      runTransaction.mockClear();
     },
     MockTimestamp,
     randomInt: vi.fn((first: number, second?: number) => second === undefined ? 0 : 1001),
@@ -250,8 +270,23 @@ function read(path: string) {
   return mock.documents.get(path);
 }
 
-function stateSnapshot() {
-  return JSON.stringify([...mock.documents.entries()]);
+function canonicalStateValue(value: unknown): unknown {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(canonicalStateValue);
+  if (typeof value !== 'object' || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, canonicalStateValue(item)]),
+  );
+}
+
+function stateSnapshot(excludedPaths: readonly string[] = []) {
+  const excluded = new Set(excludedPaths);
+  return JSON.stringify([...mock.documents.entries()]
+    .filter(([path]) => !excluded.has(path))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, fields]) => [path, canonicalStateValue(fields)]));
 }
 
 async function composeProductionSession(playerCount: CompositionCount) {
@@ -366,18 +401,39 @@ async function composeProductionSession(playerCount: CompositionCount) {
     await refreshPresence.run(request({ sessionId, activeConsoleRoleId: 'press-officer' }, `press-${playerCount}`));
   }
 
-  const startRequest = {
+  let startRequest = {
     sessionId,
     instanceId: `bridge-${playerCount}`,
     requestId: `start-${playerCount}`,
     expectedSetupRevision: setupRevision,
   };
-  const started = await startGame.run(request(startRequest, ownerUid)) as {
+  type StartedResult = {
     status: string;
     setupRevision: number;
     currentTurn: number;
     setupReceipt: Record<string, unknown>;
   };
+  let started: StartedResult;
+  let startRaceResults: PromiseSettledResult<unknown>[] = [];
+  let startRaceRequests: typeof startRequest[] = [];
+  if (extraGmUid) {
+    startRaceRequests = [startRequest, {
+      ...startRequest,
+      requestId: `${startRequest.requestId}-observer`,
+      instanceId: `observer-${playerCount}`,
+    }];
+    startRaceResults = await Promise.allSettled([
+      startGame.run(request(startRaceRequests[0]!, ownerUid)),
+      startGame.run(request(startRaceRequests[1]!, extraGmUid)),
+    ]);
+    const committedIndex = startRaceResults.findIndex((result) =>
+      result.status === 'fulfilled' && result.value.status === 'committed');
+    if (committedIndex < 0) throw new Error('The authorized start race produced no committed result.');
+    started = startRaceResults[committedIndex]!.value as StartedResult;
+    startRequest = startRaceRequests[committedIndex]!;
+  } else {
+    started = await startGame.run(request(startRequest, ownerUid)) as StartedResult;
+  }
 
   return {
     ownerUid,
@@ -389,6 +445,8 @@ async function composeProductionSession(playerCount: CompositionCount) {
     extraGmUid,
     raceJoinResults,
     raceJoinUid,
+    startRaceResults,
+    startRaceRequests,
   };
 }
 
@@ -408,7 +466,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     const composition = await composeProductionSession(playerCount);
     const {
       started, sessionId, activeRoleIds, coreUids, ownerUid, startRequest,
-      extraGmUid, raceJoinResults, raceJoinUid,
+      extraGmUid, raceJoinResults, raceJoinUid, startRaceResults, startRaceRequests,
     } = composition;
     expect(started.status).toBe('committed');
     expect(started.currentTurn).toBe(1);
@@ -429,6 +487,23 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     });
     expect((read(`sessions/${sessionId}/gmInstances/bridge-${playerCount}`) as StoredDocument).responsibilities)
       .toEqual(['main', 'assistant']);
+
+    if (extraGmUid) {
+      expect(startRaceRequests).toHaveLength(2);
+      expect(startRaceRequests.map(({ expectedSetupRevision }) => expectedSetupRevision))
+        .toEqual([startRequest.expectedSetupRevision, startRequest.expectedSetupRevision]);
+      expect(startRaceRequests.map(({ instanceId }) => instanceId))
+        .toEqual(expect.arrayContaining([`bridge-${playerCount}`, `observer-${playerCount}`]));
+      const raceStatuses = startRaceResults
+        .filter((result): result is PromiseFulfilledResult<Record<string, unknown>> => result.status === 'fulfilled')
+        .map((result) => result.value.status)
+        .sort();
+      expect(raceStatuses).toEqual(['committed', 'stale']);
+      expect([...mock.documents.values()].filter((fields) => fields.type === 'game-started')).toHaveLength(1);
+      expect([...mock.documents.keys()].filter((path) =>
+        path.startsWith(`sessions/${sessionId}/secrets/setup-receipt-`),
+      )).toHaveLength(1);
+    }
 
     const claimedSeats = [...mock.documents.entries()]
       .filter(([path, fields]) => path.startsWith(`sessions/${sessionId}/seats/`) && fields.status === 'claimed');
@@ -486,12 +561,20 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     ]);
     expect(stateSnapshot()).toBe(stateAfterStart);
 
-    const stale = await startGame.run(request({
+    const staleRequest = {
       ...startRequest,
       requestId: `${startRequest.requestId}-stale`,
       expectedSetupRevision: 0,
-    }, ownerUid));
+    };
+    const staleReceiptPath = `sessionStartRequests/${sessionId}_${staleRequest.requestId}`;
+    const beforeStale = stateSnapshot([staleReceiptPath]);
+    const stale = await startGame.run(request(staleRequest, ownerUid));
     expect(stale).toMatchObject({ status: 'stale', currentSetupRevision: started.setupRevision });
+    expect(stateSnapshot([staleReceiptPath])).toBe(beforeStale);
+    expect(read(staleReceiptPath)).toMatchObject({
+      requestId: staleRequest.requestId,
+      reply: { status: 'stale', currentSetupRevision: started.setupRevision },
+    });
     expect(read(`sessions/${sessionId}`)).toMatchObject({ phase: 'active', currentTurn: 1 });
 
     if (raceJoinUid) {
