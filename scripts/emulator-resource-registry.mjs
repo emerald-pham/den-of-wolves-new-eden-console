@@ -833,8 +833,11 @@ export function changedFilesBaseRef({
   startBranchSha,
   mainContainsBranch,
   validatedBaseSha,
+  validatedBaseIsAncestorOfMain,
 }) {
-  if (mainContainsBranch && validatedBaseSha) return validatedBaseSha;
+  if (mainContainsBranch && validatedBaseSha && validatedBaseIsAncestorOfMain) {
+    return validatedBaseSha;
+  }
   return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
 }
 
@@ -849,6 +852,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     startBranchSha,
     mainContainsBranch: release.mainContainsBranch,
     validatedBaseSha: release.validatedBaseSha,
+    validatedBaseIsAncestorOfMain: release.validatedBaseIsAncestorOfMain,
   });
   const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${release.branchSha}`], cwd);
   const sources = {};
@@ -921,6 +925,9 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const validatedBaseIsAncestor = validatedBaseSha
     ? await gitIsAncestor(validatedBaseSha, branchSha, cwd)
     : false;
+  const validatedBaseIsAncestorOfMain = validatedBaseSha
+    ? await gitIsAncestor(validatedBaseSha, mainSha, cwd)
+    : false;
   if (validatedBaseSha && validatedBaseIsAncestor) {
     const validatedDiff = await runGit(
       ['diff', '--unified=0', `${validatedBaseSha}...${branchSha}`],
@@ -935,6 +942,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     startBranchSha,
     mainContainsBranch,
     validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
+    validatedBaseIsAncestorOfMain,
   });
   const changedFiles = await readTaskChangedFiles(
     changedFilesBase,
@@ -963,6 +971,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
     changedFiles,
     validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
+    validatedBaseIsAncestorOfMain,
     testGrowth,
     ...(startBranchSha
       ? {
