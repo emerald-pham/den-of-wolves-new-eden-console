@@ -29,6 +29,7 @@ import {
   executeValidationProcess,
   validateImplementationPromptClaims,
   validateCoordinationEntry,
+  amendCoordinationEntry,
   validateReleaseCompletion,
   normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
@@ -122,6 +123,180 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  async function currentGitIdentity() {
+    return {
+      branchName: await runFixtureGit(process.cwd(), ['branch', '--show-current']),
+      repositoryRoot: await runFixtureGit(process.cwd(), ['rev-parse', '--show-toplevel']),
+      repositoryIdentity: await runFixtureGit(process.cwd(), [
+        'rev-parse', '--path-format=absolute', '--git-common-dir',
+      ]),
+    };
+  }
+
+  function amendmentEntry(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'amend-owner',
+      worktree: process.cwd(),
+      status: 'active',
+      intent: 'amend coordination ownership',
+      versionPlan: 'Tooling-only; no application version change.',
+      preemptiveChangelog: 'No player-facing change.',
+      scopes: ['scripts/emulator-resource-registry.mjs'],
+      claims: ['coordination-scope-amendment'],
+      ...overrides,
+    };
+  }
+
+  it('allows the active owner to append normalized scopes and claims with an audit event', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = { ...amendmentEntry(), ...identity };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      const amended = await amendCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: './src\\config\\emulatorResourceRegistry.test.ts/',
+        claims: 'Implementation-Dependencies-Prompt-122, implementation-dependencies-prompt-122',
+      });
+
+      expect(amended).toMatchObject({
+        id: entry.id,
+        scopes: [
+          'scripts/emulator-resource-registry.mjs',
+          'src/config/emulatorResourceRegistry.test.ts',
+        ],
+        claims: ['coordination-scope-amendment', 'implementation-dependencies-prompt-122'],
+      });
+      expect(amended.amendments).toEqual([expect.objectContaining({
+        scopes: ['src/config/emulatorResourceRegistry.test.ts'],
+        claims: ['implementation-dependencies-prompt-122'],
+        branchName: identity.branchName,
+        worktree: process.cwd(),
+      })]);
+      expect(amended.startBranchSha).toBeUndefined();
+      expect(amended.versionPlan).toBe(entry.versionPlan);
+      expect(amended.preemptiveChangelog).toBe(entry.preemptiveChangelog);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects an amendment that conflicts with another active owner and leaves both entries unchanged', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-conflict-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const owner = { ...amendmentEntry(), ...identity };
+    const other = {
+      ...amendmentEntry({
+        id: 'other-owner',
+        worktree: '/other/worktree',
+        claims: ['exclusive-new-claim'],
+      }),
+      ...identity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [owner, other],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: owner.id,
+        claims: 'exclusive-new-claim',
+      })).rejects.toThrow(
+        new RegExp(`exclusive-new-claim.*${other.id}.*${other.worktree}`),
+      );
+      const state = await readCoordinationState(filePath);
+      expect(state.entries).toEqual([owner, other]);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects unknown, foreign, and mismatched-branch entries', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-owner-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const foreign = {
+      ...amendmentEntry({ id: 'foreign-owner', worktree: '/foreign/worktree' }),
+      ...identity,
+    };
+    const mismatched = {
+      ...amendmentEntry({ id: 'mismatched-branch' }),
+      ...identity,
+      branchName: 'other/branch',
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [foreign, mismatched],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: 'missing-owner',
+        scope: 'src/config',
+      })).rejects.toThrow(/No coordination entry found/);
+      await expect(amendCoordinationEntry(filePath, {
+        id: foreign.id,
+        scope: 'src/config',
+      })).rejects.toThrow(/belongs to \/foreign\/worktree/);
+      await expect(amendCoordinationEntry(filePath, {
+        id: mismatched.id,
+        scope: 'src/config',
+      })).rejects.toThrow(/branch .* does not match/);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects terminal and duplicate or no-op amendments without mutating the entry', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-terminal-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const terminal = { ...amendmentEntry({ id: 'terminal-owner', status: 'complete' }), ...identity };
+    const active = { ...amendmentEntry({ id: 'duplicate-owner' }), ...identity };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [terminal, active],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: terminal.id,
+        scope: 'src/config',
+      })).rejects.toThrow(/already complete/);
+      await expect(amendCoordinationEntry(filePath, {
+        id: active.id,
+        scope: './scripts/emulator-resource-registry.mjs',
+        claims: 'COORDINATION-SCOPE-AMENDMENT',
+      })).rejects.toThrow(/already declared|no new/i);
+      await expect(amendCoordinationEntry(filePath, {
+        id: active.id,
+      })).rejects.toThrow(/scope.*claims.*value/);
+      const state = await readCoordinationState(filePath);
+      expect(state.entries).toEqual([terminal, active]);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('rejects overlapping scopes across worktrees in the same Git repository', () => {
     const owner = {
       id: 'prompt-662',

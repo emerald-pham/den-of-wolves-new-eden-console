@@ -34,6 +34,7 @@ export interface CoordinationEntry {
   readonly implementationPrompt?: number | string;
   readonly scopes?: readonly string[];
   readonly claims?: readonly string[];
+  readonly amendments?: readonly CoordinationAmendment[];
   readonly outcome?: 'landed' | 'preserved' | 'discarded';
   readonly preservation?: {
     readonly kind: 'remote-ref';
@@ -55,6 +56,14 @@ export interface CoordinationEntry {
   readonly mainContainsBranch?: boolean;
   readonly pushed?: boolean;
   readonly validation?: ValidationReceipt;
+}
+
+export interface CoordinationAmendment {
+  readonly amendedAt: string;
+  readonly worktree: string;
+  readonly branchName: string;
+  readonly scopes: readonly string[];
+  readonly claims: readonly string[];
 }
 
 export interface ValidationReceipt {
@@ -213,6 +222,15 @@ export function validateCoordinationEntry(
     release?: ReleaseState;
     commandRunner?: (command: string, cwd: string) => Promise<void>;
     repositoryDirectory?: string;
+  },
+): Promise<CoordinationEntry>;
+export function amendCoordinationEntry(
+  filePath: string,
+  options: {
+    id: string;
+    scope?: string;
+    claims?: string;
+    claim?: string;
   },
 ): Promise<CoordinationEntry>;
 export function finishCoordinationEntry(
