@@ -1,10 +1,15 @@
-import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import {
   bootstrapDependencies,
   LOCKFILE_STAMP_FILE,
+  lockPathForRepository,
 } from '../../scripts/bootstrap-dependencies.mjs';
+
+const execFileAsync = promisify(execFile);
 
 async function createBootstrapFixture() {
   const repositoryDirectory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-bootstrap-'));
@@ -149,6 +154,71 @@ describe('Codex worktree environment', () => {
     }
   });
 
+  it('reinstalls when a recorded npm package directory is missing despite a current stamp', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const installs: string[] = [];
+    try {
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          await mkdir(resolve(cwd, 'node_modules', 'demo-package'), { recursive: true });
+          await writeFile(
+            resolve(cwd, 'node_modules', '.package-lock.json'),
+            JSON.stringify({ packages: { '': {}, 'node_modules/demo-package': {} } }),
+          );
+        },
+      });
+      await rm(resolve(repositoryDirectory, 'node_modules', 'demo-package'), { recursive: true });
+
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+        },
+      });
+
+      expect(installs).toContain(repositoryDirectory);
+    } finally {
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
+  it('rechecks the lockfile before trusting a skip and retries a transient change', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    let fingerprintCalls = 0;
+    const installs: string[] = [];
+    try {
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async () => undefined,
+      });
+      const stamps = new Map([
+        [resolve(repositoryDirectory, 'package-lock.json'), JSON.parse(await readFile(
+          resolve(repositoryDirectory, 'node_modules', LOCKFILE_STAMP_FILE), 'utf8'))],
+        [resolve(repositoryDirectory, 'functions', 'package-lock.json'), JSON.parse(await readFile(
+          resolve(repositoryDirectory, 'functions', 'node_modules', LOCKFILE_STAMP_FILE), 'utf8'))],
+      ]);
+      const fingerprint = async (lockfilePath: string) => {
+        fingerprintCalls += 1;
+        const stamp = stamps.get(lockfilePath);
+        if (fingerprintCalls === 2) return `${stamp.fingerprint}-transient-change`;
+        return stamp.fingerprint;
+      };
+
+      await expect(bootstrapDependencies({
+        repositoryDirectory,
+        fingerprint,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+        },
+      })).resolves.toMatchObject({ skipped: ['root', 'functions'] });
+      expect(installs).toEqual([]);
+      expect(fingerprintCalls).toBeGreaterThan(3);
+    } finally {
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
   it('does not write a stamp when npm ci fails', async () => {
     const repositoryDirectory = await createBootstrapFixture();
     try {
@@ -189,6 +259,40 @@ describe('Codex worktree environment', () => {
       expect(maximumConcurrentInstalls).toBe(1);
       expect(installCount).toBe(2);
     } finally {
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
+  it('serializes separate bootstrap processes while recovering a stale lock', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const lockPath = lockPathForRepository(repositoryDirectory);
+    const childModule = resolve(process.cwd(), 'scripts/bootstrap-dependencies.mjs');
+    const childSource = `
+      import { mkdir, rm } from 'node:fs/promises';
+      import { resolve } from 'node:path';
+      import { bootstrapDependencies } from ${JSON.stringify(childModule)};
+      const delay = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+      await bootstrapDependencies({
+        repositoryDirectory: process.argv[1],
+        runInstall: async ({ cwd }) => {
+          const marker = resolve(cwd, '.bootstrap-active');
+          await mkdir(marker);
+          try { await delay(60); } finally { await rm(marker, { recursive: true, force: true }); }
+        },
+      });
+    `;
+    try {
+      await writeFile(lockPath, JSON.stringify({ pid: 999_999, token: 'stale-lock' }));
+      const staleDate = new Date(Date.now() - 60_000);
+      await utimes(lockPath, staleDate, staleDate);
+      await Promise.all([
+        execFileAsync(process.execPath, ['--input-type=module', '-e', childSource, repositoryDirectory]),
+        execFileAsync(process.execPath, ['--input-type=module', '-e', childSource, repositoryDirectory]),
+      ]);
+      await expect(access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(lockPath, { force: true });
+      await rm(`${lockPath}.recovery`, { force: true });
       await cleanupBootstrapFixture(repositoryDirectory);
     }
   });

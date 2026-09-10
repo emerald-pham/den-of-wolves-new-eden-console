@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { open, readFile, rename, rm, stat, unlink, writeFile, mkdir } from 'node:fs/promises';
+import { open, readFile, rename, stat, unlink, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,9 +11,11 @@ const INSTALL_ARGUMENTS = Object.freeze(['ci', '--prefer-offline', '--no-audit']
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const LOCK_STALE_MS = 30 * 1000;
 const LOCK_RETRY_MS = 100;
+const LOCK_RECOVERY_TIMEOUT_MS = LOCK_TIMEOUT_MS;
+const MAX_LOCKFILE_RECHECKS = 3;
 const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-function lockPathForRepository(directory) {
+export function lockPathForRepository(directory) {
   const identity = createHash('sha256').update(resolve(directory)).digest('hex').slice(0, 24);
   return resolve(tmpdir(), `den-of-wolves-dependency-bootstrap-${identity}.lock`);
 }
@@ -35,10 +37,33 @@ async function isDirectory(path) {
 async function currentStamp(nodeModulesPath) {
   if (!(await isDirectory(nodeModulesPath))) return undefined;
   try {
-    return (await readFile(resolve(nodeModulesPath, LOCKFILE_STAMP_FILE), 'utf8')).trim();
+    const source = (await readFile(resolve(nodeModulesPath, LOCKFILE_STAMP_FILE), 'utf8')).trim();
+    try {
+      const stamp = JSON.parse(source);
+      if (stamp && typeof stamp === 'object' && typeof stamp.fingerprint === 'string') {
+        return stamp;
+      }
+    } catch {
+      // Stamps from the first bootstrap implementation were plain fingerprints.
+    }
+    return { fingerprint: source, packagePaths: undefined };
   } catch (error) {
     if (error?.code === 'ENOENT') return undefined;
     throw error;
+  }
+}
+
+async function recordedPackagePaths(nodeModulesPath) {
+  try {
+    const source = JSON.parse(
+      await readFile(resolve(nodeModulesPath, '.package-lock.json'), 'utf8'),
+    );
+    return Object.keys(source?.packages ?? {})
+      .filter((path) => path.startsWith('node_modules/'))
+      .sort();
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    return [];
   }
 }
 
@@ -49,7 +74,12 @@ async function writeStamp(nodeModulesPath, fingerprint) {
     `.${LOCKFILE_STAMP_FILE}.${process.pid}.${randomUUID()}.tmp`,
   );
   try {
-    await writeFile(temporaryPath, `${fingerprint}\n`, { encoding: 'utf8', flag: 'wx' });
+    const packagePaths = await recordedPackagePaths(nodeModulesPath);
+    await writeFile(temporaryPath, `${JSON.stringify({ fingerprint, packagePaths })}\n`, {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o600,
+    });
     await rename(temporaryPath, resolve(nodeModulesPath, LOCKFILE_STAMP_FILE));
   } catch (error) {
     await unlink(temporaryPath).catch(() => undefined);
@@ -67,14 +97,19 @@ function processIsAlive(pid) {
   }
 }
 
-async function lockIsStale(lockPath, now) {
+async function readLockMetadata(lockPath) {
   let metadata;
   try {
     metadata = JSON.parse(await readFile(lockPath, 'utf8'));
   } catch (error) {
-    if (error?.code === 'ENOENT') return false;
+    if (error?.code === 'ENOENT') return undefined;
     metadata = undefined;
   }
+  return metadata;
+}
+
+async function lockIsStale(lockPath, now) {
+  const metadata = await readLockMetadata(lockPath);
   if (processIsAlive(metadata?.pid)) return false;
 
   const details = await stat(lockPath).catch((error) => {
@@ -85,28 +120,102 @@ async function lockIsStale(lockPath, now) {
   return now - details.mtimeMs >= LOCK_STALE_MS;
 }
 
+async function acquireRecoveryLock(lockPath) {
+  const recoveryPath = `${lockPath}.recovery`;
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < LOCK_RECOVERY_TIMEOUT_MS) {
+    let handle;
+    try {
+      handle = await open(recoveryPath, 'wx', 0o600);
+      const token = randomUUID();
+      await handle.writeFile(`${JSON.stringify({ pid: process.pid, token })}\n`, 'utf8');
+      return {
+        handle,
+        path: recoveryPath,
+        token,
+      };
+    } catch (error) {
+      if (handle) await handle.close().catch(() => undefined);
+      if (error?.code !== 'EEXIST') throw error;
+      if (await lockIsStale(recoveryPath, Date.now())) {
+        const quarantinePath = `${recoveryPath}.${randomUUID()}.stale`;
+        const renamed = await rename(recoveryPath, quarantinePath).then(() => true).catch((renameError) => {
+          if (renameError?.code === 'ENOENT') return false;
+          if (['EACCES', 'EBUSY', 'EPERM'].includes(renameError?.code)) return false;
+          throw renameError;
+        });
+        if (!renamed) {
+          await new Promise((resolvePromise) => setTimeout(resolvePromise, LOCK_RETRY_MS));
+          continue;
+        }
+        await unlink(quarantinePath).catch((unlinkError) => {
+          if (unlinkError?.code !== 'ENOENT') throw unlinkError;
+        });
+        continue;
+      }
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, LOCK_RETRY_MS));
+    }
+  }
+  throw new Error(`Timed out waiting for dependency bootstrap recovery lock: ${recoveryPath}`);
+}
+
+async function releaseRecoveryLock(recovery) {
+  const current = await readLockMetadata(recovery.path);
+  await recovery.handle.close();
+  if (current?.token !== recovery.token) return;
+  await unlink(recovery.path).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+}
+
+async function reclaimStaleLock(lockPath) {
+  const recovery = await acquireRecoveryLock(lockPath);
+  try {
+    const metadata = await readLockMetadata(lockPath);
+    if (!metadata || !(await lockIsStale(lockPath, Date.now()))) return false;
+    const quarantinePath = `${lockPath}.${metadata.token ?? randomUUID()}.recovery`;
+    const renamed = await rename(lockPath, quarantinePath).then(() => true).catch((error) => {
+      if (error?.code === 'ENOENT') return;
+      if (['EACCES', 'EBUSY', 'EPERM'].includes(error?.code)) return false;
+      throw error;
+    });
+    if (!renamed) return false;
+    await unlink(quarantinePath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+    return true;
+  } finally {
+    await releaseRecoveryLock(recovery);
+  }
+}
+
+async function releaseProcessLock(lock) {
+  const metadata = await readLockMetadata(lock.path);
+  await lock.handle.close();
+  if (metadata?.token !== lock.token) return;
+  await unlink(lock.path).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+}
+
 async function acquireProcessLock(lockPath) {
   const startedAt = Date.now();
   while (Date.now() - startedAt < LOCK_TIMEOUT_MS) {
     try {
-      const handle = await open(lockPath, 'wx');
+      const handle = await open(lockPath, 'wx', 0o600);
+      const token = randomUUID();
       try {
-        await handle.writeFile(`${JSON.stringify({ pid: process.pid })}\n`, 'utf8');
+        await handle.writeFile(`${JSON.stringify({ pid: process.pid, token })}\n`, 'utf8');
       } catch (error) {
         await handle.close();
         await unlink(lockPath).catch(() => undefined);
         throw error;
       }
-      return async () => {
-        await handle.close();
-        await unlink(lockPath).catch((error) => {
-          if (error?.code !== 'ENOENT') throw error;
-        });
-      };
+      return { handle, path: lockPath, token };
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error;
       if (await lockIsStale(lockPath, Date.now())) {
-        await rm(lockPath, { force: true });
+        await reclaimStaleLock(lockPath);
         continue;
       }
       await new Promise((resolvePromise) => setTimeout(resolvePromise, LOCK_RETRY_MS));
@@ -132,29 +241,44 @@ function runNpmCi({ cwd, args = INSTALL_ARGUMENTS }) {
   });
 }
 
-async function bootstrapTree({ name, cwd, runInstall, installed, skipped }) {
+async function bootstrapTree({ name, cwd, runInstall, fingerprint = fingerprintLockfile, installed, skipped }) {
   const lockfilePath = resolve(cwd, 'package-lock.json');
   const nodeModulesPath = resolve(cwd, 'node_modules');
-  const beforeFingerprint = await fingerprintLockfile(lockfilePath);
-  if ((await currentStamp(nodeModulesPath)) === beforeFingerprint) {
-    skipped.push(name);
+  for (let attempt = 0; attempt < MAX_LOCKFILE_RECHECKS; attempt += 1) {
+    const beforeFingerprint = await fingerprint(lockfilePath);
+    const stamp = await currentStamp(nodeModulesPath);
+    const packagePaths = stamp?.packagePaths ?? [];
+    const missingPackage = (await Promise.all(packagePaths.map((packagePath) =>
+      isDirectory(resolve(nodeModulesPath, packagePath.replace(/^node_modules\//, ''))),
+    ))).some((exists) => !exists);
+    if (stamp?.fingerprint === beforeFingerprint && !missingPackage) {
+      const afterFingerprint = await fingerprint(lockfilePath);
+      const afterStamp = await currentStamp(nodeModulesPath);
+      if (afterFingerprint === beforeFingerprint && afterStamp?.fingerprint === stamp.fingerprint) {
+        skipped.push(name);
+        return;
+      }
+      continue;
+    }
+
+    await runInstall({ cwd, args: INSTALL_ARGUMENTS });
+    const afterFingerprint = await fingerprint(lockfilePath);
+    if (afterFingerprint !== beforeFingerprint) {
+      throw new Error(`Lockfile changed while installing ${name}; dependency stamp was not written.`);
+    }
+    await writeStamp(nodeModulesPath, afterFingerprint);
+    installed.push(name);
     return;
   }
-
-  await runInstall({ cwd, args: INSTALL_ARGUMENTS });
-  const afterFingerprint = await fingerprintLockfile(lockfilePath);
-  if (afterFingerprint !== beforeFingerprint) {
-    throw new Error(`Lockfile changed while installing ${name}; dependency stamp was not written.`);
-  }
-  await writeStamp(nodeModulesPath, afterFingerprint);
-  installed.push(name);
+  throw new Error(`Lockfile changed repeatedly while checking ${name}; dependency stamp was not trusted.`);
 }
 
 export async function bootstrapDependencies({
   repositoryDirectory: root = repositoryDirectory,
   runInstall = runNpmCi,
+  fingerprint = fingerprintLockfile,
 } = {}) {
-  const lockRelease = await acquireProcessLock(lockPathForRepository(root));
+  const lock = await acquireProcessLock(lockPathForRepository(root));
   try {
     const installed = [];
     const skipped = [];
@@ -162,6 +286,7 @@ export async function bootstrapDependencies({
       name: 'root',
       cwd: root,
       runInstall,
+      fingerprint,
       installed,
       skipped,
     });
@@ -169,12 +294,13 @@ export async function bootstrapDependencies({
       name: 'functions',
       cwd: resolve(root, 'functions'),
       runInstall,
+      fingerprint,
       installed,
       skipped,
     });
     return { installed, skipped };
   } finally {
-    await lockRelease();
+    await releaseProcessLock(lock);
   }
 }
 
