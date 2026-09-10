@@ -103,8 +103,20 @@ it('verifies Hosting and public Functions through injected production adapters',
       commands.push([...args]);
       if (args[1] === 'list') {
         return JSON.stringify([
-          { name: 'triggerDradisContact', state: 'ACTIVE' },
-          { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+          {
+            name: 'triggerDradisContact',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+            },
+          },
+          {
+            name: 'startSinglePlayerDemo',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+            },
+          },
         ]);
       }
       if (args[0] === 'firestore') {
@@ -122,8 +134,14 @@ it('verifies Hosting and public Functions through injected production adapters',
   expect(result).toEqual({ hosting: true, firestore: true, functions: true });
   expect(commands).toEqual(expect.arrayContaining([
     expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
-    expect.arrayContaining(['functions', 'get-iam-policy', 'triggerDradisContact']),
-    expect.arrayContaining(['functions', 'get-iam-policy', 'startSinglePlayerDemo']),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
@@ -142,13 +160,113 @@ it('rejects the legacy Cloud Functions invoker role for a gen2 public Function',
     expectedVersion: '0.3.26',
     runCommand: async (_command, args) => args[1] === 'list'
       ? JSON.stringify([
-        { name: 'triggerDradisContact', state: 'ACTIVE' },
-        { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+        {
+          name: 'triggerDradisContact',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+          },
+        },
+        {
+          name: 'startSinglePlayerDemo',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+          },
+        },
       ])
       : JSON.stringify({
         bindings: [{ role: 'roles/cloudfunctions.invoker', members: ['allUsers'] }],
       }),
   })).rejects.toThrow('missing its public invoker policy');
+});
+
+it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access', async () => {
+  const commands: string[][] = [];
+  await expect(verifyDeployment({
+    targets: ['functions'],
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.3.26',
+    runCommand: async (_command, args) => {
+      commands.push([...args]);
+      if (args[1] === 'list') {
+        return JSON.stringify([
+          {
+            name: 'triggerDradisContact',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+            },
+          },
+          {
+            name: 'startSinglePlayerDemo',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+            },
+          },
+        ]);
+      }
+      return JSON.stringify({
+        version: 1,
+        bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }],
+        etag: 'BwY-v2-policy',
+      });
+    },
+  })).resolves.toMatchObject({ functions: true });
+
+  expect(commands).toEqual(expect.arrayContaining([
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
+  ]));
+  expect(commands).not.toEqual(expect.arrayContaining([
+    expect.arrayContaining(['functions', 'get-iam-policy']),
+  ]));
+});
+
+it('fails closed when a v2 function omits or malforms its authoritative service resource', async () => {
+  for (const service of [undefined, 'projects/dow-new-eden-console/locations/us-central1/services/']) {
+    const commands: string[][] = [];
+    await expect(verifyDeployment({
+      targets: ['functions'],
+      projectId: 'dow-new-eden-console',
+      expectedVersion: '0.3.26',
+      runCommand: async (_command, args) => {
+        commands.push([...args]);
+        if (args[1] === 'list') {
+          return JSON.stringify([
+            {
+              name: 'triggerDradisContact',
+              state: 'ACTIVE',
+              ...(service === undefined ? {} : { serviceConfig: { service } }),
+            },
+            {
+              name: 'startSinglePlayerDemo',
+              state: 'ACTIVE',
+              serviceConfig: {
+                service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+              },
+            },
+          ]);
+        }
+        return JSON.stringify({
+          bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }],
+        });
+      },
+    })).rejects.toThrow('valid Cloud Run service resource');
+    expect(commands).toHaveLength(1);
+  }
+});
+
+it('uses current Google authentication action major in deployment', () => {
+  expect(deploy).toContain('google-github-actions/auth@v3');
+  expect(deploy).not.toContain('google-github-actions/auth@v2');
 });
 
 it('blocks stale deployment runs and non-ancestral baselines before target selection', () => {
@@ -265,9 +383,9 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).not.toContain('branches: [main]');
   expect(ci).toContain('fetch-depth: 0');
   expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
-  expect(ci).toContain('actions/upload-artifact@v4');
+  expect(ci).toContain('actions/upload-artifact@v7');
   expect(deploy).toContain('ref: ${{ github.sha }}');
-  expect(deploy).toContain('actions/download-artifact@v4');
+  expect(deploy).toContain('actions/download-artifact@v8');
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });
 
@@ -287,6 +405,12 @@ it('uses current Node 24 action runtimes in verification and deployment', () => 
   expect(deploy.match(/actions\/checkout@v7/g)).toHaveLength(2);
   expect(deploy).toContain('actions/setup-node@v7');
   expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:checkout|setup-node)@v4/);
+});
+
+it('uses current artifact action majors throughout the exact-SHA pipeline', () => {
+  expect(ci.match(/actions\/upload-artifact@v7/g)).toHaveLength(2);
+  expect(deploy.match(/actions\/download-artifact@v8/g)).toHaveLength(2);
+  expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:upload|download)-artifact@v[1-6]/);
 });
 
 it('preflights deploy runtime dependencies and scopes deployment credentials', () => {

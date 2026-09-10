@@ -20,6 +20,17 @@ function functionName(record) {
   return String(record?.name ?? '').split('/').filter(Boolean).at(-1) ?? '';
 }
 
+function cloudRunService(record, name, region) {
+  const service = record?.serviceConfig?.service;
+  const match = typeof service === 'string'
+    ? /^projects\/[^/\s]+\/locations\/([^/\s]+)\/services\/[^/\s]+$/.exec(service)
+    : null;
+  if (!match || match[1] !== region) {
+    throw new Error(`Function ${name} is missing a valid Cloud Run service resource.`);
+  }
+  return service;
+}
+
 function parseJson(output, label) {
   try {
     return JSON.parse(output);
@@ -63,9 +74,13 @@ async function verifyFunctions({ projectId, region, runCommand }) {
   }
 
   for (const name of PUBLIC_FUNCTIONS) {
-    if (!byName.has(name)) throw new Error(`Required public Function ${name} is not deployed.`);
+    const record = byName.get(name);
+    if (!record) throw new Error(`Required public Function ${name} is not deployed.`);
+    const service = cloudRunService(record, name, region);
+    // Cloud Functions v2 exposes callable invoker IAM on its backing Cloud Run
+    // service; the v2 function resource policy is not the public endpoint gate.
     const policyOutput = await runCommand('gcloud', [
-      'functions', 'get-iam-policy', name, `--project=${projectId}`,
+      'run', 'services', 'get-iam-policy', service, `--project=${projectId}`,
       `--region=${region}`, '--format=json',
     ]);
     const policy = parseJson(policyOutput, `IAM policy for ${name}`);
