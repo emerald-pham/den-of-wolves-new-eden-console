@@ -143,13 +143,13 @@ it('re-runs the existing implementation-progress validator against generated rel
       baseMainSha: 'main-a',
       changes: ['A validated finalizer note.'],
       implementationProgress: {
-        completed: 87,
+        completed: 88,
         total: 730,
-        percentage: '11.92%',
-        done: 87,
+        percentage: '12.05%',
+        done: 88,
         partial: 25,
         active: 0,
-        missing: 618,
+        missing: 617,
       },
     });
     await applyReleaseFragment(lanePath, {

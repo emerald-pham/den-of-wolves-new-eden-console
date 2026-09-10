@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, population: 16000, alerts: {} as Record<string, unknown> }));
+const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, shipId: 'capybara', population: 16000, alerts: {} as Record<string, unknown> }));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
@@ -12,14 +12,14 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<{ sessionId: string; shipId: string; delta: number; instanceId: string }>;
 }
 beforeEach(() => {
-  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.population = 16000; mock.alerts = {};
+  mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.shipId = 'capybara'; mock.population = 16000; mock.alerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/') ? { uid: mock.owner }
-      : { shipSurvivors: { capybara: mock.population }, populationAlerts: mock.alerts };
+      : { shipSurvivors: { [mock.shipId]: mock.population }, populationAlerts: mock.alerts };
     return { exists: true, get: (key: string) => fields[key] };
   });
 });
@@ -46,6 +46,7 @@ it('denies unsigned requests, invalid steps and ships without a track', async ()
   await expect(adjustShipPopulation.run(request({ ...data, shipId: 'unknown-ship' }))).rejects.toMatchObject({ code: 'invalid-argument' });
 });
 it('moves AEGIS through its own printed track', async () => {
+  mock.shipId = 'aegis';
   mock.population = 2500;
   mock.get.mockImplementation(async (path: string) => {
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }] };
@@ -60,6 +61,47 @@ it('moves AEGIS through its own printed track', async () => {
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipSurvivors.aegis': 2000,
   }));
+});
+
+it.each([
+  ['aegis', 2000, 1500],
+  ['dione', 95000, 90000],
+  ['icebreaker', 37000, 34000],
+  ['shepherd', 26000, 24000],
+  ['quellon', 26000, 24000],
+  ['refinery-124', 18500, 17000],
+  ['capybara', 18500, 17000],
+] as const)('advances %s damage to the next printed population value', async (shipId, population, amount) => {
+  mock.shipId = shipId;
+  mock.population = population;
+
+  await expect(adjustShipPopulation.run(request({ ...data, shipId })))
+    .resolves.toMatchObject({ amount, alertRaised: [90000, 34000, 24000].includes(amount) });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    [`shipSurvivors.${shipId}`]: amount,
+  }));
+});
+
+it.each([
+  ['aegis', 0, -1],
+  ['dione', 0, -1],
+  ['capybara', 20000, 1],
+] as const)('rejects population changes beyond the %s printed track endpoint', async (shipId, population, delta) => {
+  mock.shipId = shipId;
+  mock.population = population;
+
+  await expect(adjustShipPopulation.run(request({ ...data, shipId, delta })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects an off-track population value without writing the session', async () => {
+  mock.shipId = 'dione';
+  mock.population = 95500;
+
+  await expect(adjustShipPopulation.run(request({ ...data, shipId: 'dione' })))
+    .rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 it('preserves the other GM acknowledgement and does not alter unrest', async () => {
   mock.alerts = { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm1','gm2'] } };
