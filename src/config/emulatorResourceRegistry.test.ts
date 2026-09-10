@@ -3386,6 +3386,8 @@ describe('local emulator coordination', () => {
     const lanePath = `${filePath}.release-lane.json`;
     const applicationVersion = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf8')).version;
     const exactHead = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const mainSha = await runFixtureGit(process.cwd(), ['rev-parse', 'main']);
+    const historicalBranchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD~1']);
     const branchName = await runFixtureGit(process.cwd(), ['branch', '--show-current']);
     const entry = {
       ...releaseEntry,
@@ -3425,20 +3427,21 @@ describe('local emulator coordination', () => {
             missing: 614,
           },
           baseVersion: '0.3.27',
-          baseMainSha: 'main-sha',
+          baseMainSha: mainSha,
           coordinationEntryId: entry.id,
           coordinationBranchName: branchName,
-          coordinationBranchSha: 'historical-branch-sha',
+          coordinationBranchSha: historicalBranchSha,
           requiredPrompt: '055',
           version: applicationVersion,
           reconciliation: {
-            historicalCoordinationBranchSha: 'historical-branch-sha',
+            historicalCoordinationBranchSha: historicalBranchSha,
+            historicalBranchRelation: 'based-on-current-main',
             finalBranchSha: exactHead,
             validationReceiptCommitSha: exactHead,
             coordinationEntryId: entry.id,
             coordinationWorktree: process.cwd(),
             coordinationBranchName: branchName,
-            baseMainSha: 'main-sha',
+            baseMainSha: mainSha,
           },
         }],
       }), 'utf8');

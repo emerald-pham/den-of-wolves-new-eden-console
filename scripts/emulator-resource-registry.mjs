@@ -3323,16 +3323,21 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
       `Landed release fragment ${taskId} historical branch must name a task branch commit after current main.`,
     );
   }
-  if (!(await gitIsAncestor(binding.mainSha, historicalBranchSha, binding.repositoryDirectory))) {
-    throw new Error(
-      `Landed release fragment ${taskId} historical branch ${historicalBranchSha} is not based on current main ${binding.mainSha}.`,
-    );
-  }
   if (!(await gitIsAncestor(historicalBranchSha, binding.start.branchSha, binding.repositoryDirectory))) {
     throw new Error(
       `Landed release fragment ${taskId} historical branch ${historicalBranchSha} is not an ancestor of exact head ${binding.start.branchSha}.`,
     );
   }
+  // A release task may have begun before a later main advance, then merge that
+  // current main into its final repair. Preserve that fact rather than
+  // rewriting the historical task SHA or pretending it was rebased.
+  const historicalBranchRelation = await gitIsAncestor(
+    binding.mainSha,
+    historicalBranchSha,
+    binding.repositoryDirectory,
+  )
+    ? 'based-on-current-main'
+    : 'merged-into-exact-head';
   const receiptFragmentId = text(binding.entry.validation?.releaseFragment?.id);
   if (receiptFragmentId && receiptFragmentId !== fragment.id) {
     throw new Error(
@@ -3383,6 +3388,7 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
 
   const reconciliation = {
     historicalCoordinationBranchSha: historicalBranchSha,
+    historicalBranchRelation,
     finalBranchSha: binding.start.branchSha,
     validationReceiptCommitSha: binding.validationReceiptCommitSha,
     coordinationEntryId: binding.entry.id,
@@ -3459,7 +3465,21 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory,
     const reconciliationWorktree = await realpath(text(reconciliation.coordinationWorktree)).catch(() =>
       text(reconciliation.coordinationWorktree));
     const currentHead = await runGit(['rev-parse', 'HEAD'], repositoryDirectory);
-    if (reconciliation.historicalCoordinationBranchSha !== fragment.coordinationBranchSha ||
+    const historicalBranchRelation = text(reconciliation.historicalBranchRelation);
+    const currentMainSha = await runGit(['rev-parse', 'main'], repositoryDirectory);
+    const historicalBranchSha = text(fragment.coordinationBranchSha);
+    const expectedHistoricalBranchRelation = await gitIsAncestor(
+      currentMainSha,
+      historicalBranchSha,
+      repositoryDirectory,
+    )
+      ? 'based-on-current-main'
+      : 'merged-into-exact-head';
+    if (fragment.baseMainSha !== currentMainSha ||
+      !(await gitIsAncestor(currentMainSha, currentHead, repositoryDirectory)) ||
+      !(await gitIsAncestor(historicalBranchSha, currentHead, repositoryDirectory)) ||
+      reconciliation.historicalCoordinationBranchSha !== historicalBranchSha ||
+      historicalBranchRelation !== expectedHistoricalBranchRelation ||
       reconciliation.finalBranchSha !== receiptCommitSha ||
       reconciliation.validationReceiptCommitSha !== receiptCommitSha ||
       reconciliation.coordinationEntryId !== entry.id ||

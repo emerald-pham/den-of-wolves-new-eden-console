@@ -746,12 +746,22 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     await runGit(root, ['config', 'user.name', 'Coordination Tests']);
     await runGit(root, ['add', '.']);
     await runGit(root, ['commit', '-m', 'fixture main']);
-    const mainSha = await runGit(root, ['rev-parse', 'HEAD']);
+    const initialMainSha = await runGit(root, ['rev-parse', 'HEAD']);
     await runGit(root, ['checkout', '-b', 'feature/landed-recovery']);
     await writeFile(resolve(root, 'src/historical-feature.mjs'), 'export const historical = true;\n');
     await runGit(root, ['add', 'src/historical-feature.mjs']);
     await runGit(root, ['commit', '-m', 'historical task commit']);
     const historicalBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
+    // The historical task commit and current main may be siblings. The final
+    // repair must contain both through an explicit merge, not misrepresent the
+    // task commit as having been based on the later main tip.
+    await runGit(root, ['checkout', 'main']);
+    await writeFile(resolve(root, 'src/current-main-advance.mjs'), 'export const currentMain = true;\n');
+    await runGit(root, ['add', 'src/current-main-advance.mjs']);
+    await runGit(root, ['commit', '-m', 'advance current main']);
+    const mainSha = await runGit(root, ['rev-parse', 'HEAD']);
+    await runGit(root, ['checkout', 'feature/landed-recovery']);
+    await runGit(root, ['merge', '--no-ff', 'main', '-m', 'merge current main into repair']);
 
     const landedPackage = { ...basePackage, version: landedVersion };
     const landedLockfile = {
@@ -779,7 +789,7 @@ it('reconciles an already-landed fragment to an exact validation receipt without
         status: 'active',
         branchName: 'feature/landed-recovery',
         startBranchSha: historicalBranchSha,
-        startMainSha: mainSha,
+        startMainSha: initialMainSha,
         repositoryRoot: root,
         repositoryIdentity,
         intent: 'reconcile a historical release fragment',
@@ -855,6 +865,7 @@ it('reconciles an already-landed fragment to an exact validation receipt without
       coordinationBranchSha: historicalBranchSha,
       reconciliation: {
         historicalCoordinationBranchSha: historicalBranchSha,
+        historicalBranchRelation: 'merged-into-exact-head',
         finalBranchSha,
         validationReceiptCommitSha: finalBranchSha,
         coordinationEntryId: 'landed-recovery-task',

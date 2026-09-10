@@ -155,6 +155,8 @@ it('replays a committed Intelligence Agent request without reevaluating or writi
     id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
   }];
   mock.priorResults['sessions/s1/loyaltyAssignmentRequests/intelligence-replay'] = {
+    action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
     fingerprint: {
       action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
       targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
@@ -170,9 +172,33 @@ it('replays a committed Intelligence Agent request without reevaluating or writi
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('fails closed when a private loyalty receipt has a valid fingerprint but mismatched top-level binding', async () => {
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/malformed-receipt-binding'] = {
+    action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+    targetUid: 'u3', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
+  };
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'malformed-receipt-binding',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/receipt|binding|fingerprint/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects a replay from a different authorized actor before touching setup', async () => {
   const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
   mock.priorResults['sessions/s1/loyaltyAssignmentRequests/actor-collision'] = {
+    action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
     fingerprint: {
       action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
       targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
@@ -205,6 +231,8 @@ it('rejects a replay from a different authorized actor before touching setup', a
 it('rejects a changed payload under an existing request id', async () => {
   const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
   mock.priorResults['sessions/s1/loyaltyAssignmentRequests/payload-collision'] = {
+    action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
     fingerprint: {
       action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
       targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,

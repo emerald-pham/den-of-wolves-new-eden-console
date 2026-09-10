@@ -1071,6 +1071,7 @@ export async function reconcileLandedReleaseFragment(filePath, {
     const proposed = objectRecord(reconciliation);
     const requiredFields = [
       'historicalCoordinationBranchSha',
+      'historicalBranchRelation',
       'finalBranchSha',
       'validationReceiptCommitSha',
       'coordinationEntryId',
@@ -1082,6 +1083,11 @@ export async function reconcileLandedReleaseFragment(filePath, {
     if (missing.length > 0) {
       throw new Error(
         `Landed release fragment ${fragment.taskId} reconciliation requires ${missing.join(', ')}.`,
+      );
+    }
+    if (!['based-on-current-main', 'merged-into-exact-head'].includes(text(proposed.historicalBranchRelation))) {
+      throw new Error(
+        `Landed release fragment ${fragment.taskId} reconciliation requires a supported historical branch relation.`,
       );
     }
     if (typeof validateLandedMetadata === 'function') {

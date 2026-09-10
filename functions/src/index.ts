@@ -2076,6 +2076,23 @@ function isBoundLoyaltyAssignmentFingerprint(
       (typeof candidate.partnerUid === 'string' && candidate.partnerUid.length > 0));
 }
 
+/** Keep the receipt's duplicated query fields bound to its replay fingerprint. */
+function hasMatchingLoyaltyReceiptBinding(
+  receipt: DocumentSnapshot,
+  fingerprint: LoyaltyAssignmentFingerprint,
+): boolean {
+  return sameLoyaltyAssignmentFingerprint({
+    action: receipt.get('action'),
+    sessionId: receipt.get('sessionId'),
+    actorUid: receipt.get('actorUid'),
+    instanceId: receipt.get('instanceId'),
+    targetUid: receipt.get('targetUid'),
+    kind: receipt.get('kind'),
+    suspicion: receipt.get('suspicion'),
+    partnerUid: receipt.get('partnerUid'),
+  }, fingerprint);
+}
+
 function isCanonicalLoyaltyHolder(
   player: DocumentSnapshot | undefined,
   uid: string,
@@ -2203,6 +2220,9 @@ export const assignLoyalty = onCall<{
       }
       if (storedFingerprint.actorUid !== uid) {
         throw new HttpsError('permission-denied', 'This loyalty request belongs to a different facilitator.');
+      }
+      if (!hasMatchingLoyaltyReceiptBinding(prior, storedFingerprint)) {
+        throw new HttpsError('failed-precondition', 'This loyalty request has a malformed receipt binding.');
       }
       if (!sameLoyaltyAssignmentFingerprint(storedFingerprint, fingerprint)) {
         throw new HttpsError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.');
