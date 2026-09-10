@@ -127,14 +127,14 @@ jobs:
 
       - name: Download web build artifact
         if: contains(needs.determine-targets.outputs.targets, 'hosting')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: web-dist
           path: dist
 
       - name: Download Functions build artifact
         if: contains(needs.determine-targets.outputs.targets, 'functions')
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: functions-lib
           path: functions/lib

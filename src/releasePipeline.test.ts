@@ -265,9 +265,9 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).not.toContain('branches: [main]');
   expect(ci).toContain('fetch-depth: 0');
   expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
-  expect(ci).toContain('actions/upload-artifact@v4');
+  expect(ci).toContain('actions/upload-artifact@v7');
   expect(deploy).toContain('ref: ${{ github.sha }}');
-  expect(deploy).toContain('actions/download-artifact@v4');
+  expect(deploy).toContain('actions/download-artifact@v8');
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });
 
@@ -287,6 +287,12 @@ it('uses current Node 24 action runtimes in verification and deployment', () => 
   expect(deploy.match(/actions\/checkout@v7/g)).toHaveLength(2);
   expect(deploy).toContain('actions/setup-node@v7');
   expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:checkout|setup-node)@v4/);
+});
+
+it('uses current artifact action majors throughout the exact-SHA pipeline', () => {
+  expect(ci.match(/actions\/upload-artifact@v7/g)).toHaveLength(2);
+  expect(deploy.match(/actions\/download-artifact@v8/g)).toHaveLength(2);
+  expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:upload|download)-artifact@v[1-6]/);
 });
 
 it('preflights deploy runtime dependencies and scopes deployment credentials', () => {
