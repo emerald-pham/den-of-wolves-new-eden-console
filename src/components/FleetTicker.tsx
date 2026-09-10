@@ -241,8 +241,13 @@ function MovingMessage({ message, fallback }: {
     }
 
     let nextGroups: readonly MovingGroup[] = groupsRef.current.filter(isOnScreen);
+    const outgoingMessage = activeMessage.current;
     activeMessage.current = nextMessage;
-    setAnnouncedMessage(nextMessage);
+    if (nextMessage || nextGroups.length === 0) {
+      setAnnouncedMessage(nextMessage);
+    } else {
+      setAnnouncedMessage(outgoingMessage);
+    }
 
     if (nextMessage) {
       const geometry = geometryFor(nextMessage, probeFor(nextMessage));
@@ -296,6 +301,10 @@ function MovingMessage({ message, fallback }: {
       )).length;
       const geometry = geometryFor(active, probeFor(active));
       nextGroups = appendGroups(nextGroups, active, Math.max(0, 2 - activeCount), geometry);
+    }
+
+    if (nextGroups.length === 0 && activeMessage.current === undefined) {
+      setAnnouncedMessage(undefined);
     }
 
     setGroups(nextGroups);
