@@ -3398,6 +3398,15 @@ export const beginOpenAirspacePhase = onCall<{
         'The emergency timer is paused. Resume it before changing airspace.',
       );
     }
+    if (
+      phase.airspace.state === 'restricted' &&
+      Date.now() >= Date.parse(phase.openAirspaceEndsAt)
+    ) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The airspace window has closed. Wait for the next turn.',
+      );
+    }
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
       throw new HttpsError('failed-precondition', 'The airspace-closed timer is still active.');
     }

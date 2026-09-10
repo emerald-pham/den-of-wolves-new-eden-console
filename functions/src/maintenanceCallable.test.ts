@@ -1015,6 +1015,46 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
   }
 });
 
+it('does not reopen normal airspace after the coordination window has ended', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.001Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/airspace window has closed/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('requires an active session member to synchronize normal airspace', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  mock.currentTurn = 2;
+  mock.connected = false;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('serializes simultaneous airspace expiry observers into one transition event', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-06T12:05:07.000Z'));
