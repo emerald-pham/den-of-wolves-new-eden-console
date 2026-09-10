@@ -2174,6 +2174,11 @@ describe('local emulator coordination', () => {
             branchSha: correctedArtifactTipSha,
           },
         },
+        provenanceRefresh: {
+          previousCommitSha: initialArtifactTipSha,
+          previousTaskTipSha: initialArtifactTipSha,
+          files: ['docs/release.md'],
+        },
         reviews: { documentation: 'Corrected artifact reviewed.' },
       });
       expect(revalidatedState.entries[0]?.validationHistory).toEqual([
