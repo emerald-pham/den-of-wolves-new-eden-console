@@ -189,6 +189,12 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('exposes active-entry amendments through the package command surface', async () => {
+    const packageMetadata = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf8'));
+    expect(packageMetadata.scripts?.['coordination:amend'])
+      .toBe('node scripts/emulator-resource-registry.mjs amend');
+  });
+
   it('rejects an amendment that conflicts with another active owner and leaves both entries unchanged', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-conflict-${randomUUID()}.json`);
     const identity = await currentGitIdentity();
