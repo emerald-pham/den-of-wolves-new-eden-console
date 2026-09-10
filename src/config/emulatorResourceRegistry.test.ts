@@ -1890,6 +1890,151 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('refreshes receipt provenance when revalidation covers corrected task files', async () => {
+    const rootPath = resolve(tmpdir(), `den-of-wolves-revalidation-refresh-${randomUUID()}`);
+    const originPath = `${rootPath}.origin.git`;
+    const filePath = resolve(tmpdir(), `den-of-wolves-revalidation-refresh-${randomUUID()}.json`);
+    const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+
+    try {
+      await mkdir(rootPath, { recursive: true });
+      const root = await realpath(rootPath);
+      await runFixtureGit(root, ['init', '-b', 'main']);
+      await runFixtureGit(root, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'package.json'), JSON.stringify({
+        version: '0.3.22',
+        scripts: { 'coordination:docs': 'node -e ""' },
+      }));
+      await writeFile(resolve(root, 'package-lock.json'), JSON.stringify({
+        packages: { '': { version: '0.3.22' } },
+      }));
+      await writeFile(resolve(root, 'src/changelog.ts'), 'const changes = [{ version: APP_VERSION }];\n');
+      await writeFile(resolve(root, 'docs/release.md'), 'Initial baseline.\n');
+      await runFixtureGit(root, ['add', '.']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture baseline']);
+      const baseSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      await runFixtureGit(root, ['init', '--bare', originPath]);
+      await runFixtureGit(root, ['remote', 'add', 'origin', originPath]);
+      await runFixtureGit(root, ['push', '-u', 'origin', 'main']);
+
+      await runFixtureGit(root, ['switch', '-c', 'docs/revalidation-refresh']);
+      await writeFile(resolve(root, 'docs/release.md'), 'Initial reviewed artifact.\n');
+      await runFixtureGit(root, ['add', 'docs/release.md']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture initial artifact']);
+      const initialArtifactTipSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      const { stdout: initialDiff } = await execFileAsync('git', [
+        'diff', '--unified=0', `${baseSha}...${initialArtifactTipSha}`,
+      ], { cwd: root, encoding: 'utf8' });
+
+      await writeFile(resolve(root, 'docs/release.md'), 'Corrected reviewed artifact.\n');
+      await runFixtureGit(root, ['add', 'docs/release.md']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture corrected artifact']);
+      const correctedArtifactTipSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+
+      const entry = {
+        id: 'revalidation-refresh',
+        worktree: root,
+        startedAt: '2026-09-10T00:00:00.000Z',
+        status: 'active',
+        intent: 'fixture receipt refresh',
+        workType: 'documentation',
+        scopes: ['docs/release.md'],
+        claims: ['fixture-revalidation-refresh'],
+        branchName: 'docs/revalidation-refresh',
+        startBranchSha: baseSha,
+        startMainSha: baseSha,
+        versionPlan: 'Documentation-only; no application version change.',
+        preemptiveChangelog: 'No player-facing change.',
+        validation: {
+          commitSha: initialArtifactTipSha,
+          completedAt: '2026-09-10T00:05:00.000Z',
+          passed: true,
+          commands: ['git diff --check', 'npm run coordination:docs'],
+          files: ['docs/release.md'],
+          docsOnly: true,
+          profile: {
+            kind: 'full',
+            reason: 'fixture initial validation',
+            commands: [],
+            evidence: {
+              baseSha,
+              branchSha: initialArtifactTipSha,
+              diffIdentity: createHash('sha256').update(initialDiff.trim()).digest('hex'),
+            },
+          },
+          reviews: { documentation: 'Initial artifact reviewed.' },
+        },
+      };
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await execFileAsync(process.execPath, [
+        scriptPath,
+        'validate',
+        '--id',
+        entry.id,
+        '--documentation-review',
+        'Corrected artifact reviewed.',
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      const revalidatedState = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(revalidatedState.entries[0]?.validation).toMatchObject({
+        commitSha: correctedArtifactTipSha,
+        files: ['docs/release.md'],
+        profile: {
+          evidence: {
+            baseSha,
+            branchSha: correctedArtifactTipSha,
+          },
+        },
+        reviews: { documentation: 'Corrected artifact reviewed.' },
+      });
+      expect(revalidatedState.entries[0]?.validationHistory).toEqual([
+        expect.objectContaining({ commitSha: initialArtifactTipSha }),
+      ]);
+
+      await runFixtureGit(root, ['switch', 'main']);
+      await runFixtureGit(root, ['merge', '--ff-only', 'docs/revalidation-refresh']);
+      await runFixtureGit(root, ['push', 'origin', 'main']);
+      await runFixtureGit(root, ['switch', 'docs/revalidation-refresh']);
+
+      const { stdout: finishOutput } = await execFileAsync(process.execPath, [
+        scriptPath, 'finish', '--id', entry.id,
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      expect(finishOutput).toMatch(/Completed coordination entry revalidation-refresh/);
+      expect(JSON.parse(await readFile(filePath, 'utf8')).entries[0]).toMatchObject({
+        status: 'complete',
+        outcome: 'landed',
+        finalBranchSha: correctedArtifactTipSha,
+        mainSha: correctedArtifactTipSha,
+        originMainSha: correctedArtifactTipSha,
+        pushed: true,
+      });
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+      await rm(originPath, { recursive: true, force: true });
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('preserves committed work only after its remote destination is verified', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-preserve-${randomUUID()}.json`);
     try {
