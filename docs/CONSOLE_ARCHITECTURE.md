@@ -53,7 +53,8 @@ Ship systems are embedded in the numbered maintenance path through the shared
 rioting at 4, Reactor and production at 5, both shuttle bays at 6. Vessel definitions declare each system's timing. FTL, Wolf Attack and
 passive systems retain their own sections outside the numbered path. Preserve
 this order when stacking the layout on smaller screens. Role procedures retain
-their own page. See the [original ship-sheet layouts](reference/den-of-wolves-new-eden/references/REFERENCE_ONLY_SHIP_LAYOUTS.md).
+their own page. Verify layout details against the authorized private source
+library; do not commit or link that source material here.
 
 All seven fleet ships have approved census tracks from the original A3 ship
 sheets (including the Capybara expansion). Each ship definition owns its client

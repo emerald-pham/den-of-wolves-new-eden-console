@@ -50,8 +50,9 @@ work. Shared vessel composition belongs to the
 [console architecture](docs/CONSOLE_ARCHITECTURE.md); the
 [Capybara ship template](docs/SHIP_TEMPLATE.md) and
 [SNN shuttle template](docs/SHUTTLE_TEMPLATE.md) define their respective
-surfaces. Do not treat the documents under `docs/reference/` as editable design
-guidance: they are the source library for game rules.
+surfaces. The authoritative printed/source library is maintained privately
+outside this repository. Do not commit, link, or reproduce that source material
+in the public project.
 
 The [preserved-in-amber rollback anchor](docs/PRESERVED_IN_AMBER.md) is an
 immutable recovery ref for automated changes to `main`. It must not be deleted

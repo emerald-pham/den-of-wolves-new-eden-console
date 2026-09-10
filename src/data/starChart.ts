@@ -3,9 +3,7 @@
  * sheets change the A–P site code at a coordinate, but never change the
  * topology or the pursuit distance of that coordinate.
  *
- * Source: DoWNE - A4 Single Sided v1.1.pdf, pp. 23–30; see also
- * docs/reference/den-of-wolves-new-eden/references/
- * REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md.
+ * Verified against the authorized private star-chart source library.
  *
  * 0101 is deliberately absent: it is referenced by the Wolf Commander's
  * surrender ability, not printed on any star chart.

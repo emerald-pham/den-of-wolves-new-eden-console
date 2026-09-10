@@ -798,12 +798,13 @@ grows. Documentation-only edits do not add a changelog entry.
 ## Game-rule references
 
 Before designing, testing, or implementing player-facing Den of Wolves: New
-Eden content, read
-[`docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md`](docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md)
-and every source it routes to for the affected mechanic. This is required for
-ships, shuttlecraft, fighter wings, roles, maintenance, combat, exploration,
-resources, player counts, and facilitator-facing rules; do not rely on memory
-or infer a missing rule from adjacent UI.
+Eden content, consult the authorized private source library maintained outside
+this Git repository and every source it routes to for the affected mechanic.
+This is required for ships, shuttlecraft, fighter wings, roles, maintenance,
+combat, exploration, resources, player counts, and facilitator-facing rules.
+If the private library is unavailable, stop rather than relying on memory or
+inferring a missing rule from adjacent UI. Never commit, link, quote, or
+reproduce the private source library in this public repository.
 
 The printed component sheet is authoritative for a specific ship, shuttle,
 fighter wing, console, card, value, or owner. When it conflicts with a generic
