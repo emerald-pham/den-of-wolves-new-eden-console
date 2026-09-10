@@ -54,6 +54,87 @@ beforeEach(() => {
 
 const data = { sessionId: 's1', shipId: 'aegis', instanceId: 'bridge' };
 
+const aegisHullCases = [
+  {
+    name: 'recycles 6♥ while another damage card remains',
+    damagedSystemIds: [
+      'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+      'missile-launchers', 'point-defence-lasers', 'storage', 'jump-drive',
+      'construction-bay', 'shuttle-bay-zeta', 'shuttle-bay-omega',
+    ],
+    card: '6♥',
+    systemId: 'armoured-hull-i',
+    systemName: 'Armoured Hull I',
+    recycled: true,
+  },
+  {
+    name: 'keeps the final 7♥ out when it would empty the deck',
+    damagedSystemIds: [
+      'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+      'missile-launchers', 'point-defence-lasers', 'armoured-hull-i',
+      'storage', 'jump-drive', 'reactor', 'construction-bay',
+      'shuttle-bay-zeta', 'shuttle-bay-omega',
+    ],
+    card: '7♥',
+    systemId: 'armoured-hull-ii',
+    systemName: 'Armoured Hull II',
+    recycled: false,
+  },
+] as const;
+
+it.each(aegisHullCases)('production path $name without survivor loss', async ({ damagedSystemIds, card, systemId, systemName, recycled }) => {
+  mock.damage = { aegis: { damagedSystemIds, destroyed: false } };
+  mock.randomInt.mockReturnValue(0);
+
+  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
+    card: { card, systemId, systemName },
+    recycled,
+    destroyed: false,
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipDamage.aegis': {
+      damagedSystemIds: recycled ? damagedSystemIds : [...damagedSystemIds, systemId],
+      destroyed: false,
+    },
+    'shipSurvivors.aegis': 2500,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
+    type: 'ship-damage', shipId: 'aegis', card, systemId, systemName, recycled,
+  }));
+});
+
+it('does not reroll or fork the audit when a recycled hull transaction retries', async () => {
+  mock.damage = {
+    aegis: {
+      damagedSystemIds: [
+        'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+        'missile-launchers', 'point-defence-lasers', 'storage', 'jump-drive',
+        'construction-bay', 'shuttle-bay-zeta', 'shuttle-bay-omega',
+      ],
+      destroyed: false,
+    },
+  };
+  mock.retry = true;
+  mock.randomInt.mockReturnValueOnce(0).mockReturnValue(12);
+  mock.randomUUID.mockReturnValueOnce('hull-event').mockReturnValue('retry-event');
+
+  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
+    card: { card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I' },
+    recycled: true, destroyed: false,
+  });
+  expect(mock.randomInt).toHaveBeenCalledTimes(1);
+  expect(mock.randomUUID).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(2);
+  expect(mock.set).toHaveBeenNthCalledWith(1, 'sessions/s1/damageDraws/hull-event',
+    expect.objectContaining({
+      type: 'ship-damage', card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I', recycled: true,
+    }));
+  expect(mock.set).toHaveBeenNthCalledWith(2, 'sessions/s1/damageDraws/hull-event',
+    expect.objectContaining({
+      type: 'ship-damage', card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I', recycled: true,
+    }));
+});
+
 it('draws and persists one AEGIS damage card atomically in the shared draw log', async () => {
   await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
     card: { card: '10♥', systemId: 'reactor', systemName: 'Reactor' },
