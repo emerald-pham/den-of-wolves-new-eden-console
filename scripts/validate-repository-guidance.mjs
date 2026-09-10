@@ -10,6 +10,7 @@ function isDocumentationFile(filePath) {
 }
 
 const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
+const CAMPAIGN_PLAYBOOK_PATH = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
 const RETIRED_PROMPT_IDS = new Set(['071']);
 
 function promptDependencyTargets(value) {
@@ -74,6 +75,7 @@ const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
   [PROMPT_DEPENDENCY_INDEX_PATH, /mandatory[\s\S]*before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
+  [CAMPAIGN_PLAYBOOK_PATH, /before selecting[\s\S]*prompt/i],
 ]);
 
 function normalizeGuidance(source) {
@@ -114,6 +116,7 @@ const PROMPT_DEPENDENCY_CONCURRENCY_SURFACES = Object.freeze([
   PROMPT_DEPENDENCY_INDEX_PATH,
   'docs/IMPLEMENTATION_MILESTONES.md',
   'docs/IMPLEMENTATION_PROGRESS.md',
+  CAMPAIGN_PLAYBOOK_PATH,
 ]);
 
 /**
@@ -163,6 +166,103 @@ export function validatePromptDependencyConcurrency({ sources, errors }) {
     }
     if (/\bclaim (?:only )?the first unclaimed item in ready_queue\b/i.test(normalized)) {
       errors.push(`${filePath}: retains a serial-only first-unclaimed READY_QUEUE claim rule`);
+    }
+  }
+}
+
+/**
+ * Keep the reusable campaign goal aligned with the lessons learned from
+ * multi-agent release overruns. These checks intentionally test semantic
+ * controls rather than requiring one exact paragraph or a stale snapshot.
+ */
+export function validateCampaignPlaybook({ source, errors } = {}) {
+  const normalized = normalizeGuidance(String(source ?? ''));
+  const checks = [
+    ['must provide a reusable campaign goal template', /campaign goal template/i],
+    [
+      'must require live verification of current main, SHA, count, and version',
+      /(?:verify|reconcile)[\s\S]{0,300}(?:current|live|origin\/main)[\s\S]{0,300}(?:sha|count|version)/i,
+    ],
+    [
+      'must require the dependency authority before prompt selection',
+      /fully read[\s\S]{0,220}implementation_prompt_dependencies\.md/i,
+    ],
+    ['must require running the deterministic dispatcher', /run[\s\S]{0,100}deterministic dispatcher/i],
+    [
+      'must prohibit new lanes at a stopping point',
+      /stopping point[\s\S]{0,240}(?:open no new lanes|open no new slice)/i,
+    ],
+    [
+      'must require releasing claims/resources and reporting before stopping',
+      /stopping point[\s\S]{0,500}release[\s\S]{0,260}(?:claims|resources)[\s\S]{0,240}(?:report|stop)/i,
+    ],
+    ['must require Luna xhigh delegation', /\bgpt-5\.6-luna\b[\s\S]{0,100}\bxhigh\b/i],
+    ['must prohibit Sol child dispatch', /never\s+dispatch\s+a?\s*sol\s+child/i],
+    [
+      'must define the Terra exception as cheaper than about five Luna attempts or repeated steering',
+      /terra[\s\S]{0,360}(?:five|5)\s+luna[\s\S]{0,180}(?:steering|attempt)/i,
+    ],
+    [
+      'must prefer a fresh clarified Luna after a significant miss or repeated steering',
+      /(?:significant miss|repeated steering)[\s\S]{0,180}fresh[\s\S]{0,100}clarified luna/i,
+    ],
+    [
+      'must layer focused red-before-green checks before one final full gate',
+      /focused[\s\S]{0,180}red-before-green[\s\S]{0,300}one final full[\s\S]{0,180}(?:coordination|validation|gate)/i,
+    ],
+    [
+      'must place an independent exact-HEAD review before final full validation',
+      /independent exact[- ]head review[\s\S]{0,220}(?:before|precedes)[\s\S]{0,180}(?:final full|full coordination)/i,
+    ],
+    [
+      'must preflight changelog, version, and progress compatibility',
+      /preflight[\s\S]{0,180}changelog[\s\S]{0,180}version[\s\S]{0,180}progress/i,
+    ],
+    [
+      'must forecast exact exclusive leaf-file ownership and reject broad docs claims',
+      /forecast exact exclusive leaf-file claims[\s\S]{0,280}(?:broad `?docs\/\*|another owner)/i,
+    ],
+    [
+      'must rerun dependency and ownership gates after main movement',
+      /(?:fetch\/rebase|material main movement)[\s\S]{0,320}(?:re-read|reread)[\s\S]{0,220}dependency[\s\S]{0,220}(?:dispatcher|reforecast|ownership)/i,
+    ],
+    ['must prohibit wholesale merging of stale branches', /never[\s\S]{0,180}wholesale-merge[\s\S]{0,120}stale branch/i],
+    ['must distinguish local, rendered, deployed, and capacity proof', /\blocal\b/i],
+    ['must distinguish rendered proof', /\brendered\b/i],
+    ['must distinguish deployed proof', /\bdeployed\b/i],
+    ['must distinguish capacity proof', /\bcapacity proof\b/i],
+    ['must require merge, push, finish, and cleanup', /\bmerge\b[\s\S]{0,220}\bpush\b[\s\S]{0,220}\bfinish\b[\s\S]{0,220}\bcleanup\b/i],
+    ['must prohibit overclaiming campaign completion', /never[\s\S]{0,180}(?:overclaim|claim the campaign is complete|campaign completion)/i],
+    [
+      'must require immediate child reports with status, paths, commands, and blockers',
+      /immediately report[\s\S]{0,180}exact status[\s\S]{0,180}changed paths[\s\S]{0,180}commands[\s\S]{0,180}blocker/i,
+    ],
+    [
+      'must define coordinator, implementation, independent-review, and release ownership',
+      /coordinator[\s\S]{0,240}read-only[\s\S]{0,300}implementation[\s\S]{0,180}commits[\s\S]{0,260}independent[\s\S]{0,220}exact head[\s\S]{0,300}release agent/i,
+    ],
+    [
+      'must prohibit implicit ownership handoffs',
+      /(?:never|do not)\s+leave[\s\S]{0,80}handoffs?\s+implicit/i,
+    ],
+  ];
+  for (const [message, pattern] of checks) {
+    if (!pattern.test(normalized)) errors.push(`campaign playbook: ${message}`);
+  }
+
+  const templateMatch = String(source ?? '').match(/## Campaign goal template[\s\S]*?```text\n([\s\S]*?)\n```/i);
+  if (!templateMatch) {
+    errors.push('campaign playbook: campaign goal template must be a copyable text block');
+  } else {
+    const template = templateMatch[1];
+    if (/\b[0-9a-f]{7,40}\b/i.test(template)) {
+      errors.push('campaign playbook: goal template must not hard-code a SHA');
+    }
+    if (/\b\d+\/\d+\b/.test(template) || /\b\d+\.\d+\.\d+\b/.test(template)) {
+      errors.push('campaign playbook: goal template must not hard-code a count or version');
+    }
+    if (!/(?:verify|record)[\s\S]{0,260}(?:current|live)[\s\S]{0,260}(?:sha|count|version)/i.test(template)) {
+      errors.push('campaign playbook: goal template must require live SHA/count/version verification');
     }
   }
 }
@@ -333,9 +433,11 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
     [PROMPT_DEPENDENCY_INDEX_PATH, dependencySource],
     ['docs/IMPLEMENTATION_MILESTONES.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8')],
     ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
+    [CAMPAIGN_PLAYBOOK_PATH, readFileSync(resolve(cwd, CAMPAIGN_PLAYBOOK_PATH), 'utf8')],
   ]);
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
+  validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 
   return errors;

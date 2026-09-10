@@ -4,6 +4,13 @@ Use this page for commands. [`CLAUDE.md`](../CLAUDE.md) remains the canonical
 source for branch, version, testing, security, emulator, merge, release, and
 cleanup policy.
 
+For a multi-agent implementation campaign, read the
+[agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) before dispatching work.
+It defines the complete goal brief, economical Luna/Terra model policy,
+dependency and rebase gates, focused-versus-full validation sequence, and the
+strict stopping-point contract. The playbook supplements this command page;
+`CLAUDE.md` and the dependency authority remain binding.
+
 The coordination ledger is shared by every local repository on this host. Set
 `CODEX_COORDINATION_FILE` to the same absolute path only when a project needs an
 explicit location; `DOW_EMULATOR_COORDINATION_FILE` is a compatibility alias.

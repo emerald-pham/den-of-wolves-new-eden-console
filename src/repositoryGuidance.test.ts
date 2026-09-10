@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  validateCampaignPlaybook,
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
   validatePromptDependencyGuidance,
@@ -141,6 +142,7 @@ describe('repository guidance', () => {
       `docs/${dependencyDoc}`,
       'docs/IMPLEMENTATION_MILESTONES.md',
       'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
     ];
 
     for (const surface of surfaces) {
@@ -172,6 +174,7 @@ describe('repository guidance', () => {
       'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
       'docs/IMPLEMENTATION_MILESTONES.md',
       'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
     ];
     const sources = new Map(surfaces.map((surface) => [
       surface,
@@ -227,6 +230,7 @@ describe('repository guidance', () => {
       'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
       'docs/IMPLEMENTATION_MILESTONES.md',
       'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
     ];
     const sources = new Map(surfaces.map((surface) => [
       surface,
@@ -253,6 +257,7 @@ describe('repository guidance', () => {
       ['docs/WORKTREE_COORDINATION.md', 'Coordinate ownership before editing.'],
       ['README.md', 'Read the dependency index.'],
       ['AGENTS.md', 'Read CLAUDE.md.'],
+      ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', 'Read the dependency index.'],
     ]);
 
     validatePromptDependencyConcurrency({ sources, errors });
@@ -267,5 +272,80 @@ describe('repository guidance', () => {
       expect.stringContaining('README.md'),
       expect.stringContaining('AGENTS.md'),
     ]));
+  });
+
+  it('requires the reusable campaign playbook to preserve critical controls', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
+    const errors: string[] = [];
+
+    validateCampaignPlaybook({ source, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('fails closed when critical campaign controls are weakened', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
+    const mutations = [
+      {
+        name: 'stopping',
+        source: source.replace(/open no new lanes/gi, 'open lanes'),
+        error: 'must prohibit new lanes at a stopping point',
+      },
+      {
+        name: 'dependency',
+        source: source.replace(/fully read/gi, 'consult'),
+        error: 'must require the dependency authority before prompt selection',
+      },
+      {
+        name: 'rebase',
+        source: source
+          .replace(/fetch\/rebase|material main movement/gi, 'main movement')
+          .replace(/re-read|rerun|reforecast|reacquire/gi, 'inspect'),
+        error: 'must rerun dependency and ownership gates after main movement',
+      },
+      {
+        name: 'gate layering',
+        source: source
+          .replace(/independent exact[- ]HEAD review/gi, 'review')
+          .replace(/one final full/gi, 'one final'),
+        error: 'must layer focused red-before-green checks before one final full gate',
+      },
+      {
+        name: 'model escalation',
+        source: source.replace(/gpt-5\.6-luna/gi, 'gpt-5.6'),
+        error: 'must require Luna xhigh delegation',
+      },
+      {
+        name: 'idle report',
+        source: source.replace(/immediately\s+reports?/gi, 'report'),
+        error: 'must require immediate child reports with status, paths, commands, and blockers',
+      },
+      {
+        name: 'ownership',
+        source: source.replace(/forecast exact exclusive leaf-file\s+claims/gi, 'forecast ownership'),
+        error: 'must forecast exact exclusive leaf-file ownership and reject broad docs claims',
+      },
+      {
+        name: 'ownership handoff',
+        source: source.replace(/Do not leave\s+these handoffs\s+implicit\./gi, 'Leave handoffs implicit.'),
+        error: 'must prohibit implicit ownership handoffs',
+      },
+      {
+        name: 'dynamic metadata',
+        source: source.replace(
+          /do not reuse a reported SHA,\s+count,\s+or\s+version\s+without rechecking it\./i,
+          'use current version 0.3.26.',
+        ),
+        error: 'goal template must not hard-code a count or version',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateCampaignPlaybook({ source: mutation.source, errors });
+      expect(errors, mutation.name).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.error),
+      ]));
+    }
   });
 });

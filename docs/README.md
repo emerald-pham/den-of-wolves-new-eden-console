@@ -13,6 +13,7 @@ code, tests, or canonical policy.
 | Repository workflow, testing, security, release, and cleanup policy | [CLAUDE.md](../CLAUDE.md) | Canonical repository policy |
 | Agent discovery and private-reference warning | [AGENTS.md](../AGENTS.md) | Thin routing and safety pointer |
 | Coordination commands | [WORKTREE_COORDINATION.md](WORKTREE_COORDINATION.md) | Command reference; `CLAUDE.md` remains canonical |
+| Campaign execution, recovery, and stopping controls | [Agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) | Copy-paste goal template and enforceable orchestration gates |
 | Cowork-specific invocation preferences | [Cowork instructions](../.cowork/instructions.md) | Tool-specific preferences only |
 
 ## Implementation roadmap

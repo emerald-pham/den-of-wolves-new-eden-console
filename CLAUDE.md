@@ -6,6 +6,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 ## Contents
 
 - [Agent fast path](#agent-fast-path)
+- [Campaign execution and stopping](#campaign-execution-and-stopping)
 - [Implementation-plan reading route](#implementation-plan-reading-route)
 - [Prompt dependency gate](#prompt-dependency-gate)
 - [Test first for code](#1-test-first-for-code)
@@ -62,6 +63,39 @@ run its dispatcher, and reconcile the selected row with current `main` and
 coordination before selecting, starting, or editing the prompt. Check it only
 after that reconciliation is recorded; leave it unchecked if any hard
 prerequisite remains unmet.
+
+## Campaign execution and stopping
+
+For a coordinator running more than one implementation slice, read the
+[agent campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md) before dispatching
+work. It is the compact operational companion to this file and contains a
+copy-paste campaign goal template. The dependency authority remains mandatory
+for every numbered prompt; the playbook does not replace it.
+
+Campaign goals must use one complete initial brief: live dependency/dispatcher
+result, exact exclusive leaf scopes and ownership, version/changelog/progress
+metadata, focused tests, review, release, and stopping requirements. The
+coordinator is read-only: it makes decisions and dispatches. The implementation
+Luna edits, tests, and commits; an independent Luna reviews the exact HEAD; and
+a separately assigned Luna release agent reconciles, runs the final full gate,
+merges, pushes, finishes, and cleans up. All repository changes and reviews in
+such a campaign use `gpt-5.6-luna` at `xhigh`, or the repository's explicitly
+required higher Luna `max` effort for numbered-plan changes. Never dispatch a
+Sol child. A `gpt-5.6-terra` `xhigh` exception needs a recorded reason that one
+Terra attempt is cheaper than about five Luna attempts or that repeated
+steering is predictable. After one significant miss or repeated steering,
+prefer a fresh clarified Luna brief.
+
+“Reach a stopping point” means open no new lanes: finish, commit, preserve, or
+explicitly discard only already-active slices, release this task's claims and
+resources, report the exact state, and stop. Focused checks belong during work
+and review; an independent exact-HEAD review precedes one final full
+coordination gate on the exact reconciled candidate, and that gate repeats only
+when reconciliation changes committed inputs, semantics, or the exact SHA.
+When `main` moves, fetch/rebase or selectively reapply, re-read the dependency
+authority, rerun its dispatcher, reforecast and reacquire ownership, and
+re-review if semantics changed. Never wholesale-merge a stale branch or
+overclaim completion.
 
 ### Implementation-plan reading route
 
@@ -191,12 +225,16 @@ explicitly classifies them as hard.
    equivalent SSH URL in the checkout's local Git config. Existing SSH origins
    and non-GitHub remotes are left unchanged; verify the result with
    `git remote -v` if transport was repaired.
-4. For player-facing product work, complete the changelog preflight immediately:
-   reserve one unused release version for this task, record that exact version
-   in `--version-plan`, update `package.json` and the root lockfile to it, and
-   add the planned note as a new, standalone top-level entry in
-   `src/changelog.ts` before the test-first implementation sequence begins.
-   Product work driven by the implementation plan must also pass
+4. For player-facing product work, complete the release-metadata preflight
+   immediately: inspect the current package version, changelog, and progress
+   ledger; record the base/version plan in coordination; and create one
+   validated per-task release fragment with
+   `node scripts/coordination-throughput.mjs release-prepare` before the
+   test-first implementation sequence begins. Do not edit `package.json`, the
+   root lockfile, or `src/changelog.ts` during feature implementation; the
+   release lane's `release-land` updates those files together at landing and
+   allocates the next permitted version. Product work driven by the plan must
+   also pass
    `--implementation-prompt NNN` or `NNN<letter>`, set that prompt to
    `in-progress` in
    `docs/IMPLEMENTATION_PROGRESS.md`, and classify its ledger row as
@@ -206,7 +244,8 @@ explicitly classifies them as hard.
    field is only a draft and cannot satisfy this requirement.
    Never append the note to another task's current-version entry. Tooling,
    test, and documentation-only work records an explicit
-   no-player-facing-change note and does not add an entry. The lighter
+   no-player-facing-change note, does not add a release fragment, and does not
+   change the application version or player-facing changelog. The lighter
    documentation-only review path is described in [Test first for code](#1-test-first-for-code).
    The path/branch preflight and root dependency bootstrap above precede every
    repository script; then follow the test-first, emulator-slot, and
@@ -463,7 +502,7 @@ actually performed them; the final review remains a deliberate handoff.
 
 The product owner authorizes suitable delegation when it saves effort after
 setup and review. Fan out independent, bounded reconnaissance, implementation,
-or verification tracks to GPT-5.6 Luna at `high` reasoning; do not use GPT-5.3
+or verification tracks to GPT-5.6 Luna at `xhigh` reasoning; do not use GPT-5.3
 Codex Spark. If no safe sidecar exists, continue locally rather than creating
 one to satisfy a quota.
 
@@ -498,6 +537,11 @@ Keep delegation economical:
 - Ask every child to return changed paths (if any), commands run, and observed
   results. Review that evidence before integration, then close the child
   immediately.
+- A child must immediately report exact status, changed paths, commands, and
+  blocker when its process stops, it reaches a terminal state, its worktree is
+  clean, or no progress is possible. Keep its coordination entry active until
+  an explicit landed, preserved, or discarded outcome; do not steer a stopped
+  child through repeated polling.
 
 - Do not use GPT-5.3 Codex Spark (`gpt-5.3-codex-spark`) for this repository. It
   is not an approved delegation model for this codebase.
@@ -505,10 +549,15 @@ Keep delegation economical:
   They may inspect, create, edit, rename, and delete files as needed, run
   commands and tests, and perform well-scoped implementation work. No
   read-only restriction applies to delegated subagents.
-- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning for suitable delegated
+- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `xhigh` reasoning for suitable delegated
   work when delegation saves total effort and tokens after setup, context
   transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
   UI, and routine implementation with clear expected results.
+- Never dispatch a Sol child. Use GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`
+  only when one Terra attempt is reasonably cheaper than about five Luna
+  attempts or repeated steering is predictable; record the exception and its
+  cost reason. After one significant miss or repeated steering, prefer a fresh
+  clarified Luna brief.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
   scope and acceptance criteria. Every delegated agent that changes files must
    use its own worktree and short-lived branch; never have a delegated agent
@@ -536,14 +585,20 @@ Keep delegation economical:
   locally without forcing an artificial split.
 - No code change has zero risk. Keep security, authentication, authorization,
   authoritative state mutations, complex gameplay, architectural decisions, and
-  other high-risk security or product decisions with the primary agent. The
-  primary agent also owns all review, integration, versioning, merge, and push.
+  other high-risk security or product decisions with the primary agent. For a
+  coordinator-only campaign, the coordinator owns those decisions and
+  dispatches the implementation, independent-review, and release agents; it
+  does not edit repository files. The implementation agent edits, tests, and
+  commits; the independent reviewer reviews the exact HEAD; and the release
+  agent owns reconciliation, the final full gate, versioning, merge, push,
+  finish, and cleanup. Do not leave these handoffs implicit.
 - Every delegated agent must read this file and follow the applicable test-first,
   dependency, emulator isolation, and version policies. Small task size does not
   exempt code changes from those requirements.
-- The primary agent reviews the diff and verification evidence and coordinates
-  integration, versioning, merge, and push. Delegated agents must return their
-  work for that review before anything is merged or pushed to `main`.
+- In the coordinator-only campaign, the independent reviewer and release agent
+  review and integrate the delegated result under the coordinator's decisions.
+  Delegated agents must return exact changed paths, commands, and evidence
+  before anything is merged or pushed to `main`.
 
 ## Concurrent worktrees and emulator ports
 
