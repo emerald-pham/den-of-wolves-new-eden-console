@@ -57,6 +57,15 @@ row, refresh its dispatcher, and reconcile coordination before continuing. A
 prompt cannot be marked complete or merged while a hard prerequisite remains
 unmet; closure/evidence gates are completion checks, not inferred start locks.
 
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap. A worktree
+must not bypass an unmet dependency, active claim, or unresolved decision-owner
+gate merely because the prompt is independent.
+
 Targeted lookup example:
 
 ```bash
@@ -2084,6 +2093,13 @@ prompts remain open; none of those states may be treated as completion.
 The lowest unresolved ID is the default triage resume pointer, not a dependency
 lock. A worktree may select any dependency-ready unresolved prompt in the
 current milestone, and distinct coordination claims may proceed concurrently.
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A later queue item
+may be claimed in a separate worktree only after its hard prerequisites and any
+hard milestone, contract, and decision-owner gates are satisfied/confirmed and
+the coordination forecast shows conflict-free ownership. No worktree may
+bypass dependencies, active claims, or unresolved decision-owner gates merely
+because the prompt is independent.
 
 #### Implementation-plan agent authorization
 

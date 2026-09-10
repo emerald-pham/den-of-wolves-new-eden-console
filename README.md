@@ -38,6 +38,15 @@ standalone; a prompt cannot be marked complete or merged while a hard
 prerequisite remains unmet. Re-read the index after a rebase or material
 movement of current `main`.
 
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap. A worktree
+must not bypass an unmet dependency, active claim, or unresolved decision-owner
+gate merely because the prompt is independent.
+
 ## Stack
 
 | Layer | Choice |

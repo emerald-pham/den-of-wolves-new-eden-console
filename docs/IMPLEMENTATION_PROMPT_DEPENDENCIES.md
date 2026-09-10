@@ -46,6 +46,18 @@ start blockers.
    plan workflow: separate documentation/proof from implementation and do not
    turn this index into completion evidence.
 
+### Concurrent prompt selection
+
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane,
+but it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap.
+`NEEDS_CONFIRMATION` and `BLOCKED` rows are not ready; a worktree must not
+bypass an unmet dependency, active claim, or unresolved decision-owner gate
+merely because the prompt is independent.
+
 Exact lookup for one prompt:
 
 ~~~sh
@@ -1295,14 +1307,21 @@ if (!selected) {
   console.log('  decision_owner=' + selected[6]);
   console.log('  closure_evidence_gates=' + selected[7] + ' (closure only; never a start blocker)');
   console.log('proof_validation_expectation: Follow CLAUDE.md; state the Given/When/Then outcome; preserve current proof or observe the smallest missing acceptance fail; deliver one bounded authoritative retry-safe audience-correct result; record focused evidence and complete the single reconciled release gate.');
-  console.log('coordination_claim_reminder: claim the first unclaimed READY item; if the claim fails, take the next READY item; never substitute the lowest unresolved prompt.');
+  console.log('coordination_claim_reminder: NEXT (the first READY_QUEUE item) is the primary resume/default lane, but it is advisory for concurrency; a separate worktree may claim a later READY_QUEUE item only after hard prerequisites and any hard milestone, contract, or decision-owner gates are satisfied/confirmed and the coordination forecast shows conflict-free ownership; never bypass dependencies, active claims, or unresolved decision-owner gates merely because the prompt is independent.');
 }
 NODE
 ~~~
 
-Mechanical claim rule: claim the first unclaimed item in READY_QUEUE. If its
-coordination claim fails, take the next ranked READY_QUEUE item. Never
-substitute the lowest unresolved ID; that is only a resume pointer.
+`NEXT` (the first `READY_QUEUE` item) is the primary resume/default lane and is
+advisory for concurrency, not a serial execution lock. A separate worktree may
+claim a later `READY_QUEUE` item concurrently only when its hard prompt
+prerequisites are done, every hard milestone, hard contract, and decision-owner
+gate is satisfied or explicitly confirmed, and the coordination forecast shows
+conflict-free ownership with no active claim overlap. If a coordination claim
+fails, choose another dependency-ready item only after the same checks pass;
+never bypass dependencies, active claims, or unresolved decision-owner gates
+merely because the prompt is independent. The lowest unresolved ID remains
+only a resume pointer.
 
 ## Current-ledger sample
 
@@ -1348,7 +1367,7 @@ required_preceding_contracts:
   decision_owner=none
   closure_evidence_gates=none (closure only; never a start blocker)
 proof_validation_expectation: Follow CLAUDE.md; state the Given/When/Then outcome; preserve current proof or observe the smallest missing acceptance fail; deliver one bounded authoritative retry-safe audience-correct result; record focused evidence and complete the single reconciled release gate.
-coordination_claim_reminder: claim the first unclaimed READY item; if the claim fails, take the next READY item; never substitute the lowest unresolved prompt.
+coordination_claim_reminder: NEXT (the first READY_QUEUE item) is the primary resume/default lane, but it is advisory for concurrency; later READY_QUEUE items may be claimed only after hard prerequisites and any hard milestone, contract, or decision-owner gates are satisfied/confirmed and coordination ownership is conflict-free; never bypass dependencies, active claims, or unresolved decision-owner gates merely because the prompt is independent.
 ~~~
 
 ## Maintenance rules

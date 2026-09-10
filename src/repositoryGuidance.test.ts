@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   validatePromptDependencyCompletion,
+  validatePromptDependencyConcurrency,
   validatePromptDependencyGuidance,
 } from '../scripts/validate-repository-guidance.mjs';
 
@@ -213,5 +214,58 @@ describe('repository guidance', () => {
     expect(validatePromptDependencyCompletion({ dependencySource, progressSource })).toEqual([
       'Prompt 002 is marked done but hard prerequisite 001 is missing.',
     ]);
+  });
+
+  it('requires an advisory NEXT lane while preserving safe concurrent dependency-ready claims', () => {
+    const repositoryRoot = process.cwd();
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'README.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      'docs/IMPLEMENTATION_MILESTONES.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(repositoryRoot, surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+
+    validatePromptDependencyConcurrency({ sources, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('rejects serial-only or unsafe concurrent prompt-claim guidance', () => {
+    const errors: string[] = [];
+    const sources = new Map([
+      [
+        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+        'NEXT is the first READY_QUEUE item. Claim the first unclaimed item only.',
+      ],
+      ['CLAUDE.md', 'Prompt work may proceed concurrently.'],
+      ['docs/IMPLEMENTATION_PLAN.md', 'The lowest unresolved ID is a pointer.'],
+      ['docs/IMPLEMENTATION_PROGRESS.md', 'Dependency-ready prompts may proceed concurrently.'],
+      ['docs/IMPLEMENTATION_MILESTONES.md', 'Use the dependency route.'],
+      ['docs/WORKTREE_COORDINATION.md', 'Coordinate ownership before editing.'],
+      ['README.md', 'Read the dependency index.'],
+      ['AGENTS.md', 'Read CLAUDE.md.'],
+    ]);
+
+    validatePromptDependencyConcurrency({ sources, errors });
+
+    expect(errors).toEqual(expect.arrayContaining([
+      expect.stringContaining('docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
+      expect.stringContaining('CLAUDE.md'),
+      expect.stringContaining('docs/IMPLEMENTATION_PLAN.md'),
+      expect.stringContaining('docs/IMPLEMENTATION_PROGRESS.md'),
+      expect.stringContaining('docs/IMPLEMENTATION_MILESTONES.md'),
+      expect.stringContaining('docs/WORKTREE_COORDINATION.md'),
+      expect.stringContaining('README.md'),
+      expect.stringContaining('AGENTS.md'),
+    ]));
   });
 });
