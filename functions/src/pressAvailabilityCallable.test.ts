@@ -346,6 +346,7 @@ it.each([
 it('denies a foreign UID reusing a Press receipt without disclosing its result or writing', async () => {
   session({ pressEnabled: false, pressAvailabilityRevision: 1 });
   gm();
+  gm('u2', 'gm-2');
   const eventPath = 'sessions/s1/events/press-availability-press-1';
   const priorEvent = {
     type: 'press-availability',
@@ -363,7 +364,7 @@ it('denies a foreign UID reusing a Press receipt without disclosing its result o
   mock.update.mockClear();
   mock.set.mockClear();
   mock.remove.mockClear();
-  const replay = setPressEnabled.run(request(baseData, 'u2'));
+  const replay = setPressEnabled.run(request({ ...baseData, instanceId: 'gm-2' }, 'u2'));
   await expect(replay).rejects.toMatchObject({
     code: 'permission-denied',
     message: expect.not.stringContaining('classified prior result'),
