@@ -493,6 +493,28 @@ it.each(['success', 'failure', 'debrief', 'closed'] as const)(
   },
 );
 
+it.each([
+  ['closed', 'debrief'],
+  ['debrief', 'success'],
+  ['success', 'failure'],
+] as const)('does not regress terminal lifecycle ordering across turns: %s@2 -> %s@3',
+  (acceptedPhase, delayedPhase) => {
+    const { callbacks } = captureSessionListener();
+    const onSession = vi.fn();
+    subscribeSessionState('s1', 'u1', {
+      onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    });
+
+    callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: acceptedPhase, currentTurn: 2 }));
+    callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: delayedPhase, currentTurn: 3 }));
+
+    expect(onSession).toHaveBeenCalledTimes(1);
+    expect(onSession.mock.lastCall?.[0]).toMatchObject({
+      phase: acceptedPhase,
+      currentTurn: 2,
+    });
+  });
+
 it('resets ordering when a session listener is torn down and re-subscribed', () => {
   const first = captureSessionListener();
   const firstOnSession = vi.fn();

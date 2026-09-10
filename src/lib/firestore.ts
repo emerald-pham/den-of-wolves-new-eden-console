@@ -489,8 +489,7 @@ function acceptsSessionLifecycleSnapshot(
   }
   if (next.currentTurn < previous.currentTurn) return false;
 
-  if (previous.phase && next.phase && previous.phase !== next.phase &&
-      next.currentTurn === previous.currentTurn) {
+  if (previous.phase && next.phase && previous.phase !== next.phase) {
     const directTransition = LEGAL_LIFECYCLE_TRANSITIONS[previous.phase].includes(next.phase);
     if (isNonReopenableLifecyclePhase(previous.phase) && !directTransition) return false;
     if (isNonReopenableLifecyclePhase(next.phase) && !directTransition) return false;
