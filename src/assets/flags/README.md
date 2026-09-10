@@ -1,7 +1,9 @@
 # Faction flag assets
 
-Reserved for later interface use. Keep the source filenames stable so future
-game data can refer to them without another asset migration.
+These PNGs are used by the current vessel definitions as faction flag assets.
+Keep the source filenames stable so game data can continue to refer to them
+without another asset migration. The asset contract is covered by
+`src/assets/flags.test.ts`.
 
 | Name | File |
 |---|---|
