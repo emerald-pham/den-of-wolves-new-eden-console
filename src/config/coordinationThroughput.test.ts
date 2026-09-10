@@ -28,6 +28,7 @@ import {
   releaseValidationLease,
   releaseValidationLeaseFile,
   validationRequestMode,
+  validationPollDelay,
 } from '../../scripts/coordination-throughput.mjs';
 
 const repoIdentity = '/repo/.git';
@@ -51,6 +52,13 @@ function activeEntry(overrides: Record<string, unknown> = {}) {
 }
 
 describe('coordination throughput primitives', () => {
+  it('backs validation queue polling off within a bounded interval', () => {
+    expect(validationPollDelay(100, 1_000)).toBe(200);
+    expect(validationPollDelay(200, 1_000)).toBe(400);
+    expect(validationPollDelay(800, 1_000)).toBe(1_000);
+    expect(validationPollDelay(1_000, 1_000)).toBe(1_000);
+  });
+
   it('forecasts every matching owner with requested and matched scopes plus a leaf-file suggestion', () => {
     const forecast = forecastCoordinationConflicts({
       activeEntries: [activeEntry()],

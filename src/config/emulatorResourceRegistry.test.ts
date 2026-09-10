@@ -37,6 +37,9 @@ import {
   amendCoordinationEntry,
   validateReleaseCompletion,
   normalizeGitHubOriginToSsh,
+  directoryContentIdentity,
+  parseListeningPortSnapshot,
+  coordinationStateChanged,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 
@@ -128,6 +131,37 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('reuses dependency file bytes only while inode and stat metadata are unchanged', async () => {
+    const directory = resolve(tmpdir(), `dependency-identity-${randomUUID()}`);
+    await mkdir(directory, { recursive: true });
+    const filePath = resolve(directory, 'package.json');
+    try {
+      await writeFile(filePath, '{"version":1}\n');
+      const first = await directoryContentIdentity(directory);
+      const second = await directoryContentIdentity(directory);
+      expect(second).toBe(first);
+      await writeFile(filePath, '{"version":2}\n');
+      const changed = await directoryContentIdentity(directory);
+      expect(changed).not.toBe(first);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('parses one lsof listener snapshot into exact occupied TCP ports', () => {
+    expect(parseListeningPortSnapshot([
+      'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
+      'node 123 user 23u IPv4 0x0 0t0 TCP *:5001 (LISTEN)',
+      'node 123 user 24u IPv6 0x0 0t0 TCP [::1]:9300 (LISTEN)',
+    ].join('\n'))).toEqual(new Set([5001, 9300]));
+  });
+
+  it('does not rewrite a coordination state when pruning changed nothing', () => {
+    const state = { version: 1, entries: [], reservations: [], configurations: [] };
+    expect(coordinationStateChanged(state, state)).toBe(false);
+    expect(coordinationStateChanged(state, { ...state, entries: [{}] })).toBe(true);
+  });
+
   async function currentGitIdentity() {
     return {
       branchName: await runFixtureGit(process.cwd(), ['branch', '--show-current']),
