@@ -29,6 +29,7 @@ import {
   releaseValidationLeaseFile,
   validationRequestMode,
   validationPollDelay,
+  withValidationLease,
 } from '../../scripts/coordination-throughput.mjs';
 
 const repoIdentity = '/repo/.git';
@@ -51,12 +52,110 @@ function activeEntry(overrides: Record<string, unknown> = {}) {
   };
 }
 
+async function waitForPendingTicket(filePath: string, ticketId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const state = JSON.parse(await readFile(filePath, 'utf8')) as {
+      pending?: Array<{ id?: string }>;
+    };
+    if (state.pending?.some((ticket) => ticket.id === ticketId)) return;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 5));
+  }
+  throw new Error(`Validation ticket ${ticketId} was not queued in time.`);
+}
+
 describe('coordination throughput primitives', () => {
   it('backs validation queue polling off within a bounded interval', () => {
     expect(validationPollDelay(100, 1_000)).toBe(200);
     expect(validationPollDelay(200, 1_000)).toBe(400);
     expect(validationPollDelay(800, 1_000)).toBe(1_000);
     expect(validationPollDelay(1_000, 1_000)).toBe(1_000);
+  });
+
+  it('hands a queued validation lease to the FIFO next owner after bounded backoff', async () => {
+    const filePath = resolve(tmpdir(), `coordination-validation-fifo-${randomUUID()}.json`);
+    try {
+      await writeFile(filePath, JSON.stringify(emptyValidationQueueState({ maxConcurrency: 1 })));
+      await queueValidationLease(filePath, {
+        requestId: 'blocking-validation',
+        entryId: 'blocking-entry',
+        worktree: '/worktrees/blocking',
+        ownerToken: 'blocking-token',
+        ownerPid: process.pid,
+      });
+
+      const operation = withValidationLease(
+        filePath,
+        {
+          requestId: 'queued-validation',
+          entryId: 'queued-entry',
+          worktree: '/worktrees/queued',
+          ownerToken: 'queued-token',
+          ownerPid: process.pid,
+        },
+        async (ticket) => ({ id: ticket.id, state: ticket.state }),
+        { pollMs: 5, maxPollMs: 20, timeoutMs: 500 },
+      );
+      await waitForPendingTicket(filePath, 'queued-validation');
+      await releaseValidationLeaseFile(filePath, 'blocking-validation', {
+        ownerToken: 'blocking-token',
+        ownerPid: process.pid,
+      });
+
+      await expect(operation).resolves.toEqual({
+        id: 'queued-validation',
+        state: 'queued',
+      });
+      const finalState = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(finalState.active).toEqual([]);
+      expect(finalState.pending).toEqual([]);
+    } finally {
+      await rm(filePath, { force: true });
+      await rm(`${filePath}.lock`, { force: true });
+    }
+  });
+
+  it('aborts a queued validation during backoff and releases its pending ticket', async () => {
+    const filePath = resolve(tmpdir(), `coordination-validation-abort-${randomUUID()}.json`);
+    const controller = new AbortController();
+    try {
+      await writeFile(filePath, JSON.stringify(emptyValidationQueueState({ maxConcurrency: 1 })));
+      await queueValidationLease(filePath, {
+        requestId: 'blocking-validation',
+        entryId: 'blocking-entry',
+        worktree: '/worktrees/blocking',
+        ownerToken: 'blocking-token',
+        ownerPid: process.pid,
+      });
+
+      const operation = withValidationLease(
+        filePath,
+        {
+          requestId: 'aborted-validation',
+          entryId: 'aborted-entry',
+          worktree: '/worktrees/aborted',
+          ownerToken: 'aborted-token',
+          ownerPid: process.pid,
+        },
+        async () => 'should-not-run',
+        { pollMs: 100, maxPollMs: 100, timeoutMs: 500, signal: controller.signal },
+      );
+      await waitForPendingTicket(filePath, 'aborted-validation');
+      controller.abort();
+
+      await expect(operation).rejects.toThrow(/interrupted/i);
+      const abortedState = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(abortedState.pending).toEqual([]);
+      expect(abortedState.active).toEqual([
+        expect.objectContaining({ id: 'blocking-validation' }),
+      ]);
+      await releaseValidationLeaseFile(filePath, 'blocking-validation', {
+        ownerToken: 'blocking-token',
+        ownerPid: process.pid,
+      });
+    } finally {
+      await rm(filePath, { force: true });
+      await rm(`${filePath}.lock`, { force: true });
+    }
   });
 
   it('forecasts every matching owner with requested and matched scopes plus a leaf-file suggestion', () => {
