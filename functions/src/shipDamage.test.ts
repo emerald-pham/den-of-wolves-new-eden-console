@@ -72,3 +72,15 @@ it.each([
   expect(drawShipDamage(shipId as string, { damagedSystemIds: [], destroyed: false }, () => 0))
     .toMatchObject({ card: { card: firstCard, systemId: 'storage' } });
 });
+
+it('keeps Capybara 7♠ authoritative for the Scrap Refinery', () => {
+  const deck = SHIP_DAMAGE_DECKS.capybara;
+  expect(deck).toContainEqual({
+    card: '7♠', systemId: 'scrap-refinery', systemName: 'Scrap Refinery',
+  });
+  expect(drawShipDamage('capybara', {
+    damagedSystemIds: [], destroyed: false,
+  }, () => deck.length - 1)).toMatchObject({
+    card: { card: '7♠', systemId: 'scrap-refinery', systemName: 'Scrap Refinery' },
+  });
+});

@@ -118,6 +118,28 @@ describe('fleet shuttlebays', () => {
     ]));
   });
 
+  it('uses the active roster over a stale count when hydrating missing SNN history', () => {
+    const oldDocking = {
+      shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START',
+    } as const;
+    const oldVisit = {
+      id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
+      action: 'docked' as const, occurredAt: 'SESSION START',
+    };
+    const result = normalizeShuttleManifest(
+      [oldDocking], [oldVisit], recommendedRoleIds(20), 11,
+    );
+
+    expect(result.dockings).toEqual(expect.arrayContaining([
+      oldDocking,
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione' }),
+    ]));
+    expect(result.visits).toEqual(expect.arrayContaining([
+      oldVisit,
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione' }),
+    ]));
+  });
+
   it('keeps GM-controlled Union craft out of the default core roster', () => {
     const gmControlled = SHUTTLECRAFT.filter((shuttle) => shuttle.availability === 'gm-controlled');
 
