@@ -3,6 +3,5 @@ name = "Install dependencies"
 
 [setup]
 script = """
-npm ci --prefer-offline --no-audit &&
-npm ci --prefix functions --prefer-offline --no-audit
+node scripts/bootstrap-dependencies.mjs
 """
