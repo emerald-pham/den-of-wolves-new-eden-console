@@ -848,6 +848,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     mainSha: release.mainSha,
     startBranchSha,
     mainContainsBranch: release.mainContainsBranch,
+    validatedBaseSha: release.validatedBaseSha,
   });
   const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${release.branchSha}`], cwd);
   const sources = {};
@@ -961,6 +962,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     branchChangelog: parseChangelogSnapshot(branchChangelog, branchVersion),
     mainChangelog: parseChangelogSnapshot(mainChangelog, mainVersion),
     changedFiles,
+    validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
     testGrowth,
     ...(startBranchSha
       ? {
