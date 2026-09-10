@@ -10,6 +10,8 @@ const mock = vi.hoisted(() => ({
   target: { connected: true, role: 'player' },
   partner: { connected: true, role: 'player' },
   instance: { uid: 'u1' },
+  loyaltySecrets: [] as Array<{ id: string; fields: Record<string, unknown> }>,
+  priorResults: {} as Record<string, Record<string, unknown>>,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -31,7 +33,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import { assignLoyalty, revealAndroidProof } from './index';
 
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
-  return { exists, ref: { path }, get: (field: string) => fields[field] };
+  return { exists, id: path.split('/').at(-1), ref: { path }, get: (field: string) => fields[field] };
 }
 
 function request(data: Record<string, unknown>, uid = 'u1') {
@@ -42,14 +44,88 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.loyaltySecrets = [];
+  mock.priorResults = {};
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
     if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
     if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
     if (ref.path === 'sessions/s1/players/u3') return snapshot(mock.partner, ref.path);
     if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/secrets') {
+      return {
+        exists: true,
+        docs: mock.loyaltySecrets.map(({ id, fields }) => snapshot(fields, `sessions/s1/secrets/${id}`)),
+      };
+    }
+    const priorResult = mock.priorResults[ref.path];
+    if (priorResult) return snapshot({ result: priorResult }, ref.path);
     return snapshot({}, ref.path, false);
   });
+});
+
+it('rejects Intelligence Agent setup when no Wolf remains, without writing state', async () => {
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'intelligence-without-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/wolf/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('assigns Intelligence Agent beside a Wolf with a private card and redacted event', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3',
+    fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'intelligence-with-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 },
+    }),
+  );
+  const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/intelligence-with-wolf')?.[1];
+  expect(eventWrite).toBeDefined();
+  expect(JSON.stringify(eventWrite)).not.toContain('intelligence-agent');
+});
+
+it('rejects replacing the sole Wolf with Intelligence Agent before any write', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'intelligence-replaces-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/wolf/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('replays a committed Intelligence Agent request without reevaluating or writing it', async () => {
+  const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
+  mock.priorResults['sessions/s1/events/intelligence-replay'] = reply;
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'intelligence-replay',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).resolves.toEqual(reply);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('writes Android loyalty only to the target secret and leaves the assignment event redacted', async () => {

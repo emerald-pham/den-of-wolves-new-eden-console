@@ -2004,6 +2004,7 @@ export const assignLoyalty = onCall<{
   const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
   const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
   const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
+  const secretsRef = db.collection(`sessions/${assignment.sessionId}/secrets`);
   const partnerRef = assignment.partnerUid
     ? db.doc(`sessions/${assignment.sessionId}/players/${assignment.partnerUid}`)
     : undefined;
@@ -2012,11 +2013,12 @@ export const assignLoyalty = onCall<{
     : undefined;
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult & { assignedUids: readonly string[] }> => {
-    const [prior, authority, target, partner] = await Promise.all([
+    const [prior, authority, target, partner, secrets] = await Promise.all([
       tx.get(eventRef),
       requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
       tx.get(targetRef),
       partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
+      assignment.kind === 'intelligence-agent' ? tx.get(secretsRef) : Promise.resolve(undefined),
     ]);
     if (prior.exists) {
       const result = prior.get('result');
@@ -2043,6 +2045,17 @@ export const assignLoyalty = onCall<{
     }
     if (kind !== 'friend' && assignment.partnerUid) {
       throw new HttpsError('invalid-argument', 'Only Friend loyalty may name a partner.');
+    }
+    if (kind === 'intelligence-agent') {
+      const wolfExistsAfterAssignment = secrets?.docs.some((secret) => {
+        if (!secret.id.startsWith('loyalty-') || secret.id === targetSecretRef.id) return false;
+        const payload = secret.get('payload');
+        return typeof payload === 'object' && payload !== null && !Array.isArray(payload) &&
+          (payload as Record<string, unknown>).kind === 'wolf-agent';
+      }) ?? false;
+      if (!wolfExistsAfterAssignment) {
+        throw new HttpsError('failed-precondition', 'Intelligence Agent setup requires at least one Wolf agent.');
+      }
     }
     const validSuspicion = kind === 'android'
       ? null
