@@ -78,7 +78,10 @@ tests/rules/           emulator-backed security assertions
 ```
 
 Use the [implementation plan](docs/IMPLEMENTATION_PLAN.md) for staged gameplay
-work. Shared vessel composition belongs to the
+work. The [documentation map](docs/README.md) identifies each guide's audience
+and authority so live status, workflow policy, product contracts, and historical
+handoffs are not mistaken for interchangeable sources. Shared vessel composition
+belongs to the
 [console architecture](docs/CONSOLE_ARCHITECTURE.md); the
 [Capybara ship template](docs/SHIP_TEMPLATE.md) and
 [SNN shuttle template](docs/SHUTTLE_TEMPLATE.md) define their respective
@@ -139,11 +142,11 @@ Functions inside transactions. The rules suite tests those denials.
 
 ## Emulator-backed development
 
-Agents and concurrent worktrees must attach their task branch and complete
-`coordination:begin` plus the active-first `coordination:status` check from the
-same checkout before configuring a row. See the
-[coordination quick reference](docs/WORKTREE_COORDINATION.md) for the required
-intent, version, changelog, and resource fields.
+Attach the task branch and register it from the checkout that will run the
+emulators. The [coordination command reference](docs/WORKTREE_COORDINATION.md)
+contains the exact begin, forecast, claim, validation, and finish commands;
+[CLAUDE.md](CLAUDE.md#concurrent-worktrees-and-emulator-ports) owns the complete
+port-safety and concurrent-worktree policy.
 
 ```bash
 npm run emulators:configure -- auto
@@ -152,25 +155,11 @@ npm run emulators
 npm run dev:emulators
 ```
 
-The setup command atomically selects a complete free row, verifies the eight
-Firebase ports—including Firestore's separate WebSocket listener—plus the
-matching Vite port, and writes ignored `firebase.local.json` and
-`.env.emulators.local` files. Use an explicit `npm run emulators:configure --
-<slot 0-14>` only when a particular row is required. Do not scan status and
-choose a row in a separate step: concurrent agents must claim through the
-atomic command. `npm run test:rules`
-and `npm --prefix functions run serve` use the same generated Firebase config.
-Configured rows remain unavailable to other worktrees while their coordination
-entry is active or a live process lease exists, even when no live process lease
-is shown. Startup/status cleanup releases rows tied only to completed or missing
-worktrees.
-The Codex-wide coordination file records active worktree intent, configured rows,
-and live process leases across repositories. Rules tests automatically choose
-another complete row when the configured row is already serving a preview. All
-projects on the host must point their coordination wrappers at the same ledger;
-set `CODEX_COORDINATION_FILE` to an absolute shared path when an explicit path
-is needed. Do not share a slot with another worktree; stop its emulators when
-finished. The emulator suite requires a Java runtime; CI uses Java 21.
+The setup command atomically selects and records one complete free Firebase/Vite
+row and writes ignored local configuration. Use the generated row consistently;
+never mix its ports with another worktree. Rules tests use the same configuration
+and can choose a separate free row when a preview is already running. The
+emulator suite requires Java; CI uses Java 21.
 
 The Firebase web configuration contains public identifiers, not credentials.
 Never commit a service-account key or App Check debug token. Production App

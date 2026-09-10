@@ -90,7 +90,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-730-prompts-001663-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-730-prompts-001663-plus-lettered-ids-prompt-071-retired)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -1923,28 +1923,11 @@ respond, and the release evidence is recorded with the change.
 
 ## Review budget and evidence reuse
 
-The 2026-09-08 audit found 213 evidence-oriented entries in this catalog: 163
-`[PRESERVE]` and 50 `[PROVE]`. The coverage is useful; 213 separate review
-ceremonies are not. The compact milestone route defines the full
-[review budget](./IMPLEMENTATION_MILESTONES.md#review-budget-and-evidence-reuse).
-
-For an ordinary slice, perform one selection/evidence preflight, one red/green
-implementation loop when behavior is missing, one risk-based review, and one
-reconciled executable release gate. Reuse unchanged named evidence instead of
-rereading the whole plan or rerunning the same manual review at every adjacent
-prompt.
-
-- Batch adjacent evidence-only `[PRESERVE]` prompts when current tests already
-  prove them and no behavior changes. Do not manufacture a product release,
-  refactor, or review-only agent for unchanged behavior.
-- Run `[PROVE]` composition at the milestone boundary after its prerequisites
-  land. It must exercise the production path, but it must not duplicate every
-  lower-level review.
-- Require independent review for security/authorization, hidden information,
-  randomness, destructive migrations, endgame, capacity, and complex conflict
-  resolution. Use it by judgment elsewhere; it is not a per-prompt ceremony.
-- Let the final release audit aggregate current milestone evidence and execute
-  the final gates. It does not manually repeat every earlier audit.
+The compact milestone route owns the current
+[review budget and evidence-reuse policy](./IMPLEMENTATION_MILESTONES.md#review-budget-and-evidence-reuse).
+This catalog retains prompt acceptance and classification tags; it does not
+duplicate mutable tag counts or a second review workflow. Apply the milestone
+policy to each bounded slice and keep the prompt-specific acceptance below.
 
 ## Test-first execution contract
 

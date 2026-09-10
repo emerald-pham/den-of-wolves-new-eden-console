@@ -65,68 +65,6 @@ Prompt 054 is reclassified as a feature. Prompt 075 gains setup-receipt and
 atomic Turn 1 evidence but remains partial because complete decks, craft,
 resources/economy, and alert initialization are still outside this release.
 
-### Version 0.3.15 progress evidence
-
-The release boundary is recorded reproducibly as **72 / 721 = 9.99%** with
-**72 done · 27 partial · 0 active · 622 missing**. Prompt 603a extends the
-existing measured `AppHeader` contract to Role Select and session-mode routes
-on both narrow phones and short landscape screens. The focused red/green
-static CSS cascade test and focused component/layout suites pass. The
-checked-in CDP geometry command writes DOMRect evidence at 320×844, 390×844,
-844×390, and 1440×900, records every rendered Role Select and Ship Role Select
-region, derives shared-chrome/DRADIS intersections, and produces a normalized
-comparison file. Its reviewed fixture covers connected-player variants,
-simulated safe areas, long labels, role-control keyboard order/focus
-rectangles, absolute-header scroll-away, settings, and a wrapped stationary
-reduced-motion FleetBroadcast; touch-sized controls retain 44px targets. This
-is local rendered evidence, not deployed or live-Firebase proof.
-
-### Version 0.3.16 progress evidence
-
-The release boundary records Prompt 098 complete at **73 / 721 = 10.12%**
-with **73 done · 26 partial · 0 active · 622 missing**. The existing
-restricted→lifted airspace transition now writes one deterministic,
-member-scoped `airspace-opened` event in the same transaction, while the
-Coordination handoff writes one deterministic member-scoped `turn-advanced`
-event. Lifecycle ordinals are 2*turn-1 for Team and 2*turn for Coordination;
-a stateful optimistic-CAS test proves mixed Team/Press expiry observers and
-two distinct GM advances commit once, expire resources once, and leave stale
-retries write-free.
-
-### Version 0.3.18 progress evidence
-
-The release boundary records Prompt 138 complete at **75 / 721 = 10.40%**
-with **75 done · 26 partial · 0 active · 620 missing**. The printed maintenance
-path now requires an authority-bound client request ID, checks current authority
-before replay and enforces phase/turn gates before a new mutation, and commits
-the resource, charge, fuel, damage, undo,
-event, and private replay receipt together. A stateful optimistic-CAS fixture
-proves duplicate replay and two distinct same-revision requests produce one
-winner, one resource/damage mutation, one event, and a write-free stale loser;
-retries reuse one server timestamp and one server-owned entropy/dice outcome.
-Firestore rules deny direct maintenance-receipt access. Prompt 138a rollback,
-Prompt 139 audience projection, and Prompt 140 all-vessel coverage remain
-outside this release.
-
-### Version 0.3.19 progress evidence
-
-The release boundary records Prompt 138a complete at **74 / 723 = 10.24%**
-with **74 done · 27 partial · 0 active · 622 missing**. The current-turn
-maintenance rollback restores only the recorded reversible cycle, resource,
-cargo, fuel, and non-damage alert state when the matching revision and turn
-still hold; an active GM instance, ship authority, and Team phase are required
-before replay or mutation. A stable actor-bound canonical request ID replays the
-same result and deterministic event without writes; changed actor/payload reuse
-is rejected, while a distinct stale contender records only a private replayable
-receipt with no partial mutation. Damage state and its survivor/unrest
-consequences plus existing maintenance/audit events remain immutable. A
-stateful callable regression proves riot damage, prior events, exact replay,
-changed-request denial, stale receipt replay, and deterministic event identity.
-Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
-queued missing repairs with no production evidence.
-Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
-outside this release.
-
 ### Version 0.3.23 progress evidence
 
 The release boundary records Prompt 141 complete at **86 / 730 = 11.78%**
@@ -200,6 +138,40 @@ The existing concurrent expiry proof remains the overlap coverage. Prompt 103a
 remains outside this release.
 Prompt 140 all-vessel maintenance coverage remains outside this release.
 
+### Version 0.3.19 progress evidence
+
+The release boundary records Prompt 138a complete at **74 / 723 = 10.24%**
+with **74 done · 27 partial · 0 active · 622 missing**. The current-turn
+maintenance rollback restores only the recorded reversible cycle, resource,
+cargo, fuel, and non-damage alert state when the matching revision and turn
+still hold; an active GM instance, ship authority, and Team phase are required
+before replay or mutation. A stable actor-bound canonical request ID replays the
+same result and deterministic event without writes; changed actor/payload reuse
+is rejected, while a distinct stale contender records only a private replayable
+receipt with no partial mutation. Damage state and its survivor/unrest
+consequences plus existing maintenance/audit events remain immutable. A
+stateful callable regression proves riot damage, prior events, exact replay,
+changed-request denial, stale receipt replay, and deterministic event identity.
+Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
+queued missing repairs with no production evidence.
+Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
+outside this release.
+
+### Version 0.3.18 progress evidence
+
+The release boundary records Prompt 138 complete at **75 / 721 = 10.40%**
+with **75 done · 26 partial · 0 active · 620 missing**. The printed maintenance
+path now requires an authority-bound client request ID, checks current authority
+before replay and enforces phase/turn gates before a new mutation, and commits
+the resource, charge, fuel, damage, undo,
+event, and private replay receipt together. A stateful optimistic-CAS fixture
+proves duplicate replay and two distinct same-revision requests produce one
+winner, one resource/damage mutation, one event, and a write-free stale loser;
+retries reuse one server timestamp and one server-owned entropy/dice outcome.
+Firestore rules deny direct maintenance-receipt access. Prompt 138a rollback,
+Prompt 139 audience projection, and Prompt 140 all-vessel coverage remain
+outside this release.
+
 ### Version 0.3.17 progress evidence
 
 Prompt 177 is complete at **74 / 721 = 10.26%** with **74 done · 26
@@ -211,6 +183,34 @@ write-free failures, one committed retry-stable transaction, and the persisted
 coordinate, charge, transition, and navigation audit. Emergency jumps,
 broader jump failure adjudication, and universal concurrency/replay coverage
 remain outside this prompt.
+
+### Version 0.3.16 progress evidence
+
+The release boundary records Prompt 098 complete at **73 / 721 = 10.12%**
+with **73 done · 26 partial · 0 active · 622 missing**. The existing
+restricted→lifted airspace transition now writes one deterministic,
+member-scoped `airspace-opened` event in the same transaction, while the
+Coordination handoff writes one deterministic member-scoped `turn-advanced`
+event. Lifecycle ordinals are 2*turn-1 for Team and 2*turn for Coordination;
+a stateful optimistic-CAS test proves mixed Team/Press expiry observers and
+two distinct GM advances commit once, expire resources once, and leave stale
+retries write-free.
+
+### Version 0.3.15 progress evidence
+
+The release boundary is recorded reproducibly as **72 / 721 = 9.99%** with
+**72 done · 27 partial · 0 active · 622 missing**. Prompt 603a extends the
+existing measured `AppHeader` contract to Role Select and session-mode routes
+on both narrow phones and short landscape screens. The focused red/green
+static CSS cascade test and focused component/layout suites pass. The
+checked-in CDP geometry command writes DOMRect evidence at 320×844, 390×844,
+844×390, and 1440×900, records every rendered Role Select and Ship Role Select
+region, derives shared-chrome/DRADIS intersections, and produces a normalized
+comparison file. Its reviewed fixture covers connected-player variants,
+simulated safe areas, long labels, role-control keyboard order/focus
+rectangles, absolute-header scroll-away, settings, and a wrapped stationary
+reduced-motion FleetBroadcast; touch-sized controls retain 44px targets. This
+is local rendered evidence, not deployed or live-Firebase proof.
 
 ### Version 0.3.14 progress evidence
 
