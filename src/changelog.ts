@@ -21,7 +21,6 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: [92],
     implementationProgress: {
       completed: 84,
       total: 729,
@@ -32,7 +31,23 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 621,
     },
     changes: [
-      'Turn advancement now waits for the correct game phase. — Roadmap progress: 84 of 729 prompts complete (11.52%).',
+      'CIC planning records now flag Wolf assignment authority for later review; no game behavior changed. — Roadmap progress: 84 of 729 prompts complete (11.52%).',
+    ],
+  },
+  {
+    version: '0.3.21',
+    implementationPrompts: [92],
+    implementationProgress: {
+      completed: 84,
+      total: 728,
+      percentage: '11.54%',
+      done: 84,
+      partial: 24,
+      active: 0,
+      missing: 620,
+    },
+    changes: [
+      'Turn advancement now waits for the correct game phase. — Roadmap progress: 84 of 728 prompts complete (11.54%).',
     ],
   },
   {
