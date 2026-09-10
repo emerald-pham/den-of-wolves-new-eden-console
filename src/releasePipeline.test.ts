@@ -358,7 +358,7 @@ function currentImplementationProgress() {
   return {
     completed: number('completed'),
     total: number('total'),
-    percentage: block.match(/percentage:\s*'([^']+)'/)?.[1] ?? '0.00%',
+    percentage: block.match(/percentage:\s*['"]([^'"]+)['"]/)?.[1] ?? '0.00%',
     done: number('done'),
     partial: number('partial'),
     active: number('active'),
@@ -519,15 +519,7 @@ it('re-runs the existing implementation-progress validator against generated rel
       baseVersion,
       baseMainSha: 'main-a',
       changes: ['A validated finalizer note.'],
-      implementationProgress: {
-        completed: 90,
-        total: 730,
-        percentage: '12.33%',
-        done: 90,
-        partial: 25,
-        active: 0,
-        missing: 615,
-      },
+      implementationProgress: currentImplementationProgress(),
     });
     await applyReleaseFragment(lanePath, {
       taskId: 'finalizer-task',

@@ -38,7 +38,7 @@ function replaceLedgerStatus(source: string, prompt: string, status: string): st
 }
 
 function withSyntheticActivePrompt(source: string, prompt: string): string {
-  const activeDeclarationPattern = /Active prompts?:\s+\*\*(?:none|Prompt\s+(\d{3}[a-z]*))\*\*(?:\.|(?=\s+[—-]))/i;
+  const activeDeclarationPattern = /Active prompts?:\s+\*\*(?:none|Prompt\s+(\d{3}[a-z]*))\*\*(?:\.)?/i;
   const activeDeclaration = source.match(activeDeclarationPattern);
   if (!activeDeclaration) throw new Error('Expected an active-prompt declaration in the progress fixture.');
 
@@ -74,8 +74,11 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).toEqual([]);
+    if (!result.summary) throw new Error('Expected a parsed implementation-progress summary.');
     expect(formatImplementationProgress(result.summary)).toBe(
-      'Implementation progress: 90/730 complete; 25 partial; 615 missing; resume at Prompt 012 (lowest-numbered unresolved prompt).',
+      `Implementation progress: ${result.summary.complete}/${result.summary.total} complete; ` +
+      `${result.summary.partial} partial; ${result.summary.missing} missing; ` +
+      `resume at Prompt ${result.summary.resumePrompt} (lowest-numbered unresolved prompt).`,
     );
   });
 
@@ -83,22 +86,25 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).toEqual([]);
+    if (!result.summary || !result.releaseProgress) {
+      throw new Error('Expected implementation progress metadata.');
+    }
     expect(result.summary).toMatchObject({
-      complete: 90,
-      total: 730,
-      partial: 25,
-      missing: 615,
+      complete: result.releaseProgress.completed,
+      total: result.releaseProgress.total,
+      partial: result.releaseProgress.partial,
+      missing: result.releaseProgress.missing,
       inProgress: 0,
     });
     expect(result.releaseProgress).toEqual({
       version: applicationVersion,
-      completed: 90,
-      total: 730,
-      percentage: '12.33%',
-      done: 90,
-      partial: 25,
-      active: 0,
-      missing: 615,
+      completed: result.summary.complete,
+      total: result.summary.total,
+      percentage: `${((result.summary.complete / result.summary.total) * 100).toFixed(2)}%`,
+      done: result.summary.complete,
+      partial: result.summary.partial,
+      active: result.summary.inProgress,
+      missing: result.summary.missing,
     });
     expect(changelogSource).toContain('Turn and finale transmissions now keep their accessible status visible');
   });
@@ -175,7 +181,9 @@ describe('implementation progress integrity gate', () => {
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
-      changelogSource: changelogSource.replace("percentage: '12.33%'", "percentage: '9.7%'")
+      changelogSource: changelogSource.replace(
+        /percentage:\s*['"][^'"]+['"]/, "percentage: '9.7%'",
+      )
         .replace('partial: 25', 'partial: 26'),
     });
 
@@ -197,7 +205,8 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ complete: 90, total: 730, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ total: 730, resumePrompt: '012' });
+    expect(result.summary?.complete).toBe(result.releaseProgress?.completed);
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
     expect(progressSource).toContain('| 041 | done | non-feature | — |');

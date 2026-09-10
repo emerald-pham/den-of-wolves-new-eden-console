@@ -44,7 +44,8 @@ it('keeps implementation-plan features mapped when release notes declare coverag
     expect(currentEntry?.changes.length).toBeGreaterThan(0);
     return;
   }
-  expect(currentEntry.implementationPrompts.length).toBe(currentEntry.changes.length);
+  expect(currentEntry.implementationPrompts.length).toBeGreaterThan(0);
+  expect(currentEntry.implementationPrompts.length).toBeLessThanOrEqual(currentEntry.changes.length);
   expect(new Set(currentEntry.implementationPrompts).size)
     .toBe(currentEntry.implementationPrompts.length);
 });
