@@ -5,6 +5,8 @@ import {
   mkdir,
   open,
   readFile,
+  readdir,
+  readlink,
   rename,
   stat,
   unlink,
@@ -49,6 +51,7 @@ const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
+const VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION = 1;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const MAX_APPLICATION_PATCH_VERSION = 99;
 const IMPLEMENTATION_PROMPT_CLAIM_PATTERN = /^\d{3}[a-z]*$/i;
@@ -135,6 +138,153 @@ export function validationPlanForFiles(changedFiles = [], { profile } = {}) {
 
 function contentIdentity(content) {
   return createHash('sha256').update(content).digest('hex');
+}
+
+async function optionalFileContentIdentity(path) {
+  try {
+    return contentIdentity(await readFile(path));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function directoryContentIdentity(path) {
+  const hash = createHash('sha256');
+  const ignoredDirectories = new Set(['.cache', '.vite', '.vite-temp']);
+  async function visit(directory, relativeDirectory = '') {
+    const entries = (await readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      if (entry.isDirectory() && ignoredDirectories.has(entry.name)) continue;
+      const relativePath = relativeDirectory
+        ? `${relativeDirectory}/${entry.name}`
+        : entry.name;
+      const absolutePath = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        hash.update(`directory\0${relativePath}\0`);
+        await visit(absolutePath, relativePath);
+      } else if (entry.isSymbolicLink()) {
+        hash.update(`symlink\0${relativePath}\0${await readlink(absolutePath)}\0`);
+      } else if (entry.isFile()) {
+        hash.update(`file\0${relativePath}\0`);
+        hash.update(await readFile(absolutePath));
+        hash.update('\0');
+      }
+    }
+  }
+  try {
+    await visit(path);
+    return hash.digest('hex');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+function sortedStrings(values) {
+  return Array.isArray(values)
+    ? values.filter((value) => typeof value === 'string').slice().sort()
+    : [];
+}
+
+function validationEntryInputs(entry) {
+  return {
+    id: entry.id,
+    worktree: entry.worktree,
+    startedAt: entry.startedAt,
+    branchName: entry.branchName ?? null,
+    workType: entry.workType ?? null,
+    implementationPrompt: entry.implementationPrompt ?? null,
+    versionPlan: entry.versionPlan ?? null,
+    preemptiveChangelog: entry.preemptiveChangelog ?? null,
+    scopes: sortedStrings(entry.scopes),
+    claims: sortedStrings(entry.claims),
+  };
+}
+
+async function validationInputFingerprint({
+  entry,
+  release,
+  plan,
+  documentationReview,
+  visualReview,
+  testGrowthReview,
+  repositoryDirectory,
+  includeFilesystemInputs = true,
+  environment = process.env,
+}) {
+  const repositoryRoot = resolve(repositoryDirectory);
+  const localInputPaths = [
+    'firebase.local.json',
+    '.env.emulators.local',
+    '.npmrc',
+    'functions/.npmrc',
+  ];
+  const [rootDependencies, functionDependencies, nodeBinary, ...localInputIdentities] =
+    includeFilesystemInputs
+      ? await Promise.all([
+          directoryContentIdentity(resolve(repositoryRoot, 'node_modules')),
+          directoryContentIdentity(resolve(repositoryRoot, 'functions/node_modules')),
+          optionalFileContentIdentity(process.execPath),
+          ...localInputPaths.map((relativePath) =>
+            optionalFileContentIdentity(resolve(repositoryRoot, relativePath))),
+        ])
+      : [null, null, null, ...localInputPaths.map(() => null)];
+  const localInputs = Object.fromEntries(
+    localInputPaths.map((relativePath, index) => [
+      relativePath,
+      localInputIdentities[index],
+    ]),
+  );
+  const snapshot = {
+    schemaVersion: VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION,
+    entry: validationEntryInputs(entry),
+    release: {
+      branchName: release.branchName,
+      branchSha: release.branchSha,
+      mainSha: release.mainSha,
+      originMainSha: release.originMainSha,
+      mainContainsBranch: release.mainContainsBranch,
+      mainIsAncestorOfBranch: release.mainIsAncestorOfBranch ?? null,
+      worktreeClean: release.worktreeClean,
+      startBranchSha: release.startBranchSha ?? null,
+      branchBaselineIsAncestor: release.branchBaselineIsAncestor ?? null,
+      branchVersion: release.branchVersion,
+      mainVersion: release.mainVersion,
+      branchLockVersion: release.branchLockVersion,
+      mainLockVersion: release.mainLockVersion,
+      branchChangelog: release.branchChangelog,
+      mainChangelog: release.mainChangelog,
+      changedFiles: sortedStrings(release.changedFiles),
+      postValidationChangedFiles: sortedStrings(release.postValidationChangedFiles),
+    },
+    plan,
+    reviews: {
+      documentation: documentationReview || null,
+      visual: visualReview || null,
+    },
+    testGrowth: testGrowthReview ?? null,
+    execution: {
+      repositoryRoot,
+      node: process.version,
+      platform: process.platform,
+      architecture: process.arch,
+      modulesAbi: process.versions.modules ?? null,
+      v8: process.versions.v8 ?? null,
+      nodeBinary,
+      environment: contentIdentity(JSON.stringify(Object.entries(environment).sort())),
+      dependencies: {
+        root: rootDependencies,
+        functions: functionDependencies,
+      },
+      localInputs,
+    },
+  };
+  return {
+    schemaVersion: VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION,
+    identity: contentIdentity(JSON.stringify(snapshot)),
+  };
 }
 
 async function writeValidationFileAtomically(path, content) {
@@ -2443,6 +2593,13 @@ export async function amendCoordinationEntry(filePath, options = {}) {
  */
 export async function validateCoordinationEntry(filePath, options) {
   if (!options.id) throw new Error('coordination validate requires --id <entry-id>.');
+  const validationDirectory = resolve(options.repositoryDirectory ?? process.cwd());
+  if (!options.release && validationDirectory !== resolve(process.cwd())) {
+    throw new Error(
+      `coordination validate must read, fingerprint, and execute in ${process.cwd()}; ` +
+        `received repository directory ${validationDirectory}`,
+    );
+  }
 
   const preparation = await withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
@@ -2514,7 +2671,11 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
     errors.push(...implementationPlanGateErrors(entry));
-    const testGrowthJustification = text(options['test-growth-justification']);
+    const previousValidation = entry.validation;
+    const testGrowthJustification = text(
+      options['test-growth-justification'],
+      text(previousValidation?.testGrowth?.justification),
+    );
     const testGrowthReview = testGrowthReviewForRelease({
       release,
       justification: testGrowthJustification,
@@ -2536,8 +2697,14 @@ export async function validateCoordinationEntry(filePath, options) {
           cwd: process.cwd(),
         });
     const plan = validationPlanForFiles(release.changedFiles, { profile });
-    const documentationReview = text(options['documentation-review']);
-    const visualReview = text(options['visual-review']);
+    const documentationReview = text(
+      options['documentation-review'],
+      text(previousValidation?.reviews?.documentation),
+    );
+    const visualReview = text(
+      options['visual-review'],
+      text(previousValidation?.reviews?.visual),
+    );
     if (plan.requiresDocumentationReview && !documentationReview) {
       throw new Error(
         `Cannot validate coordination entry ${entry.id}: documentation changes require --documentation-review <summary>.`,
@@ -2549,18 +2716,55 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
 
+    const inputFingerprint = await validationInputFingerprint({
+      entry,
+      release,
+      plan,
+      documentationReview,
+      visualReview,
+      testGrowthReview,
+      repositoryDirectory: validationDirectory,
+      includeFilesystemInputs: !options.release || options.repositoryDirectory !== undefined,
+    });
+    const receiptMatchesCurrentInputs = previousValidation && !provenanceRefresh &&
+      previousValidation.inputFingerprint?.schemaVersion === inputFingerprint.schemaVersion &&
+      previousValidation.inputFingerprint?.identity === inputFingerprint.identity &&
+      validationReceiptErrors(entry, {
+        ...release,
+        validationProfile: profile,
+      }).length === 0 &&
+      (!plan.requiresDocumentationReview ||
+        text(previousValidation.reviews?.documentation) === documentationReview) &&
+      (!plan.requiresVisualReview ||
+        text(previousValidation.reviews?.visual) === visualReview) &&
+      JSON.stringify(previousValidation.testGrowth ?? null) ===
+        JSON.stringify(testGrowthReview ?? null);
+    if (receiptMatchesCurrentInputs) {
+      return {
+        reusedEntry: {
+          ...entry,
+          validationReused: true,
+        },
+      };
+    }
+
     return {
       entryStartedAt: entry.startedAt,
       entryBranchName: entry.branchName,
       entryVersionPlan: entry.versionPlan,
       entryWorkType: entry.workType,
       entryImplementationPrompt: entry.implementationPrompt,
-      previousValidation: entry.validation,
-      validation: provenanceRefresh ? undefined : entry.validation,
+      entryPreemptiveChangelog: entry.preemptiveChangelog,
+      entryScopes: Array.isArray(entry.scopes) ? [...entry.scopes] : [],
+      entryClaims: Array.isArray(entry.claims) ? [...entry.claims] : [],
+      entryInputIdentity: contentIdentity(JSON.stringify(validationEntryInputs(entry))),
+      previousValidation,
+      validation: provenanceRefresh ? undefined : previousValidation,
       provenanceRefresh,
       startBranchSha,
       release,
       plan,
+      inputFingerprint,
       documentationReview,
       visualReview,
       testGrowthJustification,
@@ -2568,9 +2772,11 @@ export async function validateCoordinationEntry(filePath, options) {
     };
   });
 
+  if (preparation.reusedEntry) return preparation.reusedEntry;
+
   const commandRunner = options.commandRunner ?? runValidationCommand;
   const needsEmulator = preparation.plan.commands.includes('npm run test:all');
-  const emulatorRepositoryDirectory = options.repositoryDirectory ?? process.cwd();
+  const emulatorRepositoryDirectory = validationDirectory;
   const signalSource = options.signalSource ?? process;
   const validationAbort = new AbortController();
   let interruptedSignal;
@@ -2600,7 +2806,7 @@ export async function validateCoordinationEntry(filePath, options) {
         throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
       }
       try {
-        await commandRunner(command, process.cwd(), {
+        await commandRunner(command, validationDirectory, {
           signal: validationAbort.signal,
           signalSource,
         });
@@ -2675,6 +2881,32 @@ export async function validateCoordinationEntry(filePath, options) {
       `Cannot record validation for ${options.id}: ${finalErrors.join('; ')}.`,
     );
   }
+  const finalInputFingerprint = await validationInputFingerprint({
+    entry: {
+      id: options.id,
+      worktree: process.cwd(),
+      startedAt: preparation.entryStartedAt,
+      branchName: preparation.entryBranchName,
+      versionPlan: preparation.entryVersionPlan,
+      workType: preparation.entryWorkType,
+      implementationPrompt: preparation.entryImplementationPrompt,
+      preemptiveChangelog: preparation.entryPreemptiveChangelog,
+      scopes: preparation.entryScopes,
+      claims: preparation.entryClaims,
+    },
+    release: finalRelease,
+    plan: finalPlan,
+    documentationReview: preparation.documentationReview,
+    visualReview: preparation.visualReview,
+    testGrowthReview: finalTestGrowthReview,
+    repositoryDirectory: emulatorRepositoryDirectory,
+    includeFilesystemInputs: !options.release || options.repositoryDirectory !== undefined,
+  });
+  if (finalInputFingerprint.identity !== preparation.inputFingerprint.identity) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: validation inputs changed while checks ran; rerun validation.`,
+    );
+  }
 
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
@@ -2691,6 +2923,12 @@ export async function validateCoordinationEntry(filePath, options) {
     }
 
     if (entry.startedAt !== preparation.entryStartedAt) {
+      throw new Error(
+        `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
+      );
+    }
+    if (contentIdentity(JSON.stringify(validationEntryInputs(entry))) !==
+      preparation.entryInputIdentity) {
       throw new Error(
         `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
       );
@@ -2718,6 +2956,7 @@ export async function validateCoordinationEntry(filePath, options) {
       files: preparation.release.changedFiles,
       docsOnly: finalPlan.documentationOnly,
       profile: finalPlan.profile,
+      inputFingerprint: finalInputFingerprint,
       ...(preparation.provenanceRefresh
         ? { provenanceRefresh: preparation.provenanceRefresh }
         : {}),
@@ -2899,7 +3138,9 @@ async function main() {
   }
   if (command === 'validate') {
     const entry = await validateCoordinationEntry(filePath, options);
-    console.log(`Validated coordination entry ${entry.id} in ${filePath}.`);
+    console.log(entry.validationReused
+      ? `Reused passing validation for coordination entry ${entry.id} in ${filePath}.`
+      : `Validated coordination entry ${entry.id} in ${filePath}.`);
     return;
   }
   if (command === 'finish') {
