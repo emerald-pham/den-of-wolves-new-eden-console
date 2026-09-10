@@ -2502,7 +2502,12 @@ export async function validateCoordinationEntry(filePath, options) {
     if (outsideScopes.length > 0) {
       errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
     }
-    const advancedOutsideScopes = filesOutsideScopes(advancedBranchFiles, entry.scopes);
+    const declaredScopes = Array.isArray(entry.scopes) && entry.scopes.length > 0
+      ? entry.scopes
+      : normalizedPathSet(entry.validation?.files).values;
+    const advancedOutsideScopes = Array.isArray(entry.scopes) && entry.scopes.length > 0
+      ? filesOutsideScopes(advancedBranchFiles, declaredScopes)
+      : advancedBranchFiles.filter((filePath) => !declaredScopes.includes(filePath));
     if (advancedOutsideScopes.length > 0) {
       errors.push(
         `changed files outside declared scope after the prior validation receipt: ${advancedOutsideScopes.join(', ')}`,

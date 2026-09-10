@@ -2236,6 +2236,34 @@ describe('local emulator coordination', () => {
       expect(JSON.parse(await readFile(filePath, 'utf8')).entries[0]?.validation)
         .toMatchObject({ commitSha: initialArtifactTipSha });
 
+      const legacyUnscopedEntry = {
+        ...outOfScopeEntry,
+        id: 'revalidation-legacy-unscoped',
+        scopes: [],
+        claims: ['fixture-revalidation-legacy-unscoped'],
+      };
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [legacyUnscopedEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await expect(execFileAsync(process.execPath, [
+        scriptPath,
+        'validate',
+        '--id',
+        legacyUnscopedEntry.id,
+        '--documentation-review',
+        'Original artifact remains reviewed.',
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      })).rejects.toThrow(/changed files outside.*docs\/unrelated\.md/i);
+      expect(JSON.parse(await readFile(filePath, 'utf8')).entries[0]?.validation)
+        .toMatchObject({ commitSha: initialArtifactTipSha });
+
       await runFixtureGit(root, ['switch', 'docs/revalidation-refresh']);
 
       await writeFile(resolve(root, 'docs/release.md'), 'Corrected reviewed artifact.\n');
