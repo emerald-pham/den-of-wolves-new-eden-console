@@ -186,7 +186,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 119 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Resolve the two-dice unrest check. |
 | 120 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Resolve a riot. |
 | 121 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M2 | Resolve small-ship maintenance loss. |
-| 122 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Enforce Reactor capacity. |
+| 122 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Enforce Reactor capacity. |
 | 122a | REPAIR | missing | 122-125;128;138 | none | none | none | none | REACTOR-REPAIR | none | none | E-122A;E-REACTOR | M2 | Confirm Reactor power-up before authoritative mutation. |
 | 123 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M2 | Apply vessel-specific damaged-Reactor penalties. |
 | 124 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M2 | Apply Reactor upgrades. |
