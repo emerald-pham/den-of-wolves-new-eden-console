@@ -310,11 +310,15 @@ describe('the GM console', () => {
     expect(index).toMatch(/\[data-motion='reduce'\][^}]*\.debrief-mode__confetti-piece[^}]*animation: none/);
   });
 
-  it('moves the finale ball into the unused corner on compact viewports', () => {
+  it('moves the finale ball into the clear compact corner away from session navigation', () => {
     const index = SHEETS.find(({ name }) => name === 'src/index.css')?.css ?? '';
 
+    expect(index).toContain('--debrief-source-x: calc(100% - max(5.5rem, calc(env(safe-area-inset-right) + 5.5rem)) - (clamp(3.5rem, 14vmin, 4rem) / 2))');
+    expect(index).toContain('right: max(5.5rem, calc(env(safe-area-inset-right) + 5.5rem));');
+    expect(index).toContain('left: auto;');
+    expect(index).not.toContain('left: calc(100% - max(5.5rem, calc(env(safe-area-inset-right) + 5.5rem)))');
     expect(index).toMatch(
-      /@media \(max-width: 720px\), \(max-height: 480px\)\s*\{[^]*?\.debrief-mode__ball\s*\{[^}]*left: max\(2rem, calc\(env\(safe-area-inset-left\) \+ 2rem\)\);[^}]*width: clamp\(3.5rem, 14vmin, 4rem\);/,
+      /@media \(max-width: 720px\), \(max-height: 480px\)\s*\{[^]*?\.debrief-mode__ball\s*\{[^}]*right: max\(5\.5rem, calc\(env\(safe-area-inset-right\) \+ 5\.5rem\)\);[^}]*left: auto;[^}]*width: clamp\(3.5rem, 14vmin, 4rem\);/,
     );
   });
 

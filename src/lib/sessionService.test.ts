@@ -728,6 +728,19 @@ describe('GM instance commands', () => {
       sessionId: 's1', instanceId: 'instance-1', active: true,
     });
     expect(useSessionStore.getState().session?.debriefMode).toEqual({ active: true, revision: 1 });
+
+    const retractCallable = callableReturning({
+      data: { debriefMode: { active: false, revision: 2 } },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(retractCallable);
+
+    await setDebriefMode(false);
+
+    expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'setDebriefMode');
+    expect(retractCallable).toHaveBeenCalledWith({
+      sessionId: 's1', instanceId: 'instance-1', active: false,
+    });
+    expect(useSessionStore.getState().session?.debriefMode).toEqual({ active: false, revision: 2 });
   });
 
   it('replays the current transmission locally for this GM only', async () => {
