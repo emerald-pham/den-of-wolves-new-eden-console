@@ -30,8 +30,8 @@ prompt. A passing local check or deployed build does not by itself establish
 that the full gameplay roadmap or capacity target is complete.
 
 Numbered prompt work is dependency-gated. Before selecting, assigning,
-starting, or editing a prompt, agents must read the mandatory
-[prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), run its
+starting, or editing a prompt, agents must fully read the mandatory
+[prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), first, then run its
 dispatcher, and reconcile the prompt row, hard prerequisites, evidence, and
 coordination ownership with current `main`. The implementation plan is not
 standalone; a prompt cannot be marked complete or merged while a hard

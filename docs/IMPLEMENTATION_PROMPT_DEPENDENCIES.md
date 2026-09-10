@@ -13,7 +13,7 @@ the prompt.
 ## Mandatory gate: read before prompt work
 
 Every agent selecting, assigning, starting, or editing a numbered prompt must
-read this document first. Before selection, reconcile its exact row, live
+fully read this `IMPLEMENTATION_PROMPT_DEPENDENCIES.md` document first. Before selection, reconcile its exact row, live
 progress status, hard prerequisites, milestone/contract/owner gates, closure
 scope, sequence/order context, and evidence entries with current `main` and the
 active coordination registry. Run the deterministic dispatcher and claim only

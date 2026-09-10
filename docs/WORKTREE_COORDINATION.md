@@ -238,8 +238,8 @@ former top entry to its explicit version does not create a false replacement.
 Implementation-plan product validation also requires the progress ledger to be
 committed and reruns its changelog-coverage gate before recording the receipt.
 The documentation gate also rejects a completed prompt whose dependency index
-lists an unresolved hard prerequisite. Do not mark a prompt complete or merge
-its slice while any such prerequisite remains unmet; closure/evidence gates are
+lists an unresolved hard prerequisite. A prompt cannot be marked complete or
+merged while a hard prerequisite remains unmet; closure/evidence gates are
 completion checks and are not silently converted into start blockers.
 When the task changes test files, validation also runs the test-growth review
 gate. It pauses when the committed diff adds at least 160 test lines and at

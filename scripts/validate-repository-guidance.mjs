@@ -72,20 +72,67 @@ const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
   ['docs/WORKTREE_COORDINATION.md', /before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_PLAN.md', /before selecting[\s\S]*prompt/i],
   [PROMPT_DEPENDENCY_INDEX_PATH, /mandatory[\s\S]*before selecting[\s\S]*prompt/i],
+  ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
+  ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
 ]);
 
-function validatePromptDependencyGuidance({ sources, errors }) {
+function normalizeGuidance(source) {
+  return source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
+}
+
+function hasPromptDependencyReadRequirement(source) {
+  return /(?:\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md[\s\S]{0,180}(?:first|before selecting|before assigning|before starting|before editing)|before (?:selecting|assigning|starting|editing)[\s\S]{0,180}\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md)/i.test(source);
+}
+
+function hasDispatcherRequirement(source) {
+  return /\b(?:run|use|refresh)(?:\s+\w+){0,8}\s+(?:deterministic\s+)?dispatcher\b/i.test(source);
+}
+
+function hasCurrentStateReconciliation(source) {
+  return /reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i.test(source);
+}
+
+function hasMainMovementReread(source) {
+  return /\bre-?read\b/i.test(source) &&
+    /\b(?:rebase|material (?:main )?movement)\b/i.test(source) &&
+    /\bcurrent main\b/i.test(source);
+}
+
+function hasCompletionBlock(source) {
+  return /\bcannot be marked complete\b/i.test(source) &&
+    /\b(?:cannot merge|merged)\b/i.test(source) &&
+    /\bhard prerequisites?\b/i.test(source) &&
+    /\bunmet\b/i.test(source);
+}
+
+export function validatePromptDependencyGuidance({ sources, errors }) {
   for (const [filePath, selectionPattern] of PROMPT_DEPENDENCY_GUIDANCE) {
     const source = sources.get(filePath);
     if (typeof source !== 'string') {
       errors.push(`${filePath}: required prompt dependency guidance file is missing`);
       continue;
     }
-    if (!source.includes('IMPLEMENTATION_PROMPT_DEPENDENCIES.md')) {
+    const normalized = normalizeGuidance(source);
+    if (!normalized.includes('implementation_prompt_dependencies.md')) {
       errors.push(`${filePath}: must link IMPLEMENTATION_PROMPT_DEPENDENCIES.md`);
     }
-    if (!selectionPattern.test(source)) {
+    if (!selectionPattern.test(normalized)) {
       errors.push(`${filePath}: must require reading prompt dependencies before selecting a prompt`);
+    }
+    if (!hasPromptDependencyReadRequirement(normalized)) {
+      errors.push(`${filePath}: must explicitly require reading prompt dependencies before prompt work`);
+    }
+    if (!hasDispatcherRequirement(normalized)) {
+      errors.push(`${filePath}: must require running the prompt dependency dispatcher`);
+    }
+    if (!hasCurrentStateReconciliation(normalized)) {
+      errors.push(`${filePath}: must require reconciling current main and coordination`);
+    }
+    if (!hasMainMovementReread(normalized)) {
+      errors.push(`${filePath}: must require re-reading after rebase or material current-main movement`);
+    }
+    if (!hasCompletionBlock(normalized)) {
+      errors.push(`${filePath}: must block completion/merge while hard prerequisites are unmet`);
     }
   }
 
@@ -222,6 +269,8 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
     ['docs/WORKTREE_COORDINATION.md', readFileSync(resolve(cwd, 'docs/WORKTREE_COORDINATION.md'), 'utf8')],
     ['docs/IMPLEMENTATION_PLAN.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8')],
     [PROMPT_DEPENDENCY_INDEX_PATH, dependencySource],
+    ['docs/IMPLEMENTATION_MILESTONES.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8')],
+    ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
   ]);
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
