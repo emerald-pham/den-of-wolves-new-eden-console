@@ -1356,6 +1356,13 @@ function normalizeScope(scope) {
   return normalized;
 }
 
+function normalizedCoordinationOwnership(options = {}) {
+  const scopes = normalizedList(options.scope).map(normalizeScope);
+  const claims = [...new Set(normalizedList(options.claims ?? options.claim)
+    .map((claim) => claim.toLowerCase()))].sort();
+  return { scopes, claims };
+}
+
 function scopesOverlap(left, right) {
   return left === '*' || right === '*' || left === right ||
     left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
@@ -2229,9 +2236,7 @@ async function beginEntry(filePath, options) {
       'coordination begin requires product work to record an implementation prompt with --implementation-prompt NNN or NNN<letter>.',
     );
   }
-  const scopes = normalizedList(options.scope).map(normalizeScope);
-  const claims = [...new Set(normalizedList(options.claims ?? options.claim)
-    .map((claim) => claim.toLowerCase()))].sort();
+  const { scopes, claims } = normalizedCoordinationOwnership(options);
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const existing = state.entries.find(
@@ -2293,6 +2298,116 @@ async function beginEntry(filePath, options) {
     validateImplementationPromptClaims([...state.entries, entry]);
     state.entries.push(entry);
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return entry;
+  });
+}
+
+/**
+ * Add ownership metadata to an active coordination entry without allowing a
+ * caller to rewrite its identity, release agreement, or lifecycle state.
+ */
+export async function amendCoordinationEntry(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination amend requires --id <entry-id>.');
+
+  const { scopes, claims } = normalizedCoordinationOwnership(options);
+  if (scopes.length === 0 && claims.length === 0) {
+    throw new Error('coordination amend requires at least one new --scope or --claims value.');
+  }
+  const duplicateScope = scopes.find((scope, index) => scopes.indexOf(scope) !== index);
+  if (duplicateScope) {
+    throw new Error(`Amendment scope "${duplicateScope}" was requested more than once.`);
+  }
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot amend coordination entry ${entry.id} from ${process.cwd()}; ` +
+        `it belongs to ${entry.worktree}.`,
+      );
+    }
+
+    const start = await readGitStartState();
+    if (!entry.branchName) {
+      throw new Error(`Cannot amend coordination entry ${entry.id}: it has no attached branch.`);
+    }
+    if (start.branchName !== entry.branchName) {
+      throw new Error(
+        `Cannot amend coordination entry ${entry.id}: checkout branch ${start.branchName} ` +
+        `does not match ${entry.branchName}.`,
+      );
+    }
+    if (entry.repositoryRoot && resolve(entry.repositoryRoot) !== start.repositoryRoot) {
+      throw new Error(
+        `Cannot amend coordination entry ${entry.id}: checkout repository ${start.repositoryRoot} ` +
+        `does not match ${entry.repositoryRoot}.`,
+      );
+    }
+    if (entry.repositoryIdentity && resolve(entry.repositoryIdentity) !== start.repositoryIdentity) {
+      throw new Error(
+        `Cannot amend coordination entry ${entry.id}: checkout Git identity ${start.repositoryIdentity} ` +
+        `does not match ${entry.repositoryIdentity}.`,
+      );
+    }
+
+    const existingScopes = Array.isArray(entry.scopes) ? entry.scopes : [];
+    const existingClaims = Array.isArray(entry.claims) ? entry.claims : [];
+    const normalizedExistingScopes = existingScopes.map((scope) => {
+      try {
+        return normalizeScope(scope);
+      } catch {
+        return scope;
+      }
+    });
+    const normalizedExistingClaims = new Set(existingClaims.map((claim) =>
+      typeof claim === 'string' ? claim.trim().toLowerCase() : claim,
+    ));
+    const duplicateExistingScope = scopes.find((scope) =>
+      normalizedExistingScopes.some((existingScope) => scopesOverlap(scope, existingScope)),
+    );
+    if (duplicateExistingScope) {
+      throw new Error(
+        `Amendment scope "${duplicateExistingScope}" is already declared or covered by ` +
+        `active entry ${entry.id}.`,
+      );
+    }
+    const duplicateExistingClaim = claims.find((claim) => normalizedExistingClaims.has(claim));
+    if (duplicateExistingClaim) {
+      throw new Error(
+        `Amendment claim "${duplicateExistingClaim}" is already declared by active entry ` +
+        `${entry.id}.`,
+      );
+    }
+
+    const conflict = findCoordinationConflict({
+      activeEntries: state.entries.filter((candidate) => candidate.id !== entry.id),
+      repositoryIdentity: start.repositoryIdentity,
+      repositoryRoot: start.repositoryRoot,
+      worktree: process.cwd(),
+      scopes,
+      claims,
+    });
+    if (conflict) throw new Error(formatCoordinationConflict(conflict));
+
+    entry.scopes = [...existingScopes, ...scopes];
+    entry.claims = [...existingClaims, ...claims];
+    const amendment = {
+      amendedAt: new Date().toISOString(),
+      worktree: process.cwd(),
+      branchName: start.branchName,
+      scopes: [...scopes],
+      claims: [...claims],
+    };
+    entry.amendments = [
+      ...(Array.isArray(entry.amendments) ? entry.amendments : []),
+      amendment,
+    ];
+    await writeStateUnlocked(filePath, state);
     return entry;
   });
 }
@@ -2714,6 +2829,11 @@ async function main() {
     console.log(`Registered preemptive work entry ${entry.id} in ${filePath}.`);
     return;
   }
+  if (command === 'amend') {
+    const entry = await amendCoordinationEntry(filePath, options);
+    console.log(`Amended coordination entry ${entry.id} in ${filePath}.`);
+    return;
+  }
   if (command === 'validate') {
     const entry = await validateCoordinationEntry(filePath, options);
     console.log(`Validated coordination entry ${entry.id} in ${filePath}.`);
@@ -2726,7 +2846,7 @@ async function main() {
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|validate|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|amend|validate|finish> [options]',
   );
 }
 
