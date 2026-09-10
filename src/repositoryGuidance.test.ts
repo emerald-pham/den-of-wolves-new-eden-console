@@ -139,6 +139,17 @@ describe('repository guidance', () => {
     expect(guidance).not.toContain('update `package.json` and the root lockfile to it');
   });
 
+  it('keeps Definition of done on the release-fragment path', () => {
+    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8');
+    const definitionOfDone = (guidance.match(/## Definition of done([\s\S]*?)(?=\n## |$)/)?.[1] ?? '')
+      .replace(/\s+/g, ' ');
+
+    expect(definitionOfDone).toMatch(/Product work began with one validated per-task release fragment[\s\S]{0,180}before the first implementation test/i);
+    expect(definitionOfDone).toMatch(/`release-land`[\s\S]{0,180}next permitted version[\s\S]{0,180}package metadata, root lockfile, and player-facing changelog/i);
+    expect(definitionOfDone).toMatch(/no-player-facing-change[\s\S]{0,180}does not add a release fragment/i);
+    expect(definitionOfDone).not.toMatch(/preemptive, standalone changelog entry/i);
+  });
+
   it('keeps Luna xhigh and campaign role precedence unambiguous', () => {
     const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
 

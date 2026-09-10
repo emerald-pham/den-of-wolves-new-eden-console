@@ -1015,8 +1015,13 @@ tests/rules/      assertions against the emulator
 
 - [ ] The current checkout is on the intended short-lived branch; the branch
   and coordination entry refer to the same worktree.
-- [ ] Product work began with its own preemptive, standalone changelog entry;
-  no unrelated task was appended to that release version.
+- [ ] Product work began with one validated per-task release fragment before
+  the first implementation test; `release-land` then applied it, allocated the
+  next permitted version, and updated package metadata, root lockfile, and
+  player-facing changelog together. Tooling, test, and documentation-only work
+  recorded an explicit no-player-facing-change note, does not add a release
+  fragment, and does not change the application version or player-facing
+  changelog.
 - [ ] For code changes, a test was written first and observed failing.
 - [ ] Every completed product edit updated the player-facing changelog in user terms.
 - [ ] For changes that are not documentation-only, local lint and tests were
