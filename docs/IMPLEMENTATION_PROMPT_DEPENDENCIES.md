@@ -246,7 +246,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 129 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Surface damaged-bay denial. |
 | 130 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Draw damage cards authoritatively. |
 | 131 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Destroy a ship on empty-deck draw. |
-| 132 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Recycle AEGIS Armoured Hull. |
+| 132 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Recycle AEGIS Armoured Hull. |
 | 133 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Step discrete population tracks. |
 | 134 | REPAIR | missing | none | none | none | none | none | none | none | none | none | M2 | Alert starred population thresholds without a multi-GM deadlock. |
 | 135 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Add two unrest at population zero. |

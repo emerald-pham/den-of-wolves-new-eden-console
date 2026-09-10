@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**88 / 730 prompts complete (12.05%)**
+**89 / 730 prompts complete (12.19%)**
 
-Status breakdown: **88 done · 25 partial · 0 active · 617 missing**.
+Status breakdown: **89 done · 25 partial · 0 active · 616 missing**.
 
 Active prompt: **none**.
 
@@ -528,7 +528,7 @@ release classification and evidence.
 | 129 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 130 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 132 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 132 | done | non-feature | — | Focused `addShipDamage` production-callable proof in `functions/src/shipDamageCallable.test.ts` covers both AEGIS Armoured Hull cards, survivor preservation, conditional recycling when another damage card remains, final-card retention, and transaction retry-stable randomness/audit identity; no production-path change. |
 | 133 | done | non-feature | — | Focused `adjustShipPopulation` production-callable proof in `functions/src/shipPopulationCallables.test.ts` covers all seven printed tracks, next printed values, endpoints, off-track denial, threshold alert creation, and pending-alert no-write behavior; no production-path change. |
 | 134 | missing | non-feature | — | Planned [REPAIR] prompt: current alerts can require every GM instance and let a stale optional GM deadlock maintenance. One-GM ownership/unblock, informational additional-GM delivery, stale-instance expiry, and one-winner acknowledgement remain open. |
 | 135 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
