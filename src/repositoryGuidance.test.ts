@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  validateCampaignPlaybook,
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
   validatePromptDependencyGuidance,
@@ -129,6 +130,15 @@ describe('repository guidance', () => {
     expect(guidance).toContain('Immediate post-test merge objective is checked off');
   });
 
+  it('uses one release-fragment path for product metadata instead of concurrent shared-file edits', () => {
+    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
+
+    expect(guidance).toContain('validated per-task release fragment');
+    expect(guidance).toContain('Do not edit `package.json`, the root lockfile, or `src/changelog.ts` during feature implementation');
+    expect(guidance).not.toContain('reserve one unused release version for this task');
+    expect(guidance).not.toContain('update `package.json` and the root lockfile to it');
+  });
+
   it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
     const repositoryRoot = process.cwd();
     const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
@@ -141,6 +151,7 @@ describe('repository guidance', () => {
       `docs/${dependencyDoc}`,
       'docs/IMPLEMENTATION_MILESTONES.md',
       'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
     ];
 
     for (const surface of surfaces) {
@@ -227,6 +238,7 @@ describe('repository guidance', () => {
       'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
       'docs/IMPLEMENTATION_MILESTONES.md',
       'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
     ];
     const sources = new Map(surfaces.map((surface) => [
       surface,
@@ -267,5 +279,72 @@ describe('repository guidance', () => {
       expect.stringContaining('README.md'),
       expect.stringContaining('AGENTS.md'),
     ]));
+  });
+
+  it('requires the campaign playbook to retain the learned orchestration controls', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
+    const errors: string[] = [];
+
+    validateCampaignPlaybook({ source, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('fails closed if the Luna abandonment failover or another critical campaign control is weakened', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
+    const mutations = [
+      {
+        source: source.replace(/open no new lanes/gi, 'open a new lane'),
+        expected: 'must prohibit new lanes at a stopping point',
+      },
+      {
+        source: source.replace(/fully read/gi, 'consult'),
+        expected: 'must require the dependency authority before prompt selection',
+      },
+      {
+        source: source
+          .replace(/selectively reapply/gi, 'reuse')
+          .replace(/never wholesale-merge/gi, 'may merge'),
+        expected: 'must require selective reapplication and prohibit wholesale stale merges',
+      },
+      {
+        source: source
+          .replace(/independent exact-HEAD review/gi, 'review')
+          .replace(/one final full coordination validation/gi, 'validation'),
+        expected: 'must require independent exact-HEAD review before one final full coordination validation',
+      },
+      {
+        source: source.replace(/switch that task to\s+`?gpt-5\.6-terra`?\s+at\s+`?xhigh`?/gi, 'retry Luna'),
+        expected: 'must require Terra xhigh after the observed Luna abandonment failure',
+      },
+      {
+        source: source.replace(/never dispatch a Sol child/gi, 'Sol is available'),
+        expected: 'must prohibit Sol child dispatch',
+      },
+      {
+        source: source.replace(/immediately report/gi, 'report later'),
+        expected: 'must require immediate idle or terminal reports with status, paths, commands, and blockers',
+      },
+      {
+        source: source.replace(/exact exclusive leaf-file claims/gi, 'broad docs ownership'),
+        expected: 'must require exact leaf-file ownership and reject broad docs claims',
+      },
+      {
+        source: source.replace(/do not reuse a\s+reported SHA,\s+version,\s+count,\s+or NEXT prompt without live verification/gi, 'reuse the old status'),
+        expected: 'goal template must require dynamic live state rather than hard-coded snapshots',
+      },
+      {
+        source: source.replace(/implementation\s+agent owns edits, focused tests, and commit/gi, 'implementation agent may edit'),
+        expected: 'must assign explicit implementation, review, and release ownership',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateCampaignPlaybook({ source: mutation.source, errors });
+      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.expected),
+      ]));
+    }
   });
 });

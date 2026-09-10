@@ -10,6 +10,7 @@ function isDocumentationFile(filePath) {
 }
 
 const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
+const CAMPAIGN_PLAYBOOK_PATH = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
 const RETIRED_PROMPT_IDS = new Set(['071']);
 
 function promptDependencyTargets(value) {
@@ -74,6 +75,7 @@ const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
   [PROMPT_DEPENDENCY_INDEX_PATH, /mandatory[\s\S]*before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
+  [CAMPAIGN_PLAYBOOK_PATH, /before selecting[\s\S]*prompt/i],
 ]);
 
 function normalizeGuidance(source) {
@@ -114,6 +116,7 @@ const PROMPT_DEPENDENCY_CONCURRENCY_SURFACES = Object.freeze([
   PROMPT_DEPENDENCY_INDEX_PATH,
   'docs/IMPLEMENTATION_MILESTONES.md',
   'docs/IMPLEMENTATION_PROGRESS.md',
+  CAMPAIGN_PLAYBOOK_PATH,
 ]);
 
 /**
@@ -164,6 +167,82 @@ export function validatePromptDependencyConcurrency({ sources, errors }) {
     if (/\bclaim (?:only )?the first unclaimed item in ready_queue\b/i.test(normalized)) {
       errors.push(`${filePath}: retains a serial-only first-unclaimed READY_QUEUE claim rule`);
     }
+  }
+}
+
+/**
+ * Keep the reusable campaign goal fail-closed against the coordination
+ * shortcuts that previously caused repeated release and steering cycles.
+ * These intentionally test durable meaning rather than one full paragraph.
+ */
+export function validateCampaignPlaybook({ source, errors } = {}) {
+  const raw = String(source ?? '');
+  const normalized = normalizeGuidance(raw);
+  const checks = [
+    ['must provide a reusable campaign goal template', /campaign goal template/i],
+    [
+      'must require the dependency authority before prompt selection',
+      /before selecting[\s\S]{0,180}fully read[\s\S]{0,180}implementation_prompt_dependencies\.md/i,
+    ],
+    ['must require the deterministic dispatcher', /run[\s\S]{0,120}deterministic dispatcher/i],
+    [
+      'must prohibit new lanes at a stopping point',
+      /(?:reach a stopping point|stopping)[\s\S]{0,260}open no new lanes/i,
+    ],
+    [
+      'must require selective reapplication and prohibit wholesale stale merges',
+      /selectively reapply[\s\S]{0,360}never wholesale-merge[\s\S]{0,160}stale branch/i,
+    ],
+    [
+      'must require independent exact-HEAD review before one final full coordination validation',
+      /independent exact-head review[\s\S]{0,260}(?:precede|before)[\s\S]{0,220}one final full coordination validation/i,
+    ],
+    ['must require Luna xhigh delegation', /gpt-5\.6-luna[\s\S]{0,100}xhigh/i],
+    [
+      'must require Terra xhigh after the observed Luna abandonment failure',
+      /(?:dirty worktree[\s\S]{0,180}no relevant (?:running )?process[\s\S]{0,180}no commit or result|repeats no-progress)[\s\S]{0,440}switch that task to `?gpt-5\.6-terra`? at `?xhigh`?/i,
+    ],
+    ['must prohibit Sol child dispatch', /never dispatch a sol child/i],
+    [
+      'must require immediate idle or terminal reports with status, paths, commands, and blockers',
+      /immediately report[\s\S]{0,220}(?:exact )?status[\s\S]{0,180}changed paths[\s\S]{0,180}commands[\s\S]{0,180}blocker/i,
+    ],
+    [
+      'must require exact leaf-file ownership and reject broad docs claims',
+      /exact exclusive leaf-file claims[\s\S]{0,260}(?:no broad `?docs\/\*`?|another owner)/i,
+    ],
+    [
+      'must assign explicit implementation, review, and release ownership',
+      /implementation agent owns edits, focused tests, and commit[\s\S]{0,300}independent reviewer[\s\S]{0,240}release agent owns/i,
+    ],
+    [
+      'must prohibit implicit ownership handoffs',
+      /do not leave these handoffs implicit/i,
+    ],
+    [
+      'must preflight changelog, version, progress, and release-fragment ownership',
+      /preflight[\s\S]{0,180}changelog[\s\S]{0,180}version[\s\S]{0,180}progress[\s\S]{0,180}release-fragment/i,
+    ],
+    [
+      'must keep local, rendered, deployed, and capacity proof distinct',
+      /local[\s\S]{0,180}rendered[\s\S]{0,180}deploy(?:ed|ment)[\s\S]{0,180}capacity proof/i,
+    ],
+  ];
+  for (const [message, pattern] of checks) {
+    if (!pattern.test(normalized)) errors.push(`campaign playbook: ${message}`);
+  }
+
+  const templateMatch = raw.match(/## Campaign goal template[\s\S]*?```text\n([\s\S]*?)\n```/i);
+  if (!templateMatch) {
+    errors.push('campaign playbook: goal template must be a copyable text block');
+    return;
+  }
+  const template = templateMatch[1];
+  if (/\b[0-9a-f]{7,40}\b/i.test(template) || /\b\d+\/\d+\b/.test(template) || /\b\d+\.\d+\.\d+\b/.test(template)) {
+    errors.push('campaign playbook: goal template must not hard-code a SHA, count, or version');
+  }
+  if (!/do not reuse a\s+reported sha,\s+version,\s+count,\s+or next prompt without live verification/i.test(template)) {
+    errors.push('campaign playbook: goal template must require dynamic live state rather than hard-coded snapshots');
   }
 }
 
@@ -333,9 +412,11 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
     [PROMPT_DEPENDENCY_INDEX_PATH, dependencySource],
     ['docs/IMPLEMENTATION_MILESTONES.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8')],
     ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
+    [CAMPAIGN_PLAYBOOK_PATH, readFileSync(resolve(cwd, CAMPAIGN_PLAYBOOK_PATH), 'utf8')],
   ]);
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
+  validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 
   return errors;

@@ -12,6 +12,7 @@ code, tests, or canonical policy.
 | Product overview, setup, and validation entry point | [Project README](../README.md) | Contributor introduction and quick start |
 | Repository workflow, testing, security, release, and cleanup policy | [CLAUDE.md](../CLAUDE.md) | Canonical repository policy |
 | Agent discovery and private-reference warning | [AGENTS.md](../AGENTS.md) | Thin routing and safety pointer |
+| Multi-agent campaign execution, recovery, and stopping | [Agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) | Reusable campaign goal and enforceable orchestration controls |
 | Coordination commands | [WORKTREE_COORDINATION.md](WORKTREE_COORDINATION.md) | Command reference; `CLAUDE.md` remains canonical |
 | Cowork-specific invocation preferences | [Cowork instructions](../.cowork/instructions.md) | Tool-specific preferences only |
 

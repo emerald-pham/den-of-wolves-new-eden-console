@@ -6,6 +6,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 ## Contents
 
 - [Agent fast path](#agent-fast-path)
+- [Campaign execution and stopping](#campaign-execution-and-stopping)
 - [Implementation-plan reading route](#implementation-plan-reading-route)
 - [Prompt dependency gate](#prompt-dependency-gate)
 - [Test first for code](#1-test-first-for-code)
@@ -62,6 +63,26 @@ run its dispatcher, and reconcile the selected row with current `main` and
 coordination before selecting, starting, or editing the prompt. Check it only
 after that reconciliation is recorded; leave it unchecked if any hard
 prerequisite remains unmet.
+
+## Campaign execution and stopping
+
+For an explicit multi-agent implementation campaign, read the
+[agent campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md) before dispatching
+work. It supplies the reusable campaign goal and operational controls; the
+dependency authority remains mandatory for every numbered prompt. This
+campaign-specific role allocation supersedes the routine primary-agent
+integration default: the coordinator makes decisions and dispatches, while
+separately assigned implementation, exact-HEAD review, and release agents own
+their explicit handoffs.
+
+Luna is the default at `xhigh` (or the stricter numbered-plan Luna `max`
+baseline). Never dispatch a Sol child. If a Luna attempt is idle or loses
+execution state with a dirty worktree, no relevant process, and no commit or
+result—or one bounded recovery repeats no-progress—stop steering it, preserve
+or discard it truthfully, and switch that task to `gpt-5.6-terra` at `xhigh`.
+This is the mandatory failover for that observed abandonment mode. The playbook
+also defines the stopping-point, rebase, exact-HEAD review, single-full-gate,
+shared-ownership, and immediate-report requirements.
 
 ### Implementation-plan reading route
 
@@ -191,12 +212,16 @@ explicitly classifies them as hard.
    equivalent SSH URL in the checkout's local Git config. Existing SSH origins
    and non-GitHub remotes are left unchanged; verify the result with
    `git remote -v` if transport was repaired.
-4. For player-facing product work, complete the changelog preflight immediately:
-   reserve one unused release version for this task, record that exact version
-   in `--version-plan`, update `package.json` and the root lockfile to it, and
-   add the planned note as a new, standalone top-level entry in
-   `src/changelog.ts` before the test-first implementation sequence begins.
-   Product work driven by the implementation plan must also pass
+4. For player-facing product work, complete the release-metadata preflight
+   immediately: inspect the current package version, changelog, and progress
+   ledger; record the base/version plan in coordination; and create one
+   validated per-task release fragment with
+   `node scripts/coordination-throughput.mjs release-prepare` before the
+   test-first implementation sequence begins. Do not edit `package.json`, the
+   root lockfile, or `src/changelog.ts` during feature implementation; the
+   release lane's `release-land` updates those files together at landing and
+   allocates the next permitted version. Product work driven by the plan must
+   also pass
    `--implementation-prompt NNN` or `NNN<letter>`, set that prompt to
    `in-progress` in
    `docs/IMPLEMENTATION_PROGRESS.md`, and classify its ledger row as
@@ -206,7 +231,8 @@ explicitly classifies them as hard.
    field is only a draft and cannot satisfy this requirement.
    Never append the note to another task's current-version entry. Tooling,
    test, and documentation-only work records an explicit
-   no-player-facing-change note and does not add an entry. The lighter
+   no-player-facing-change note, does not add a release fragment, and does not
+   change the application version or player-facing changelog. The lighter
    documentation-only review path is described in [Test first for code](#1-test-first-for-code).
    The path/branch preflight and root dependency bootstrap above precede every
    repository script; then follow the test-first, emulator-slot, and
@@ -463,7 +489,7 @@ actually performed them; the final review remains a deliberate handoff.
 
 The product owner authorizes suitable delegation when it saves effort after
 setup and review. Fan out independent, bounded reconnaissance, implementation,
-or verification tracks to GPT-5.6 Luna at `high` reasoning; do not use GPT-5.3
+or verification tracks to GPT-5.6 Luna at `xhigh` reasoning; do not use GPT-5.3
 Codex Spark. If no safe sidecar exists, continue locally rather than creating
 one to satisfy a quota.
 

@@ -19,3 +19,12 @@ export function validatePromptDependencyGuidance(
 export function validatePromptDependencyConcurrency(
   input: PromptDependencyGuidanceInput,
 ): void;
+
+export interface CampaignPlaybookInput {
+  source?: string;
+  errors: string[];
+}
+
+export function validateCampaignPlaybook(
+  input: CampaignPlaybookInput,
+): void;
