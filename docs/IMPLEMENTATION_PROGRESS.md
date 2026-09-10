@@ -364,7 +364,7 @@ release classification and evidence.
 | 009 | done | non-feature | — | Deterministic fixture seams in `functions/src/atddFixtures.ts` with five focused tests. |
 | 010 | done | non-feature | — | Prompt-by-prompt audit in `docs/IMPLEMENTATION_CONTRACTS.md` §5. |
 | 011 | done | non-feature | — | `functions/src/joinCodeSecurity.ts` exports immutable `JOIN_CODE_POLICY` for legacy/current lengths, digits-only format, session-until-retirement lifetime, non-enumerating lookup, and transactional `joinCodes` collision ownership. `joinCodeSecurity.test.ts`, `joinSessionCallable.test.ts`, `createSessionCallable.test.ts`, and `sessionLifecycleCallable.test.ts` prove the contract, malformed-input boundary, both code formats, duplicate-code skip, and retirement deletion; focused run: 4 files, 29 tests passed. |
-| 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
+| 012 | partial | non-feature | — | A bounded `functions/src/pressAvailabilityCallable.test.ts` Press proof now covers request-receipt actor isolation, conflicting `pressEnabled`/`expectedRevision` reuse, result/private-detail non-disclosure, and no state/audit/request writes. Foreign UID reuse is denied, but the two conflicting-payload cases are red on current `main` because `setPressEnabled` replays by request ID without a payload fingerprint; the universal command matrix remains open. |
 | 013 | done | non-feature | — | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
 | 014 | partial | non-feature | — | Revision fields/parsing exist; universal stale-mutation semantics remain open. |
 | 015 | partial | feature | 0.3.5 | Callable error codes are tested, but no centralized taxonomy yet. |

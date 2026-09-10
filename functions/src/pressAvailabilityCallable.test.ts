@@ -308,6 +308,73 @@ it('replays a request result without writing a second audit event', async () => 
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  ['pressEnabled', { pressEnabled: true }],
+  ['expectedRevision', { expectedRevision: 1 }],
+] as const)('rejects a %s change when a Press request id is already bound', async (_field, change) => {
+  session({ pressEnabled: false, pressAvailabilityRevision: 1 });
+  gm();
+  const eventPath = 'sessions/s1/events/press-availability-press-1';
+  const priorEvent = {
+    type: 'press-availability',
+    actorUid: 'u1',
+    requestId: 'press-1',
+    expectedRevision: 0,
+    pressEnabled: false,
+    result: { pressEnabled: false, revision: 1, privateDetail: 'classified prior result' },
+    createdAt: 'existing-event-time',
+  } satisfies Fields;
+  put(eventPath, priorEvent);
+  const sessionBefore = { ...mock.documents.get('sessions/s1') };
+  const eventBefore = { ...priorEvent, result: { ...priorEvent.result } };
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.remove.mockClear();
+  const replay = setPressEnabled.run(request({ ...baseData, ...change }));
+  await expect(replay).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.not.stringContaining('classified prior result'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1')).toEqual(sessionBefore);
+  expect(mock.documents.get(eventPath)).toEqual(eventBefore);
+});
+
+it('denies a foreign UID reusing a Press receipt without disclosing its result or writing', async () => {
+  session({ pressEnabled: false, pressAvailabilityRevision: 1 });
+  gm();
+  const eventPath = 'sessions/s1/events/press-availability-press-1';
+  const priorEvent = {
+    type: 'press-availability',
+    actorUid: 'u1',
+    requestId: 'press-1',
+    expectedRevision: 0,
+    pressEnabled: false,
+    result: { pressEnabled: false, revision: 1, privateDetail: 'classified prior result' },
+    createdAt: 'existing-event-time',
+  } satisfies Fields;
+  put(eventPath, priorEvent);
+  const sessionBefore = { ...mock.documents.get('sessions/s1') };
+  const eventBefore = { ...priorEvent, result: { ...priorEvent.result } };
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.remove.mockClear();
+  const replay = setPressEnabled.run(request(baseData, 'u2'));
+  await expect(replay).rejects.toMatchObject({
+    code: 'permission-denied',
+    message: expect.not.stringContaining('classified prior result'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1')).toEqual(sessionBefore);
+  expect(mock.documents.get(eventPath)).toEqual(eventBefore);
+});
+
 it('requires the calling UID to own the named live GM instance', async () => {
   session();
   gm('u1', 'gm-1');
