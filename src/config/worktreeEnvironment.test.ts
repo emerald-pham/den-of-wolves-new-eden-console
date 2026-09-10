@@ -14,5 +14,8 @@ describe('Codex worktree environment', () => {
     expect(environment).toContain(
       'npm ci --prefix functions --prefer-offline --no-audit',
     );
+    expect(environment).toContain(
+      'node scripts/enforce-worktree-limit.mjs --apply',
+    );
   });
 });
