@@ -7,6 +7,8 @@ state backed by Firebase.
 
 > Unofficial and unaffiliated. Fan project.
 
+Live deployment: [dow-new-eden-console.web.app](https://dow-new-eden-console.web.app/)
+
 ## Operating envelope
 
 The target is one 20-player game with up to **60 concurrent browser clients**.
@@ -188,3 +190,9 @@ npm run deploy:hosting  # build and deploy Hosting only
 and an authenticated session for the selected project. The GitHub Actions
 workflow instead uses short-lived Workload Identity Federation credentials and
 does not store a service-account JSON key.
+
+## License
+
+This unofficial fan project is not currently offered under an open-source
+license. See the [copyright and licensing notice](LICENSE.md) for the current
+rights status and third-party-material boundary.
