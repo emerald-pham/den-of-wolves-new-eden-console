@@ -21,6 +21,23 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ["055"],
+    implementationProgress: {
+      completed: 91,
+      total: 730,
+      percentage: "12.47%",
+      done: 91,
+      partial: 25,
+      active: 0,
+      missing: 614,
+    },
+    changes: [
+      "Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
+      "Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.",
+    ],
+  },
+  {
+    version: '0.3.27',
     implementationPrompts: ['106b'],
     implementationProgress: {
       completed: 90,
