@@ -8,6 +8,7 @@ export interface DependencyInstallRequest {
 export interface BootstrapOptions {
   readonly repositoryDirectory?: string;
   readonly runInstall?: (request: DependencyInstallRequest) => Promise<void>;
+  readonly fingerprint?: (lockfilePath: string) => Promise<string>;
 }
 
 export interface BootstrapResult {
@@ -16,4 +17,5 @@ export interface BootstrapResult {
 }
 
 export declare function fingerprintLockfile(lockfilePath: string): Promise<string>;
+export declare function lockPathForRepository(directory: string): string;
 export declare function bootstrapDependencies(options?: BootstrapOptions): Promise<BootstrapResult>;
