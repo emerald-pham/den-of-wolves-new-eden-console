@@ -24,6 +24,13 @@ export const DEFAULT_COORDINATION_LEASE_MS = 90_000;
 export const DEFAULT_VALIDATION_CONCURRENCY = 2;
 export const RELEASE_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 
+/** Return the next bounded delay used while waiting for a FIFO lease. */
+export function validationPollDelay(currentDelayMs, maxDelayMs = 1_000) {
+  const current = Number.isFinite(currentDelayMs) && currentDelayMs > 0 ? currentDelayMs : 1;
+  const maximum = Number.isFinite(maxDelayMs) && maxDelayMs > 0 ? maxDelayMs : current;
+  return Math.min(maximum, current * 2);
+}
+
 const LOCK_RETRY_MS = 25;
 const LOCK_ATTEMPTS = 2_400;
 const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
@@ -1240,6 +1247,7 @@ export async function heartbeatValidationLeaseFile(filePath, ticketId, options =
 
 export async function withValidationLease(filePath, request, operation, {
   pollMs = 100,
+  maxPollMs = 1_000,
   timeoutMs = 60 * 60 * 1000,
   signal,
   leaseMs = DEFAULT_COORDINATION_LEASE_MS,
@@ -1250,6 +1258,7 @@ export async function withValidationLease(filePath, request, operation, {
   const ticket = result.ticket;
   if (ticket.state === 'bypassed') return operation(ticket);
   const deadline = Date.now() + timeoutMs;
+  let nextPollMs = Math.max(1, pollMs);
   try {
     while (true) {
       if (signal?.aborted) throw new Error(`Validation lease ${ticket.id} was interrupted.`);
@@ -1257,7 +1266,7 @@ export async function withValidationLease(filePath, request, operation, {
       if (state.active.some((candidate) => candidate.id === ticket.id)) break;
       if (Date.now() >= deadline) throw new Error(`Timed out waiting for validation lease ${ticket.id}.`);
       await new Promise((resolvePromise, rejectPromise) => {
-        const timer = setTimeout(resolvePromise, pollMs);
+        const timer = setTimeout(resolvePromise, nextPollMs);
         const onAbort = () => {
           clearTimeout(timer);
           rejectPromise(new Error(`Validation lease ${ticket.id} was interrupted.`));
@@ -1265,8 +1274,9 @@ export async function withValidationLease(filePath, request, operation, {
         signal?.addEventListener('abort', onAbort, { once: true });
         const onTimer = () => signal?.removeEventListener('abort', onAbort);
         timer.unref?.();
-        setTimeout(onTimer, pollMs);
+        setTimeout(onTimer, nextPollMs);
       });
+      nextPollMs = validationPollDelay(nextPollMs, maxPollMs);
     }
     let heartbeatError;
     const heartbeatTimer = setInterval(() => {

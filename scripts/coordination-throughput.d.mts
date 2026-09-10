@@ -2,6 +2,7 @@ export const COORDINATION_THROUGHPUT_SCHEMA_VERSION: number;
 export const DEFAULT_COORDINATION_LEASE_MS: number;
 export const DEFAULT_VALIDATION_CONCURRENCY: number;
 export const RELEASE_VERSION_PATTERN: RegExp;
+export function validationPollDelay(currentDelayMs: number, maxDelayMs?: number): number;
 
 export interface CoordinationThroughputEntry {
   readonly id?: string;
@@ -330,6 +331,7 @@ export function withValidationLease<T>(
   operation: (ticket: ValidationTicket) => Promise<T> | T,
   options?: {
     readonly pollMs?: number;
+    readonly maxPollMs?: number;
     readonly timeoutMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: string | number | Date;
