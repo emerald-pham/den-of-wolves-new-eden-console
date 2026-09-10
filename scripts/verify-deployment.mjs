@@ -64,8 +64,10 @@ async function verifyFunctions({ projectId, region, runCommand }) {
 
   for (const name of PUBLIC_FUNCTIONS) {
     if (!byName.has(name)) throw new Error(`Required public Function ${name} is not deployed.`);
+    // Cloud Functions v2 exposes callable invoker IAM on its backing Cloud Run
+    // service; the v2 function resource policy is not the public endpoint gate.
     const policyOutput = await runCommand('gcloud', [
-      'functions', 'get-iam-policy', name, `--project=${projectId}`,
+      'run', 'services', 'get-iam-policy', name, `--project=${projectId}`,
       `--region=${region}`, '--format=json',
     ]);
     const policy = parseJson(policyOutput, `IAM policy for ${name}`);

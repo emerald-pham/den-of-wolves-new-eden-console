@@ -9,7 +9,8 @@ it('restores public transport access for the browser-callable DRADIS trigger aft
   const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8');
 
   expect(workflow).toContain('google-github-actions/setup-gcloud@v3');
-  expect(workflow).toContain('gcloud functions add-invoker-policy-binding triggerDradisContact');
+  expect(workflow).toContain('gcloud run services add-iam-policy-binding triggerDradisContact');
+  expect(workflow).toContain('--role="roles/run.invoker"');
   expect(workflow).toContain('--member="allUsers"');
   expect(workflow).toContain('--region="us-central1"');
 });

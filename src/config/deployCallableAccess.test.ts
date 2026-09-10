@@ -5,7 +5,8 @@ import { expect, it } from 'vitest';
 it('restores public transport access for the browser-callable Turn 1 demo after deploys', () => {
   const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/deploy.yml'), 'utf8');
 
-  expect(workflow).toContain('gcloud functions add-invoker-policy-binding startSinglePlayerDemo');
+  expect(workflow).toContain('gcloud run services add-iam-policy-binding startSinglePlayerDemo');
+  expect(workflow).toContain('--role="roles/run.invoker"');
   expect(workflow).toContain('--member="allUsers"');
   expect(workflow).toContain('--region="us-central1"');
   expect(workflow).toContain('verify-deployment.mjs');

@@ -122,8 +122,8 @@ it('verifies Hosting and public Functions through injected production adapters',
   expect(result).toEqual({ hosting: true, firestore: true, functions: true });
   expect(commands).toEqual(expect.arrayContaining([
     expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
-    expect.arrayContaining(['functions', 'get-iam-policy', 'triggerDradisContact']),
-    expect.arrayContaining(['functions', 'get-iam-policy', 'startSinglePlayerDemo']),
+    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'triggerDradisContact']),
+    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'startSinglePlayerDemo']),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
@@ -149,6 +149,42 @@ it('rejects the legacy Cloud Functions invoker role for a gen2 public Function',
         bindings: [{ role: 'roles/cloudfunctions.invoker', members: ['allUsers'] }],
       }),
   })).rejects.toThrow('missing its public invoker policy');
+});
+
+it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access', async () => {
+  const commands: string[][] = [];
+  await expect(verifyDeployment({
+    targets: ['functions'],
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.3.26',
+    runCommand: async (_command, args) => {
+      commands.push([...args]);
+      if (args[1] === 'list') {
+        return JSON.stringify([
+          { name: 'triggerDradisContact', state: 'ACTIVE' },
+          { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+        ]);
+      }
+      return JSON.stringify({
+        version: 1,
+        bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }],
+        etag: 'BwY-v2-policy',
+      });
+    },
+  })).resolves.toMatchObject({ functions: true });
+
+  expect(commands).toEqual(expect.arrayContaining([
+    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'triggerDradisContact']),
+    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'startSinglePlayerDemo']),
+  ]));
+  expect(commands).not.toEqual(expect.arrayContaining([
+    expect.arrayContaining(['functions', 'get-iam-policy']),
+  ]));
+});
+
+it('uses current Google authentication action major in deployment', () => {
+  expect(deploy).toContain('google-github-actions/auth@v3');
+  expect(deploy).not.toContain('google-github-actions/auth@v2');
 });
 
 it('blocks stale deployment runs and non-ancestral baselines before target selection', () => {

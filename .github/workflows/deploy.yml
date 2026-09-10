@@ -140,7 +140,7 @@ jobs:
           path: functions/lib
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           project_id: ${{ vars.FIREBASE_PROJECT_ID }}
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -177,19 +177,21 @@ jobs:
       - name: Restore browser access to DRADIS contact trigger
         if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
-          gcloud functions add-invoker-policy-binding triggerDradisContact \
+          gcloud run services add-iam-policy-binding triggerDradisContact \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
             --region="us-central1" \
             --member="allUsers" \
+            --role="roles/run.invoker" \
             --quiet
 
       - name: Restore browser access to Turn 1 single-player demo
         if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
-          gcloud functions add-invoker-policy-binding startSinglePlayerDemo \
+          gcloud run services add-iam-policy-binding startSinglePlayerDemo \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
             --region="us-central1" \
             --member="allUsers" \
+            --role="roles/run.invoker" \
             --quiet
 
       - name: Verify deployed surfaces
