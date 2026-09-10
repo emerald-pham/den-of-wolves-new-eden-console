@@ -22,8 +22,6 @@ import {
   reserveEmulatorSlot,
   validationPlanForFiles,
   deriveCopyOnlyValidationProfile,
-  findCoordinationConflict,
-  formatCoordinationConflict,
   prepareValidationEmulator,
   cleanupValidationEmulator,
   executeValidationProcess,
@@ -32,6 +30,31 @@ import {
   validateReleaseCompletion,
   normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
+import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
+
+type CoordinationConflict = {
+  entry: Record<string, unknown>;
+  type: 'scope' | 'claim';
+  requested: string;
+  matched: string;
+};
+
+type CoordinationRegistryExtensions = {
+  findCoordinationConflict(options: {
+    activeEntries: readonly Record<string, unknown>[];
+    repositoryIdentity: string;
+    repositoryRoot: string;
+    worktree: string;
+    scopes: readonly string[];
+    claims: readonly string[];
+  }): CoordinationConflict | undefined;
+  formatCoordinationConflict(conflict: CoordinationConflict): string;
+};
+
+const coordinationRegistryExtensions =
+  coordinationRegistry as unknown as CoordinationRegistryExtensions;
+const { findCoordinationConflict, formatCoordinationConflict } =
+  coordinationRegistryExtensions;
 
 const codeValidation = {
   commitSha: 'branch-sha',
