@@ -97,6 +97,13 @@ Confirm that the entry's absolute `worktree:` path matches `pwd`, the branch is
 attached to that checkout, and no active entry—including one from another
 repository—claims overlapping work. A blank branch, path mismatch, or
 unexpected commit is an unresolved handoff.
+For numbered implementation-plan work, read the mandatory
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+before selecting, assigning, starting, or editing the prompt. Reconcile its
+exact row, hard prerequisites, milestone/contract/owner gates, ordering
+context, evidence, and live progress with current `main` and this coordination
+registry; run its dispatcher before claiming the exact scope. Re-read it after
+any rebase or material movement of current `main`.
 The default pane shows active work and a count of hidden completed entries so
 startup review stays concise. Use `npm run coordination:status -- --history`
 only when a historical validation or release receipt is needed.
@@ -230,6 +237,10 @@ resolves `APP_VERSION` before comparing entry bodies, so moving an unchanged
 former top entry to its explicit version does not create a false replacement.
 Implementation-plan product validation also requires the progress ledger to be
 committed and reruns its changelog-coverage gate before recording the receipt.
+The documentation gate also rejects a completed prompt whose dependency index
+lists an unresolved hard prerequisite. Do not mark a prompt complete or merge
+its slice while any such prerequisite remains unmet; closure/evidence gates are
+completion checks and are not silently converted into start blockers.
 When the task changes test files, validation also runs the test-growth review
 gate. It pauses when the committed diff adds at least 160 test lines and at
 least 40 lines per newly declared test case, or adds test lines without a new

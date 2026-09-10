@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { validatePromptDependencyCompletion } from '../scripts/validate-repository-guidance.mjs';
 
 describe('repository guidance', () => {
   it('requires agents to install locked dependencies in fresh worktrees', () => {
@@ -122,5 +123,40 @@ describe('repository guidance', () => {
       'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.',
     );
     expect(guidance).toContain('Immediate post-test merge objective is checked off');
+  });
+
+  it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
+    const repositoryRoot = process.cwd();
+    const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'README.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+      `docs/${dependencyDoc}`,
+    ];
+
+    for (const surface of surfaces) {
+      const source = readFileSync(resolve(repositoryRoot, surface), 'utf8');
+      expect(source, surface).toContain(dependencyDoc);
+      expect(source, surface).toMatch(/before (?:selecting|assigning|starting|editing|marking|merging)/i);
+    }
+  });
+
+  it('rejects a completed prompt whose hard prerequisite is unresolved', () => {
+    const dependencySource = [
+      '| prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |',
+      '| 001 | NEW | missing | none | none | none | none | none | none | none | none | none | M1 | Prerequisite |',
+      '| 002 | NEW | done | 001 | none | none | none | none | none | none | none | E-001 | M1 | Dependent |',
+    ].join('\n');
+    const progressSource = [
+      '| 001 | missing | non-feature | — |',
+      '| 002 | done | non-feature | — |',
+    ].join('\n');
+
+    expect(validatePromptDependencyCompletion({ dependencySource, progressSource })).toEqual([
+      'Prompt 002 is marked done but hard prerequisite 001 is missing.',
+    ]);
   });
 });

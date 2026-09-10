@@ -1,13 +1,50 @@
 # Implementation prompt dependency index
 
-This is the fast triage index for the canonical prompt catalog. The acceptance narrative, source-of-truth decisions, and completion evidence remain authoritative in [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md), [IMPLEMENTATION_MILESTONES.md](./IMPLEMENTATION_MILESTONES.md), and [IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md). This index records only dependencies that the source explicitly states; an empty cell is written as none, not inferred as permission to skip the prompt.
+This is the mandatory dependency authority and fast triage index for the
+canonical prompt catalog. The acceptance narrative, source-of-truth decisions,
+and completion evidence remain authoritative in
+[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md),
+[IMPLEMENTATION_MILESTONES.md](./IMPLEMENTATION_MILESTONES.md), and
+[IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md); the plan is not
+standalone. This index records only dependencies that the source explicitly
+states; an empty cell is written as none, not inferred as permission to skip
+the prompt.
+
+## Mandatory gate: read before prompt work
+
+Every agent selecting, assigning, starting, or editing a numbered prompt must
+read this document first. Before selection, reconcile its exact row, live
+progress status, hard prerequisites, milestone/contract/owner gates, closure
+scope, sequence/order context, and evidence entries with current `main` and the
+active coordination registry. Run the deterministic dispatcher and claim only
+the resulting dependency-ready scope. A plan definition, numeric adjacency, or
+prose attestation cannot replace an unmet prerequisite.
+
+If a branch is rebased, current `main` materially moves, or dependency status
+or ownership changes, stop and re-read this document and the selected row,
+refresh the dispatcher, and reconcile coordination before continuing. A prompt
+cannot be marked complete or merged while a hard prerequisite remains unmet;
+closure/evidence gates are checked at completion and do not silently become
+start blockers.
 
 ## Fast path: choose the next prompt
 
-1. Read the selected prompt row here and confirm its status in IMPLEMENTATION_PROGRESS.md. The lowest unresolved ID is a resume pointer, not a dependency lock.
-2. For a missing or partial prompt, only hard_prompt_prerequisites, hard_milestone, hard_contract, and decision_owner block start readiness. closure_evidence_gates are completion/audit gates, not start blockers; release_boundaries, sequence_rules, and related_consumes are context. Every hard prompt must be done; every named milestone, contract, or owner gate must be confirmed in the current source-of-truth documents.
-3. Use milestone_hints, sequence_rules, release_boundaries, and related_consumes to pick a bounded slice with the right story context. These fields never become hidden readiness blockers.
-4. Before assigning work, read the prompt definition, its progress row, the matching milestone, and the evidence_ids source entries below. Preserve the plan workflow: separate documentation/proof from implementation and do not turn this index into completion evidence.
+1. Read the candidate prompt row here and confirm its status in
+   `IMPLEMENTATION_PROGRESS.md`. The lowest unresolved ID is a resume pointer,
+   not a dependency lock.
+2. For a missing or partial prompt, only hard_prompt_prerequisites,
+   hard_milestone, hard_contract, and decision_owner block start readiness.
+   closure_evidence_gates are completion/audit gates, not start blockers;
+   release_boundaries, sequence_rules, and related_consumes are context. Every
+   hard prompt must be done; every named milestone, contract, or owner gate
+   must be confirmed in the current source-of-truth documents.
+3. Use milestone_hints, sequence_rules, release_boundaries, and related_consumes
+   to pick a bounded slice with the right story context. These fields never
+   become hidden readiness blockers.
+4. Before assigning work, read the prompt definition, its progress row, the
+   matching milestone, and the evidence_ids source entries below. Preserve the
+   plan workflow: separate documentation/proof from implementation and do not
+   turn this index into completion evidence.
 
 Exact lookup for one prompt:
 
@@ -1316,6 +1353,13 @@ coordination_claim_reminder: claim the first unclaimed READY item; if the claim 
 
 ## Maintenance rules
 
+- Treat this index as a required preflight, not optional navigation: re-read it
+  before selecting, starting, editing, marking, or merging a numbered prompt,
+  and after any rebase or material movement of current `main`.
+- Never mark a prompt complete or merge its slice while a hard prompt
+  prerequisite is not `done`. The executable documentation gate checks this
+  completion invariant; closure/evidence gates remain completion scope and do
+  not become hidden start blockers.
 - Refresh this index whenever the plan adds, retires, renames, or reclassifies a canonical prompt, and rerun the coverage, parity, integrity, and deterministic-dispatcher checks above.
 - Preserve typed edges and their evidence. If the source is silent, write none; do not infer a previous-prompt edge, numeric adjacency, a whole domain range, or a milestone edge from ordering alone.
 - Reconcile the progress column and plan_tag with the live source ledgers whenever statuses or acceptance classes change. The embedded checker must fail before lookup on drift.

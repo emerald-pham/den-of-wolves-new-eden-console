@@ -3,7 +3,11 @@
 Read [`CLAUDE.md`](./CLAUDE.md) before doing repository work. It is the single
 source of truth for agent and contributor workflow, including branch and
 worktree setup, test-first requirements, delegation, security, versioning,
-validation, merge, and cleanup rules.
+validation, merge, and cleanup rules. For numbered implementation-plan work,
+read the mandatory [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+authority before selecting, assigning, starting, or editing a prompt; the
+dependency index and current coordination state must be reconciled before
+work begins.
 
 This file is intentionally only a pointer. Do not duplicate those rules here:
 when guidance appears to differ, `CLAUDE.md` wins. Its session checklist must
@@ -26,4 +30,5 @@ not be copied, committed, linked, or quoted into this repository or GitHub.
 Instructions read and followed at the start of an agent run are more likely to
 stick than instructions added at the end. Read `CLAUDE.md` before substantive
 work and follow its startup checklist—including the per-agent changelog
-preflight—before coding.
+preflight—and read the prompt dependency authority before selecting or editing
+any numbered prompt—before coding.
