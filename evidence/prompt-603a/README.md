@@ -1,5 +1,10 @@
 # Prompt 603a rendered evidence
 
+From the repository root, use Node.js 20 or newer with the root npm
+dependencies installed (`npm ci`). The command expects Google Chrome at
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`; set
+`CHROME_BIN` to another Chrome executable when that path is unavailable.
+
 Run `npm run test:geometry:603a` from the repository root to launch the local
 Vite app and an isolated headless Chrome profile. The script uses the Chrome
 DevTools Protocol to capture real `getBoundingClientRect()` values and writes
@@ -30,3 +35,12 @@ PROMPT_603A_EVIDENCE_DIR=/tmp/prompt-603a-a npm run test:geometry:603a
 PROMPT_603A_EVIDENCE_DIR=/tmp/prompt-603a-b npm run test:geometry:603a
 diff -u /tmp/prompt-603a-a/geometry.normalized.json /tmp/prompt-603a-b/geometry.normalized.json
 ```
+
+When `PROMPT_603A_EVIDENCE_DIR` is not set, the command writes to this
+directory. It overwrites existing files there; use a separate directory for a
+repeatability check. The command exits non-zero when an assertion fails, so
+the JSON and PNG files should be treated as evidence from the run that
+generated them rather than as a substitute for rerunning it. `geometry.json`
+records screenshot paths as absolute, run-specific paths; use the PNG files
+in the selected output directory and compare `geometry.normalized.json`,
+which removes those paths and the generation timestamp.

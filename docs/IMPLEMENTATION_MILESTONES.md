@@ -41,7 +41,15 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Audited baseline — 2026-09-08 (release 0.3.13 candidate)
+## Current audited snapshot — 2026-09-10 (release 0.3.23)
+
+The current progress ledger reports **86 / 730 prompts done, 24 partial, no
+active prompt, and 620 missing**. Prompt 020 now has a production-path
+create-to-Turn-1 composition, while the full player-story milestone gates and
+the later gameplay loops remain open. This snapshot supersedes the dated
+release note below; historical release counts are intentionally preserved.
+
+## Historical baseline — 2026-09-08 (release 0.3.13 candidate)
 
 This baseline explains why the completion route starts with production-path
 stories even though the repository has many tests and UI surfaces. Update the

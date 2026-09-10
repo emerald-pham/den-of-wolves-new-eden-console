@@ -79,7 +79,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 017 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Stabilize entity identifiers. |
 | 018 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Define phase-eligible action metadata. |
 | 019 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Define privacy-safe audit records. |
-| 020 | PROVE | done | none | RELEASE-0.3.13-MERGED | none | none | none | M1-SETUP | none | none | E-020;E-M1-SETUP | M1 | Build the lobby-to-Team-Phase contract fixture. |
+| 020 | PROVE | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Build the lobby-to-Team-Phase contract fixture. |
 | 020a | NEW | missing | 020;074-081;177;287-304 | none | none | none | none | none | none | none | E-020A | M1 | Bound the single-player demo to Turn 1 without jump authority. |
 | 021 | EXTEND | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Validate session creation input. |
 | 022 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Implement authoritative session creation. |
@@ -795,7 +795,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 
 | Rule | Explicit order or meaning | Blocking? | Evidence |
 | --- | --- | --- | --- |
-| M1-SETUP | Prompt 004 -> the separately evidenced 0.3.12 slice (021/030/073) -> the 0.3.13 slice (051/054/075 setup) -> Prompt 020 after the release is merged. | No; use the hard release gate on Prompt 020. | E-M1-SETUP; E-020 |
+| M1-SETUP | Historical order: Prompt 004 -> the separately evidenced 0.3.12 slice (021/030/073) -> the 0.3.13 slice (051/054/075 setup) -> Prompt 020. The current ledger records this sequence as satisfied. | No; this historical sequence is context, not a current readiness blocker. | E-M1-SETUP |
 | UNIFIED-ENTRY | Prompt 031a follows the current setup/readiness slice and consumes the stable seat claim/release/race/resume contract. | No; its named hard prompt/contract fields govern. | E-031A; E-031A-SETUP |
 | TICKER-LIFECYCLE | Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b experiment; 652b runs only after its listed lifecycle/layout prerequisites. | No; only hard fields block. | E-TICKER; E-603A |
 | WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645. | No; this is delivery order, not a blanket range dependency. | E-WOLF |
@@ -813,8 +813,7 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 
 | Evidence ID | Edge type | From -> target | Source anchor | Source language |
 | --- | --- | --- | --- | --- |
-| E-M1-SETUP | sequence | 004 -> 021/030/073 -> 051/054/075 setup -> 020 | IMPLEMENTATION_PLAN.md - Queued follow-on Milestone 1 releases | Prompt 004 is followed by separately evidenced releases; Prompt 020 is complete only after release 0.3.13 is merged. |
-| E-020 | hard_milestone | 020 -> RELEASE-0.3.13-MERGED | IMPLEMENTATION_PLAN.md - Queued follow-on Milestone 1 releases | Complete Prompt 020 only after release 0.3.13 is merged. |
+| E-M1-SETUP | sequence | 004 -> 021/030/073 -> 051/054/075 setup -> 020 | IMPLEMENTATION_PLAN.md - Historical follow-on Milestone 1 release sequence | Historical release order culminated in Prompt 020 after the 0.3.13 setup slice; the current ledger records this sequence as satisfied, not as a current readiness blocker. |
 | E-020A | hard_prompt | 020a -> 020; 074-081; 177; 287-304 | IMPLEMENTATION_PLAN.md - Prompt 020a definition | Dependencies: Prompt 020 plus setup/start/Turn 1 contracts in Prompts 074-081 and jump contracts in Prompts 177 and 287-304. |
 | E-031A | hard_prompt / sequence | 031a -> 030;031;032;034 | IMPLEMENTATION_PLAN.md - Future roadmap addendum, Dependency and delivery order | Prompt 031a then consumes the stable P030/P031/P032/P034 claim, release, race, and resume authority. |
 | E-031A-SETUP | hard_contract / sequence | 031a -> CURRENT-SETUP-READINESS | IMPLEMENTATION_PLAN.md - Future roadmap addendum, Dependency and delivery order | Preserve the existing P051/P054 readiness/start evidence before Prompt 031a consumes the stable seat authority. |

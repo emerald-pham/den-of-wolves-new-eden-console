@@ -15,6 +15,20 @@ This is the design envelope, not a claim of completed load testing. The
 [capacity and abuse-protection handoff](docs/ABUSE_PROTECTION_HANDOFF.md) is the
 source for that workstream.
 
+The core roster target is **8–20 players**. Press is an optional, non-counted
+extension that may add one Press Officer as a twenty-first role holder when it
+is enabled; GM instances are also non-counting. These roster rules are distinct
+from the 60-client browser capacity target.
+
+## Current status
+
+This is an active, staged work in progress rather than a claim of a complete
+game or release-ready implementation. The
+[implementation progress ledger](docs/IMPLEMENTATION_PROGRESS.md) is the source
+of truth for completed, partial, and missing work, with named evidence for each
+prompt. A passing local check or deployed build does not by itself establish
+that the full gameplay roadmap or capacity target is complete.
+
 ## Stack
 
 | Layer | Choice |
@@ -60,6 +74,11 @@ or moved.
 
 ## Quick start
 
+Use Node.js 22 and npm. The root package accepts Node.js 20 or newer, while the
+Cloud Functions package targets Node.js 22. A normal browser-only session uses
+the committed Firebase web configuration, which contains public identifiers;
+no service-account credential is needed for local development.
+
 ```bash
 npm ci
 npm ci --prefix functions
@@ -79,11 +98,19 @@ npm run test:rules  # Firestore rules through the emulator
 npm run test:all    # both suites
 ```
 
+For code changes, also run the repository lint and production builds:
+
+```bash
+npm run lint
+npm run build
+npm run build --prefix functions
+```
+
 Code changes follow the test-first and local validation gates in
 [CLAUDE.md](CLAUDE.md). Documentation-only changes—where every changed tracked
 file is Markdown or a README—use the lighter rendered-text, link, example, and
-diff review described there; they do not change application versioning or the
-player-facing changelog.
+diff review described there (the executable gate is `npm run coordination:docs`);
+they do not change application versioning or the player-facing changelog.
 
 ## Security model
 
@@ -102,6 +129,7 @@ intent, version, changelog, and resource fields.
 
 ```bash
 npm run emulators:configure -- auto
+# In separate terminals:
 npm run emulators
 npm run dev:emulators
 ```
@@ -124,7 +152,7 @@ another complete row when the configured row is already serving a preview. All
 projects on the host must point their coordination wrappers at the same ledger;
 set `CODEX_COORDINATION_FILE` to an absolute shared path when an explicit path
 is needed. Do not share a slot with another worktree; stop its emulators when
-finished.
+finished. The emulator suite requires a Java runtime; CI uses Java 21.
 
 The Firebase web configuration contains public identifiers, not credentials.
 Never commit a service-account key or App Check debug token. Production App
@@ -137,11 +165,19 @@ Before merging, agents record the required local checks with
 `coordination:validate`; the main-branch workflow then runs its deployment
 checks and deploys only affected Firebase surfaces. Product edits also update
 the visible application version and player-facing changelog. Documentation-only
-pushes do not deploy.
+pushes do not trigger CI or deployment. A manually dispatched deployment runs
+against all three configured Firebase surfaces.
 
 For Workload Identity Federation setup and repository variables, see the
 [deployment setup handoff](docs/ci-deploy-setup.md). Manual deployment uses:
 
 ```bash
 npm run deploy
+npm run deploy:hosting  # build and deploy Hosting only
 ```
+
+`npm run deploy` runs `firebase deploy` for the project selected in
+`.firebaserc`; it requires a Firebase CLI available as the `firebase` command
+and an authenticated session for the selected project. The GitHub Actions
+workflow instead uses short-lived Workload Identity Federation credentials and
+does not store a service-account JSON key.
