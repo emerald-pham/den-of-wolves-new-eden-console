@@ -95,13 +95,13 @@ it('shows the latest press dispatch while no alert is active', () => {
   expect(screen.getByRole('status', { name: 'SNN // Convoy arrival confirmed' })).toBeVisible();
 });
 
-it('warns about the Turn 0 console lockout and dismisses it when Turn 1 begins', () => {
+it('warns about the Turn 0 console lockout and drains it when Turn 1 begins', () => {
   act(() => {
     const state = useSessionStore.getState();
     state.setSession({ ...state.session!, currentTurn: 0 });
   });
 
-  render(<FleetBroadcast />);
+  const view = render(<FleetBroadcast />);
 
   expect(screen.getByRole('status', {
     name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
@@ -113,9 +113,52 @@ it('warns about the Turn 0 console lockout and dismisses it when Turn 1 begins',
     state.setSession({ ...state.session!, currentTurn: 1 });
   });
 
+  expect(screen.getByRole('status', {
+    name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+  })).toBeVisible();
+  view.container.querySelectorAll<HTMLElement>(
+    '.fleet-ticker__group[data-message-id="s1:turn-zero-console-lockout"]',
+  ).forEach((group) => fireEvent.animationEnd(group));
   expect(screen.queryByRole('status', {
     name: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
   })).not.toBeInTheDocument();
+});
+
+it('drains the Turn 0 lockout tail before replaying it when setup returns', () => {
+  const lockoutId = 's1:turn-zero-console-lockout';
+  const lockoutName = 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE';
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 0,
+  }));
+  const view = render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
+  const outgoing = [...view.container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${lockoutId}"]`,
+  )];
+  expect(outgoing).toHaveLength(2);
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 1,
+  }));
+
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${lockoutId}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelector('.fleet-ticker')).toHaveTextContent(lockoutName);
+  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
+
+  outgoing.forEach((group) => fireEvent.animationEnd(group));
+  expect(view.container.querySelector('.fleet-ticker')).toBeNull();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 0,
+  }));
+
+  expect(screen.getByRole('status', { name: lockoutName })).toBeVisible();
 });
 
 it('posts the current airspace window as a compact looping Airspace Control bulletin', () => {
@@ -288,6 +331,40 @@ it('lists the game and web app credits when the finale is live', () => {
     name: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
   })).toBeVisible();
 });
+
+it('drains finale credits before clearing the lane and replays only on a new revision', () => {
+  const firstId = 's1:finale-credits:1';
+  const credits = 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM';
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    debriefMode: { active: true, revision: 1 },
+  }));
+  const view = render(<FleetBroadcast />);
+
+  expect(screen.getByRole('status', { name: credits })).toBeVisible();
+  const outgoing = [...view.container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${firstId}"]`,
+  )];
+  expect(outgoing).toHaveLength(2);
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    debriefMode: { active: false, revision: 2 },
+  }));
+  expect(screen.getByRole('status', { name: credits })).toBeVisible();
+  outgoing.forEach((group) => fireEvent.animationEnd(group));
+  expect(screen.queryByRole('status', { name: credits })).not.toBeInTheDocument();
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    debriefMode: { active: true, revision: 2 },
+  }));
+  expect(screen.getByRole('status', { name: credits })).toBeVisible();
+  expect(view.container.querySelector(
+    '.fleet-ticker__group[data-message-id="s1:finale-credits:2"]',
+  )).toBeInTheDocument();
+});
+
 it('keeps the last press copy moving until it clears the ticker window', () => {
   const state = useSessionStore.getState();
   state.setSession({

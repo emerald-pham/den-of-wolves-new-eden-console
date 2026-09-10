@@ -3268,18 +3268,21 @@ describe('local emulator coordination', () => {
 
   it('accepts a validated product release fragment while the branch leaves central metadata untouched', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-plan-fragment-${randomUUID()}.json`);
-      const fragment = {
-        baseVersion: '0.3.26',
-        taskId: releaseEntry.id,
-        implementationPrompts: ['141'],
+    const applicationVersion = JSON.parse(
+      await readFile(resolve(process.cwd(), 'package.json'), 'utf8'),
+    ).version as string;
+    const fragment = {
+      baseVersion: applicationVersion,
+      taskId: releaseEntry.id,
+      implementationPrompts: ['141'],
       implementationProgress: {
-        completed: 87,
+        completed: 90,
         total: 730,
-        percentage: '11.92%',
-        done: 87,
+        percentage: '12.33%',
+        done: 90,
         partial: 25,
         active: 0,
-        missing: 618,
+        missing: 615,
       },
       changes: ['A release-lane feature note.'],
       validated: true,

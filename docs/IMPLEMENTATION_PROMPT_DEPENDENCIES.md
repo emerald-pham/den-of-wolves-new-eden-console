@@ -218,7 +218,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 105 | NEW | partial | none | none | none | none | none | none | none | none | none | M2 | Trigger pursuit-10 failure. |
 | 106 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Replay lifecycle announcements. |
 | 106a | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Enforce FleetBroadcast precedence. |
-| 106b | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Verify exact turn-transmission timing. |
+| 106b | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Verify exact turn-transmission timing. |
 | 106c | EXTEND | missing | none | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | M2 | Make fleet-ticker lifecycle server-authoritative. |
 | 107 | DECISION | missing | none | none | none | none | none | none | none | none | none | M2 | Decide split-fleet clock semantics. |
 | 108 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Reconnect during a live timer. |

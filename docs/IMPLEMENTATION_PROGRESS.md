@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**89 / 730 prompts complete (12.19%)**
+**90 / 730 prompts complete (12.33%)**
 
-Status breakdown: **89 done · 25 partial · 0 active · 616 missing**.
+Status breakdown: **90 done · 25 partial · 0 active · 615 missing**.
 
 Active prompt: **none**.
 
@@ -40,6 +40,21 @@ existing seat/console and flag-selection experiences while preserving the
 historical bespoke flag choreography. The version 0.3.13 release snapshot below
 therefore records the expanded 721-prompt denominator; older release snapshots
 remain historical rather than being retroactively restated.
+
+### Version 0.3.27 progress evidence
+
+The release boundary records Prompt 106B complete at **90 / 730 = 12.33%** with
+**90 done · 25 partial · 0 active · 615 missing**. Turn 0 console-lockout and
+finale-credit transmissions now keep their accessible status announcement
+visible while the outgoing ticker tail drains, then clear and replay only at
+the next authorized lifecycle transition. Focused red/green evidence covers
+Turn 0 lockout, Turn 1 replacement, ordinary-turn broadcast composition,
+lockout tail drain and replay, finale tail drain and revision replay, and the
+existing turn-start announcement timing/fade cases: 36 focused component tests
+pass. The rendered review captured normal-motion desktop, normal-motion mobile,
+reduced-motion 320x844 and 390x844 portrait, and reduced-motion 844x390
+landscape states; the accessible `role=status` copy remained readable and
+wrapped without clipping at the compact widths.
 
 ### Version 0.3.26 progress evidence
 
@@ -500,7 +515,7 @@ release classification and evidence.
 | 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 106b | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 106b | done | feature | 0.3.27 | Prompt 106B preserves exact turn-transmission lifecycle timing: Turn 0 lockout and finale credits keep accessible status visible while outgoing tails drain, then clear and replay at the next authorized transition. Focused red/green and rendered evidence cover compact reduced-motion wrapping, ordinary-turn composition, lockout/finale drain, and revision replay. |
 | 106c | missing | non-feature | — | Future server-authoritative FleetTicker lifecycle: deterministic session/message/revision identities, precedence, current/queued/draining state, pass counts, dismissals, and replay cursors must serialize concurrent automatic/Admiral/Press send-replace-dismiss and Red Alert activation/stand-down. Reconnect/replay/late join and every client converge; idempotent CAS, authenticated authority, privacy-safe projection/audit, schema bounds, and direct-write denial precede P652a/P652b. |
 | 107 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 108 | done | non-feature | — | Existing `src/components/FleetAlert.test.tsx` feeds an active Team phase through the actual `subscribeSessionState` listener, renders the server-deadline timer and permitted action controls, advances the client clock, unsubscribes and reconnects with the same persisted snapshot, then observes the reduced remaining time and the lifted Coordination action gate. Proof-only; no production change. |

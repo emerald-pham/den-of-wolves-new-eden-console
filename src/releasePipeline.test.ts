@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, it } from 'vitest';
-import { applyReleaseFragment, prepareReleaseFragmentFile } from '../scripts/coordination-throughput.mjs';
+import {
+  applyReleaseFragment,
+  nextReleaseVersion,
+  prepareReleaseFragmentFile,
+} from '../scripts/coordination-throughput.mjs';
 import {
   finalizeReleaseFragment,
   prepareCoordinationReleaseFragment,
@@ -498,6 +502,8 @@ it('exposes just-in-time coordination and release-fragment command surfaces', ()
 it('re-runs the existing implementation-progress validator against generated release metadata', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-release-finalizer-'));
   const lanePath = resolve(root, 'release-lane.json');
+  const baseVersion = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
+  const nextVersion = nextReleaseVersion(baseVersion);
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
     await mkdir(resolve(root, 'docs'), { recursive: true });
@@ -510,17 +516,17 @@ it('re-runs the existing implementation-progress validator against generated rel
     await prepareReleaseFragmentFile(lanePath, {
       taskId: 'finalizer-task',
       worktree: root,
-      baseVersion: '0.3.26',
+      baseVersion,
       baseMainSha: 'main-a',
       changes: ['A validated finalizer note.'],
       implementationProgress: {
-        completed: 89,
+        completed: 90,
         total: 730,
-        percentage: '12.19%',
-        done: 89,
+        percentage: '12.33%',
+        done: 90,
         partial: 25,
         active: 0,
-        missing: 616,
+        missing: 615,
       },
     });
     await applyReleaseFragment(lanePath, {
@@ -539,7 +545,7 @@ it('re-runs the existing implementation-progress validator against generated rel
     });
 
     const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
-    expect(packageJson.version).toBe('0.3.27');
+    expect(packageJson.version).toBe(nextVersion);
     expect(await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).toContain(
       'A validated finalizer note.',
     );
@@ -624,6 +630,8 @@ it('binds central fragment preparation and landing to the task receipt and curre
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-bound-release-'));
   const lanePath = resolve(root, 'release-lane.json');
   const coordinationPath = resolve(root, 'coordination.json');
+  const applicationVersion = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
+  const expectedVersion = nextReleaseVersion(applicationVersion);
   const previousCwd = process.cwd();
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
@@ -698,7 +706,7 @@ it('binds central fragment preparation and landing to the task receipt and curre
       coordinationFilePath: coordinationPath,
       coordinationEntryId: 'bound-release-task',
     });
-    expect(landed).toMatchObject({ taskId: 'bound-release-task', version: '0.3.27' });
+    expect(landed).toMatchObject({ taskId: 'bound-release-task', version: expectedVersion });
     const lane = JSON.parse(await readFile(lanePath, 'utf8'));
     expect(lane.fragments[0]).toMatchObject({
       state: 'landed',

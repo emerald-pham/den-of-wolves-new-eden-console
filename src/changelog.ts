@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['106b'],
+    implementationProgress: {
+      completed: 90,
+      total: 730,
+      percentage: '12.33%',
+      done: 90,
+      partial: 25,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Turn and finale transmissions now keep their accessible status visible until the moving tail actually clears, so lifecycle copy remains readable and replays at the correct transition.',
+    ],
+  },
+  {
+    version: '0.3.26',
     implementationPrompts: [109],
     implementationProgress: {
       completed: 89,
