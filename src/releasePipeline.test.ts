@@ -191,7 +191,7 @@ it('executes target decisions against real Git ancestry and current-tip guards',
     return stdout;
   };
   try {
-    await git(['init', '--quiet']);
+    await git(['init', '--quiet', '--initial-branch=main']);
     await git(['config', 'user.email', 'ci@example.test']);
     await git(['config', 'user.name', 'CI']);
     await git(['commit', '--quiet', '--allow-empty', '-m', 'baseline']);
@@ -263,6 +263,8 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).toContain('workflow_call:');
   expect(ci).toContain('branches-ignore: [main]');
   expect(ci).not.toContain('branches: [main]');
+  expect(ci).toContain('fetch-depth: 0');
+  expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
   expect(ci).toContain('actions/upload-artifact@v4');
   expect(deploy).toContain('ref: ${{ github.sha }}');
   expect(deploy).toContain('actions/download-artifact@v4');
@@ -277,6 +279,14 @@ it('keeps CI dependency caches, timeouts, and single-pass bundle checking explic
   expect(ci).toContain('npm ci --prefix functions --prefer-offline --no-audit');
   expect(ci).toContain('timeout-minutes: 30');
   expect(ci).toContain('node scripts/check-bundle-size.mjs');
+});
+
+it('uses current Node 24 action runtimes in verification and deployment', () => {
+  expect(ci).toContain('actions/checkout@v7');
+  expect(ci).toContain('actions/setup-node@v7');
+  expect(deploy.match(/actions\/checkout@v7/g)).toHaveLength(2);
+  expect(deploy).toContain('actions/setup-node@v7');
+  expect(`${ci}\n${deploy}`).not.toMatch(/actions\/(?:checkout|setup-node)@v4/);
 });
 
 it('preflights deploy runtime dependencies and scopes deployment credentials', () => {
