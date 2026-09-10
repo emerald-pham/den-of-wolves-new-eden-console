@@ -1819,11 +1819,16 @@ describe('local emulator coordination', () => {
         preemptiveChangelog: 'No player-facing change.',
         validation,
       };
+      const revalidated = {
+        ...validation,
+        commitSha: currentMainSha,
+      };
       const mergedEntry = {
         ...restoredEntry,
         id: 'finish-provenance-merged',
         claims: ['fixture-finish-provenance-merged'],
         branchName: 'feature/finish-provenance-main',
+        validation: revalidated,
       };
       const state = {
         version: 1,
