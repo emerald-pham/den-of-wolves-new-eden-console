@@ -145,6 +145,8 @@ describe('local emulator coordination', () => {
       id: 'amend-owner',
       worktree: process.cwd(),
       status: 'active',
+      startedAt: '2099-01-01T00:00:00.000Z',
+      heartbeatAt: '2099-01-01T00:00:00.000Z',
       intent: 'amend coordination ownership',
       versionPlan: 'Tooling-only; no application version change.',
       preemptiveChangelog: 'No player-facing change.',
@@ -355,6 +357,41 @@ describe('local emulator coordination', () => {
       });
       expect(forecast.blocked).toBe(true);
       expect(formatConflictForecast(forecast)).toContain('shared claim remains exclusive');
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects an amendment from an expired owner until the owner heartbeats', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-expired-amend-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = {
+      ...amendmentEntry({
+        id: 'expired-amend-owner',
+        heartbeatAt: '2099-01-01T00:00:00.000Z',
+      }),
+      ...identity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'src/config',
+        now: '2099-01-01T00:02:00.000Z',
+        leaseMs: 60_000,
+      })).rejects.toThrow(/owner confirmation|required.*heartbeat/i);
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        scopes: entry.scopes,
+        claims: entry.claims,
+      });
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -3010,9 +3047,10 @@ describe('local emulator coordination', () => {
 
   it('accepts a validated product release fragment while the branch leaves central metadata untouched', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-plan-fragment-${randomUUID()}.json`);
-    const fragment = {
-      baseVersion: '0.3.23',
-      implementationPrompts: ['141'],
+      const fragment = {
+        baseVersion: '0.3.23',
+        taskId: releaseEntry.id,
+        implementationPrompts: ['141'],
       implementationProgress: {
         completed: 86,
         total: 730,
@@ -3057,6 +3095,96 @@ describe('local emulator coordination', () => {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
+  });
+
+  it('loads and validates a task-bound release fragment from the coordination validate file option', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-plan-fragment-cli-${randomUUID()}.json`);
+    const fragmentPath = resolve(tmpdir(), `den-of-wolves-plan-fragment-${randomUUID()}.json`);
+    const applicationVersion = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf8')).version;
+    const entry = {
+      ...releaseEntry,
+      workType: 'product',
+      implementationPrompt: 141,
+      versionPlan: `Reserve application patch version ${applicationVersion}.`,
+      scopes: ['scripts/feature.mjs'],
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await writeFile(fragmentPath, JSON.stringify({
+        id: 'release-fragment-cli',
+        taskId: entry.id,
+        baseVersion: applicationVersion,
+        changes: ['A CLI-loaded release note.'],
+        implementationPrompts: ['141'],
+      }), 'utf8');
+
+      const validated = await validateCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({
+          branchVersion: nextApplicationVersion(applicationVersion),
+          branchLockVersion: nextApplicationVersion(applicationVersion),
+          mainVersion: applicationVersion,
+          mainLockVersion: applicationVersion,
+          branchChangelog: [
+            { version: nextApplicationVersion(applicationVersion), source: 'A CLI-loaded release note.' },
+            { version: applicationVersion, source: 'previous release' },
+          ],
+          mainChangelog: [
+            { version: applicationVersion, source: 'previous release' },
+          ],
+          changedFiles: ['scripts/feature.mjs'],
+        }),
+        'release-fragment-file': fragmentPath,
+        'release-fragment-id': 'release-fragment-cli',
+        commandRunner: async () => undefined,
+      });
+      expect(validated.validation?.releaseFragment).toMatchObject({
+        id: 'release-fragment-cli',
+        taskId: entry.id,
+        validated: true,
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+      await unlink(`${filePath}.validation-queue.json`).catch(() => undefined);
+      await unlink(`${filePath}.validation-queue.json.lock`).catch(() => undefined);
+      await unlink(fragmentPath).catch(() => undefined);
+    }
+  });
+
+  it('does not let an unvalidated or foreign release fragment waive product metadata gates', () => {
+    const productEntry = {
+      ...releaseEntry,
+      workType: 'product',
+      implementationPrompt: 141,
+      versionPlan: 'Reserve application patch version 0.3.3.',
+    };
+    const release = releaseState({ changedFiles: ['scripts/example.mjs'] });
+
+    expect(() => validateReleaseCompletion({
+      entry: productEntry,
+      release,
+      releaseFragment: {
+        taskId: 'different-task',
+        validated: true,
+        changes: ['A note.'],
+      },
+    })).toThrow(/task-bound|IMPLEMENTATION_PROGRESS/i);
+
+    expect(() => validateReleaseCompletion({
+      entry: productEntry,
+      release,
+      releaseFragment: {
+        taskId: productEntry.id,
+        validated: false,
+        changes: ['A note.'],
+      },
+    })).toThrow(/validated|IMPLEMENTATION_PROGRESS/i);
   });
 
   it('runs the required prompt through the progress gate before validation commands', async () => {

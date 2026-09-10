@@ -7,6 +7,7 @@ import {
   readFile,
   readdir,
   readlink,
+  realpath,
   rename,
   stat,
   unlink,
@@ -230,6 +231,7 @@ async function validationInputFingerprint({
   entry,
   release,
   plan,
+  releaseFragment,
   documentationReview,
   visualReview,
   testGrowthReview,
@@ -283,6 +285,19 @@ async function validationInputFingerprint({
       postValidationChangedFiles: sortedStrings(release.postValidationChangedFiles),
     },
     plan,
+    releaseFragment: releaseFragment
+      ? {
+          id: releaseFragment.id ?? null,
+          taskId: releaseFragment.taskId ?? null,
+          validated: releaseFragment.validated === true,
+          baseVersion: releaseFragment.baseVersion ?? null,
+          baseMainSha: releaseFragment.baseMainSha ?? null,
+          changes: Array.isArray(releaseFragment.changes) ? releaseFragment.changes : [],
+          implementationPrompts: Array.isArray(releaseFragment.implementationPrompts)
+            ? releaseFragment.implementationPrompts
+            : [],
+        }
+      : null,
     reviews: {
       documentation: documentationReview || null,
       visual: visualReview || null,
@@ -663,7 +678,14 @@ function implementationPlanMetadataErrors(entry, release, releaseFragment) {
     errors.push('product work must record an implementation prompt with --implementation-prompt NNN or NNN<letter>');
   }
   const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
-  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !releaseFragment) {
+  const fragmentIsBoundAndValidated = releaseFragment?.validated === true &&
+    releaseFragment.taskId === entry.id;
+  if (releaseFragment && !fragmentIsBoundAndValidated) {
+    errors.push(
+      'release fragment must be explicitly validated and task-bound to the coordination entry',
+    );
+  }
+  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !fragmentIsBoundAndValidated) {
     errors.push(
       'implementation-plan product work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
     );
@@ -2505,7 +2527,7 @@ const beginEntry = beginCoordinationEntry;
  * caller to rewrite its identity, release agreement, or lifecycle state.
  */
 export async function amendCoordinationEntry(filePath, options = {}) {
-  return amendCoordinationOwnership(filePath, options);
+  return amendCoordinationOwnership(filePath, options, { requireFreshLease: true });
 }
 
 /**
@@ -2808,7 +2830,241 @@ export async function forecastCoordinationEntry(filePath, options = {}) {
     scopes: csv(options.scope),
     files: csv(options.files),
     claims: csv(options.claims),
+    now: options.now ?? Date.now(),
+    leaseMs: options.leaseMs ?? (options['lease-ms'] ? Number(options['lease-ms']) : undefined),
   });
+}
+
+function releaseCoordinationFilePath(options = {}) {
+  return resolve(
+    options.coordinationFilePath ?? options['coordination-file'] ?? coordinationFilePath(),
+  );
+}
+
+function releaseTaskId(options = {}) {
+  return text(options.coordinationEntryId ?? options['coordination-id'] ?? options.id ?? options.taskId);
+}
+
+async function readReleaseCoordinationBinding(filePath, options = {}, { laneState, requireValidation = false } = {}) {
+  const entryId = releaseTaskId(options);
+  if (!entryId) {
+    throw new Error(
+      'central release operations require --id <coordination-entry-id> so the fragment is task-bound.',
+    );
+  }
+  const repositoryDirectory = await realpath(resolve(options.repositoryDirectory ?? options.worktree ?? process.cwd()));
+  const callerDirectory = await realpath(process.cwd());
+  if (repositoryDirectory !== callerDirectory) {
+    throw new Error(
+      `central release operations must run from ${callerDirectory}; received ${repositoryDirectory}.`,
+    );
+  }
+  const coordinationPath = resolve(filePath ?? releaseCoordinationFilePath(options));
+  const state = await readCoordinationState(coordinationPath);
+  const entry = state.entries.find((candidate) => candidate.id === entryId);
+  if (!entry) throw new Error(`No coordination entry found for ${entryId}.`);
+  if (entry.status !== 'active') {
+    throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+  }
+  const entryWorktree = await realpath(entry.worktree).catch(() => entry.worktree);
+  if (entryWorktree !== repositoryDirectory) {
+    throw new Error(
+      `Release fragment ${entryId} is bound to worktree ${entry.worktree}, not ${repositoryDirectory}.`,
+    );
+  }
+
+  const start = await readGitStartState(repositoryDirectory);
+  if (start.branchName !== entry.branchName) {
+    throw new Error(
+      `Release fragment ${entryId} is bound to branch ${entry.branchName}, not ${start.branchName}.`,
+    );
+  }
+  const entryRepositoryRoot = entry.repositoryRoot
+    ? await realpath(entry.repositoryRoot).catch(() => resolve(entry.repositoryRoot))
+    : undefined;
+  if (entryRepositoryRoot && entryRepositoryRoot !== start.repositoryRoot) {
+    throw new Error(
+      `Release fragment ${entryId} is bound to repository ${entry.repositoryRoot}, not ${start.repositoryRoot}.`,
+    );
+  }
+  const entryRepositoryIdentity = entry.repositoryIdentity
+    ? await realpath(entry.repositoryIdentity).catch(() => resolve(entry.repositoryIdentity))
+    : undefined;
+  if (entryRepositoryIdentity && entryRepositoryIdentity !== start.repositoryIdentity) {
+    throw new Error(
+      `Release fragment ${entryId} is bound to Git identity ${entry.repositoryIdentity}, not ${start.repositoryIdentity}.`,
+    );
+  }
+  const lease = leaseStatusForEntry(entry, {
+    now: options.now ?? Date.now(),
+    leaseMs: options.leaseMs,
+  });
+  if (lease.ownerConfirmationRequired) {
+    throw new Error(
+      `Cannot release coordination entry ${entryId}: owner confirmation is required; heartbeat the active owner before release.`,
+    );
+  }
+
+  const finalization = laneState?.finalization;
+  const recovering = finalization?.taskId === entryId;
+  const landed = laneState?.fragments?.some((fragment) =>
+    fragment.taskId === entryId && fragment.state === 'landed',
+  ) === true;
+  if (finalization && !recovering) {
+    throw new Error(
+      `Release finalization for ${text(finalization.taskId, 'another task')} is still in progress; recover it before landing ${entryId}.`,
+    );
+  }
+
+  const packageSource = await readFile(resolve(repositoryDirectory, 'package.json'), 'utf8');
+  const lockSource = await readFile(resolve(repositoryDirectory, 'package-lock.json'), 'utf8');
+  let packageJson;
+  let lockfile;
+  try {
+    packageJson = JSON.parse(packageSource);
+    lockfile = JSON.parse(lockSource);
+  } catch (error) {
+    throw new Error(`Release fragment ${entryId} requires valid package metadata.`, { cause: error });
+  }
+  const applicationVersion = text(packageJson?.version);
+  const lockVersion = text(lockfile?.packages?.['']?.version);
+  if (!recovering && !landed && (!applicationVersion || applicationVersion !== lockVersion)) {
+    throw new Error(
+      `Release fragment ${entryId} requires package.json and package-lock.json to agree before landing.`,
+    );
+  }
+  const mainPackage = JSON.parse(await readGitFile('main', 'package.json', repositoryDirectory));
+  const mainVersion = text(mainPackage?.version);
+  if (!recovering && !landed && mainVersion !== applicationVersion) {
+    throw new Error(
+      `Release fragment ${entryId} must target current main version ${mainVersion}; checkout is ${applicationVersion}.`,
+    );
+  }
+  const requestedMainSha = text(options.currentMainSha ?? options.mainSha);
+  if (requestedMainSha && requestedMainSha !== start.mainSha) {
+    throw new Error(
+      `Release fragment ${entryId} was given main ${requestedMainSha}, but current main is ${start.mainSha}.`,
+    );
+  }
+  if (!(await gitIsAncestor(start.mainSha, start.branchSha, repositoryDirectory))) {
+    throw new Error(
+      `Release fragment ${entryId} requires current main ${start.mainSha} to be an ancestor of ${start.branchSha}.`,
+    );
+  }
+
+  if (!recovering && !landed) {
+    const status = await runGit(['status', '--porcelain', '--untracked-files=no'], repositoryDirectory);
+    if (status) {
+      throw new Error(
+        `Release fragment ${entryId} requires a clean task branch before finalization; commit the task changes first.`,
+      );
+    }
+  }
+  if (requireValidation) {
+    if (entry.validation?.passed !== true || !text(entry.validation?.commitSha)) {
+      throw new Error(
+        `Release fragment ${entryId} requires a passing task-bound validation receipt before landing.`,
+      );
+    }
+    if (entry.validation.commitSha !== start.branchSha) {
+      throw new Error(
+        `Release fragment ${entryId} validation receipt ${entry.validation.commitSha} does not prove current branch ${start.branchSha}.`,
+      );
+    }
+  }
+
+  return {
+    entry,
+    start,
+    repositoryDirectory,
+    coordinationPath,
+    applicationVersion: mainVersion || applicationVersion,
+    mainSha: start.mainSha,
+    mainVersion,
+    requiredPrompt: entry.workType === 'product' ? normalizePromptId(entry.implementationPrompt) : null,
+    validationReceiptCommitSha: text(entry.validation?.commitSha) || null,
+    recovering,
+    landed,
+  };
+}
+
+/**
+ * Bind a release fragment to a live coordination entry without touching
+ * package.json, package-lock.json, or src/changelog.ts. Product fragments
+ * inherit the entry's required implementation prompt and current main state.
+ */
+export async function prepareCoordinationReleaseFragment(filePath, options = {}) {
+  const lanePath = resolve(filePath);
+  const laneState = await readReleaseLaneState(lanePath);
+  const binding = await readReleaseCoordinationBinding(
+    releaseCoordinationFilePath(options),
+    options,
+    { laneState },
+  );
+  const taskId = releaseTaskId(options);
+  if (taskId !== binding.entry.id) {
+    throw new Error(`Release fragment task ${taskId} does not match coordination entry ${binding.entry.id}.`);
+  }
+  const requiredPrompt = binding.requiredPrompt;
+  const requestedPrompts = options.implementationPrompts ?? options['implementation-prompts'];
+  const prompts = requestedPrompts === undefined || requestedPrompts === null
+    ? (requiredPrompt ? [requiredPrompt] : [])
+    : Array.isArray(requestedPrompts)
+      ? requestedPrompts
+      : normalizedList(requestedPrompts);
+  if (requiredPrompt && !prompts.map(normalizePromptId).includes(requiredPrompt)) {
+    throw new Error(`Release fragment ${taskId} must include required Prompt ${requiredPrompt}.`);
+  }
+  return prepareReleaseFragmentFile(lanePath, {
+    taskId,
+    worktree: binding.repositoryDirectory,
+    changes: options.changes ?? (options.change ? normalizedList(options.change) : []),
+    implementationPrompts: prompts,
+    implementationProgress: options.implementationProgress,
+    baseVersion: binding.applicationVersion,
+    baseMainSha: binding.mainSha,
+    coordinationEntryId: binding.entry.id,
+    coordinationBranchName: binding.start.branchName,
+    coordinationBranchSha: binding.start.branchSha,
+    requiredPrompt,
+  }, { now: options.now ?? new Date() });
+}
+
+async function assertBoundReleaseFragment(fragment, binding, { requireReceipt = false } = {}) {
+  if (!fragment || fragment.taskId !== binding.entry.id) {
+    throw new Error(`Release fragment must be task-bound to coordination entry ${binding.entry.id}.`);
+  }
+  if (fragment.coordinationEntryId !== binding.entry.id) {
+    throw new Error(`Release fragment ${fragment.taskId} is not bound to coordination entry ${binding.entry.id}.`);
+  }
+  if (fragment.worktree !== binding.repositoryDirectory) {
+    throw new Error(`Release fragment ${fragment.taskId} is not bound to worktree ${binding.repositoryDirectory}.`);
+  }
+  if (fragment.coordinationBranchName !== binding.start.branchName ||
+    fragment.coordinationBranchSha !== binding.start.branchSha) {
+    throw new Error(
+      `Release fragment ${fragment.taskId} is not bound to the current task branch ${binding.start.branchName}@${binding.start.branchSha}.`,
+    );
+  }
+  if (fragment.baseVersion !== binding.applicationVersion || fragment.baseMainSha !== binding.mainSha) {
+    throw new Error(
+      `Release fragment ${fragment.taskId} must target current main ${binding.mainVersion}@${binding.mainSha}.`,
+    );
+  }
+  if (binding.requiredPrompt) {
+    const prompts = Array.isArray(fragment.implementationPrompts)
+      ? fragment.implementationPrompts.map(normalizePromptId)
+      : [];
+    if (fragment.requiredPrompt !== binding.requiredPrompt || !prompts.includes(binding.requiredPrompt)) {
+      throw new Error(`Release fragment ${fragment.taskId} must carry required Prompt ${binding.requiredPrompt}.`);
+    }
+  }
+  if (requireReceipt && binding.validationReceiptCommitSha &&
+    fragment.coordinationBranchSha !== binding.validationReceiptCommitSha) {
+    throw new Error(
+      `Release fragment ${fragment.taskId} branch receipt ${fragment.coordinationBranchSha} does not match ${binding.validationReceiptCommitSha}.`,
+    );
+  }
 }
 
 /**
@@ -2819,53 +3075,60 @@ export async function forecastCoordinationEntry(filePath, options = {}) {
  * checkout unchanged.
  */
 export async function finalizeReleaseFragment(filePath, options = {}) {
-  if (!options.taskId) throw new Error('release fragment finalization requires --task-id <task-id>.');
-  const repositoryDirectory = resolve(options.repositoryDirectory ?? process.cwd());
-  let currentMainSha = options.currentMainSha ?? options.mainSha;
-  if (!currentMainSha) {
-    try {
-      currentMainSha = await runGit(['rev-parse', 'main'], repositoryDirectory);
-    } catch {
-      // Exported callers may provide a metadata-only fixture. Version and
-      // package/changelog synchronization checks still apply there.
-      currentMainSha = undefined;
-    }
-  }
-  const existingLane = await readReleaseLaneState(filePath);
-  const existing = existingLane.fragments.find((fragment) => fragment.taskId === options.taskId);
+  const taskId = releaseTaskId(options);
+  if (!taskId) throw new Error('release fragment finalization requires --id <coordination-entry-id>.');
+  const lanePath = resolve(filePath);
+  let laneState = await readReleaseLaneState(lanePath);
+  let existing = laneState.fragments.find((fragment) => fragment.taskId === taskId);
+  const binding = await readReleaseCoordinationBinding(
+    releaseCoordinationFilePath(options),
+    { ...options, taskId },
+    { laneState, requireValidation: true },
+  );
   if (!existing) {
-    if (!options.baseVersion) {
-      throw new Error(
-        `Release fragment ${options.taskId} is not prepared; --base-version is required before finalization.`,
-      );
-    }
-    await prepareReleaseFragmentFile(filePath, {
-      taskId: options.taskId,
-      worktree: options.worktree ?? process.cwd(),
-      changes: options.changes,
-      implementationPrompts: options.implementationPrompts,
-      implementationProgress: options.implementationProgress,
-      baseVersion: options.baseVersion,
-      baseMainSha: options.baseMainSha ?? options.baseSha ?? currentMainSha,
-    }, { now: options.now ?? new Date() });
+    await prepareCoordinationReleaseFragment(lanePath, {
+      ...options,
+      taskId,
+      coordinationEntryId: binding.entry.id,
+      repositoryDirectory: binding.repositoryDirectory,
+    });
+    laneState = await readReleaseLaneState(lanePath);
+    existing = laneState.fragments.find((fragment) => fragment.taskId === taskId);
+  }
+  await assertBoundReleaseFragment(existing, binding, { requireReceipt: true });
+  const receiptFragmentId = text(binding.entry.validation?.releaseFragment?.id);
+  if (receiptFragmentId && receiptFragmentId !== existing.id) {
+    throw new Error(
+      `Release fragment ${existing.id} does not match validation receipt fragment ${receiptFragmentId}.`,
+    );
   }
 
-  return applyReleaseFragment(filePath, {
-    taskId: options.taskId,
-    repositoryDirectory,
+  return applyReleaseFragment(lanePath, {
+    taskId,
+    repositoryDirectory: binding.repositoryDirectory,
     packagePath: options.packagePath,
     lockfilePath: options.lockfilePath,
     changelogPath: options.changelogPath,
     now: options.now ?? new Date(),
-    currentMainSha,
+    currentMainSha: binding.mainSha,
+    provenance: {
+      coordinationEntryId: binding.entry.id,
+      coordinationWorktree: binding.repositoryDirectory,
+      coordinationBranchName: binding.start.branchName,
+      coordinationBranchSha: binding.start.branchSha,
+      baseMainSha: binding.mainSha,
+      validationReceiptCommitSha: binding.validationReceiptCommitSha,
+      finalBranchSha: binding.start.branchSha,
+    },
     validateFinalMetadata: async ({ fragment, version, changelogSource }) => {
-      const inputs = readImplementationProgress({ cwd: repositoryDirectory });
+      await assertBoundReleaseFragment(fragment, binding, { requireReceipt: true });
+      const inputs = readImplementationProgress({ cwd: binding.repositoryDirectory });
       const fragmentValidation = validateReleaseFragment({
         fragment,
         progressSource: inputs.progressSource,
         planSource: inputs.planSource,
         applicationVersion: fragment.baseVersion,
-        requiredPrompt: options.requiredPrompt,
+        requiredPrompt: binding.requiredPrompt,
       });
       if (fragmentValidation.errors.length > 0) {
         throw new Error(
@@ -2876,7 +3139,7 @@ export async function finalizeReleaseFragment(filePath, options = {}) {
         ...inputs,
         applicationVersion: version,
         changelogSource,
-        requiredPrompt: options.requiredPrompt,
+        requiredPrompt: binding.requiredPrompt,
       });
       if (result.errors.length > 0) {
         throw new Error(
@@ -2886,6 +3149,60 @@ export async function finalizeReleaseFragment(filePath, options = {}) {
       return result;
     },
   });
+}
+
+async function loadValidatedReleaseFragment(options, entry, repositoryDirectory) {
+  const fragmentFile = options.releaseFragmentFile ?? options['release-fragment-file'];
+  if (!fragmentFile) return options.releaseFragment ?? options.validatedFragment ?? null;
+  const absolutePath = resolve(repositoryDirectory, fragmentFile);
+  let payload;
+  try {
+    payload = JSON.parse(await readFile(absolutePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Cannot load release fragment ${absolutePath}.`, { cause: error });
+  }
+  const candidates = Array.isArray(payload?.fragments)
+    ? payload.fragments
+    : payload?.fragment && typeof payload.fragment === 'object'
+      ? [payload.fragment]
+      : [payload];
+  const requestedId = text(options.releaseFragmentId ?? options['release-fragment-id']);
+  const fragment = candidates.find((candidate) =>
+    candidate && typeof candidate === 'object' &&
+    (requestedId ? candidate.id === requestedId : candidate.taskId === entry.id),
+  );
+  if (!fragment) {
+    throw new Error(
+      `Release fragment file ${absolutePath} contains no fragment for coordination entry ${entry.id}.`,
+    );
+  }
+  if (fragment.taskId !== entry.id) {
+    throw new Error(
+      `Release fragment ${text(fragment.taskId, 'unknown')} is not task-bound to coordination entry ${entry.id}.`,
+    );
+  }
+  if (!text(fragment.id)) {
+    throw new Error(`Release fragment for coordination entry ${entry.id} must include its lane fragment id.`);
+  }
+  const inputs = readImplementationProgress({ cwd: repositoryDirectory });
+  const validation = validateReleaseFragment({
+    fragment,
+    progressSource: inputs.progressSource,
+    planSource: inputs.planSource,
+    applicationVersion: inputs.applicationVersion,
+    requiredPrompt: entry.workType === 'product' ? entry.implementationPrompt : null,
+  });
+  if (validation.errors.length > 0) {
+    throw new Error(
+      `Release fragment ${fragment.taskId} failed validation: ${validation.errors.join('; ')}`,
+    );
+  }
+  return {
+    ...validation.fragment,
+    taskId: entry.id,
+    validated: true,
+    validationSource: absolutePath,
+  };
 }
 
 /**
@@ -2926,6 +3243,8 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
 
+    const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory);
+
     const startBranchSha = entry.startBranchSha || options['start-sha'];
     if (!startBranchSha) {
       throw new Error(
@@ -2957,7 +3276,7 @@ export async function validateCoordinationEntry(filePath, options) {
       release,
       requireMerged: false,
       requireReconciled: true,
-      releaseFragment: options.releaseFragment ?? options.validatedFragment ?? null,
+      releaseFragment,
     });
     if (release.branchBaselineIsAncestor === false) {
       errors.push(
@@ -2984,7 +3303,7 @@ export async function validateCoordinationEntry(filePath, options) {
     }
     errors.push(...implementationPlanGateErrors(
       entry,
-      options.releaseFragment ?? options.validatedFragment ?? null,
+      releaseFragment,
     ));
     const previousValidation = entry.validation;
     const testGrowthJustification = text(
@@ -3035,6 +3354,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entry,
       release,
       plan,
+      releaseFragment,
       documentationReview,
       visualReview,
       testGrowthReview,
@@ -3084,6 +3404,7 @@ export async function validateCoordinationEntry(filePath, options) {
       visualReview,
       testGrowthJustification,
       testGrowthReview,
+      releaseFragment,
     };
   });
 
@@ -3207,7 +3528,7 @@ export async function validateCoordinationEntry(filePath, options) {
     release: finalRelease,
     requireMerged: false,
     requireReconciled: true,
-    releaseFragment: options.releaseFragment ?? options.validatedFragment ?? null,
+    releaseFragment: preparation.releaseFragment,
   });
   const finalTestGrowthReview = testGrowthReviewForRelease({
     release: finalRelease,
@@ -3236,6 +3557,7 @@ export async function validateCoordinationEntry(filePath, options) {
     },
     release: finalRelease,
     plan: finalPlan,
+    releaseFragment: preparation.releaseFragment,
     documentationReview: preparation.documentationReview,
     visualReview: preparation.visualReview,
     testGrowthReview: finalTestGrowthReview,
@@ -3297,6 +3619,16 @@ export async function validateCoordinationEntry(filePath, options) {
       docsOnly: finalPlan.documentationOnly,
       profile: finalPlan.profile,
       inputFingerprint: finalInputFingerprint,
+      ...(preparation.releaseFragment
+        ? {
+            releaseFragment: {
+              id: preparation.releaseFragment.id ?? null,
+              taskId: preparation.releaseFragment.taskId ?? options.id,
+              validated: preparation.releaseFragment.validated === true,
+              source: preparation.releaseFragment.validationSource ?? null,
+            },
+          }
+        : {}),
       ...(preparation.provenanceRefresh
         ? { provenanceRefresh: preparation.provenanceRefresh }
         : {}),
@@ -3508,22 +3840,25 @@ async function main() {
     return;
   }
   if (command === 'release-prepare') {
-    const result = await prepareReleaseFragmentFile(releaseLanePath, {
-      taskId: options['task-id'],
-      worktree: options.worktree || process.cwd(),
+    const result = await prepareCoordinationReleaseFragment(releaseLanePath, {
+      ...options,
+      taskId: options['task-id'] || options.id,
+      coordinationEntryId: options.id,
+      coordinationFilePath: filePath,
+      repositoryDirectory: options.repository || process.cwd(),
       changes: options.change ? normalizedList(options.change) : [],
       implementationPrompts: options['implementation-prompts']
         ? normalizedList(options['implementation-prompts'])
-        : [],
-      baseVersion: options['base-version'],
-      baseMainSha: options['base-main-sha'],
+        : undefined,
     });
     console.log(JSON.stringify(result.fragment, null, 2));
     return;
   }
   if (command === 'release-land') {
     const result = await finalizeReleaseFragment(releaseLanePath, {
-      taskId: options['task-id'],
+      taskId: options['task-id'] || options.id,
+      coordinationEntryId: options.id,
+      coordinationFilePath: filePath,
       repositoryDirectory: options.repository || process.cwd(),
       currentMainSha: options['main-sha'],
       now: options.now,

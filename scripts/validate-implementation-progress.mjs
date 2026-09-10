@@ -536,6 +536,9 @@ export function validateReleaseFragment({
     if (prompt && prompts.length > 0 && !prompts.includes(prompt)) {
       errors.push(`release fragment does not cover required Prompt ${promptLabel(prompt)}`);
     }
+    if (prompt && prompts.length === 0) {
+      errors.push(`release fragment must cover required Prompt ${promptLabel(prompt)}`);
+    }
   }
   const implementationProgress = validateFragmentProgressMetadata(
     candidate.implementationProgress,

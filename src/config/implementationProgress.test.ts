@@ -155,6 +155,24 @@ describe('implementation progress integrity gate', () => {
     );
   });
 
+  it('requires a validated release fragment to cover the required product prompt', () => {
+    const result = validateReleaseFragment({
+      fragment: {
+        baseVersion: applicationVersion,
+        implementationPrompts: [],
+        changes: ['A feature note.'],
+      },
+      progressSource,
+      planSource,
+      applicationVersion,
+      requiredPrompt: '141',
+    });
+
+    expect(result.errors.join('\n')).toContain(
+      'release fragment must cover required Prompt 141',
+    );
+  });
+
   it('rejects release metadata whose percentage or raw status counts drift', () => {
     const badPercentage = validateImplementationProgress({
       ...validationInputs,

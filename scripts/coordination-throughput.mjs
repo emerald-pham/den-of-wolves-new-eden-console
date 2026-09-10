@@ -104,6 +104,8 @@ export function forecastCoordinationConflicts({
   scopes = [],
   files = [],
   claims = [],
+  now = Date.now(),
+  leaseMs = DEFAULT_COORDINATION_LEASE_MS,
 } = {}) {
   const requestedScopes = list(scopes).map(normalizePath).filter(Boolean);
   const requestedFiles = list(files).map(normalizePath).filter(Boolean);
@@ -133,6 +135,7 @@ export function forecastCoordinationConflicts({
       matched: normalizedMatched,
       sameFile,
       suggestion,
+      lease: leaseStatusForEntry(entry, { now, leaseMs }),
     };
     const key = conflictKey(conflict);
     if (conflicts.some((candidate) => conflictKey(candidate) === key)) return;
@@ -189,7 +192,13 @@ export function formatConflictForecast(forecast) {
     const exclusivity = conflict.sameFile
       ? ' same-file writes remain exclusive; wait for the owner.'
       : '';
-    return `${base} ${suggestion}${exclusivity}`;
+    const lease = conflict.lease;
+    const leaseSummary = lease
+      ? ` lease ${lease.state}${lease.expiresAt ? ` until ${lease.expiresAt}` : ''}; ` +
+        `${lease.ownerConfirmationRequired ? 'owner confirmation required' : 'owner heartbeat current'}; ` +
+        `${lease.takeoverAllowed ? 'takeover allowed' : 'takeover disabled'}.`
+      : '';
+    return `${base} ${suggestion}${exclusivity}${leaseSummary}`;
   }).join('\n');
 }
 
@@ -303,6 +312,21 @@ function cloneQueueState(state) {
   };
 }
 
+/**
+ * Remove queue tickets only when the owner PID is provably dead. A stale
+ * heartbeat, missing PID, or PID that cannot be inspected is retained so no
+ * active validation can be stolen by another process.
+ */
+export function pruneValidationQueue(state, isAlive = processPidIsAlive, { now = new Date() } = {}) {
+  const next = cloneQueueState(state);
+  const pidCheck = typeof isAlive === 'function' ? isAlive : () => true;
+  const isOrphaned = (ticket) => Number.isInteger(ticket.ownerPid) &&
+    ticket.ownerPid > 0 && !pidCheck(ticket.ownerPid);
+  next.active = next.active.filter((ticket) => !isOrphaned(ticket));
+  next.pending = next.pending.filter((ticket) => !isOrphaned(ticket));
+  return promoteValidationQueue(next, now);
+}
+
 export function emptyValidationQueueState({ maxConcurrency = DEFAULT_VALIDATION_CONCURRENCY } = {}) {
   return {
     version: COORDINATION_THROUGHPUT_SCHEMA_VERSION,
@@ -324,6 +348,41 @@ function requestId(request) {
   return text(request.requestId ?? request.id, `validation-${randomUUID()}`);
 }
 
+function ownerToken(request) {
+  return text(request?.ownerToken ?? request?.token, randomUUID());
+}
+
+function ownerPid(request) {
+  return Number.isInteger(request?.ownerPid) && request.ownerPid > 0
+    ? request.ownerPid
+    : process.pid;
+}
+
+function validationOwnerMatches(ticket, { ownerToken: token, ownerPid: pid } = {}) {
+  if (!text(token) || !Number.isInteger(pid) || pid <= 0) return false;
+  return ticket?.ownerToken === token && ticket?.ownerPid === pid;
+}
+
+function assertValidationOwner(ticket, options, action) {
+  if (!validationOwnerMatches(ticket, options)) {
+    throw new Error(
+      `Cannot ${action} validation ticket ${text(ticket?.id, 'unknown')}: owner token and PID do not match.`,
+    );
+  }
+}
+
+function processPidIsAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // Permission errors and other uncertainty are treated as alive. Only an
+    // explicit ESRCH result is proof that an owner process is gone.
+    return error?.code !== 'ESRCH';
+  }
+}
+
 function queueTimestamp(options) {
   return isoDate(options?.now ?? new Date());
 }
@@ -333,8 +392,13 @@ export function enqueueValidation(state, request = {}, options = {}) {
   const next = cloneQueueState(state);
   const id = requestId(request);
   const mode = validationRequestMode(request);
+  const token = ownerToken(request);
+  const pid = ownerPid(request);
   const existing = [...next.active, ...next.pending].find((ticket) => ticket.id === id);
-  if (existing) return { state: next, ticket: existing, duplicate: true };
+  if (existing) {
+    assertValidationOwner(existing, { ownerToken: token, ownerPid: pid }, 'reuse');
+    return { state: next, ticket: existing, duplicate: true };
+  }
 
   const queuedAt = queueTimestamp(options);
   if (mode === 'focused') {
@@ -348,6 +412,8 @@ export function enqueueValidation(state, request = {}, options = {}) {
         mode,
         state: 'bypassed',
         queuedAt,
+        ownerToken: token,
+        ownerPid: pid,
       },
       bypassed: true,
     };
@@ -361,6 +427,8 @@ export function enqueueValidation(state, request = {}, options = {}) {
     worktree: text(request.worktree, 'unknown'),
     kind: text(request.kind, 'full'),
     mode,
+    ownerToken: token,
+    ownerPid: pid,
     sequence,
     queuedAt,
     heartbeatAt: queuedAt,
@@ -397,10 +465,12 @@ function promoteValidationQueue(state, now = new Date()) {
 }
 
 /** Release only the exact active ticket; queued work is promoted in FIFO order. */
-export function releaseValidationLease(state, ticketId, { now = new Date() } = {}) {
+export function releaseValidationLease(state, ticketId, options = {}) {
+  const { now = new Date() } = options;
   const next = cloneQueueState(state);
   const index = next.active.findIndex((ticket) => ticket.id === ticketId);
   if (index >= 0) {
+    assertValidationOwner(next.active[index], options, 'release');
     next.active.splice(index, 1);
     return promoteValidationQueue(next, now);
   }
@@ -409,8 +479,12 @@ export function releaseValidationLease(state, ticketId, { now = new Date() } = {
   // Keep the queue FIFO for everyone else, but do not leave a cancelled
   // request eligible for a later promotion.
   const pendingIndex = next.pending.findIndex((ticket) => ticket.id === ticketId);
-  if (pendingIndex >= 0) next.pending.splice(pendingIndex, 1);
-  return next;
+  if (pendingIndex >= 0) {
+    assertValidationOwner(next.pending[pendingIndex], options, 'release');
+    next.pending.splice(pendingIndex, 1);
+    return next;
+  }
+  throw new Error(`No validation ticket exists for ${text(ticketId, 'unknown')}.`);
 }
 
 export const markValidationLeaseReleased = releaseValidationLease;
@@ -418,10 +492,13 @@ export const markValidationLeaseReleased = releaseValidationLease;
 export function refreshValidationLease(state, ticketId, {
   now = new Date(),
   leaseMs = DEFAULT_COORDINATION_LEASE_MS,
+  ownerToken: token,
+  ownerPid: pid,
 } = {}) {
   const next = cloneQueueState(state);
   const ticket = next.active.find((candidate) => candidate.id === ticketId);
   if (!ticket) throw new Error(`Cannot heartbeat validation ticket ${ticketId}: it is not active.`);
+  assertValidationOwner(ticket, { ownerToken: token, ownerPid: pid }, 'heartbeat');
   const heartbeatAt = isoDate(now);
   const status = leaseStatusForEntry({ status: 'active', heartbeatAt }, { now: heartbeatAt, leaseMs });
   Object.assign(ticket, {
@@ -478,13 +555,22 @@ export function nextReleaseVersion(version) {
 
 function cloneReleaseLaneState(state) {
   const record = objectRecord(state);
-  return {
+  const normalized = {
     version: COORDINATION_THROUGHPUT_SCHEMA_VERSION,
     nextSequence: Number.isInteger(record.nextSequence) && record.nextSequence > 0 ? record.nextSequence : 1,
     fragments: Array.isArray(record.fragments)
       ? record.fragments.map((fragment) => ({ ...objectRecord(fragment), changes: list(fragment.changes) }))
       : [],
   };
+  if (record.finalization && typeof record.finalization === 'object' && !Array.isArray(record.finalization)) {
+    normalized.finalization = {
+      ...record.finalization,
+      files: Array.isArray(record.finalization.files)
+        ? record.finalization.files.map((file) => ({ ...objectRecord(file) }))
+        : [],
+    };
+  }
+  return normalized;
 }
 
 export function emptyReleaseLaneState() {
@@ -518,6 +604,10 @@ export function prepareReleaseFragment(state, {
   baseVersion,
   baseMainSha,
   baseSha,
+  coordinationEntryId,
+  coordinationBranchName,
+  coordinationBranchSha,
+  requiredPrompt,
 } = {}, { now = new Date() } = {}) {
   const normalizedTaskId = text(taskId);
   if (!normalizedTaskId) throw new Error('A release fragment requires a task id.');
@@ -544,6 +634,10 @@ export function prepareReleaseFragment(state, {
     ...((text(baseMainSha) || text(baseSha))
       ? { baseMainSha: text(baseMainSha) || text(baseSha) }
       : {}),
+    ...(text(coordinationEntryId) ? { coordinationEntryId: text(coordinationEntryId) } : {}),
+    ...(text(coordinationBranchName) ? { coordinationBranchName: text(coordinationBranchName) } : {}),
+    ...(text(coordinationBranchSha) ? { coordinationBranchSha: text(coordinationBranchSha) } : {}),
+    ...(text(requiredPrompt) ? { requiredPrompt: text(requiredPrompt).toLowerCase() } : {}),
     ...(Object.keys(objectRecord(implementationProgress)).length > 0
       ? { implementationProgress: { ...objectRecord(implementationProgress) } }
       : {}),
@@ -794,7 +888,9 @@ function freezeCurrentChangelogEntry(source, currentVersion) {
 async function writeReleaseFilesAtomically(files) {
   const originals = await Promise.all(files.map(async (file) => ({
     ...file,
-    original: await readOptional(file.path),
+    original: Object.prototype.hasOwnProperty.call(file, 'original')
+      ? file.original
+      : await readOptional(file.path),
   })));
   const temporaryPaths = [];
   try {
@@ -816,6 +912,117 @@ async function writeReleaseFilesAtomically(files) {
   } finally {
     await Promise.all(temporaryPaths.map((path) => unlink(path).catch(() => undefined)));
   }
+}
+
+function releaseJournalPath(value, repositoryDirectory) {
+  const path = text(value);
+  if (!path) throw new Error('Release finalization journal contains a file without a path.');
+  return path.startsWith('/') ? path : resolve(repositoryDirectory, path);
+}
+
+function journalOriginalContent(file) {
+  if (!Object.prototype.hasOwnProperty.call(file, 'originalContent')) {
+    throw new Error(`Release finalization journal for ${text(file?.path, 'unknown')} has no original content.`);
+  }
+  return file.originalContent === null ? undefined : file.originalContent;
+}
+
+async function recoverReleaseFinalization(filePath, state, {
+  taskId,
+  repositoryDirectory,
+  now,
+  currentMainSha,
+} = {}) {
+  const journal = state.finalization;
+  if (!journal) return { state };
+  if (journal.taskId !== text(taskId)) {
+    throw new Error(
+      `Release finalization for ${text(journal.taskId, 'unknown task')} is still in progress; ` +
+      `complete that task before landing ${text(taskId, 'another task')}.`,
+    );
+  }
+
+  const fragmentIndex = state.fragments.findIndex((candidate) => candidate.id === journal.fragmentId);
+  if (fragmentIndex < 0) {
+    throw new Error(`Release finalization journal for ${journal.taskId} references a missing fragment.`);
+  }
+  const fragment = state.fragments[fragmentIndex];
+  if (fragment.taskId !== journal.taskId || fragment.version !== journal.targetVersion) {
+    throw new Error(`Release finalization journal for ${journal.taskId} does not match its allocated fragment.`);
+  }
+  if (text(currentMainSha)) {
+    if (!text(fragment.baseMainSha)) {
+      throw new Error(
+        `Release fragment ${fragment.taskId} must record the main commit used as its base before recovery.`,
+      );
+    }
+    if (fragment.baseMainSha !== text(currentMainSha)) {
+      throw new Error(
+        `Release fragment ${fragment.taskId} requires main commit ${fragment.baseMainSha}, ` +
+        `but current main is ${text(currentMainSha)}; reconcile main before recovery.`,
+      );
+    }
+  }
+  if (!Array.isArray(journal.files) || journal.files.length === 0) {
+    throw new Error(`Release finalization journal for ${journal.taskId} has no files to recover.`);
+  }
+
+  const files = journal.files.map((file) => ({
+    path: releaseJournalPath(file.path, repositoryDirectory),
+    original: journalOriginalContent(file),
+    content: file.nextContent,
+  }));
+  if (files.some((file) => typeof file.content !== 'string')) {
+    throw new Error(`Release finalization journal for ${journal.taskId} has an invalid target file.`);
+  }
+
+  const states = await Promise.all(files.map(async (file) => {
+    const current = await readOptional(file.path);
+    if (current === file.content) return 'new';
+    if (current === file.original) return 'old';
+    return 'unknown';
+  }));
+  if (states.includes('unknown')) {
+    const unknown = files
+      .filter((_, index) => states[index] === 'unknown')
+      .map((file) => file.path)
+      .join(', ');
+    throw new Error(
+      `Release finalization journal for ${journal.taskId} found unexpected file content at ${unknown}; ` +
+      'reconcile the release files before retrying.',
+    );
+  }
+
+  const oldFiles = files.filter((_, index) => states[index] === 'old');
+  if (oldFiles.length === files.length) {
+    // No rename completed before the interruption. Clear only the journal and
+    // let the normal path retry the same validated allocation.
+    const retryState = { ...state };
+    delete retryState.finalization;
+    await writeJsonAtomically(filePath, retryState);
+    return { state: retryState };
+  }
+  if (oldFiles.length > 0) {
+    // A process may have died between any two renames. Every observed file is
+    // known-good, so finish the remaining old files and make the outcome
+    // deterministic without rerunning metadata validation.
+    await writeReleaseFilesAtomically(oldFiles);
+  }
+
+  const landed = {
+    ...fragment,
+    ...(journal.provenance ? { provenance: { ...objectRecord(journal.provenance) } } : {}),
+    state: 'landed',
+    landedAt: isoDate(now),
+    changedFiles: Array.isArray(journal.changedFiles)
+      ? [...journal.changedFiles]
+      : files.map((file) => file.path),
+  };
+  const recoveredState = { ...state, fragments: [...state.fragments] };
+  recoveredState.fragments[fragmentIndex] = landed;
+  delete recoveredState.finalization;
+  await writeJsonAtomically(filePath, recoveredState);
+  return { state: recoveredState, result: landedResult(landed) };
 }
 
 function landedResult(fragment) {
@@ -843,9 +1050,26 @@ export async function applyReleaseFragment(filePath, {
   validateFinalMetadata,
   currentMainSha,
   mainSha,
+  provenance,
 } = {}) {
   return withFileLock(filePath, async () => {
+    const observedMainSha = text(currentMainSha) || text(mainSha);
+    if (!observedMainSha) {
+      throw new Error(
+        'Release fragment landing requires the actual current main commit SHA; provide currentMainSha or mainSha.',
+      );
+    }
     let state = cloneReleaseLaneState(await readJsonState(filePath, emptyReleaseLaneState()));
+    if (state.finalization) {
+      const recovery = await recoverReleaseFinalization(filePath, state, {
+        taskId,
+        repositoryDirectory,
+        now,
+        currentMainSha: observedMainSha,
+      });
+      state = recovery.state;
+      if (recovery.result) return recovery.result;
+    }
     const index = state.fragments.findIndex((fragment) => fragment.taskId === text(taskId));
     if (index < 0) throw new Error(`No prepared release fragment exists for ${text(taskId, 'unknown task')}.`);
     let fragment = state.fragments[index];
@@ -883,18 +1107,15 @@ export async function applyReleaseFragment(filePath, {
     if (fragment.baseVersion !== packageFile.version) {
       throw new Error(`Release fragment ${fragment.taskId} requires main version ${fragment.baseVersion}, but current main is ${packageFile.version}.`);
     }
-    const observedMainSha = text(currentMainSha) || text(mainSha);
-    if (observedMainSha) {
-      if (!text(fragment.baseMainSha)) {
-        throw new Error(
-          `Release fragment ${fragment.taskId} must record the main commit used as its base before landing.`,
-        );
-      }
-      if (fragment.baseMainSha !== observedMainSha) {
-        throw new Error(
-          `Release fragment ${fragment.taskId} requires main commit ${fragment.baseMainSha}, but current main is ${observedMainSha}; reconcile main before landing.`,
-        );
-      }
+    if (!text(fragment.baseMainSha)) {
+      throw new Error(
+        `Release fragment ${fragment.taskId} must record the main commit used as its base before landing.`,
+      );
+    }
+    if (fragment.baseMainSha !== observedMainSha) {
+      throw new Error(
+        `Release fragment ${fragment.taskId} requires main commit ${fragment.baseMainSha}, but current main is ${observedMainSha}; reconcile main before landing.`,
+      );
     }
     if (fragment.version !== expectedVersion) {
       // A crash after publishing the files but before recording the lane can
@@ -945,19 +1166,39 @@ export async function applyReleaseFragment(filePath, {
         changelogSource: nextChangelog,
       });
     }
-    await writeReleaseFilesAtomically([
+    const releaseFiles = await Promise.all([
       { path: resolve(repositoryDirectory, packagePath), content: `${JSON.stringify(nextPackage, null, 2)}\n` },
       { path: resolve(repositoryDirectory, lockfilePath), content: `${JSON.stringify(nextLockfile, null, 2)}\n` },
       { path: changelogAbsolutePath, content: nextChangelog },
-    ]);
+    ].map(async (file) => ({ ...file, original: await readOptional(file.path) })));
+    state.finalization = {
+      state: 'finalizing',
+      taskId: fragment.taskId,
+      fragmentId: fragment.id,
+      targetVersion: fragment.version,
+      startedAt: isoDate(now),
+      changedFiles: [packagePath, lockfilePath, changelogPath],
+      ...(provenance ? { provenance: { ...objectRecord(provenance) } } : {}),
+      files: releaseFiles.map(({ path, original, content }) => ({
+        path,
+        originalContent: original ?? null,
+        nextContent: content,
+      })),
+    };
+    // Persist the recovery journal before the first release-file rename. A
+    // process death at any point after this write is recoverable on retry.
+    await writeJsonAtomically(filePath, state);
+    await writeReleaseFilesAtomically(releaseFiles);
 
     const landed = {
       ...fragment,
+      ...(provenance ? { provenance: { ...objectRecord(provenance) } } : {}),
       state: 'landed',
       landedAt: isoDate(now),
       changedFiles: [packagePath, lockfilePath, changelogPath],
     };
     state.fragments[state.fragments.findIndex((candidate) => candidate.id === fragment.id)] = landed;
+    delete state.finalization;
     await writeJsonAtomically(filePath, state);
     return {
       taskId: landed.taskId,
@@ -972,7 +1213,7 @@ export async function applyReleaseFragment(filePath, {
 
 export async function queueValidationLease(filePath, request, options = {}) {
   return withFileLock(filePath, async () => {
-    const state = await readJsonState(filePath, emptyValidationQueueState());
+    const state = pruneValidationQueue(await readJsonState(filePath, emptyValidationQueueState()));
     const result = enqueueValidation(state, request, options);
     await writeJsonAtomically(filePath, result.state);
     return result;
@@ -981,7 +1222,7 @@ export async function queueValidationLease(filePath, request, options = {}) {
 
 export async function releaseValidationLeaseFile(filePath, ticketId, options = {}) {
   return withFileLock(filePath, async () => {
-    const state = await readJsonState(filePath, emptyValidationQueueState());
+    const state = pruneValidationQueue(await readJsonState(filePath, emptyValidationQueueState()));
     const next = releaseValidationLease(state, ticketId, options);
     await writeJsonAtomically(filePath, next);
     return next;
@@ -990,7 +1231,7 @@ export async function releaseValidationLeaseFile(filePath, ticketId, options = {
 
 export async function heartbeatValidationLeaseFile(filePath, ticketId, options = {}) {
   return withFileLock(filePath, async () => {
-    const state = await readJsonState(filePath, emptyValidationQueueState());
+    const state = pruneValidationQueue(await readJsonState(filePath, emptyValidationQueueState()));
     const next = refreshValidationLease(state, ticketId, options);
     await writeJsonAtomically(filePath, next);
     return next;
@@ -1029,7 +1270,11 @@ export async function withValidationLease(filePath, request, operation, {
     }
     let heartbeatError;
     const heartbeatTimer = setInterval(() => {
-      heartbeatValidationLeaseFile(filePath, ticket.id, { leaseMs }).catch((error) => {
+      heartbeatValidationLeaseFile(filePath, ticket.id, {
+        leaseMs,
+        ownerToken: ticket.ownerToken,
+        ownerPid: ticket.ownerPid,
+      }).catch((error) => {
         heartbeatError ??= error;
       });
     }, heartbeatMs);
@@ -1042,7 +1287,11 @@ export async function withValidationLease(filePath, request, operation, {
       clearInterval(heartbeatTimer);
     }
   } finally {
-    await releaseValidationLeaseFile(filePath, ticket.id, options);
+    await releaseValidationLeaseFile(filePath, ticket.id, {
+      ...options,
+      ownerToken: ticket.ownerToken,
+      ownerPid: ticket.ownerPid,
+    });
   }
 }
 
@@ -1160,7 +1409,8 @@ async function cliMain() {
     const queuePath = resolve(options.file || `${coordinationFilePath()}.validation-queue.json`);
     const [action] = args;
     if (action === 'status') {
-      const state = await readJsonState(queuePath, emptyValidationQueueState());
+      const state = pruneValidationQueue(await readJsonState(queuePath, emptyValidationQueueState()));
+      await writeJsonAtomically(queuePath, state);
       console.log(JSON.stringify(validationQueueStatus(state), null, 2));
       return;
     }
@@ -1171,12 +1421,26 @@ async function cliMain() {
         worktree: options.worktree || process.cwd(),
         kind: options.kind || 'full',
         profile: options.profile,
+        ownerToken: options['owner-token'],
+        ownerPid: options['owner-pid'] ? Number(options['owner-pid']) : process.pid,
       });
       console.log(JSON.stringify(result.ticket, null, 2));
       return;
     }
+    if (action === 'heartbeat') {
+      const state = await heartbeatValidationLeaseFile(queuePath, options['ticket-id'], {
+        ownerToken: options['owner-token'],
+        ownerPid: options['owner-pid'] ? Number(options['owner-pid']) : process.pid,
+        leaseMs: options['lease-ms'] ? Number(options['lease-ms']) : undefined,
+      });
+      console.log(JSON.stringify(state, null, 2));
+      return;
+    }
     if (action === 'release') {
-      await releaseValidationLeaseFile(queuePath, options['ticket-id']);
+      await releaseValidationLeaseFile(queuePath, options['ticket-id'], {
+        ownerToken: options['owner-token'],
+        ownerPid: options['owner-pid'] ? Number(options['owner-pid']) : process.pid,
+      });
       console.log(`Released validation ticket ${options['ticket-id']}.`);
       return;
     }

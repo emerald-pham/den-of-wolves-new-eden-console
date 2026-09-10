@@ -30,6 +30,7 @@ export interface CoordinationConflictForecastItem {
   readonly matched: string;
   readonly sameFile: boolean;
   readonly suggestion: string;
+  readonly lease: CoordinationLeaseStatus;
 }
 
 export interface CoordinationConflictForecast {
@@ -46,6 +47,8 @@ export function forecastCoordinationConflicts(options?: {
   readonly scopes?: readonly string[];
   readonly files?: readonly string[];
   readonly claims?: readonly string[];
+  readonly now?: string | number | Date;
+  readonly leaseMs?: number;
 }): CoordinationConflictForecast;
 export function formatConflictForecast(forecast: CoordinationConflictForecast): string;
 
@@ -92,6 +95,8 @@ export interface ValidationTicket {
   readonly queuedAt: string;
   readonly startedAt?: string;
   readonly heartbeatAt?: string;
+  readonly ownerToken: string;
+  readonly ownerPid: number;
   readonly lease?: Readonly<Record<string, unknown>>;
 }
 
@@ -112,6 +117,8 @@ export interface ValidationRequest {
   readonly focused?: boolean;
   readonly release?: boolean;
   readonly profile?: string;
+  readonly ownerToken?: string;
+  readonly ownerPid?: number;
 }
 
 export function emptyValidationQueueState(options?: { readonly maxConcurrency?: number }): ValidationQueueState;
@@ -131,13 +138,27 @@ export const queueValidationRequest: typeof enqueueValidation;
 export function releaseValidationLease(
   state: ValidationQueueState,
   ticketId: string,
-  options?: { readonly now?: string | number | Date },
+  options: {
+    readonly now?: string | number | Date;
+    readonly ownerToken: string;
+    readonly ownerPid: number;
+  },
 ): ValidationQueueState;
 export const markValidationLeaseReleased: typeof releaseValidationLease;
 export function refreshValidationLease(
   state: ValidationQueueState,
   ticketId: string,
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
+  options: {
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
+    readonly ownerToken: string;
+    readonly ownerPid: number;
+  },
+): ValidationQueueState;
+export function pruneValidationQueue(
+  state: ValidationQueueState,
+  isAlive?: (pid: number) => boolean,
+  options?: { readonly now?: string | number | Date },
 ): ValidationQueueState;
 export function validationLeaseStatus(
   ticket: ValidationTicket,
@@ -163,17 +184,38 @@ export interface ReleaseFragment {
   readonly landedAt?: string;
   readonly baseVersion?: string;
   readonly baseMainSha?: string;
+  readonly coordinationEntryId?: string;
+  readonly coordinationBranchName?: string;
+  readonly coordinationBranchSha?: string;
+  readonly requiredPrompt?: string;
   readonly version?: string;
   readonly changes: readonly string[];
   readonly implementationPrompts?: readonly (number | string)[];
   readonly implementationProgress?: Readonly<Record<string, unknown>>;
   readonly changedFiles?: readonly string[];
+  readonly provenance?: Readonly<Record<string, unknown>>;
 }
 
 export interface ReleaseLaneState {
   readonly version: number;
   readonly nextSequence: number;
   readonly fragments: readonly ReleaseFragment[];
+  readonly finalization?: ReleaseFinalizationJournal;
+}
+
+export interface ReleaseFinalizationJournal {
+  readonly state: 'finalizing';
+  readonly taskId: string;
+  readonly fragmentId: string;
+  readonly targetVersion: string;
+  readonly startedAt?: string;
+  readonly changedFiles?: readonly string[];
+  readonly provenance?: Readonly<Record<string, unknown>>;
+  readonly files: readonly {
+    readonly path: string;
+    readonly originalContent: string | null;
+    readonly nextContent: string;
+  }[];
 }
 
 export function compareReleaseVersions(left: string, right: string): -1 | 0 | 1;
@@ -190,6 +232,10 @@ export function prepareReleaseFragment(
     readonly baseVersion: string;
     readonly baseMainSha?: string;
     readonly baseSha?: string;
+    readonly coordinationEntryId?: string;
+    readonly coordinationBranchName?: string;
+    readonly coordinationBranchSha?: string;
+    readonly requiredPrompt?: number | string;
   },
   operationOptions?: { readonly now?: string | number | Date },
 ): { readonly state: ReleaseLaneState; readonly fragment: ReleaseFragment };
@@ -240,6 +286,7 @@ export function applyReleaseFragment(
     readonly now?: string | number | Date;
     readonly currentMainSha?: string;
     readonly mainSha?: string;
+    readonly provenance?: Readonly<Record<string, unknown>>;
     readonly validateFinalMetadata?: (metadata: {
       readonly taskId: string;
       readonly fragment: ReleaseFragment;
@@ -261,12 +308,21 @@ export function queueValidationLease(
 export function releaseValidationLeaseFile(
   filePath: string,
   ticketId: string,
-  options?: { readonly now?: string | number | Date },
+  options: {
+    readonly now?: string | number | Date;
+    readonly ownerToken: string;
+    readonly ownerPid: number;
+  },
 ): Promise<ValidationQueueState>;
 export function heartbeatValidationLeaseFile(
   filePath: string,
   ticketId: string,
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
+  options: {
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
+    readonly ownerToken: string;
+    readonly ownerPid: number;
+  },
 ): Promise<ValidationQueueState>;
 export function withValidationLease<T>(
   filePath: string,

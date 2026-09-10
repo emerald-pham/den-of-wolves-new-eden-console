@@ -14,13 +14,19 @@ import {
   formatConflictForecast,
   forecastCoordinationConflicts,
   heartbeatCoordinationEntryFile,
+  heartbeatValidationLeaseFile,
+  insertReleaseChangelogEntry,
   leaseStatusForEntry,
   markValidationLeaseReleased,
   prepareReleaseFragment,
   prepareReleaseFragmentFile,
+  pruneValidationQueue,
+  queueValidationLease,
   queueValidationRequest,
   refreshCoordinationLease,
+  refreshValidationLease,
   releaseValidationLease,
+  releaseValidationLeaseFile,
   validationRequestMode,
 } from '../../scripts/coordination-throughput.mjs';
 
@@ -109,6 +115,30 @@ describe('coordination throughput primitives', () => {
       claims: ['different-claim'],
     });
     expect(scopeForecast.blocked).toBe(false);
+  });
+
+  it('includes owner lease expiration and confirmation state in the forecast', () => {
+    const forecast = forecastCoordinationConflicts({
+      activeEntries: [activeEntry()],
+      repositoryIdentity: repoIdentity,
+      repositoryRoot: repoRoot,
+      worktree: '/worktrees/current',
+      scopes: ['src/components/RoleSelect.tsx'],
+      now: '2026-09-10T12:03:00.000Z',
+      leaseMs: 60_000,
+    } as never);
+
+    expect(forecast.conflicts[0]).toMatchObject({
+      lease: {
+        state: 'owner-confirmation-needed',
+        ownerConfirmationRequired: true,
+        takeoverAllowed: false,
+      },
+    });
+    expect(forecast.conflicts[0]?.lease.expiresAt).toBe('2026-09-10T12:01:00.000Z');
+    expect(formatConflictForecast(forecast)).toContain(
+      'lease owner-confirmation-needed until 2026-09-10T12:01:00.000Z; owner confirmation required; takeover disabled',
+    );
   });
 
   it('marks an inactive owner lease for confirmation without enabling takeover', () => {
@@ -242,17 +272,117 @@ describe('coordination throughput primitives', () => {
 
     expect(first.ticket).toMatchObject({ id: 'first', state: 'active' });
     expect(second.ticket).toMatchObject({ id: 'second', state: 'queued' });
-    expect(markValidationLeaseReleased(second.state, 'not-second').active).toHaveLength(1);
+    expect(() => markValidationLeaseReleased(second.state, 'not-second', {
+      ownerToken: 'not-second-token',
+      ownerPid: process.pid,
+    } as never)).toThrow(/owner|ticket/i);
 
-    expect(markValidationLeaseReleased(second.state, 'second').pending).toHaveLength(0);
+    expect(markValidationLeaseReleased(second.state, 'second', {
+      ownerToken: second.ticket.ownerToken,
+      ownerPid: second.ticket.ownerPid,
+    })).toMatchObject({ pending: [] });
 
     const released = releaseValidationLease(second.state, 'first', {
       now: '2026-09-10T12:00:02.000Z',
+      ownerToken: first.ticket.ownerToken,
+      ownerPid: first.ticket.ownerPid,
     });
     expect(released.active).toEqual([
       expect.objectContaining({ id: 'second', state: 'active' }),
     ]);
     expect(released.pending).toHaveLength(0);
+  });
+
+  it('binds validation lease heartbeat/release to the owner token and PID, pruning only dead PIDs', () => {
+    const state = emptyValidationQueueState({ maxConcurrency: 1 });
+    const first = enqueueValidation(state, {
+      requestId: 'authorized',
+      entryId: 'entry-authorized',
+      worktree: '/worktrees/authorized',
+      kind: 'release',
+      ownerToken: 'token-authorized',
+      ownerPid: 501,
+    });
+    const second = enqueueValidation(first.state, {
+      requestId: 'queued-live',
+      entryId: 'entry-live',
+      worktree: '/worktrees/live',
+      kind: 'release',
+      ownerToken: 'token-live',
+      ownerPid: 502,
+    });
+    const orphan = enqueueValidation(second.state, {
+      requestId: 'queued-dead',
+      entryId: 'entry-dead',
+      worktree: '/worktrees/dead',
+      kind: 'release',
+      ownerToken: 'token-dead',
+      ownerPid: 503,
+    });
+
+    expect(() => refreshValidationLease(first.state, 'authorized', {
+      ownerToken: 'wrong-token',
+      ownerPid: 501,
+    } as never)).toThrow(/owner|token/i);
+    expect(() => releaseValidationLease(first.state, 'authorized', {
+      ownerToken: 'token-authorized',
+      ownerPid: 999,
+    } as never)).toThrow(/owner|PID|pid/i);
+    expect(refreshValidationLease(first.state, 'authorized', {
+      ownerToken: 'token-authorized',
+      ownerPid: 501,
+      now: '2026-09-10T12:00:01.000Z',
+    }).active[0]).toMatchObject({
+      ownerToken: 'token-authorized',
+      ownerPid: 501,
+      heartbeatAt: '2026-09-10T12:00:01.000Z',
+    });
+
+    const pruned = pruneValidationQueue(orphan.state, (pid) => pid !== 503);
+    expect(pruned.active).toHaveLength(1);
+    expect(pruned.pending).toEqual([
+      expect.objectContaining({ id: 'queued-live', ownerPid: 502 }),
+    ]);
+    const promoted = releaseValidationLease(pruned, 'authorized', {
+      ownerToken: 'token-authorized',
+      ownerPid: 501,
+    });
+    expect(promoted.active).toEqual([
+      expect.objectContaining({ id: 'queued-live', state: 'active' }),
+    ]);
+  });
+
+  it('enforces owner binding through the file queue API and exposes heartbeat/release cleanup', async () => {
+    const filePath = resolve(tmpdir(), `coordination-validation-owner-${randomUUID()}.json`);
+    try {
+      const acquired = await queueValidationLease(filePath, {
+        requestId: 'file-ticket',
+        entryId: 'entry-file',
+        worktree: '/worktrees/file',
+        kind: 'release',
+        ownerToken: 'file-token',
+        ownerPid: process.pid,
+      });
+      await expect(heartbeatValidationLeaseFile(filePath, 'file-ticket', {
+        ownerToken: 'wrong-token',
+        ownerPid: process.pid,
+      } as never)).rejects.toThrow(/owner|token/i);
+      await heartbeatValidationLeaseFile(filePath, 'file-ticket', {
+        ownerToken: 'file-token',
+        ownerPid: process.pid,
+      });
+      await expect(releaseValidationLeaseFile(filePath, 'file-ticket', {
+        ownerToken: 'wrong-token',
+        ownerPid: process.pid,
+      } as never)).rejects.toThrow(/owner|token/i);
+      await releaseValidationLeaseFile(filePath, 'file-ticket', {
+        ownerToken: acquired.ticket.ownerToken,
+        ownerPid: acquired.ticket.ownerPid,
+      });
+    } finally {
+      await rm(filePath, { force: true });
+      await rm(`${filePath}.lock`, { force: true });
+    }
   });
 
   it('bypasses focused validation but queues release validation even when marked focused', () => {
@@ -313,6 +443,7 @@ describe('coordination throughput primitives', () => {
         worktree: root,
         changes: ['A visible release note.'],
         baseVersion: '0.3.23',
+        baseMainSha: 'main-a',
       }, { now: '2026-09-10T12:00:00.000Z' });
       expect(await readFile(resolve(root, 'package.json'), 'utf8')).toContain('0.3.23');
       expect(await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).toContain('Previous release.');
@@ -322,6 +453,7 @@ describe('coordination throughput primitives', () => {
         taskId: 'task-a',
         repositoryDirectory: root,
         now: '2026-09-10T12:00:01.000Z',
+        currentMainSha: 'main-a',
         validateFinalMetadata: ({ version, changelogSource }: { version: string; changelogSource: string }) => {
           finalizationChecks.push({ version, changelogSource });
         },
@@ -345,6 +477,7 @@ describe('coordination throughput primitives', () => {
         taskId: 'task-a',
         repositoryDirectory: root,
         now: '2026-09-10T12:00:02.000Z',
+        currentMainSha: 'main-a',
       });
       expect(repeated).toMatchObject({
         taskId: landed.taskId,
@@ -377,11 +510,13 @@ describe('coordination throughput primitives', () => {
         worktree: root,
         changes: ['A note.'],
         baseVersion: '0.3.23',
+        baseMainSha: 'main-a',
       });
 
       await expect(applyReleaseFragment(lanePath, {
         taskId: 'duplicate-task',
         repositoryDirectory: root,
+        currentMainSha: 'main-a',
       })).rejects.toThrow(/exactly one|duplicate|newest/i);
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -413,6 +548,90 @@ describe('coordination throughput primitives', () => {
         repositoryDirectory: root,
         currentMainSha: 'main-b',
       } as never)).rejects.toThrow(/main.*base|base.*main|reconcile/i);
+      await expect(applyReleaseFragment(lanePath, {
+        taskId: 'base-sha-task',
+        repositoryDirectory: root,
+      })).rejects.toThrow(/current main.*commit|main.*SHA|base/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(`${lanePath}.lock`, { force: true });
+    }
+  });
+
+  it('recovers a durable release-finalization journal after a partial publish', async () => {
+    const root = resolve(tmpdir(), `coordination-release-recovery-${randomUUID()}`);
+    const lanePath = resolve(root, 'release-lane.json');
+    try {
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      const packagePath = resolve(root, 'package.json');
+      const lockfilePath = resolve(root, 'package-lock.json');
+      const changelogPath = resolve(root, 'src/changelog.ts');
+      const originalPackage = '{\n  "name": "fixture",\n  "version": "0.3.23"\n}\n';
+      const originalLockfile = '{\n  "packages": {\n    "": { "version": "0.3.23" }\n  }\n}\n';
+      const originalChangelog = `export const CHANGELOG = [
+  {
+    version: APP_VERSION,
+    changes: ['Previous release.'],
+  },
+];
+`;
+      await writeFile(packagePath, originalPackage);
+      await writeFile(lockfilePath, originalLockfile);
+      await writeFile(changelogPath, originalChangelog);
+
+      const prepared = prepareReleaseFragment(emptyReleaseLaneState(), {
+        taskId: 'recovery-task',
+        worktree: root,
+        changes: ['Recovered release note.'],
+        baseVersion: '0.3.23',
+        baseMainSha: 'main-a',
+      });
+      const allocated = allocateReleaseFragment(prepared.state, {
+        taskId: 'recovery-task',
+        currentVersion: '0.3.23',
+      });
+      const nextPackage = `${JSON.stringify({ name: 'fixture', version: '0.3.24' }, null, 2)}\n`;
+      const nextLockfile = `${JSON.stringify({ packages: { '': { version: '0.3.24' } } }, null, 2)}\n`;
+      const frozenChangelog = originalChangelog.replace(
+        'version: APP_VERSION',
+        "version: '0.3.23'",
+      );
+      const nextChangelog = insertReleaseChangelogEntry(
+        frozenChangelog,
+        allocated.fragment,
+        '0.3.24',
+      );
+      await writeFile(packagePath, nextPackage); // Simulates the first rename before process death.
+      await writeFile(lanePath, JSON.stringify({
+        ...allocated.state,
+        finalization: {
+          state: 'finalizing',
+          taskId: allocated.fragment.taskId,
+          fragmentId: allocated.fragment.id,
+          targetVersion: allocated.fragment.version,
+          files: [
+            { path: packagePath, originalContent: originalPackage, nextContent: nextPackage },
+            { path: lockfilePath, originalContent: originalLockfile, nextContent: nextLockfile },
+            { path: changelogPath, originalContent: originalChangelog, nextContent: nextChangelog },
+          ],
+        },
+      }));
+
+      const recovered = await applyReleaseFragment(lanePath, {
+        taskId: allocated.fragment.taskId,
+        repositoryDirectory: root,
+        currentMainSha: 'main-a',
+      });
+
+      expect(recovered).toMatchObject({
+        taskId: 'recovery-task',
+        version: '0.3.24',
+        idempotent: true,
+      });
+      expect(await readFile(packagePath, 'utf8')).toBe(nextPackage);
+      expect(await readFile(lockfilePath, 'utf8')).toBe(nextLockfile);
+      expect(await readFile(changelogPath, 'utf8')).toBe(nextChangelog);
+      expect(JSON.parse(await readFile(lanePath, 'utf8'))).not.toHaveProperty('finalization');
     } finally {
       await rm(root, { recursive: true, force: true });
       await rm(`${lanePath}.lock`, { force: true });

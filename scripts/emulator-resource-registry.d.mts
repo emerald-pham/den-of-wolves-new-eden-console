@@ -91,6 +91,7 @@ export interface CoordinationConflictForecastItem {
   readonly matched: string;
   readonly sameFile: boolean;
   readonly suggestion: string;
+  readonly lease: CoordinationLeaseStatus;
 }
 
 export interface CoordinationConflictForecast {
@@ -153,6 +154,12 @@ export interface ValidationReceipt {
     readonly previousCommitSha: string;
     readonly previousTaskTipSha: string;
     readonly files: readonly string[];
+  };
+  readonly releaseFragment?: {
+    readonly id: string | null;
+    readonly taskId: string;
+    readonly validated: boolean;
+    readonly source?: string | null;
   };
 }
 
@@ -221,6 +228,26 @@ export function coordinationFilePath(
 ): string;
 export function emptyCoordinationState(): CoordinationState;
 export function parseCoordinationState(content: string): CoordinationState;
+export function findCoordinationConflict(options?: {
+  readonly activeEntries?: readonly CoordinationEntry[];
+  readonly repositoryIdentity?: string;
+  readonly repositoryRoot?: string;
+  readonly worktree?: string;
+  readonly scopes?: readonly string[];
+  readonly files?: readonly string[];
+  readonly claims?: readonly string[];
+}): {
+  readonly type: 'scope' | 'file' | 'claim';
+  readonly owner: CoordinationEntry;
+  readonly requested: string;
+  readonly matched: string;
+} | undefined;
+export function formatCoordinationConflict(conflict: {
+  readonly type: 'scope' | 'file' | 'claim';
+  readonly entry: CoordinationEntry;
+  readonly requested: string;
+  readonly matched: string;
+}): string;
 export function compareApplicationVersions(left: string, right: string): -1 | 0 | 1;
 export function nextApplicationVersion(version: string): string;
 export function changedFilesBaseRef(options: {
@@ -264,6 +291,8 @@ export function forecastCoordinationConflicts(options?: {
   readonly scopes?: readonly string[];
   readonly files?: readonly string[];
   readonly claims?: readonly string[];
+  readonly now?: string | number | Date;
+  readonly leaseMs?: number;
 }): CoordinationConflictForecast;
 export function formatConflictForecast(forecast: CoordinationConflictForecast): string;
 export function leaseStatusForEntry(
@@ -331,12 +360,36 @@ export function forecastCoordinationEntry(
     readonly worktree?: string;
     readonly 'repository-root'?: string;
     readonly 'repository-identity'?: string;
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
   },
 ): Promise<CoordinationConflictForecast>;
+export function prepareCoordinationReleaseFragment(
+  filePath: string,
+  options: {
+    readonly coordinationEntryId?: string;
+    readonly 'coordination-id'?: string;
+    readonly coordinationFilePath?: string;
+    readonly taskId?: string;
+    readonly repositoryDirectory?: string;
+    readonly worktree?: string;
+    readonly changes?: readonly string[];
+    readonly change?: string;
+    readonly implementationPrompts?: readonly (number | string)[];
+    readonly 'implementation-prompts'?: string;
+    readonly implementationProgress?: Readonly<Record<string, unknown>>;
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
+  },
+): Promise<Readonly<Record<string, unknown>>>;
 export function finalizeReleaseFragment(
   filePath: string,
   options: {
-    readonly taskId: string;
+    readonly taskId?: string;
+    readonly id?: string;
+    readonly coordinationEntryId?: string;
+    readonly 'coordination-id'?: string;
+    readonly coordinationFilePath?: string;
     readonly repositoryDirectory?: string;
     readonly worktree?: string;
     readonly baseVersion?: string;
@@ -351,6 +404,7 @@ export function finalizeReleaseFragment(
     readonly packagePath?: string;
     readonly lockfilePath?: string;
     readonly changelogPath?: string;
+    readonly leaseMs?: number;
     readonly now?: string | number | Date;
   },
 ): Promise<Readonly<Record<string, unknown>>>;
@@ -371,6 +425,10 @@ export function validateCoordinationEntry(
     release?: ReleaseState;
     releaseFragment?: Readonly<Record<string, unknown>>;
     validatedFragment?: Readonly<Record<string, unknown>>;
+    releaseFragmentFile?: string;
+    'release-fragment-file'?: string;
+    releaseFragmentId?: string;
+    'release-fragment-id'?: string;
     commandRunner?: (command: string, cwd: string) => Promise<void>;
     repositoryDirectory?: string;
   },
