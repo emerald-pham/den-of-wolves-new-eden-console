@@ -348,6 +348,17 @@ row per ID, the headline count and percentage, the status breakdown, the checked
 source-plan boxes, changelog coverage, and the resume pointer. It accepts both
 base and lettered IDs without a 001–100 range assumption.
 
+## Mandatory dependency preflight
+
+Before selecting, assigning, starting, or editing a numbered prompt, fully read
+the mandatory
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+first. Run its deterministic dispatcher and reconcile the exact row, hard
+prerequisites, evidence, and ownership with current `main` and active
+coordination before continuing. Re-read this dependency authority after a
+rebase or material movement of current `main`. A prompt cannot be marked
+complete or merged while a hard prerequisite remains unmet.
+
 When work starts, set `Active prompt` to the selected dependency-ready
 unresolved prompt and change that ledger row to `in-progress`. The lowest-ID
 resume pointer is the default triage suggestion, not a serial execution lock.

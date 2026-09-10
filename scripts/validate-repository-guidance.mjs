@@ -9,6 +9,152 @@ function isDocumentationFile(filePath) {
   return /\.mdx?$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
 }
 
+const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
+const RETIRED_PROMPT_IDS = new Set(['071']);
+
+function promptDependencyTargets(value) {
+  if (value === 'none') return [];
+  const targets = [];
+  for (const token of value.split(';')) {
+    const range = token.match(/^(\d{3})-(\d{3})$/);
+    if (range) {
+      const start = Number.parseInt(range[1], 10);
+      const end = Number.parseInt(range[2], 10);
+      for (let number = start; number <= end; number += 1) {
+        const prompt = String(number).padStart(3, '0');
+        if (!RETIRED_PROMPT_IDS.has(prompt)) targets.push(prompt);
+      }
+      continue;
+    }
+    if (/^\d{3}[a-z]*$/i.test(token) && !RETIRED_PROMPT_IDS.has(token)) {
+      targets.push(token.toLowerCase());
+    }
+  }
+  return targets;
+}
+
+/**
+ * Keep the completion gate fail-closed for the explicit hard prompt edges.
+ * The dependency index remains the source of truth for parsing and evidence;
+ * this guard only prevents a live done row from outrunning an unfinished
+ * prompt prerequisite.
+ */
+export function validatePromptDependencyCompletion({ dependencySource, progressSource } = {}) {
+  const progressByPrompt = new Map(
+    [...String(progressSource ?? '').matchAll(/^\|\s*(\d{3}[a-z]*)\s*\|\s*([^|]+)\s*\|/gim)]
+      .map((match) => [match[1].toLowerCase(), match[2].trim().toLowerCase()]),
+  );
+  const errors = [];
+  for (const line of String(dependencySource ?? '').split('\n')) {
+    if (!/^\|\s*\d{3}[a-z]*\s*\|/i.test(line)) continue;
+    const cells = line.slice(1, line.endsWith('|') ? -1 : undefined)
+      .split('|')
+      .map((cell) => cell.trim());
+    if (cells.length < 4) continue;
+    const prompt = cells[0].toLowerCase();
+    if (progressByPrompt.get(prompt) !== 'done') continue;
+    for (const prerequisite of promptDependencyTargets(cells[3])) {
+      const status = progressByPrompt.get(prerequisite);
+      if (status !== 'done') {
+        errors.push(
+          `Prompt ${prompt} is marked done but hard prerequisite ${prerequisite} is ${status ?? 'unknown'}.`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
+  ['AGENTS.md', /before selecting[\s\S]*prompt/i],
+  ['CLAUDE.md', /before selecting[\s\S]*prompt/i],
+  ['README.md', /before selecting[\s\S]*prompt/i],
+  ['docs/WORKTREE_COORDINATION.md', /before selecting[\s\S]*prompt/i],
+  ['docs/IMPLEMENTATION_PLAN.md', /before selecting[\s\S]*prompt/i],
+  [PROMPT_DEPENDENCY_INDEX_PATH, /mandatory[\s\S]*before selecting[\s\S]*prompt/i],
+  ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
+  ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
+]);
+
+function normalizeGuidance(source) {
+  return source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
+}
+
+function hasPromptDependencyReadRequirement(source) {
+  return /(?:\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md[\s\S]{0,180}(?:first|before selecting|before assigning|before starting|before editing)|before (?:selecting|assigning|starting|editing)[\s\S]{0,180}\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md)/i.test(source);
+}
+
+function hasDispatcherRequirement(source) {
+  return /\b(?:run|use|refresh)(?:\s+\w+){0,8}\s+(?:deterministic\s+)?dispatcher\b/i.test(source);
+}
+
+function hasCurrentStateReconciliation(source) {
+  return /reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i.test(source);
+}
+
+function hasMainMovementReread(source) {
+  return /\bre-?read\b/i.test(source) &&
+    /\b(?:rebase|material (?:main )?movement)\b/i.test(source) &&
+    /\bcurrent main\b/i.test(source);
+}
+
+function hasCompletionBlock(source) {
+  return /\bcannot be marked complete\b/i.test(source) &&
+    /\b(?:cannot merge|merged)\b/i.test(source) &&
+    /\bhard prerequisites?\b/i.test(source) &&
+    /\bunmet\b/i.test(source);
+}
+
+export function validatePromptDependencyGuidance({ sources, errors }) {
+  for (const [filePath, selectionPattern] of PROMPT_DEPENDENCY_GUIDANCE) {
+    const source = sources.get(filePath);
+    if (typeof source !== 'string') {
+      errors.push(`${filePath}: required prompt dependency guidance file is missing`);
+      continue;
+    }
+    const normalized = normalizeGuidance(source);
+    if (!normalized.includes('implementation_prompt_dependencies.md')) {
+      errors.push(`${filePath}: must link IMPLEMENTATION_PROMPT_DEPENDENCIES.md`);
+    }
+    if (!selectionPattern.test(normalized)) {
+      errors.push(`${filePath}: must require reading prompt dependencies before selecting a prompt`);
+    }
+    if (!hasPromptDependencyReadRequirement(normalized)) {
+      errors.push(`${filePath}: must explicitly require reading prompt dependencies before prompt work`);
+    }
+    if (!hasDispatcherRequirement(normalized)) {
+      errors.push(`${filePath}: must require running the prompt dependency dispatcher`);
+    }
+    if (!hasCurrentStateReconciliation(normalized)) {
+      errors.push(`${filePath}: must require reconciling current main and coordination`);
+    }
+    if (!hasMainMovementReread(normalized)) {
+      errors.push(`${filePath}: must require re-reading after rebase or material current-main movement`);
+    }
+    if (!hasCompletionBlock(normalized)) {
+      errors.push(`${filePath}: must block completion/merge while hard prerequisites are unmet`);
+    }
+  }
+
+  const claude = sources.get('CLAUDE.md') ?? '';
+  const normalizedClaude = claude.replace(/\s+/g, ' ').toLowerCase();
+  for (const requiredText of [
+    'after rebase',
+    'material main movement',
+    'hard prerequisites that remain unmet',
+    'cannot be marked complete',
+    'cannot merge',
+  ]) {
+    if (!normalizedClaude.includes(requiredText)) {
+      errors.push(`CLAUDE.md is missing prompt dependency gate guidance: ${requiredText}`);
+    }
+  }
+  const plan = sources.get('docs/IMPLEMENTATION_PLAN.md') ?? '';
+  if (!/not standalone/i.test(plan)) {
+    errors.push('docs/IMPLEMENTATION_PLAN.md must state that it is not standalone');
+  }
+}
+
 function changedFiles(cwd) {
   return execFileSync('git', ['diff', '--name-only', 'main...HEAD'], {
     cwd,
@@ -92,6 +238,8 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
 
   const agents = readFileSync(resolve(cwd, 'AGENTS.md'), 'utf8');
   const claude = readFileSync(resolve(cwd, 'CLAUDE.md'), 'utf8');
+  const dependencySource = readFileSync(resolve(cwd, PROMPT_DEPENDENCY_INDEX_PATH), 'utf8');
+  const progressSource = readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8');
   for (const requiredText of [
     'CLAUDE.md',
     'coordination:validate',
@@ -113,6 +261,19 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
       errors.push(`CLAUDE.md is missing required guidance: ${requiredText}`);
     }
   }
+
+  const guidanceSources = new Map([
+    ['AGENTS.md', agents],
+    ['CLAUDE.md', claude],
+    ['README.md', readFileSync(resolve(cwd, 'README.md'), 'utf8')],
+    ['docs/WORKTREE_COORDINATION.md', readFileSync(resolve(cwd, 'docs/WORKTREE_COORDINATION.md'), 'utf8')],
+    ['docs/IMPLEMENTATION_PLAN.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8')],
+    [PROMPT_DEPENDENCY_INDEX_PATH, dependencySource],
+    ['docs/IMPLEMENTATION_MILESTONES.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8')],
+    ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
+  ]);
+  validatePromptDependencyGuidance({ sources: guidanceSources, errors });
+  errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 
   return errors;
 }

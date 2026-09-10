@@ -1,11 +1,20 @@
 # Implementation Milestones — Completion Route
 
 This is the short, dependency-ordered route from the current tested foundation
-to a complete Den of Wolves: New Eden companion game. It is the default roadmap
-document for selecting work. The detailed acceptance catalog and its stable IDs
-remain in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); live completion
-evidence remains in
+to a complete Den of Wolves: New Eden companion game. It is a route, not a
+standalone selection authority. The detailed acceptance catalog and its stable
+IDs remain in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); live
+completion evidence remains in
 [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md).
+
+Before selecting, assigning, starting, or editing a numbered prompt, fully read
+the mandatory
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+first. Run its deterministic dispatcher and reconcile the exact row, hard
+prerequisites, evidence, and ownership with current `main` and active
+coordination before continuing. Re-read this dependency authority after a
+rebase or material movement of current `main`. A prompt cannot be marked
+complete or merged while a hard prerequisite remains unmet.
 
 Do not infer completion from the number of source files, screens, catalogs, or
 passing low-level tests. The repository has substantial tested foundations, but
@@ -14,14 +23,16 @@ gates below are the truthful player-story measure.
 
 ## How to use this file
 
-1. Start from the earliest dependency-ready milestone, not automatically the
+1. Complete the mandatory dependency preflight above; the dependency index and
+   its dispatcher control prompt readiness and ordering.
+2. Start from the earliest dependency-ready milestone, not automatically the
    lowest unresolved prompt ID.
-2. Select one vertical result that a player or facilitator can observe.
-3. Look up only that milestone's prompt neighborhood and exact selected prompt
+3. Select one vertical result that a player or facilitator can observe.
+4. Look up only that milestone's prompt neighborhood and exact selected prompt
    in `IMPLEMENTATION_PLAN.md`.
-4. Read the printed references routed for that mechanic, then follow
+5. Read the printed references routed for that mechanic, then follow
    `CLAUDE.md` for test-first delivery and release.
-5. Mark a milestone green only after its end-to-end exit fixture passes. A set
+6. Mark a milestone green only after its end-to-end exit fixture passes. A set
    of isolated controls or catalogs is not a completed milestone.
 
 Prompt ranges below are navigation hints, not ownership boundaries. Some

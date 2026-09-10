@@ -10,6 +10,13 @@ creation of speculative controls. Each future change must select a bounded
 slice of this plan, write its failing test first, and implement only the
 smallest rules-complete increment needed for that slice.
 
+The plan is not standalone. Before selecting, assigning, starting, or editing
+any numbered prompt, agents must read the mandatory
+[prompt dependency index](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md), reconcile
+its row and evidence with current `main` and coordination, and run its
+deterministic dispatcher. The dependency index controls readiness and ordering;
+this plan supplies acceptance narrative and source-of-truth context.
+
 No application code, tests, rules, configuration, version metadata, or
 player-facing changelog entries are changed by this planning document.
 
@@ -20,24 +27,35 @@ implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
 
-Default reading path for one prompt:
+Default reading path for one prompt (the dependency index is always first):
 
-1. Read the selected row in the compact
+1. Read the exact row and evidence entries in
+   [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
+   confirm the live status, and run its dispatcher. Do not select a prompt
+   until hard prerequisites, milestone/contract/owner gates, and coordination
+   ownership are reconciled with current `main`.
+2. Read the selected row in the compact
    [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) completion
    route, including its dependencies and exit fixture.
-2. Read [Product objectives](#product-objectives), the relevant part of
+3. Read [Product objectives](#product-objectives), the relevant part of
    [Scope and baseline](#scope-and-baseline),
    [Existing behavior is the design baseline](#existing-behavior-is-the-design-baseline),
    and the affected row in
    [Source-of-truth and decision policy](#source-of-truth-and-decision-policy).
-3. Read [Prompt status legend](#prompt-status-legend),
+4. Read [Prompt status legend](#prompt-status-legend),
    [Contract carried by every numbered prompt](#contract-carried-by-every-numbered-prompt),
    and only the selected prompt definition.
-4. Read the matching ledger row in
+5. Read the matching ledger row in
    [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md), then the exact
    printed references routed for the mechanic.
-5. Use `CLAUDE.md` for workflow, validation, review, merge, and release rules;
+6. Use `CLAUDE.md` for workflow, validation, review, merge, and release rules;
    do not reread duplicated workflow prose here.
+
+If the branch is rebased, current `main` materially moves, or a prerequisite's
+status or ownership changes, stop and re-read the dependency index and selected
+row, refresh its dispatcher, and reconcile coordination before continuing. A
+prompt cannot be marked complete or merged while a hard prerequisite remains
+unmet; closure/evidence gates are completion checks, not inferred start locks.
 
 Targeted lookup example:
 
@@ -1948,6 +1966,13 @@ exit fixture must also pass before claiming the player story. The full product
 is complete only at the
 [`1.0` completion gate](./IMPLEMENTATION_MILESTONES.md#10-completion-gate).
 
+The dependency index is part of this gate. Before marking a prompt complete or
+merging its slice, re-read its current row after final reconciliation and prove
+that every hard prompt prerequisite is `done` and every named milestone,
+contract, owner decision, and closure/evidence gate is satisfied in its proper
+scope. An unresolved prerequisite blocks completion; numeric adjacency,
+sequence context, or an unverified prose claim cannot override the index.
+
 ## Prompt-by-prompt ATDD build sequence
 
 This is an incremental queue from the tested application that exists now to a
@@ -2084,6 +2109,12 @@ use its own worktree and short-lived branch, and follow the test-first contract
 above, including observing the failing test before implementation. Each slice
 must satisfy the applicable reference, authority, denial, retry, audit,
 accessibility, responsive-review, version, and standalone changelog contracts.
+Before a delegate selects, starts, or edits a prompt, it must read
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
+run its dispatcher, and reconcile the exact row, prerequisites, evidence,
+current `main`, and coordination ownership. The delegate must repeat that
+preflight after a rebase or material movement of current `main`; no prompt may
+be marked complete or merged while a hard prerequisite remains unmet.
 Use an independent Luna review for security/authorization, hidden information,
 randomness, destructive migrations, endgame, capacity, or complex conflict
 resolution, and when ordinary risk judgment calls for one. Do not create a

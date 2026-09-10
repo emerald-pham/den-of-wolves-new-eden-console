@@ -1,5 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import {
+  validatePromptDependencyCompletion,
+  validatePromptDependencyGuidance,
+} from '../scripts/validate-repository-guidance.mjs';
 
 describe('repository guidance', () => {
   it('requires agents to install locked dependencies in fresh worktrees', () => {
@@ -122,5 +126,92 @@ describe('repository guidance', () => {
       'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.',
     );
     expect(guidance).toContain('Immediate post-test merge objective is checked off');
+  });
+
+  it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
+    const repositoryRoot = process.cwd();
+    const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'README.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+      `docs/${dependencyDoc}`,
+      'docs/IMPLEMENTATION_MILESTONES.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+    ];
+
+    for (const surface of surfaces) {
+      const source = readFileSync(resolve(repositoryRoot, surface), 'utf8');
+      expect(source, surface).toContain(dependencyDoc);
+      const normalized = source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
+      expect(normalized, surface).toMatch(
+        /(?:read[\s\S]{0,180}implementation_prompt_dependencies\.md[\s\S]{0,180}(?:first|before selecting|before assigning|before starting|before editing)|before (?:selecting|assigning|starting|editing)[\s\S]{0,180}read[\s\S]{0,180}implementation_prompt_dependencies\.md)/i,
+      );
+      expect(normalized, surface).toMatch(/\b(?:run|use|refresh)(?:\s+\w+){0,6}\s+dispatcher\b/i);
+      expect(normalized, surface).toMatch(/reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i);
+      expect(normalized, surface).toMatch(/\bre-?read\b/i);
+      expect(normalized, surface).toMatch(/\b(?:rebase|material (?:main )?movement)\b/i);
+      expect(normalized, surface).toContain('current main');
+      expect(normalized, surface).toMatch(/cannot be marked complete/i);
+      expect(normalized, surface).toMatch(/\b(?:cannot merge|merged)\b/i);
+      expect(normalized, surface).toMatch(/hard prerequisites?[\s\S]{0,120}unmet/i);
+    }
+  });
+
+  it('rejects a dependency surface that only links the index without the mandatory operational gate', () => {
+    const repositoryRoot = process.cwd();
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'README.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      'docs/IMPLEMENTATION_MILESTONES.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(repositoryRoot, surface), 'utf8'),
+    ]));
+    for (const weakSurface of [
+      'docs/IMPLEMENTATION_MILESTONES.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+    ]) {
+      const weakSources = new Map(sources);
+      weakSources.set(
+        weakSurface,
+        'See IMPLEMENTATION_PROMPT_DEPENDENCIES.md before selecting a prompt.',
+      );
+      const errors: string[] = [];
+
+      validatePromptDependencyGuidance({ sources: weakSources, errors });
+
+      expect(errors).toEqual(expect.arrayContaining([
+        `${weakSurface}: must explicitly require reading prompt dependencies before prompt work`,
+        `${weakSurface}: must require running the prompt dependency dispatcher`,
+        `${weakSurface}: must require reconciling current main and coordination`,
+        `${weakSurface}: must require re-reading after rebase or material current-main movement`,
+        `${weakSurface}: must block completion/merge while hard prerequisites are unmet`,
+      ]));
+    }
+  });
+
+  it('rejects a completed prompt whose hard prerequisite is unresolved', () => {
+    const dependencySource = [
+      '| prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |',
+      '| 001 | NEW | missing | none | none | none | none | none | none | none | none | none | M1 | Prerequisite |',
+      '| 002 | NEW | done | 001 | none | none | none | none | none | none | none | E-001 | M1 | Dependent |',
+    ].join('\n');
+    const progressSource = [
+      '| 001 | missing | non-feature | — |',
+      '| 002 | done | non-feature | — |',
+    ].join('\n');
+
+    expect(validatePromptDependencyCompletion({ dependencySource, progressSource })).toEqual([
+      'Prompt 002 is marked done but hard prerequisite 001 is missing.',
+    ]);
   });
 });

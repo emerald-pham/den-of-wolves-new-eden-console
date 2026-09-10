@@ -7,6 +7,7 @@ Working agreement for this repository. Applies to every agent and contributor.
 
 - [Agent fast path](#agent-fast-path)
 - [Implementation-plan reading route](#implementation-plan-reading-route)
+- [Prompt dependency gate](#prompt-dependency-gate)
 - [Test first for code](#1-test-first-for-code)
 - [Shared test-runner contention](#shared-test-runner-contention)
 - [Worktree dependency bootstrap](#worktree-dependency-bootstrap)
@@ -54,6 +55,14 @@ Keep this objective unchecked until the sequence has actually happened. If the
 work is explicitly preserved or discarded instead of landed, replace it with
 that documented outcome and explain why it could not merge.
 
+For numbered implementation-plan work, the same checklist must also include
+an unchecked dependency gate: read
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
+run its dispatcher, and reconcile the selected row with current `main` and
+coordination before selecting, starting, or editing the prompt. Check it only
+after that reconciliation is recorded; leave it unchecked if any hard
+prerequisite remains unmet.
+
 ### Implementation-plan reading route
 
 For numbered implementation-plan work, do not read the 729-prompt
@@ -61,17 +70,26 @@ For numbered implementation-plan work, do not read the 729-prompt
 as prompt evidence is updated, so required reading is defined by stable
 headings and targeted rows instead.
 
-Read these items before implementation:
+Read the mandatory [`docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+first, before selecting, assigning, starting, or editing any numbered prompt.
+It is the dependency authority and the plan is not standalone: a plan row
+cannot waive a hard prerequisite, milestone, contract, owner decision, or
+closure gate recorded by the index.
 
-1. The selected milestone, dependencies, exit fixture, and review budget in
+Read these items before implementation, in this order:
+
+1. The dependency index fast path, exact prompt row, and its evidence entries.
+   Run its deterministic dispatcher so hard prompt prerequisites and their live
+   statuses are visible before claiming a slice.
+2. The selected milestone, dependencies, exit fixture, and review budget in
    `docs/IMPLEMENTATION_MILESTONES.md`.
-2. `IMPLEMENTATION_PLAN.md` sections **Reading map and table of contents**,
+3. `IMPLEMENTATION_PLAN.md` sections **Reading map and table of contents**,
    **Product objectives**, the affected **Source-of-truth and decision policy**
    row, **Prompt status legend**, **Contract carried by every numbered
    prompt**, and **Implementation-plan agent authorization**.
-3. Only the exact selected prompt definition and its exact row in
+4. Only the exact selected prompt definition and its exact row in
    `docs/IMPLEMENTATION_PROGRESS.md`.
-4. The exact printed references routed for that mechanic. Product behavior
+5. The exact printed references routed for that mechanic. Product behavior
    still requires the game-rule reading described later in this file.
 
 Use targeted lookup rather than broad reads:
@@ -89,6 +107,25 @@ the final release-readiness audit. The progress ledger's lowest unresolved ID
 is a default triage pointer, not a dependency lock; a worktree may claim any
 dependency-ready unresolved prompt, while the coordination registry prevents a
 duplicate active claim.
+
+### Prompt dependency gate
+
+The dependency index is a mandatory preflight for every numbered prompt. Before
+selecting or assigning a prompt, read its index row, current progress row, plan
+definition, milestone route, and evidence entries; reconcile all hard
+prerequisites and named ownership/order data with current `main` and the active
+coordination registry. Before starting or editing, run the index dispatcher and
+claim only the exact dependency-ready scope. Do not treat the plan as
+standalone, infer dependencies from numeric adjacency, or replace an unmet
+hard prerequisite with a prose attestation.
+
+After rebase or material main movement, or when a prerequisite's status/ownership
+changes, stop and re-read the dependency index and selected row, refresh the
+dispatcher, and reconcile coordination before continuing. A prompt with hard
+prerequisites that remain unmet cannot be marked complete and cannot merge.
+Closure/evidence gates remain completion checks, while sequence,
+release-boundary, and related/consumes fields remain context unless the index
+explicitly classifies them as hard.
 
 ### Start
 
@@ -165,6 +202,9 @@ duplicate active claim.
    The path/branch preflight and root dependency bootstrap above precede every
    repository script; then follow the test-first, emulator-slot, and
    product-reference rules below.
+   For numbered prompt work, do not select or edit a prompt until the mandatory
+   dependency preflight is complete. Re-run it after any rebase or material
+   movement of current `main`.
 
 ### Finish
 
@@ -953,6 +993,9 @@ tests/rules/      assertions against the emulator
   were recorded in `docs/AESTHETICS.md`.
 - [ ] `coordination:validate` recorded a passing receipt for the final branch
   SHA, including required documentation or visual-review attestations.
+- [ ] For numbered prompt work, the dependency index row was re-read after the
+  final reconciliation; every hard prerequisite is done and no prompt was
+  marked complete or merged while a prerequisite remained unmet.
 - [ ] `coordination:finish` recorded the final branch SHA, `main` SHA,
   `origin/main` SHA, and pushed state after the merge.
 - [ ] No new client write path to server-authoritative data.
