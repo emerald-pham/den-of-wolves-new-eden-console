@@ -70,10 +70,11 @@ For an explicit multi-agent implementation campaign, read the
 [agent campaign playbook](docs/AGENT_CAMPAIGN_PLAYBOOK.md) before dispatching
 work. It supplies the reusable campaign goal and operational controls; the
 dependency authority remains mandatory for every numbered prompt. This
-campaign-specific role allocation supersedes the routine primary-agent
-integration default: the coordinator makes decisions and dispatches, while
-separately assigned implementation, exact-HEAD review, and release agents own
-their explicit handoffs.
+campaign-specific role allocation overrides all routine primary-agent ownership
+clauses below. The coordinator makes decisions and dispatches only. Separately
+assigned implementation, exact-HEAD review, and release agents own edits,
+focused tests, and commit; independent review; and reconciliation, versioning,
+merge, push, and `coordination:finish`, respectively.
 
 Luna is the default at `xhigh` (or the stricter numbered-plan Luna `max`
 baseline). Never dispatch a Sol child. If a Luna attempt is idle or loses
@@ -531,7 +532,7 @@ Keep delegation economical:
   They may inspect, create, edit, rename, and delete files as needed, run
   commands and tests, and perform well-scoped implementation work. No
   read-only restriction applies to delegated subagents.
-- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `high` reasoning for suitable delegated
+- Use GPT-5.6 Luna (`gpt-5.6-luna`) at `xhigh` reasoning for suitable delegated
   work when delegation saves total effort and tokens after setup, context
   transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
   UI, and routine implementation with clear expected results.
@@ -560,16 +561,18 @@ Keep delegation economical:
   another useful, independent, bounded sidecar. If it would materially advance
   the work, delegate it under the same Luna-only rules; otherwise continue
   locally without forcing an artificial split.
-- No code change has zero risk. Keep security, authentication, authorization,
-  authoritative state mutations, complex gameplay, architectural decisions, and
-  other high-risk security or product decisions with the primary agent. The
-  primary agent also owns all review, integration, versioning, merge, and push.
+- For routine (non-campaign) tasks, keep security, authentication,
+  authorization, authoritative state mutations, complex gameplay,
+  architectural decisions, and other high-risk security or product decisions
+  with the primary agent. The primary agent also owns all review, integration,
+  versioning, merge, and push.
 - Every delegated agent must read this file and follow the applicable test-first,
   dependency, emulator isolation, and version policies. Small task size does not
   exempt code changes from those requirements.
-- The primary agent reviews the diff and verification evidence and coordinates
-  integration, versioning, merge, and push. Delegated agents must return their
-  work for that review before anything is merged or pushed to `main`.
+- For routine (non-campaign) tasks, the primary agent reviews the diff and
+  verification evidence and coordinates integration, versioning, merge, and
+  push. Delegated agents must return their work for that review before anything
+  is merged or pushed to `main`.
 
 ## Concurrent worktrees and emulator ports
 

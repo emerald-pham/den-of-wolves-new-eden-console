@@ -139,6 +139,18 @@ describe('repository guidance', () => {
     expect(guidance).not.toContain('update `package.json` and the root lockfile to it');
   });
 
+  it('keeps Luna xhigh and campaign role precedence unambiguous', () => {
+    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
+
+    expect(guidance).toContain('Luna is the default at `xhigh`');
+    expect(guidance).toMatch(/Use GPT-5\.6 Luna \(`gpt-5\.6-luna`\) at `xhigh` reasoning/i);
+    expect(guidance).not.toMatch(/Use GPT-5\.6 Luna \(`gpt-5\.6-luna`\) at `high` reasoning/i);
+    expect(guidance).toMatch(/numbered-plan Luna `max`[\s\S]{0,360}gpt-5\.6-terra` at `xhigh`/i);
+    expect(guidance).toMatch(/overrides all routine primary-agent ownership\s+clauses below/i);
+    expect(guidance).toMatch(/separately\s+assigned implementation, exact-HEAD review, and release agents[\s\S]{0,240}reconciliation, versioning, merge, push, and `coordination:finish`/i);
+    expect(guidance).toMatch(/For routine \(non-campaign\) tasks,[\s\S]{0,420}The primary agent also owns all review, integration, versioning, merge, and push/i);
+  });
+
   it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
     const repositoryRoot = process.cwd();
     const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
