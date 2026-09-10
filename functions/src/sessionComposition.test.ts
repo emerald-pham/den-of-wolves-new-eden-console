@@ -383,18 +383,96 @@ async function composeProductionSession(playerCount: CompositionCount) {
     setupRevision = (seat as { setupRevision: number }).setupRevision;
   }
 
+  let iaRaceResults: PromiseSettledResult<unknown>[] = [];
+  let iaRaceRequests: Array<Record<string, unknown>> = [];
+  let iaRaceWinner: { request: Record<string, unknown>; result: Record<string, unknown> } | null = null;
   if (playerCount === 8) {
+    await expect(assignLoyalty.run(request({
+      sessionId,
+      instanceId: `bridge-${playerCount}`,
+      requestId: `loyalty-${playerCount}-intelligence-without-wolf`,
+      targetUid: coreUids[1]!,
+      kind: 'intelligence-agent',
+      suspicion: 6,
+    }, ownerUid))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/Wolf/i),
+    });
+
+    const wolfAssignment = await assignLoyalty.run(request({
+      sessionId,
+      instanceId: `bridge-${playerCount}`,
+      requestId: `loyalty-${playerCount}-wolf`,
+      targetUid: coreUids[0]!,
+      kind: 'wolf-agent',
+      suspicion: 0,
+    }, ownerUid));
+    setupRevision = (wolfAssignment as { setupRevision: number }).setupRevision;
+
+    iaRaceRequests = [1, 2].map((index, requestIndex) => ({
+      sessionId,
+      instanceId: `bridge-${playerCount}`,
+      requestId: `loyalty-${playerCount}-ia-race-${requestIndex}`,
+      targetUid: coreUids[index]!,
+      kind: 'intelligence-agent',
+      suspicion: 6,
+    }));
+    iaRaceResults = await Promise.allSettled(iaRaceRequests.map((iaRequest) =>
+      assignLoyalty.run(request(iaRequest, ownerUid))));
+    expect(iaRaceResults.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(iaRaceResults.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    const iaWinnerIndex = iaRaceResults.findIndex((outcome) => outcome.status === 'fulfilled');
+    if (iaWinnerIndex < 0) throw new Error('The Intelligence Agent race produced no committed result.');
+    iaRaceWinner = {
+      request: iaRaceRequests[iaWinnerIndex]!,
+      result: iaRaceResults[iaWinnerIndex]!.value as Record<string, unknown>,
+    };
+    setupRevision = iaRaceWinner.result.setupRevision as number;
+    const iaWinnerUid = iaRaceWinner.request.targetUid as string;
+    await expect(assignLoyalty.run(request(iaRaceWinner.request, ownerUid)))
+      .resolves.toEqual(iaRaceWinner.result);
+
+    const iaSecretsAfterRace = [...mock.documents.entries()].filter(([path, fields]) =>
+      path.startsWith(`sessions/${sessionId}/secrets/loyalty-`) &&
+      (fields.payload as Record<string, unknown> | undefined)?.kind === 'intelligence-agent');
+    expect(iaSecretsAfterRace).toHaveLength(1);
+
+    mock.documents.set(`sessions/${sessionId}/events/legacy-event-collision`, {
+      type: 'loyalty-assignment',
+      result: { sessionId, setupRevision, assignedUids: [coreUids[3]] },
+    });
+    await expect(assignLoyalty.run(request({
+      sessionId,
+      instanceId: `bridge-${playerCount}`,
+      requestId: 'legacy-event-collision',
+      targetUid: coreUids[3]!,
+      kind: 'fleet-loyalist',
+      suspicion: 0,
+    }, ownerUid))).rejects.toMatchObject({
+      code: 'failed-precondition',
+      message: expect.stringMatching(/legacy|unbound|receipt/i),
+    });
+
     for (const [index, uid] of coreUids.entries()) {
+      if (index === 0 || uid === iaWinnerUid) continue;
       const assignment = await assignLoyalty.run(request({
         sessionId,
         instanceId: `bridge-${playerCount}`,
         requestId: `loyalty-${playerCount}-${index}`,
         targetUid: uid,
-        kind: index === 0 ? 'wolf-agent' : 'fleet-loyalist',
+        kind: 'fleet-loyalist',
         suspicion: 0,
       }, ownerUid));
       setupRevision = (assignment as { setupRevision: number }).setupRevision;
     }
+
+    await disconnectFromSession.run(request({ sessionId }, coreUids[1]!));
+    const resumedBeforeStart = await resumeSession.run(request({ sessionId }, coreUids[1]!));
+    expect(resumedBeforeStart).toMatchObject({
+      session: { id: sessionId, phase: 'casting', setupRevision },
+      player: { uid: coreUids[1], assignedRoleId: activeRoleIds[1] },
+    });
+    expect(JSON.stringify(resumedBeforeStart)).not.toMatch(/wolf-agent|intelligence-agent|selectedWolfRoleIds/);
   }
 
   if (playerCount === 20) {
@@ -447,6 +525,9 @@ async function composeProductionSession(playerCount: CompositionCount) {
     raceJoinUid,
     startRaceResults,
     startRaceRequests,
+    iaRaceResults,
+    iaRaceRequests,
+    iaRaceWinner,
   };
 }
 

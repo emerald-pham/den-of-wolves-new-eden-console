@@ -378,12 +378,13 @@ describe('seats', () => {
     );
   });
 
-  it('denies direct setup, seat-receipt, responsibility-receipt, and event writes', async () => {
+  it('denies direct setup, seat-receipt, responsibility-receipt, loyalty-receipt, and event writes', async () => {
     const db = as('gm1');
     const targets = [
       `${SESSION}/setupMutationRequests/request-1`,
       `${SESSION}/seatMutationRequests/request-1`,
       `${SESSION}/gmResponsibilityRequests/request-1`,
+      `${SESSION}/loyaltyAssignmentRequests/request-1`,
       `sessionStartRequests/s1_start-1`,
       `${SESSION}/events/setup-confirm-request-1`,
       `${SESSION}/events/seat-claim-request-1`,
@@ -395,6 +396,7 @@ describe('seats', () => {
       await assertFails(updateDoc(target, { forged: true }));
       await assertFails(deleteDoc(target));
     }
+    await assertFails(getDoc(doc(db, `${SESSION}/loyaltyAssignmentRequests/request-1`)));
     await assertFails(updateDoc(doc(db, SESSION), {
       setup: {
         playerCount: 8,
@@ -547,6 +549,7 @@ describe('secrets', () => {
       collection(as('gm1'), `${SESSION}/secrets`),
       where('visibleToUids', 'array-contains', 'gm1'),
     )));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/loyaltyAssignmentRequests`)));
   });
 
   it('deny unlisted or stale GMs and every other non-allowlisted reader', async () => {
@@ -627,6 +630,7 @@ describe('complete server-owned denial matrix', () => {
       'players',
       'seats',
       'events',
+      'loyaltyAssignmentRequests',
       'maintenanceRequests',
       'damageDraws',
       'gmInstances',

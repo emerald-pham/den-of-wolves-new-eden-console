@@ -90,6 +90,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Loyalty assignment receipts bind retries to a server-side actor and
+      // payload fingerprint. They are never part of the public event stream.
+      match /loyaltyAssignmentRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       // Maintenance receipts are server-owned replay state and may contain
       // authoritative command details that are not part of the read model.
       match /maintenanceRequests/{requestId} {

@@ -1956,13 +1956,28 @@ export const releaseRole = onCall<{
   const release = requireRoleReleaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${release.sessionId}`);
   const eventRef = db.doc(`sessions/${release.sessionId}/events/${release.requestId}`);
+  const targetSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${release.targetUid}`);
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
-    const [prior, authority, target] = await Promise.all([
+    const [prior, authority, target, targetSecret] = await Promise.all([
       tx.get(eventRef),
       requireFacilitatorInstance(tx, release.sessionId, uid, release.instanceId),
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
+      tx.get(targetSecretRef),
     ]);
+    let partnerSecretRef: DocumentReference | undefined;
+    if (targetSecret.exists) {
+      const payload = targetSecret.get('payload');
+      const partnerUid = typeof payload === 'object' && payload !== null && !Array.isArray(payload) &&
+        (payload as Record<string, unknown>).kind === 'friend' &&
+        typeof (payload as Record<string, unknown>).partnerUid === 'string'
+        ? (payload as Record<string, unknown>).partnerUid as string
+        : undefined;
+      if (partnerUid && partnerUid !== release.targetUid) {
+        partnerSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${partnerUid}`);
+      }
+    }
+    const partnerSecret = partnerSecretRef ? await tx.get(partnerSecretRef) : undefined;
     if (prior.exists) {
       const result = prior.get('result');
       if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
@@ -1975,6 +1990,19 @@ export const releaseRole = onCall<{
       setupRevision: setupRevision(authority.session) + 1,
     } satisfies CastingMutationResult;
     tx.update(target.ref, { assignedRoleId: null, activeConsoleRoleId: null });
+    // Role release and loyalty cleanup commit together. Reading the private
+    // record above also makes a concurrent assignment retry against this
+    // transaction instead of leaving a stale hidden faction behind.
+    if (targetSecret.exists) tx.delete(targetSecretRef);
+    if (partnerSecret?.exists && partnerSecretRef) {
+      const partnerPayload = partnerSecret.get('payload');
+      const reciprocal = typeof partnerPayload === 'object' && partnerPayload !== null &&
+        !Array.isArray(partnerPayload) &&
+        (partnerPayload as Record<string, unknown>).type === 'loyalty' &&
+        (partnerPayload as Record<string, unknown>).kind === 'friend' &&
+        (partnerPayload as Record<string, unknown>).partnerUid === release.targetUid;
+      if (reciprocal) tx.delete(partnerSecretRef);
+    }
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
     tx.set(eventRef, {
       type: 'role-release',
@@ -1987,6 +2015,126 @@ export const releaseRole = onCall<{
     return result;
   });
 });
+
+type LoyaltyAssignmentFingerprint = Readonly<{
+  action: 'assign-loyalty';
+  sessionId: string;
+  actorUid: string;
+  instanceId: string;
+  targetUid: string;
+  kind: string;
+  suspicion: number | null;
+  partnerUid: string | null;
+}>;
+
+function loyaltyAssignmentFingerprint(
+  assignment: ReturnType<typeof requireLoyaltyAssignmentRequest>,
+  actorUid: string,
+): LoyaltyAssignmentFingerprint {
+  return {
+    action: 'assign-loyalty',
+    sessionId: assignment.sessionId,
+    actorUid,
+    instanceId: assignment.instanceId,
+    targetUid: assignment.targetUid,
+    kind: assignment.kind,
+    suspicion: assignment.suspicion,
+    partnerUid: assignment.partnerUid ?? null,
+  };
+}
+
+function sameLoyaltyAssignmentFingerprint(
+  value: unknown,
+  expected: LoyaltyAssignmentFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.action === expected.action &&
+    candidate.sessionId === expected.sessionId &&
+    candidate.actorUid === expected.actorUid &&
+    candidate.instanceId === expected.instanceId &&
+    candidate.targetUid === expected.targetUid &&
+    candidate.kind === expected.kind &&
+    candidate.suspicion === expected.suspicion &&
+    candidate.partnerUid === expected.partnerUid;
+}
+
+function isBoundLoyaltyAssignmentFingerprint(
+  value: unknown,
+): value is LoyaltyAssignmentFingerprint {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.action === 'assign-loyalty' &&
+    typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0 &&
+    typeof candidate.actorUid === 'string' && candidate.actorUid.length > 0 &&
+    typeof candidate.instanceId === 'string' && candidate.instanceId.length > 0 &&
+    typeof candidate.targetUid === 'string' && candidate.targetUid.length > 0 &&
+    typeof candidate.kind === 'string' && candidate.kind.length > 0 &&
+    (candidate.suspicion === null ||
+      (typeof candidate.suspicion === 'number' && Number.isFinite(candidate.suspicion))) &&
+    (candidate.partnerUid === null ||
+      (typeof candidate.partnerUid === 'string' && candidate.partnerUid.length > 0));
+}
+
+function isCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): boolean {
+  if (!player || !player.exists || player.id !== uid || !isActivePlayer(player) || player.get('role') !== 'player') {
+    return false;
+  }
+  const assignedRoleId = player.get('assignedRoleId');
+  if (typeof assignedRoleId !== 'string' || !activeRoleIds.includes(assignedRoleId)) return false;
+  // A loyalty secret must never attach to an ambiguous or stale role holder.
+  return !players.some((candidate) => candidate.id !== uid &&
+    candidate.exists && candidate.get('assignedRoleId') === assignedRoleId);
+}
+
+function requireCanonicalLoyaltyHolder(
+  player: DocumentSnapshot | undefined,
+  uid: string,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+  label: string,
+): void {
+  if (isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)) return;
+  throw new HttpsError(
+    'failed-precondition',
+    `${label} must be an active non-GM holder of one unique role in the configured roster.`,
+  );
+}
+
+type CanonicalLoyaltySecret = Readonly<{
+  uid: string;
+  kind: LoyaltyKind;
+}>;
+
+function canonicalLoyaltySecret(
+  secret: DocumentSnapshot,
+  players: readonly DocumentSnapshot[],
+  activeRoleIds: readonly string[],
+): CanonicalLoyaltySecret | null {
+  if (!secret.exists || !secret.id.startsWith('loyalty-')) return null;
+  const uid = secret.id.slice('loyalty-'.length);
+  if (!uid) return null;
+  const holder = players.find((candidate) => candidate.id === uid);
+  if (!isCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds)) return null;
+  const payload = secret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (record.type !== 'loyalty' || typeof record.kind !== 'string') return null;
+  const suspicion = record.suspicion === null
+    ? null
+    : typeof record.suspicion === 'number' ? record.suspicion : Number.NaN;
+  const decision = loyaltyAssignmentDecision(record.kind, suspicion);
+  if (!decision.allowed) return null;
+  if (record.kind !== 'friend' && record.partnerUid !== undefined && record.partnerUid !== null) return null;
+  if (record.kind === 'friend' &&
+      (typeof record.partnerUid !== 'string' || record.partnerUid === uid)) return null;
+  return { uid, kind: record.kind as LoyaltyKind };
+}
 
 /** Assign a private loyalty card through the facilitator boundary. */
 export const assignLoyalty = onCall<{
@@ -2003,37 +2151,71 @@ export const assignLoyalty = onCall<{
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
   const targetRef = db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`);
   const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const receiptRef = db.doc(
+    `sessions/${assignment.sessionId}/loyaltyAssignmentRequests/${assignment.requestId}`,
+  );
   const targetSecretRef = db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.targetUid}`);
   const secretsRef = db.collection(`sessions/${assignment.sessionId}/secrets`);
+  const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
   const partnerRef = assignment.partnerUid
     ? db.doc(`sessions/${assignment.sessionId}/players/${assignment.partnerUid}`)
     : undefined;
   const partnerSecretRef = assignment.partnerUid
     ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.partnerUid}`)
     : undefined;
+  const fingerprint = loyaltyAssignmentFingerprint(assignment, uid);
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult & { assignedUids: readonly string[] }> => {
-    const [prior, authority, target, partner, secrets] = await Promise.all([
+    // Authorize before replay. The receipt is server-only; the public event is
+    // retained only as an audit projection and never as replay state.
+    const [prior, legacyEvent, authority] = await Promise.all([
+      tx.get(receiptRef),
       tx.get(eventRef),
       requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
-      tx.get(targetRef),
-      partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
-      assignment.kind === 'intelligence-agent' ? tx.get(secretsRef) : Promise.resolve(undefined),
     ]);
     if (prior.exists) {
+      if (prior.get('fingerprint') === undefined) {
+        throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt without a fingerprint.');
+      }
+      const storedFingerprint = prior.get('fingerprint');
+      if (!isBoundLoyaltyAssignmentFingerprint(storedFingerprint)) {
+        throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or legacy unbound fingerprint.');
+      }
+      if (storedFingerprint.actorUid !== uid) {
+        throw new HttpsError('permission-denied', 'This loyalty request belongs to a different facilitator.');
+      }
+      if (!sameLoyaltyAssignmentFingerprint(storedFingerprint, fingerprint)) {
+        throw new HttpsError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.');
+      }
       const result = prior.get('result');
       if (typeof result === 'object' && result !== null) {
         return result as CastingMutationResult & { assignedUids: readonly string[] };
       }
       throw new HttpsError('failed-precondition', 'This loyalty request has no replayable result.');
     }
+    if (legacyEvent.exists) {
+      throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt.');
+    }
+
+    const [target, partner, players, secrets] = await Promise.all([
+      tx.get(targetRef),
+      partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
+      tx.get(playersRef),
+      tx.get(secretsRef),
+    ]);
     requireCastingWindow(authority.session);
-    if (!isActivePlayer(target)) throw new HttpsError('failed-precondition', 'That player is not eligible for loyalty setup.');
+    const activeRoleIds = configuredRoleIds(authority.session);
+    const playerDocuments = players.docs;
+    requireCanonicalLoyaltyHolder(
+      target, assignment.targetUid, playerDocuments, activeRoleIds, 'That player',
+    );
     if (assignment.partnerUid && assignment.partnerUid === assignment.targetUid) {
       throw new HttpsError('invalid-argument', 'A Friend partner must be another player.');
     }
-    if (assignment.partnerUid && (!partner || !isActivePlayer(partner))) {
-      throw new HttpsError('failed-precondition', 'The Friend partner is not an active player.');
+    if (assignment.partnerUid) {
+      requireCanonicalLoyaltyHolder(
+        partner, assignment.partnerUid, playerDocuments, activeRoleIds, 'The Friend partner',
+      );
     }
     const kind = assignment.kind as LoyaltyKind;
     const decision = loyaltyAssignmentDecision(kind, assignment.suspicion);
@@ -2047,14 +2229,22 @@ export const assignLoyalty = onCall<{
       throw new HttpsError('invalid-argument', 'Only Friend loyalty may name a partner.');
     }
     if (kind === 'intelligence-agent') {
-      const wolfExistsAfterAssignment = secrets?.docs.some((secret) => {
-        if (!secret.id.startsWith('loyalty-') || secret.id === targetSecretRef.id) return false;
-        const payload = secret.get('payload');
-        return typeof payload === 'object' && payload !== null && !Array.isArray(payload) &&
-          (payload as Record<string, unknown>).kind === 'wolf-agent';
-      }) ?? false;
-      if (!wolfExistsAfterAssignment) {
+      const replacedUids = new Set([
+        assignment.targetUid,
+        ...(assignment.partnerUid ? [assignment.partnerUid] : []),
+      ]);
+      const validSecrets = secrets.docs
+        .map((secret) => canonicalLoyaltySecret(secret, playerDocuments, activeRoleIds))
+        .filter((record): record is CanonicalLoyaltySecret => record !== null)
+        .filter((record) => !replacedUids.has(record.uid));
+      const wolfCount = validSecrets.filter((record) => record.kind === 'wolf-agent').length;
+      const intelligenceAgentCount = validSecrets
+        .filter((record) => record.kind === 'intelligence-agent').length;
+      if (wolfCount < 1) {
         throw new HttpsError('failed-precondition', 'Intelligence Agent setup requires at least one Wolf agent.');
+      }
+      if (intelligenceAgentCount >= 1) {
+        throw new HttpsError('failed-precondition', 'Only one Intelligence Agent may be assigned.');
       }
     }
     const validSuspicion = kind === 'android'
@@ -2095,6 +2285,19 @@ export const assignLoyalty = onCall<{
       actorUid: uid,
       assignedUids: result.assignedUids,
       requestId: assignment.requestId,
+      result,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, {
+      action: fingerprint.action,
+      sessionId: fingerprint.sessionId,
+      actorUid: fingerprint.actorUid,
+      instanceId: fingerprint.instanceId,
+      targetUid: fingerprint.targetUid,
+      kind: fingerprint.kind,
+      suspicion: fingerprint.suspicion,
+      partnerUid: fingerprint.partnerUid,
+      fingerprint,
       result,
       createdAt: FieldValue.serverTimestamp(),
     });

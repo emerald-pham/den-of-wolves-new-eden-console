@@ -15,11 +15,11 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**90 / 730 prompts complete (12.33%)**
+**91 / 730 prompts complete (12.47%)**
 
-Status breakdown: **90 done · 25 partial · 0 active · 615 missing**.
+Status breakdown: **91 done · 25 partial · 0 active · 614 missing**.
 
-Active prompt: **none**.
+Active prompt: **none**
 
 The eleven-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
 P652a, P652b, P657, P658, and P659 as missing without changing any landed
@@ -35,6 +35,18 @@ standard desktop rendered-browser proof; it remains missing until separately
 implemented and does not count toward completed behavior.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
+
+### Version 0.3.28 progress evidence
+
+The release boundary records Prompt 055 complete at **91 / 730 = 12.47%** with
+**91 done · 25 partial · 0 active · 614 missing**. Intelligence Agent setup now
+requires canonical active non-GM holders, counts only valid current loyalty
+secrets, removes released loyalty records atomically, binds retries to a
+server-only actor/payload fingerprint, and keeps public events redacted.
+Focused callable, casting, composition, and rules denial coverage includes
+receipt replay/collision, Friend cleanup, optimistic assignment races,
+disconnect/resume before start, and exact setup receipt/private projection
+counts.
 The country-flag regression report is retracted: P031a instead composes the
 existing seat/console and flag-selection experiences while preserving the
 historical bespoke flag choreography. The version 0.3.13 release snapshot below
@@ -462,7 +474,7 @@ release classification and evidence.
 | 052 | done | non-feature | — | Dione threshold/configuration tests. |
 | 053 | done | non-feature | — | Union substitution tests. |
 | 054 | done | feature | 0.3.13 | The routine production start derives one hidden Wolf at 8–13 core players and two at 14–20 from locked authoritative setup, never accepts caller-selected routine cardinality, keeps Press outside the count while including one claimed holder in the eligible pool, and records private identities plus a redacted calculation receipt without a third Wolf. Same-request retry/replay cannot reroll; stale/conflicting authority rejects. Legacy manual Wolf mutation exports are retired. |
-| 055 | missing | non-feature | — | Intelligence Agent gating is not yet explicit. |
+| 055 | done | feature | 0.3.28 | Intelligence Agent setup now requires authoritative canonical holders, replacement-aware Wolf/IA counts, atomic stale-secret cleanup, actor/payload-bound replay, and production/rules/concurrency evidence. |
 | 056 | missing | non-feature | — | Universal Arbour/Wolf Cult setup is not yet explicit. |
 | 057 | partial | feature | 0.3.5 | Base/expansion/none configuration validation exists; full lock/composition remains open. |
 | 058 | partial | feature | 0.3.5 | Capybara catalogs and mode persistence exist; expansion start initialization remains open. |

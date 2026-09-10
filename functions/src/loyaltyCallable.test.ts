@@ -7,11 +7,12 @@ const mock = vi.hoisted(() => ({
   set: vi.fn(),
   session: { phase: 'casting', configurationLocked: false, setupRevision: 2 },
   actor: { connected: true, role: 'gm' },
-  target: { connected: true, role: 'player' },
-  partner: { connected: true, role: 'player' },
+  target: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' },
+  partner: { connected: true, role: 'player', assignedRoleId: 'admiral' },
   instance: { uid: 'u1' },
   loyaltySecrets: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   priorResults: {} as Record<string, Record<string, unknown>>,
+  players: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -44,13 +45,29 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.session = { phase: 'casting', configurationLocked: false, setupRevision: 2, activeRoleIds: ['admiral', 'icebreaker-miner'] };
+  mock.actor = { connected: true, role: 'gm' };
+  mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
+  mock.partner = { connected: true, role: 'player', assignedRoleId: 'admiral' };
+  mock.instance = { uid: 'u1' };
   mock.loyaltySecrets = [];
   mock.priorResults = {};
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: mock.partner },
+  ];
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
     if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
     if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
     if (ref.path === 'sessions/s1/players/u3') return snapshot(mock.partner, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return {
+        exists: true,
+        docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)),
+      };
+    }
     if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
     if (ref.path === 'sessions/s1/secrets') {
       return {
@@ -59,7 +76,7 @@ beforeEach(() => {
       };
     }
     const priorResult = mock.priorResults[ref.path];
-    if (priorResult) return snapshot({ result: priorResult }, ref.path);
+    if (priorResult) return snapshot(priorResult, ref.path);
     return snapshot({}, ref.path, false);
   });
 });
@@ -96,7 +113,17 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
   );
   const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/intelligence-with-wolf')?.[1];
   expect(eventWrite).toBeDefined();
-  expect(JSON.stringify(eventWrite)).not.toContain('intelligence-agent');
+  expect(eventWrite).not.toHaveProperty('fingerprint');
+  expect(JSON.stringify(eventWrite)).not.toMatch(/intelligence-agent|suspicion|partnerUid/);
+  const receiptWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/loyaltyAssignmentRequests/intelligence-with-wolf',
+  )?.[1];
+  expect(receiptWrite).toMatchObject({
+    fingerprint: {
+      action: 'assign-loyalty', actorUid: 'u1', instanceId: 'bridge', targetUid: 'u2',
+      kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+  });
 });
 
 it('rejects replacing the sole Wolf with Intelligence Agent before any write', async () => {
@@ -118,12 +145,233 @@ it('rejects replacing the sole Wolf with Intelligence Agent before any write', a
 
 it('replays a committed Intelligence Agent request without reevaluating or writing it', async () => {
   const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
-  mock.priorResults['sessions/s1/events/intelligence-replay'] = reply;
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/intelligence-replay'] = {
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: reply,
+  };
 
   await expect(assignLoyalty.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'intelligence-replay',
     targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
   }))).resolves.toEqual(reply);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a replay from a different authorized actor before touching setup', async () => {
+  const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/actor-collision'] = {
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: reply,
+  };
+  mock.target = { connected: true, role: 'gm', assignedRoleId: 'icebreaker-miner' };
+  mock.actor = { connected: true, role: 'player' };
+  mock.instance = { uid: 'u2' };
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: mock.partner },
+  ];
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'actor-collision',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }, 'u2'))).rejects.toMatchObject({
+    code: 'permission-denied',
+    message: expect.stringMatching(/different facilitator|actor/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a changed payload under an existing request id', async () => {
+  const reply = { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] };
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/payload-collision'] = {
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: reply,
+  };
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'payload-collision',
+    targetUid: 'u2', kind: 'android', suspicion: null,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/fingerprint|payload|collision/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a legacy unbound receipt instead of replaying or re-running setup', async () => {
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/legacy-receipt'] = {
+    result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
+  };
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'legacy-receipt',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/fingerprint|legacy|replay/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('fails closed for a malformed unbound fingerprint before actor comparison', async () => {
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/malformed-fingerprint'] = {
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
+  };
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'malformed-fingerprint',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/legacy|fingerprint|unbound/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a legacy public-event receipt instead of replaying an unbound command', async () => {
+  mock.priorResults['sessions/s1/events/legacy-event-receipt'] = {
+    type: 'loyalty-assignment',
+    result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
+  };
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'legacy-event-receipt',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/legacy|unbound|receipt/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['missing assigned role', { connected: true, role: 'player' }],
+  ['inactive assigned role', { connected: true, role: 'player', assignedRoleId: 'stale-role' }],
+  ['GM holder', { connected: true, role: 'gm', assignedRoleId: 'icebreaker-miner' }],
+] as const)('requires a canonical active non-GM target for loyalty setup: %s', async (label, target) => {
+  mock.target = target;
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: mock.partner },
+  ];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: `canonical-${label.replaceAll(' ', '-')}`,
+    targetUid: 'u2', kind: 'android', suspicion: null,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/role|holder|roster|eligible/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects duplicate active role holders instead of assigning either stale record', async () => {
+  mock.players.push({ id: 'u4', fields: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' } });
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-holder',
+    targetUid: 'u2', kind: 'android', suspicion: null,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/duplicate|role|holder/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('requires a canonical active Friend partner as well as a canonical target', async () => {
+  mock.partner = { connected: true, role: 'player', assignedRoleId: 'stale-role' };
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: mock.partner },
+  ];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'friend-stale-partner',
+    targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u3',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/partner|role|holder|roster/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('ignores stale Wolf records when deciding whether Intelligence Agent setup is safe', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+  }];
+  mock.partner = { connected: false, role: 'player', assignedRoleId: 'admiral' };
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: mock.partner },
+  ];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'stale-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('does not count malformed or non-loyalty secrets as a Wolf', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3', fields: { payload: { kind: 'wolf-agent', suspicion: 0 } },
+  }];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'malformed-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a second Intelligence Agent even when a Wolf remains', async () => {
+  mock.players.push({ id: 'u4', fields: { connected: true, role: 'player', assignedRoleId: 'admiral' } });
+  mock.loyaltySecrets = [
+    { id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } } },
+    { id: 'loyalty-u4', fields: { payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 } } },
+  ];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-intelligence',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/Intelligence Agent|already|one/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });

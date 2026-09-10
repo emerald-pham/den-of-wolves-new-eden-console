@@ -165,7 +165,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 052 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Exclude Dione below 12 players. |
 | 053 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Configure Joint Engineering Union substitutions. |
 | 054 | REPAIR | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Derive Wolf-agent count authoritatively. |
-| 055 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M1 | Gate Intelligence Agent setup. |
+| 055 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Gate Intelligence Agent setup. |
 | 056 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M1 | Gate Universal Arbour and Wolf Cult setup. |
 | 057 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Select base or expansion vessel mode. |
 | 058 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Load expansion roster data. |
