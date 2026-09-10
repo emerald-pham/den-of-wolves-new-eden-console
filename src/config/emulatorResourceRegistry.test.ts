@@ -3381,6 +3381,103 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('attaches an exact-head receipt to a reconciled landed fragment only from the active release lane', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-landed-fragment-cli-${randomUUID()}.json`);
+    const lanePath = `${filePath}.release-lane.json`;
+    const applicationVersion = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf8')).version;
+    const exactHead = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const branchName = await runFixtureGit(process.cwd(), ['branch', '--show-current']);
+    const entry = {
+      ...releaseEntry,
+      worktree: process.cwd(),
+      branchName,
+      workType: 'product',
+      implementationPrompt: 55,
+      versionPlan: `Reserve application patch version ${applicationVersion}.`,
+      scopes: ['scripts/feature.mjs'],
+      validation: { ...codeValidation, commitSha: exactHead },
+    };
+    const change = 'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.';
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await writeFile(lanePath, JSON.stringify({
+        version: 1,
+        nextSequence: 2,
+        fragments: [{
+          id: 'release-fragment-landed-cli',
+          taskId: entry.id,
+          state: 'landed',
+          worktree: process.cwd(),
+          changes: [change],
+          implementationPrompts: ['055'],
+          implementationProgress: {
+            completed: 91,
+            total: 730,
+            percentage: '12.47%',
+            done: 91,
+            partial: 25,
+            active: 0,
+            missing: 614,
+          },
+          baseVersion: '0.3.27',
+          baseMainSha: 'main-sha',
+          coordinationEntryId: entry.id,
+          coordinationBranchName: branchName,
+          coordinationBranchSha: 'historical-branch-sha',
+          requiredPrompt: '055',
+          version: applicationVersion,
+          reconciliation: {
+            historicalCoordinationBranchSha: 'historical-branch-sha',
+            finalBranchSha: exactHead,
+            validationReceiptCommitSha: exactHead,
+            coordinationEntryId: entry.id,
+            coordinationWorktree: process.cwd(),
+            coordinationBranchName: branchName,
+            baseMainSha: 'main-sha',
+          },
+        }],
+      }), 'utf8');
+
+      const validated = await validateCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({
+          branchName,
+          branchSha: exactHead,
+          branchVersion: applicationVersion,
+          branchLockVersion: applicationVersion,
+          mainVersion: '0.3.27',
+          mainLockVersion: '0.3.27',
+          branchChangelog: [
+            { version: applicationVersion, source: change },
+            { version: '0.3.27', source: 'previous release' },
+          ],
+          mainChangelog: [{ version: '0.3.27', source: 'previous release' }],
+          changedFiles: ['scripts/feature.mjs'],
+        }),
+        'release-fragment-file': lanePath,
+        'release-fragment-id': 'release-fragment-landed-cli',
+        commandRunner: async () => undefined,
+      });
+      expect(validated.validation?.releaseFragment).toMatchObject({
+        id: 'release-fragment-landed-cli',
+        taskId: entry.id,
+        validated: true,
+        source: lanePath,
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+      await unlink(`${filePath}.validation-queue.json`).catch(() => undefined);
+      await unlink(`${filePath}.validation-queue.json.lock`).catch(() => undefined);
+      await unlink(lanePath).catch(() => undefined);
+    }
+  });
+
   it('does not let an unvalidated or foreign release fragment waive product metadata gates', () => {
     const productEntry = {
       ...releaseEntry,

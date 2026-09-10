@@ -2136,6 +2136,26 @@ function canonicalLoyaltySecret(
   return { uid, kind: record.kind as LoyaltyKind };
 }
 
+/**
+ * Return a Friend's former partner only for a complete private reciprocal
+ * record. Reassignment may replace a holder's secret, but it must not erase a
+ * malformed or unrelated secret merely because it names that holder.
+ */
+function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: string): string | null {
+  if (!secret?.exists) return null;
+  const visibleToUids = secret.get('visibleToUids');
+  if (!Array.isArray(visibleToUids) || visibleToUids.length !== 1 || visibleToUids[0] !== uid) {
+    return null;
+  }
+  const payload = secret.get('payload');
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  if (record.type !== 'loyalty' || record.kind !== 'friend' || record.suspicion !== 0) return null;
+  return typeof record.partnerUid === 'string' && record.partnerUid.length > 0 && record.partnerUid !== uid
+    ? record.partnerUid
+    : null;
+}
+
 /** Assign a private loyalty card through the facilitator boundary. */
 export const assignLoyalty = onCall<{
   sessionId?: unknown;
@@ -2197,11 +2217,13 @@ export const assignLoyalty = onCall<{
       throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt.');
     }
 
-    const [target, partner, players, secrets] = await Promise.all([
+    const [target, partner, players, secrets, targetSecret, partnerSecret] = await Promise.all([
       tx.get(targetRef),
       partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
       tx.get(playersRef),
       tx.get(secretsRef),
+      tx.get(targetSecretRef),
+      partnerSecretRef ? tx.get(partnerSecretRef) : Promise.resolve(undefined),
     ]);
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
@@ -2228,6 +2250,43 @@ export const assignLoyalty = onCall<{
     if (kind !== 'friend' && assignment.partnerUid) {
       throw new HttpsError('invalid-argument', 'Only Friend loyalty may name a partner.');
     }
+
+    // Read every displaced counterpart before making any write. A target and
+    // a newly chosen Friend partner can each replace an older pair. Delete a
+    // former counterpart only if both secrets form a complete reciprocal
+    // private pair; corrupt or unrelated secrets remain untouched.
+    const reassignedUids = new Set([
+      assignment.targetUid,
+      ...(assignment.partnerUid ? [assignment.partnerUid] : []),
+    ]);
+    const previousFriendLinks = [
+      { uid: assignment.targetUid, secret: targetSecret },
+      ...(assignment.partnerUid ? [{ uid: assignment.partnerUid, secret: partnerSecret }] : []),
+    ].flatMap(({ uid: holderUid, secret }) => {
+      const oldPartnerUid = privateFriendPartnerUid(secret, holderUid);
+      return oldPartnerUid && !reassignedUids.has(oldPartnerUid)
+        ? [{ holderUid, oldPartnerUid }]
+        : [];
+    });
+    const displacedPartnerRefs = new Map<string, DocumentReference>();
+    for (const { oldPartnerUid } of previousFriendLinks) {
+      displacedPartnerRefs.set(
+        oldPartnerUid,
+        db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${oldPartnerUid}`),
+      );
+    }
+    const displacedPartnerSecrets = await Promise.all([...displacedPartnerRefs.entries()].map(async ([
+      oldPartnerUid,
+      ref,
+    ]) => ({ oldPartnerUid, ref, secret: await tx.get(ref) })));
+    const reciprocalDisplacedPartnerRefs = displacedPartnerSecrets.flatMap(({ oldPartnerUid, ref, secret }) => {
+      const formerHolderUids = previousFriendLinks
+        .filter((link) => link.oldPartnerUid === oldPartnerUid)
+        .map((link) => link.holderUid);
+      const reciprocalHolderUid = privateFriendPartnerUid(secret, oldPartnerUid);
+      return reciprocalHolderUid && formerHolderUids.includes(reciprocalHolderUid) ? [ref] : [];
+    });
+
     if (kind === 'intelligence-agent') {
       const replacedUids = new Set([
         assignment.targetUid,
@@ -2275,6 +2334,9 @@ export const assignLoyalty = onCall<{
         createdAt: FieldValue.serverTimestamp(),
       });
     }
+    for (const displacedPartnerRef of reciprocalDisplacedPartnerRefs) {
+      tx.delete(displacedPartnerRef);
+    }
     tx.update(sessionRef, {
       phase: 'casting',
       setupRevision: result.setupRevision,
@@ -2283,9 +2345,7 @@ export const assignLoyalty = onCall<{
     tx.set(eventRef, {
       type: 'loyalty-assignment',
       actorUid: uid,
-      assignedUids: result.assignedUids,
       requestId: assignment.requestId,
-      result,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(receiptRef, {

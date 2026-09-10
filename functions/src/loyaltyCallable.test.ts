@@ -5,6 +5,7 @@ const mock = vi.hoisted(() => ({
   get: vi.fn(),
   update: vi.fn(),
   set: vi.fn(),
+  delete: vi.fn(),
   session: { phase: 'casting', configurationLocked: false, setupRevision: 2 },
   actor: { connected: true, role: 'gm' },
   target: { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' },
@@ -24,7 +25,7 @@ vi.mock('firebase-admin/firestore', () => ({
       get: mock.get,
       update: mock.update,
       set: mock.set,
-      delete: vi.fn(),
+      delete: mock.delete,
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
@@ -45,6 +46,7 @@ beforeEach(() => {
   mock.get.mockReset();
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.delete.mockReset();
   mock.session = { phase: 'casting', configurationLocked: false, setupRevision: 2, activeRoleIds: ['admiral', 'icebreaker-miner'] };
   mock.actor = { connected: true, role: 'gm' };
   mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
@@ -59,9 +61,8 @@ beforeEach(() => {
   ];
   mock.get.mockImplementation(async (ref: { path: string }) => {
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
-    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
-    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
-    if (ref.path === 'sessions/s1/players/u3') return snapshot(mock.partner, ref.path);
+    const player = mock.players.find(({ id }) => ref.path === `sessions/s1/players/${id}`);
+    if (player) return snapshot(player.fields, ref.path);
     if (ref.path === 'sessions/s1/players') {
       return {
         exists: true,
@@ -75,6 +76,8 @@ beforeEach(() => {
         docs: mock.loyaltySecrets.map(({ id, fields }) => snapshot(fields, `sessions/s1/secrets/${id}`)),
       };
     }
+    const loyaltySecret = mock.loyaltySecrets.find(({ id }) => ref.path === `sessions/s1/secrets/${id}`);
+    if (loyaltySecret) return snapshot(loyaltySecret.fields, ref.path);
     const priorResult = mock.priorResults[ref.path];
     if (priorResult) return snapshot(priorResult, ref.path);
     return snapshot({}, ref.path, false);
@@ -114,7 +117,9 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
   const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/intelligence-with-wolf')?.[1];
   expect(eventWrite).toBeDefined();
   expect(eventWrite).not.toHaveProperty('fingerprint');
-  expect(JSON.stringify(eventWrite)).not.toMatch(/intelligence-agent|suspicion|partnerUid/);
+  expect(eventWrite).not.toHaveProperty('assignedUids');
+  expect(eventWrite).not.toHaveProperty('result');
+  expect(JSON.stringify(eventWrite)).not.toMatch(/u2|intelligence-agent|suspicion|partnerUid/);
   const receiptWrite = mock.set.mock.calls.find(
     ([ref]) => ref.path === 'sessions/s1/loyaltyAssignmentRequests/intelligence-with-wolf',
   )?.[1];
@@ -123,6 +128,7 @@ it('assigns Intelligence Agent beside a Wolf with a private card and redacted ev
       action: 'assign-loyalty', actorUid: 'u1', instanceId: 'bridge', targetUid: 'u2',
       kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
     },
+    result: { sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] },
   });
 });
 
@@ -394,7 +400,9 @@ it('writes Android loyalty only to the target secret and leaves the assignment e
     expect.objectContaining({ type: 'loyalty-assignment' }),
   );
   const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/loyalty-1')?.[1];
-  expect(JSON.stringify(eventWrite)).not.toContain('android');
+  expect(eventWrite).not.toHaveProperty('assignedUids');
+  expect(eventWrite).not.toHaveProperty('result');
+  expect(JSON.stringify(eventWrite)).not.toMatch(/u2|android|suspicion|partnerUid/);
 });
 
 it('pairs Friends by writing reciprocal private records and rejects malformed suspicion', async () => {
@@ -413,6 +421,88 @@ it('pairs Friends by writing reciprocal private records and rejects malformed su
     targetUid: 'u2', kind: 'fleet-loyalist', suspicion: 4,
   }))).rejects.toMatchObject({ code: 'invalid-argument' });
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('removes only the reciprocal displaced Friend when replacing a target loyalty', async () => {
+  mock.loyaltySecrets = [
+    {
+      id: 'loyalty-u2',
+      fields: {
+        visibleToUids: ['u2'],
+        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u3' },
+      },
+    },
+    {
+      id: 'loyalty-u3',
+      fields: {
+        visibleToUids: ['u3'],
+        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u2' },
+      },
+    },
+  ];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replace-target-friend',
+    targetUid: 'u2', kind: 'android', suspicion: null,
+  }))).resolves.toMatchObject({ assignedUids: ['u2'] });
+
+  expect(mock.delete).toHaveBeenCalledTimes(1);
+  expect(mock.delete).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
+  );
+});
+
+it('removes only the reciprocal displaced Friend when replacing a new Friend partner', async () => {
+  mock.loyaltySecrets = [
+    {
+      id: 'loyalty-u3',
+      fields: {
+        visibleToUids: ['u3'],
+        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u4' },
+      },
+    },
+    {
+      id: 'loyalty-u4',
+      fields: {
+        visibleToUids: ['u4'],
+        payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u3' },
+      },
+    },
+  ];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replace-partner-friend',
+    targetUid: 'u2', kind: 'friend', suspicion: 0, partnerUid: 'u3',
+  }))).resolves.toMatchObject({ assignedUids: ['u2', 'u3'] });
+
+  expect(mock.delete).toHaveBeenCalledTimes(1);
+  expect(mock.delete).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u4' }),
+  );
+});
+
+it('never deletes a corrupt or unrelated secret while replacing a Friend target', async () => {
+  mock.loyaltySecrets = [
+    {
+      id: 'loyalty-u2',
+      fields: { payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u3' } },
+    },
+    {
+      id: 'loyalty-u3',
+      fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+    },
+    {
+      id: 'loyalty-u4',
+      fields: { payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u5' } },
+    },
+  ];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'replace-corrupt-friend',
+    targetUid: 'u2', kind: 'android', suspicion: null,
+  }))).resolves.toMatchObject({ assignedUids: ['u2'] });
+
+  expect(mock.delete).not.toHaveBeenCalled();
 });
 
 it('allows only the Android holder to disclose proof and makes the disclosure auditable', async () => {

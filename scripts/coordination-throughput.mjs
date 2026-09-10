@@ -1043,6 +1043,76 @@ function landedResult(fragment) {
 }
 
 /**
+ * Attach an exact validation provenance record to an already-landed release
+ * fragment without changing the release files or its historical allocation
+ * binding. This is intentionally separate from normal landing: a historical
+ * fragment may be reconciled only by a caller that has already verified the
+ * current task receipt and checkout.
+ */
+export async function reconcileLandedReleaseFragment(filePath, {
+  taskId,
+  reconciliation,
+  validateLandedMetadata,
+  now = new Date(),
+} = {}) {
+  return withFileLock(filePath, async () => {
+    const state = cloneReleaseLaneState(await readJsonState(filePath, emptyReleaseLaneState()));
+    if (state.finalization) {
+      throw new Error(
+        `Release fragment reconciliation cannot run while ${text(state.finalization.taskId, 'another task')} is finalizing.`,
+      );
+    }
+    const index = state.fragments.findIndex((fragment) => fragment.taskId === text(taskId));
+    if (index < 0) throw new Error(`No landed release fragment exists for ${text(taskId, 'unknown task')}.`);
+    const fragment = state.fragments[index];
+    if (fragment.state !== 'landed') {
+      throw new Error(`Release fragment ${fragment.taskId} is ${text(fragment.state, 'unprepared')}, not landed.`);
+    }
+    const proposed = objectRecord(reconciliation);
+    const requiredFields = [
+      'historicalCoordinationBranchSha',
+      'finalBranchSha',
+      'validationReceiptCommitSha',
+      'coordinationEntryId',
+      'coordinationWorktree',
+      'coordinationBranchName',
+      'baseMainSha',
+    ];
+    const missing = requiredFields.filter((field) => !text(proposed[field]));
+    if (missing.length > 0) {
+      throw new Error(
+        `Landed release fragment ${fragment.taskId} reconciliation requires ${missing.join(', ')}.`,
+      );
+    }
+    if (typeof validateLandedMetadata === 'function') {
+      await validateLandedMetadata({ fragment, reconciliation: proposed });
+    }
+
+    const existing = objectRecord(fragment.reconciliation);
+    if (Object.keys(existing).length > 0) {
+      const changed = requiredFields.filter((field) => existing[field] !== proposed[field]);
+      if (changed.length > 0) {
+        throw new Error(
+          `Landed release fragment ${fragment.taskId} already has a different reconciliation for ${changed.join(', ')}.`,
+        );
+      }
+      return { ...landedResult(fragment), reconciled: true, idempotent: true };
+    }
+
+    const reconciled = {
+      ...fragment,
+      reconciliation: {
+        ...proposed,
+        reconciledAt: isoDate(now),
+      },
+    };
+    state.fragments[index] = reconciled;
+    await writeJsonAtomically(filePath, state);
+    return { ...landedResult(reconciled), reconciled: true, idempotent: false };
+  });
+}
+
+/**
  * Strictly land one prepared fragment. Main metadata must still be the
  * fragment's base; the allocated version must be exactly next(main), and the
  * three release files are written as one guarded transaction.

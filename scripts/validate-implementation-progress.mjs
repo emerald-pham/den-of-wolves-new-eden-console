@@ -481,6 +481,7 @@ export function validateReleaseFragment({
   planSource,
   applicationVersion,
   requiredPrompt = null,
+  postRelease = false,
 } = {}) {
   const errors = [];
   const candidate = fragment !== null && typeof fragment === 'object' && !Array.isArray(fragment)
@@ -491,7 +492,7 @@ export function validateReleaseFragment({
   if (!baseParts) errors.push('release fragment must record a valid baseVersion');
   if (typeof applicationVersion !== 'string' || !APPLICATION_VERSION_PATTERN.test(applicationVersion)) {
     errors.push('release fragment validation requires a valid application version');
-  } else if (baseVersion && baseVersion !== applicationVersion) {
+  } else if (!postRelease && baseVersion && baseVersion !== applicationVersion) {
     errors.push(
       `release fragment baseVersion ${baseVersion} does not match current application version ${applicationVersion}`,
     );
@@ -506,6 +507,11 @@ export function validateReleaseFragment({
       (versionParts[0] === baseParts[0] && versionParts[1] === baseParts[1] && versionParts[2] <= baseParts[2]))) {
       errors.push(`release fragment version ${version} must be newer than baseVersion ${baseVersion}`);
     }
+  }
+  if (postRelease && version !== applicationVersion) {
+    errors.push(
+      `landed release fragment version ${version ?? 'missing'} does not match current application version ${applicationVersion}`,
+    );
   }
 
   if (!Array.isArray(candidate.changes) || candidate.changes.length === 0 ||
@@ -603,6 +609,7 @@ export function validateImplementationProgress({
   });
 
   const fragmentCandidate = validatedFragment ?? releaseFragment;
+  const postRelease = fragmentCandidate?.postRelease === true;
   const fragmentValidation = fragmentCandidate
     ? validateReleaseFragment({
         fragment: fragmentCandidate,
@@ -610,6 +617,7 @@ export function validateImplementationProgress({
         planSource,
         applicationVersion,
         requiredPrompt,
+        postRelease,
       })
     : null;
   if (fragmentValidation) {

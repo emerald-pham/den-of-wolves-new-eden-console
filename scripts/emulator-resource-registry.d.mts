@@ -408,6 +408,22 @@ export function finalizeReleaseFragment(
     readonly now?: string | number | Date;
   },
 ): Promise<Readonly<Record<string, unknown>>>;
+export function reconcileLandedCoordinationReleaseFragment(
+  filePath: string,
+  options: {
+    readonly taskId?: string;
+    readonly id?: string;
+    readonly coordinationEntryId?: string;
+    readonly 'coordination-id'?: string;
+    readonly coordinationFilePath?: string;
+    readonly repositoryDirectory?: string;
+    readonly worktree?: string;
+    readonly currentMainSha?: string;
+    readonly mainSha?: string;
+    readonly leaseMs?: number;
+    readonly now?: string | number | Date;
+  },
+): Promise<Readonly<Record<string, unknown>>>;
 export function validateImplementationPromptClaims(
   entries?: readonly Pick<CoordinationEntry, 'id' | 'status' | 'implementationPrompt'>[],
 ): ReadonlyMap<string, string>;

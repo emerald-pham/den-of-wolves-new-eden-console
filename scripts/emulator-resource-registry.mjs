@@ -36,6 +36,7 @@ import {
   leaseStatusesForEntries,
   prepareReleaseFragmentFile,
   readReleaseLaneState,
+  reconcileLandedReleaseFragment,
   refreshCoordinationLease,
   withValidationLease,
 } from './coordination-throughput.mjs';
@@ -49,6 +50,7 @@ export {
   leaseStatusesForEntries,
   prepareReleaseFragmentFile,
   readReleaseLaneState,
+  reconcileLandedReleaseFragment,
   refreshCoordinationLease,
   withValidationLease,
 } from './coordination-throughput.mjs';
@@ -3277,7 +3279,139 @@ export async function finalizeReleaseFragment(filePath, options = {}) {
   });
 }
 
-async function loadValidatedReleaseFragment(options, entry, repositoryDirectory) {
+/**
+ * Bind a historically landed fragment to a later exact-head validation receipt
+ * without pretending that the historical allocation was prepared at that
+ * later SHA. Normal release landing remains strict; this is only for a
+ * landed fragment whose original task commit is provably an ancestor.
+ */
+export async function reconcileLandedCoordinationReleaseFragment(filePath, options = {}) {
+  const taskId = releaseTaskId(options);
+  if (!taskId) throw new Error('landed release reconciliation requires --id <coordination-entry-id>.');
+  const lanePath = resolve(filePath);
+  const laneState = await readReleaseLaneState(lanePath);
+  const binding = await readReleaseCoordinationBinding(
+    releaseCoordinationFilePath(options),
+    { ...options, taskId },
+    { laneState, requireValidation: true },
+  );
+  const fragment = laneState.fragments.find((candidate) => candidate.taskId === taskId);
+  if (!fragment || fragment.state !== 'landed') {
+    throw new Error(`Landed release reconciliation requires a landed fragment for ${taskId}.`);
+  }
+  const fragmentWorktree = await realpath(fragment.worktree).catch(() => fragment.worktree);
+  if (fragment.coordinationEntryId !== binding.entry.id || fragmentWorktree !== binding.repositoryDirectory ||
+    fragment.coordinationBranchName !== binding.start.branchName) {
+    throw new Error(
+      `Landed release fragment ${taskId} is not bound to active task ${binding.entry.id}@${binding.start.branchName} ` +
+      `(${binding.repositoryDirectory}).`,
+    );
+  }
+  if (fragment.baseVersion !== binding.applicationVersion || fragment.baseMainSha !== binding.mainSha) {
+    throw new Error(
+      `Landed release fragment ${taskId} must retain current main ${binding.mainVersion}@${binding.mainSha}.`,
+    );
+  }
+  const historicalBranchSha = text(fragment.coordinationBranchSha);
+  if (!historicalBranchSha || historicalBranchSha === binding.start.branchSha) {
+    throw new Error(
+      `Landed release fragment ${taskId} requires a distinct historical task branch SHA to reconcile.`,
+    );
+  }
+  if (historicalBranchSha === binding.mainSha) {
+    throw new Error(
+      `Landed release fragment ${taskId} historical branch must name a task branch commit after current main.`,
+    );
+  }
+  if (!(await gitIsAncestor(binding.mainSha, historicalBranchSha, binding.repositoryDirectory))) {
+    throw new Error(
+      `Landed release fragment ${taskId} historical branch ${historicalBranchSha} is not based on current main ${binding.mainSha}.`,
+    );
+  }
+  if (!(await gitIsAncestor(historicalBranchSha, binding.start.branchSha, binding.repositoryDirectory))) {
+    throw new Error(
+      `Landed release fragment ${taskId} historical branch ${historicalBranchSha} is not an ancestor of exact head ${binding.start.branchSha}.`,
+    );
+  }
+  const receiptFragmentId = text(binding.entry.validation?.releaseFragment?.id);
+  if (receiptFragmentId && receiptFragmentId !== fragment.id) {
+    throw new Error(
+      `Landed release fragment ${fragment.id} does not match validation receipt fragment ${receiptFragmentId}.`,
+    );
+  }
+  const worktreeStatus = await runGit(['status', '--porcelain', '--untracked-files=no'], binding.repositoryDirectory);
+  if (worktreeStatus) {
+    throw new Error(`Landed release fragment ${taskId} requires a clean task branch before reconciliation.`);
+  }
+  const inputs = readImplementationProgress({ cwd: binding.repositoryDirectory });
+  if (fragment.version !== inputs.applicationVersion) {
+    throw new Error(
+      `Landed release fragment ${taskId} version ${text(fragment.version, 'unknown')} does not match checkout ${inputs.applicationVersion}.`,
+    );
+  }
+  const lockfile = JSON.parse(await readFile(resolve(binding.repositoryDirectory, 'package-lock.json'), 'utf8'));
+  if (text(lockfile?.packages?.['']?.version) !== inputs.applicationVersion) {
+    throw new Error(`Landed release fragment ${taskId} requires package.json and package-lock.json to agree.`);
+  }
+  const changelogVersion = inputs.changelogSource.match(/version\s*:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/)?.[1];
+  if (!changelogVersion || (changelogVersion !== 'APP_VERSION' && changelogVersion !== inputs.applicationVersion) ||
+    !Array.isArray(fragment.changes) || !fragment.changes.every((change) => inputs.changelogSource.includes(change))) {
+    throw new Error(`Landed release fragment ${taskId} does not match visible checkout release metadata.`);
+  }
+  const fragmentValidation = validateReleaseFragment({
+    fragment,
+    progressSource: inputs.progressSource,
+    planSource: inputs.planSource,
+    applicationVersion: fragment.baseVersion,
+    requiredPrompt: binding.requiredPrompt,
+  });
+  if (fragmentValidation.errors.length > 0) {
+    throw new Error(
+      `Landed release fragment ${taskId} failed historical fragment validation: ${fragmentValidation.errors.join('; ')}`,
+    );
+  }
+  const progressValidation = validateImplementationProgress({
+    ...inputs,
+    requiredPrompt: binding.requiredPrompt,
+    validatedFragment: { ...fragment, postRelease: true },
+  });
+  if (progressValidation.errors.length > 0) {
+    throw new Error(
+      `Landed release fragment ${taskId} failed exact-head progress validation: ${progressValidation.errors.join('; ')}`,
+    );
+  }
+
+  const reconciliation = {
+    historicalCoordinationBranchSha: historicalBranchSha,
+    finalBranchSha: binding.start.branchSha,
+    validationReceiptCommitSha: binding.validationReceiptCommitSha,
+    coordinationEntryId: binding.entry.id,
+    coordinationWorktree: binding.repositoryDirectory,
+    coordinationBranchName: binding.start.branchName,
+    baseMainSha: binding.mainSha,
+  };
+  return reconcileLandedReleaseFragment(lanePath, {
+    taskId,
+    reconciliation,
+    now: options.now ?? new Date(),
+    validateLandedMetadata: async ({ fragment: lockedFragment }) => {
+      if (lockedFragment.id !== fragment.id || lockedFragment.coordinationBranchSha !== historicalBranchSha) {
+        throw new Error(`Landed release fragment ${taskId} changed while reconciliation was pending.`);
+      }
+      const currentBinding = await readReleaseCoordinationBinding(
+        releaseCoordinationFilePath(options),
+        { ...options, taskId },
+        { laneState: await readReleaseLaneState(lanePath), requireValidation: true },
+      );
+      if (currentBinding.start.branchSha !== binding.start.branchSha ||
+        currentBinding.validationReceiptCommitSha !== binding.validationReceiptCommitSha) {
+        throw new Error(`Landed release fragment ${taskId} validation receipt changed while reconciliation was pending.`);
+      }
+    },
+  });
+}
+
+async function loadValidatedReleaseFragment(options, entry, repositoryDirectory, coordinationFile) {
   const fragmentFile = options.releaseFragmentFile ?? options['release-fragment-file'];
   if (!fragmentFile) return options.releaseFragment ?? options.validatedFragment ?? null;
   const absolutePath = resolve(repositoryDirectory, fragmentFile);
@@ -3311,12 +3445,39 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory)
     throw new Error(`Release fragment for coordination entry ${entry.id} must include its lane fragment id.`);
   }
   const inputs = readImplementationProgress({ cwd: repositoryDirectory });
+  const postRelease = fragment.state === 'landed';
+  if (postRelease) {
+    const expectedLanePath = resolve(options['lane-file'] ?? `${coordinationFile}.release-lane.json`);
+    if (absolutePath !== expectedLanePath) {
+      throw new Error(
+        `Landed release fragment ${fragment.id} must be loaded from active coordination lane ${expectedLanePath}.`,
+      );
+    }
+    const reconciliation = objectRecord(fragment.reconciliation);
+    const receiptCommitSha = text(entry.validation?.commitSha);
+    const entryWorktree = await realpath(entry.worktree).catch(() => resolve(entry.worktree));
+    const reconciliationWorktree = await realpath(text(reconciliation.coordinationWorktree)).catch(() =>
+      text(reconciliation.coordinationWorktree));
+    const currentHead = await runGit(['rev-parse', 'HEAD'], repositoryDirectory);
+    if (reconciliation.historicalCoordinationBranchSha !== fragment.coordinationBranchSha ||
+      reconciliation.finalBranchSha !== receiptCommitSha ||
+      reconciliation.validationReceiptCommitSha !== receiptCommitSha ||
+      reconciliation.coordinationEntryId !== entry.id ||
+      (reconciliation.coordinationWorktree !== entryWorktree && reconciliationWorktree !== entryWorktree) ||
+      reconciliation.coordinationBranchName !== entry.branchName ||
+      receiptCommitSha !== currentHead) {
+      throw new Error(
+        `Landed release fragment ${fragment.id} lacks an exact-current-head reconciliation for coordination entry ${entry.id}.`,
+      );
+    }
+  }
   const validation = validateReleaseFragment({
     fragment,
     progressSource: inputs.progressSource,
     planSource: inputs.planSource,
     applicationVersion: inputs.applicationVersion,
     requiredPrompt: entry.workType === 'product' ? entry.implementationPrompt : null,
+    postRelease,
   });
   if (validation.errors.length > 0) {
     throw new Error(
@@ -3328,6 +3489,7 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory)
     taskId: entry.id,
     validated: true,
     validationSource: absolutePath,
+    ...(postRelease ? { postRelease: true } : {}),
   };
 }
 
@@ -3372,7 +3534,7 @@ export async function validateCoordinationEntry(filePath, options) {
     }
 
     return async () => {
-    const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory);
+    const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory, filePath);
 
     const startBranchSha = entry.startBranchSha || options['start-sha'];
     if (!startBranchSha) {
@@ -3995,6 +4157,18 @@ async function main() {
   }
   if (command === 'release-land') {
     const result = await finalizeReleaseFragment(releaseLanePath, {
+      taskId: options['task-id'] || options.id,
+      coordinationEntryId: options.id,
+      coordinationFilePath: filePath,
+      repositoryDirectory: options.repository || process.cwd(),
+      currentMainSha: options['main-sha'],
+      now: options.now,
+    });
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  if (command === 'release-reconcile') {
+    const result = await reconcileLandedCoordinationReleaseFragment(releaseLanePath, {
       taskId: options['task-id'] || options.id,
       coordinationEntryId: options.id,
       coordinationFilePath: filePath,

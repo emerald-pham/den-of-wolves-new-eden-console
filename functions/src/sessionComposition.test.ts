@@ -125,8 +125,10 @@ const mock = vi.hoisted(() => {
     store.delete(target.path);
     versionStore.set(target.path, (versionStore.get(target.path) ?? 0) + 1);
   });
+  const transactionAttempts = vi.fn();
   const runTransaction = vi.fn(async (callback: (tx: unknown) => unknown) => {
     for (let attempt = 0; attempt < 5; attempt += 1) {
+      transactionAttempts();
       const working = new Map([...documents.entries()].map(([path, fields]) => [path, { ...fields }]));
       const workingVersions = new Map(versions);
       const baseVersions = new Map(versions);
@@ -177,6 +179,7 @@ const mock = vi.hoisted(() => {
       update.mockClear();
       remove.mockClear();
       runTransaction.mockClear();
+      transactionAttempts.mockClear();
     },
     MockTimestamp,
     randomInt: vi.fn((first: number, second?: number) => second === undefined ? 0 : 1001),
@@ -186,6 +189,8 @@ const mock = vi.hoisted(() => {
       collection,
       runTransaction,
     },
+    runTransaction,
+    transactionAttempts,
     DELETE,
   };
 });
@@ -232,7 +237,9 @@ import {
   joinSession,
   loginGmAccess,
   refreshPresence,
+  releaseRole,
   resumeSession,
+  setShipPreference,
   startGame,
 } from './index';
 
@@ -690,5 +697,128 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     });
     expect(JSON.stringify(resumed)).not.toMatch(/wolf-agent|selectedWolfRoleIds|fleet-loyalist/);
     expect(resumed).not.toHaveProperty('secrets');
+  });
+});
+
+describe('Prompt 055 private loyalty reassignment composition', () => {
+  beforeEach(() => mock.reset());
+
+  it('redacts the public loyalty audit event and fails closed when another casting action reuses its request id', async () => {
+    const { sessionId, ownerUid, coreUids, activeRoleIds } = await composeProductionSession(8);
+    mock.documents.set(`sessions/${sessionId}`, {
+      ...(read(`sessions/${sessionId}`) as StoredDocument),
+      phase: 'casting',
+      configurationLocked: false,
+    });
+    const requestId = 'private-loyalty-cross-action';
+    const targetUid = coreUids[3]!;
+    await expect(assignLoyalty.run(request({
+      sessionId,
+      instanceId: 'bridge-8',
+      requestId,
+      targetUid,
+      kind: 'android',
+      suspicion: null,
+    }, ownerUid))).resolves.toMatchObject({ assignedUids: [targetUid] });
+
+    const event = read(`sessions/${sessionId}/events/${requestId}`);
+    expect(event).toMatchObject({ type: 'loyalty-assignment', actorUid: ownerUid, requestId });
+    expect(JSON.stringify(event)).not.toMatch(new RegExp(
+      `${targetUid}|android|assignedUids|suspicion|partnerUid|result`,
+    ));
+    expect(read(`sessions/${sessionId}/loyaltyAssignmentRequests/${requestId}`)).toMatchObject({
+      targetUid,
+      kind: 'android',
+      suspicion: null,
+      result: { assignedUids: [targetUid] },
+    });
+
+    const stateAfterLoyalty = stateSnapshot();
+    await expect(assignRole.run(request({
+      sessionId,
+      instanceId: 'bridge-8',
+      requestId,
+      targetUid: coreUids[4]!,
+      roleId: activeRoleIds[4]!,
+    }, ownerUid))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(stateSnapshot()).toBe(stateAfterLoyalty);
+
+    await expect(releaseRole.run(request({
+      sessionId,
+      instanceId: 'bridge-8',
+      requestId,
+      targetUid: coreUids[4]!,
+    }, ownerUid))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(stateSnapshot()).toBe(stateAfterLoyalty);
+
+    await expect(setShipPreference.run(request({
+      sessionId,
+      requestId,
+      shipId: 'icebreaker',
+    }, coreUids[4]!))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(stateSnapshot()).toBe(stateAfterLoyalty);
+  });
+
+  it('retries concurrent Friend reassignment without leaving either displaced reciprocal record orphaned', async () => {
+    const { sessionId, ownerUid, coreUids } = await composeProductionSession(8);
+    mock.documents.set(`sessions/${sessionId}`, {
+      ...(read(`sessions/${sessionId}`) as StoredDocument),
+      phase: 'casting',
+      configurationLocked: false,
+    });
+    const [firstTargetUid, firstPartnerUid, secondTargetUid, secondPartnerUid] = [
+      coreUids[2]!, coreUids[3]!, coreUids[4]!, coreUids[5]!,
+    ];
+    mock.documents.set(`sessions/${sessionId}/secrets/loyalty-${firstTargetUid}`, {
+      visibleToUids: [firstTargetUid],
+      payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: firstPartnerUid },
+    });
+    mock.documents.set(`sessions/${sessionId}/secrets/loyalty-${firstPartnerUid}`, {
+      visibleToUids: [firstPartnerUid],
+      payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: firstTargetUid },
+    });
+    mock.documents.set(`sessions/${sessionId}/secrets/loyalty-${secondTargetUid}`, {
+      visibleToUids: [secondTargetUid],
+      payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: secondPartnerUid },
+    });
+    mock.documents.set(`sessions/${sessionId}/secrets/loyalty-${secondPartnerUid}`, {
+      visibleToUids: [secondPartnerUid],
+      payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: secondTargetUid },
+    });
+    mock.transactionAttempts.mockClear();
+
+    await expect(Promise.all([
+      assignLoyalty.run(request({
+        sessionId,
+        instanceId: 'bridge-8',
+        requestId: 'concurrent-reassign-target',
+        targetUid: firstTargetUid,
+        kind: 'android',
+        suspicion: null,
+      }, ownerUid)),
+      assignLoyalty.run(request({
+        sessionId,
+        instanceId: 'bridge-8',
+        requestId: 'concurrent-reassign-partner',
+        targetUid: secondTargetUid,
+        kind: 'android',
+        suspicion: null,
+      }, ownerUid)),
+    ])).resolves.toEqual([
+      expect.objectContaining({ assignedUids: [firstTargetUid] }),
+      expect.objectContaining({ assignedUids: [secondTargetUid] }),
+    ]);
+    expect(mock.transactionAttempts).toHaveBeenCalledTimes(3);
+
+    expect(read(`sessions/${sessionId}/secrets/loyalty-${firstTargetUid}`)).toMatchObject({
+      visibleToUids: [firstTargetUid],
+      payload: { type: 'loyalty', kind: 'android', suspicion: null },
+    });
+    expect(read(`sessions/${sessionId}/secrets/loyalty-${secondTargetUid}`)).toMatchObject({
+      visibleToUids: [secondTargetUid],
+      payload: { type: 'loyalty', kind: 'android', suspicion: null },
+    });
+    expect(read(`sessions/${sessionId}/secrets/loyalty-${firstPartnerUid}`)).toBeUndefined();
+    expect(read(`sessions/${sessionId}/secrets/loyalty-${secondPartnerUid}`)).toBeUndefined();
   });
 });

@@ -13,6 +13,7 @@ import {
 import {
   finalizeReleaseFragment,
   prepareCoordinationReleaseFragment,
+  reconcileLandedCoordinationReleaseFragment,
 } from '../scripts/emulator-resource-registry.mjs';
 import {
   readImplementationProgress,
@@ -497,6 +498,7 @@ it('exposes just-in-time coordination and release-fragment command surfaces', ()
   expect(coordinationRegistryCommand).toContain('validation-queue');
   expect(throughputCommand).toContain("command === 'release-prepare'");
   expect(throughputCommand).toContain("command === 'release-land'");
+  expect(coordinationRegistryCommand).toContain("command === 'release-reconcile'");
 });
 
 it('re-runs the existing implementation-progress validator against generated release metadata', async () => {
@@ -713,6 +715,161 @@ it('binds central fragment preparation and landing to the task receipt and curre
     process.chdir(previousCwd);
     await rm(root, { recursive: true, force: true });
     await rm(`${lanePath}.lock`, { force: true });
+  }
+});
+
+it('reconciles an already-landed fragment to an exact validation receipt without rewriting its historical branch SHA', async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-landed-recovery-'));
+  const lanePath = resolve(root, 'release-lane.json');
+  const coordinationPath = resolve(root, 'coordination.json');
+  const previousCwd = process.cwd();
+  const baseVersion = '0.3.27';
+  const landedVersion = '0.3.28';
+  const changes = [
+    'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
+    'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
+  ];
+  try {
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'docs'), { recursive: true });
+    const basePackage = JSON.parse(readFileSync('package.json', 'utf8'));
+    basePackage.version = baseVersion;
+    const baseLockfile = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+    baseLockfile.packages[''].version = baseVersion;
+    await writeFile(resolve(root, 'package.json'), `${JSON.stringify(basePackage, null, 2)}\n`);
+    await writeFile(resolve(root, 'package-lock.json'), `${JSON.stringify(baseLockfile, null, 2)}\n`);
+    await writeFile(resolve(root, 'src/changelog.ts'), readFileSync('src/changelog.ts', 'utf8'));
+    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
+    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
+    await runGit(root, ['init', '-b', 'main']);
+    await runGit(root, ['config', 'user.email', 'coordination@example.test']);
+    await runGit(root, ['config', 'user.name', 'Coordination Tests']);
+    await runGit(root, ['add', '.']);
+    await runGit(root, ['commit', '-m', 'fixture main']);
+    const mainSha = await runGit(root, ['rev-parse', 'HEAD']);
+    await runGit(root, ['checkout', '-b', 'feature/landed-recovery']);
+    await writeFile(resolve(root, 'src/historical-feature.mjs'), 'export const historical = true;\n');
+    await runGit(root, ['add', 'src/historical-feature.mjs']);
+    await runGit(root, ['commit', '-m', 'historical task commit']);
+    const historicalBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
+
+    const landedPackage = { ...basePackage, version: landedVersion };
+    const landedLockfile = {
+      ...baseLockfile,
+      packages: { ...baseLockfile.packages, '': { ...baseLockfile.packages[''], version: landedVersion } },
+    };
+    await writeFile(resolve(root, 'package.json'), `${JSON.stringify(landedPackage, null, 2)}\n`);
+    await writeFile(resolve(root, 'package-lock.json'), `${JSON.stringify(landedLockfile, null, 2)}\n`);
+    await runGit(root, ['add', 'package.json', 'package-lock.json']);
+    await runGit(root, ['commit', '-m', 'land historical release metadata']);
+    await writeFile(resolve(root, 'src/exact-head-repair.mjs'), 'export const repaired = true;\n');
+    await runGit(root, ['add', 'src/exact-head-repair.mjs']);
+    await runGit(root, ['commit', '-m', 'exact head repair']);
+    const finalBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
+    const repositoryIdentity = await runGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    const now = new Date().toISOString();
+    await writeFile(coordinationPath, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'landed-recovery-task',
+        worktree: root,
+        pid: process.pid,
+        startedAt: now,
+        heartbeatAt: now,
+        status: 'active',
+        branchName: 'feature/landed-recovery',
+        startBranchSha: historicalBranchSha,
+        startMainSha: mainSha,
+        repositoryRoot: root,
+        repositoryIdentity,
+        intent: 'reconcile a historical release fragment',
+        versionPlan: 'Reserve application patch version 0.3.28.',
+        preemptiveChangelog: changes[0],
+        workType: 'product',
+        implementationPrompt: 55,
+        scopes: ['src/exact-head-repair.mjs'],
+        claims: [],
+        validation: {
+          commitSha: finalBranchSha,
+          completedAt: now,
+          passed: true,
+          commands: ['focused fixture test'],
+          files: ['src/exact-head-repair.mjs'],
+          docsOnly: false,
+        },
+      }],
+      reservations: [],
+      configurations: [],
+    }));
+    const fragment = {
+      id: 'release-fragment-landed-recovery',
+      sequence: 1,
+      taskId: 'landed-recovery-task',
+      worktree: root,
+      state: 'landed',
+      preparedAt: now,
+      allocatedAt: now,
+      landedAt: now,
+      changes,
+      implementationPrompts: ['055'],
+      implementationProgress: currentImplementationProgress(),
+      baseVersion,
+      baseMainSha: mainSha,
+      coordinationEntryId: 'landed-recovery-task',
+      coordinationBranchName: 'feature/landed-recovery',
+      coordinationBranchSha: historicalBranchSha,
+      requiredPrompt: '055',
+      version: landedVersion,
+      changedFiles: ['package.json', 'package-lock.json', 'src/changelog.ts'],
+    };
+    await writeFile(lanePath, JSON.stringify({ version: 1, nextSequence: 2, fragments: [fragment] }));
+
+    process.chdir(root);
+    await writeFile(lanePath, JSON.stringify({
+      version: 1,
+      nextSequence: 2,
+      fragments: [{ ...fragment, coordinationBranchSha: mainSha }],
+    }));
+    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+    })).rejects.toThrow(/task branch commit after current main/i);
+    await writeFile(lanePath, JSON.stringify({ version: 1, nextSequence: 2, fragments: [fragment] }));
+    const metadataBefore = await Promise.all([
+      readFile(resolve(root, 'package.json'), 'utf8'),
+      readFile(resolve(root, 'package-lock.json'), 'utf8'),
+      readFile(resolve(root, 'src/changelog.ts'), 'utf8'),
+    ]);
+    const reconciled = await reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+    });
+    expect(reconciled).toMatchObject({ taskId: 'landed-recovery-task', idempotent: false });
+    expect(await Promise.all([
+      readFile(resolve(root, 'package.json'), 'utf8'),
+      readFile(resolve(root, 'package-lock.json'), 'utf8'),
+      readFile(resolve(root, 'src/changelog.ts'), 'utf8'),
+    ])).toEqual(metadataBefore);
+    const recoveredLane = JSON.parse(await readFile(lanePath, 'utf8'));
+    expect(recoveredLane.fragments[0]).toMatchObject({
+      coordinationBranchSha: historicalBranchSha,
+      reconciliation: {
+        historicalCoordinationBranchSha: historicalBranchSha,
+        finalBranchSha,
+        validationReceiptCommitSha: finalBranchSha,
+        coordinationEntryId: 'landed-recovery-task',
+        baseMainSha: mainSha,
+      },
+    });
+    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+    })).resolves.toMatchObject({ idempotent: true });
+  } finally {
+    process.chdir(previousCwd);
+    await rm(root, { recursive: true, force: true });
+    await rm(`${lanePath}.lock`, { force: true });
+    await rm(`${coordinationPath}.lock`, { force: true });
   }
 });
 
