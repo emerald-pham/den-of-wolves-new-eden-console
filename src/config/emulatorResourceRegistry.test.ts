@@ -10,7 +10,6 @@ import {
   chooseAvailableEmulatorSlot,
   changedFilesBaseRef,
   finishCoordinationEntry,
-  beginCoordinationEntry,
   claimCoordinationEntry,
   heartbeatCoordinationEntry,
   releaseCoordinationClaim,
@@ -37,7 +36,6 @@ import {
   validateCoordinationEntry,
   amendCoordinationEntry,
   validateReleaseCompletion,
-  finalizeReleaseFragment,
   normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
