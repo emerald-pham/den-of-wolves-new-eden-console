@@ -10,6 +10,12 @@ import {
   chooseAvailableEmulatorSlot,
   changedFilesBaseRef,
   finishCoordinationEntry,
+  beginCoordinationEntry,
+  claimCoordinationEntry,
+  heartbeatCoordinationEntry,
+  releaseCoordinationClaim,
+  forecastCoordinationConflicts,
+  formatConflictForecast,
   formatCoordinationState,
   isPortFree,
   nextApplicationVersion,
@@ -31,6 +37,7 @@ import {
   validateCoordinationEntry,
   amendCoordinationEntry,
   validateReleaseCompletion,
+  finalizeReleaseFragment,
   normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
@@ -183,6 +190,171 @@ describe('local emulator coordination', () => {
       expect(amended.startBranchSha).toBeUndefined();
       expect(amended.versionPlan).toBe(entry.versionPlan);
       expect(amended.preemptiveChangelog).toBe(entry.preemptiveChangelog);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('registers intent without taking scopes or claims until an explicit just-in-time claim', async () => {
+    const rootPath = resolve(tmpdir(), `den-of-wolves-coordination-intent-${randomUUID()}`);
+    const originPath = `${rootPath}.origin.git`;
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-intent-${randomUUID()}.json`);
+    const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+    try {
+      await mkdir(rootPath, { recursive: true });
+      await runFixtureGit(rootPath, ['init', '-b', 'main']);
+      await runFixtureGit(rootPath, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(rootPath, ['config', 'user.name', 'Fixture']);
+      await writeFile(resolve(rootPath, 'README.md'), 'fixture\n');
+      await runFixtureGit(rootPath, ['add', 'README.md']);
+      await runFixtureGit(rootPath, ['commit', '-m', 'fixture']);
+      await runFixtureGit(rootPath, ['switch', '-c', 'feature/intent']);
+      await runFixtureGit(rootPath, ['init', '--bare', originPath]);
+      await runFixtureGit(rootPath, ['remote', 'add', 'origin', originPath]);
+
+      await execFileAsync(process.execPath, [
+        scriptPath,
+        'begin',
+        '--intent', 'prepare a feature release',
+        '--version-plan', 'release lane allocates the next version',
+        '--preemptive-changelog', 'A visible feature note.',
+        '--work-type', 'product',
+        '--implementation-prompt', '055',
+        '--scope', 'src/components',
+        '--claims', 'release-metadata',
+      ], {
+        cwd: rootPath,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      const state = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(state.entries).toHaveLength(1);
+      expect(state.entries[0]).toMatchObject({
+        status: 'active',
+        scopes: [],
+        claims: [],
+        requestedScopes: ['src/components'],
+        requestedClaims: ['release-metadata'],
+      });
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+      await rm(originPath, { recursive: true, force: true });
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  }, 15_000);
+
+  it('claims, heartbeats, and explicitly releases exact ownership without allowing takeover', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-claim-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const now = '2099-01-01T00:00:00.000Z';
+    const entry = {
+      ...amendmentEntry({
+        id: 'jit-owner',
+        scopes: [],
+        claims: [],
+        heartbeatAt: now,
+        startedAt: now,
+      }),
+      ...identity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      const claimed = await claimCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'src/config/emulatorResourceRegistry.test.ts',
+        claims: 'coordination-leaf',
+        now,
+      });
+      expect(claimed).toMatchObject({
+        status: 'active',
+        scopes: ['src/config/emulatorResourceRegistry.test.ts'],
+        claims: ['coordination-leaf'],
+      });
+
+      const heartbeat = await heartbeatCoordinationEntry(filePath, {
+        id: entry.id,
+        now: '2099-01-01T00:00:01.000Z',
+        leaseMs: 60_000,
+      });
+      expect(heartbeat).toMatchObject({
+        status: 'active',
+        heartbeatAt: '2099-01-01T00:00:01.000Z',
+        lease: { takeoverAllowed: false, ownerConfirmationRequired: false },
+      });
+
+      const released = await releaseCoordinationClaim(filePath, {
+        id: entry.id,
+        scope: 'src/config/emulatorResourceRegistry.test.ts',
+        claims: 'coordination-leaf',
+        now: '2099-01-01T00:00:02.000Z',
+      });
+      expect(released).toMatchObject({ status: 'active', scopes: [], claims: [] });
+      expect(released.claimReleases).toEqual([expect.objectContaining({
+        scopes: ['src/config/emulatorResourceRegistry.test.ts'],
+        claims: ['coordination-leaf'],
+      })]);
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        status: 'active',
+        scopes: [],
+        claims: [],
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps an expired owner claim blocking and requires owner confirmation before release', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-expired-claim-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = {
+      ...amendmentEntry({
+        id: 'expired-owner',
+        scopes: ['src/config'],
+        claims: ['coordination-expired'],
+        heartbeatAt: '2099-01-01T00:00:00.000Z',
+        startedAt: '2099-01-01T00:00:00.000Z',
+      }),
+      ...identity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(releaseCoordinationClaim(filePath, {
+        id: entry.id,
+        claims: 'coordination-expired',
+        now: '2099-01-01T00:02:00.000Z',
+        leaseMs: 60_000,
+      })).rejects.toThrow(/owner confirmation|required.*heartbeat/i);
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        status: 'active',
+        claims: ['coordination-expired'],
+      });
+
+      const forecast = forecastCoordinationConflicts({
+        activeEntries: [entry],
+        repositoryIdentity: identity.repositoryIdentity,
+        repositoryRoot: identity.repositoryRoot,
+        worktree: '/other/worktree',
+        scopes: ['src/config/emulatorResourceRegistry.test.ts'],
+        claims: ['coordination-expired'],
+      });
+      expect(forecast.blocked).toBe(true);
+      expect(formatConflictForecast(forecast)).toContain('shared claim remains exclusive');
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -2834,6 +3006,57 @@ describe('local emulator coordination', () => {
         changedFiles: ['src/App.tsx'],
       }),
     })).toThrow(/IMPLEMENTATION_PROGRESS/i);
+  });
+
+  it('accepts a validated product release fragment while the branch leaves central metadata untouched', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-plan-fragment-${randomUUID()}.json`);
+    const fragment = {
+      baseVersion: '0.3.23',
+      implementationPrompts: ['141'],
+      implementationProgress: {
+        completed: 86,
+        total: 730,
+        percentage: '11.78%',
+        done: 86,
+        partial: 24,
+        active: 0,
+        missing: 620,
+      },
+      changes: ['A release-lane feature note.'],
+      validated: true,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{
+          ...releaseEntry,
+          workType: 'product',
+          implementationPrompt: 141,
+          versionPlan: 'Reserve application patch version 0.3.24.',
+          scopes: ['scripts/feature.mjs'],
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState({
+          branchVersion: '0.3.24',
+          branchLockVersion: '0.3.24',
+          branchChangelog: [
+            { version: '0.3.24', source: 'A release-lane feature note.' },
+            { version: '0.3.23', source: 'previous release' },
+          ],
+          changedFiles: ['scripts/feature.mjs'],
+        }),
+        releaseFragment: fragment,
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({ id: releaseEntry.id });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
   });
 
   it('runs the required prompt through the progress gate before validation commands', async () => {

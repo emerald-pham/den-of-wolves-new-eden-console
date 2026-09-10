@@ -27,11 +27,34 @@ import {
   vitePortForSlot,
 } from './emulator-slots.js';
 import { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
+import {
+  applyReleaseFragment,
+  formatConflictForecast,
+  forecastCoordinationConflicts,
+  leaseStatusForEntry,
+  leaseStatusesForEntries,
+  prepareReleaseFragmentFile,
+  readReleaseLaneState,
+  refreshCoordinationLease,
+  withValidationLease,
+} from './coordination-throughput.mjs';
 
 export { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
+export {
+  applyReleaseFragment,
+  formatConflictForecast,
+  forecastCoordinationConflicts,
+  leaseStatusForEntry,
+  leaseStatusesForEntries,
+  prepareReleaseFragmentFile,
+  readReleaseLaneState,
+  refreshCoordinationLease,
+  withValidationLease,
+} from './coordination-throughput.mjs';
 import {
   normalizePromptId,
   readImplementationProgress,
+  validateReleaseFragment,
   validateImplementationProgress,
 } from './validate-implementation-progress.mjs';
 import {
@@ -631,7 +654,7 @@ function changelogPreservationErrors(
   return errors;
 }
 
-function implementationPlanMetadataErrors(entry, release) {
+function implementationPlanMetadataErrors(entry, release, releaseFragment) {
   if (entry.workType !== 'product') return [];
 
   const errors = [];
@@ -640,7 +663,7 @@ function implementationPlanMetadataErrors(entry, release) {
     errors.push('product work must record an implementation prompt with --implementation-prompt NNN or NNN<letter>');
   }
   const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
-  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md')) {
+  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !releaseFragment) {
     errors.push(
       'implementation-plan product work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
     );
@@ -648,13 +671,14 @@ function implementationPlanMetadataErrors(entry, release) {
   return errors;
 }
 
-function implementationPlanGateErrors(entry) {
+function implementationPlanGateErrors(entry, releaseFragment = null) {
   if (entry.workType !== 'product') return [];
   try {
     const implementationPrompt = normalizePromptId(entry.implementationPrompt);
     const result = validateImplementationProgress({
       ...readImplementationProgress({ cwd: process.cwd() }),
       requiredPrompt: implementationPrompt,
+      validatedFragment: releaseFragment,
     });
     return result.errors.map((error) => `implementation progress gate: ${error}`);
   } catch (error) {
@@ -664,7 +688,13 @@ function implementationPlanGateErrors(entry) {
   }
 }
 
-function releaseMetadataErrors({ entry, release, requireMerged, requireReconciled = false }) {
+function releaseMetadataErrors({
+  entry,
+  release,
+  requireMerged,
+  requireReconciled = false,
+  releaseFragment = null,
+}) {
   const errors = [];
 
   if (!release.branchName || release.branchName === 'HEAD') {
@@ -783,7 +813,7 @@ function releaseMetadataErrors({ entry, release, requireMerged, requireReconcile
     ));
   }
 
-  errors.push(...implementationPlanMetadataErrors(entry, release));
+  errors.push(...implementationPlanMetadataErrors(entry, release, releaseFragment));
 
   return errors;
 }
@@ -956,8 +986,13 @@ function testGrowthReviewForRelease({ release, justification = '' }) {
  * historical. This is intentionally pure so the failure contract is tested
  * without depending on a particular checkout or network remote.
  */
-export function validateReleaseCompletion({ entry, release }) {
-  const errors = releaseMetadataErrors({ entry, release, requireMerged: true });
+export function validateReleaseCompletion({ entry, release, releaseFragment = null }) {
+  const errors = releaseMetadataErrors({
+    entry,
+    release,
+    requireMerged: true,
+    releaseFragment,
+  });
   errors.push(...validationReceiptErrors(entry, release));
 
   if (errors.length > 0) {
@@ -2251,6 +2286,18 @@ function formatEntry(entry) {
       `  work type: ${text(entry.workType, 'legacy')}${implementationPrompt} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
     );
   }
+  if (Array.isArray(entry.requestedScopes) || Array.isArray(entry.requestedClaims)) {
+    lines.push(
+      `  requested ownership: scopes ${entry.requestedScopes?.join(', ') || 'none'} | claims ${entry.requestedClaims?.join(', ') || 'none'}`,
+    );
+  }
+  if (status === 'active') {
+    const lease = leaseStatusForEntry(entry);
+    const confirmation = lease.ownerConfirmationRequired
+      ? ' (owner confirmation required; takeover disabled)'
+      : '';
+    lines.push(`  lease: ${lease.state}${confirmation}`);
+  }
   if (entry.outcome) lines.push(`  outcome: ${entry.outcome}`);
   if (entry.preservation) {
     lines.push(`  preserved: ${entry.preservation.destination} @ ${entry.preservation.commitSha}`);
@@ -2384,7 +2431,7 @@ async function readGitStartState(cwd = process.cwd()) {
   };
 }
 
-async function beginEntry(filePath, options) {
+export async function beginCoordinationEntry(filePath, options) {
   const required = ['intent', 'version-plan', 'preemptive-changelog', 'work-type'];
   for (const name of required) {
     if (!options[name]) throw new Error(`coordination begin requires --${name} <text>.`);
@@ -2430,36 +2477,18 @@ async function beginEntry(filePath, options) {
       ...(workType === 'product'
         ? { implementationPrompt: implementationPrompt.toLowerCase() }
         : {}),
-      scopes,
-      claims,
+      // Begin records intent only. File and shared-claim ownership is acquired
+      // just in time through `claimCoordinationEntry`, so idle work cannot
+      // block independent feature work while it is still being prepared.
+      scopes: [],
+      claims: [],
+      requestedScopes: scopes,
+      requestedClaims: claims,
+      heartbeatAt: new Date().toISOString(),
       resources: options.resources
         ? options.resources.split(',').map((resource) => resource.trim()).filter(Boolean)
         : [],
     };
-    const plannedVersion = plannedApplicationVersion(entry.versionPlan);
-    if (plannedVersion) {
-      const conflictingEntry = state.entries.find(
-        (candidate) =>
-          candidate.status === 'active' &&
-          plannedApplicationVersion(candidate.versionPlan) === plannedVersion,
-      );
-      if (conflictingEntry) {
-        throw new Error(
-          `Application version ${plannedVersion} is already reserved by active entry ${conflictingEntry.id}.`,
-        );
-      }
-    }
-    const conflict = findCoordinationConflict({
-      activeEntries: state.entries,
-      repositoryIdentity: start.repositoryIdentity,
-      repositoryRoot: start.repositoryRoot,
-      worktree: process.cwd(),
-      scopes,
-      claims,
-    });
-    if (conflict) {
-      throw new Error(formatCoordinationConflict(conflict));
-    }
     validateImplementationPromptClaims([...state.entries, entry]);
     state.entries.push(entry);
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
@@ -2467,11 +2496,28 @@ async function beginEntry(filePath, options) {
   });
 }
 
+// Keep the internal/legacy name available to the command wiring and older
+// callers while exposing the explicit public begin API above.
+const beginEntry = beginCoordinationEntry;
+
 /**
  * Add ownership metadata to an active coordination entry without allowing a
  * caller to rewrite its identity, release agreement, or lifecycle state.
  */
 export async function amendCoordinationEntry(filePath, options = {}) {
+  return amendCoordinationOwnership(filePath, options);
+}
+
+/**
+ * Acquire ownership after intent registration. This is deliberately separate
+ * from begin so claims are checked and written while holding the registry
+ * lock, with an expired owner lease remaining a blocking confirmation state.
+ */
+export async function claimCoordinationEntry(filePath, options = {}) {
+  return amendCoordinationOwnership(filePath, options, { requireFreshLease: true });
+}
+
+async function amendCoordinationOwnership(filePath, options = {}, { requireFreshLease = false } = {}) {
   if (!options.id) throw new Error('coordination amend requires --id <entry-id>.');
 
   const { scopes, claims } = normalizedCoordinationOwnership(options);
@@ -2495,6 +2541,19 @@ export async function amendCoordinationEntry(filePath, options = {}) {
         `Cannot amend coordination entry ${entry.id} from ${process.cwd()}; ` +
         `it belongs to ${entry.worktree}.`,
       );
+    }
+
+    if (requireFreshLease) {
+      const lease = leaseStatusForEntry(entry, {
+        now: options.now ?? Date.now(),
+        leaseMs: options.leaseMs,
+      });
+      if (lease.ownerConfirmationRequired) {
+        throw new Error(
+          `Cannot claim coordination entry ${entry.id}: owner confirmation is required; ` +
+          'heartbeat the active owner before claiming files or shared resources.',
+        );
+      }
     }
 
     const start = await readGitStartState();
@@ -2577,6 +2636,258 @@ export async function amendCoordinationEntry(filePath, options = {}) {
   });
 }
 
+/** Refresh the lease for the exact active owner in the central registry. */
+export async function heartbeatCoordinationEntry(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination heartbeat requires --id <entry-id>.');
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Cannot heartbeat coordination entry ${entry.id}: it is not active.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot heartbeat coordination entry ${entry.id} from ${process.cwd()}; ` +
+        `it belongs to ${entry.worktree}.`,
+      );
+    }
+
+    const start = await readGitStartState();
+    if (entry.branchName && start.branchName !== entry.branchName) {
+      throw new Error(
+        `Cannot heartbeat coordination entry ${entry.id}: checkout branch ${start.branchName} ` +
+        `does not match ${entry.branchName}.`,
+      );
+    }
+    if (entry.repositoryRoot && resolve(entry.repositoryRoot) !== start.repositoryRoot) {
+      throw new Error(
+        `Cannot heartbeat coordination entry ${entry.id}: checkout repository ${start.repositoryRoot} ` +
+        `does not match ${entry.repositoryRoot}.`,
+      );
+    }
+    if (entry.repositoryIdentity && resolve(entry.repositoryIdentity) !== start.repositoryIdentity) {
+      throw new Error(
+        `Cannot heartbeat coordination entry ${entry.id}: checkout Git identity ${start.repositoryIdentity} ` +
+        `does not match ${entry.repositoryIdentity}.`,
+      );
+    }
+
+    const updated = refreshCoordinationLease(entry, {
+      now: options.now ?? new Date(),
+      leaseMs: options.leaseMs,
+    });
+    const index = state.entries.findIndex((candidate) => candidate.id === entry.id);
+    state.entries[index] = updated;
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return updated;
+  });
+}
+
+/**
+ * Release only exact scopes/claims owned by the current task. An expired lease
+ * remains blocking until that owner explicitly heartbeats, so this operation
+ * can never be used to steal abandoned work.
+ */
+export async function releaseCoordinationClaim(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination release-claim requires --id <entry-id>.');
+  const { scopes, claims } = normalizedCoordinationOwnership(options);
+  if (scopes.length === 0 && claims.length === 0) {
+    throw new Error('coordination release-claim requires at least one --scope or --claims value.');
+  }
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id} from ${process.cwd()}; ` +
+        `it belongs to ${entry.worktree}.`,
+      );
+    }
+
+    const lease = leaseStatusForEntry(entry, {
+      now: options.now ?? Date.now(),
+      leaseMs: options.leaseMs,
+    });
+    if (lease.ownerConfirmationRequired) {
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id}: owner confirmation is required; ` +
+        'heartbeat the active owner before releasing files or shared resources.',
+      );
+    }
+
+    const start = await readGitStartState();
+    if (entry.branchName && start.branchName !== entry.branchName) {
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id}: checkout branch ${start.branchName} ` +
+        `does not match ${entry.branchName}.`,
+      );
+    }
+    if (entry.repositoryRoot && resolve(entry.repositoryRoot) !== start.repositoryRoot) {
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id}: checkout repository ${start.repositoryRoot} ` +
+        `does not match ${entry.repositoryRoot}.`,
+      );
+    }
+    if (entry.repositoryIdentity && resolve(entry.repositoryIdentity) !== start.repositoryIdentity) {
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id}: checkout Git identity ${start.repositoryIdentity} ` +
+        `does not match ${entry.repositoryIdentity}.`,
+      );
+    }
+
+    const existingScopes = Array.isArray(entry.scopes) ? entry.scopes : [];
+    const existingClaims = Array.isArray(entry.claims) ? entry.claims : [];
+    const normalizedExistingScopes = existingScopes.map((scope) => {
+      try {
+        return normalizeScope(scope);
+      } catch {
+        return scope;
+      }
+    });
+    const releasableScopes = scopes.filter((scope) => normalizedExistingScopes.includes(scope));
+    const normalizedExistingClaims = existingClaims.map((claim) =>
+      typeof claim === 'string' ? claim.trim().toLowerCase() : claim,
+    );
+    const releasableClaims = claims.filter((claim) => normalizedExistingClaims.includes(claim));
+    if (releasableScopes.length !== scopes.length || releasableClaims.length !== claims.length) {
+      const missingScopes = scopes.filter((scope) => !releasableScopes.includes(scope));
+      const missingClaims = claims.filter((claim) => !releasableClaims.includes(claim));
+      throw new Error(
+        `Cannot release coordination claim for ${entry.id}: requested ownership is not held ` +
+        `(scopes: ${missingScopes.join(', ') || 'none'}; claims: ${missingClaims.join(', ') || 'none'}).`,
+      );
+    }
+
+    entry.scopes = existingScopes.filter((scope) => {
+      let normalized = scope;
+      try {
+        normalized = normalizeScope(scope);
+      } catch {
+        // Preserve malformed legacy scope text unless it was explicitly matched.
+      }
+      return !releasableScopes.includes(normalized);
+    });
+    entry.claims = existingClaims.filter((claim) => !releasableClaims.includes(
+      typeof claim === 'string' ? claim.trim().toLowerCase() : claim,
+    ));
+    entry.claimReleases = [
+      ...(Array.isArray(entry.claimReleases) ? entry.claimReleases : []),
+      {
+        releasedAt: new Date(options.now ?? Date.now()).toISOString(),
+        worktree: process.cwd(),
+        branchName: start.branchName,
+        scopes: [...releasableScopes],
+        claims: [...releasableClaims],
+      },
+    ];
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return entry;
+  });
+}
+
+// Singular and plural spellings are kept as compatibility aliases for
+// scripts that adopted the initial release-claim proposal.
+export const releaseCoordinationClaims = releaseCoordinationClaim;
+
+/** Forecast central-registry ownership using the richer throughput report. */
+export async function forecastCoordinationEntry(filePath, options = {}) {
+  const state = await readCoordinationState(filePath);
+  const start = await readGitStartState();
+  const csv = (value) => normalizedList(value);
+  return forecastCoordinationConflicts({
+    activeEntries: state.entries,
+    repositoryIdentity: options['repository-identity'] ?? start.repositoryIdentity,
+    repositoryRoot: options['repository-root'] ?? start.repositoryRoot,
+    worktree: options.worktree ?? process.cwd(),
+    scopes: csv(options.scope),
+    files: csv(options.files),
+    claims: csv(options.claims),
+  });
+}
+
+/**
+ * Prepare (when necessary) and atomically land one release fragment. The
+ * existing implementation-progress validator runs against the generated
+ * package/changelog metadata before any of the three release files are
+ * replaced. A failed final gate therefore leaves the release lane and
+ * checkout unchanged.
+ */
+export async function finalizeReleaseFragment(filePath, options = {}) {
+  if (!options.taskId) throw new Error('release fragment finalization requires --task-id <task-id>.');
+  const repositoryDirectory = resolve(options.repositoryDirectory ?? process.cwd());
+  let currentMainSha = options.currentMainSha ?? options.mainSha;
+  if (!currentMainSha) {
+    try {
+      currentMainSha = await runGit(['rev-parse', 'main'], repositoryDirectory);
+    } catch {
+      // Exported callers may provide a metadata-only fixture. Version and
+      // package/changelog synchronization checks still apply there.
+      currentMainSha = undefined;
+    }
+  }
+  const existingLane = await readReleaseLaneState(filePath);
+  const existing = existingLane.fragments.find((fragment) => fragment.taskId === options.taskId);
+  if (!existing) {
+    if (!options.baseVersion) {
+      throw new Error(
+        `Release fragment ${options.taskId} is not prepared; --base-version is required before finalization.`,
+      );
+    }
+    await prepareReleaseFragmentFile(filePath, {
+      taskId: options.taskId,
+      worktree: options.worktree ?? process.cwd(),
+      changes: options.changes,
+      implementationPrompts: options.implementationPrompts,
+      implementationProgress: options.implementationProgress,
+      baseVersion: options.baseVersion,
+      baseMainSha: options.baseMainSha ?? options.baseSha ?? currentMainSha,
+    }, { now: options.now ?? new Date() });
+  }
+
+  return applyReleaseFragment(filePath, {
+    taskId: options.taskId,
+    repositoryDirectory,
+    packagePath: options.packagePath,
+    lockfilePath: options.lockfilePath,
+    changelogPath: options.changelogPath,
+    now: options.now ?? new Date(),
+    currentMainSha,
+    validateFinalMetadata: async ({ fragment, version, changelogSource }) => {
+      const inputs = readImplementationProgress({ cwd: repositoryDirectory });
+      const fragmentValidation = validateReleaseFragment({
+        fragment,
+        progressSource: inputs.progressSource,
+        planSource: inputs.planSource,
+        applicationVersion: fragment.baseVersion,
+        requiredPrompt: options.requiredPrompt,
+      });
+      if (fragmentValidation.errors.length > 0) {
+        throw new Error(
+          `Release fragment ${fragment.taskId} failed fragment validation: ${fragmentValidation.errors.join('; ')}`,
+        );
+      }
+      const result = validateImplementationProgress({
+        ...inputs,
+        applicationVersion: version,
+        changelogSource,
+        requiredPrompt: options.requiredPrompt,
+      });
+      if (result.errors.length > 0) {
+        throw new Error(
+          `Release fragment ${fragment.taskId} failed final implementation-progress validation: ${result.errors.join('; ')}`,
+        );
+      }
+      return result;
+    },
+  });
+}
+
 /**
  * @param {string} filePath
  * @param {{
@@ -2646,6 +2957,7 @@ export async function validateCoordinationEntry(filePath, options) {
       release,
       requireMerged: false,
       requireReconciled: true,
+      releaseFragment: options.releaseFragment ?? options.validatedFragment ?? null,
     });
     if (release.branchBaselineIsAncestor === false) {
       errors.push(
@@ -2670,7 +2982,10 @@ export async function validateCoordinationEntry(filePath, options) {
         `changed files outside declared scope after the prior validation receipt: ${advancedOutsideScopes.join(', ')}`,
       );
     }
-    errors.push(...implementationPlanGateErrors(entry));
+    errors.push(...implementationPlanGateErrors(
+      entry,
+      options.releaseFragment ?? options.validatedFragment ?? null,
+    ));
     const previousValidation = entry.validation;
     const testGrowthJustification = text(
       options['test-growth-justification'],
@@ -2792,31 +3107,55 @@ export async function validateCoordinationEntry(filePath, options) {
   let preparedEmulator;
   let cleanupOutcome;
   try {
-    if (interruptedSignal) {
-      throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
-    }
-    preparedEmulator = needsEmulator
-      ? await prepareValidationEmulator({
-          repositoryDirectory: emulatorRepositoryDirectory,
-          coordinationPath: filePath,
-        })
-      : undefined;
-    for (const command of preparation.plan.commands) {
+    const runValidationCommands = async () => {
       if (interruptedSignal) {
         throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
       }
-      try {
-        await commandRunner(command, validationDirectory, {
-          signal: validationAbort.signal,
-          signalSource,
-        });
-      } catch (error) {
-        throw new Error(
-          `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error },
-        );
+      preparedEmulator = needsEmulator
+        ? await prepareValidationEmulator({
+            repositoryDirectory: emulatorRepositoryDirectory,
+            coordinationPath: filePath,
+          })
+        : undefined;
+      for (const command of preparation.plan.commands) {
+        if (interruptedSignal) {
+          throw new Error(`Validation for ${options.id} was interrupted by ${interruptedSignal}.`);
+        }
+        try {
+          await commandRunner(command, validationDirectory, {
+            signal: validationAbort.signal,
+            signalSource,
+          });
+        } catch (error) {
+          throw new Error(
+            `Validation command failed for ${options.id}: ${command}. ${error instanceof Error ? error.message : String(error)}`,
+            { cause: error },
+          );
+        }
       }
-    }
+    };
+    const validationQueuePath = resolve(
+      options.validationQueuePath ?? `${filePath}.validation-queue.json`,
+    );
+    const validationMode = preparation.plan.profile?.kind === 'copy-only'
+      ? 'focused'
+      : 'release';
+    await withValidationLease(
+      validationQueuePath,
+      {
+        requestId: `${options.id}:${preparation.release.branchSha}`,
+        entryId: options.id,
+        worktree: process.cwd(),
+        kind: validationMode,
+        release: validationMode === 'release',
+      },
+      runValidationCommands,
+      {
+        signal: validationAbort.signal,
+        pollMs: options.validationPollMs ?? 100,
+        timeoutMs: options.validationQueueTimeoutMs ?? 60 * 60 * 1000,
+      },
+    );
   } finally {
     try {
       if (preparedEmulator) {
@@ -2868,6 +3207,7 @@ export async function validateCoordinationEntry(filePath, options) {
     release: finalRelease,
     requireMerged: false,
     requireReconciled: true,
+    releaseFragment: options.releaseFragment ?? options.validatedFragment ?? null,
   });
   const finalTestGrowthReview = testGrowthReviewForRelease({
     release: finalRelease,
@@ -3110,18 +3450,21 @@ async function status(filePath, { includeHistory = false } = {}) {
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
-  const filePath = coordinationFilePath();
 
   if (command === 'status') {
     const unexpectedArguments = args.filter((argument) => argument !== '--history');
     if (unexpectedArguments.length > 0) {
       throw new Error('coordination status accepts only the optional --history flag.');
     }
-    await status(filePath, { includeHistory: args.includes('--history') });
+    await status(coordinationFilePath(), { includeHistory: args.includes('--history') });
     return;
   }
 
   const options = parseOptions(args);
+  const filePath = resolve(options.file || coordinationFilePath());
+  const releaseLanePath = resolve(
+    options['lane-file'] || `${filePath}.release-lane.json`,
+  );
   if (command === 'begin') {
     const transport = await ensureSshOrigin();
     const entry = await beginEntry(filePath, options);
@@ -3129,6 +3472,63 @@ async function main() {
       console.log(`Normalized origin to SSH: ${transport.origin}`);
     }
     console.log(`Registered preemptive work entry ${entry.id} in ${filePath}.`);
+    return;
+  }
+  if (command === 'forecast' || command === 'conflict-forecast') {
+    const forecast = await forecastCoordinationEntry(filePath, options);
+    console.log(formatConflictForecast(forecast));
+    return;
+  }
+  if (command === 'claim') {
+    const entry = await claimCoordinationEntry(filePath, options);
+    console.log(`Claimed coordination ownership for ${entry.id} in ${filePath}.`);
+    return;
+  }
+  if (command === 'heartbeat') {
+    const entry = await heartbeatCoordinationEntry(filePath, options);
+    console.log(JSON.stringify(entry, null, 2));
+    return;
+  }
+  if (command === 'release-claim') {
+    const entry = await releaseCoordinationClaim(filePath, options);
+    console.log(`Released coordination ownership for ${entry.id} in ${filePath}.`);
+    return;
+  }
+  if (command === 'lease-status') {
+    const state = await readCoordinationState(filePath);
+    console.log(leaseStatusesForEntries(state.entries, {
+      now: options.now ?? Date.now(),
+      leaseMs: options['lease-ms'] ? Number(options['lease-ms']) : undefined,
+    }).map(({ entry, lease }) => JSON.stringify({
+      id: entry.id,
+      status: entry.status,
+      worktree: entry.worktree,
+      lease,
+    })).join('\n'));
+    return;
+  }
+  if (command === 'release-prepare') {
+    const result = await prepareReleaseFragmentFile(releaseLanePath, {
+      taskId: options['task-id'],
+      worktree: options.worktree || process.cwd(),
+      changes: options.change ? normalizedList(options.change) : [],
+      implementationPrompts: options['implementation-prompts']
+        ? normalizedList(options['implementation-prompts'])
+        : [],
+      baseVersion: options['base-version'],
+      baseMainSha: options['base-main-sha'],
+    });
+    console.log(JSON.stringify(result.fragment, null, 2));
+    return;
+  }
+  if (command === 'release-land') {
+    const result = await finalizeReleaseFragment(releaseLanePath, {
+      taskId: options['task-id'],
+      repositoryDirectory: options.repository || process.cwd(),
+      currentMainSha: options['main-sha'],
+      now: options.now,
+    });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
   if (command === 'amend') {
@@ -3150,7 +3550,7 @@ async function main() {
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|amend|validate|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|amend|validate|finish> [options]',
   );
 }
 

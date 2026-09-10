@@ -244,6 +244,8 @@ describe('coordination throughput primitives', () => {
     expect(second.ticket).toMatchObject({ id: 'second', state: 'queued' });
     expect(markValidationLeaseReleased(second.state, 'not-second').active).toHaveLength(1);
 
+    expect(markValidationLeaseReleased(second.state, 'second').pending).toHaveLength(0);
+
     const released = releaseValidationLease(second.state, 'first', {
       now: '2026-09-10T12:00:02.000Z',
     });
@@ -315,10 +317,14 @@ describe('coordination throughput primitives', () => {
       expect(await readFile(resolve(root, 'package.json'), 'utf8')).toContain('0.3.23');
       expect(await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).toContain('Previous release.');
 
+      const finalizationChecks: Array<{ version: string; changelogSource: string }> = [];
       const landed = await applyReleaseFragment(lanePath, {
         taskId: 'task-a',
         repositoryDirectory: root,
         now: '2026-09-10T12:00:01.000Z',
+        validateFinalMetadata: ({ version, changelogSource }: { version: string; changelogSource: string }) => {
+          finalizationChecks.push({ version, changelogSource });
+        },
       });
       expect(landed).toMatchObject({
         taskId: 'task-a',
@@ -328,8 +334,12 @@ describe('coordination throughput primitives', () => {
       expect(JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version).toBe('0.3.24');
       expect(JSON.parse(await readFile(resolve(root, 'package-lock.json'), 'utf8')).packages[''].version).toBe('0.3.24');
       const changelog = await readFile(resolve(root, 'src/changelog.ts'), 'utf8');
-      expect(changelog.match(/version: APP_VERSION/g)).toHaveLength(2);
+      expect(changelog.match(/version: APP_VERSION/g)).toHaveLength(1);
+      expect(changelog).toContain("version: '0.3.23'");
       expect(changelog).toContain('A visible release note.');
+      expect(finalizationChecks).toHaveLength(1);
+      expect(finalizationChecks[0]).toMatchObject({ version: '0.3.24' });
+      expect(finalizationChecks[0]?.changelogSource).toContain('A visible release note.');
 
       const repeated = await applyReleaseFragment(lanePath, {
         taskId: 'task-a',
@@ -344,6 +354,65 @@ describe('coordination throughput primitives', () => {
         idempotent: true,
       });
       expect((await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).match(/A visible release note\./g)).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(`${lanePath}.lock`, { force: true });
+    }
+  });
+
+  it('rejects a release source with more than one current top-level changelog entry', async () => {
+    const root = resolve(tmpdir(), `coordination-release-duplicate-${randomUUID()}`);
+    const lanePath = resolve(root, 'release-lane.json');
+    try {
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'package.json'), '{\n  "version": "0.3.23"\n}\n');
+      await writeFile(resolve(root, 'package-lock.json'), '{"packages":{"":{"version":"0.3.23"}}}\n');
+      await writeFile(resolve(root, 'src/changelog.ts'), `export const CHANGELOG = [
+  { version: APP_VERSION, changes: ['Current one.'] },
+  { version: APP_VERSION, changes: ['Current duplicate.'] },
+];
+`);
+      await prepareReleaseFragmentFile(lanePath, {
+        taskId: 'duplicate-task',
+        worktree: root,
+        changes: ['A note.'],
+        baseVersion: '0.3.23',
+      });
+
+      await expect(applyReleaseFragment(lanePath, {
+        taskId: 'duplicate-task',
+        repositoryDirectory: root,
+      })).rejects.toThrow(/exactly one|duplicate|newest/i);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(`${lanePath}.lock`, { force: true });
+    }
+  });
+
+  it('requires the current main commit to equal the fragment base before landing', async () => {
+    const root = resolve(tmpdir(), `coordination-release-base-sha-${randomUUID()}`);
+    const lanePath = resolve(root, 'release-lane.json');
+    try {
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'package.json'), '{"version":"0.3.23"}\n');
+      await writeFile(resolve(root, 'package-lock.json'), '{"packages":{"":{"version":"0.3.23"}}}\n');
+      await writeFile(resolve(root, 'src/changelog.ts'), `export const CHANGELOG = [
+  { version: APP_VERSION, changes: ['Current.'] },
+];
+`);
+      await prepareReleaseFragmentFile(lanePath, {
+        taskId: 'base-sha-task',
+        worktree: root,
+        changes: ['A note.'],
+        baseVersion: '0.3.23',
+        baseMainSha: 'main-a',
+      } as never);
+
+      await expect(applyReleaseFragment(lanePath, {
+        taskId: 'base-sha-task',
+        repositoryDirectory: root,
+        currentMainSha: 'main-b',
+      } as never)).rejects.toThrow(/main.*base|base.*main|reconcile/i);
     } finally {
       await rm(root, { recursive: true, force: true });
       await rm(`${lanePath}.lock`, { force: true });

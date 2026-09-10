@@ -12,6 +12,12 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import {
+  readImplementationProgress,
+  validateImplementationProgress,
+} from './validate-implementation-progress.mjs';
 
 export const COORDINATION_THROUGHPUT_SCHEMA_VERSION = 1;
 export const DEFAULT_COORDINATION_LEASE_MS = 90_000;
@@ -21,6 +27,7 @@ export const RELEASE_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const LOCK_RETRY_MS = 25;
 const LOCK_ATTEMPTS = 2_400;
 const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
+const execFileAsync = promisify(execFile);
 
 function objectRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -393,9 +400,17 @@ function promoteValidationQueue(state, now = new Date()) {
 export function releaseValidationLease(state, ticketId, { now = new Date() } = {}) {
   const next = cloneQueueState(state);
   const index = next.active.findIndex((ticket) => ticket.id === ticketId);
-  if (index < 0) return next;
-  next.active.splice(index, 1);
-  return promoteValidationQueue(next, now);
+  if (index >= 0) {
+    next.active.splice(index, 1);
+    return promoteValidationQueue(next, now);
+  }
+
+  // A queued request may be cancelled before it acquires the shared lease.
+  // Keep the queue FIFO for everyone else, but do not leave a cancelled
+  // request eligible for a later promotion.
+  const pendingIndex = next.pending.findIndex((ticket) => ticket.id === ticketId);
+  if (pendingIndex >= 0) next.pending.splice(pendingIndex, 1);
+  return next;
 }
 
 export const markValidationLeaseReleased = releaseValidationLease;
@@ -501,6 +516,8 @@ export function prepareReleaseFragment(state, {
   implementationPrompts: prompts = [],
   implementationProgress,
   baseVersion,
+  baseMainSha,
+  baseSha,
 } = {}, { now = new Date() } = {}) {
   const normalizedTaskId = text(taskId);
   if (!normalizedTaskId) throw new Error('A release fragment requires a task id.');
@@ -524,6 +541,9 @@ export function prepareReleaseFragment(state, {
     changes: validateFragmentChanges(changes),
     implementationPrompts: implementationPrompts(prompts),
     baseVersion: normalizedBaseVersion,
+    ...((text(baseMainSha) || text(baseSha))
+      ? { baseMainSha: text(baseMainSha) || text(baseSha) }
+      : {}),
     ...(Object.keys(objectRecord(implementationProgress)).length > 0
       ? { implementationProgress: { ...objectRecord(implementationProgress) } }
       : {}),
@@ -587,6 +607,10 @@ function sourceString(value) {
   return JSON.stringify(String(value));
 }
 
+function progressLiteral(value) {
+  return Number.isInteger(value) ? String(value) : sourceString(value);
+}
+
 /** Render one independent top-level ChangelogEntry for one task. */
 export function renderReleaseChangelogEntry(fragment, version = fragment?.version) {
   const normalizedVersion = text(version);
@@ -601,7 +625,7 @@ export function renderReleaseChangelogEntry(fragment, version = fragment?.versio
   if (Object.keys(progress).length > 0) {
     lines.push('    implementationProgress: {');
     for (const field of ['completed', 'total', 'percentage', 'done', 'partial', 'active', 'missing']) {
-      if (progress[field] !== undefined) lines.push(`      ${field}: ${sourceString(progress[field])},`);
+      if (progress[field] !== undefined) lines.push(`      ${field}: ${progressLiteral(progress[field])},`);
     }
     lines.push('    },');
   }
@@ -746,6 +770,27 @@ function topChangelogVersion(source, packageVersion) {
   return match[1] === 'APP_VERSION' ? packageVersion : match[2];
 }
 
+function changelogVersionOccurrences(source, applicationVersion) {
+  return [...String(source).matchAll(/version\s*:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/g)]
+    .filter((match) => (match[1] === 'APP_VERSION' ? applicationVersion : match[2]) === applicationVersion)
+    .length;
+}
+
+function freezeCurrentChangelogEntry(source, currentVersion) {
+  let frozen = false;
+  return source.replace(
+    /version\s*:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/g,
+    (match, token, literalVersion) => {
+      const resolved = token === 'APP_VERSION' ? currentVersion : literalVersion;
+      if (!frozen && resolved === currentVersion) {
+        frozen = true;
+        return `version: '${currentVersion}'`;
+      }
+      return match;
+    },
+  );
+}
+
 async function writeReleaseFilesAtomically(files) {
   const originals = await Promise.all(files.map(async (file) => ({
     ...file,
@@ -795,6 +840,9 @@ export async function applyReleaseFragment(filePath, {
   lockfilePath = 'package-lock.json',
   changelogPath = 'src/changelog.ts',
   now = new Date(),
+  validateFinalMetadata,
+  currentMainSha,
+  mainSha,
 } = {}) {
   return withFileLock(filePath, async () => {
     let state = cloneReleaseLaneState(await readJsonState(filePath, emptyReleaseLaneState()));
@@ -814,6 +862,11 @@ export async function applyReleaseFragment(filePath, {
     if (changelogVersion !== packageFile.version) {
       throw new Error(`Release lane requires the changelog newest version ${packageFile.version}; received ${changelogVersion}.`);
     }
+    if (changelogVersionOccurrences(changelogSource, packageFile.version) !== 1) {
+      throw new Error(
+        `Release lane requires exactly one top-level changelog entry for current main ${packageFile.version}.`,
+      );
+    }
 
     if (fragment.state === 'prepared') {
       const allocated = allocateReleaseFragment(state, {
@@ -829,6 +882,19 @@ export async function applyReleaseFragment(filePath, {
     }
     if (fragment.baseVersion !== packageFile.version) {
       throw new Error(`Release fragment ${fragment.taskId} requires main version ${fragment.baseVersion}, but current main is ${packageFile.version}.`);
+    }
+    const observedMainSha = text(currentMainSha) || text(mainSha);
+    if (observedMainSha) {
+      if (!text(fragment.baseMainSha)) {
+        throw new Error(
+          `Release fragment ${fragment.taskId} must record the main commit used as its base before landing.`,
+        );
+      }
+      if (fragment.baseMainSha !== observedMainSha) {
+        throw new Error(
+          `Release fragment ${fragment.taskId} requires main commit ${fragment.baseMainSha}, but current main is ${observedMainSha}; reconcile main before landing.`,
+        );
+      }
     }
     if (fragment.version !== expectedVersion) {
       // A crash after publishing the files but before recording the lane can
@@ -857,7 +923,28 @@ export async function applyReleaseFragment(filePath, {
         '': { ...objectRecord(lockFile.lockfile.packages?.['']), version: fragment.version },
       },
     };
-    const nextChangelog = insertReleaseChangelogEntry(changelogSource, fragment, fragment.version);
+    const nextChangelog = insertReleaseChangelogEntry(
+      freezeCurrentChangelogEntry(changelogSource, packageFile.version),
+      fragment,
+      fragment.version,
+    );
+    if (changelogVersionOccurrences(nextChangelog, fragment.version) !== 1) {
+      throw new Error(
+        `Release lane requires exactly one top-level changelog entry for ${fragment.version}.`,
+      );
+    }
+    if (typeof validateFinalMetadata === 'function') {
+      await validateFinalMetadata({
+        taskId: fragment.taskId,
+        fragment,
+        version: fragment.version,
+        packageJson: nextPackage,
+        lockfile: nextLockfile,
+        packageSource: `${JSON.stringify(nextPackage, null, 2)}\n`,
+        lockfileSource: `${JSON.stringify(nextLockfile, null, 2)}\n`,
+        changelogSource: nextChangelog,
+      });
+    }
     await writeReleaseFilesAtomically([
       { path: resolve(repositoryDirectory, packagePath), content: `${JSON.stringify(nextPackage, null, 2)}\n` },
       { path: resolve(repositoryDirectory, lockfilePath), content: `${JSON.stringify(nextLockfile, null, 2)}\n` },
@@ -914,6 +1001,8 @@ export async function withValidationLease(filePath, request, operation, {
   pollMs = 100,
   timeoutMs = 60 * 60 * 1000,
   signal,
+  leaseMs = DEFAULT_COORDINATION_LEASE_MS,
+  heartbeatMs = Math.max(1_000, Math.floor(leaseMs / 3)),
   ...options
 } = {}) {
   const result = await queueValidationLease(filePath, request, options);
@@ -928,13 +1017,30 @@ export async function withValidationLease(filePath, request, operation, {
       if (Date.now() >= deadline) throw new Error(`Timed out waiting for validation lease ${ticket.id}.`);
       await new Promise((resolvePromise, rejectPromise) => {
         const timer = setTimeout(resolvePromise, pollMs);
-        signal?.addEventListener('abort', () => {
+        const onAbort = () => {
           clearTimeout(timer);
           rejectPromise(new Error(`Validation lease ${ticket.id} was interrupted.`));
-        }, { once: true });
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+        const onTimer = () => signal?.removeEventListener('abort', onAbort);
+        timer.unref?.();
+        setTimeout(onTimer, pollMs);
       });
     }
-    return await operation(ticket);
+    let heartbeatError;
+    const heartbeatTimer = setInterval(() => {
+      heartbeatValidationLeaseFile(filePath, ticket.id, { leaseMs }).catch((error) => {
+        heartbeatError ??= error;
+      });
+    }, heartbeatMs);
+    heartbeatTimer.unref?.();
+    try {
+      const result = await operation(ticket);
+      if (heartbeatError) throw heartbeatError;
+      return result;
+    } finally {
+      clearInterval(heartbeatTimer);
+    }
   } finally {
     await releaseValidationLeaseFile(filePath, ticket.id, options);
   }
@@ -943,6 +1049,41 @@ export async function withValidationLease(filePath, request, operation, {
 function coordinationFilePath() {
   const configured = process.env.CODEX_COORDINATION_FILE || process.env.DOW_EMULATOR_COORDINATION_FILE;
   return configured ? resolve(configured) : resolve(tmpdir(), DEFAULT_COORDINATION_FILE);
+}
+
+async function gitMainSha(cwd) {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'main'], {
+      cwd,
+      encoding: 'utf8',
+    });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function finalProgressValidator(repositoryDirectory) {
+  return async ({ fragment, version, changelogSource }) => {
+    let inputs;
+    try {
+      inputs = readImplementationProgress({ cwd: repositoryDirectory });
+    } catch (error) {
+      if (error?.code === 'ENOENT') return undefined;
+      throw error;
+    }
+    const result = validateImplementationProgress({
+      ...inputs,
+      applicationVersion: version,
+      changelogSource,
+    });
+    if (result.errors.length > 0) {
+      throw new Error(
+        `Release fragment ${fragment.taskId} failed final implementation-progress validation: ${result.errors.join('; ')}`,
+      );
+    }
+    return result;
+  };
 }
 
 function parseCliOptions(args) {
@@ -992,20 +1133,25 @@ async function cliMain() {
     return;
   }
   if (command === 'release-prepare') {
+    const repositoryDirectory = resolve(options.repository || process.cwd());
     const result = await prepareReleaseFragmentFile(lanePath, {
       taskId: options['task-id'],
-      worktree: options.worktree || process.cwd(),
+      worktree: options.worktree || repositoryDirectory,
       changes: options.change,
       implementationPrompts: options['implementation-prompts']?.split(',').filter(Boolean),
       baseVersion: options['base-version'],
+      baseMainSha: options['base-main-sha'] || await gitMainSha(repositoryDirectory),
     });
     console.log(JSON.stringify(result.fragment, null, 2));
     return;
   }
   if (command === 'release-land') {
+    const repositoryDirectory = resolve(options.repository || process.cwd());
     const result = await applyReleaseFragment(lanePath, {
       taskId: options['task-id'],
-      repositoryDirectory: options.repository || process.cwd(),
+      repositoryDirectory,
+      currentMainSha: options['main-sha'] || await gitMainSha(repositoryDirectory),
+      validateFinalMetadata: finalProgressValidator(repositoryDirectory),
     });
     console.log(JSON.stringify(result, null, 2));
     return;

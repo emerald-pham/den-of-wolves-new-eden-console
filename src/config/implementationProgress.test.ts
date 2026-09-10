@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error The executable validator is intentionally plain JavaScript.
-import { formatImplementationProgress, validateImplementationProgress } from '../../scripts/validate-implementation-progress.mjs';
+import {
+  formatImplementationProgress,
+  validateImplementationProgress,
+  validateReleaseFragment,
+} from '../../scripts/validate-implementation-progress.mjs';
 import { validateImplementationPromptClaims } from '../../scripts/emulator-resource-registry.mjs';
 
 const progressPath = resolve(process.cwd(), 'docs/IMPLEMENTATION_PROGRESS.md');
@@ -98,6 +102,57 @@ describe('implementation progress integrity gate', () => {
       missing: 620,
     });
     expect(changelogSource).toContain('Roadmap progress: 86 of 730 prompts complete (11.78%).');
+  });
+
+  it('accepts a validated product release fragment before the generated release metadata exists', () => {
+    const baseline = validateImplementationProgress(validationInputs);
+    expect(baseline.releaseProgress).toBeDefined();
+    const validatedFragment = {
+      baseVersion: applicationVersion,
+      implementationPrompts: ['141'],
+      implementationProgress: baseline.releaseProgress,
+      changes: ['A feature note prepared for the release lane.'],
+      validated: true,
+    };
+
+    const result = validateImplementationProgress({
+      ...validationInputs,
+      requiredPrompt: '141',
+      validatedFragment,
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.validatedFragment).toMatchObject({
+      baseVersion: applicationVersion,
+      implementationPrompts: ['141'],
+      validated: true,
+    });
+  });
+
+  it('rejects a release fragment whose progress metadata does not match its own counts', () => {
+    const result = validateReleaseFragment({
+      fragment: {
+        baseVersion: applicationVersion,
+        implementationPrompts: ['141'],
+        implementationProgress: {
+          completed: 2,
+          total: 730,
+          percentage: '0.27%',
+          done: 2,
+          partial: 24,
+          active: 0,
+          missing: 620,
+        },
+        changes: ['A feature note.'],
+      },
+      progressSource,
+      planSource,
+      applicationVersion,
+    });
+
+    expect(result.errors.join('\n')).toContain(
+      'release fragment implementation progress counts must sum to total',
+    );
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {

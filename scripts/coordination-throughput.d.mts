@@ -12,6 +12,8 @@ export interface CoordinationThroughputEntry {
   readonly intent?: string;
   readonly startedAt?: string;
   readonly heartbeatAt?: string;
+  readonly requestedScopes?: readonly string[];
+  readonly requestedClaims?: readonly string[];
   readonly scopes?: readonly string[];
   readonly files?: readonly string[];
   readonly claims?: readonly string[];
@@ -160,6 +162,7 @@ export interface ReleaseFragment {
   readonly allocatedAt?: string;
   readonly landedAt?: string;
   readonly baseVersion?: string;
+  readonly baseMainSha?: string;
   readonly version?: string;
   readonly changes: readonly string[];
   readonly implementationPrompts?: readonly (number | string)[];
@@ -185,6 +188,8 @@ export function prepareReleaseFragment(
     readonly implementationPrompts?: readonly (number | string)[];
     readonly implementationProgress?: Readonly<Record<string, unknown>>;
     readonly baseVersion: string;
+    readonly baseMainSha?: string;
+    readonly baseSha?: string;
   },
   operationOptions?: { readonly now?: string | number | Date },
 ): { readonly state: ReleaseLaneState; readonly fragment: ReleaseFragment };
@@ -233,6 +238,18 @@ export function applyReleaseFragment(
     readonly lockfilePath?: string;
     readonly changelogPath?: string;
     readonly now?: string | number | Date;
+    readonly currentMainSha?: string;
+    readonly mainSha?: string;
+    readonly validateFinalMetadata?: (metadata: {
+      readonly taskId: string;
+      readonly fragment: ReleaseFragment;
+      readonly version: string;
+      readonly packageJson: Readonly<Record<string, unknown>>;
+      readonly lockfile: Readonly<Record<string, unknown>>;
+      readonly packageSource: string;
+      readonly lockfileSource: string;
+      readonly changelogSource: string;
+    }) => unknown | Promise<unknown>;
   },
 ): Promise<AppliedReleaseFragment>;
 
@@ -260,5 +277,7 @@ export function withValidationLease<T>(
     readonly timeoutMs?: number;
     readonly signal?: AbortSignal;
     readonly now?: string | number | Date;
+    readonly leaseMs?: number;
+    readonly heartbeatMs?: number;
   },
 ): Promise<T>;

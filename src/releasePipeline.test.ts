@@ -1,5 +1,9 @@
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { expect, it } from 'vitest';
+import { finalizeReleaseFragment } from '../scripts/emulator-resource-registry.mjs';
 
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
@@ -8,6 +12,8 @@ const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
 };
 const emulatorCommand = readFileSync('scripts/run-emulator-command.mjs', 'utf8');
 const configureEmulatorCommand = readFileSync('scripts/configure-emulator-slot.mjs', 'utf8');
+const coordinationRegistryCommand = readFileSync('scripts/emulator-resource-registry.mjs', 'utf8');
+const throughputCommand = readFileSync('scripts/coordination-throughput.mjs', 'utf8');
 const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8')) as {
   fieldOverrides: Array<{
     collectionGroup: string;
@@ -70,6 +76,56 @@ it('coordinates emulator commands and gives rules tests an isolated fallback slo
   expect(packageJson.scripts['coordination:status']).toContain(
     'emulator-resource-registry.mjs status',
   );
+});
+
+it('exposes just-in-time coordination and release-fragment command surfaces', () => {
+  expect(coordinationRegistryCommand).toContain("command === 'forecast'");
+  expect(coordinationRegistryCommand).toContain("command === 'claim'");
+  expect(coordinationRegistryCommand).toContain("command === 'heartbeat'");
+  expect(coordinationRegistryCommand).toContain("command === 'release-claim'");
+  expect(coordinationRegistryCommand).toContain('withValidationLease(');
+  expect(coordinationRegistryCommand).toContain('validation-queue');
+  expect(throughputCommand).toContain("command === 'release-prepare'");
+  expect(throughputCommand).toContain("command === 'release-land'");
+});
+
+it('re-runs the existing implementation-progress validator against generated release metadata', async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-release-finalizer-'));
+  const lanePath = resolve(root, 'release-lane.json');
+  try {
+    await mkdir(resolve(root, 'src'), { recursive: true });
+    await mkdir(resolve(root, 'docs'), { recursive: true });
+    await writeFile(resolve(root, 'package.json'), readFileSync('package.json', 'utf8'));
+    await writeFile(resolve(root, 'package-lock.json'), readFileSync('package-lock.json', 'utf8'));
+    await writeFile(resolve(root, 'src/changelog.ts'), readFileSync('src/changelog.ts', 'utf8'));
+    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
+    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
+
+    await finalizeReleaseFragment(lanePath, {
+      taskId: 'finalizer-task',
+      repositoryDirectory: root,
+      baseVersion: '0.3.23',
+      changes: ['A validated finalizer note.'],
+      implementationProgress: {
+        completed: 86,
+        total: 730,
+        percentage: '11.78%',
+        done: 86,
+        partial: 24,
+        active: 0,
+        missing: 620,
+      },
+    });
+
+    const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
+    expect(packageJson.version).toBe('0.3.24');
+    expect(await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).toContain(
+      'A validated finalizer note.',
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(`${lanePath}.lock`, { force: true });
+  }
 });
 
 it('records configured slots in the shared worktree coordination file', () => {
