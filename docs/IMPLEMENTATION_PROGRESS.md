@@ -17,7 +17,7 @@ session can resume at the first unresolved acceptance.
 
 **86 / 730 prompts complete (11.78%)**
 
-Status breakdown: **86 done · 24 partial · 0 active · 620 missing**.
+Status breakdown: **86 done · 25 partial · 0 active · 619 missing**.
 
 Active prompt: **none**.
 
@@ -1015,7 +1015,7 @@ release classification and evidence.
 | 599 | missing | non-feature | — | Planned [EXTEND] single-facilitator checklist with optional nonblocking additional-GM lanes and automatic setup receipt. |
 | 600 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 601 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 602 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 602 | partial | feature | 0.3.25 | 0.3.25 restores compact Finale presentation geometry: the decorative ball is placed in a safe top-right gap so the existing Back to roles and Settings controls remain reachable; focused CSS geometry coverage and the authorized-GM enable/retract service-path test preserve the existing route and authority behavior. Universal every-route return proof, route activation coverage, and full rendered viewport evidence remain open. |
 | 602a | missing | non-feature | — | Owner-reported shuttle return regression: ordinary shuttle consoles currently receive no `returnTo`; only Press, Joint Engineering, and GM special cases have exits. A dedicated repair must audit route/catalog/docking authority and history, restore prior working behavior if found, resolve one deterministic entitled associated-ship target without client guessing, and preserve session/seat/role/shuttle state. Prove deep link, reconnect, browser Back/Forward, denial/fallback, mobile/short-landscape, 44px keyboard/screen-reader, nonoverlap, and reduced-motion behavior without changing Press/Union/GM return semantics. |
 | 603 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 603a | done | feature | 0.3.15 | Shared measured session-header padding now applies to Role Select and session-mode routes at max-width 42rem or max-height 42rem, while a higher-specificity shared ship-role rule preserves DRADIS clearance at 320×844, 390×844, and 844×390 without changing the absolute scrolling header or adding a route-specific ticket. The red/green static cascade test, focused suites, and checked-in CDP DOMRect evidence cover every rendered Role Select region, derived nonintersection, connected-player variants, simulated safe areas, role-control keyboard focus/order, absolute-header scroll-away, settings, wrapped reduced-motion FleetBroadcast, and 44px touch targets. Evidence is local rendered review, not live-Firebase or deployed proof. |

@@ -722,7 +722,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 599 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Build the single-facilitator setup checklist. |
 | 600 | PROVE | missing | none | none | none | none | none | none | none | none | none | X | Run the onboarding-to-first-action scenario. |
 | 601 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make primary status universal. |
-| 602 | PROVE | missing | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE | X | Prove return navigation everywhere. |
+| 602 | PROVE | partial | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE | X | Prove return navigation everywhere. |
 | 602a | REPAIR | missing | none | none | AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT | none | none | RETURN-REPAIR | none | none | E-602A;E-RETURN-REPAIR-SEQUENCE | X | Restore shuttle-to-associated-ship return navigation. |
 | 603 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make ship consoles work on narrow phones. |
 | 603a | REPAIR | done | none | none | SHARED-SESSION-CHROME;ROLE-SELECT | none | none | TICKER-LIFECYCLE | none | none | E-603A;E-TICKER | X | Keep the mobile session ticket out of routed content. |
