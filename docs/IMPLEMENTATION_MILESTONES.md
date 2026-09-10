@@ -61,13 +61,12 @@ cross-cutting or catastrophe prompts intentionally support several milestones.
 `1.0.0` requires Level 5. Level 0 is valuable implementation progress, but it
 is not evidence that the game is half or fully complete.
 
-## Current audited snapshot — 2026-09-10 (release 0.3.23)
+## Current status
 
-The current progress ledger reports **86 / 730 prompts done, 24 partial, no
-active prompt, and 620 missing**. Prompt 020 now has a production-path
-create-to-Turn-1 composition, while the full player-story milestone gates and
-the later gameplay loops remain open. This snapshot supersedes the dated
-release note below; historical release counts are intentionally preserved.
+The checked live count, status breakdown, active prompt, and release evidence
+live only in [IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md). This
+route intentionally does not duplicate those mutable values. Dated baselines
+below remain historical context rather than current status.
 
 ## Historical baseline — 2026-09-08 (release 0.3.13 candidate)
 
@@ -405,9 +404,10 @@ to the first slice that exposes each surface:
 
 ## Review budget and evidence reuse
 
-The 2026-09-08 audit found 213 evidence-oriented prompts (163 `[PRESERVE]` plus
-50 `[PROVE]`) in the 713-prompt catalog. They protect real contracts, but they
-must not create 213 independent review ceremonies.
+The roadmap contains many evidence-oriented `[PRESERVE]` and `[PROVE]` prompts.
+Their live catalog and tags are checked by the plan, dependency index, and
+progress gates; do not copy their mutable count here. They protect real
+contracts, but they must not create one independent review ceremony per prompt.
 
 Use this review budget for a normal slice:
 

@@ -127,6 +127,27 @@ denials remain independent security boundaries. A new gameplay capability or
 ship requires the corresponding server policy and denial tests before players
 can mutate it. Do not import UI definitions or React into Cloud Functions.
 
+### Emergency bridge confetti authority
+
+The non-AEGIS fleet ships share one server-authoritative Emergency Bridge
+Confetti Dispenser contract. The SNN newspaper shredder, the AEGIS fleet-red-
+alert instrument, and the GM finale are separate effects; they do not inherit
+the dispenser's once-per-ship state, approvals, or audit behavior.
+
+A dispenser activation requires a currently configured, live console role on
+the target ship, including the established short-crew relief rule. When the
+two-officer override applies, every stored approval must still name the same
+currently live officer and role at activation time. Stale approvals are
+discarded before deciding whether the dispenser may fire.
+
+Turn 0 remains locked. A successful transaction marks that ship's dispenser
+spent, writes the signal and GM event with the current actors, and prevents
+competing or retried requests from creating a second firing. Clients may
+display the result but may not write, reset, or forge the signal, approval,
+spent state, or event. The finite burst, command cover, and reduced-motion
+behavior remain presentation requirements in
+[AESTHETICS.md](AESTHETICS.md#contact-plot--threat-board).
+
 See [SHIP_TEMPLATE.md](SHIP_TEMPLATE.md),
 [SHUTTLE_TEMPLATE.md](SHUTTLE_TEMPLATE.md) and [AESTHETICS.md](AESTHETICS.md) for
 visual and gameplay requirements.
