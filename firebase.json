@@ -41,7 +41,9 @@
       "source": "functions",
       "codebase": "default",
       "runtime": "nodejs22",
-      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"],
+      "predeploy": [
+        "if [ \"${CI_VERIFIED_ARTIFACTS:-}\" = \"1\" ]; then node scripts/verify-functions-artifact.mjs \"$RESOURCE_DIR\"; else npm --prefix \"$RESOURCE_DIR\" run build; fi"
+      ],
       "ignore": ["node_modules", ".git", "*.log"]
     }
   ],

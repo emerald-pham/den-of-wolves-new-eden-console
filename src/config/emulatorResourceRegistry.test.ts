@@ -37,6 +37,9 @@ import {
   amendCoordinationEntry,
   validateReleaseCompletion,
   normalizeGitHubOriginToSsh,
+  directoryContentIdentity,
+  parseListeningPortSnapshot,
+  coordinationStateChanged,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 
@@ -128,6 +131,37 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('reuses dependency file bytes only while inode and stat metadata are unchanged', async () => {
+    const directory = resolve(tmpdir(), `dependency-identity-${randomUUID()}`);
+    await mkdir(directory, { recursive: true });
+    const filePath = resolve(directory, 'package.json');
+    try {
+      await writeFile(filePath, '{"version":1}\n');
+      const first = await directoryContentIdentity(directory);
+      const second = await directoryContentIdentity(directory);
+      expect(second).toBe(first);
+      await writeFile(filePath, '{"version":2}\n');
+      const changed = await directoryContentIdentity(directory);
+      expect(changed).not.toBe(first);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('parses one lsof listener snapshot into exact occupied TCP ports', () => {
+    expect(parseListeningPortSnapshot([
+      'COMMAND PID USER FD TYPE DEVICE SIZE/OFF NODE NAME',
+      'node 123 user 23u IPv4 0x0 0t0 TCP *:5001 (LISTEN)',
+      'node 123 user 24u IPv6 0x0 0t0 TCP [::1]:9300 (LISTEN)',
+    ].join('\n'))).toEqual(new Set([5001, 9300]));
+  });
+
+  it('does not rewrite a coordination state when pruning changed nothing', () => {
+    const state = { version: 1, entries: [], reservations: [], configurations: [] };
+    expect(coordinationStateChanged(state, state)).toBe(false);
+    expect(coordinationStateChanged(state, { ...state, entries: [{}] })).toBe(true);
+  });
+
   async function currentGitIdentity() {
     return {
       branchName: await runFixtureGit(process.cwd(), ['branch', '--show-current']),
@@ -1358,7 +1392,7 @@ describe('local emulator coordination', () => {
     }
   });
 
-  it('reuses an identical passing validation receipt without rerunning commands', async () => {
+  it('invalidates a legacy fingerprint once, then reuses the current receipt', async () => {
     const root = resolve(tmpdir(), `den-of-wolves-validation-reuse-${randomUUID()}`);
     const firebasePath = resolve(root, 'firebase.json');
     const generatedConfigPath = resolve(root, 'firebase.local.json');
@@ -1399,11 +1433,32 @@ describe('local emulator coordination', () => {
       const firstState = await readCoordinationState(filePath);
       const firstValidation = firstState.entries[0]?.validation;
       expect(firstValidation?.inputFingerprint).toMatchObject({
-        schemaVersion: 1,
+        schemaVersion: 2,
         identity: expect.any(String),
       });
+
+      const legacyState = JSON.parse(JSON.stringify(await readCoordinationState(filePath)));
+      if (legacyState.entries[0]?.validation?.inputFingerprint) {
+        legacyState.entries[0].validation.inputFingerprint.schemaVersion = 1;
+      }
+      const legacyValidation = legacyState.entries[0]?.validation;
+      await writeFile(filePath, JSON.stringify(legacyState), 'utf8');
       commands.length = 0;
 
+      const invalidatedResult = await validateCoordinationEntry(filePath, {
+        id: releaseEntry.id,
+        release: releaseState(),
+        repositoryDirectory: root,
+        commandRunner: async (command) => {
+          commands.push(command);
+        },
+      });
+      expect(invalidatedResult.validationReused).toBeUndefined();
+      expect(commands).toEqual(codeValidation.commands);
+      const refreshedValidation = (await readCoordinationState(filePath)).entries[0]?.validation;
+      expect(refreshedValidation?.inputFingerprint?.schemaVersion).toBe(2);
+
+      commands.length = 0;
       await expect(validateCoordinationEntry(filePath, {
         id: releaseEntry.id,
         release: releaseState(),
@@ -1414,13 +1469,13 @@ describe('local emulator coordination', () => {
       })).resolves.toMatchObject({
         id: releaseEntry.id,
         validationReused: true,
-        validation: firstValidation,
+        validation: refreshedValidation,
       });
 
       const state = await readCoordinationState(filePath);
       expect(commands).toEqual([]);
-      expect(state.entries[0]?.validation).toEqual(firstValidation);
-      expect(state.entries[0]?.validationHistory).toBeUndefined();
+      expect(state.entries[0]?.validation).toEqual(refreshedValidation);
+      expect(state.entries[0]?.validationHistory).toEqual([legacyValidation]);
 
       commandDirectories.length = 0;
       await writeFile(
@@ -1442,7 +1497,10 @@ describe('local emulator coordination', () => {
       expect(new Set(commandDirectories)).toEqual(new Set([root]));
       const changedDependencyState = await readCoordinationState(filePath);
       const changedDependencyValidation = changedDependencyState.entries[0]?.validation;
-      expect(changedDependencyState.entries[0]?.validationHistory).toEqual([firstValidation]);
+      expect(changedDependencyState.entries[0]?.validationHistory).toEqual([
+        legacyValidation,
+        refreshedValidation,
+      ]);
 
       commands.length = 0;
       commandDirectories.length = 0;
@@ -1460,7 +1518,7 @@ describe('local emulator coordination', () => {
       expect(commands).toEqual(codeValidation.commands);
       expect(new Set(commandDirectories)).toEqual(new Set([root]));
       expect((await readCoordinationState(filePath)).entries[0]?.validationHistory)
-        .toEqual([firstValidation, changedDependencyValidation]);
+        .toEqual([legacyValidation, refreshedValidation, changedDependencyValidation]);
     } finally {
       await unlink(firebasePath).catch(() => undefined);
       await unlink(generatedConfigPath).catch(() => undefined);
@@ -1661,6 +1719,87 @@ describe('local emulator coordination', () => {
       expect(second.stdout).toMatch(/Reused passing validation.*validation-live-reuse/);
       const finalEntry = JSON.parse(await readFile(filePath, 'utf8')).entries[0];
       expect(finalEntry.validation).toEqual(firstValidation);
+      expect(finalEntry.validationHistory).toBeUndefined();
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+      await rm(originPath, { recursive: true, force: true });
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rejects a receipt when main moves during validation instead of recording stale state', async () => {
+    const rootPath = resolve(tmpdir(), `den-of-wolves-validation-main-race-${randomUUID()}`);
+    const originPath = `${rootPath}.origin.git`;
+    const filePath = resolve(tmpdir(), `den-of-wolves-validation-main-race-${randomUUID()}.json`);
+    const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+
+    try {
+      await mkdir(rootPath, { recursive: true });
+      const root = await realpath(rootPath);
+      await runFixtureGit(root, ['init', '-b', 'main']);
+      await runFixtureGit(root, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'package.json'), JSON.stringify({
+        version: '0.3.22',
+        scripts: {
+          'coordination:docs':
+            "node -e \"const {execFileSync}=require('node:child_process'); execFileSync('git',['push','origin','HEAD:main']); execFileSync('git',['update-ref','refs/heads/main','HEAD']);\"",
+        },
+      }));
+      await writeFile(resolve(root, 'package-lock.json'), JSON.stringify({
+        packages: { '': { version: '0.3.22' } },
+      }));
+      await writeFile(resolve(root, 'src/changelog.ts'), 'const changes = [{ version: APP_VERSION }];\n');
+      await writeFile(resolve(root, 'docs/example.md'), 'Baseline.\n');
+      await runFixtureGit(root, ['add', '.']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture baseline']);
+      const baseSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      await runFixtureGit(root, ['init', '--bare', originPath]);
+      await runFixtureGit(root, ['remote', 'add', 'origin', originPath]);
+      await runFixtureGit(root, ['push', '-u', 'origin', 'main']);
+
+      await runFixtureGit(root, ['switch', '-c', 'docs/validation-main-race']);
+      await writeFile(resolve(root, 'docs/example.md'), 'Reviewed documentation.\n');
+      await runFixtureGit(root, ['add', 'docs/example.md']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture documentation']);
+      const entry = {
+        id: 'validation-main-race',
+        worktree: root,
+        startedAt: '2026-09-10T00:00:00.000Z',
+        status: 'active',
+        intent: 'fixture main movement race',
+        workType: 'tooling',
+        scopes: ['docs/example.md'],
+        claims: ['fixture-validation-main-race'],
+        branchName: 'docs/validation-main-race',
+        startBranchSha: baseSha,
+        startMainSha: baseSha,
+        versionPlan: 'Tooling-only; no application version change.',
+        preemptiveChangelog: 'No player-facing change.',
+      };
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      const environment = { ...process.env, CODEX_COORDINATION_FILE: filePath };
+
+      await expect(execFileAsync(process.execPath, [
+        scriptPath,
+        'validate',
+        '--id', entry.id,
+        '--documentation-review', 'Fixture documentation reviewed.',
+      ], { cwd: root, env: environment, encoding: 'utf8' })).rejects.toThrow(
+        /validation inputs changed|derived validation profile changed|origin\/main/i,
+      );
+
+      const finalEntry = JSON.parse(await readFile(filePath, 'utf8')).entries[0];
+      expect(finalEntry.validation).toBeUndefined();
       expect(finalEntry.validationHistory).toBeUndefined();
     } finally {
       await rm(rootPath, { recursive: true, force: true });

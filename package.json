@@ -12,7 +12,7 @@
     "build": "tsc -b && vite build",
     "test:bundle": "npm run build && node scripts/check-bundle-size.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit false --emitDeclarationOnly false || tsc -b",
+    "typecheck": "tsc -b",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "vitest run --project unit --project functions",
     "test:watch": "vitest --project unit",

@@ -75,7 +75,7 @@ const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
-const VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION = 1;
+const VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION = 2;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const MAX_APPLICATION_PATCH_VERSION = 99;
 const IMPLEMENTATION_PROMPT_CLAIM_PATTERN = /^\d{3}[a-z]*$/i;
@@ -173,7 +173,30 @@ async function optionalFileContentIdentity(path) {
   }
 }
 
-async function directoryContentIdentity(path) {
+const dependencyFileIdentityCache = new Map();
+
+function statIdentity(metadata) {
+  return [
+    metadata.dev,
+    metadata.ino,
+    metadata.size,
+    metadata.mtimeNs?.toString() ?? String(metadata.mtimeMs),
+    metadata.ctimeNs?.toString() ?? String(metadata.ctimeMs),
+    metadata.mode,
+  ].join(':');
+}
+
+async function cachedFileContent(path) {
+  const metadata = await stat(path);
+  const identity = statIdentity(metadata);
+  const cached = dependencyFileIdentityCache.get(path);
+  if (cached?.identity === identity) return cached.contentHash;
+  const contentHash = contentIdentity(await readFile(path));
+  dependencyFileIdentityCache.set(path, { identity, contentHash });
+  return contentHash;
+}
+
+export async function directoryContentIdentity(path) {
   const hash = createHash('sha256');
   const ignoredDirectories = new Set(['.cache', '.vite', '.vite-temp']);
   async function visit(directory, relativeDirectory = '') {
@@ -192,7 +215,9 @@ async function directoryContentIdentity(path) {
         hash.update(`symlink\0${relativePath}\0${await readlink(absolutePath)}\0`);
       } else if (entry.isFile()) {
         hash.update(`file\0${relativePath}\0`);
-        hash.update(await readFile(absolutePath));
+        // The per-file cache is process-local and therefore cannot become a
+        // tracked artifact. Stat metadata is checked before reusing bytes.
+        hash.update(await cachedFileContent(absolutePath));
         hash.update('\0');
       }
     }
@@ -1048,9 +1073,17 @@ export async function ensureSshOrigin(cwd = process.cwd()) {
   return { changed: true, previousOrigin: currentOrigin, origin: sshOrigin };
 }
 
-async function gitIsAncestor(ancestor, descendant, cwd) {
+function memoizedGit(args, cwd, memo, { volatile = false } = {}) {
+  if (!memo || volatile) return runGit(args, cwd);
+  memo.git ??= new Map();
+  const key = `${cwd}\0${args.join('\0')}`;
+  if (!memo.git.has(key)) memo.git.set(key, runGit(args, cwd));
+  return memo.git.get(key);
+}
+
+async function gitIsAncestor(ancestor, descendant, cwd, memo) {
   try {
-    await runGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd);
+    await memoizedGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd, memo);
     return true;
   } catch (error) {
     if (error?.status === 1 || error?.code === 1) return false;
@@ -1058,8 +1091,8 @@ async function gitIsAncestor(ancestor, descendant, cwd) {
   }
 }
 
-async function readGitFile(ref, path, cwd) {
-  return runGit(['show', `${ref}:${path}`], cwd);
+async function readGitFile(ref, path, cwd, memo) {
+  return memoizedGit(['show', `${ref}:${path}`], cwd, memo);
 }
 
 export function changedFilesBaseRef({
@@ -1075,12 +1108,15 @@ export function changedFilesBaseRef({
   return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
 }
 
-async function readTaskChangedFiles(baseSha, headSha, cwd) {
-  const output = await runGit(['diff', '--name-only', `${baseSha}...${headSha}`], cwd);
+async function readTaskChangedFiles(baseSha, headSha, cwd, memo) {
+  const output = await memoizedGit(['diff', '--name-only', `${baseSha}...${headSha}`], cwd, memo);
   return output.split('\n').map((filePath) => filePath.trim()).filter(Boolean);
 }
 
-async function deriveValidationProfile({ release, startBranchSha, cwd }) {
+const COPY_PROFILE_PATH_PATTERN = /^src\/(?:components|routes)\/.+\.(?:tsx|jsx)$/i;
+const COPY_PROFILE_TEST_PATTERN = /^src\/(?:components|routes)\/.+\.(?:test|spec)\.(?:tsx|jsx)$/i;
+
+async function deriveValidationProfile({ release, startBranchSha, cwd, memo }) {
   const validationTaskTipSha = release.validationTaskTipSha ?? release.branchSha;
   const baseSha = changedFilesBaseRef({
     mainSha: release.mainSha,
@@ -1089,13 +1125,32 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     validatedBaseSha: release.validatedBaseSha,
     validatedBaseIsAncestorOfMain: release.validatedBaseIsAncestorOfMain,
   });
-  const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${validationTaskTipSha}`], cwd);
+  const diffText = await memoizedGit(
+    ['diff', '--unified=0', `${baseSha}...${validationTaskTipSha}`], cwd, memo,
+  );
+  const changedFiles = release.changedFiles ?? [];
+  const copyCandidate = changedFiles.length > 0 &&
+    changedFiles.some((filePath) => COPY_PROFILE_PATH_PATTERN.test(filePath)) &&
+    changedFiles.every((filePath) =>
+      COPY_PROFILE_PATH_PATTERN.test(filePath) || COPY_PROFILE_TEST_PATTERN.test(filePath));
+  if (!copyCandidate) {
+    return {
+      kind: 'full',
+      reason: 'changed paths are not eligible for copy-only validation',
+      commands: [],
+      evidence: {
+        baseSha,
+        branchSha: validationTaskTipSha,
+        diffIdentity: contentIdentity(diffText),
+      },
+    };
+  }
   const sources = {};
-  for (const filePath of release.changedFiles ?? []) {
+  for (const filePath of changedFiles) {
     try {
       sources[filePath] = {
-        before: await runGit(['show', `${baseSha}:${filePath}`], cwd),
-        after: await runGit(['show', `${validationTaskTipSha}:${filePath}`], cwd),
+        before: await memoizedGit(['show', `${baseSha}:${filePath}`], cwd, memo),
+        after: await memoizedGit(['show', `${validationTaskTipSha}:${filePath}`], cwd, memo),
       };
     } catch {
       // A missing blob is intentionally a full-gate result. The classifier
@@ -1113,7 +1168,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     }
   }
   const profile = deriveCopyOnlyValidationProfile({
-    changedFiles: release.changedFiles,
+    changedFiles,
     diffText,
     sources,
   });
@@ -1128,7 +1183,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
 }
 
 /** Read the live checkout and remote state used by the completion gate. */
-export async function readReleaseState({ cwd = process.cwd(), startBranchSha, validation } = {}) {
+export async function readReleaseState({ cwd = process.cwd(), startBranchSha, validation, memo } = {}) {
   const [branchName, branchSha, mainSha, remoteMainLine] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
@@ -1141,22 +1196,22 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   }
 
   const [branchPackage, mainPackage, branchLockfile, mainLockfile, branchChangelog, mainChangelog, status] = await Promise.all([
-    readGitFile('HEAD', 'package.json', cwd),
-    readGitFile('main', 'package.json', cwd),
-    readGitFile('HEAD', 'package-lock.json', cwd),
-    readGitFile('main', 'package-lock.json', cwd),
-    readGitFile('HEAD', 'src/changelog.ts', cwd),
-    readGitFile('main', 'src/changelog.ts', cwd),
+    readGitFile('HEAD', 'package.json', cwd, memo),
+    readGitFile('main', 'package.json', cwd, memo),
+    readGitFile('HEAD', 'package-lock.json', cwd, memo),
+    readGitFile('main', 'package-lock.json', cwd, memo),
+    readGitFile('HEAD', 'src/changelog.ts', cwd, memo),
+    readGitFile('main', 'src/changelog.ts', cwd, memo),
     runGit(['status', '--porcelain'], cwd),
   ]);
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
-  const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
+  const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd, memo);
   const validationTaskTipSha = validation?.passed === true &&
     typeof validation.commitSha === 'string' &&
     typeof validation.profile?.evidence?.branchSha === 'string' &&
-    await gitIsAncestor(validation.commitSha, branchSha, cwd) &&
-    await gitIsAncestor(validation.profile.evidence.branchSha, validation.commitSha, cwd)
+    await gitIsAncestor(validation.commitSha, branchSha, cwd, memo) &&
+    await gitIsAncestor(validation.profile.evidence.branchSha, validation.commitSha, cwd, memo)
     ? validation.profile.evidence.branchSha
     : undefined;
   const validationReceiptCommitSha = validationTaskTipSha
@@ -1166,15 +1221,16 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     ? validation.profile.evidence.baseSha
     : undefined;
   const validatedBaseIsAncestor = validatedBaseSha
-    ? await gitIsAncestor(validatedBaseSha, validationTaskTipSha, cwd)
+    ? await gitIsAncestor(validatedBaseSha, validationTaskTipSha, cwd, memo)
     : false;
   const validatedBaseIsAncestorOfMain = validatedBaseSha
-    ? await gitIsAncestor(validatedBaseSha, mainSha, cwd)
+    ? await gitIsAncestor(validatedBaseSha, mainSha, cwd, memo)
     : false;
   if (validatedBaseSha && validatedBaseIsAncestor) {
-    const validatedDiff = await runGit(
+    const validatedDiff = await memoizedGit(
       ['diff', '--unified=0', `${validatedBaseSha}...${validationTaskTipSha}`],
       cwd,
+      memo,
     );
     if (validation.profile.evidence.diffIdentity !== contentIdentity(validatedDiff) ||
       !validatedBaseIsAncestor) {
@@ -1195,15 +1251,19 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     changedFilesBase,
     changedFilesHead,
     cwd,
+    memo,
   );
   const postValidationChangedFiles = validationTaskTipSha && validationTaskTipSha !== branchSha
-    ? await readTaskChangedFiles(validationTaskTipSha, branchSha, cwd)
+    ? await readTaskChangedFiles(validationTaskTipSha, branchSha, cwd, memo)
     : [];
-  const testGrowth = await measureTestGrowth({
+  const testGrowthKey = `${cwd}\0${changedFilesBase}\0${changedFilesHead}`;
+  if (memo && !memo.testGrowth) memo.testGrowth = new Map();
+  const testGrowth = memo?.testGrowth?.get(testGrowthKey) ?? await measureTestGrowth({
     baseSha: changedFilesBase,
     headSha: changedFilesHead,
     cwd,
   });
+  memo?.testGrowth?.set(testGrowthKey, testGrowth);
 
   const release = {
     branchName,
@@ -1211,7 +1271,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     mainSha,
     originMainSha,
     mainContainsBranch,
-    mainIsAncestorOfBranch: await gitIsAncestor(mainSha, branchSha, cwd),
+    mainIsAncestorOfBranch: await gitIsAncestor(mainSha, branchSha, cwd, memo),
     worktreeClean: status.length === 0,
     branchVersion,
     mainVersion,
@@ -1229,7 +1289,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     ...(startBranchSha
       ? {
           startBranchSha,
-          branchBaselineIsAncestor: await gitIsAncestor(startBranchSha, branchSha, cwd),
+          branchBaselineIsAncestor: await gitIsAncestor(startBranchSha, branchSha, cwd, memo),
         }
       : {}),
   };
@@ -1239,6 +1299,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
       release,
       startBranchSha,
       cwd,
+      memo,
     }),
   };
 }
@@ -1910,6 +1971,10 @@ export async function readCoordinationState(filePath = coordinationFilePath()) {
   return pruneDeadReservations(await readStateUnlocked(filePath));
 }
 
+export function coordinationStateChanged(previous, next) {
+  return JSON.stringify(previous) !== JSON.stringify(next);
+}
+
 function bindPortIsFree(port, host) {
   return new Promise((resolvePromise) => {
     const server = createServer();
@@ -1935,6 +2000,30 @@ async function lsofPortIsFree(port) {
   }
 }
 
+export function parseListeningPortSnapshot(output = '') {
+  const ports = new Set();
+  for (const match of String(output).matchAll(/:(\d+)\s+\(LISTEN\)/g)) {
+    const port = Number(match[1]);
+    if (Number.isInteger(port) && port > 0) ports.add(port);
+  }
+  return ports;
+}
+
+async function listeningPortSnapshot() {
+  try {
+    const result = await execFileAsync(
+      'lsof',
+      ['-nP', '-iTCP', '-sTCP:LISTEN'],
+      { encoding: 'utf8' },
+    );
+    return parseListeningPortSnapshot(result.stdout);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    if (error?.code === 1) return new Set();
+    return undefined;
+  }
+}
+
 export async function isPortFree(port, host = '127.0.0.1') {
   // Binding only to 127.0.0.1 can miss a process listening on a wildcard
   // address on macOS. lsof sees both forms and is also the repository's
@@ -1947,9 +2036,14 @@ export async function isPortFree(port, host = '127.0.0.1') {
   return bindPortIsFree(port, host === '127.0.0.1' ? '0.0.0.0' : host);
 }
 
-async function occupiedPorts(ports, portCheck) {
+async function occupiedPorts(ports, portCheck, listenerSnapshot) {
   const results = await Promise.all(
-    ports.map(async (port) => ({ port, free: await portCheck(port) })),
+    ports.map(async (port) => ({
+      port,
+      free: listenerSnapshot instanceof Set
+        ? !listenerSnapshot.has(port) && await bindPortIsFree(port, '0.0.0.0')
+        : await portCheck(port),
+    })),
   );
   return results.filter(({ free }) => !free).map(({ port }) => port);
 }
@@ -1991,6 +2085,7 @@ async function claimSlot({
   command,
   ports,
   portCheck,
+  listenerSnapshot,
   state,
 }) {
   const reservations = coordinationReservations(state);
@@ -2006,7 +2101,7 @@ async function claimSlot({
     });
   }
 
-  const occupied = await occupiedPorts(ports, portCheck);
+  const occupied = await occupiedPorts(ports, portCheck, listenerSnapshot);
   if (occupied.length > 0) {
     throw occupiedSlotError({ filePath, slot, kind, ports: occupied });
   }
@@ -2043,7 +2138,10 @@ export async function reserveConfiguredEmulatorSlot({
       });
     }
 
-    const occupied = await occupiedPorts(ports, portCheck);
+    const listenerSnapshot = portCheck === isPortFree
+      ? await listeningPortSnapshot()
+      : undefined;
+    const occupied = await occupiedPorts(ports, portCheck, listenerSnapshot);
     if (occupied.length > 0) {
       throw occupiedSlotError({
         filePath,
@@ -2111,6 +2209,9 @@ export async function reserveAvailableConfiguredEmulatorSlot({
       firstCandidate,
       ...availableSlots.filter((candidate) => candidate !== firstCandidate),
     ];
+    const listenerSnapshot = portCheck === isPortFree
+      ? await listeningPortSnapshot()
+      : undefined;
     for (const candidate of candidateSlots) {
       const slot = chooseAvailableEmulatorSlot({
         preferredSlot: candidate,
@@ -2122,7 +2223,7 @@ export async function reserveAvailableConfiguredEmulatorSlot({
       if (slot === undefined) continue;
 
       const ports = portsForSlot(slot);
-      const occupied = await occupiedPorts(ports, portCheck);
+      const occupied = await occupiedPorts(ports, portCheck, listenerSnapshot);
       if (occupied.length > 0) continue;
 
       const configuration = {
@@ -2179,6 +2280,9 @@ export async function reserveEmulatorSlot({
 }) {
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const listenerSnapshot = portCheck === isPortFree
+      ? await listeningPortSnapshot()
+      : undefined;
     const reservation = await claimSlot({
       filePath,
       slot,
@@ -2187,6 +2291,7 @@ export async function reserveEmulatorSlot({
       command,
       ports,
       portCheck,
+      listenerSnapshot,
       state,
     });
     await writeStateUnlocked(filePath, state);
@@ -2222,6 +2327,9 @@ export async function reserveAvailableEmulatorSlot({
       );
     }
 
+    const listenerSnapshot = portCheck === isPortFree
+      ? await listeningPortSnapshot()
+      : undefined;
     const candidateSlots = [slot, ...availableSlots.filter((candidate) => candidate !== slot)];
     for (const candidate of candidateSlots) {
       const candidateSlot = chooseAvailableEmulatorSlot({
@@ -2234,7 +2342,7 @@ export async function reserveAvailableEmulatorSlot({
       if (candidateSlot === undefined) continue;
 
       const ports = portsForSlot(candidateSlot);
-      if ((await occupiedPorts(ports, portCheck)).length > 0) continue;
+      if ((await occupiedPorts(ports, portCheck, listenerSnapshot)).length > 0) continue;
 
       const reservation = newReservation({
         slot: candidateSlot,
@@ -3229,9 +3337,11 @@ export async function validateCoordinationEntry(filePath, options) {
     );
   }
 
-  const preparation = await withCoordinationLock(filePath, async () => {
+  const validationMemo = { git: new Map(), testGrowth: new Map() };
+  const preparationWork = await withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
-    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    const matchedEntry = state.entries.find((candidate) => candidate.id === options.id);
+    const entry = matchedEntry ? JSON.parse(JSON.stringify(matchedEntry)) : undefined;
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
@@ -3243,6 +3353,7 @@ export async function validateCoordinationEntry(filePath, options) {
       );
     }
 
+    return async () => {
     const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory);
 
     const startBranchSha = entry.startBranchSha || options['start-sha'];
@@ -3254,10 +3365,11 @@ export async function validateCoordinationEntry(filePath, options) {
     let release = options.release ?? await readReleaseState({
       startBranchSha,
       validation: entry.validation,
+      memo: validationMemo,
     });
     const advancedBranchFiles = !options.release && entry.validation &&
       release.branchSha !== entry.validation.commitSha
-      ? await readTaskChangedFiles(release.mainSha, release.branchSha, process.cwd())
+      ? await readTaskChangedFiles(release.mainSha, release.branchSha, process.cwd(), validationMemo)
       : [];
     let provenanceRefresh;
     if (!options.release) {
@@ -3268,7 +3380,7 @@ export async function validateCoordinationEntry(filePath, options) {
           previousTaskTipSha: release.validationTaskTipSha,
           files: changedFiles,
         };
-        release = await readReleaseState({ startBranchSha });
+        release = await readReleaseState({ startBranchSha, memo: validationMemo });
       }
     }
     const errors = releaseMetadataErrors({
@@ -3329,6 +3441,7 @@ export async function validateCoordinationEntry(filePath, options) {
           release,
           startBranchSha,
           cwd: process.cwd(),
+          memo: validationMemo,
         });
     const plan = validationPlanForFiles(release.changedFiles, { profile });
     const documentationReview = text(
@@ -3406,7 +3519,9 @@ export async function validateCoordinationEntry(filePath, options) {
       testGrowthReview,
       releaseFragment,
     };
+    };
   });
+  const preparation = await preparationWork();
 
   if (preparation.reusedEntry) return preparation.reusedEntry;
 
@@ -3495,6 +3610,7 @@ export async function validateCoordinationEntry(filePath, options) {
   const finalRelease = options.release ?? await readReleaseState({
     startBranchSha: preparation.startBranchSha,
     validation: preparation.validation,
+    memo: validationMemo,
   });
   if (finalRelease.branchSha !== preparation.release.branchSha) {
     throw new Error(
@@ -3507,6 +3623,7 @@ export async function validateCoordinationEntry(filePath, options) {
         release: finalRelease,
         startBranchSha: preparation.startBranchSha,
         cwd: process.cwd(),
+        memo: validationMemo,
       });
   const finalPlan = validationPlanForFiles(finalRelease.changedFiles, {
     profile: finalProfile,
@@ -3769,11 +3886,14 @@ export async function finishCoordinationEntry(filePath, options) {
 
 async function status(filePath, { includeHistory = false } = {}) {
   const state = await withCoordinationLock(filePath, async () => {
+    const originalState = await readStateUnlocked(filePath);
     const cleanState = pruneOrphanedConfigurations(
-      pruneDeadReservations(await readStateUnlocked(filePath)),
+      pruneDeadReservations(originalState),
       existsSync,
     );
-    await writeStateUnlocked(filePath, cleanState);
+    if (coordinationStateChanged(originalState, cleanState)) {
+      await writeStateUnlocked(filePath, cleanState);
+    }
     return cleanState;
   });
   console.log(`Coordination file: ${filePath}`);

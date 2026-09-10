@@ -414,6 +414,8 @@ export function validateImplementationPromptClaims(
 export function readReleaseState(options?: {
   cwd?: string;
   startBranchSha?: string;
+  validation?: Readonly<Record<string, unknown>>;
+  memo?: Record<string, unknown>;
 }): Promise<ReleaseState>;
 export function validateCoordinationEntry(
   filePath: string,
@@ -473,6 +475,9 @@ export function chooseAvailableEmulatorSlot(options: {
 }): number | undefined;
 export function isPortFree(port: number, host?: string): Promise<boolean>;
 export function readCoordinationState(filePath?: string): Promise<CoordinationState>;
+export function coordinationStateChanged(previous: unknown, next: unknown): boolean;
+export function directoryContentIdentity(path: string): Promise<string | null>;
+export function parseListeningPortSnapshot(output?: string): ReadonlySet<number>;
 export function reserveConfiguredEmulatorSlot(options: {
   filePath?: string;
   slot: number;
