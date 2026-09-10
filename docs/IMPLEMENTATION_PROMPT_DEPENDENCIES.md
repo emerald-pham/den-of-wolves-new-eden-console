@@ -531,12 +531,12 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 430 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Encode expansion targeting. |
 | 431 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve target-number wraparound. |
 | 432 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Declare the attack atomically. |
-| 432a | EXTEND | missing | none | none | none | none | none | none | none | none | none | M9 | Operate the attack from the GM console. |
+| 432a | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Operate the attack from the GM console. |
 | 433 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Project attack state by audience. |
-| 433a | NEW | missing | none | none | none | none | none | ATTACK-DRADIS | none | none | E-ATTACK-DRADIS | M9 | Publish a stable DRADIS-ready attack contract. |
-| 433b | EXTEND | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve choices in affected player consoles. |
+| 433a | NEW | missing | none | none | none | none | none | WOLF-ATTACK;ATTACK-DRADIS | none | none | E-WOLF;E-ATTACK-DRADIS | M9 | Publish a stable DRADIS-ready attack contract. |
+| 433b | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve choices in affected player consoles. |
 | 434 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Make attack commands retry-safe. |
-| 434a | EXTEND | missing | none | none | none | none | none | none | none | none | none | M9 | Intervene and recover safely during an attack. |
+| 434a | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Intervene and recover safely during an attack. |
 | 435 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Commander target rerolls. |
 | 436 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | 435 | E-436;E-WOLF | M9 | Resolve AEGIS Command and Control. |
 | 437 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Lock Gorgoneion Force Field timing. |
@@ -572,11 +572,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 467 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Apply surviving-boarder damage. |
 | 468 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Militia Leader defence. |
 | 469 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Fighter Wing destruction. |
-| 469a | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Assault Transport destruction. |
-| 469b | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Wolf Destroyer destruction. |
-| 469c | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Wolf Cruiser destruction. |
-| 469d | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Strikecarrier destruction. |
-| 469e | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Battlestation destruction. |
+| 469a | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Assault Transport destruction. |
+| 469b | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Destroyer destruction. |
+| 469c | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Cruiser destruction. |
+| 469d | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Strikecarrier destruction. |
+| 469e | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Battlestation destruction. |
 | 470 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Carry surviving Wolf Fighter Wings forward. |
 | 471 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Enforce Battlestation Short Range immunity. |
 | 472 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Apply Strikecarrier wing bonus. |
@@ -722,8 +722,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 599 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Build the single-facilitator setup checklist. |
 | 600 | PROVE | missing | none | none | none | none | none | none | none | none | none | X | Run the onboarding-to-first-action scenario. |
 | 601 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make primary status universal. |
-| 602 | PROVE | missing | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE | X | Prove return navigation everywhere. |
-| 602a | REPAIR | missing | none | none | AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT | none | none | RETURN-REPAIR | none | none | E-602A;E-602-CLOSURE | X | Restore shuttle-to-associated-ship return navigation. |
+| 602 | PROVE | missing | none | none | none | none | 602a:green | RETURN-REPAIR | none | none | E-602-CLOSURE;E-RETURN-REPAIR-SEQUENCE | X | Prove return navigation everywhere. |
+| 602a | REPAIR | missing | none | none | AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT | none | none | RETURN-REPAIR | none | none | E-602A;E-RETURN-REPAIR-SEQUENCE | X | Restore shuttle-to-associated-ship return navigation. |
 | 603 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make ship consoles work on narrow phones. |
 | 603a | REPAIR | done | none | none | SHARED-SESSION-CHROME;ROLE-SELECT | none | none | TICKER-LIFECYCLE | none | none | E-603A;E-TICKER | X | Keep the mobile session ticket out of routed content. |
 | 604 | EXTEND | missing | none | none | none | none | none | none | none | none | none | X | Make maintenance work in short landscape. |
@@ -780,7 +780,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 652a | REPAIR | missing | 106c;652 | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Keep every moving ticker glyph visible through its real exit. |
 | 652b | NEW | missing | 106c;603a;652;652a | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | none | Run a reversible mobile sticky-ticker experiment. |
 | 653 | EXTEND | missing | none | none | none | none | none | none | none | none | none | none | Remove the ICN/Iris fleet-wide console lock. |
-| 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
+| 654 | REPAIR | missing | none | M1 | none | OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME | none | M1-REPAIR | none | none | E-M1-REPAIR;E-M1-REPAIR-SEQUENCE | M1 | Start production after a confirmed roster without treating unfilled roles as a blocker. |
 | 655 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Restore the Press evidence-shredder docked-cockpit warning. |
 | 656 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Route an already-connected launcher to its current session. |
 | 657 | REPAIR | missing | none | none | none | none | none | none | none | none | none | none | Remove roadmap jargon from player-facing changelog history and future entries. |
@@ -823,10 +823,11 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-275A | hard_prompt / hard_contract | 275a -> 004;051 | IMPLEMENTATION_PLAN.md - Release objective - SNN Press and operational readout regressions | The Press release preserves the existing base-roster and setup/readiness evidence before its independent station contract. |
 | E-275A-RELATED | related/consumes | 275a -> 598;605 | IMPLEMENTATION_PLAN.md - Release objective - SNN Press and operational readout regressions | This bounded release completes Prompt 275a while strengthening the connected Prompt 598 and Prompt 605 contracts. |
 | E-275B | sequence / release-boundary | 275b -> POST-CURRENT-DEPENDENCY-SLICE; SEPARATE-RELEASE-0.3.12 | IMPLEMENTATION_PLAN.md - Queued regression objective - Prompt 275b SNN Dispatch Desk | A dedicated repair release follows the current dependency slice and is not part of 0.3.12; these are boundaries, not hard contracts. |
-| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645 | IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding | Implement this block in dependency order: the listed attack/catalog, resolver, projection, phase, and aftermath prompts are sequenced explicitly. |
+| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645 | IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding | Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645. |
 | E-433A | hard_prompt | 351, 353-360 -> 433a | IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding | Prompts 351 and 353-360 consume the stable 433a contract only after it exists. |
 | E-436 | related/consumes | 436 -> 435 | IMPLEMENTATION_PLAN.md - Prompt 436 definition | AEGIS Command and Control is available only after Commander rerolls; this is related sequencing, not a hard prompt edge. |
 | E-602-CLOSURE | evidence/audit closure | 602 -> 602a | IMPLEMENTATION_MILESTONES.md - audited baseline | Universal Prompt 602 cannot close until the ordinary shuttle return repair 602a is green; this is a closure gate, not a start blocker. |
+| E-RETURN-REPAIR-SEQUENCE | sequence | 602a -> 602 | IMPLEMENTATION_MILESTONES.md - audited baseline | Deliver ordinary shuttle return repair 602a before the universal Prompt 602 proof. |
 | E-602A | hard_contract | 602a -> AUTHORITATIVE-SHUTTLE-ASSOCIATION; CONSOLE-ROUTE-ENTITLEMENT | IMPLEMENTATION_MILESTONES.md - audited baseline and Prompt 602a definition | The ordinary return target is resolved from authoritative docking/association state and canonical route entitlement. |
 | E-603A | hard_contract / sequence | 603a -> SHARED-SESSION-CHROME; ROLE-SELECT | IMPLEMENTATION_MILESTONES.md - audited baseline and addendum order | Prompt 603a is the measured shared session-ticket/header contract and remains a prerequisite for 652b. |
 | E-605A | hard_prompt / decision_owner | 605a -> 433a; OWNER-APPROVAL-DEFERRED-VISUALIZATION | IMPLEMENTATION_PLAN.md - Prompt 605a definition | Only after Prompt 433a endpoint/schema/privacy proofs and explicit owner approval. |
@@ -836,6 +837,7 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-PRESENTATION | sequence | 485a -> fleetRedAlert; 611 -> fleetRedAlert; 611a/589b -> characterization/accessibility gates | IMPLEMENTATION_PLAN.md - Future roadmap addendum, Dependency and delivery order | Compact alert surfaces consume existing fleetRedAlert independently; typography/copy repairs may ship independently after their gates. |
 | E-REACTOR | sequence | 122a -> named maintenance contracts | IMPLEMENTATION_PLAN.md - Prompt 122a definition | The repair depends on named contracts without claiming their broader vessel matrix complete. |
 | E-M1-REPAIR | hard_milestone / decision_owner | 654 -> M1; owner-approved zero-eligible-Wolf outcome | IMPLEMENTATION_PLAN.md - Prompt 654 definition | The repair depends on Milestone 1 and requires an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. |
+| E-M1-REPAIR-SEQUENCE | sequence | 654 -> M1-REPAIR | IMPLEMENTATION_PLAN.md - Prompt 654 definition | Prompt 654 is the Milestone 1 repair slice after the owner-approved outcome is recorded. |
 | E-662 | related/consumes / decision_owner | 662 -> 054;075;496;586-588; OWNER-APPROVED-WOLF-DESIGNATION-POLICY | IMPLEMENTATION_PLAN.md - Prompt 662 definition | The decision notes overlaps/dependencies 054, 071, 075, 496, and 586-588 and remains missing until the owner-approved policy is recorded; retired 071 is excluded from the canonical related set. |
 
 ## Integrity checker
@@ -896,6 +898,17 @@ for (const row of evidenceRows) {
   }
 }
 const evidenceIds = new Set(evidenceById.keys());
+const evidenceTypes = new Map(Array.from(evidenceById, ([id, row]) => [id, row[1].split(' / ')]));
+const evidenceTypeForField = new Map([
+  [3, 'hard_prompt'],
+  [4, 'hard_milestone'],
+  [5, 'hard_contract'],
+  [6, 'decision_owner'],
+  [7, 'evidence/audit closure'],
+  [8, 'sequence'],
+  [9, 'release-boundary'],
+  [10, 'related/consumes']
+]);
 const parseTargets = (value, label) => {
   if (value === 'none') return [];
   const output = [];
@@ -956,6 +969,12 @@ for (const row of rows) {
   const refs = row[11] === 'none' ? [] : row[11].split(';');
   if (hasGate && refs.length === 0) throw new Error('dependency without evidence on ' + id);
   for (const ref of refs) if (!evidenceIds.has(ref)) throw new Error('unknown evidence ' + ref + ' on ' + id);
+  for (const [index, expectedType] of evidenceTypeForField) {
+    if (row[index] === 'none') continue;
+    if (!refs.some((ref) => evidenceTypes.get(ref)?.includes(expectedType))) {
+      throw new Error('typed evidence mismatch on ' + id + '.' + index + ': expected ' + expectedType);
+    }
+  }
 }
 const adjacency = new Map();
 for (const [from, to] of hardEdges) {
@@ -1070,34 +1089,55 @@ const expand = (value, label) => {
   return output;
 };
 
-const sequenceOrder = new Map([
-  ['M1-SETUP', 1],
-  ['UNIFIED-ENTRY', 2],
-  ['TICKER-LIFECYCLE', 3],
-  ['WOLF-ATTACK', 4],
-  ['ATTACK-DRADIS', 5],
-  ['ATTACK-PRESSURE', 6],
-  ['PRESS-DESK', 7],
-  ['RETURN-REPAIR', 8],
-  ['REACTOR-REPAIR', 9],
-  ['PRESENTATION-INDEPENDENT', 10],
-  ['M1-REPAIR', 11]
-]);
 const milestoneRank = (row) => {
   if (row[12] === 'none') return 999;
   const match = row[12].match(/M([0-9]+)/);
   return match ? Number(match[1]) : 998;
 };
-const sequenceRank = (row) => {
-  const ranks = row[8].split(';').map((token) => sequenceOrder.get(token)).filter((value) => value !== undefined);
-  return ranks.length ? Math.min(...ranks) : 999;
+const sourceOrdinal = new Map(rows.map(({ cells: row }, index) => [row[0], index]));
+const wolfOrderMatch = planText.match(/Implement this block in dependency order:\s*([\s\S]*?)\.\s*Prompts 351/);
+if (!wolfOrderMatch) throw new Error('Wolf attack dependency order missing from IMPLEMENTATION_PLAN.md');
+const expandSequenceToken = (value, label) => expand(value.trim().replace(/[–—]/g, '-'), label);
+const wolfOrderGroups = wolfOrderMatch[1]
+  .replace(/\s+/g, ' ')
+  .replace(/→/g, '->')
+  .split(/\s*->\s*/)
+  .map((group) => group.trim())
+  .filter(Boolean);
+const wolfOrdinalById = new Map();
+for (const [groupIndex, group] of wolfOrderGroups.entries()) {
+  const members = group.split('/').flatMap((token) => expandSequenceToken(token, 'WOLF-ATTACK source order'));
+  if (!members.length) throw new Error('empty WOLF-ATTACK source-order group ' + group);
+  for (const [memberIndex, id] of members.entries()) {
+    if (wolfOrdinalById.has(id)) throw new Error('duplicate WOLF-ATTACK source-order prompt ' + id);
+    wolfOrdinalById.set(id, groupIndex * 1000 + memberIndex);
+  }
+}
+const expectedWolfOrder = [
+  '425', '426', '428', '427', '432', '432a', '433', '433a', '433b', '434', '434a',
+  ...Array.from({ length: 10 }, (_, index) => String(435 + index)),
+  ...Array.from({ length: 29 }, (_, index) => String(445 + index)),
+  ...Array.from({ length: 8 }, (_, index) => String(475 + index)),
+  '474', '484', '621', '645'
+];
+if (JSON.stringify([...wolfOrdinalById.keys()]) !== JSON.stringify(expectedWolfOrder)) {
+  throw new Error('WOLF-ATTACK source order drifted: expected ' + expectedWolfOrder.join(' -> ') + ', got ' + [...wolfOrdinalById.keys()].join(' -> '));
+}
+const rowByPromptId = new Map(rows.map(({ cells: row }) => [row[0], row]));
+for (const id of expectedWolfOrder) {
+  const row = rowByPromptId.get(id);
+  if (!row || !row[8].split(';').includes('WOLF-ATTACK')) throw new Error('WOLF-ATTACK prompt missing sequence tag: ' + id);
+  const refs = row[11] === 'none' ? [] : row[11].split(';');
+  if (!refs.includes('E-WOLF')) throw new Error('WOLF-ATTACK prompt missing E-WOLF evidence: ' + id);
+}
+const sequenceRank = (row) => wolfOrdinalById.get(row[0]) ?? Number.MAX_SAFE_INTEGER;
+const dispatchCompare = (left, right) => {
+  const milestoneDelta = milestoneRank(left) - milestoneRank(right);
+  if (milestoneDelta) return milestoneDelta;
+  const sequenceDelta = sequenceRank(left) - sequenceRank(right);
+  if (sequenceDelta) return sequenceDelta;
+  return sourceOrdinal.get(left[0]) - sourceOrdinal.get(right[0]);
 };
-const canonicalCompare = (left, right) => {
-  const leftMatch = left[0].match(/^([0-9]{3})([a-z]*)$/);
-  const rightMatch = right[0].match(/^([0-9]{3})([a-z]*)$/);
-  return Number(leftMatch[1]) - Number(rightMatch[1]) || leftMatch[2].localeCompare(rightMatch[2]);
-};
-const dispatchCompare = (left, right) => milestoneRank(left) - milestoneRank(right) || sequenceRank(left) - sequenceRank(right) || canonicalCompare(left, right);
 const sorted = (items) => items.slice().sort(dispatchCompare);
 const statusOf = (id) => liveStatus.get(id) || (retiredIds.has(id) ? 'retired' : 'unknown');
 const dependencySummary = (row) => {
@@ -1136,6 +1176,12 @@ for (const { cells: row } of rows) {
   }
 }
 const readyQueue = sorted(ready);
+const readyWolfRanks = readyQueue
+  .filter((row) => wolfOrdinalById.has(row[0]))
+  .map((row) => wolfOrdinalById.get(row[0]));
+if (readyWolfRanks.some((rank, index) => index > 0 && readyWolfRanks[index - 1] > rank)) {
+  throw new Error('READY_QUEUE violates the explicit WOLF-ATTACK order');
+}
 const rowById = new Map(rows.map(({ cells: row, line }) => [row[0], { row, line }]));
 const evidenceLine = new Map(artifactLines.flatMap((line) => {
   const match = line.match(/^\| (E-[A-Z0-9-]+) \|/);
@@ -1153,10 +1199,32 @@ const routeFor = (hints) => {
     }
     const end = milestoneLines.findIndex((line, index) => index > start && /^### Milestone [0-9]+ —/.test(line));
     const section = milestoneLines.slice(start, end < 0 ? milestoneLines.length : end);
-    route.push(...section.filter((line) => /^### Milestone |^\*\*(Outcome|Depends on|Primary prompt neighborhood|Exit fixture):/.test(line)));
+    let capturingField = false;
+    for (const line of section) {
+      if (/^### Milestone /.test(line)) {
+        route.push(line);
+        capturingField = false;
+      } else if (/^\*\*(Outcome|Depends on|Primary prompt neighborhood|Exit fixture):/.test(line)) {
+        route.push(line);
+        capturingField = true;
+      } else if (capturingField && line.trim()) {
+        route.push(line);
+      } else if (!line.trim()) {
+        capturingField = false;
+      }
+    }
   }
   return route;
 };
+const milestoneOneRoute = routeFor('M1');
+for (const fragment of [
+  'the exact roster, privately assigns loyalties, seats players, and advances from',
+  'privacy contracts.',
+  'callable path, with unsupported rosters, leaked secrets, stale requests, and',
+  'duplicate commands denied.'
+]) {
+  if (!milestoneOneRoute.some((line) => line.includes(fragment))) throw new Error('Milestone 1 route lost continuation: ' + fragment);
+}
 const printReasons = (items) => {
   for (const [row, reasons] of items) console.log(row[0] + '\t' + reasons.join('; ') + '\t' + row[13]);
 };
@@ -1206,11 +1274,11 @@ progress ledgers. It is a compact transcript showing the required shape; rerun
 the command for the live full queue and packet.
 
 ~~~text
-NEXT: 075
+NEXT: 012
 READY_QUEUE
-1. 075  milestone=M1  sequence=M1-SETUP  Start the game atomically.
-2. 012  milestone=M1  sequence=none      Define command idempotency.
-3. 014  milestone=M1  sequence=none      Define stale-snapshot semantics.
+1. 012  milestone=M1  sequence=none      Define command idempotency.
+2. 014  milestone=M1  sequence=none      Define stale-snapshot semantics.
+3. 015  milestone=M1  sequence=none      Define the command error taxonomy.
 ...
 NEEDS_CONFIRMATION
 031a  hard_prompt_prerequisites: 030=done,031=done,032=done,034=done; hard_contract=CURRENT-SETUP-READINESS (not mechanically proven)
@@ -1220,16 +1288,22 @@ NEEDS_CONFIRMATION
 BLOCKED
 020a  hard_prompt_prerequisites: 020=done,074=done,075=partial,076=done,077=partial,078=done,079=done,080=missing,081=done,177=done,287=missing,...
 CONTEXT_PACKET
-prompt_id: 075
-index_row: | 075 | EXTEND | partial | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Start the game atomically. |
-plan_definition: - **Prompt 075 — [EXTEND] Start the game atomically.** Acceptance: one transaction initializes lifecycle, turn, phase, timers, ships, roles, resources, decks, pursuit, automatic Wolf/loyalty composition, the setup calculation receipt, and the first event; existing partial start behavior remains a primitive until this full one-GM composition passes.
-live_progress_row: | 075 | partial | feature | 0.3.5, 0.3.13 | Version 0.3.13 atomically locks validated setup, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with existing timer/announcement behavior. Complete deck, craft, resource/economy, and alert initialization remains open, so Prompt 075 stays partial. |
+prompt_id: 012
+index_row: | 012 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Define command idempotency. |
+plan_definition: - **Prompt 012 — [PRESERVE] Define command idempotency.** Acceptance: retrying a command returns its original result without duplicating state, cost, randomness, or audit events.
+live_progress_row: | 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
 milestone_route:
   ### Milestone 1 — Cast and start a real game
   **Outcome:** a facilitator selects a supported immutable configuration, casts
+  the exact roster, privately assigns loyalties, seats players, and advances from
+  Turn 0 to Turn 1 without invalid or orphaned authority.
+  **Depends on:** session lifecycle, join/seat/GM authority, configuration and
+  privacy contracts.
   **Primary prompt neighborhood:** 001–090.
+  **Exit fixture:** create → join → cast → start → Turn 1 using the production
+  callable path, with unsupported rosters, leaked secrets, stale requests, and
+  duplicate commands denied.
 dependency_evidence_anchors:
-  | E-M1-SETUP | sequence | 004 -> 021/030/073 -> 051/054/075 setup -> 020 | IMPLEMENTATION_PLAN.md - Queued follow-on Milestone 1 releases | Prompt 004 is followed by separately evidenced releases; Prompt 020 is complete only after release 0.3.13 is merged. |
 required_preceding_contracts:
   hard_prompt_prerequisites=none [none]
   hard_milestone=none
