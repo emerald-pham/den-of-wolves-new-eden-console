@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SESSION_CONFIGURATION,
+  canonicalSessionSetup,
   defaultSuspicionForLoyalty,
   loyaltyAssignmentDecision,
   normalizeSessionConfiguration,
@@ -10,12 +11,14 @@ import {
   projectPrivateSetup,
   wolfCountForPlayerCount,
   normalizePersistedSessionConfiguration,
+  printedRosterForPlayerCount,
   stableSeatsForRoles,
   ROLE_SEAT_METADATA,
   composeDefaultLoyaltyAssignments,
   validateExplicitLoyaltySetup,
 } from './gameSetup';
 import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
+import { recommendedRoleIds as clientRecommendedRoleIds } from '../../src/data/rolePresets';
 
 describe('authoritative setup configuration', () => {
   it('normalizes the legacy session shape to a printed base-game configuration', () => {
@@ -51,6 +54,11 @@ describe('authoritative setup configuration', () => {
   it('rejects a base 19/20 request and lower-count Capybara substitution before any write', () => {
     expect(() => normalizeSessionConfiguration({
       playerCount: 19,
+      expansion: 'base',
+      capybaraEnabled: false,
+    })).toThrow(/Capybara expansion/i);
+    expect(() => normalizeSessionConfiguration({
+      playerCount: 20,
       expansion: 'base',
       capybaraEnabled: false,
     })).toThrow(/Capybara expansion/i);
@@ -116,6 +124,23 @@ describe('authoritative setup configuration', () => {
     expect(wolfCountForPlayerCount(18)).toBe(2);
     expect(wolfCountForPlayerCount(19)).toBe(2);
     expect(wolfCountForPlayerCount(20)).toBe(2);
+  });
+
+  it('keeps the client catalog and normalized server setup on one ordered roster matrix', () => {
+    for (const playerCount of [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) {
+      const clientRoster = [...clientRecommendedRoleIds(playerCount)];
+      const serverRoster = [...canonicalSessionSetup(
+        normalizeSessionConfiguration({ playerCount }),
+      ).activeRoleIds];
+
+      expect(serverRoster, `player count ${playerCount}`).toEqual(clientRoster);
+      expect(serverRoster).toEqual([...printedRosterForPlayerCount(playerCount)]);
+      expect(serverRoster).toHaveLength(playerCount);
+      expect(serverRoster).not.toEqual(expect.arrayContaining(['press-officer', 'gm']));
+      expect(serverRoster.filter((roleId) => roleId.startsWith('capybara-'))).toEqual(
+        playerCount >= 19 ? ['capybara-captain', 'capybara-recycler'] : [],
+      );
+    }
   });
 });
 
@@ -603,6 +628,47 @@ describe('start readiness', () => {
         lastSeenAt: { toMillis: () => 900_000 },
       }],
     })).toEqual({ ready: false, reasons: ['gm-staffing'] });
+  });
+
+  it('lets one live GM cover both lanes while stale extras neither gate nor satisfy readiness', () => {
+    const activeRoleIds = [...recommendedRoleIds(8)];
+    const corePlayers = activeRoleIds.map((_roleId, index) => `u${index + 1}`);
+    const assignments = activeRoleIds.map((roleId, index) => ({ uid: corePlayers[index]!, roleId }));
+    const seatDocuments = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
+      ...seat,
+      status: 'claimed' as const,
+      holderUid: corePlayers[index]!,
+      claimedAt: '2026-09-08T01:00:00.000Z',
+    }));
+    const base = {
+      phase: 'casting',
+      playerCount: 8,
+      connectedPlayers: corePlayers,
+      assignments,
+      loyaltyUids: [],
+      facilitatorResponsibilities: { main: false, assistant: false },
+      activeRoleIds,
+      activeVesselIds: activeVesselIdsForRoles(activeRoleIds),
+      seatDocuments,
+      playerSeatPointers: corePlayers.map((uid, index) => ({ uid, seatId: activeRoleIds[index]! })),
+      facilitatorPlayerUids: ['gm-main', 'gm-stale'],
+      nowMs: 1_000_000,
+    } as const;
+    const liveMain = {
+      id: 'bridge', uid: 'gm-main', connected: true,
+      lastSeenAt: { toMillis: () => 980_000 },
+      responsibilities: ['main', 'assistant'] as const,
+    };
+    const staleExtra = {
+      id: 'tablet', uid: 'gm-stale', connected: true,
+      lastSeenAt: { toMillis: () => 900_000 },
+      responsibilities: ['assistant'] as const,
+    };
+
+    expect(readinessForSetup({ ...base, gmInstances: [liveMain, staleExtra] }))
+      .toEqual({ ready: true, reasons: [] });
+    expect(readinessForSetup({ ...base, gmInstances: [staleExtra] }))
+      .toEqual({ ready: false, reasons: ['gm-staffing'] });
   });
 
   it('rejects duplicate or foreign configured vessels before start', () => {
