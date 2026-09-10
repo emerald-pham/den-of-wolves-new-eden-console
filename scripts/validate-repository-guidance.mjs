@@ -105,6 +105,68 @@ function hasCompletionBlock(source) {
     /\bunmet\b/i.test(source);
 }
 
+const PROMPT_DEPENDENCY_CONCURRENCY_SURFACES = Object.freeze([
+  'AGENTS.md',
+  'CLAUDE.md',
+  'README.md',
+  'docs/WORKTREE_COORDINATION.md',
+  'docs/IMPLEMENTATION_PLAN.md',
+  PROMPT_DEPENDENCY_INDEX_PATH,
+  'docs/IMPLEMENTATION_MILESTONES.md',
+  'docs/IMPLEMENTATION_PROGRESS.md',
+]);
+
+/**
+ * Keep the queue's resume hint from becoming a hidden serial execution lock.
+ * Every agent-facing surface must describe the same safe concurrency policy:
+ * NEXT is the primary lane, while later dependency-ready work may proceed
+ * only after all hard gates and ownership checks pass.
+ */
+export function validatePromptDependencyConcurrency({ sources, errors }) {
+  for (const filePath of PROMPT_DEPENDENCY_CONCURRENCY_SURFACES) {
+    const source = sources.get(filePath);
+    if (typeof source !== 'string') {
+      errors.push(`${filePath}: missing prompt concurrency policy`);
+      continue;
+    }
+    const normalized = normalizeGuidance(source);
+    const checks = [
+      [
+        'must identify NEXT/READY_QUEUE as the primary resume/default lane',
+        /\bnext\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\bprimary\b[\s\S]{0,120}\b(?:resume|default)\b/i,
+      ],
+      [
+        'must make the primary lane advisory for concurrency, not serial-only',
+        /\b(?:advisory|not a serial execution lock|not serial)\b[\s\S]{0,180}\bconcurr/i,
+      ],
+      [
+        'must allow later READY_QUEUE claims only as safe concurrent work',
+        /(?:\blater\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\b(?:claim|select|proceed|worktree)\b[\s\S]{0,180}\bconcurr|\b(?:claim|select|proceed)\b[\s\S]{0,180}\blater\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\bconcurr)/i,
+      ],
+      [
+        'must require hard prerequisites, milestone, contract, and owner gates',
+        /\bhard prompt prerequisites?\b/i,
+      ],
+      ['must name hard milestone and contract gates', /\bhard milestone\b[\s\S]{0,180}\bhard contract\b/i],
+      ['must name decision-owner gates', /\bdecision[- ]owner\b[\s\S]{0,180}\b(?:gate|confirmed|satisfied)\b/i],
+      [
+        'must require a conflict-free coordination forecast/ownership check',
+        /\bcoordination\b[\s\S]{0,220}\b(?:forecast|ownership)\b[\s\S]{0,220}\b(?:conflict|overlap|claim)\b/i,
+      ],
+      [
+        'must prohibit bypassing dependencies, active claims, or unresolved owner gates',
+        /\b(?:must not|never|cannot)\b[\s\S]{0,180}\b(?:bypass|skip|override)\b[\s\S]{0,180}\b(?:dependenc|active claim|decision[- ]owner)\b/i,
+      ],
+    ];
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
+    }
+    if (/\bclaim (?:only )?the first unclaimed item in ready_queue\b/i.test(normalized)) {
+      errors.push(`${filePath}: retains a serial-only first-unclaimed READY_QUEUE claim rule`);
+    }
+  }
+}
+
 export function validatePromptDependencyGuidance({ sources, errors }) {
   for (const [filePath, selectionPattern] of PROMPT_DEPENDENCY_GUIDANCE) {
     const source = sources.get(filePath);
@@ -273,6 +335,7 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
     ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
   ]);
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
+  validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 
   return errors;

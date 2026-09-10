@@ -15,3 +15,7 @@ export interface PromptDependencyGuidanceInput {
 export function validatePromptDependencyGuidance(
   input: PromptDependencyGuidanceInput,
 ): void;
+
+export function validatePromptDependencyConcurrency(
+  input: PromptDependencyGuidanceInput,
+): void;

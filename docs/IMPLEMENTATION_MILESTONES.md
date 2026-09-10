@@ -16,6 +16,15 @@ coordination before continuing. Re-read this dependency authority after a
 rebase or material movement of current `main`. A prompt cannot be marked
 complete or merged while a hard prerequisite remains unmet.
 
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap. A worktree
+must not bypass an unmet dependency, active claim, or unresolved decision-owner
+gate merely because the prompt is independent.
+
 Do not infer completion from the number of source files, screens, catalogs, or
 passing low-level tests. The repository has substantial tested foundations, but
 the progress ledger is the truthful prompt-level snapshot and the milestone

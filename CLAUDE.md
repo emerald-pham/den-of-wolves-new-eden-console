@@ -108,6 +108,15 @@ is a default triage pointer, not a dependency lock; a worktree may claim any
 dependency-ready unresolved prompt, while the coordination registry prevents a
 duplicate active claim.
 
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap. A worktree
+must not bypass an unmet dependency, active claim, or unresolved decision-owner
+gate merely because the prompt is independent.
+
 ### Prompt dependency gate
 
 The dependency index is a mandatory preflight for every numbered prompt. Before

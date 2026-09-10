@@ -104,6 +104,14 @@ exact row, hard prerequisites, milestone/contract/owner gates, ordering
 context, evidence, and live progress with current `main` and this coordination
 registry; run its dispatcher before claiming the exact scope. Re-read it after
 any rebase or material movement of current `main`.
+`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
+it is advisory for concurrency, not a serial execution lock. A separate
+worktree may claim a later `READY_QUEUE` item concurrently only when its hard
+prompt prerequisites are done, every hard milestone, hard contract, and
+decision-owner gate is satisfied or explicitly confirmed, and the coordination
+forecast shows conflict-free ownership with no active claim overlap. A worktree
+must not bypass an unmet dependency, active claim, or unresolved decision-owner
+gate merely because the prompt is independent.
 The default pane shows active work and a count of hidden completed entries so
 startup review stays concise. Use `npm run coordination:status -- --history`
 only when a historical validation or release receipt is needed.
