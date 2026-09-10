@@ -13,7 +13,15 @@ const LOCK_STALE_MS = 30 * 1000;
 const LOCK_RETRY_MS = 100;
 const LOCK_RECOVERY_TIMEOUT_MS = LOCK_TIMEOUT_MS;
 const MAX_LOCKFILE_RECHECKS = 3;
+const DEPENDENCY_STAMP_SCHEMA_VERSION = 2;
 const repositoryDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+function safePackagePath(path) {
+  if (typeof path !== 'string' || path.includes('\\')) return false;
+  const segments = path.split('/');
+  return segments[0] === 'node_modules' && segments.length > 1 &&
+    segments.slice(1).every((segment) => segment && segment !== '.' && segment !== '..');
+}
 
 export function lockPathForRepository(directory) {
   const identity = createHash('sha256').update(resolve(directory)).digest('hex').slice(0, 24);
@@ -38,32 +46,44 @@ async function currentStamp(nodeModulesPath) {
   if (!(await isDirectory(nodeModulesPath))) return undefined;
   try {
     const source = (await readFile(resolve(nodeModulesPath, LOCKFILE_STAMP_FILE), 'utf8')).trim();
-    try {
-      const stamp = JSON.parse(source);
-      if (stamp && typeof stamp === 'object' && typeof stamp.fingerprint === 'string') {
-        return stamp;
-      }
-    } catch {
-      // Stamps from the first bootstrap implementation were plain fingerprints.
+    const stamp = JSON.parse(source);
+    if (stamp && typeof stamp === 'object' &&
+      stamp.schemaVersion === DEPENDENCY_STAMP_SCHEMA_VERSION &&
+      typeof stamp.fingerprint === 'string' &&
+      Array.isArray(stamp.packageRecords) &&
+      stamp.packageRecords.every((record) => record && safePackagePath(record.path) &&
+        typeof record.optional === 'boolean')) {
+      return stamp;
     }
-    return { fingerprint: source, packagePaths: undefined };
+    return undefined;
   } catch (error) {
     if (error?.code === 'ENOENT') return undefined;
+    if (error instanceof SyntaxError) return undefined;
     throw error;
   }
 }
 
-async function recordedPackagePaths(nodeModulesPath) {
+async function recordedPackageRecords(nodeModulesPath) {
   try {
     const source = JSON.parse(
       await readFile(resolve(nodeModulesPath, '.package-lock.json'), 'utf8'),
     );
-    return Object.keys(source?.packages ?? {})
-      .filter((path) => path.startsWith('node_modules/'))
-      .sort();
+    if (!source || typeof source !== 'object' ||
+      typeof source.lockfileVersion !== 'number' || source.lockfileVersion < 3 ||
+      !source.packages ||
+      typeof source.packages !== 'object' || Array.isArray(source.packages)) {
+      return undefined;
+    }
+    const records = [];
+    for (const [path, metadata] of Object.entries(source.packages)) {
+      if (!path.startsWith('node_modules/')) continue;
+      if (!safePackagePath(path)) return undefined;
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+      records.push({ path, optional: metadata.optional === true });
+    }
+    return records.sort((left, right) => left.path.localeCompare(right.path));
   } catch (error) {
-    if (error?.code === 'ENOENT') return [];
-    return [];
+    return undefined;
   }
 }
 
@@ -74,8 +94,15 @@ async function writeStamp(nodeModulesPath, fingerprint) {
     `.${LOCKFILE_STAMP_FILE}.${process.pid}.${randomUUID()}.tmp`,
   );
   try {
-    const packagePaths = await recordedPackagePaths(nodeModulesPath);
-    await writeFile(temporaryPath, `${JSON.stringify({ fingerprint, packagePaths })}\n`, {
+    const packageRecords = await recordedPackageRecords(nodeModulesPath);
+    if (!packageRecords) {
+      throw new Error(`npm hidden lock metadata is missing or malformed in ${nodeModulesPath}.`);
+    }
+    await writeFile(temporaryPath, `${JSON.stringify({
+      schemaVersion: DEPENDENCY_STAMP_SCHEMA_VERSION,
+      fingerprint,
+      packageRecords,
+    })}\n`, {
       encoding: 'utf8',
       flag: 'wx',
       mode: 0o600,
@@ -95,6 +122,29 @@ function processIsAlive(pid) {
   } catch (error) {
     return error?.code === 'EPERM';
   }
+}
+
+function sameFileIdentity(left, right) {
+  if (!left || !right) return false;
+  for (const field of ['dev', 'ino']) {
+    if (left[field] !== undefined && right[field] !== undefined &&
+      left[field] !== right[field]) return false;
+  }
+  return true;
+}
+
+async function closeAndRemoveOwnedPath(handle, path) {
+  const handleIdentity = await handle.stat().catch(() => undefined);
+  await handle.close().catch(() => undefined);
+  if (!handleIdentity) return;
+  const pathIdentity = await stat(path).catch((error) => {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  });
+  if (!sameFileIdentity(handleIdentity, pathIdentity)) return;
+  await unlink(path).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
 }
 
 async function readLockMetadata(lockPath) {
@@ -135,7 +185,9 @@ async function acquireRecoveryLock(lockPath) {
         token,
       };
     } catch (error) {
-      if (handle) await handle.close().catch(() => undefined);
+      if (handle) {
+        await closeAndRemoveOwnedPath(handle, recoveryPath).catch(() => undefined);
+      }
       if (error?.code !== 'EEXIST') throw error;
       if (await lockIsStale(recoveryPath, Date.now())) {
         const quarantinePath = `${recoveryPath}.${randomUUID()}.stale`;
@@ -160,20 +212,14 @@ async function acquireRecoveryLock(lockPath) {
 }
 
 async function releaseRecoveryLock(recovery) {
-  const current = await readLockMetadata(recovery.path);
-  await recovery.handle.close();
-  if (current?.token !== recovery.token) return;
-  await unlink(recovery.path).catch((error) => {
-    if (error?.code !== 'ENOENT') throw error;
-  });
+  await releaseOwnedLock(recovery);
 }
 
 async function reclaimStaleLock(lockPath) {
   const recovery = await acquireRecoveryLock(lockPath);
   try {
-    const metadata = await readLockMetadata(lockPath);
-    if (!metadata || !(await lockIsStale(lockPath, Date.now()))) return false;
-    const quarantinePath = `${lockPath}.${metadata.token ?? randomUUID()}.recovery`;
+    if (!(await lockIsStale(lockPath, Date.now()))) return false;
+    const quarantinePath = `${lockPath}.${randomUUID()}.recovery`;
     const renamed = await rename(lockPath, quarantinePath).then(() => true).catch((error) => {
       if (error?.code === 'ENOENT') return;
       if (['EACCES', 'EBUSY', 'EPERM'].includes(error?.code)) return false;
@@ -189,13 +235,29 @@ async function reclaimStaleLock(lockPath) {
   }
 }
 
-async function releaseProcessLock(lock) {
+async function releaseOwnedLock(lock) {
+  const handleIdentity = await lock.handle.stat().catch(() => undefined);
+  const pathIdentity = await stat(lock.path).catch((error) => {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  });
   const metadata = await readLockMetadata(lock.path);
   await lock.handle.close();
-  if (metadata?.token !== lock.token) return;
+  const currentMetadata = await readLockMetadata(lock.path);
+  const currentPathIdentity = await stat(lock.path).catch((error) => {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  });
+  if (metadata?.token !== lock.token || currentMetadata?.token !== lock.token ||
+    !sameFileIdentity(handleIdentity, pathIdentity) ||
+    !sameFileIdentity(handleIdentity, currentPathIdentity)) return;
   await unlink(lock.path).catch((error) => {
     if (error?.code !== 'ENOENT') throw error;
   });
+}
+
+async function releaseProcessLock(lock) {
+  await releaseOwnedLock(lock);
 }
 
 async function acquireProcessLock(lockPath) {
@@ -207,8 +269,7 @@ async function acquireProcessLock(lockPath) {
       try {
         await handle.writeFile(`${JSON.stringify({ pid: process.pid, token })}\n`, 'utf8');
       } catch (error) {
-        await handle.close();
-        await unlink(lockPath).catch(() => undefined);
+        await closeAndRemoveOwnedPath(handle, lockPath);
         throw error;
       }
       return { handle, path: lockPath, token };
@@ -241,20 +302,32 @@ function runNpmCi({ cwd, args = INSTALL_ARGUMENTS }) {
   });
 }
 
+async function dependencyTreeIsValid(nodeModulesPath, stamp) {
+  if (!stamp || stamp.schemaVersion !== DEPENDENCY_STAMP_SCHEMA_VERSION) return false;
+  const packageRecords = await recordedPackageRecords(nodeModulesPath);
+  if (!packageRecords || JSON.stringify(packageRecords) !== JSON.stringify(stamp.packageRecords)) {
+    return false;
+  }
+  const missingRecordedPackage = (await Promise.all(packageRecords
+    .map((record) => isDirectory(
+      resolve(nodeModulesPath, record.path.replace(/^node_modules\//, '')),
+    )))).some((exists) => !exists);
+  return !missingRecordedPackage;
+}
+
 async function bootstrapTree({ name, cwd, runInstall, fingerprint = fingerprintLockfile, installed, skipped }) {
   const lockfilePath = resolve(cwd, 'package-lock.json');
   const nodeModulesPath = resolve(cwd, 'node_modules');
   for (let attempt = 0; attempt < MAX_LOCKFILE_RECHECKS; attempt += 1) {
     const beforeFingerprint = await fingerprint(lockfilePath);
     const stamp = await currentStamp(nodeModulesPath);
-    const packagePaths = stamp?.packagePaths ?? [];
-    const missingPackage = (await Promise.all(packagePaths.map((packagePath) =>
-      isDirectory(resolve(nodeModulesPath, packagePath.replace(/^node_modules\//, ''))),
-    ))).some((exists) => !exists);
-    if (stamp?.fingerprint === beforeFingerprint && !missingPackage) {
+    if (stamp?.fingerprint === beforeFingerprint &&
+      await dependencyTreeIsValid(nodeModulesPath, stamp)) {
       const afterFingerprint = await fingerprint(lockfilePath);
       const afterStamp = await currentStamp(nodeModulesPath);
-      if (afterFingerprint === beforeFingerprint && afterStamp?.fingerprint === stamp.fingerprint) {
+      if (afterFingerprint === beforeFingerprint &&
+        afterStamp?.fingerprint === stamp.fingerprint &&
+        await dependencyTreeIsValid(nodeModulesPath, afterStamp)) {
         skipped.push(name);
         return;
       }
@@ -262,6 +335,8 @@ async function bootstrapTree({ name, cwd, runInstall, fingerprint = fingerprintL
     }
 
     await runInstall({ cwd, args: INSTALL_ARGUMENTS });
+    // The final fingerprint check is the bootstrap linearization point. A
+    // lockfile mutation after it belongs to a later bootstrap change.
     const afterFingerprint = await fingerprint(lockfilePath);
     if (afterFingerprint !== beforeFingerprint) {
       throw new Error(`Lockfile changed while installing ${name}; dependency stamp was not written.`);
