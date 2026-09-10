@@ -2561,6 +2561,7 @@ export async function finishCoordinationEntry(filePath, options) {
 
     const release = options.release ?? await readReleaseState({
       startBranchSha: entry.startBranchSha,
+      validation: entry.validation,
     });
     const outcome = options.outcome ?? 'landed';
     if (!['landed', 'preserved', 'discarded'].includes(outcome)) {
