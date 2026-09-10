@@ -1151,6 +1151,49 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('retains tooling classification during the final validation recheck', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-tooling-recheck-${randomUUID()}.json`);
+    const toolingEntry = {
+      ...releaseEntry,
+      workType: 'tooling',
+      versionPlan: 'Proof-only non-feature work; keep the application version unchanged.',
+      scopes: ['docs/example.md'],
+      validation: undefined,
+    };
+    const unchangedRelease = releaseState({
+      mainContainsBranch: false,
+      mainIsAncestorOfBranch: true,
+      branchVersion: '0.3.2',
+      mainVersion: '0.3.2',
+      branchLockVersion: '0.3.2',
+      mainLockVersion: '0.3.2',
+      branchChangelog: [{ version: '0.3.2', source: 'existing release' }],
+      mainChangelog: [{ version: '0.3.2', source: 'existing release' }],
+      changedFiles: ['docs/example.md'],
+    });
+
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [toolingEntry],
+        reservations: [],
+        configurations: [],
+      }));
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: toolingEntry.id,
+        release: unchangedRelease,
+        'documentation-review': 'Proof-only documentation reviewed.',
+        commandRunner: async () => undefined,
+      })).resolves.toMatchObject({
+        validation: { passed: true, commitSha: unchangedRelease.branchSha },
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('rejects validation until the task branch contains current main', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-validation-${randomUUID()}.json`);
     const commands: string[] = [];
@@ -1611,6 +1654,27 @@ describe('local emulator coordination', () => {
         postValidationChangedFiles: ['scripts/example.mjs'],
       }),
     })).toThrow(/after validated tip|not covered by the receipt/i);
+  });
+
+  it('rejects an unvalidated branch commit outside the declared task scope', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        scopes: ['scripts/example.mjs'],
+        validation: {
+          ...codeValidation,
+          commitSha: 'validated-tip',
+          files: ['scripts/example.mjs'],
+        },
+      },
+      release: releaseState({
+        branchSha: 'unvalidated-branch-tip',
+        changedFiles: ['scripts/example.mjs'],
+        validationTaskTipSha: 'validated-tip',
+        validationReceiptCommitSha: 'validated-tip',
+        postValidationChangedFiles: ['docs/unrelated.md'],
+      }),
+    })).toThrow(/branch.*advanced|revalidate|current branch/i);
   });
 
   it('requires the human review attestation that matches documentation or UI scope', () => {

@@ -704,6 +704,13 @@ function validationReceiptErrors(entry, release) {
       `validation receipt commit ${receipt.commitSha} does not match receipt commit ${receiptCommitSha}`,
     );
   }
+  if (release.validationTaskTipSha &&
+    release.branchSha !== release.validationTaskTipSha &&
+    receipt.commitSha !== release.branchSha) {
+    errors.push(
+      `branch ${release.branchSha} advanced after validation receipt ${receipt.commitSha}; rerun coordination:validate on the current branch`,
+    );
+  }
   if (release.validationTaskTipSha && release.branchSha !== release.validationTaskTipSha) {
     const postValidationTaskChanges = postValidationTaskChangedFiles(entry, release);
     if (postValidationTaskChanges.length > 0) {
@@ -2531,6 +2538,8 @@ export async function validateCoordinationEntry(filePath, options) {
       entryStartedAt: entry.startedAt,
       entryBranchName: entry.branchName,
       entryVersionPlan: entry.versionPlan,
+      entryWorkType: entry.workType,
+      entryImplementationPrompt: entry.implementationPrompt,
       previousValidation: entry.validation,
       validation: provenanceRefresh ? undefined : entry.validation,
       provenanceRefresh,
@@ -2632,6 +2641,8 @@ export async function validateCoordinationEntry(filePath, options) {
       id: options.id,
       branchName: preparation.entryBranchName,
       versionPlan: preparation.entryVersionPlan,
+      workType: preparation.entryWorkType,
+      implementationPrompt: preparation.entryImplementationPrompt,
     },
     release: finalRelease,
     requireMerged: false,
