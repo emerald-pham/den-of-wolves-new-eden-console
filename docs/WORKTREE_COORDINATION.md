@@ -106,25 +106,37 @@ active entries for this worktree.
 
 `--work-type`, `--scope`, and `--claims` make the ownership boundary explicit.
 Use a stable work type such as `product`, `tooling`, `documentation`, or
-`investigation`; use comma-separated repository-relative files/directories (or
-`*`) naming the repository area;
-and list comma-separated exclusive claims for shared resources or overlapping
-areas. Claims are normalized before comparison. A new active entry is rejected
-when it claims an already-active exclusive claim, with the owning entry,
-worktree, and claim named in the error. Read-only investigation may omit claims
-only when it declares that no shared resource or file area is being reserved.
-The entry retains these fields in history so later cleanup can identify what was
-owned without guessing from free-form intent text. `--resources` remains the
-human-readable emulator/service detail; it does not replace structured claims.
+`investigation`. Register investigation without an exclusive path claim, then
+forecast the intended edit before writing it:
 
-For player-facing work, the preemptive changelog is the first release step, not
-a roll-up written at the end. Claim one unused release version for this task,
-record that exact version in `--version-plan`, update `package.json` and the root
-lockfile, and add one standalone top-level entry to `src/changelog.ts` before
-writing implementation tests or code. Each versioned entry belongs to one task;
-never append a second agent's note to the existing current-version object. If an
-active entry already claims the version, or `main` advances before merge,
-reconcile the version and preserve each task's separate entry.
+```bash
+node scripts/emulator-resource-registry.mjs forecast --scope "src/components/Example.tsx"
+```
+
+The forecast lists every matched scope or resource claim, its owner/worktree,
+and its lease state, with a leaf-file alternative when a broad directory claim
+causes unnecessary serialization. Claim exact files immediately before editing;
+use a directory or `*` only for an intentional architecture-wide change.
+Renew active ownership with `heartbeat` and release only an unneeded claim from
+the same task/worktree. A lease that needs owner confirmation is still an
+exclusive claim: it remains visible and blocking until that owner explicitly
+releases or refreshes it. Neither status cleanup nor another worktree may
+auto-take it. Read-only investigation may omit claims only when it declares
+that no shared resource or file area is being reserved. The entry retains these
+fields in history so later cleanup can identify what was owned without guessing
+from free-form intent text. `--resources` remains the human-readable
+emulator/service detail; it does not replace structured claims.
+
+For player-facing work, a prepared release fragment is the first release step,
+not a roll-up written at the end. Before implementation tests or code, prepare
+one fragment containing the task identity, current-main base version, concrete
+player-facing notes, implementation prompts, and progress snapshot. The release
+lane finalizes exactly one fragment at a time: it checks the base version,
+allocates only the next valid version, and atomically writes synchronized
+`package.json`, root lockfile, and one standalone top-level `src/changelog.ts`
+entry. A stale or out-of-order fragment is rejected rather than renumbered or
+combined. This keeps each task's visible release separate without forcing every
+feature agent to edit the same three files during implementation.
 When the task comes from the implementation plan, also pass
 `--implementation-prompt NNN` or `NNN<letter>`, set that row to `in-progress`
 in `docs/IMPLEMENTATION_PROGRESS.md`, and declare `feature` or `non-feature`

@@ -395,12 +395,178 @@ function comparePromptSets(rows, expectedPromptIds, label, errors) {
   return byPrompt;
 }
 
+function releaseVersionParts(value) {
+  if (typeof value !== 'string' || !APPLICATION_VERSION_PATTERN.test(value.trim())) return null;
+  return value.trim().split('.').map((part) => Number.parseInt(part, 10));
+}
+
+function fragmentPromptIds(value, errors) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    errors.push('release fragment implementationPrompts must be an array');
+    return [];
+  }
+  const prompts = [];
+  for (const candidate of value) {
+    const prompt = normalizePromptId(candidate);
+    if (!prompt || !PROMPT_ID_PATTERN.test(prompt)) {
+      errors.push(`release fragment contains invalid implementation prompt ${String(candidate)}`);
+      continue;
+    }
+    if (prompts.includes(prompt)) {
+      errors.push(`release fragment repeats implementation prompt ${promptLabel(prompt)}`);
+      continue;
+    }
+    prompts.push(prompt);
+  }
+  return prompts;
+}
+
+function validateFragmentProgressMetadata(progress, headline, errors) {
+  if (progress === undefined || progress === null) return null;
+  if (typeof progress !== 'object' || Array.isArray(progress)) {
+    errors.push('release fragment implementation progress must be an object');
+    return null;
+  }
+  const fields = ['completed', 'total', 'done', 'partial', 'active', 'missing'];
+  const values = {};
+  for (const field of fields) {
+    const value = progress[field];
+    if (!Number.isInteger(value) || value < 0) {
+      errors.push(`release fragment implementation progress ${field} must be a non-negative integer`);
+    } else {
+      values[field] = value;
+    }
+  }
+  const percentage = progress.percentage;
+  if (typeof percentage !== 'string' || !/^\d+\.\d{2}%$/.test(percentage)) {
+    errors.push('release fragment implementation progress percentage must use two decimals');
+  } else {
+    values.percentage = percentage;
+  }
+
+  if (Object.keys(values).length !== fields.length + 1) return null;
+  if (values.completed !== values.done) {
+    errors.push(
+      `release fragment implementation progress completed count is ${values.completed}, but done is ${values.done}`,
+    );
+  }
+  if (values.done + values.partial + values.active + values.missing !== values.total) {
+    errors.push('release fragment implementation progress counts must sum to total');
+  }
+  if (headline && values.total !== headline.total) {
+    errors.push(
+      `release fragment implementation progress total is ${values.total}, but the ledger total is ${headline.total}`,
+    );
+  }
+  const expectedPercentage = values.total === 0
+    ? '0.00%'
+    : `${((values.done / values.total) * 100).toFixed(2)}%`;
+  if (values.percentage !== expectedPercentage) {
+    errors.push(
+      `release fragment implementation progress percentage is ${values.percentage}, but its counts require ${expectedPercentage}`,
+    );
+  }
+  return values;
+}
+
+/**
+ * Validate release-lane metadata before it is copied into package/changelog
+ * files. This does not mutate or relax the normal progress gate; it gives a
+ * product branch a checked fragment it can carry until finalization.
+ */
+export function validateReleaseFragment({
+  fragment,
+  progressSource,
+  planSource,
+  applicationVersion,
+  requiredPrompt = null,
+} = {}) {
+  const errors = [];
+  const candidate = fragment !== null && typeof fragment === 'object' && !Array.isArray(fragment)
+    ? fragment
+    : {};
+  const baseVersion = typeof candidate.baseVersion === 'string' ? candidate.baseVersion.trim() : '';
+  const baseParts = releaseVersionParts(baseVersion);
+  if (!baseParts) errors.push('release fragment must record a valid baseVersion');
+  if (typeof applicationVersion !== 'string' || !APPLICATION_VERSION_PATTERN.test(applicationVersion)) {
+    errors.push('release fragment validation requires a valid application version');
+  } else if (baseVersion && baseVersion !== applicationVersion) {
+    errors.push(
+      `release fragment baseVersion ${baseVersion} does not match current application version ${applicationVersion}`,
+    );
+  }
+
+  const version = candidate.version === undefined ? undefined : String(candidate.version).trim();
+  if (version !== undefined) {
+    const versionParts = releaseVersionParts(version);
+    if (!versionParts) errors.push(`release fragment version ${version} is invalid`);
+    else if (baseParts && (versionParts[0] < baseParts[0] ||
+      (versionParts[0] === baseParts[0] && versionParts[1] < baseParts[1]) ||
+      (versionParts[0] === baseParts[0] && versionParts[1] === baseParts[1] && versionParts[2] <= baseParts[2]))) {
+      errors.push(`release fragment version ${version} must be newer than baseVersion ${baseVersion}`);
+    }
+  }
+
+  if (!Array.isArray(candidate.changes) || candidate.changes.length === 0 ||
+    candidate.changes.some((change) => typeof change !== 'string' || !change.trim())) {
+    errors.push('release fragment requires at least one non-empty visible change');
+  }
+
+  const prompts = fragmentPromptIds(candidate.implementationPrompts, errors);
+  const headline = typeof progressSource === 'string' ? parseHeadline(progressSource, errors) : null;
+  const ledgerRows = typeof progressSource === 'string' ? parseLedger(progressSource, errors) : [];
+  const canonicalRows = typeof planSource === 'string' ? parseCanonicalPromptIds(planSource, errors) : [];
+  const canonicalPromptIds = canonicalRows.map((row) => row.prompt);
+  const ledgerByPrompt = new Map(ledgerRows.map((row) => [row.prompt, row]));
+  for (const prompt of prompts) {
+    if (!canonicalPromptIds.includes(prompt)) {
+      errors.push(`release fragment contains unknown Prompt ${promptLabel(prompt)}`);
+      continue;
+    }
+    const row = ledgerByPrompt.get(prompt);
+    if (!row) {
+      errors.push(`release fragment Prompt ${promptLabel(prompt)} is missing from the progress ledger`);
+    } else if (row.changeClass !== 'feature') {
+      errors.push(`release fragment Prompt ${promptLabel(prompt)} is not a feature prompt`);
+    }
+  }
+  if (requiredPrompt !== null && requiredPrompt !== undefined) {
+    const prompt = normalizePromptId(requiredPrompt);
+    if (prompt && prompts.length > 0 && !prompts.includes(prompt)) {
+      errors.push(`release fragment does not cover required Prompt ${promptLabel(prompt)}`);
+    }
+    if (prompt && prompts.length === 0) {
+      errors.push(`release fragment must cover required Prompt ${promptLabel(prompt)}`);
+    }
+  }
+  const implementationProgress = validateFragmentProgressMetadata(
+    candidate.implementationProgress,
+    headline,
+    errors,
+  );
+
+  return {
+    errors,
+    fragment: {
+      ...candidate,
+      ...(baseVersion ? { baseVersion } : {}),
+      ...(version ? { version } : {}),
+      implementationPrompts: prompts,
+      ...(implementationProgress ? { implementationProgress } : {}),
+      validated: errors.length === 0,
+    },
+  };
+}
+
 export function validateImplementationProgress({
   progressSource,
   planSource,
   changelogSource,
   applicationVersion,
   requiredPrompt = null,
+  validatedFragment = null,
+  releaseFragment = null,
 } = {}) {
   const errors = [];
   if (typeof progressSource !== 'string' || typeof planSource !== 'string') {
@@ -435,6 +601,20 @@ export function validateImplementationProgress({
     statusCounts,
     errors,
   });
+
+  const fragmentCandidate = validatedFragment ?? releaseFragment;
+  const fragmentValidation = fragmentCandidate
+    ? validateReleaseFragment({
+        fragment: fragmentCandidate,
+        progressSource,
+        planSource,
+        applicationVersion,
+        requiredPrompt,
+      })
+    : null;
+  if (fragmentValidation) {
+    errors.push(...fragmentValidation.errors.map((error) => `release fragment gate: ${error}`));
+  }
 
   if (ledgerRows.length !== headline.total) {
     errors.push(`headline total is ${headline.total}, but the ledger has ${ledgerRows.length} prompt rows`);
@@ -541,6 +721,7 @@ export function validateImplementationProgress({
   return {
     errors,
     releaseProgress,
+    ...(fragmentValidation ? { validatedFragment: fragmentValidation.fragment } : {}),
     summary: {
       complete: statusCounts.done,
       total: headline.total,

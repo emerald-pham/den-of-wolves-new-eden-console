@@ -326,14 +326,24 @@ duplicate active entry for the same worktree.
 
 `--work-type`, `--scope`, and `--claims` are structured ownership metadata.
 Use a stable work type such as `product`, `tooling`, `documentation`, or
-`investigation`; use comma-separated repository-relative files/directories (or
-`*`) naming the repository area; and
-list comma-separated exclusive claims for shared resources or overlapping areas.
-Claims are normalized before comparison, and a new active entry is rejected if
-it claims an already-active exclusive claim, naming the owning entry, worktree,
-and claim. Read-only investigation may omit claims only when it declares that
-it reserves no shared resource or file area. These fields remain in historical
-entries so cleanup can identify ownership without guessing from free-form intent.
+`investigation`. Start with an intent-only entry for read-only reconnaissance;
+before the first edit, use `node scripts/emulator-resource-registry.mjs forecast`
+to see every conflicting owner, then claim only the exact repository-relative
+files that will change. A directory or `*` claim is reserved for an intentional
+architectural sweep, never a convenient default. The forecast reports the
+request, owning entry and worktree, matched scope or claim, lease state, and a
+narrower leaf-file suggestion when one is available.
+
+An exclusive file/resource claim is a renewable lease. Refresh it with
+`node scripts/emulator-resource-registry.mjs heartbeat --id <entry-id>` while
+the work remains active, and explicitly release a no-longer-needed claim with
+`node scripts/emulator-resource-registry.mjs release-claim --id <entry-id>`.
+An expired lease is displayed as **needs owner confirmation** but remains
+blocking: status, cleanup, and another task must never infer permission to
+take it over. Only the owning worktree and branch may refresh or release it.
+Read-only investigation may omit claims only when it declares that it reserves
+no shared resource or file area. These fields remain in historical entries so
+cleanup can identify ownership without guessing from free-form intent.
 `--resources` remains the human-readable emulator/service detail and does not
 replace structured claims.
 Product work must also provide `--implementation-prompt NNN` or
@@ -352,16 +362,24 @@ The version agreement is: completed player-facing product work increments the
 monotonic application version, keeps `package.json` and the root lockfile in
 sync, and adds the newest user-facing `src/changelog.ts` entry. Development
 tooling, tests, and documentation-only work explicitly record that no
-application version or player-facing changelog entry is expected. The
-preemptive changelog is the task's release-note draft and must be written at
-startup. For product work, claim an unused release version in this coordination
-pane, state that exact version in `--version-plan`, update the package metadata,
-and copy the draft into one new top-level `src/changelog.ts` entry before
-writing implementation tests or code. Each entry belongs to exactly one agent
-task and one release version; if the version is already claimed or `main` has
-advanced, reconcile the claim before editing.
-The final release note may refine that same entry, but it must never append to
-another task's entry or roll several tasks into a single version.
+application version or player-facing changelog entry is expected. A product
+task starts with one validated per-task release fragment rather than editing
+those three shared files during feature implementation. The fragment carries
+the concrete player-facing notes, implementation prompts, progress snapshot,
+base version, and task identity used by the release lane. Create it before the
+first implementation test with `node scripts/coordination-throughput.mjs release-prepare`; it is not an optional release-note draft.
+
+At landing, `release-land` processes exactly one prepared fragment under the
+release-lane lock. It requires the current main version to equal that
+fragment's base version, allocates exactly the next permitted version, and
+updates the package metadata, root lockfile, and one new top-level changelog
+entry together. A stale, reordered, skipped, duplicate, or batch request is
+rejected; it is never silently renumbered or combined with another task. This
+short release critical section preserves one task, one version, and one
+standalone player-facing changelog entry while allowing unrelated feature work
+to proceed in parallel. The final release note may refine only that task's
+fragment; it must never append to another task's entry or roll several tasks
+into a single version.
 Every version increment must also record implementation-plan progress metadata
 at that release boundary: completed prompts and canonical total, a two-decimal
 percentage, and raw done, partial, active, missing counts. Partial and active
@@ -380,13 +398,17 @@ rejects an open `in-progress` row and the coordination gate reruns this
 coverage check before validation is recorded.
 
 The executable release gate covers the deterministic part of this agreement:
-it compares branch and `main` package/lock versions, checks the newest changelog
-entry, refuses a branch that would lower the application version or replace
-newer notes, and verifies the final local/remote commit relationship. The
-validation receipt also makes human-only evidence explicit: documentation
-review is required for Markdown/README changes and visual review is required
-for UI changes. The receipt records those attestations but cannot prove that a
-human actually performed them; the final review remains a deliberate handoff.
+it validates the prepared fragment before feature validation, then validates
+the generated package/lock/changelog result after `release-land`. It refuses a
+branch that would lower the application version or replace newer notes, and
+verifies the final local/remote commit relationship. Expensive validation is
+acquired through the host-wide FIFO validation queue; focused checks may run
+without consuming a full-release slot, while a queued full gate refreshes and
+releases only its own lease even on failure or interruption. The validation
+receipt also makes human-only evidence explicit: documentation review is
+required for Markdown/README changes and visual review is required for UI
+changes. The receipt records those attestations but cannot prove that a human
+actually performed them; the final review remains a deliberate handoff.
 
 ## Routine task delegation
 
