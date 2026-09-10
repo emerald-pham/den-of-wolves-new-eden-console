@@ -185,7 +185,7 @@ describe('repository guidance', () => {
         weakSurface,
         'See IMPLEMENTATION_PROMPT_DEPENDENCIES.md before selecting a prompt.',
       );
-      const errors = [];
+      const errors: string[] = [];
 
       validatePromptDependencyGuidance({ sources: weakSources, errors });
 
