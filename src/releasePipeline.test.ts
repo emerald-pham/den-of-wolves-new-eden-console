@@ -181,6 +181,7 @@ it('re-runs the existing implementation-progress validator against generated rel
 it('refuses central release landing without a task-bound validation receipt', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-unbound-release-'));
   const lanePath = resolve(root, 'release-lane.json');
+  const coordinationPath = resolve(root, 'coordination.json');
   const previousCwd = process.cwd();
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
@@ -190,21 +191,61 @@ it('refuses central release landing without a task-bound validation receipt', as
   { version: APP_VERSION, changes: ['Current.'] },
 ];
 `);
+    await runGit(root, ['init', '-b', 'main']);
+    await runGit(root, ['config', 'user.email', 'coordination@example.test']);
+    await runGit(root, ['config', 'user.name', 'Coordination Tests']);
+    await runGit(root, ['add', '.']);
+    await runGit(root, ['commit', '-m', 'fixture main']);
+    await runGit(root, ['checkout', '-b', 'feature/unbound-release']);
+    const branchSha = await runGit(root, ['rev-parse', 'HEAD']);
+    const mainSha = await runGit(root, ['rev-parse', 'main']);
+    const repositoryIdentity = await runGit(root, [
+      'rev-parse', '--path-format=absolute', '--git-common-dir',
+    ]);
+    const now = new Date().toISOString();
+    await writeFile(coordinationPath, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'unbound-task',
+        worktree: root,
+        pid: process.pid,
+        startedAt: now,
+        heartbeatAt: now,
+        status: 'active',
+        branchName: 'feature/unbound-release',
+        startBranchSha: branchSha,
+        startMainSha: mainSha,
+        repositoryRoot: root,
+        repositoryIdentity,
+        intent: 'fixture release',
+        versionPlan: 'Tooling-only; retain the application version for the fixture.',
+        preemptiveChangelog: 'No player-facing change.',
+        workType: 'tooling',
+        scopes: [],
+        claims: [],
+      }],
+      reservations: [],
+      configurations: [],
+    }));
 
     process.chdir(root);
     await expect(finalizeReleaseFragment(lanePath, {
       taskId: 'unbound-task',
       repositoryDirectory: root,
+      coordinationFilePath: coordinationPath,
       baseVersion: '0.3.23',
-      baseMainSha: 'main-a',
-      currentMainSha: 'main-a',
+      baseMainSha: mainSha,
+      currentMainSha: mainSha,
       changes: ['Should not land.'],
-    })).rejects.toThrow(/coordination|receipt|task-bound/i);
+    })).rejects.toThrow(
+      'Release fragment unbound-task requires a passing task-bound validation receipt before landing.',
+    );
     expect(JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version).toBe('0.3.23');
   } finally {
     process.chdir(previousCwd);
     await rm(root, { recursive: true, force: true });
     await rm(`${lanePath}.lock`, { force: true });
+    await rm(`${coordinationPath}.lock`, { force: true });
   }
 });
 
