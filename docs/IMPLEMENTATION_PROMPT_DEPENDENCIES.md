@@ -527,9 +527,9 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 426 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Define attack-composition rules. |
 | 427 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Prepare an attack privately from the GM console. |
 | 428 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Centralize combat math and randomness. |
-| 429 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Encode base targeting. |
-| 430 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Encode expansion targeting. |
-| 431 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve target-number wraparound. |
+| 429 | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Encode base targeting. |
+| 430 | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Encode expansion targeting. |
+| 431 | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve target-number wraparound. |
 | 432 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Declare the attack atomically. |
 | 432a | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Operate the attack from the GM console. |
 | 433 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Project attack state by audience. |
@@ -572,11 +572,11 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 467 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Apply surviving-boarder damage. |
 | 468 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Militia Leader defence. |
 | 469 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Fighter Wing destruction. |
-| 469a | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Assault Transport destruction. |
-| 469b | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Destroyer destruction. |
-| 469c | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Wolf Cruiser destruction. |
-| 469d | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Strikecarrier destruction. |
-| 469e | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Battlestation destruction. |
+| 469a | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Assault Transport destruction. |
+| 469b | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Wolf Destroyer destruction. |
+| 469c | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Wolf Cruiser destruction. |
+| 469d | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Strikecarrier destruction. |
+| 469e | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Resolve Battlestation destruction. |
 | 470 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Carry surviving Wolf Fighter Wings forward. |
 | 471 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Enforce Battlestation Short Range immunity. |
 | 472 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Apply Strikecarrier wing bonus. |
@@ -590,7 +590,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 480 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve Capybara post-attack Scrap. |
 | 481 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Collect Scrap with Macaw or Boa. |
 | 482 | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Resolve post-attack repairs. |
-| 483 | NEW | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Rebuild fighters after combat. |
+| 483 | NEW | missing | none | none | none | none | none | none | none | none | none | M9 | Rebuild fighters after combat. |
 | 484 | EXTEND | missing | none | none | none | none | none | WOLF-ATTACK | none | none | E-WOLF | M9 | Publish the complete aftermath. |
 | 485 | REPAIR | missing | none | none | none | none | none | ATTACK-PRESSURE | none | none | E-ATTACK-PRESSURE | M10 | Make pursuit authoritative from Turn 1. |
 | 485a | REPAIR | missing | none | none | none | none | none | PRESENTATION-INDEPENDENT | none | none | E-PRESENTATION | M10 | Restore alert-scoped Pursuit Track color. |
