@@ -912,7 +912,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
-  const validatedBaseSha = validation?.passed === true &&
+  let validatedBaseSha = validation?.passed === true &&
     validation.commitSha === branchSha &&
     validation.profile?.evidence?.branchSha === branchSha
     ? validation.profile.evidence.baseSha
@@ -920,11 +920,20 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const validatedBaseIsAncestor = validatedBaseSha
     ? await gitIsAncestor(validatedBaseSha, branchSha, cwd)
     : false;
+  if (validatedBaseSha && validatedBaseIsAncestor) {
+    const validatedDiff = await runGit(
+      ['diff', '--unified=0', `${validatedBaseSha}...${branchSha}`],
+      cwd,
+    );
+    if (validation.profile.evidence.diffIdentity !== contentIdentity(validatedDiff)) {
+      validatedBaseSha = undefined;
+    }
+  }
   const changedFilesBase = changedFilesBaseRef({
     mainSha,
     startBranchSha,
     mainContainsBranch,
-    validatedBaseSha: validatedBaseIsAncestor ? validatedBaseSha : undefined,
+    validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
   });
   const changedFiles = await readTaskChangedFiles(
     changedFilesBase,
