@@ -12,6 +12,15 @@ with current `main` and active coordination before work begins. Re-read this
 authority after a rebase or material movement of current `main`. A prompt
 cannot be marked complete or merged while a hard prerequisite remains unmet.
 
+The dependency authority's `NEXT` (first `READY_QUEUE`) item is the primary
+resume/default lane but is advisory for concurrency, not a serial execution
+lock. A separate worktree may claim a later `READY_QUEUE` item concurrently
+only when its hard prompt prerequisites are done, every hard milestone, hard
+contract, and decision-owner gate is satisfied or explicitly confirmed, and the
+coordination forecast shows conflict-free ownership with no active claim
+overlap. A worktree must not bypass an unmet dependency, active claim, or
+unresolved decision-owner gate merely because the prompt is independent.
+
 This file is intentionally only a pointer. Do not duplicate those rules here:
 when guidance appears to differ, `CLAUDE.md` wins. Its session checklist must
 include the immediate green-validation merge objective: commit, reconcile with
