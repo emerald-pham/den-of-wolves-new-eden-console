@@ -1,10 +1,11 @@
-import { access, mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, rename, rm, utimes, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import {
   bootstrapDependencies,
+  fingerprintLockfile,
   LOCKFILE_STAMP_FILE,
   lockPathForRepository,
 } from '../../scripts/bootstrap-dependencies.mjs';
@@ -27,6 +28,14 @@ async function createBootstrapFixture() {
 
 async function cleanupBootstrapFixture(repositoryDirectory: string) {
   await rm(repositoryDirectory, { recursive: true, force: true });
+}
+
+async function installFixtureTree(cwd: string) {
+  await mkdir(resolve(cwd, 'node_modules'), { recursive: true });
+  await writeFile(
+    resolve(cwd, 'node_modules', '.package-lock.json'),
+    JSON.stringify({ lockfileVersion: 3, packages: { '': {} } }),
+  );
 }
 
 describe('Codex worktree environment', () => {
@@ -62,6 +71,7 @@ describe('Codex worktree environment', () => {
         runInstall: async ({ cwd, args }) => {
           installs.push(cwd);
           installArguments.push([...args]);
+          await installFixtureTree(cwd);
         },
       });
 
@@ -89,7 +99,9 @@ describe('Codex worktree environment', () => {
     try {
       await bootstrapDependencies({
         repositoryDirectory,
-        runInstall: async () => undefined,
+        runInstall: async ({ cwd }) => {
+          await installFixtureTree(cwd);
+        },
       });
 
       await expect(
@@ -111,7 +123,9 @@ describe('Codex worktree environment', () => {
     try {
       await bootstrapDependencies({
         repositoryDirectory,
-        runInstall: async () => undefined,
+        runInstall: async ({ cwd }) => {
+          await installFixtureTree(cwd);
+        },
       });
       await writeFile(
         resolve(repositoryDirectory, 'functions', 'package-lock.json'),
@@ -122,6 +136,7 @@ describe('Codex worktree environment', () => {
         repositoryDirectory,
         runInstall: async ({ cwd }) => {
           installs.push(cwd);
+          await installFixtureTree(cwd);
         },
       });
 
@@ -137,7 +152,9 @@ describe('Codex worktree environment', () => {
     try {
       await bootstrapDependencies({
         repositoryDirectory,
-        runInstall: async () => undefined,
+        runInstall: async ({ cwd }) => {
+          await installFixtureTree(cwd);
+        },
       });
       await rm(resolve(repositoryDirectory, 'node_modules'), { recursive: true });
 
@@ -145,6 +162,7 @@ describe('Codex worktree environment', () => {
         repositoryDirectory,
         runInstall: async ({ cwd }) => {
           installs.push(cwd);
+          await installFixtureTree(cwd);
         },
       });
 
@@ -164,7 +182,10 @@ describe('Codex worktree environment', () => {
           await mkdir(resolve(cwd, 'node_modules', 'demo-package'), { recursive: true });
           await writeFile(
             resolve(cwd, 'node_modules', '.package-lock.json'),
-            JSON.stringify({ packages: { '': {}, 'node_modules/demo-package': {} } }),
+            JSON.stringify({
+              lockfileVersion: 3,
+              packages: { '': {}, 'node_modules/demo-package': {} },
+            }),
           );
         },
       });
@@ -183,6 +204,209 @@ describe('Codex worktree environment', () => {
     }
   });
 
+  it('reinstalls for legacy stamps and missing or malformed npm hidden-lock metadata', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const installs: string[] = [];
+    try {
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          await installFixtureTree(cwd);
+        },
+      });
+      const rootLockfile = resolve(repositoryDirectory, 'package-lock.json');
+      await writeFile(
+        resolve(repositoryDirectory, 'node_modules', LOCKFILE_STAMP_FILE),
+        await fingerprintLockfile(rootLockfile),
+      );
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+
+      installs.length = 0;
+      await rm(resolve(repositoryDirectory, 'node_modules', '.package-lock.json'));
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+
+      installs.length = 0;
+      await writeFile(
+        resolve(repositoryDirectory, 'node_modules', '.package-lock.json'),
+        JSON.stringify({ packages: {} }),
+      );
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+
+      installs.length = 0;
+      await writeFile(
+        resolve(repositoryDirectory, 'node_modules', '.package-lock.json'),
+        '{ malformed hidden lock',
+      );
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+
+      installs.length = 0;
+      await writeFile(
+        resolve(repositoryDirectory, 'node_modules', '.package-lock.json'),
+        JSON.stringify({
+          lockfileVersion: 3,
+          packages: { '': {}, 'node_modules//absolute': {} },
+        }),
+      );
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+    } finally {
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
+  it('requires every npm hidden-lock path, including optional packages, to exist', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const installs: string[] = [];
+    const installCompleteTree = async (cwd: string) => {
+      await mkdir(resolve(cwd, 'node_modules', 'required-package'), { recursive: true });
+      await mkdir(resolve(cwd, 'node_modules', 'optional-package'), { recursive: true });
+      await writeFile(
+        resolve(cwd, 'node_modules', '.package-lock.json'),
+        JSON.stringify({
+          lockfileVersion: 3,
+          packages: {
+            '': {},
+            'node_modules/required-package': {},
+            'node_modules/optional-package': { optional: true },
+          },
+        }),
+      );
+    };
+    try {
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          await mkdir(resolve(cwd, 'node_modules', 'required-package'), { recursive: true });
+          await writeFile(
+            resolve(cwd, 'node_modules', '.package-lock.json'),
+            JSON.stringify({
+              lockfileVersion: 3,
+              packages: {
+                '': {},
+                'node_modules/required-package': {},
+                'node_modules/optional-package': { optional: true },
+              },
+            }),
+          );
+        },
+      });
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installCompleteTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+
+      installs.length = 0;
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async () => {
+          throw new Error('the current hidden lock and actual tree must skip installation');
+        },
+      });
+      expect(installs).toEqual([]);
+
+      await rm(resolve(repositoryDirectory, 'node_modules', 'optional-package'), { recursive: true });
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          installs.push(cwd);
+          await installCompleteTree(cwd);
+        },
+      });
+      expect(installs).toContain(repositoryDirectory);
+    } finally {
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
+  it('reclaims stale locks with null or malformed metadata without trusting metadata as a path', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const lockPath = lockPathForRepository(repositoryDirectory);
+    try {
+      for (const metadata of ['null', '{malformed']) {
+        await writeFile(lockPath, metadata);
+        const staleDate = new Date(Date.now() - 60_000);
+        await utimes(lockPath, staleDate, staleDate);
+        await bootstrapDependencies({
+          repositoryDirectory,
+          runInstall: async ({ cwd }) => {
+            await installFixtureTree(cwd);
+          },
+        });
+        await expect(access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
+      }
+    } finally {
+      await rm(lockPath, { force: true });
+      await rm(`${lockPath}.recovery`, { force: true });
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
+  it('does not unlink a replacement lock even when it reuses the original token', async () => {
+    const repositoryDirectory = await createBootstrapFixture();
+    const lockPath = lockPathForRepository(repositoryDirectory);
+    const replacementPath = `${lockPath}.original-handle`;
+    let replaced = false;
+    try {
+      await bootstrapDependencies({
+        repositoryDirectory,
+        runInstall: async ({ cwd }) => {
+          if (!replaced) {
+            const metadata = await readFile(lockPath, 'utf8');
+            await rename(lockPath, replacementPath);
+            await writeFile(lockPath, metadata);
+            replaced = true;
+          }
+          await installFixtureTree(cwd);
+        },
+      });
+      expect(replaced).toBe(true);
+      await expect(access(lockPath)).resolves.toBeUndefined();
+    } finally {
+      await rm(lockPath, { force: true });
+      await rm(replacementPath, { force: true });
+      await rm(`${lockPath}.recovery`, { force: true });
+      await cleanupBootstrapFixture(repositoryDirectory);
+    }
+  });
+
   it('rechecks the lockfile before trusting a skip and retries a transient change', async () => {
     const repositoryDirectory = await createBootstrapFixture();
     let fingerprintCalls = 0;
@@ -190,7 +414,9 @@ describe('Codex worktree environment', () => {
     try {
       await bootstrapDependencies({
         repositoryDirectory,
-        runInstall: async () => undefined,
+        runInstall: async ({ cwd }) => {
+          await installFixtureTree(cwd);
+        },
       });
       const stamps = new Map([
         [resolve(repositoryDirectory, 'package-lock.json'), JSON.parse(await readFile(
@@ -210,6 +436,7 @@ describe('Codex worktree environment', () => {
         fingerprint,
         runInstall: async ({ cwd }) => {
           installs.push(cwd);
+          await installFixtureTree(cwd);
         },
       })).resolves.toMatchObject({ skipped: ['root', 'functions'] });
       expect(installs).toEqual([]);
@@ -243,11 +470,12 @@ describe('Codex worktree environment', () => {
     let activeInstalls = 0;
     let maximumConcurrentInstalls = 0;
     let installCount = 0;
-    const runInstall = async () => {
+    const runInstall = async ({ cwd }: { cwd: string }) => {
       activeInstalls += 1;
       maximumConcurrentInstalls = Math.max(maximumConcurrentInstalls, activeInstalls);
       installCount += 1;
       await new Promise((resolvePromise) => setTimeout(resolvePromise, 20));
+      await installFixtureTree(cwd);
       activeInstalls -= 1;
     };
     try {
@@ -268,7 +496,7 @@ describe('Codex worktree environment', () => {
     const lockPath = lockPathForRepository(repositoryDirectory);
     const childModule = resolve(process.cwd(), 'scripts/bootstrap-dependencies.mjs');
     const childSource = `
-      import { mkdir, rm } from 'node:fs/promises';
+      import { mkdir, rm, writeFile } from 'node:fs/promises';
       import { resolve } from 'node:path';
       import { bootstrapDependencies } from ${JSON.stringify(childModule)};
       const delay = (ms) => new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
@@ -277,12 +505,16 @@ describe('Codex worktree environment', () => {
         runInstall: async ({ cwd }) => {
           const marker = resolve(cwd, '.bootstrap-active');
           await mkdir(marker);
-          try { await delay(60); } finally { await rm(marker, { recursive: true, force: true }); }
+          try {
+            await delay(60);
+            await mkdir(resolve(cwd, 'node_modules'), { recursive: true });
+            await writeFile(resolve(cwd, 'node_modules', '.package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { '': {} } }));
+          } finally { await rm(marker, { recursive: true, force: true }); }
         },
       });
     `;
     try {
-      await writeFile(lockPath, JSON.stringify({ pid: 999_999, token: 'stale-lock' }));
+      await writeFile(lockPath, JSON.stringify({ pid: 999_999, token: '../../bootstrap-token-traversal' }));
       const staleDate = new Date(Date.now() - 60_000);
       await utimes(lockPath, staleDate, staleDate);
       await Promise.all([
