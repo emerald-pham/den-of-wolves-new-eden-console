@@ -245,6 +245,13 @@ describe('local emulator coordination', () => {
       startBranchSha: 'start-sha',
       mainContainsBranch: true,
     })).toBe('start-sha');
+    const postMergeBaseline = {
+      mainSha: 'merged-main-sha',
+      startBranchSha: 'task-start-sha',
+      mainContainsBranch: true,
+      validatedBaseSha: 'pre-merge-main-sha',
+    } as Parameters<typeof changedFilesBaseRef>[0] & { validatedBaseSha: string };
+    expect(changedFilesBaseRef(postMergeBaseline)).toBe('pre-merge-main-sha');
     expect(changedFilesBaseRef({
       mainSha: 'main-sha',
       startBranchSha: 'start-sha',

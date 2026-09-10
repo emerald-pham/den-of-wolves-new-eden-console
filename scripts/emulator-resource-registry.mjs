@@ -828,7 +828,13 @@ async function readGitFile(ref, path, cwd) {
   return runGit(['show', `${ref}:${path}`], cwd);
 }
 
-export function changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch }) {
+export function changedFilesBaseRef({
+  mainSha,
+  startBranchSha,
+  mainContainsBranch,
+  validatedBaseSha,
+}) {
+  if (mainContainsBranch && validatedBaseSha) return validatedBaseSha;
   return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
 }
 
@@ -882,7 +888,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
 }
 
 /** Read the live checkout and remote state used by the completion gate. */
-export async function readReleaseState({ cwd = process.cwd(), startBranchSha } = {}) {
+export async function readReleaseState({ cwd = process.cwd(), startBranchSha, validation } = {}) {
   const [branchName, branchSha, mainSha, remoteMainLine] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
@@ -906,7 +912,20 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha } =
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
-  const changedFilesBase = changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch });
+  const validatedBaseSha = validation?.passed === true &&
+    validation.commitSha === branchSha &&
+    validation.profile?.evidence?.branchSha === branchSha
+    ? validation.profile.evidence.baseSha
+    : undefined;
+  const validatedBaseIsAncestor = validatedBaseSha
+    ? await gitIsAncestor(validatedBaseSha, branchSha, cwd)
+    : false;
+  const changedFilesBase = changedFilesBaseRef({
+    mainSha,
+    startBranchSha,
+    mainContainsBranch,
+    validatedBaseSha: validatedBaseIsAncestor ? validatedBaseSha : undefined,
+  });
   const changedFiles = await readTaskChangedFiles(
     changedFilesBase,
     branchSha,
@@ -2264,7 +2283,10 @@ export async function validateCoordinationEntry(filePath, options) {
         `Coordination entry ${entry.id} has no start branch SHA; rerun with --start-sha <commit> once to backfill it.`,
       );
     }
-    const release = options.release ?? await readReleaseState({ startBranchSha });
+    const release = options.release ?? await readReleaseState({
+      startBranchSha,
+      validation: entry.validation,
+    });
     const errors = releaseMetadataErrors({
       entry,
       release,
@@ -2323,6 +2345,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entryStartedAt: entry.startedAt,
       entryBranchName: entry.branchName,
       entryVersionPlan: entry.versionPlan,
+      validation: entry.validation,
       startBranchSha,
       release,
       plan,
@@ -2393,6 +2416,7 @@ export async function validateCoordinationEntry(filePath, options) {
 
   const finalRelease = options.release ?? await readReleaseState({
     startBranchSha: preparation.startBranchSha,
+    validation: preparation.validation,
   });
   if (finalRelease.branchSha !== preparation.release.branchSha) {
     throw new Error(
