@@ -177,7 +177,13 @@ jobs:
       - name: Restore browser access to DRADIS contact trigger
         if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
-          gcloud run services add-iam-policy-binding triggerDradisContact \
+          service="$(gcloud functions describe triggerDradisContact \
+            --v2 \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --format='value(serviceConfig.service)')"
+          test -n "$service" || { echo 'Unable to resolve triggerDradisContact Cloud Run service.'; exit 1; }
+          gcloud run services add-iam-policy-binding "$service" \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
             --region="us-central1" \
             --member="allUsers" \
@@ -187,7 +193,13 @@ jobs:
       - name: Restore browser access to Turn 1 single-player demo
         if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
-          gcloud run services add-iam-policy-binding startSinglePlayerDemo \
+          service="$(gcloud functions describe startSinglePlayerDemo \
+            --v2 \
+            --project="${{ vars.FIREBASE_PROJECT_ID }}" \
+            --region="us-central1" \
+            --format='value(serviceConfig.service)')"
+          test -n "$service" || { echo 'Unable to resolve startSinglePlayerDemo Cloud Run service.'; exit 1; }
+          gcloud run services add-iam-policy-binding "$service" \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
             --region="us-central1" \
             --member="allUsers" \

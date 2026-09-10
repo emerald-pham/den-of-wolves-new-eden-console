@@ -103,8 +103,20 @@ it('verifies Hosting and public Functions through injected production adapters',
       commands.push([...args]);
       if (args[1] === 'list') {
         return JSON.stringify([
-          { name: 'triggerDradisContact', state: 'ACTIVE' },
-          { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+          {
+            name: 'triggerDradisContact',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+            },
+          },
+          {
+            name: 'startSinglePlayerDemo',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+            },
+          },
         ]);
       }
       if (args[0] === 'firestore') {
@@ -122,8 +134,14 @@ it('verifies Hosting and public Functions through injected production adapters',
   expect(result).toEqual({ hosting: true, firestore: true, functions: true });
   expect(commands).toEqual(expect.arrayContaining([
     expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
-    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'triggerDradisContact']),
-    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'startSinglePlayerDemo']),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
@@ -142,8 +160,20 @@ it('rejects the legacy Cloud Functions invoker role for a gen2 public Function',
     expectedVersion: '0.3.26',
     runCommand: async (_command, args) => args[1] === 'list'
       ? JSON.stringify([
-        { name: 'triggerDradisContact', state: 'ACTIVE' },
-        { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+        {
+          name: 'triggerDradisContact',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+          },
+        },
+        {
+          name: 'startSinglePlayerDemo',
+          state: 'ACTIVE',
+          serviceConfig: {
+            service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+          },
+        },
       ])
       : JSON.stringify({
         bindings: [{ role: 'roles/cloudfunctions.invoker', members: ['allUsers'] }],
@@ -161,8 +191,20 @@ it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access'
       commands.push([...args]);
       if (args[1] === 'list') {
         return JSON.stringify([
-          { name: 'triggerDradisContact', state: 'ACTIVE' },
-          { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+          {
+            name: 'triggerDradisContact',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+            },
+          },
+          {
+            name: 'startSinglePlayerDemo',
+            state: 'ACTIVE',
+            serviceConfig: {
+              service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+            },
+          },
         ]);
       }
       return JSON.stringify({
@@ -174,12 +216,52 @@ it('uses the Cloud Run IAM policy response for Cloud Functions v2 public access'
   })).resolves.toMatchObject({ functions: true });
 
   expect(commands).toEqual(expect.arrayContaining([
-    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'triggerDradisContact']),
-    expect.arrayContaining(['run', 'services', 'get-iam-policy', 'startSinglePlayerDemo']),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/trigger-dradis-contact',
+    ]),
+    expect.arrayContaining([
+      'run', 'services', 'get-iam-policy',
+      'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+    ]),
   ]));
   expect(commands).not.toEqual(expect.arrayContaining([
     expect.arrayContaining(['functions', 'get-iam-policy']),
   ]));
+});
+
+it('fails closed when a v2 function omits or malforms its authoritative service resource', async () => {
+  for (const service of [undefined, 'projects/dow-new-eden-console/locations/us-central1/services/']) {
+    const commands: string[][] = [];
+    await expect(verifyDeployment({
+      targets: ['functions'],
+      projectId: 'dow-new-eden-console',
+      expectedVersion: '0.3.26',
+      runCommand: async (_command, args) => {
+        commands.push([...args]);
+        if (args[1] === 'list') {
+          return JSON.stringify([
+            {
+              name: 'triggerDradisContact',
+              state: 'ACTIVE',
+              ...(service === undefined ? {} : { serviceConfig: { service } }),
+            },
+            {
+              name: 'startSinglePlayerDemo',
+              state: 'ACTIVE',
+              serviceConfig: {
+                service: 'projects/dow-new-eden-console/locations/us-central1/services/start-single-player-demo',
+              },
+            },
+          ]);
+        }
+        return JSON.stringify({
+          bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }],
+        });
+      },
+    })).rejects.toThrow('valid Cloud Run service resource');
+    expect(commands).toHaveLength(1);
+  }
 });
 
 it('uses current Google authentication action major in deployment', () => {
