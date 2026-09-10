@@ -769,10 +769,12 @@ core readiness, or count Press among the 8–20 core roster. The future repair
 must reserve its own application version/changelog and pass the full security,
 visual/accessibility, test/build, reconciliation, merge, and push gate.
 
-#### Queued follow-on Milestone 1 releases
+#### Historical follow-on Milestone 1 release sequence
 
-Prompt 004 is followed by four separately evidenced releases so stale green
-fixtures cannot conflate a catalog with a playable start:
+Prompt 004 was followed by four separately evidenced releases so stale green
+fixtures could not conflate a catalog with a playable start. This sequence is
+historical provenance, not a current readiness blocker; the live status and
+evidence are maintained in [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md):
 
 1. Release 0.3.12 completes Prompt 021, repairs Prompt 030, and completes Prompt
    073: atomically persist the full authoritative configuration, provision and
@@ -784,9 +786,10 @@ fixtures cannot conflate a catalog with a playable start:
    Wolf count and default private loyalty state server-side, writes an
    audience-correct calculation receipt, and is retry/race safe without
    claiming the remaining deck/craft/resource initializer breadth.
-3. Complete Prompt 020 only after release 0.3.13 is merged: one production-path
-   create → join → seat → cast → private setup → single-GM start → Turn 1
-   fixture passes without direct client gameplay writes.
+3. The historical release gate for Prompt 020 was satisfied after release
+   0.3.13: one production-path create → join → seat → cast → private setup →
+   single-GM start → Turn 1 fixture passes without direct client gameplay
+   writes. The current Prompt 020 evidence remains in the progress ledger.
 4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
    turn and maintenance composition.
 
