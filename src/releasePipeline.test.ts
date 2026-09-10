@@ -181,6 +181,7 @@ it('re-runs the existing implementation-progress validator against generated rel
 it('refuses central release landing without a task-bound validation receipt', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-unbound-release-'));
   const lanePath = resolve(root, 'release-lane.json');
+  const previousCwd = process.cwd();
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
     await writeFile(resolve(root, 'package.json'), '{"version":"0.3.23"}\n');
@@ -190,6 +191,7 @@ it('refuses central release landing without a task-bound validation receipt', as
 ];
 `);
 
+    process.chdir(root);
     await expect(finalizeReleaseFragment(lanePath, {
       taskId: 'unbound-task',
       repositoryDirectory: root,
@@ -200,6 +202,7 @@ it('refuses central release landing without a task-bound validation receipt', as
     })).rejects.toThrow(/coordination|receipt|task-bound/i);
     expect(JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version).toBe('0.3.23');
   } finally {
+    process.chdir(previousCwd);
     await rm(root, { recursive: true, force: true });
     await rm(`${lanePath}.lock`, { force: true });
   }
