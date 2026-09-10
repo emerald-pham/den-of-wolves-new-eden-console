@@ -1,8 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { chmod, mkdir, readFile, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
@@ -31,6 +33,13 @@ import {
   normalizeGitHubOriginToSsh,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
+
+const execFileAsync = promisify(execFile);
+
+async function runFixtureGit(cwd: string, args: string[]) {
+  const { stdout } = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
+  return stdout.trim();
+}
 
 type CoordinationConflict = {
   entry: Record<string, unknown>;
@@ -1404,6 +1413,25 @@ describe('local emulator coordination', () => {
     })).not.toThrow();
   });
 
+  it('rejects task-scope changes committed after the validated tip', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        scopes: ['scripts/example.mjs'],
+        validation: {
+          ...codeValidation,
+          commitSha: 'validated-tip',
+          files: ['scripts/example.mjs'],
+        },
+      },
+      release: releaseState({
+        changedFiles: ['scripts/example.mjs'],
+        validationTaskTipSha: 'validated-tip',
+        postValidationChangedFiles: ['scripts/example.mjs'],
+      }),
+    })).toThrow(/after validated tip|not covered by the receipt/i);
+  });
+
   it('requires the human review attestation that matches documentation or UI scope', () => {
     const documentationEntry = {
       ...releaseEntry,
@@ -1705,6 +1733,153 @@ describe('local emulator coordination', () => {
         pushed: true,
       });
     } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('finishes through the CLI using the contained validated receipt after main advances', async () => {
+    const rootPath = resolve(tmpdir(), `den-of-wolves-finish-provenance-${randomUUID()}`);
+    const originPath = `${rootPath}.origin.git`;
+    const filePath = resolve(tmpdir(), `den-of-wolves-finish-provenance-${randomUUID()}.json`);
+    const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+
+    try {
+      await mkdir(rootPath, { recursive: true });
+      const root = await realpath(rootPath);
+      await runFixtureGit(root, ['init', '-b', 'main']);
+      await runFixtureGit(root, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await mkdir(resolve(root, 'scripts'), { recursive: true });
+      await writeFile(resolve(root, 'package.json'), JSON.stringify({ version: '0.3.22' }));
+      await writeFile(resolve(root, 'package-lock.json'), JSON.stringify({
+        packages: { '': { version: '0.3.22' } },
+      }));
+      await writeFile(resolve(root, 'src/changelog.ts'), 'const changes = [{ version: APP_VERSION }];\n');
+      await writeFile(resolve(root, 'scripts/base.mjs'), 'export const base = true;\n');
+      await runFixtureGit(root, ['add', '.']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture baseline']);
+      const baseSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+
+      await runFixtureGit(root, ['switch', '-c', 'feature/finish-provenance']);
+      await writeFile(resolve(root, 'scripts/example.mjs'), 'export const fixture = true;\n');
+      await runFixtureGit(root, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture task']);
+      const taskTipSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+
+      await runFixtureGit(root, ['switch', 'main']);
+      await runFixtureGit(root, ['merge', '--ff-only', 'feature/finish-provenance']);
+      await writeFile(resolve(root, 'scripts/unrelated.mjs'), 'export const unrelated = true;\n');
+      await runFixtureGit(root, ['add', 'scripts/unrelated.mjs']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture unrelated main change']);
+      const currentMainSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      await runFixtureGit(root, ['init', '--bare', originPath]);
+      await runFixtureGit(root, ['remote', 'add', 'origin', originPath]);
+      await runFixtureGit(root, ['push', '-u', 'origin', 'main']);
+      await runFixtureGit(root, ['branch', 'feature/finish-provenance-main', currentMainSha]);
+      await runFixtureGit(root, ['switch', 'feature/finish-provenance']);
+
+      const { stdout: diff } = await execFileAsync('git', [
+        'diff', '--unified=0', `${baseSha}...${taskTipSha}`,
+      ], { cwd: root, encoding: 'utf8' });
+      const validation = {
+        commitSha: taskTipSha,
+        completedAt: '2026-09-10T00:05:00.000Z',
+        passed: true,
+        commands: validationPlanForFiles(['scripts/example.mjs'], {
+          profile: { kind: 'full', reason: 'fixture', commands: [] },
+        }).commands,
+        files: ['scripts/example.mjs'],
+        docsOnly: false,
+        profile: {
+          kind: 'full',
+          reason: 'fixture',
+          commands: [],
+          evidence: {
+            baseSha,
+            branchSha: taskTipSha,
+            diffIdentity: createHash('sha256').update(diff.trim()).digest('hex'),
+          },
+        },
+      };
+      const restoredEntry = {
+        id: 'finish-provenance-restored',
+        worktree: root,
+        startedAt: '2026-09-10T00:00:00.000Z',
+        status: 'active',
+        intent: 'fixture finish provenance',
+        workType: 'tooling',
+        scopes: ['scripts/example.mjs'],
+        claims: ['fixture-finish-provenance-restored'],
+        branchName: 'feature/finish-provenance',
+        startBranchSha: baseSha,
+        startMainSha: baseSha,
+        versionPlan: 'Tooling-only; retain application version 0.3.22.',
+        preemptiveChangelog: 'No player-facing change.',
+        validation,
+      };
+      const mergedEntry = {
+        ...restoredEntry,
+        id: 'finish-provenance-merged',
+        claims: ['fixture-finish-provenance-merged'],
+        branchName: 'feature/finish-provenance-main',
+      };
+      const state = {
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [restoredEntry, mergedEntry],
+        reservations: [],
+        configurations: [],
+      };
+      await writeFile(filePath, JSON.stringify(state), 'utf8');
+
+      const { stdout: restoredOutput } = await execFileAsync(process.execPath, [
+        scriptPath, 'finish', '--id', 'finish-provenance-restored',
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      expect(restoredOutput).toMatch(/Completed coordination entry finish-provenance-restored/);
+      await runFixtureGit(root, ['switch', 'feature/finish-provenance-main']);
+      const { stdout: mergedOutput } = await execFileAsync(process.execPath, [
+        scriptPath, 'finish', '--id', 'finish-provenance-merged',
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      expect(mergedOutput).toMatch(/Completed coordination entry finish-provenance-merged/);
+      const finishedState = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(finishedState.entries).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: 'finish-provenance-restored',
+          status: 'complete',
+          outcome: 'landed',
+          finalBranchSha: taskTipSha,
+          mainSha: currentMainSha,
+          originMainSha: currentMainSha,
+          pushed: true,
+        }),
+        expect.objectContaining({
+          id: 'finish-provenance-merged',
+          status: 'complete',
+          outcome: 'landed',
+          finalBranchSha: currentMainSha,
+          mainSha: currentMainSha,
+          originMainSha: currentMainSha,
+          pushed: true,
+        }),
+      ]));
+      expect(finishedState.entries[0]).toMatchObject({
+        status: 'complete',
+      });
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+      await rm(originPath, { recursive: true, force: true });
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }

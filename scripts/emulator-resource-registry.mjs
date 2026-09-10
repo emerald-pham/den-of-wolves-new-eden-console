@@ -687,10 +687,22 @@ function validationReceiptErrors(entry, release) {
     profile: expectedProfile,
   });
 
-  if (receipt.commitSha !== release.branchSha) {
+  const receiptTaskTipSha = release.validationTaskTipSha ?? release.branchSha;
+  if (receipt.commitSha !== receiptTaskTipSha) {
     errors.push(
-      `validation receipt commit ${receipt.commitSha} does not match final branch SHA ${release.branchSha}`,
+      `validation receipt commit ${receipt.commitSha} does not match validated task tip ${receiptTaskTipSha}`,
     );
+  }
+  if (release.validationTaskTipSha && release.branchSha !== release.validationTaskTipSha) {
+    const postValidationTaskChanges = (release.postValidationChangedFiles ?? [])
+      .filter((filePath) => Array.isArray(entry.scopes) && entry.scopes.length > 0
+        ? filesOutsideScopes([filePath], entry.scopes).length === 0
+        : receiptFiles.values.includes(filePath));
+    if (postValidationTaskChanges.length > 0) {
+      errors.push(
+        `committed task changes after validated tip ${release.validationTaskTipSha} are not covered by the receipt: ${postValidationTaskChanges.join(', ')}`,
+      );
+    }
   }
   if (receipt.passed !== true) {
     errors.push('the recorded validation receipt is not passing');
@@ -835,18 +847,19 @@ export function changedFilesBaseRef({
   validatedBaseSha,
   validatedBaseIsAncestorOfMain,
 }) {
-  if (mainContainsBranch && validatedBaseSha && validatedBaseIsAncestorOfMain) {
+  if (validatedBaseSha && validatedBaseIsAncestorOfMain) {
     return validatedBaseSha;
   }
   return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
 }
 
-async function readTaskChangedFiles(baseSha, branchSha, cwd) {
-  const output = await runGit(['diff', '--name-only', `${baseSha}...${branchSha}`], cwd);
+async function readTaskChangedFiles(baseSha, headSha, cwd) {
+  const output = await runGit(['diff', '--name-only', `${baseSha}...${headSha}`], cwd);
   return output.split('\n').map((filePath) => filePath.trim()).filter(Boolean);
 }
 
 async function deriveValidationProfile({ release, startBranchSha, cwd }) {
+  const validationTaskTipSha = release.validationTaskTipSha ?? release.branchSha;
   const baseSha = changedFilesBaseRef({
     mainSha: release.mainSha,
     startBranchSha,
@@ -854,13 +867,13 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     validatedBaseSha: release.validatedBaseSha,
     validatedBaseIsAncestorOfMain: release.validatedBaseIsAncestorOfMain,
   });
-  const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${release.branchSha}`], cwd);
+  const diffText = await runGit(['diff', '--unified=0', `${baseSha}...${validationTaskTipSha}`], cwd);
   const sources = {};
   for (const filePath of release.changedFiles ?? []) {
     try {
       sources[filePath] = {
         before: await runGit(['show', `${baseSha}:${filePath}`], cwd),
-        after: await runGit(['show', `${release.branchSha}:${filePath}`], cwd),
+        after: await runGit(['show', `${validationTaskTipSha}:${filePath}`], cwd),
       };
     } catch {
       // A missing blob is intentionally a full-gate result. The classifier
@@ -871,7 +884,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
         commands: [],
         evidence: {
           baseSha,
-          branchSha: release.branchSha,
+          branchSha: validationTaskTipSha,
           diffIdentity: contentIdentity(diffText),
         },
       };
@@ -886,7 +899,7 @@ async function deriveValidationProfile({ release, startBranchSha, cwd }) {
     ...profile,
     evidence: {
       baseSha,
-      branchSha: release.branchSha,
+      branchSha: validationTaskTipSha,
       diffIdentity: contentIdentity(diffText),
     },
   };
@@ -917,23 +930,28 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
   const mainVersion = parseApplicationVersion(mainPackage, 'main:package.json');
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
-  let validatedBaseSha = validation?.passed === true &&
-    validation.commitSha === branchSha &&
-    validation.profile?.evidence?.branchSha === branchSha
+  const validationTaskTipSha = validation?.passed === true &&
+    typeof validation.commitSha === 'string' &&
+    validation.profile?.evidence?.branchSha === validation.commitSha &&
+    await gitIsAncestor(validation.commitSha, branchSha, cwd)
+    ? validation.commitSha
+    : undefined;
+  let validatedBaseSha = validationTaskTipSha
     ? validation.profile.evidence.baseSha
     : undefined;
   const validatedBaseIsAncestor = validatedBaseSha
-    ? await gitIsAncestor(validatedBaseSha, branchSha, cwd)
+    ? await gitIsAncestor(validatedBaseSha, validationTaskTipSha, cwd)
     : false;
   const validatedBaseIsAncestorOfMain = validatedBaseSha
     ? await gitIsAncestor(validatedBaseSha, mainSha, cwd)
     : false;
   if (validatedBaseSha && validatedBaseIsAncestor) {
     const validatedDiff = await runGit(
-      ['diff', '--unified=0', `${validatedBaseSha}...${branchSha}`],
+      ['diff', '--unified=0', `${validatedBaseSha}...${validationTaskTipSha}`],
       cwd,
     );
-    if (validation.profile.evidence.diffIdentity !== contentIdentity(validatedDiff)) {
+    if (validation.profile.evidence.diffIdentity !== contentIdentity(validatedDiff) ||
+      !validatedBaseIsAncestor) {
       validatedBaseSha = undefined;
     }
   }
@@ -944,14 +962,20 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
     validatedBaseIsAncestorOfMain,
   });
+  const changedFilesHead = validatedBaseSha && validationTaskTipSha
+    ? validationTaskTipSha
+    : branchSha;
   const changedFiles = await readTaskChangedFiles(
     changedFilesBase,
-    branchSha,
+    changedFilesHead,
     cwd,
   );
+  const postValidationChangedFiles = validationTaskTipSha && validationTaskTipSha !== branchSha
+    ? await readTaskChangedFiles(validationTaskTipSha, branchSha, cwd)
+    : [];
   const testGrowth = await measureTestGrowth({
     baseSha: changedFilesBase,
-    headSha: branchSha,
+    headSha: changedFilesHead,
     cwd,
   });
 
@@ -972,6 +996,8 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     changedFiles,
     validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
     validatedBaseIsAncestorOfMain,
+    validationTaskTipSha: validatedBaseSha ? validationTaskTipSha : undefined,
+    postValidationChangedFiles,
     testGrowth,
     ...(startBranchSha
       ? {
