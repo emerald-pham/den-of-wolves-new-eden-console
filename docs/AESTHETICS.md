@@ -1026,9 +1026,9 @@ Reduced motion keeps the finale's static ball and fixed confetti composition
 without lowering, spinning, falling, pulsing, or toast motion. Review the
 enabled, confirmation, retracted, and reduced-motion states at 1440×900,
 390×844, and 844×390; the ball must never obscure controls or force a route
-change. On the two compact viewports, move the ball into the otherwise unused
-top-left corner and reduce its size rather than placing it over session chrome
-or DRADIS controls.
+change. On the two compact viewports, move the ball into the clear top-right
+corner, with a measured gap from the persistent header controls, and reduce
+its size rather than placing it over session navigation or DRADIS controls.
 
 While the Finale is live, the fleet ticker gives the presentation a persistent,
 normal-tone credit roll for the original game, New Eden game design, and web

@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [602],
+    implementationProgress: {
+      completed: 86,
+      total: 730,
+      percentage: '11.78%',
+      done: 86,
+      partial: 25,
+      active: 0,
+      missing: 619,
+    },
+    changes: [
+      'The finale disco ball now stays clear of the Back to roles navigation on compact portrait and landscape screens while preserving its full desktop presentation. — Roadmap progress: 86 of 730 prompts complete (11.78%).',
+    ],
+  },
+  {
+    version: '0.3.23',
     implementationPrompts: [141],
     implementationProgress: {
       completed: 86,

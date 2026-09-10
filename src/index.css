@@ -191,15 +191,17 @@ body {
 }
 
 /* A centered ball would cover the compact session chrome. On phones and
-   short landscape screens, use the otherwise empty top-left corner instead. */
+   short landscape screens, use the clear top-right corner instead, leaving
+   the Back to roles link and persistent header controls unobstructed. */
 @media (max-width: 720px), (max-height: 480px) {
   .debrief-mode {
-    --debrief-source-x: calc(max(2rem, env(safe-area-inset-left)) + 2rem);
+    --debrief-source-x: calc(100% - max(5.5rem, calc(env(safe-area-inset-right) + 5.5rem)) - (clamp(3.5rem, 14vmin, 4rem) / 2));
     --debrief-source-y: calc(var(--debrief-ball-rest-y) + 2rem);
   }
 
   .debrief-mode__ball {
-    left: max(2rem, calc(env(safe-area-inset-left) + 2rem));
+    right: max(5.5rem, calc(env(safe-area-inset-right) + 5.5rem));
+    left: auto;
     width: clamp(3.5rem, 14vmin, 4rem);
   }
 
