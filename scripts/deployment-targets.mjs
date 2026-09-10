@@ -86,12 +86,78 @@ export function classifyChangedFiles(files, { manual = false } = {}) {
   };
 }
 
+function revisionIsAncestor(before, after) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', before, after], {
+      stdio: 'ignore',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function classifyDeploymentRange({
+  before,
+  after,
+  currentMainTip = after,
+  manual = false,
+  changedFiles,
+  isAncestor = revisionIsAncestor,
+} = {}) {
+  const currentTip = Boolean(after && currentMainTip && after === currentMainTip);
+  if (!currentTip) {
+    return {
+      targets: [],
+      unknownFiles: [],
+      ignoredFiles: [],
+      currentTip: false,
+      staleRun: true,
+      baselineAncestry: false,
+    };
+  }
+  if (manual) {
+    return {
+      ...classifyChangedFiles([], { manual: true }),
+      currentTip: true,
+      staleRun: false,
+      baselineAncestry: true,
+    };
+  }
+  if (!before) {
+    return {
+      ...classifyChangedFiles(['__missing_diff_revision__']),
+      currentTip: true,
+      staleRun: false,
+      baselineAncestry: false,
+    };
+  }
+  const baselineAncestry = isAncestor(before, after);
+  if (!baselineAncestry) {
+    return {
+      ...classifyChangedFiles(['__unreadable_diff__']),
+      currentTip: true,
+      staleRun: false,
+      baselineAncestry: false,
+    };
+  }
+  return {
+    ...classifyChangedFiles(changedFiles ?? filesFromGit(before, after)),
+    currentTip: true,
+    staleRun: false,
+    baselineAncestry: true,
+  };
+}
+
 export function formatGitHubOutputs(result) {
   return [
     `targets=${result.targets.join(',')}`,
     `has_targets=${result.targets.length > 0}`,
     `unknown_files=${JSON.stringify(result.unknownFiles)}`,
     `ignored_files=${JSON.stringify(result.ignoredFiles)}`,
+    `current_tip=${result.currentTip !== false}`,
+    `stale_run=${result.staleRun === true}`,
+    `baseline_ancestry=${result.baselineAncestry !== false}`,
   ].join('\n');
 }
 
@@ -101,7 +167,7 @@ function parseOptions(argv) {
     const name = argv[index];
     const value = argv[index + 1];
     if (!name?.startsWith('--') || value === undefined) {
-      throw new Error('Usage: deployment-targets.mjs --before <sha> --after <sha> [--manual true|false]');
+      throw new Error('Usage: deployment-targets.mjs --before <sha> --after <sha> [--current-main-tip <sha>] [--manual true|false]');
     }
     options[name.slice(2)] = value;
     index += 1;
@@ -123,9 +189,11 @@ function filesFromGit(before, after) {
 
 if (process.argv[1] && process.argv[1].endsWith('/deployment-targets.mjs')) {
   const options = parseOptions(process.argv.slice(2));
-  const result = classifyChangedFiles(
-    filesFromGit(options.before, options.after),
-    { manual: options.manual === 'true' },
-  );
+  const result = classifyDeploymentRange({
+    before: options.before,
+    after: options.after,
+    currentMainTip: options['current-main-tip'] || options.after,
+    manual: options.manual === 'true',
+  });
   process.stdout.write(`${formatGitHubOutputs(result)}\n`);
 }
