@@ -19,7 +19,6 @@ concurrency:
 permissions:
   actions: read
   contents: read
-  id-token: write
 
 jobs:
   determine-targets:
@@ -28,16 +27,28 @@ jobs:
     outputs:
       targets: ${{ steps.targets.outputs.targets }}
       has_targets: ${{ steps.targets.outputs.has_targets }}
+      current_tip: ${{ steps.targets.outputs.current_tip }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Read current main tip
+        id: current-tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          current_tip="$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test -n "$current_tip"
+          echo "sha=$current_tip" >> "$GITHUB_OUTPUT"
 
       - name: Find last successful deployment baseline
         id: baseline
         env:
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             echo "base_sha=" >> "$GITHUB_OUTPUT"
@@ -74,29 +85,45 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASELINE_SHA: ${{ steps.baseline.outputs.base_sha }}
           COMMIT_SHA: ${{ github.sha }}
+          CURRENT_MAIN_TIP: ${{ steps.current-tip.outputs.sha }}
         run: |
           node scripts/deployment-targets.mjs \
             --before "$BASELINE_SHA" \
             --after "$COMMIT_SHA" \
+            --current-main-tip "$CURRENT_MAIN_TIP" \
             --manual "$([[ "$EVENT_NAME" == "workflow_dispatch" ]] && echo true || echo false)" \
             >> "$GITHUB_OUTPUT"
 
   verify:
-    if: needs.determine-targets.outputs.has_targets == 'true'
+    if: needs.determine-targets.outputs.has_targets == 'true' && needs.determine-targets.outputs.current_tip == 'true'
     needs: determine-targets
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ github.sha }}
 
   deploy:
-    if: needs.determine-targets.outputs.has_targets == 'true'
+    if: needs.determine-targets.outputs.has_targets == 'true' && needs.determine-targets.outputs.current_tip == 'true'
     needs: [determine-targets, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install Functions runtime dependencies
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
+        run: npm ci --prefix functions --omit=dev --prefer-offline --no-audit
 
       - name: Download web build artifact
         if: contains(needs.determine-targets.outputs.targets, 'hosting')
@@ -122,6 +149,18 @@ jobs:
       - name: Set up Google Cloud CLI
         if: contains(needs.determine-targets.outputs.targets, 'functions') || contains(needs.determine-targets.outputs.targets, 'firestore')
         uses: google-github-actions/setup-gcloud@v3
+
+      - name: Confirm commit remains current main tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          current_tip="$(gh api "repos/$REPOSITORY/git/ref/heads/main" --jq '.object.sha')"
+          test "$current_tip" = "$EXPECTED_SHA" || {
+            echo "Refusing stale deployment: main is at $current_tip, expected $EXPECTED_SHA."
+            exit 1
+          }
 
       - name: Deploy affected Firebase surfaces
         env:

@@ -20,6 +20,7 @@ import {
   formatGitHubOutputs,
 } from '../scripts/deployment-targets.mjs';
 import { verifyDeployment } from '../scripts/verify-deployment.mjs';
+import { classifyDeploymentRange } from '../scripts/deployment-targets.mjs';
 
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
@@ -109,7 +110,7 @@ it('verifies Hosting and public Functions through injected production adapters',
       if (args[0] === 'firestore') {
         return JSON.stringify({
           name: 'projects/dow-new-eden-console/databases/(default)',
-          state: 'READY',
+          type: 'FIRESTORE_NATIVE',
         });
       }
       return JSON.stringify({
@@ -120,15 +121,22 @@ it('verifies Hosting and public Functions through injected production adapters',
 
   expect(result).toEqual({ hosting: true, firestore: true, functions: true });
   expect(commands).toEqual(expect.arrayContaining([
-    expect.arrayContaining(['functions', 'list', '--gen2']),
+    expect.arrayContaining(['functions', 'list', '--v2', '--regions=us-central1']),
     expect.arrayContaining(['functions', 'get-iam-policy', 'triggerDradisContact']),
     expect.arrayContaining(['functions', 'get-iam-policy', 'startSinglePlayerDemo']),
     expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
   ]));
 });
 
-it('accepts the legacy Cloud Functions invoker role only for an explicit public member', async () => {
-  const result = await verifyDeployment({
+it('verifies the exact Firestore Native database resource without an API state field', () => {
+  const verifier = readFileSync('scripts/verify-deployment.mjs', 'utf8');
+  expect(verifier).toContain("database?.type === 'FIRESTORE_NATIVE'");
+  expect(verifier).toContain('projects/${projectId}/databases/(default)');
+  expect(verifier).not.toContain("database?.state");
+});
+
+it('rejects the legacy Cloud Functions invoker role for a gen2 public Function', async () => {
+  await expect(verifyDeployment({
     targets: ['functions'],
     projectId: 'dow-new-eden-console',
     expectedVersion: '0.3.26',
@@ -140,9 +148,80 @@ it('accepts the legacy Cloud Functions invoker role only for an explicit public 
       : JSON.stringify({
         bindings: [{ role: 'roles/cloudfunctions.invoker', members: ['allUsers'] }],
       }),
-  });
+  })).rejects.toThrow('missing its public invoker policy');
+});
 
-  expect(result).toEqual({ hosting: false, firestore: false, functions: true });
+it('blocks stale deployment runs and non-ancestral baselines before target selection', () => {
+  const changedFiles = ['src/routes/Landing.tsx', 'functions/src/index.ts'];
+  const stale = classifyDeploymentRange({
+    before: 'baseline-sha',
+    after: 'old-main-tip',
+    currentMainTip: 'new-main-tip',
+    changedFiles,
+    isAncestor: () => true,
+  });
+  expect(stale).toMatchObject({ currentTip: false, staleRun: true, targets: [] });
+
+  const unrelated = classifyDeploymentRange({
+    before: 'unrelated-sha',
+    after: 'current-main-tip',
+    currentMainTip: 'current-main-tip',
+    changedFiles,
+    isAncestor: () => false,
+  });
+  expect(unrelated).toMatchObject({ currentTip: true, baselineAncestry: false });
+  expect(unrelated.targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
+});
+
+it('executes target decisions against real Git ancestry and current-tip guards', async () => {
+  const repositoryDirectory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-deployment-targets-'));
+  const script = resolve(process.cwd(), 'scripts/deployment-targets.mjs');
+  const git = (args: string[]) => execFileAsync('git', args, {
+    cwd: repositoryDirectory,
+    encoding: 'utf8',
+  });
+  const runTargets = async (before: string, after: string, currentMainTip: string) => {
+    const { stdout } = await execFileAsync(process.execPath, [
+      script,
+      '--before', before,
+      '--after', after,
+      '--current-main-tip', currentMainTip,
+      '--manual', 'false',
+    ], { cwd: repositoryDirectory, encoding: 'utf8' });
+    return stdout;
+  };
+  try {
+    await git(['init', '--quiet']);
+    await git(['config', 'user.email', 'ci@example.test']);
+    await git(['config', 'user.name', 'CI']);
+    await git(['commit', '--quiet', '--allow-empty', '-m', 'baseline']);
+    const baselineSha = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+    await mkdir(resolve(repositoryDirectory, 'src'), { recursive: true });
+    await writeFile(resolve(repositoryDirectory, 'src', 'Landing.tsx'), 'export {}\n');
+    await git(['add', '.']);
+    await git(['commit', '--quiet', '-m', 'hosting']);
+    const hostingSha = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+    await mkdir(resolve(repositoryDirectory, 'functions', 'src'), { recursive: true });
+    await writeFile(resolve(repositoryDirectory, 'functions', 'src', 'index.ts'), 'export {}\n');
+    await git(['add', '.']);
+    await git(['commit', '--quiet', '-m', 'functions']);
+    const currentSha = await runGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+
+    const cumulative = await runTargets(baselineSha, currentSha, currentSha);
+    expect(cumulative).toContain('targets=hosting,functions');
+    expect(cumulative).toContain('current_tip=true');
+    expect(cumulative).toContain('baseline_ancestry=true');
+
+    const stale = await runTargets(hostingSha, hostingSha, currentSha);
+    expect(stale).toContain('has_targets=false');
+    expect(stale).toContain('stale_run=true');
+
+    const reversed = await runTargets(currentSha, hostingSha, hostingSha);
+    expect(reversed).toContain('targets=hosting,firestore,functions');
+    expect(reversed).toContain('baseline_ancestry=false');
+  } finally {
+    await rm(repositoryDirectory, { recursive: true, force: true });
+  }
 });
 
 async function runGit(cwd: string, args: string[]) {
@@ -200,6 +279,17 @@ it('keeps CI dependency caches, timeouts, and single-pass bundle checking explic
   expect(ci).toContain('node scripts/check-bundle-size.mjs');
 });
 
+it('preflights deploy runtime dependencies and scopes deployment credentials', () => {
+  expect(deploy).toContain('node-version: 22');
+  expect(deploy).toContain('cache-dependency-path: functions/package-lock.json');
+  expect(deploy).toContain('npm ci --prefix functions --omit=dev --prefer-offline --no-audit');
+  expect(deploy).toContain('id-token: write');
+  expect(deploy).toContain('      actions: read');
+  expect(deploy).toContain('Confirm commit remains current main tip');
+  expect(deploy).toContain('GH_TOKEN: ${{ github.token }}');
+  expect(deploy).not.toMatch(/^[ ]{2}id-token: write$/m);
+});
+
 it('deploys only the Firebase surfaces affected by a push', () => {
   expect(deploy).toContain('scripts/deployment-targets.mjs');
   expect(deploy).toContain('--only "${{ needs.determine-targets.outputs.targets }}"');
@@ -224,6 +314,9 @@ it('uses the last successful deployment as the cumulative target baseline', () =
   expect(deploy).toContain('cancel-in-progress: false');
   expect(deploy).toContain('BASELINE_SHA');
   expect(deploy).toContain('steps.baseline.outputs.base_sha');
+  expect(deploy).toContain('steps.current-tip.outputs.sha');
+  expect(deploy).toContain('--current-main-tip');
+  expect(deploy).toContain('current_tip: ${{ steps.targets.outputs.current_tip }}');
 });
 
 it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {

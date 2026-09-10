@@ -6,12 +6,10 @@ export const PUBLIC_FUNCTIONS = Object.freeze([
   'triggerDradisContact',
   'startSinglePlayerDemo',
 ]);
-// Gen 2 IAM is backed by Cloud Run and normally reports roles/run.invoker.
-// Some gcloud/Firebase combinations still surface the equivalent legacy role;
-// either is acceptable only when the binding explicitly names allUsers.
+// Gen 2 IAM is backed by Cloud Run; only its Cloud Run invoker role proves the
+// deployed callable is publicly reachable.
 export const PUBLIC_INVOKER_ROLES = Object.freeze([
   'roles/run.invoker',
-  'roles/cloudfunctions.invoker',
 ]);
 
 function targetList(targets) {
@@ -50,7 +48,7 @@ async function verifyHosting({ hostingUrl, expectedVersion, fetchImpl }) {
 
 async function verifyFunctions({ projectId, region, runCommand }) {
   const listOutput = await runCommand('gcloud', [
-    'functions', 'list', '--gen2', `--project=${projectId}`, `--region=${region}`, '--format=json',
+    'functions', 'list', '--v2', `--project=${projectId}`, `--regions=${region}`, '--format=json',
   ]);
   const functions = parseJson(listOutput, 'gcloud functions list');
   if (!Array.isArray(functions) || functions.length === 0) {
@@ -84,11 +82,11 @@ async function verifyFirestore({ projectId, runCommand }) {
     `--project=${projectId}`, '--format=json',
   ]);
   const database = parseJson(output, 'gcloud firestore databases describe');
-  const validName = typeof database?.name === 'string' &&
-    database.name.endsWith('/databases/(default)');
-  const ready = ['READY', 'ACTIVE'].includes(database?.state);
-  if (!validName || !ready) {
-    throw new Error('The default Firestore database is not ready for traffic.');
+  const expectedName = `projects/${projectId}/databases/(default)`;
+  const validResource = database?.name === expectedName &&
+    database?.type === 'FIRESTORE_NATIVE' && !database?.deleteTime;
+  if (!validResource) {
+    throw new Error('The expected default Firestore Native database does not exist.');
   }
 }
 

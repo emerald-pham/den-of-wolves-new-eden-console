@@ -1,5 +1,5 @@
 export const PUBLIC_FUNCTIONS: readonly ['triggerDradisContact', 'startSinglePlayerDemo'];
-export const PUBLIC_INVOKER_ROLES: readonly ['roles/run.invoker', 'roles/cloudfunctions.invoker'];
+export const PUBLIC_INVOKER_ROLES: readonly ['roles/run.invoker'];
 
 export interface DeploymentVerificationResult {
   readonly hosting: boolean;
