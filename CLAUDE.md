@@ -702,9 +702,8 @@ timestamps for history and later cleanup.
 ## Worktree retention and cleanup
 
 Keep a completed task's worktree and its attached short-lived branch for at
-least 48 hours after the task's completion time, unless the local 50-worktree
-cap needs an earlier safe removal. Completion means one of these outcomes, plus
-coordination finish and resource release:
+least 48 hours after the task's completion time. Completion means one of these
+outcomes, plus coordination finish and resource release:
 
 - Landed work is merged to `main` and pushed.
 - Preserved unmerged work is committed and pushed or archived outside the
@@ -715,30 +714,17 @@ coordination finish and resource release:
 This retention window must not delay merging or pushing a green, complete
 branch.
 
-The repository keeps at most 50 existing worktrees, including the primary
-checkout. The Codex environment runs
-`node scripts/enforce-worktree-limit.mjs --apply` before dependency setup; run
-the command manually after a burst of local worktree creation when needed. A
-dry run without `--apply` reports the cap violation and exits nonzero. The gate
-sorts candidates by filesystem creation time and removes only the oldest clean
-worktrees whose `HEAD` is already contained by local `main` and whose path has
-no active coordination entry, live emulator reservation, or configured row. It
-always protects the primary and invoking worktrees, never force-removes a
-worktree, and never deletes a branch. If too few safe candidates exist, it
-fails with the protected paths instead of deleting unmerged or active work.
-
 During the retention window, do not reuse the checkout for unrelated work or
 remove its branch. If work resumes, treat the task as active again and start a
 new 48-hour window when it finishes.
 
-After the window—or earlier when the cap selects a safe landed worktree—remove
-the worktree only after confirming that the Codex task is terminal, no child
-agent or process uses it, the coordination pane has no active entry or emulator
-reservation for it, and the checkout is clean with no untracked files. For
-landed work, its commits must be merged and pushed. For preserved work, the
-recorded archive or destination must be usable without the worktree. For
-discarded work, the discard decision must be explicit. Then remove the checkout
-from another worktree:
+After the window, remove the worktree only after confirming that the Codex task
+is terminal, no child agent or process uses it, the coordination pane has no
+active entry or emulator reservation for it, and the checkout is clean with no
+untracked files. For landed work, its commits must be merged and pushed. For
+preserved work, the recorded archive or destination must be usable without the
+worktree. For discarded work, the discard decision must be explicit. Then
+remove the checkout from another worktree:
 
 ```bash
 git worktree remove /absolute/path/to/worktree

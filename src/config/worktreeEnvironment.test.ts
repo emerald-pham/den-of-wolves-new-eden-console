@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 describe('Codex worktree environment', () => {
@@ -24,5 +24,11 @@ describe('Codex worktree environment', () => {
     );
     expect(rootInstall).toBeGreaterThanOrEqual(0);
     expect(functionsInstall).toBeGreaterThan(rootInstall);
+  });
+
+  it('does not keep an executable worktree-count cap', async () => {
+    await expect(
+      access(resolve(process.cwd(), 'scripts/enforce-worktree-limit.mjs')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
