@@ -11,90 +11,108 @@ on:
 
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+  queue: max
+  # A canceled deployment can leave one surface behind the main commit. Queue
+  # main releases so every target set is deployed in commit order.
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
 
 jobs:
-  deploy:
+  determine-targets:
     runs-on: ubuntu-latest
-    # id-token is what lets this job mint a short-lived Google credential via
-    # Workload Identity Federation. No service-account key is stored anywhere.
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 10
+    outputs:
+      targets: ${{ steps.targets.outputs.targets }}
+      has_targets: ${{ steps.targets.outputs.has_targets }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine deployment targets
-        id: targets
-        shell: bash
+      - name: Find last successful deployment baseline
+        id: baseline
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [[ "${{ github.event_name == 'workflow_dispatch' }}" == "true" ]]; then
-            echo "targets=hosting,firestore,functions" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "base_sha=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-
-          hosting=false
-          firestore=false
-          functions=false
-
-          while IFS= read -r file; do
-            case "$file" in
-              package.json|package-lock.json|index.html|public/*|src/*|tsconfig*.json|vite.config.*)
-                hosting=true
-                ;;
-              functions/*)
-                functions=true
-                ;;
-              firestore.rules|firestore.indexes.json)
-                firestore=true
-                ;;
-              firebase.json)
-                hosting=true
-                firestore=true
-                functions=true
-                ;;
-            esac
-          done < <(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")
-
-          targets=""
-          for target in hosting firestore functions; do
-            if [[ "${!target}" == "true" ]]; then
-              targets="${targets:+$targets,}$target"
+          runs=""
+          if ! runs=$(gh api \
+            "repos/$REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=100" \
+            --jq '.workflow_runs[] | select(.status == "completed" and .conclusion == "success") | [.id, .head_sha] | @tsv'); then
+            runs=""
+          fi
+          baseline=""
+          while IFS=$'\t' read -r run_id head_sha; do
+            [[ -n "$run_id" && -n "$head_sha" ]] || continue
+            deploy_conclusion=""
+            if ! deploy_conclusion=$(gh api \
+              "repos/$REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '[.jobs[] | select(.name == "deploy") | .conclusion] | .[0] // ""'); then
+              continue
             fi
-          done
-          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+            if [[ "$deploy_conclusion" == "success" ]]; then
+              baseline="$head_sha"
+              break
+            fi
+          done <<< "$runs"
+          if [[ -z "$baseline" ]]; then
+            echo 'No prior deployment job completed successfully; target detection will fail closed.'
+          fi
+          echo "base_sha=$baseline" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/setup-node@v4
+      - name: Determine deployment targets
+        id: targets
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASELINE_SHA: ${{ steps.baseline.outputs.base_sha }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          node scripts/deployment-targets.mjs \
+            --before "$BASELINE_SHA" \
+            --after "$COMMIT_SHA" \
+            --manual "$([[ "$EVENT_NAME" == "workflow_dispatch" ]] && echo true || echo false)" \
+            >> "$GITHUB_OUTPUT"
+
+  verify:
+    if: needs.determine-targets.outputs.has_targets == 'true'
+    needs: determine-targets
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.sha }}
+
+  deploy:
+    if: needs.determine-targets.outputs.has_targets == 'true'
+    needs: [determine-targets, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
         with:
-          node-version: 22
-          cache: npm
+          ref: ${{ github.sha }}
 
-      - uses: actions/setup-java@v5
+      - name: Download web build artifact
+        if: contains(needs.determine-targets.outputs.targets, 'hosting')
+        uses: actions/download-artifact@v4
         with:
-          distribution: temurin
-          java-version: 21
+          name: web-dist
+          path: dist
 
-      - run: npm ci
-      - run: npm ci --prefix functions
-
-      - name: Lint
-        run: npm run lint
-
-      # The required local pre-push gate and branch/PR CI already run the unit
-      # suite. Keep the emulator-backed rules test here as a deployment guard.
-      - name: Firestore security-rule tests
-        run: npm run test:rules
-
-      - name: Build web
-        run: npm run build
-
-      - name: Build functions
-        run: npm run build --prefix functions
+      - name: Download Functions build artifact
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
+        uses: actions/download-artifact@v4
+        with:
+          name: functions-lib
+          path: functions/lib
 
       - name: Authenticate to Google Cloud (Workload Identity Federation)
-        if: steps.targets.outputs.targets != ''
         uses: google-github-actions/auth@v2
         with:
           project_id: ${{ vars.FIREBASE_PROJECT_ID }}
@@ -102,22 +120,23 @@ jobs:
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up Google Cloud CLI
-        if: contains(steps.targets.outputs.targets, 'functions')
+        if: contains(needs.determine-targets.outputs.targets, 'functions') || contains(needs.determine-targets.outputs.targets, 'firestore')
         uses: google-github-actions/setup-gcloud@v3
 
       - name: Deploy affected Firebase surfaces
-        if: steps.targets.outputs.targets != ''
+        env:
+          CI_VERIFIED_ARTIFACTS: '1'
         run: |
           npx --yes firebase-tools@15.29.0 deploy \
             --project "${{ vars.FIREBASE_PROJECT_ID }}" \
-            --only "${{ steps.targets.outputs.targets }}" \
+            --only "${{ needs.determine-targets.outputs.targets }}" \
             --non-interactive \
             --force
 
       # Firebase CLI creates callable services as public, but its update path
       # does not repair a missing callable invoker policy after a failed create.
       - name: Restore browser access to DRADIS contact trigger
-        if: contains(steps.targets.outputs.targets, 'functions')
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
           gcloud functions add-invoker-policy-binding triggerDradisContact \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
@@ -126,10 +145,20 @@ jobs:
             --quiet
 
       - name: Restore browser access to Turn 1 single-player demo
-        if: contains(steps.targets.outputs.targets, 'functions')
+        if: contains(needs.determine-targets.outputs.targets, 'functions')
         run: |
           gcloud functions add-invoker-policy-binding startSinglePlayerDemo \
             --project="${{ vars.FIREBASE_PROJECT_ID }}" \
             --region="us-central1" \
             --member="allUsers" \
             --quiet
+
+      - name: Verify deployed surfaces
+        env:
+          DEPLOY_TARGETS: ${{ needs.determine-targets.outputs.targets }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          node scripts/verify-deployment.mjs \
+            --targets "$DEPLOY_TARGETS" \
+            --project "$FIREBASE_PROJECT_ID" \
+            --version "$(node -p "require('./package.json').version")"

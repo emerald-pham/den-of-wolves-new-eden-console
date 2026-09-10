@@ -1,0 +1,150 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
+export const PUBLIC_FUNCTIONS = Object.freeze([
+  'triggerDradisContact',
+  'startSinglePlayerDemo',
+]);
+// Gen 2 IAM is backed by Cloud Run and normally reports roles/run.invoker.
+// Some gcloud/Firebase combinations still surface the equivalent legacy role;
+// either is acceptable only when the binding explicitly names allUsers.
+export const PUBLIC_INVOKER_ROLES = Object.freeze([
+  'roles/run.invoker',
+  'roles/cloudfunctions.invoker',
+]);
+
+function targetList(targets) {
+  return [...new Set(String(targets).split(',').map((target) => target.trim()).filter(Boolean))];
+}
+
+function functionName(record) {
+  return String(record?.name ?? '').split('/').filter(Boolean).at(-1) ?? '';
+}
+
+function parseJson(output, label) {
+  try {
+    return JSON.parse(output);
+  } catch (error) {
+    throw new Error(`${label} returned invalid JSON.`, { cause: error });
+  }
+}
+
+async function defaultRunCommand(command, args) {
+  const result = await execFileAsync(command, args, { encoding: 'utf8' });
+  return result.stdout;
+}
+
+async function verifyHosting({ hostingUrl, expectedVersion, fetchImpl }) {
+  const response = await fetchImpl(`${hostingUrl.replace(/\/$/, '')}/build-version.json`, {
+    cache: 'no-store',
+  });
+  if (!response.ok) throw new Error(`Hosting build-version check returned HTTP ${response.status}.`);
+  const metadata = await response.json();
+  if (metadata?.version !== expectedVersion) {
+    throw new Error(
+      `Hosting version ${String(metadata?.version)} does not match expected ${expectedVersion}.`,
+    );
+  }
+}
+
+async function verifyFunctions({ projectId, region, runCommand }) {
+  const listOutput = await runCommand('gcloud', [
+    'functions', 'list', '--gen2', `--project=${projectId}`, `--region=${region}`, '--format=json',
+  ]);
+  const functions = parseJson(listOutput, 'gcloud functions list');
+  if (!Array.isArray(functions) || functions.length === 0) {
+    throw new Error('No deployed second-generation Functions were returned.');
+  }
+
+  const byName = new Map(functions.map((record) => [functionName(record), record]));
+  for (const record of functions) {
+    if (record?.state !== 'ACTIVE') {
+      throw new Error(`Function ${functionName(record) || '<unknown>'} is ${String(record?.state)}.`);
+    }
+  }
+
+  for (const name of PUBLIC_FUNCTIONS) {
+    if (!byName.has(name)) throw new Error(`Required public Function ${name} is not deployed.`);
+    const policyOutput = await runCommand('gcloud', [
+      'functions', 'get-iam-policy', name, `--project=${projectId}`,
+      `--region=${region}`, '--format=json',
+    ]);
+    const policy = parseJson(policyOutput, `IAM policy for ${name}`);
+    const publicInvoker = Array.isArray(policy?.bindings) && policy.bindings.some((binding) =>
+      PUBLIC_INVOKER_ROLES.includes(binding?.role) && Array.isArray(binding.members) &&
+      binding.members.includes('allUsers'));
+    if (!publicInvoker) throw new Error(`Function ${name} is missing its public invoker policy.`);
+  }
+}
+
+async function verifyFirestore({ projectId, runCommand }) {
+  const output = await runCommand('gcloud', [
+    'firestore', 'databases', 'describe', '--database=(default)',
+    `--project=${projectId}`, '--format=json',
+  ]);
+  const database = parseJson(output, 'gcloud firestore databases describe');
+  const validName = typeof database?.name === 'string' &&
+    database.name.endsWith('/databases/(default)');
+  const ready = ['READY', 'ACTIVE'].includes(database?.state);
+  if (!validName || !ready) {
+    throw new Error('The default Firestore database is not ready for traffic.');
+  }
+}
+
+export async function verifyDeployment({
+  targets,
+  projectId,
+  expectedVersion,
+  hostingUrl = `https://${projectId}.web.app`,
+  region = 'us-central1',
+  fetchImpl = globalThis.fetch,
+  runCommand = defaultRunCommand,
+} = {}) {
+  const selectedTargets = targetList(targets);
+  const result = { hosting: false, firestore: false, functions: false };
+  if (selectedTargets.includes('hosting')) {
+    if (typeof fetchImpl !== 'function') throw new Error('Hosting verification requires fetch.');
+    await verifyHosting({ hostingUrl, expectedVersion, fetchImpl });
+    result.hosting = true;
+  }
+  if (selectedTargets.includes('functions')) {
+    await verifyFunctions({ projectId, region, runCommand });
+    result.functions = true;
+  }
+  if (selectedTargets.includes('firestore')) {
+    await verifyFirestore({ projectId, runCommand });
+    result.firestore = true;
+  }
+  return result;
+}
+
+function parseOptions(argv) {
+  const options = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const name = argv[index];
+    const value = argv[index + 1];
+    if (!name?.startsWith('--') || value === undefined) {
+      throw new Error('Usage: verify-deployment.mjs --targets <targets> --project <project> --version <version>');
+    }
+    options[name.slice(2)] = value;
+    index += 1;
+  }
+  return options;
+}
+
+if (process.argv[1] && process.argv[1].endsWith('/verify-deployment.mjs')) {
+  const options = parseOptions(process.argv.slice(2));
+  verifyDeployment({
+    targets: options.targets,
+    projectId: options.project,
+    expectedVersion: options.version,
+    hostingUrl: options['hosting-url'] || undefined,
+    region: options.region || undefined,
+  }).then(() => {
+    console.log('Deployment verification passed.');
+  }).catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}
