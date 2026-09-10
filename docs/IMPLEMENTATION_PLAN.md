@@ -769,10 +769,12 @@ core readiness, or count Press among the 8–20 core roster. The future repair
 must reserve its own application version/changelog and pass the full security,
 visual/accessibility, test/build, reconciliation, merge, and push gate.
 
-#### Queued follow-on Milestone 1 releases
+#### Historical follow-on Milestone 1 release sequence
 
-Prompt 004 is followed by four separately evidenced releases so stale green
-fixtures cannot conflate a catalog with a playable start:
+Prompt 004 was followed by four separately evidenced releases so stale green
+fixtures could not conflate a catalog with a playable start. This sequence is
+historical provenance, not a current readiness blocker; the live status and
+evidence are maintained in [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md):
 
 1. Release 0.3.12 completes Prompt 021, repairs Prompt 030, and completes Prompt
    073: atomically persist the full authoritative configuration, provision and
@@ -784,9 +786,10 @@ fixtures cannot conflate a catalog with a playable start:
    Wolf count and default private loyalty state server-side, writes an
    audience-correct calculation receipt, and is retry/race safe without
    claiming the remaining deck/craft/resource initializer breadth.
-3. Complete Prompt 020 only after release 0.3.13 is merged: one production-path
-   create → join → seat → cast → private setup → single-GM start → Turn 1
-   fixture passes without direct client gameplay writes.
+3. The historical release gate for Prompt 020 was satisfied after release
+   0.3.13: one production-path create → join → seat → cast → private setup →
+   single-GM start → Turn 1 fixture passes without direct client gameplay
+   writes. The current Prompt 020 evidence remains in the progress ledger.
 4. Continue Milestone 1 projection/reconnect gaps, then begin the Milestone 2
    turn and maintenance composition.
 
@@ -1437,21 +1440,21 @@ claim.
 
 ## Source-of-truth and decision policy
 
-Before designing a mechanic, read
-`docs/reference/den-of-wolves-new-eden/REFERENCE_ONLY_OVERVIEW.md` and every
-source it routes to for that mechanic. The source map is:
+Before designing a mechanic, read the authorized private source library outside
+this repository and every source it routes to for that mechanic. Do not copy,
+link, quote, or commit that material here. The source map is:
 
-| Mechanic | Required reference |
+| Mechanic | Required source area |
 |---|---|
-| Turn order, resources, maintenance, FTL, pursuit, suspicion, sabotage, away-mission procedure | `REFERENCE_ONLY_CORE_RULES.md` |
-| Ship consoles, damage cards, ration tables, population tracks, jump costs, small ships, Voyage 33-0 | `REFERENCE_ONLY_SHIPS.md` |
-| Printed maintenance layout and sequencing | `REFERENCE_ONLY_SHIP_LAYOUTS.md` |
-| Shuttle and fighter-wing capabilities | `REFERENCE_ONLY_SHUTTLES.md` |
-| Wolf sequence, Wolf ship cards, AEGIS weapons, boarding, Fighter Ace | `REFERENCE_ONLY_WOLF_ATTACKS.md` |
-| Role responsibilities, player-count casting, loyalties, replacement roles, President | `REFERENCE_ONLY_ROLES_AND_LOYALTIES.md` |
-| Star chart, chart variants, system codes, mission cards/rewards, New Eden candidates | `REFERENCE_ONLY_EXPLORATION_AND_AWAY_MISSIONS.md` |
-| Facilitator setup, difficulty dials, crises, jump failures, evacuations, mutinies, endgame | `REFERENCE_ONLY_FACILITATION.md` |
-| Capybara expansion, Scrap, Macaw, Boa, two-player role path | `REFERENCE_ONLY_CAPYBARA_EXPANSION.md` |
+| Turn order, resources, maintenance, FTL, pursuit, suspicion, sabotage, away-mission procedure | Authorized core-rules source |
+| Ship consoles, damage cards, ration tables, population tracks, jump costs, small ships, Voyage 33-0 | Authorized ship source |
+| Printed maintenance layout and sequencing | Authorized maintenance-layout source |
+| Shuttle and fighter-wing capabilities | Authorized shuttle source |
+| Wolf sequence, Wolf ship cards, AEGIS weapons, boarding, Fighter Ace | Authorized Wolf-attack source |
+| Role responsibilities, player-count casting, loyalties, replacement roles, President | Authorized role-and-loyalty source |
+| Star chart, chart variants, system codes, mission cards/rewards, New Eden candidates | Authorized exploration source |
+| Facilitator setup, difficulty dials, crises, jump failures, evacuations, mutinies, endgame | Authorized facilitation source |
+| Capybara expansion, Scrap, Macaw, Boa, two-player role path | Authorized Capybara-expansion source |
 
 Apply these rules to every slice:
 
@@ -2850,7 +2853,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 018 — [EXTEND] Define phase-eligible action metadata.** Acceptance: server guards reject otherwise valid actions in the wrong phase even when a stale UI still shows the control.
 - **Prompt 019 — [EXTEND] Define privacy-safe audit records.** Acceptance: facilitators can inspect decisions while players receive only the public or private facts their roles permit.
 - **Prompt 020 — [PROVE] Build the lobby-to-Team-Phase contract fixture.** Acceptance: one production-path scenario creates, joins, casts, starts, and enters Turn 1 without direct Firestore gameplay writes.
-- **Prompt 020a — [NEW] Bound the single-player demo to Turn 1 without jump authority.** Acceptance: Given an authorized single-player demo using Prompt 020's production create→join→cast→start composition and the existing `startSinglePlayerDemo` app baseline, when it performs every supported setup/action through the end of Turn 1, then it stops at that boundary with an explicit Demo-mode result and never enters a later turn. Demo never exposes an executable jump control; any jump request, including stale, replayed, or unauthorized requests, is denied by the server-authoritative jump path before mutation, with zero mutation to fuel, location, pursuit, events, or turn/phase state. The client shows an on-screen accessible toast explicitly stating that jumps are unavailable in Demo mode. Keyboard order/focus, screen-reader status/live semantics, touch targets, reduced-motion behavior, reconnect/replay, stale retries, and multi-client projections remain truthful and cannot bypass the boundary. Dependencies: Prompt 020 plus the setup/start/Turn 1 contracts in Prompts 074–081 and the jump authority/readiness, route, mutation, and retry contracts in Prompts 177 and 287–304. Apply the routed `REFERENCE_ONLY_CORE_RULES.md`, `REFERENCE_ONLY_FACILITATION.md`, and `REFERENCE_ONLY_SHIPS.md` references; this prompt extends the existing demo baseline and does not imply full-game or post-Turn-1 demo support.
+- **Prompt 020a — [NEW] Bound the single-player demo to Turn 1 without jump authority.** Acceptance: Given an authorized single-player demo using Prompt 020's production create→join→cast→start composition and the existing `startSinglePlayerDemo` app baseline, when it performs every supported setup/action through the end of Turn 1, then it stops at that boundary with an explicit Demo-mode result and never enters a later turn. Demo never exposes an executable jump control; any jump request, including stale, replayed, or unauthorized requests, is denied by the server-authoritative jump path before mutation, with zero mutation to fuel, location, pursuit, events, or turn/phase state. The client shows an on-screen accessible toast explicitly stating that jumps are unavailable in Demo mode. Keyboard order/focus, screen-reader status/live semantics, touch targets, reduced-motion behavior, reconnect/replay, stale retries, and multi-client projections remain truthful and cannot bypass the boundary. Dependencies: Prompt 020 plus the setup/start/Turn 1 contracts in Prompts 074–081 and the jump authority/readiness, route, mutation, and retry contracts in Prompts 177 and 287–304. Apply the authorized core-rules, facilitation, and ship source areas; this prompt extends the existing demo baseline and does not imply full-game or post-Turn-1 demo support.
 - **Prompt 021 — [EXTEND] Validate session creation input.** Acceptance: unsupported player count, chart, expansion, turn limit, duplicate option, and malformed fields fail before writes. Existing evidence covers the printed/base 8–18 matrix only; owner-revised 8–20 source-derived Capybara core inputs and separate optional Press/multiple-GM state require composed migration coverage.
 - **Prompt 022 — [EXTEND] Implement authoritative session creation.** Acceptance: one valid callable creates one lobby, owner/facilitator metadata, configuration, and event atomically.
 - **Prompt 023 — [EXTEND] Make session creation retry-safe.** Acceptance: repeating the same creation request returns one session and one join code.
@@ -2937,7 +2940,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 101 — [PRESERVE] Announce Team completion.** Acceptance: one durable transition message follows the committed phase change and replays correctly after reconnect.
 - **Prompt 102 — [PRESERVE] Announce Coordination completion.** Acceptance: one durable message precedes the committed next-turn state and cannot be forged by clients.
 - **Prompt 103 — [PRESERVE] Initialize the next turn.** Acceptance: turn increments once, Team opens, and only defined per-turn counters reset or expire.
-- **Prompt 103a — [NEW] Hold the airspace deadline behind turn-advance interstitials.** Acceptance: Given a committed turn advance with an uncleared turn-advance interstitial, the turn-advance screen hides the `AIRSPACE CLOSED` timer while the authoritative airspace timer/deadline remains frozen at its captured remaining time; only one explicit clear/dismiss action after the committed transition reveals/resumes it from that preserved remaining time, never resetting, extending, or advancing it early. Stale, replayed, retried, reconnecting, and multi-client clear/advance attempts cannot decrement, resume, duplicate, or overwrite a newer deadline or transition event. The preserved/resumed status is accessible, has truthful keyboard order/focus and touch targets, and remains readable under reduced motion. Dependencies: Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. Apply the routed `REFERENCE_ONLY_CORE_RULES.md` and `REFERENCE_ONLY_FACILITATION.md` references and consume existing server-owned timing and broadcast precedence; do not invent a client timer or a new airspace rule.
+- **Prompt 103a — [NEW] Hold the airspace deadline behind turn-advance interstitials.** Acceptance: Given a committed turn advance with an uncleared turn-advance interstitial, the turn-advance screen hides the `AIRSPACE CLOSED` timer while the authoritative airspace timer/deadline remains frozen at its captured remaining time; only one explicit clear/dismiss action after the committed transition reveals/resumes it from that preserved remaining time, never resetting, extending, or advancing it early. Stale, replayed, retried, reconnecting, and multi-client clear/advance attempts cannot decrement, resume, duplicate, or overwrite a newer deadline or transition event. The preserved/resumed status is accessible, has truthful keyboard order/focus and touch targets, and remains readable under reduced motion. Dependencies: Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. Apply the authorized core-rules and facilitation source areas and consume existing server-owned timing and broadcast precedence; do not invent a client timer or a new airspace rule.
 - **Prompt 104 — [NEW] Complete the configured final turn.** Acceptance: normal actions freeze and the game enters explicit endgame evaluation rather than an orphaned active phase.
 - **Prompt 105 — [NEW] Trigger pursuit-10 failure.** Acceptance: authoritative pursuit reaching 10 creates one failure outcome and blocks further normal actions.
 - **Prompt 106 — [PRESERVE] Replay lifecycle announcements.** Acceptance: reconnecting members see the latest relevant turn/phase state without duplicate visual effects.
