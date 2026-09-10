@@ -409,6 +409,7 @@ function sameFileIdentity(left, right) {
  * cannot have its replacement config removed by this invocation.
  */
 export async function prepareValidationEmulator({
+  environment = process.env,
   repositoryDirectory = process.cwd(),
   coordinationPath = coordinationFilePath(),
   localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json'),
@@ -423,7 +424,7 @@ export async function prepareValidationEmulator({
   return withCoordinationLock(setupLockPath, async () => {
     const preexistingConfig = await fileIdentity(localFirebaseConfigPath);
     const preexistingEnvironment = await fileIdentity(localEnvironmentPath);
-    if (preexistingConfig || process.env.CI) {
+    if (preexistingConfig || environment.CI) {
       return {
         created: false,
         configurationId: undefined,
@@ -1081,6 +1082,22 @@ function memoizedGit(args, cwd, memo, { volatile = false } = {}) {
   return memo.git.get(key);
 }
 
+async function readMainRef(cwd, memo) {
+  let lastError;
+  for (const ref of ['main', 'origin/main']) {
+    try {
+      const sha = await memoizedGit(['rev-parse', '--verify', `${ref}^{commit}`], cwd, memo);
+      if (sha) return { ref, sha };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw new Error(
+    'Cannot resolve the main branch from main or origin/main; fetch the main ref and its history.',
+    { cause: lastError },
+  );
+}
+
 async function gitIsAncestor(ancestor, descendant, cwd, memo) {
   try {
     await memoizedGit(['merge-base', '--is-ancestor', ancestor, descendant], cwd, memo);
@@ -1184,12 +1201,13 @@ async function deriveValidationProfile({ release, startBranchSha, cwd, memo }) {
 
 /** Read the live checkout and remote state used by the completion gate. */
 export async function readReleaseState({ cwd = process.cwd(), startBranchSha, validation, memo } = {}) {
-  const [branchName, branchSha, mainSha, remoteMainLine] = await Promise.all([
+  const [branchName, branchSha, main, remoteMainLine] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
-    runGit(['rev-parse', 'main'], cwd),
+    readMainRef(cwd, memo),
     runGit(['ls-remote', '--exit-code', 'origin', 'refs/heads/main'], cwd),
   ]);
+  const mainSha = main.sha;
   const originMainSha = remoteMainLine.split(/\s+/)[0];
   if (!originMainSha) {
     throw new Error('Cannot verify pushed state: origin/main returned no commit.');
@@ -1197,11 +1215,11 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
 
   const [branchPackage, mainPackage, branchLockfile, mainLockfile, branchChangelog, mainChangelog, status] = await Promise.all([
     readGitFile('HEAD', 'package.json', cwd, memo),
-    readGitFile('main', 'package.json', cwd, memo),
+    readGitFile(main.ref, 'package.json', cwd, memo),
     readGitFile('HEAD', 'package-lock.json', cwd, memo),
-    readGitFile('main', 'package-lock.json', cwd, memo),
+    readGitFile(main.ref, 'package-lock.json', cwd, memo),
     readGitFile('HEAD', 'src/changelog.ts', cwd, memo),
-    readGitFile('main', 'src/changelog.ts', cwd, memo),
+    readGitFile(main.ref, 'src/changelog.ts', cwd, memo),
     runGit(['status', '--porcelain'], cwd),
   ]);
   const branchVersion = parseApplicationVersion(branchPackage, 'HEAD:package.json');
@@ -2539,10 +2557,10 @@ function parseOptions(args) {
 }
 
 async function readGitStartState(cwd = process.cwd()) {
-  const [branchName, branchSha, mainSha, repositoryRoot, repositoryIdentity] = await Promise.all([
+  const [branchName, branchSha, main, repositoryRoot, repositoryIdentity] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
-    runGit(['rev-parse', 'main'], cwd),
+    readMainRef(cwd),
     runGit(['rev-parse', '--show-toplevel'], cwd),
     runGit(['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd),
   ]);
@@ -2555,7 +2573,7 @@ async function readGitStartState(cwd = process.cwd()) {
   return {
     branchName,
     branchSha,
-    mainSha,
+    mainSha: main.sha,
     repositoryRoot: resolve(repositoryRoot),
     repositoryIdentity: resolve(repositoryIdentity),
   };
@@ -3551,6 +3569,7 @@ export async function validateCoordinationEntry(filePath, options) {
         ? await prepareValidationEmulator({
             repositoryDirectory: emulatorRepositoryDirectory,
             coordinationPath: filePath,
+            environment: options.environment,
           })
         : undefined;
       for (const command of preparation.plan.commands) {

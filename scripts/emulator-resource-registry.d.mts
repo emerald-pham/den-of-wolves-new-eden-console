@@ -433,6 +433,7 @@ export function validateCoordinationEntry(
     'release-fragment-id'?: string;
     commandRunner?: (command: string, cwd: string) => Promise<void>;
     repositoryDirectory?: string;
+    environment?: Readonly<Record<string, string | undefined>>;
   },
 ): Promise<CoordinationEntry>;
 export function amendCoordinationEntry(

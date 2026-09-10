@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { chmod, mkdir, readFile, realpath, rm, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -279,6 +279,70 @@ describe('local emulator coordination', () => {
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
   }, 15_000);
+
+  it('resolves origin/main when an exact-SHA verification branch has no local main', async () => {
+    const rootPath = await realpath(await mkdtemp(resolve(tmpdir(), 'den-of-wolves-coordination-exact-sha-')));
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-exact-sha-${randomUUID()}.json`);
+    const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+    try {
+      await runFixtureGit(rootPath, ['init', '--initial-branch=main']);
+      await runFixtureGit(rootPath, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(rootPath, ['config', 'user.name', 'Fixture']);
+      await writeFile(resolve(rootPath, 'README.md'), 'fixture\n');
+      await runFixtureGit(rootPath, ['add', 'README.md']);
+      await runFixtureGit(rootPath, ['commit', '-m', 'fixture']);
+      const branchSha = await runFixtureGit(rootPath, ['rev-parse', 'HEAD']);
+      await runFixtureGit(rootPath, ['update-ref', 'refs/remotes/origin/main', branchSha]);
+      await runFixtureGit(rootPath, ['switch', '--create', 'ci-verify', branchSha]);
+      await runFixtureGit(rootPath, ['branch', '--delete', '--force', 'main']);
+      await expect(runFixtureGit(rootPath, ['rev-parse', '--verify', 'main'])).rejects.toThrow();
+      expect(await runFixtureGit(rootPath, ['rev-parse', '--verify', 'origin/main'])).toBe(branchSha);
+      const repositoryIdentity = await runFixtureGit(rootPath, [
+        'rev-parse', '--path-format=absolute', '--git-common-dir',
+      ]);
+      const now = new Date().toISOString();
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{
+          ...amendmentEntry({
+            id: 'verification-owner',
+            worktree: rootPath,
+            branchName: 'ci-verify',
+            repositoryRoot: rootPath,
+            repositoryIdentity,
+            scopes: [],
+            claims: [],
+            startedAt: now,
+            heartbeatAt: now,
+          }),
+          startBranchSha: branchSha,
+          startMainSha: branchSha,
+        }],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await execFileAsync(process.execPath, [
+        scriptPath,
+        'claim',
+        '--id', 'verification-owner',
+        '--scope', 'src/config/emulatorResourceRegistry.test.ts',
+      ], {
+        cwd: rootPath,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
+
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        branchName: 'ci-verify',
+        scopes: ['src/config/emulatorResourceRegistry.test.ts'],
+      });
+    } finally {
+      await rm(rootPath, { recursive: true, force: true });
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
 
   it('claims, heartbeats, and explicitly releases exact ownership without allowing takeover', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-coordination-claim-${randomUUID()}.json`);
@@ -1060,6 +1124,7 @@ describe('local emulator coordination', () => {
     const released: unknown[] = [];
     try {
       const prepared = await prepareValidationEmulator({
+        environment: {},
         repositoryDirectory: root,
         coordinationPath: filePath,
         localFirebaseConfigPath: configurationPath,
@@ -1088,6 +1153,7 @@ describe('local emulator coordination', () => {
 
       await writeFile(configurationPath, 'pre-existing');
       const preserved = await prepareValidationEmulator({
+        environment: {},
         repositoryDirectory: root,
         coordinationPath: filePath,
         localFirebaseConfigPath: configurationPath,
@@ -1103,6 +1169,7 @@ describe('local emulator coordination', () => {
       const failureFilePath = resolve(tmpdir(), `den-of-wolves-auto-validation-failure-${randomUUID()}.json`);
       const failedReleases: unknown[] = [];
       await expect(prepareValidationEmulator({
+        environment: {},
         repositoryDirectory: failureRoot,
         coordinationPath: failureFilePath,
         localFirebaseConfigPath: failureConfig,
@@ -1115,6 +1182,19 @@ describe('local emulator coordination', () => {
       expect(failedReleases).toHaveLength(1);
       expect(await readFile(failureConfig).catch(() => undefined)).toBeUndefined();
       expect(await readFile(failureEnvironment).catch(() => undefined)).toBeUndefined();
+
+      const skipped = await prepareValidationEmulator({
+        environment: { CI: 'true' },
+        repositoryDirectory: failureRoot,
+        coordinationPath: failureFilePath,
+        localFirebaseConfigPath: failureConfig,
+        localEnvironmentPath: failureEnvironment,
+        reserve: async () => { throw new Error('CI must not allocate an emulator slot'); },
+      });
+      expect(skipped).toMatchObject({
+        created: false,
+        preexistingConfigIdentity: 'ci-configured',
+      });
     } finally {
       await unlink(configurationPath).catch(() => undefined);
       await unlink(environmentPath).catch(() => undefined);
@@ -1137,6 +1217,7 @@ describe('local emulator coordination', () => {
       await mkdir(root, { recursive: true });
       await writeFile(environmentPath, existingEnvironment, 'utf8');
       const prepared = await prepareValidationEmulator({
+        environment: {},
         repositoryDirectory: root,
         coordinationPath: filePath,
         localFirebaseConfigPath: configurationPath,
@@ -1172,6 +1253,7 @@ describe('local emulator coordination', () => {
     };
     try {
       const prepared = await prepareValidationEmulator({
+        environment: {},
         repositoryDirectory: root,
         coordinationPath: filePath,
         localFirebaseConfigPath: configurationPath,
@@ -1207,6 +1289,7 @@ describe('local emulator coordination', () => {
     };
     let allocations = 0;
     const options = {
+      environment: {},
       repositoryDirectory: root,
       coordinationPath: filePath,
       localFirebaseConfigPath: configurationPath,
@@ -1354,6 +1437,7 @@ describe('local emulator coordination', () => {
 
       await validateCoordinationEntry(filePath, {
         id: releaseEntry.id,
+        environment: {},
         release: releaseState(),
         repositoryDirectory: root,
         commandRunner: async (command) => {
