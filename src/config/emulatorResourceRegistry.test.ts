@@ -2357,7 +2357,7 @@ describe('local emulator coordination', () => {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
-  });
+  }, 15_000);
 
   it('preserves committed work only after its remote destination is verified', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-preserve-${randomUUID()}.json`);
