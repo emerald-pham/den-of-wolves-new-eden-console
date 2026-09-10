@@ -22,16 +22,16 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
     implementationProgress: {
-      completed: 84,
+      completed: 85,
       total: 729,
-      percentage: '11.52%',
-      done: 84,
+      percentage: '11.66%',
+      done: 85,
       partial: 24,
       active: 0,
-      missing: 621,
+      missing: 620,
     },
     changes: [
-      'CIC planning records now flag Wolf assignment authority for later review; no game behavior changed. — Roadmap progress: 84 of 729 prompts complete (11.52%).',
+      'CIC planning records now flag Wolf assignment authority for later review; no game behavior changed. — Roadmap progress: 85 of 729 prompts complete (11.66%).',
     ],
   },
   {

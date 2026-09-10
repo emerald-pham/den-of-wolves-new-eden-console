@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**84 / 729 prompts complete (11.52%)**
+**85 / 729 prompts complete (11.66%)**
 
-Status breakdown: **84 done · 24 partial · 0 active · 621 missing**.
+Status breakdown: **85 done · 24 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -105,6 +105,22 @@ Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
 queued missing repairs with no production evidence.
 Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
+
+### Version 0.3.22 progress evidence
+
+The proof-only release boundary records Prompt 122 Reactor capacity preservation
+at **85 / 729 = 11.66%** with **85 done · 24 partial · 0 active · 620 missing**.
+The existing `advanceMaintenance` path is now covered by one focused,
+all-enabled-vessel boundary matrix in `functions/src/maintenance.test.ts`:
+AEGIS, Dione, Icebreaker, Shepherd, Quellon, Refinery 124, and the enabled
+Capybara each accept exact nominal, upgraded, damaged, and damaged-plus-upgraded
+printed capacities and reject capacity-plus-one selections with real eligible
+console IDs wherever that printed console set permits the boundary. The
+existing `runMaintenance` callable composition remains authoritative and is
+covered by the focused callable suite for server authority, transaction/CAS
+persistence, eligibility, replay, and client-write denial. Prompt 122 remains
+non-feature proof-only work at application version 0.3.22; Prompt 122a's
+confirmation/retry repair and Prompts 123–125, 128, and 138 remain separate.
 
 ### Version 0.3.21 progress evidence
 
@@ -446,7 +462,7 @@ release classification and evidence.
 | 119 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 120 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 121 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 122 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 122 | done | non-feature | — | Existing `functions/src/maintenance.test.ts` and `functions/src/maintenanceCallable.test.ts` evidence preserves authoritative Reactor capacity across all seven enabled vessels. The focused matrix covers exact nominal, upgraded, damaged, and damaged-plus-upgraded capacities with real eligible console IDs plus capacity-plus-one rejection; the callable suite retains authority, transaction/CAS persistence, input eligibility, replay, and no-client-write invariants. |
 | 122a | missing | non-feature | — | Owner-requested Reactor confirmation repair: the current `MaintenanceSystems` control submits `runMaintenance(..., 'reactor', ...)` directly, while the transaction replaces prior charges and appends an event without request-id replay. A dedicated release must reuse the danger-red second-press `ARE YOU SURE?` pattern before mutation, make cancel/blur/Escape/navigation/backdrop paths no-ops with focus restoration, prevent pending/double-submit, add idempotent retry and accepted-only audit/replay, and prove stale/unauthorized/invalid denial plus accessible mobile/reduced-motion containment. |
 | 123 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 124 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |

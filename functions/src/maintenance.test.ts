@@ -7,6 +7,46 @@ const input = (overrides: Partial<MaintenanceInput> = {}): MaintenanceInput => (
   dockings: [], cargo: {}, fuelled: {}, rolls: [1, 1], entropy: 0.5,
   now: '2026-09-06T12:00:00.000Z', ...overrides,
 });
+
+const REACTOR_CAPACITY_MATRIX: ReadonlyArray<{
+  shipId: string;
+  nominalCapacity: number;
+  damagedPenalty: number;
+  eligibleConsoles: readonly string[];
+}> = [
+  {
+    shipId: 'aegis', nominalCapacity: 5, damagedPenalty: 3,
+    eligibleConsoles: [
+      'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+      'missile-launchers', 'point-defence-lasers', 'construction-bay', 'jump-drive',
+    ],
+  },
+  {
+    shipId: 'dione', nominalCapacity: 4, damagedPenalty: 3,
+    eligibleConsoles: ['hydroponics', 'water-reclamation', 'vip-lounge', 'fighter-bay', 'jump-drive'],
+  },
+  {
+    shipId: 'icebreaker', nominalCapacity: 4, damagedPenalty: 3,
+    eligibleConsoles: ['hydroponics', 'water-reclamation', 'mining-drone-control', 'jump-drive', 'ram-scoop'],
+  },
+  {
+    shipId: 'shepherd', nominalCapacity: 3, damagedPenalty: 2,
+    eligibleConsoles: ['water-reclamation', 'advanced-hydroponics', 'advanced-hydroponics-ii', 'jump-drive'],
+  },
+  {
+    shipId: 'quellon', nominalCapacity: 3, damagedPenalty: 2,
+    eligibleConsoles: ['hydroponics', 'water-production', 'water-production-ii', 'jump-drive'],
+  },
+  {
+    shipId: 'refinery-124', nominalCapacity: 4, damagedPenalty: 3,
+    eligibleConsoles: ['hydroponics', 'water-reclamation', 'fuel-refinery', 'fuel-refinery-ii', 'fighter-bay', 'jump-drive'],
+  },
+  {
+    shipId: 'capybara', nominalCapacity: 3, damagedPenalty: 3,
+    eligibleConsoles: ['advanced-hydroponics', 'water-production', 'scrap-refinery', 'jump-drive'],
+  },
+];
+
 it('starts once and rejects stale commands and out-of-order steps', () => {
   const started = advanceMaintenance(input());
   expect(started.cycle).toMatchObject({
@@ -107,6 +147,36 @@ it('replaces old charges at reactor power-up and enforces damaged capacity', () 
   expect(() => advanceMaintenance({ ...base, consoles: ['fighter-bay-alpha', 'fighter-bay-bravo', 'jump-drive'] })).toThrow(/capacity/);
   expect(() => advanceMaintenance({ ...base, consoles: ['storage'] })).toThrow(/console/);
 });
+
+it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {
+  const variants = [
+    { label: 'nominal', capacity: nominalCapacity, damaged: false, upgraded: false },
+    { label: 'upgraded', capacity: nominalCapacity + 1, damaged: false, upgraded: true },
+    { label: 'damaged', capacity: Math.max(0, nominalCapacity - damagedPenalty), damaged: true, upgraded: false },
+    { label: 'damaged and upgraded', capacity: Math.max(0, nominalCapacity + 1 - damagedPenalty), damaged: true, upgraded: true },
+  ];
+
+  for (const variant of variants) {
+    const cycle = { step: 5, revision: 0, results: {}, charges: [], refuelled: [] };
+    const damage = { damagedSystemIds: variant.damaged ? ['reactor'] : [], destroyed: false };
+    const upgraded = variant.upgraded ? ['reactor'] : [];
+    const exact = advanceMaintenance(input({
+      shipId, action: 'reactor', cycle, damage, upgraded,
+      consoles: eligibleConsoles.slice(0, variant.capacity),
+    }));
+
+    expect(exact.cycle.charges, `${shipId} ${variant.label}`).toHaveLength(variant.capacity);
+    expect(exact.cycle.results['5']).toContain(`Charged ${variant.capacity}/${variant.capacity} consoles.`);
+
+    const capacityPlusOne = eligibleConsoles.slice(0, variant.capacity + 1);
+    if (capacityPlusOne.length > variant.capacity) {
+      expect(() => advanceMaintenance(input({
+        shipId, action: 'reactor', cycle, damage, upgraded, consoles: capacityPlusOne,
+      })), `${shipId} ${variant.label}`).toThrow(/capacity/);
+    }
+  }
+});
+
 it('refuels only docked shuttles, spends fuel, prevents double refuelling, and ends explicitly', () => {
   const base = input({ action: 'bays', cycle: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] }, refuels: { 'shuttle-bay-zeta': 'starlight' }, dockings: [{ shipId: 'aegis', shuttleId: 'starlight' }] });
   const result = advanceMaintenance(base);
