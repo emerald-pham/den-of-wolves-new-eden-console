@@ -440,6 +440,8 @@ export function amendCoordinationEntry(
     scope?: string;
     claims?: string;
     claim?: string;
+    now?: string | number | Date;
+    leaseMs?: number;
   },
 ): Promise<CoordinationEntry>;
 export function finishCoordinationEntry(

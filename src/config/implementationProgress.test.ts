@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error The executable validator is intentionally plain JavaScript.
 import {
   formatImplementationProgress,
   validateImplementationProgress,

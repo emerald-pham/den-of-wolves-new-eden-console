@@ -3158,7 +3158,7 @@ describe('local emulator coordination', () => {
   it('does not let an unvalidated or foreign release fragment waive product metadata gates', () => {
     const productEntry = {
       ...releaseEntry,
-      workType: 'product',
+      workType: 'product' as const,
       implementationPrompt: 141,
       versionPlan: 'Reserve application patch version 0.3.3.',
     };
