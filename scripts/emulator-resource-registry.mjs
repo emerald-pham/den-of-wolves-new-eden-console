@@ -687,10 +687,10 @@ function validationReceiptErrors(entry, release) {
     profile: expectedProfile,
   });
 
-  const receiptTaskTipSha = release.validationTaskTipSha ?? release.branchSha;
-  if (receipt.commitSha !== receiptTaskTipSha) {
+  const receiptCommitSha = release.validationReceiptCommitSha ?? release.branchSha;
+  if (receipt.commitSha !== receiptCommitSha) {
     errors.push(
-      `validation receipt commit ${receipt.commitSha} does not match validated task tip ${receiptTaskTipSha}`,
+      `validation receipt commit ${receipt.commitSha} does not match receipt commit ${receiptCommitSha}`,
     );
   }
   if (release.validationTaskTipSha && release.branchSha !== release.validationTaskTipSha) {
@@ -932,8 +932,12 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
   const validationTaskTipSha = validation?.passed === true &&
     typeof validation.commitSha === 'string' &&
-    validation.profile?.evidence?.branchSha === validation.commitSha &&
-    await gitIsAncestor(validation.commitSha, branchSha, cwd)
+    typeof validation.profile?.evidence?.branchSha === 'string' &&
+    await gitIsAncestor(validation.commitSha, branchSha, cwd) &&
+    await gitIsAncestor(validation.profile.evidence.branchSha, validation.commitSha, cwd)
+    ? validation.profile.evidence.branchSha
+    : undefined;
+  const validationReceiptCommitSha = validationTaskTipSha
     ? validation.commitSha
     : undefined;
   let validatedBaseSha = validationTaskTipSha
@@ -997,6 +1001,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     validatedBaseSha: validatedBaseSha && validatedBaseIsAncestor ? validatedBaseSha : undefined,
     validatedBaseIsAncestorOfMain,
     validationTaskTipSha: validatedBaseSha ? validationTaskTipSha : undefined,
+    validationReceiptCommitSha: validatedBaseSha ? validationReceiptCommitSha : undefined,
     postValidationChangedFiles,
     testGrowth,
     ...(startBranchSha
