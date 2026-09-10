@@ -22,6 +22,8 @@ import {
   reserveEmulatorSlot,
   validationPlanForFiles,
   deriveCopyOnlyValidationProfile,
+  findCoordinationConflict,
+  formatCoordinationConflict,
   prepareValidationEmulator,
   cleanupValidationEmulator,
   executeValidationProcess,
@@ -88,6 +90,121 @@ function releaseState(overrides = {}) {
 }
 
 describe('local emulator coordination', () => {
+  it('rejects overlapping scopes across worktrees in the same Git repository', () => {
+    const owner = {
+      id: 'prompt-662',
+      worktree: '/worktrees/prompt-662',
+      repositoryRoot: '/repo',
+      repositoryIdentity: '/repo/.git',
+      status: 'active',
+      scopes: ['docs'],
+      claims: ['implementation-plan'],
+    };
+
+    expect(findCoordinationConflict({
+      activeEntries: [owner],
+      repositoryIdentity: '/repo/.git',
+      repositoryRoot: '/repo',
+      worktree: '/worktrees/current',
+      scopes: ['docs/WORKTREE_COORDINATION.md'],
+      claims: [],
+    })).toMatchObject({
+      entry: owner,
+      type: 'scope',
+      requested: 'docs/WORKTREE_COORDINATION.md',
+      matched: 'docs',
+    });
+  });
+
+  it('rejects exact claims across worktrees in the same Git repository', () => {
+    const owner = {
+      id: 'claim-owner',
+      worktree: '/worktrees/owner',
+      repositoryRoot: '/repo',
+      repositoryIdentity: '/repo/.git',
+      status: 'active',
+      scopes: ['scripts'],
+      claims: ['coordination-worktree-identity'],
+    };
+
+    expect(findCoordinationConflict({
+      activeEntries: [owner],
+      repositoryIdentity: '/repo/.git',
+      repositoryRoot: '/repo',
+      worktree: '/worktrees/current',
+      scopes: ['src/config'],
+      claims: ['coordination-worktree-identity'],
+    })).toMatchObject({
+      entry: owner,
+      type: 'claim',
+      requested: 'coordination-worktree-identity',
+      matched: 'coordination-worktree-identity',
+    });
+  });
+
+  it('allows disjoint same-repository scopes and identical scopes in another repository', () => {
+    const owner = {
+      id: 'other-owner',
+      worktree: '/worktrees/other',
+      repositoryRoot: '/repo',
+      repositoryIdentity: '/repo/.git',
+      status: 'active',
+      scopes: ['docs'],
+      claims: ['same-repo-only'],
+    };
+
+    expect(findCoordinationConflict({
+      activeEntries: [owner],
+      repositoryIdentity: '/repo/.git',
+      repositoryRoot: '/repo',
+      worktree: '/worktrees/current',
+      scopes: ['scripts'],
+      claims: ['different-claim'],
+    })).toBeUndefined();
+    expect(findCoordinationConflict({
+      activeEntries: [owner],
+      repositoryIdentity: '/another-repo/.git',
+      repositoryRoot: '/another-repo',
+      worktree: '/worktrees/another-repo',
+      scopes: ['docs'],
+      claims: ['same-repo-only'],
+    })).toBeUndefined();
+  });
+
+  it('uses repositoryRoot as the compatibility identity for legacy active entries', () => {
+    expect(findCoordinationConflict({
+      activeEntries: [{
+        id: 'legacy-owner',
+        worktree: '/worktrees/legacy',
+        repositoryRoot: '/repo',
+        status: 'active',
+        scopes: ['scripts'],
+        claims: ['legacy-claim'],
+      }],
+      repositoryIdentity: '/repo/.git',
+      repositoryRoot: '/repo',
+      worktree: '/worktrees/current',
+      scopes: [],
+      claims: ['legacy-claim'],
+    })).toMatchObject({ type: 'claim', matched: 'legacy-claim' });
+  });
+
+  it('formats ownership conflicts with the owner entry, worktree, and matched field', () => {
+    expect(formatCoordinationConflict({
+      entry: {
+        id: 'owner-entry',
+        worktree: '/worktrees/owner',
+      },
+      type: 'scope',
+      requested: 'src/config/emulatorResourceRegistry.test.ts',
+      matched: 'src/config',
+    })).toBe(
+      'Declared scope "src/config/emulatorResourceRegistry.test.ts" overlaps active entry ' +
+      'owner-entry at /worktrees/owner (matched scope "src/config"). ' +
+      'Coordinate ownership before starting.',
+    );
+  });
+
   it('normalizes GitHub HTTPS origins to SSH without changing other transports', () => {
     expect(normalizeGitHubOriginToSsh(
       'https://github.com/emerald-pham/den-of-wolves-new-eden-console.git',

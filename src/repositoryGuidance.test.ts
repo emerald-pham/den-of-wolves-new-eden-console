@@ -58,6 +58,18 @@ describe('repository guidance', () => {
     expect(guidance).toContain('coordination:status');
   });
 
+  it('requires delegates to assert their own worktree and branch before setup or edits', () => {
+    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
+    const guidance = readFileSync(guidancePath, 'utf8').replace(/\s+/g, ' ');
+
+    expect(guidance).toContain('absolute own-worktree path');
+    expect(guidance).toContain('pwd -P');
+    expect(guidance).toContain('git rev-parse --show-toplevel');
+    expect(guidance).toContain('before installing dependencies, registering coordination, or editing');
+    expect(guidance).toContain('never edit the parent checkout');
+    expect(guidance).toContain('run npm ci from the assigned worktree before repository scripts');
+  });
+
   it('requires implementation-plan features to carry real changelog coverage', () => {
     const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
     const guidance = readFileSync(guidancePath, 'utf8');

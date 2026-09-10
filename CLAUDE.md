@@ -110,8 +110,30 @@ duplicate active claim.
    `git switch -c <type>/<short-slug>-<yyyymmdd>`. Verify the branch again
    afterward. A branch listed by Git or checked out in another worktree does
    not attach this checkout.
-3. Before editing, run `npm run coordination:begin -- ...` from this same
-   worktree, save the printed entry id, and immediately run
+3. Every delegated prompt must provide an absolute own-worktree path and
+   assigned branch. The required ordering is: before installing dependencies,
+   registering coordination, or editing, run this identity preflight from that
+   assigned checkout. Before editing, confirm the preflight still identifies
+   this checkout and branch:
+
+   ```bash
+   pwd -P
+   git rev-parse --show-toplevel
+   git rev-parse --git-dir
+   git rev-parse --git-common-dir
+   git branch --show-current
+   git status --short --branch
+   ```
+
+   The resolved worktree and top-level path must equal the assigned absolute
+   path, the branch must be non-empty and not `main`, and the status must be
+   understood before proceeding. If any assertion fails, stop with no edits;
+   never edit the parent checkout. When `node_modules` is absent, run npm ci
+   from the assigned worktree before repository scripts (`npm ci
+   --prefer-offline --no-audit`); install `functions` dependencies only when a
+   later validation command requires them. Then run
+   `npm run coordination:begin -- ...` from this same worktree, save the
+   printed entry id, and immediately run
    `npm run coordination:status`. Confirm that the entry's `worktree` path
    equals the current `pwd` and that no active entry overlaps the intent,
    including entries from other repositories. If it points elsewhere, do not
@@ -140,8 +162,9 @@ duplicate active claim.
    test, and documentation-only work records an explicit
    no-player-facing-change note and does not add an entry. The lighter
    documentation-only review path is described in [Test first for code](#1-test-first-for-code).
-   Load dependencies only when the validation command needs them, then follow
-   the test-first, emulator-slot, and product-reference rules below.
+   The path/branch preflight and root dependency bootstrap above precede every
+   repository script; then follow the test-first, emulator-slot, and
+   product-reference rules below.
 
 ### Finish
 
@@ -417,10 +440,16 @@ Keep delegation economical:
   UI, and routine implementation with clear expected results.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
   scope and acceptance criteria. Every delegated agent that changes files must
-  use its own worktree and short-lived branch; never have a delegated agent
-  edit the primary agent's checkout or another agent's files. Full read/write
-  access is scoped to that assigned worktree and does not authorize merging or
-  pushing.
+   use its own worktree and short-lived branch; never have a delegated agent
+   edit the primary agent's checkout or another agent's files. In each
+   delegation prompt, pass the absolute assigned worktree path and branch and
+   require the agent's first commands to assert `pwd -P`,
+   `git rev-parse --show-toplevel`, `git rev-parse --git-dir`,
+   `git rev-parse --git-common-dir`, the attached non-main branch, and clean
+   status before installing, registering, or editing. Require stop/no-edit on
+   any mismatch and explicit overlap resolution before work begins. Full
+   read/write access is scoped to that assigned worktree and does not authorize
+   merging or pushing.
 - Treat child-agent lifecycle as part of delegation: after collecting a
   completed result, close the child with `close_agent`. Completed descendants
   remain open and count toward the concurrency limit until closed, so do not

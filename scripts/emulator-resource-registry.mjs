@@ -1291,6 +1291,48 @@ function scopesOverlap(left, right) {
     left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
 }
 
+function sameRepository(candidate, { repositoryIdentity, repositoryRoot }) {
+  if (text(candidate?.repositoryIdentity) && text(repositoryIdentity)) {
+    return candidate.repositoryIdentity === repositoryIdentity;
+  }
+  return Boolean(candidate?.repositoryRoot && repositoryRoot &&
+    candidate.repositoryRoot === repositoryRoot);
+}
+
+/** Find an ownership conflict without treating Git worktrees as repositories. */
+export function findCoordinationConflict({
+  activeEntries = [],
+  repositoryIdentity,
+  repositoryRoot,
+  worktree,
+  scopes = [],
+  claims = [],
+} = {}) {
+  for (const entry of Array.isArray(activeEntries) ? activeEntries : []) {
+    if (entry?.status !== 'active' || entry.worktree === worktree) continue;
+    const repositoryMatch = sameRepository(entry, { repositoryIdentity, repositoryRoot });
+    const claim = (Array.isArray(claims) ? claims : []).find((candidateClaim) =>
+      Array.isArray(entry.claims) && entry.claims.includes(candidateClaim) &&
+      (candidateClaim.startsWith('emulator-slot-') || repositoryMatch));
+    if (claim) {
+      return { entry, type: 'claim', requested: claim, matched: claim };
+    }
+    if (!repositoryMatch) continue;
+    for (const scope of Array.isArray(scopes) ? scopes : []) {
+      const matched = (Array.isArray(entry.scopes) ? entry.scopes : [])
+        .find((candidateScope) => scopesOverlap(scope, candidateScope));
+      if (matched) return { entry, type: 'scope', requested: scope, matched };
+    }
+  }
+  return undefined;
+}
+
+export function formatCoordinationConflict(conflict) {
+  return `Declared ${conflict.type} "${conflict.requested}" overlaps active entry ` +
+    `${conflict.entry.id} at ${conflict.entry.worktree} (matched ${conflict.type} "${conflict.matched}"). ` +
+    'Coordinate ownership before starting.';
+}
+
 function filesOutsideScopes(files, scopes) {
   if (!Array.isArray(scopes) || scopes.length === 0) return [];
   return files.filter((file) => !scopes.some((scope) =>
@@ -2078,11 +2120,12 @@ function parseOptions(args) {
 }
 
 async function readGitStartState(cwd = process.cwd()) {
-  const [branchName, branchSha, mainSha, repositoryRoot] = await Promise.all([
+  const [branchName, branchSha, mainSha, repositoryRoot, repositoryIdentity] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
     runGit(['rev-parse', 'main'], cwd),
     runGit(['rev-parse', '--show-toplevel'], cwd),
+    runGit(['rev-parse', '--path-format=absolute', '--git-common-dir'], cwd),
   ]);
   if (branchName === 'HEAD') {
     throw new Error('coordination begin requires an attached branch; create one before editing.');
@@ -2090,7 +2133,13 @@ async function readGitStartState(cwd = process.cwd()) {
   if (branchName === 'main') {
     throw new Error('coordination begin refuses to register work directly on main.');
   }
-  return { branchName, branchSha, mainSha, repositoryRoot: resolve(repositoryRoot) };
+  return {
+    branchName,
+    branchSha,
+    mainSha,
+    repositoryRoot: resolve(repositoryRoot),
+    repositoryIdentity: resolve(repositoryIdentity),
+  };
 }
 
 async function beginEntry(filePath, options) {
@@ -2133,6 +2182,7 @@ async function beginEntry(filePath, options) {
       startBranchSha: start.branchSha,
       startMainSha: start.mainSha,
       repositoryRoot: start.repositoryRoot,
+      repositoryIdentity: start.repositoryIdentity,
       intent: options.intent,
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
@@ -2159,14 +2209,16 @@ async function beginEntry(filePath, options) {
         );
       }
     }
-    const conflict = state.entries.find((candidate) => candidate.status === 'active' && (
-      claims.some((claim) => candidate.claims?.includes(claim) &&
-        (claim.startsWith('emulator-slot-') || candidate.repositoryRoot === start.repositoryRoot)) ||
-      (candidate.repositoryRoot === start.repositoryRoot && candidate.worktree !== process.cwd() && scopes.some((scope) =>
-        candidate.scopes?.some((candidateScope) => scopesOverlap(scope, candidateScope))))
-    ));
+    const conflict = findCoordinationConflict({
+      activeEntries: state.entries,
+      repositoryIdentity: start.repositoryIdentity,
+      repositoryRoot: start.repositoryRoot,
+      worktree: process.cwd(),
+      scopes,
+      claims,
+    });
     if (conflict) {
-      throw new Error(`Declared scope or exclusive claim overlaps active entry ${conflict.id}. Coordinate ownership before starting.`);
+      throw new Error(formatCoordinationConflict(conflict));
     }
     validateImplementationPromptClaims([...state.entries, entry]);
     state.entries.push(entry);
