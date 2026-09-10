@@ -56,6 +56,7 @@ export interface CoordinationEntry {
   readonly mainContainsBranch?: boolean;
   readonly pushed?: boolean;
   readonly validation?: ValidationReceipt;
+  readonly validationHistory?: readonly ValidationReceipt[];
 }
 
 export interface CoordinationAmendment {
@@ -103,6 +104,11 @@ export interface ValidationReceipt {
   readonly reviews?: {
     readonly documentation?: string;
     readonly visual?: string;
+  };
+  readonly provenanceRefresh?: {
+    readonly previousCommitSha: string;
+    readonly previousTaskTipSha: string;
+    readonly files: readonly string[];
   };
 }
 

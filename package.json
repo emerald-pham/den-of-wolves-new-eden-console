@@ -22,6 +22,7 @@
     "test:all": "npm run test && npm run test:rules",
     "coordination:status": "node scripts/emulator-resource-registry.mjs status",
     "coordination:begin": "node scripts/emulator-resource-registry.mjs begin",
+    "coordination:amend": "node scripts/emulator-resource-registry.mjs amend",
     "coordination:validate": "node scripts/emulator-resource-registry.mjs validate",
     "coordination:docs": "node scripts/validate-repository-guidance.mjs && node scripts/validate-implementation-progress.mjs",
     "validate:implementation-progress": "node scripts/validate-implementation-progress.mjs",

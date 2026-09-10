@@ -104,6 +104,25 @@ The begin command records the attached branch, starting branch SHA, and starting
 `main` SHA; it refuses detached checkouts, direct work on `main`, and duplicate
 active entries for this worktree.
 
+## Worktree capacity
+
+The host retains at most 50 existing worktrees for this repository, including
+the primary checkout. The Codex environment enforces the cap before dependency
+setup with:
+
+```bash
+node scripts/enforce-worktree-limit.mjs --apply
+```
+
+Run the same command after a manual burst of worktree creation. Omit `--apply`
+to preview the oldest safe removal candidates; the dry-run gate exits nonzero
+while the count exceeds the limit. The gate never force-removes or deletes a
+branch. It protects the primary and current worktrees plus any path with active
+coordination, a live reservation, or a configured emulator row. Of the
+remaining worktrees, it removes only clean `HEAD`s already contained by local
+`main`, oldest first. If the protected paths make the cap impossible to reach,
+the command fails rather than risking active or unmerged work.
+
 `--work-type`, `--scope`, and `--claims` make the ownership boundary explicit.
 Use a stable work type such as `product`, `tooling`, `documentation`, or
 `investigation`; use comma-separated repository-relative files/directories (or

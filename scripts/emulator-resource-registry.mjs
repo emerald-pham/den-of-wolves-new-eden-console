@@ -655,6 +655,17 @@ function exactArrayMatch(left, right) {
     left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function postValidationTaskChangedFiles(entry, release) {
+  if (!release.validationTaskTipSha || release.branchSha === release.validationTaskTipSha) {
+    return [];
+  }
+  const receiptFiles = normalizedPathSet(entry.validation?.files).values;
+  return (release.postValidationChangedFiles ?? [])
+    .filter((filePath) => Array.isArray(entry.scopes) && entry.scopes.length > 0
+      ? filesOutsideScopes([filePath], entry.scopes).length === 0
+      : receiptFiles.includes(filePath));
+}
+
 function validationReceiptErrors(entry, release) {
   const errors = [];
   const receipt = entry.validation;
@@ -693,11 +704,15 @@ function validationReceiptErrors(entry, release) {
       `validation receipt commit ${receipt.commitSha} does not match receipt commit ${receiptCommitSha}`,
     );
   }
+  if (release.validationTaskTipSha &&
+    release.branchSha !== release.validationTaskTipSha &&
+    receipt.commitSha !== release.branchSha) {
+    errors.push(
+      `branch ${release.branchSha} advanced after validation receipt ${receipt.commitSha}; rerun coordination:validate on the current branch`,
+    );
+  }
   if (release.validationTaskTipSha && release.branchSha !== release.validationTaskTipSha) {
-    const postValidationTaskChanges = (release.postValidationChangedFiles ?? [])
-      .filter((filePath) => Array.isArray(entry.scopes) && entry.scopes.length > 0
-        ? filesOutsideScopes([filePath], entry.scopes).length === 0
-        : receiptFiles.values.includes(filePath));
+    const postValidationTaskChanges = postValidationTaskChangedFiles(entry, release);
     if (postValidationTaskChanges.length > 0) {
       errors.push(
         `committed task changes after validated tip ${release.validationTaskTipSha} are not covered by the receipt: ${postValidationTaskChanges.join(', ')}`,
@@ -2449,10 +2464,26 @@ export async function validateCoordinationEntry(filePath, options) {
         `Coordination entry ${entry.id} has no start branch SHA; rerun with --start-sha <commit> once to backfill it.`,
       );
     }
-    const release = options.release ?? await readReleaseState({
+    let release = options.release ?? await readReleaseState({
       startBranchSha,
       validation: entry.validation,
     });
+    const advancedBranchFiles = !options.release && entry.validation &&
+      release.branchSha !== entry.validation.commitSha
+      ? await readTaskChangedFiles(release.mainSha, release.branchSha, process.cwd())
+      : [];
+    let provenanceRefresh;
+    if (!options.release) {
+      const changedFiles = postValidationTaskChangedFiles(entry, release);
+      if (changedFiles.length > 0) {
+        provenanceRefresh = {
+          previousCommitSha: entry.validation.commitSha,
+          previousTaskTipSha: release.validationTaskTipSha,
+          files: changedFiles,
+        };
+        release = await readReleaseState({ startBranchSha });
+      }
+    }
     const errors = releaseMetadataErrors({
       entry,
       release,
@@ -2470,6 +2501,17 @@ export async function validateCoordinationEntry(filePath, options) {
     const outsideScopes = filesOutsideScopes(release.changedFiles ?? [], entry.scopes);
     if (outsideScopes.length > 0) {
       errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
+    }
+    const declaredScopes = Array.isArray(entry.scopes) && entry.scopes.length > 0
+      ? entry.scopes
+      : normalizedPathSet(entry.validation?.files).values;
+    const advancedOutsideScopes = Array.isArray(entry.scopes) && entry.scopes.length > 0
+      ? filesOutsideScopes(advancedBranchFiles, declaredScopes)
+      : advancedBranchFiles.filter((filePath) => !declaredScopes.includes(filePath));
+    if (advancedOutsideScopes.length > 0) {
+      errors.push(
+        `changed files outside declared scope after the prior validation receipt: ${advancedOutsideScopes.join(', ')}`,
+      );
     }
     errors.push(...implementationPlanGateErrors(entry));
     const testGrowthJustification = text(options['test-growth-justification']);
@@ -2511,7 +2553,11 @@ export async function validateCoordinationEntry(filePath, options) {
       entryStartedAt: entry.startedAt,
       entryBranchName: entry.branchName,
       entryVersionPlan: entry.versionPlan,
-      validation: entry.validation,
+      entryWorkType: entry.workType,
+      entryImplementationPrompt: entry.implementationPrompt,
+      previousValidation: entry.validation,
+      validation: provenanceRefresh ? undefined : entry.validation,
+      provenanceRefresh,
       startBranchSha,
       release,
       plan,
@@ -2610,6 +2656,8 @@ export async function validateCoordinationEntry(filePath, options) {
       id: options.id,
       branchName: preparation.entryBranchName,
       versionPlan: preparation.entryVersionPlan,
+      workType: preparation.entryWorkType,
+      implementationPrompt: preparation.entryImplementationPrompt,
     },
     release: finalRelease,
     requireMerged: false,
@@ -2647,9 +2695,21 @@ export async function validateCoordinationEntry(filePath, options) {
         `Cannot record validation for ${entry.id}: the coordination entry changed while checks ran; rerun validation.`,
       );
     }
+    if (JSON.stringify(entry.validation ?? null) !==
+      JSON.stringify(preparation.previousValidation ?? null)) {
+      throw new Error(
+        `Cannot record validation for ${entry.id}: its validation receipt changed while checks ran; rerun validation.`,
+      );
+    }
 
     entry.startBranchSha = preparation.startBranchSha;
     entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
+    if (entry.validation) {
+      entry.validationHistory = [
+        ...(Array.isArray(entry.validationHistory) ? entry.validationHistory : []),
+        entry.validation,
+      ];
+    }
     entry.validation = {
       commitSha: finalRelease.branchSha,
       completedAt: new Date().toISOString(),
@@ -2658,6 +2718,9 @@ export async function validateCoordinationEntry(filePath, options) {
       files: preparation.release.changedFiles,
       docsOnly: finalPlan.documentationOnly,
       profile: finalPlan.profile,
+      ...(preparation.provenanceRefresh
+        ? { provenanceRefresh: preparation.provenanceRefresh }
+        : {}),
       ...(preparedEmulator
         ? {
             emulator: {
