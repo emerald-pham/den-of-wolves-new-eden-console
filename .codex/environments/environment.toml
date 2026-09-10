@@ -3,7 +3,6 @@ name = "Install dependencies"
 
 [setup]
 script = """
-node scripts/enforce-worktree-limit.mjs --apply &&
 npm ci --prefer-offline --no-audit &&
 npm ci --prefix functions --prefer-offline --no-audit
 """

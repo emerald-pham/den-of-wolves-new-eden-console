@@ -14,8 +14,15 @@ describe('Codex worktree environment', () => {
     expect(environment).toContain(
       'npm ci --prefix functions --prefer-offline --no-audit',
     );
-    expect(environment).toContain(
+    expect(environment).not.toContain(
       'node scripts/enforce-worktree-limit.mjs --apply',
     );
+
+    const rootInstall = environment.indexOf('npm ci --prefer-offline --no-audit');
+    const functionsInstall = environment.indexOf(
+      'npm ci --prefix functions --prefer-offline --no-audit',
+    );
+    expect(rootInstall).toBeGreaterThanOrEqual(0);
+    expect(functionsInstall).toBeGreaterThan(rootInstall);
   });
 });
