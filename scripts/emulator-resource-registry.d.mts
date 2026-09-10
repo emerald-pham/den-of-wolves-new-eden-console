@@ -57,6 +57,7 @@ export interface CoordinationEntry {
   readonly pushed?: boolean;
   readonly validation?: ValidationReceipt;
   readonly validationHistory?: readonly ValidationReceipt[];
+  readonly validationReused?: boolean;
 }
 
 export interface CoordinationAmendment {
@@ -74,6 +75,10 @@ export interface ValidationReceipt {
   readonly commands: readonly string[];
   readonly files: readonly string[];
   readonly docsOnly: boolean;
+  readonly inputFingerprint?: {
+    readonly schemaVersion: number;
+    readonly identity: string;
+  };
   readonly profile?: {
     readonly kind: 'full' | 'copy-only';
     readonly reason: string;
