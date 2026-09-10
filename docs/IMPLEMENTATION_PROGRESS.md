@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**87 / 730 prompts complete (11.92%)**
+**88 / 730 prompts complete (12.05%)**
 
-Status breakdown: **87 done · 25 partial · 0 active · 618 missing**.
+Status breakdown: **88 done · 25 partial · 0 active · 617 missing**.
 
 Active prompt: **none**.
 
@@ -529,7 +529,7 @@ release classification and evidence.
 | 130 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 131 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 132 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 133 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 133 | done | non-feature | — | Focused `adjustShipPopulation` production-callable proof in `functions/src/shipPopulationCallables.test.ts` covers all seven printed tracks, next printed values, endpoints, off-track denial, threshold alert creation, and pending-alert no-write behavior; no production-path change. |
 | 134 | missing | non-feature | — | Planned [REPAIR] prompt: current alerts can require every GM instance and let a stale optional GM deadlock maintenance. One-GM ownership/unblock, informational additional-GM delivery, stale-instance expiry, and one-winner acknowledgement remain open. |
 | 135 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 136 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
