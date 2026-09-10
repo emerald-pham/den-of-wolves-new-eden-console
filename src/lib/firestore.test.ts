@@ -367,3 +367,164 @@ it('hydrates legacy seat labels and factions from the canonical role catalog', (
     }),
   ]);
 });
+
+type SessionSnapshot = {
+  readonly exists: () => boolean;
+  readonly id: string;
+  readonly data: () => Record<string, unknown>;
+};
+
+function liveTurnData(
+  currentTurn: number,
+  state: 'restricted' | 'lifted',
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ...sessionData(8),
+    phase: 'active',
+    currentTurn,
+    turnPhase: {
+      turn: currentTurn,
+      teamPhaseEndsAt: '2026-09-10T12:05:00.000Z',
+      openAirspaceEndsAt: '2026-09-10T12:20:00.000Z',
+      airspace: { state, tickerActive: true, pressAccess: false },
+    },
+    ...overrides,
+  };
+}
+
+function sessionSnapshot(data: Record<string, unknown>): SessionSnapshot {
+  return { exists: () => true, id: 's1', data: () => data };
+}
+
+function captureSessionListener() {
+  const callbacks: Array<(snapshot: SessionSnapshot) => void> = [];
+  const unsubscribeSpies: Array<ReturnType<typeof vi.fn>> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: SessionSnapshot) => void);
+    const unsubscribe = vi.fn();
+    unsubscribeSpies.push(unsubscribe);
+    return unsubscribe;
+  }) as never);
+  return { callbacks, unsubscribeSpies };
+}
+
+it('suppresses delayed older lifecycle snapshots at the session listener boundary', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted')));
+
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
+});
+
+it('suppresses an earlier airspace phase within the same turn but keeps newer data in the current window', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 2 } } })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 3 } } })));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    currentTurn: 1,
+    shipResources: { aegis: { ore: 3 } },
+  });
+});
+
+it('delivers equal lifecycle snapshots when only current-window data changes', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 2 } } })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 3 } } })));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    currentTurn: 1,
+    phase: 'active',
+    shipResources: { aegis: { ore: 3 } },
+  });
+});
+
+it('allows the authoritative phase reset for a legitimate next turn', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted')));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    turnPhase: { turn: 2, airspace: { state: 'restricted' } },
+  });
+});
+
+it.each(['success', 'failure', 'debrief', 'closed'] as const)(
+  'does not regress a %s session to an actionable phase',
+  (terminalPhase) => {
+    const { callbacks } = captureSessionListener();
+    const onSession = vi.fn();
+    subscribeSessionState('s1', 'u1', {
+      onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    });
+
+    callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: terminalPhase, currentTurn: 2 }));
+    callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
+
+    expect(onSession).toHaveBeenCalledTimes(1);
+    expect(onSession.mock.lastCall?.[0]).toMatchObject({ phase: terminalPhase });
+  },
+);
+
+it('resets ordering when a session listener is torn down and re-subscribed', () => {
+  const first = captureSessionListener();
+  const firstOnSession = vi.fn();
+  const unsubscribe = subscribeSessionState('s1', 'u1', {
+    onSession: firstOnSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  first.callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted')));
+  unsubscribe();
+
+  const second = captureSessionListener();
+  const secondOnSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: secondOnSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+  second.callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
+
+  expect(firstOnSession).toHaveBeenCalledTimes(1);
+  expect(secondOnSession).toHaveBeenCalledTimes(1);
+  expect(secondOnSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 1 });
+  expect(first.unsubscribeSpies.every((unsubscribeSpy) => unsubscribeSpy.mock.calls.length === 1)).toBe(true);
+});
+
+it('keeps malformed and legacy lifecycle fields safe without throwing or inventing authority', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  expect(() => {
+    callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: 'legacy-phase', currentTurn: 'old' }));
+    callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
+  }).not.toThrow();
+  expect(onSession).toHaveBeenCalledTimes(2);
+});

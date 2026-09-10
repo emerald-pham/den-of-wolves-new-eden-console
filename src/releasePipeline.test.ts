@@ -139,17 +139,17 @@ it('re-runs the existing implementation-progress validator against generated rel
     await prepareReleaseFragmentFile(lanePath, {
       taskId: 'finalizer-task',
       worktree: root,
-      baseVersion: '0.3.25',
+      baseVersion: '0.3.26',
       baseMainSha: 'main-a',
       changes: ['A validated finalizer note.'],
       implementationProgress: {
-        completed: 86,
+        completed: 87,
         total: 730,
-        percentage: '11.78%',
-        done: 86,
+        percentage: '11.92%',
+        done: 87,
         partial: 25,
         active: 0,
-        missing: 619,
+        missing: 618,
       },
     });
     await applyReleaseFragment(lanePath, {
@@ -168,7 +168,7 @@ it('re-runs the existing implementation-progress validator against generated rel
     });
 
     const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
-    expect(packageJson.version).toBe('0.3.26');
+    expect(packageJson.version).toBe('0.3.27');
     expect(await readFile(resolve(root, 'src/changelog.ts'), 'utf8')).toContain(
       'A validated finalizer note.',
     );
@@ -327,7 +327,7 @@ it('binds central fragment preparation and landing to the task receipt and curre
       coordinationFilePath: coordinationPath,
       coordinationEntryId: 'bound-release-task',
     });
-    expect(landed).toMatchObject({ taskId: 'bound-release-task', version: '0.3.26' });
+    expect(landed).toMatchObject({ taskId: 'bound-release-task', version: '0.3.27' });
     const lane = JSON.parse(await readFile(lanePath, 'utf8'));
     expect(lane.fragments[0]).toMatchObject({
       state: 'landed',

@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**86 / 730 prompts complete (11.78%)**
+**87 / 730 prompts complete (11.92%)**
 
-Status breakdown: **86 done · 25 partial · 0 active · 619 missing**.
+Status breakdown: **87 done · 25 partial · 0 active · 618 missing**.
 
 Active prompt: **none**.
 
@@ -40,6 +40,24 @@ existing seat/console and flag-selection experiences while preserving the
 historical bespoke flag choreography. The version 0.3.13 release snapshot below
 therefore records the expanded 721-prompt denominator; older release snapshots
 remain historical rather than being retroactively restated.
+
+### Version 0.3.26 progress evidence
+
+The release boundary records Prompt 109 complete at **87 / 730 = 11.92%** with
+**87 done · 25 partial · 0 active · 618 missing**. The production
+`subscribeSessionState` session-document listener now keeps a per-subscription
+server lifecycle cursor: delayed lower-turn snapshots and earlier
+Team-phase snapshots cannot replace a newer accepted window, while equal
+lifecycle snapshots still deliver current-window resource and state changes.
+The cursor follows the existing authoritative lifecycle transition graph and
+normalized `TurnPhase` state, allows the server-authorized next-turn Team reset,
+blocks actionable regressions after success/failure/debrief/closed outcomes,
+and resets on listener teardown/re-subscribe. Focused
+`src/lib/firestore.test.ts` regressions exercise the real listener callback,
+malformed/legacy normalization, equal-window data flow, and unsubscribe
+behavior. Prompt 088 remains partial because universal delayed ordering across
+all projections is not claimed here; Prompt 109 covers this session listener
+boundary only.
 
 Version 0.3.13 closes Prompt 051 production roster-to-start composition, Prompt
 054 authoritative routine Wolf derivation, and Prompt 071 one-GM readiness.
@@ -466,7 +484,7 @@ release classification and evidence.
 | 106c | missing | non-feature | — | Future server-authoritative FleetTicker lifecycle: deterministic session/message/revision identities, precedence, current/queued/draining state, pass counts, dismissals, and replay cursors must serialize concurrent automatic/Admiral/Press send-replace-dismiss and Red Alert activation/stand-down. Reconnect/replay/late join and every client converge; idempotent CAS, authenticated authority, privacy-safe projection/audit, schema bounds, and direct-write denial precede P652a/P652b. |
 | 107 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 108 | done | non-feature | — | Existing `src/components/FleetAlert.test.tsx` feeds an active Team phase through the actual `subscribeSessionState` listener, renders the server-deadline timer and permitted action controls, advances the client clock, unsubscribes and reconnects with the same persisted snapshot, then observes the reduced remaining time and the lifted Coordination action gate. Proof-only; no production change. |
-| 109 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 109 | done | feature | 0.3.26 | `subscribeSessionState` now suppresses delayed lower-turn and earlier same-turn Team snapshots at the production session listener boundary using the authoritative lifecycle transition graph plus normalized server `TurnPhase`; equal lifecycle snapshots still flow newer current-window data, next-turn Team resets are accepted, terminal/debrief/closed states cannot reopen actionable phases, malformed/legacy records remain safe, and teardown/re-subscribe gets a fresh cursor. Focused `src/lib/firestore.test.ts` regressions prove the listener callback path. Prompt 088 remains partial because this does not claim universal ordering across every projection. |
 | 110 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 111 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 112 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

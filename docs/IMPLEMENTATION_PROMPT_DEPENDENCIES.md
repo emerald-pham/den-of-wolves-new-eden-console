@@ -173,7 +173,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 106c | EXTEND | missing | none | none | none | none | none | TICKER-LIFECYCLE | none | none | E-TICKER | M2 | Make fleet-ticker lifecycle server-authoritative. |
 | 107 | DECISION | missing | none | none | none | none | none | none | none | none | none | M2 | Decide split-fleet clock semantics. |
 | 108 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Reconnect during a live timer. |
-| 109 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Reconcile delayed lifecycle updates. |
+| 109 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Reconcile delayed lifecycle updates. |
 | 110 | PROVE | missing | none | none | none | none | none | none | none | none | none | M2 | Run the lobby-to-two-turn scenario. |
 | 111 | PRESERVE | missing | none | none | none | none | none | none | none | none | none | M2 | Define authoritative resource ledgers. |
 | 112 | NEW | missing | none | none | none | none | none | none | none | none | none | M2 | Resolve same-table trades. |

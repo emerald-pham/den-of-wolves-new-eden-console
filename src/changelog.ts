@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [109],
+    implementationProgress: {
+      completed: 87,
+      total: 730,
+      percentage: '11.92%',
+      done: 87,
+      partial: 25,
+      active: 0,
+      missing: 618,
+    },
+    changes: [
+      'Live session updates now keep every player on the newest turn and phase, so a delayed older update cannot bring back an action from a window that has already closed. — Roadmap progress: 87 of 730 prompts complete (11.92%).',
+    ],
+  },
+  {
+    version: '0.3.25',
     implementationPrompts: [602],
     implementationProgress: {
       completed: 86,

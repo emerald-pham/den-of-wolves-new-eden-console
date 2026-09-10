@@ -47,6 +47,10 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
+import {
+  LEGAL_LIFECYCLE_TRANSITIONS,
+  type LifecyclePhase,
+} from '../../functions/src/lifecycle';
 
 let firestore: Firestore | undefined;
 
@@ -394,6 +398,123 @@ function gmInstanceFrom(
   };
 }
 
+type SessionLifecycleCursor = {
+  readonly currentTurn: number;
+  readonly phase?: LifecyclePhase;
+  /** The server-owned Team/Coordination phase, not client time. */
+  readonly airspaceState?: 0 | 1;
+};
+
+const ACTIONABLE_LIFECYCLE_PHASES: readonly LifecyclePhase[] = [
+  'lobby', 'casting', 'briefing', 'active',
+];
+
+function lifecyclePhase(value: unknown): value is LifecyclePhase {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(
+    LEGAL_LIFECYCLE_TRANSITIONS,
+    value,
+  );
+}
+
+function canReachLifecyclePhase(
+  from: LifecyclePhase,
+  target: LifecyclePhase,
+  visited = new Set<LifecyclePhase>(),
+): boolean {
+  if (from === target) return true;
+  if (visited.has(from)) return false;
+  visited.add(from);
+  return LEGAL_LIFECYCLE_TRANSITIONS[from].some((next) =>
+    canReachLifecyclePhase(next, target, new Set(visited)));
+}
+
+function canReachActionableLifecyclePhase(
+  phase: LifecyclePhase,
+  visited = new Set<LifecyclePhase>(),
+): boolean {
+  if (ACTIONABLE_LIFECYCLE_PHASES.includes(phase)) return true;
+  if (visited.has(phase)) return false;
+  visited.add(phase);
+  return LEGAL_LIFECYCLE_TRANSITIONS[phase].some((next) =>
+    canReachActionableLifecyclePhase(next, new Set(visited)));
+}
+
+function isNonReopenableLifecyclePhase(phase: LifecyclePhase): boolean {
+  return !canReachActionableLifecyclePhase(phase);
+}
+
+function sessionLifecycleCursor(
+  session: GameSession,
+  previous: SessionLifecycleCursor | undefined,
+): SessionLifecycleCursor {
+  const storedTurn = session.currentTurn;
+  const currentTurn = typeof storedTurn === 'number' && Number.isSafeInteger(storedTurn) && storedTurn >= 0
+    ? storedTurn
+    : previous?.currentTurn ?? 1;
+  const phase = lifecyclePhase(session.phase) ? session.phase : previous?.phase;
+  const turnPhase = session.turnPhase?.turn === currentTurn ? session.turnPhase : undefined;
+  const airspaceState = phase === 'active'
+    ? turnPhase?.airspace.state === 'lifted'
+      ? 1 as const
+      : turnPhase?.airspace.state === 'restricted'
+        ? 0 as const
+        : previous !== undefined && previous.currentTurn === currentTurn && previous.phase === 'active'
+          ? previous.airspaceState
+          : undefined
+    : undefined;
+  return {
+    currentTurn,
+    ...(phase ? { phase } : {}),
+    ...(airspaceState === undefined ? {} : { airspaceState }),
+  };
+}
+
+/**
+ * Firestore may deliver cached snapshots after a newer server snapshot. Keep
+ * the server lifecycle monotonic while allowing equal-window data changes to
+ * reach the store. Ordering is based only on authoritative turn/phase fields.
+ */
+function acceptsSessionLifecycleSnapshot(
+  previous: SessionLifecycleCursor | undefined,
+  next: SessionLifecycleCursor,
+): boolean {
+  if (!previous) return true;
+
+  // Terminal outcomes and debrief/closed states can never reopen an action
+  // window, even if a delayed snapshot reports a larger (legacy) turn value.
+  if (previous.phase && next.phase &&
+      isNonReopenableLifecyclePhase(previous.phase) &&
+      ACTIONABLE_LIFECYCLE_PHASES.includes(next.phase)) {
+    return false;
+  }
+  if (next.currentTurn < previous.currentTurn) return false;
+
+  if (previous.phase && next.phase && previous.phase !== next.phase &&
+      next.currentTurn === previous.currentTurn) {
+    const directTransition = LEGAL_LIFECYCLE_TRANSITIONS[previous.phase].includes(next.phase);
+    if (isNonReopenableLifecyclePhase(previous.phase) && !directTransition) return false;
+    if (isNonReopenableLifecyclePhase(next.phase) && !directTransition) return false;
+
+    // A one-way path from the incoming phase back to the accepted phase means
+    // this is an older lifecycle snapshot. Cyclic setup edges remain valid.
+    if (
+      canReachLifecyclePhase(next.phase, previous.phase) &&
+      !canReachLifecyclePhase(previous.phase, next.phase)
+    ) return false;
+  }
+
+  // Within one numbered turn, restricted Team precedes lifted Coordination.
+  // Ignore malformed/missing clocks rather than inventing client authority.
+  if (
+    next.currentTurn === previous.currentTurn &&
+    previous.phase === 'active' && next.phase === 'active' &&
+    previous.airspaceState !== undefined && next.airspaceState !== undefined &&
+    next.airspaceState < previous.airspaceState
+  ) return false;
+
+  return true;
+}
+
 export interface SessionStateHandlers {
   readonly onSession: (session: GameSession) => void;
   readonly onPlayer: (player: Player) => void;
@@ -411,9 +532,18 @@ export function subscribeSessionState(
   handlers: SessionStateHandlers,
 ): Unsubscribe {
   const database = db();
+  let subscribed = true;
+  let latestSessionLifecycle: SessionLifecycleCursor | undefined;
   const unsubscribes = [
     onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
-      if (snapshot.exists()) handlers.onSession(sessionFrom(snapshot.id, snapshot.data()));
+      if (!subscribed) return;
+      if (snapshot.exists()) {
+        const session = sessionFrom(snapshot.id, snapshot.data());
+        const nextLifecycle = sessionLifecycleCursor(session, latestSessionLifecycle);
+        if (!acceptsSessionLifecycleSnapshot(latestSessionLifecycle, nextLifecycle)) return;
+        latestSessionLifecycle = nextLifecycle;
+        handlers.onSession(session);
+      }
       else handlers.onError();
     }, handlers.onError),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), (snapshot) => {
@@ -451,7 +581,10 @@ export function subscribeSessionState(
       handlers.onError,
     )] : []),
   ];
-  return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  return () => {
+    subscribed = false;
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
 }
 
 export function subscribeGmInstances(
