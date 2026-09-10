@@ -559,6 +559,15 @@ function requireTurnOneForGameplay(session: DocumentSnapshot): void {
   }
 }
 
+function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
+  if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
+    throw new HttpsError(
+      'failed-precondition',
+      'The airspace window has closed. Wait for the next turn.',
+    );
+  }
+}
+
 /**
  * Enforce the shared Team/Coordination policy when a session has a phase
  * clock. Legacy sessions predate that field and retain their existing
@@ -3398,6 +3407,7 @@ export const beginOpenAirspacePhase = onCall<{
         'The emergency timer is paused. Resume it before changing airspace.',
       );
     }
+    requireLiveAirspaceWindow(phase);
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
       throw new HttpsError('failed-precondition', 'The airspace-closed timer is still active.');
     }
@@ -3560,6 +3570,7 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
         'The emergency timer is paused. Resume it before changing airspace.',
       );
     }
+    requireLiveAirspaceWindow(phase);
     // A late command can be the first live request after the team deadline.
     // Heal the shared clock before evaluating a restriction-only exception.
     if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.teamPhaseEndsAt)) {

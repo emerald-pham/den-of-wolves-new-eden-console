@@ -20,7 +20,7 @@ rg -n "^\| $prompt_id \|" docs/IMPLEMENTATION_PROGRESS.md
 
 ## Coverage and integrity
 
-At this commit the plan contains 729 canonical IDs: 661 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
+At this commit the plan contains 730 canonical IDs: 662 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
 
 ~~~sh
 plan_count=$(rg -c '^- \*\*Prompt [0-9]{3}[a-z]* —' docs/IMPLEMENTATION_PLAN.md)
@@ -214,7 +214,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 140e | NEW | missing | none | none | none | none | none | none | none | none | none | M3;M11 | Move players into escape state. |
 | 140f | NEW | missing | none | none | none | none | none | none | none | none | none | M3;M11 | Preserve retained shuttles. |
 | 140g | NEW | missing | none | none | none | none | none | none | none | none | none | M3;M11 | Scavenge destroyed-ship stores. |
-| 141 | NEW | missing | none | none | none | none | none | none | none | none | none | M2 | Define normal airspace. |
+| 141 | NEW | done | none | none | none | none | none | none | none | none | none | M2 | Define normal airspace. |
 | 142 | NEW | missing | none | none | none | none | none | none | none | none | none | M2 | Enforce Team Phase docking. |
 | 143 | NEW | missing | none | none | none | none | none | none | none | none | none | M2 | Bind shuttle holder and dock. |
 | 144 | NEW | missing | none | none | none | none | none | none | none | none | none | M2 | Resolve a legal shuttle move. |
@@ -789,6 +789,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 660 | REPAIR | done | none | none | none | none | none | none | none | none | none | none | Make exact validation self-prepare a collision-safe emulator slot. |
 | 661 | POLISH | done | none | none | none | none | none | none | none | none | none | none | Add a safe copy-only validation fast path. |
 | 662 | DECISION | missing | none | none | none | OWNER-APPROVED-WOLF-DESIGNATION-POLICY | none | none | none | 054;075;496;586-588 | E-662 | none | Resolve ordinary-start Wolf designation policy. |
+| 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 
 ## Explicit sequence rules
 

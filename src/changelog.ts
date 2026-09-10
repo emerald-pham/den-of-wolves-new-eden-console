@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: [141],
+    implementationProgress: {
+      completed: 86,
+      total: 730,
+      percentage: '11.78%',
+      done: 86,
+      partial: 24,
+      active: 0,
+      missing: 620,
+    },
+    changes: [
+      'GMs can now open the normal airspace window through one server-authorized, retry-safe transition, so eligible craft can move only when the live phase permits it. — Roadmap progress: 86 of 730 prompts complete (11.78%).',
+    ],
+  },
+  {
+    version: '0.3.22',
     implementationProgress: {
       completed: 85,
       total: 729,
