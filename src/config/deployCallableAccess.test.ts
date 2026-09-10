@@ -8,4 +8,5 @@ it('restores public transport access for the browser-callable Turn 1 demo after 
   expect(workflow).toContain('gcloud functions add-invoker-policy-binding startSinglePlayerDemo');
   expect(workflow).toContain('--member="allUsers"');
   expect(workflow).toContain('--region="us-central1"');
+  expect(workflow).toContain('verify-deployment.mjs');
 });

@@ -14,6 +14,12 @@ import {
   readImplementationProgress,
   validateImplementationProgress,
 } from '../scripts/validate-implementation-progress.mjs';
+import {
+  ALL_DEPLOYMENT_TARGETS,
+  classifyChangedFiles,
+  formatGitHubOutputs,
+} from '../scripts/deployment-targets.mjs';
+import { verifyDeployment } from '../scripts/verify-deployment.mjs';
 
 const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const deploy = readFileSync('.github/workflows/deploy.yml', 'utf8');
@@ -34,6 +40,110 @@ const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8
 };
 const FIREBASE_CLI = 'firebase-tools@15.29.0';
 const execFileAsync = promisify(execFile);
+
+it('classifies changed files into affected deployment surfaces', () => {
+  expect(classifyChangedFiles(['src/routes/Landing.tsx']).targets).toEqual(['hosting']);
+  expect(classifyChangedFiles(['firestore.rules']).targets).toEqual(['firestore']);
+  expect(classifyChangedFiles(['functions/src/index.ts']).targets).toEqual(['functions']);
+  expect(classifyChangedFiles(['firebase.json']).targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
+  expect(classifyChangedFiles(['src/routes/Landing.tsx', 'functions/src/index.ts']).targets)
+    .toEqual(['hosting', 'functions']);
+});
+
+it('classifies the cumulative range from the last successful deployment', () => {
+  // A queued main run must include every surface changed since the deployed
+  // SHA, not only the latest push's event.before..event.after range.
+  const result = classifyChangedFiles([
+    'functions/src/index.ts',
+    'firestore.rules',
+  ]);
+
+  expect(result.targets).toEqual(['firestore', 'functions']);
+});
+
+it('skips proven documentation, test, and tooling-only changes', () => {
+  const result = classifyChangedFiles([
+    'README.md',
+    'docs/ci-deploy-setup.md',
+    'src/routes/Landing.test.tsx',
+    'functions/src/index.test.ts',
+    'scripts/deployment-targets.mjs',
+    '.github/workflows/ci.yml',
+  ]);
+
+  expect(result.targets).toEqual([]);
+  expect(result.unknownFiles).toEqual([]);
+  expect(formatGitHubOutputs(result)).toContain('has_targets=false');
+});
+
+it('fails closed to all surfaces for an unknown changed file', () => {
+  const result = classifyChangedFiles(['.env.production']);
+
+  expect(result.targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
+  expect(result.unknownFiles).toEqual(['.env.production']);
+});
+
+it('treats manual deployment as an explicit all-surface request', () => {
+  expect(classifyChangedFiles([], { manual: true }).targets).toEqual([...ALL_DEPLOYMENT_TARGETS]);
+});
+
+it('verifies Hosting and public Functions through injected production adapters', async () => {
+  const commands: string[][] = [];
+  const result = await verifyDeployment({
+    targets: [...ALL_DEPLOYMENT_TARGETS],
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.3.26',
+    hostingUrl: 'https://dow-new-eden-console.web.app',
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({ version: '0.3.26' }),
+    }),
+    runCommand: async (_command, args) => {
+      commands.push([...args]);
+      if (args[1] === 'list') {
+        return JSON.stringify([
+          { name: 'triggerDradisContact', state: 'ACTIVE' },
+          { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+        ]);
+      }
+      if (args[0] === 'firestore') {
+        return JSON.stringify({
+          name: 'projects/dow-new-eden-console/databases/(default)',
+          state: 'READY',
+        });
+      }
+      return JSON.stringify({
+        bindings: [{ role: 'roles/run.invoker', members: ['allUsers'] }],
+      });
+    },
+  });
+
+  expect(result).toEqual({ hosting: true, firestore: true, functions: true });
+  expect(commands).toEqual(expect.arrayContaining([
+    expect.arrayContaining(['functions', 'list', '--gen2']),
+    expect.arrayContaining(['functions', 'get-iam-policy', 'triggerDradisContact']),
+    expect.arrayContaining(['functions', 'get-iam-policy', 'startSinglePlayerDemo']),
+    expect.arrayContaining(['firestore', 'databases', 'describe', '--database=(default)']),
+  ]));
+});
+
+it('accepts the legacy Cloud Functions invoker role only for an explicit public member', async () => {
+  const result = await verifyDeployment({
+    targets: ['functions'],
+    projectId: 'dow-new-eden-console',
+    expectedVersion: '0.3.26',
+    runCommand: async (_command, args) => args[1] === 'list'
+      ? JSON.stringify([
+        { name: 'triggerDradisContact', state: 'ACTIVE' },
+        { name: 'startSinglePlayerDemo', state: 'ACTIVE' },
+      ])
+      : JSON.stringify({
+        bindings: [{ role: 'roles/cloudfunctions.invoker', members: ['allUsers'] }],
+      }),
+  });
+
+  expect(result).toEqual({ hosting: false, firestore: false, functions: true });
+});
 
 async function runGit(cwd: string, args: string[]) {
   const { stdout } = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
@@ -56,11 +166,13 @@ function currentImplementationProgress() {
 }
 
 it('tests Firestore rules before a main-branch deployment', () => {
-  const rulesTest = deploy.indexOf('npm run test:rules');
+  const rulesTest = ci.indexOf('npm run test:rules');
   const deployment = deploy.indexOf(`${FIREBASE_CLI} deploy`);
 
   expect(rulesTest).toBeGreaterThan(-1);
   expect(deployment).toBeGreaterThan(rulesTest);
+  expect(deploy).toContain('uses: ./.github/workflows/ci.yml');
+  expect(deploy).toContain('needs: [determine-targets, verify]');
 });
 
 it('does not repeat unit tests during deployment after the pre-push gate', () => {
@@ -68,25 +180,57 @@ it('does not repeat unit tests during deployment after the pre-push gate', () =>
   expect(deploy).not.toMatch(/^\s*run:\s+npm test\s*$/m);
 });
 
+it('verifies one exact SHA and reuses its build artifacts for deployment', () => {
+  expect(ci).toContain('workflow_call:');
+  expect(ci).toContain('branches-ignore: [main]');
+  expect(ci).not.toContain('branches: [main]');
+  expect(ci).toContain('actions/upload-artifact@v4');
+  expect(deploy).toContain('ref: ${{ github.sha }}');
+  expect(deploy).toContain('actions/download-artifact@v4');
+  expect(deploy).toContain('needs: [determine-targets, verify]');
+});
+
+it('keeps CI dependency caches, timeouts, and single-pass bundle checking explicit', () => {
+  expect(ci).toContain('cache-dependency-path:');
+  expect(ci).toContain('package-lock.json');
+  expect(ci).toContain('functions/package-lock.json');
+  expect(ci).toContain('npm ci --prefer-offline --no-audit');
+  expect(ci).toContain('npm ci --prefix functions --prefer-offline --no-audit');
+  expect(ci).toContain('timeout-minutes: 30');
+  expect(ci).toContain('node scripts/check-bundle-size.mjs');
+});
+
 it('deploys only the Firebase surfaces affected by a push', () => {
-  expect(deploy).toContain('Determine deployment targets');
-  expect(deploy).toContain("package.json|package-lock.json|index.html|public/*|src/*|tsconfig*.json|vite.config.*");
-  expect(deploy).toContain("functions/*");
-  expect(deploy).toContain("firestore.rules|firestore.indexes.json");
-  expect(deploy).toContain('--only "${{ steps.targets.outputs.targets }}"');
+  expect(deploy).toContain('scripts/deployment-targets.mjs');
+  expect(deploy).toContain('--only "${{ needs.determine-targets.outputs.targets }}"');
   expect(deploy).not.toContain('--only hosting,firestore,functions');
 });
 
 it('deploys every Firebase surface when manually dispatched', () => {
-  expect(deploy).toContain('github.event_name == \'workflow_dispatch\'');
-  expect(deploy).toContain('targets=hosting,firestore,functions');
+  expect(deploy).toContain('EVENT_NAME: ${{ github.event_name }}');
+  expect(deploy).toContain('--manual');
+  expect(deploy).toContain('workflow_dispatch');
+});
+
+it('uses the last successful deployment as the cumulative target baseline', () => {
+  expect(deploy).toContain('actions: read');
+  expect(deploy).toContain('Find last successful deployment baseline');
+  expect(deploy).toContain('actions/workflows/deploy.yml/runs?branch=main');
+  expect(deploy).toContain('.conclusion == "success"');
+  expect(deploy).toContain('actions/runs/$run_id/jobs?per_page=100');
+  expect(deploy).toContain('select(.name == "deploy")');
+  expect(deploy).toContain('deploy_conclusion');
+  expect(deploy).toContain('queue: max');
+  expect(deploy).toContain('cancel-in-progress: false');
+  expect(deploy).toContain('BASELINE_SHA');
+  expect(deploy).toContain('steps.baseline.outputs.base_sha');
 });
 
 it('uses a version-pinned Firebase CLI throughout CI and deployment', () => {
   expect(packageJson.scripts['test:rules']).toContain('run-emulator-command.mjs');
   expect(emulatorCommand).toContain(FIREBASE_CLI);
   expect(ci).toContain('npm run test:rules');
-  expect(deploy).toContain('npm run test:rules');
+  expect(ci).toContain('npm run test:rules');
   expect(deploy).toContain(FIREBASE_CLI);
   expect(ci).not.toContain('firebase-tools@latest');
   expect(deploy).not.toContain('firebase-tools@latest');
@@ -359,6 +503,12 @@ it('removes retired Cloud Functions during non-interactive deployment', () => {
 
   expect(deployment).toContain('--non-interactive');
   expect(deployment).toContain('--force');
+});
+
+it('keeps local Functions predeploy compilation while verifying CI artifacts', () => {
+  expect(readFileSync('firebase.json', 'utf8')).toContain('CI_VERIFIED_ARTIFACTS');
+  expect(readFileSync('firebase.json', 'utf8')).toContain('verify-functions-artifact.mjs');
+  expect(deploy).toContain('CI_VERIFIED_ARTIFACTS: \'1\'');
 });
 
 it('expires server-only join-attempt limiter records without indexing their timestamp', () => {
