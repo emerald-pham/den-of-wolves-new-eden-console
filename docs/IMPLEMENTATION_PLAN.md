@@ -15,7 +15,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 729-prompt catalog from top to bottom for an ordinary
+Do **not** read this 730-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -63,7 +63,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-729-prompts-001662-plus-lettered-ids)
+- [Prompt checklist](#execution-checklist--all-730-prompts-001663-plus-lettered-ids)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -175,7 +175,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 729-prompt roadmap.
+claim completion of the remaining 730-prompt roadmap.
 
 ## Scope and baseline
 
@@ -2045,9 +2045,9 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 729-ID queue (Prompts 001–662 plus the lettered prompts, with the
+The complete 730-ID queue (Prompts 001–663 plus the lettered prompts, with the
 retired Prompt 071 removed) is in scope for the active completion campaign. All
-729 canonical prompt IDs (001–662 plus the lettered prompts, with the retired
+730 canonical prompt IDs (001–663 plus the lettered prompts, with the retired
 Prompt 071 removed) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -2092,7 +2092,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 729 prompts (001–662 plus lettered IDs; Prompt 071 retired)
+#### Execution checklist — all 730 prompts (001–663 plus lettered IDs; Prompt 071 retired)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2251,7 +2251,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 140e
 - [ ] Prompt 140f
 - [ ] Prompt 140g
-- [ ] Prompt 141
+- [x] Prompt 141
 - [ ] Prompt 142
 - [ ] Prompt 143
 - [ ] Prompt 144
@@ -2826,6 +2826,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [x] Prompt 660
 - [x] Prompt 661
 - [ ] Prompt 662
+- [ ] Prompt 663
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -3595,12 +3596,13 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 660 — [REPAIR] Make exact validation self-prepare a collision-safe emulator slot.** Acceptance: non-documentation exact validation with a missing local emulator config uses the existing atomic `auto` allocator, preserves an existing config, releases only configuration/reservation state it created on success or failure, and provides the exact actionable `emulators:configure -- auto` fallback. Add focused lifecycle/concurrency coverage without cross-worktree collisions.
 - **Prompt 661 — [POLISH] Add a safe copy-only validation fast path.** Acceptance: an explicit, mechanically verified classification permits only static player-copy changes to run focused copy/accessibility checks plus lightweight lint/build/progress/diff gates without `test:all`; mixed or uncertain changes, including behavior/state/routing/ARIA structure/security/authority/localization/CSS/server/rules/config/version/release-infrastructure changes, force the full gate. The path cannot rely on self-attestation or bypass protection; document exact usage and add focused gate coverage.
 - **Prompt 662 — [DECISION] Resolve ordinary-start Wolf designation policy.** Acceptance: current ordinary Setup intentionally has no manual designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, `resetWolves`, and manual-assignment guards require an explicit owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. If automatic server assignment is retained, retire or strictly constrain residual manual/random endpoints and stale guards, clarify in-universe copy explaining when the server assigns Wolves, and prove locked-roster-derived count, private audience, replay/CAS, and unauthorized denial. If manual designation is chosen, require a separate bounded GM-only pre-start flow with roster-derived count/candidates, authoritative validation, audit/replay/CAS, secrecy, a11y, and rules denial. Do not silently choose between policies. Note overlaps/dependencies 054, 071, 075, 496, and 586–588. This is low priority/deferred and remains missing until the owner-approved policy and bounded acceptance are recorded.
+- **Prompt 663 — [REPAIR] Make Fleetwide Red Alert discoverable in a normal browser.** Acceptance: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present so the authorized role has a visible, keyboard-accessible trigger and a rendered regression proves the alert appears and remains usable without obscured controls or overflow. Preserve server-authoritative role, session, phase, and callable checks, direct client-write denial, private/audience boundaries, screen-reader semantics, contrast, responsive containment, and reduced-motion behavior. Remains missing/deferred until separately implemented; existing text-only or isolated component assertions do not count as rendered browser proof.
 
-The backlog contains **729 independently executable prompts** in this
-snapshot: 661 base IDs plus 68 lettered child IDs placed beside their closest
+The backlog contains **730 independently executable prompts** in this
+snapshot: 662 base IDs plus 68 lettered child IDs placed beside their closest
 dependency; retired Prompt 071 is preserved only in historical release notes.
-The current evidence classification is **159 `[PRESERVE]`, 104 `[EXTEND]`,
-366 `[NEW]`, 49 `[PROVE]`, 24 `[DECISION]`, 23 `[REPAIR]`, 2 `[POLISH]`, and 1
+The current evidence classification is **160 `[PRESERVE]`, 104 `[EXTEND]`,
+366 `[NEW]`, 49 `[PROVE]`, 24 `[DECISION]`, 24 `[REPAIR]`, 2 `[POLISH]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 729 Prompts
+# Implementation Plan Progress — All 730 Prompts
 
-This tracker records all 729 canonical prompt IDs in
+This tracker records all 730 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**85 / 729 prompts complete (11.66%)**
+**86 / 730 prompts complete (11.78%)**
 
-Status breakdown: **85 done · 24 partial · 0 active · 620 missing**.
+Status breakdown: **86 done · 24 partial · 0 active · 620 missing**.
 
 Active prompt: **none**.
 
@@ -30,6 +30,9 @@ committed AST/diff proof and fails closed to the full gate.
 Prompt 662 is a low-priority/deferred [DECISION] about ordinary-start Wolf
 designation policy and remains missing; no automatic or manual policy is
 selected in this roadmap entry.
+Prompt 663 is a deferred [REPAIR] for Fleetwide Red Alert discoverability and
+standard desktop rendered-browser proof; it remains missing until separately
+implemented and does not count toward completed behavior.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 The country-flag regression report is retracted: P031a instead composes the
@@ -105,6 +108,20 @@ Prompt 598 is reopened as a partial connectivity repair; Prompts 654–656 are
 queued missing repairs with no production evidence.
 Prompt 139 audience projection and Prompt 140 all-vessel coverage remain
 outside this release.
+
+### Version 0.3.23 progress evidence
+
+The release boundary records Prompt 141 complete at **86 / 730 = 11.78%**
+with **86 done · 24 partial · 0 active · 620 missing**. The authoritative
+`beginOpenAirspacePhase` callable now rejects reopening restricted normal
+airspace after its server-owned Coordination deadline while preserving active
+session-member authorization, expected-turn CAS, write-free retries after a
+lifted transition, and the deterministic member-visible `airspace-opened`
+event. Focused callable regressions cover the stale-deadline and unauthorized
+member guards; the existing rules suite continues to deny direct gameplay
+writes. Shuttle departure, holder/dock binding, and legal movement remain the
+separate Prompts 142–144. Prompt 663 is added as a missing/deferred roadmap
+repair and is not counted as complete in this release.
 
 ### Version 0.3.22 progress evidence
 
@@ -490,7 +507,7 @@ release classification and evidence.
 | 140e | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140f | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140g | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 141 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 141 | done | feature | 0.3.23 | The authoritative `beginOpenAirspacePhase` transition now rejects reopening restricted normal airspace after the server-owned Coordination deadline while preserving active-member authorization, expected-turn CAS, lifted retry idempotency, and the deterministic member-visible `airspace-opened` event; Prompts 142–144 remain separate shuttle behavior. |
 | 142 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 143 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 144 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -1065,6 +1082,8 @@ release classification and evidence.
 | 660 | done | non-feature | — | Completed as tooling-only infrastructure: exact full validation self-prepares a missing local emulator configuration through the atomic allocator, records configuration/content identity, preserves pre-existing or replaced files, and releases only its own reservation/files with the exact `npm run emulators:configure -- auto` fallback. |
 | 661 | done | non-feature | — | Completed as tooling-only infrastructure: exact validation derives an AST/diff-proven static-copy profile requiring an allowlisted player source plus focused test, runs focused copy/a11y and lightweight gates only for that profile, and fails closed to `test:all` for mixed, uncertain, structural, security, or infrastructure changes. |
 | 662 | missing | non-feature | — | Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing. |
+
+| 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 
 ## Working notes
 
