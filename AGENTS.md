@@ -13,6 +13,14 @@ The executable `coordination:validate` and `coordination:finish` commands are
 the machine-checked release gate; do not mark an entry complete by editing the
 ledger or supplying an unverified result.
 
+## Private reference archive
+
+The removed `docs/reference/` library is retained for authorized local
+recovery in the owner-only archive at
+`/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/docs/reference/`.
+This archive is outside Git, has no `.git` metadata or GitHub remote, and must
+not be copied, committed, linked, or quoted into this repository or GitHub.
+
 ## Start-of-run priority
 
 Instructions read and followed at the start of an agent run are more likely to
