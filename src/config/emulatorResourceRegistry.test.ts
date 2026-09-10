@@ -2173,6 +2173,70 @@ describe('local emulator coordination', () => {
       const { stdout: initialDiff } = await execFileAsync('git', [
         'diff', '--unified=0', `${baseSha}...${initialArtifactTipSha}`,
       ], { cwd: root, encoding: 'utf8' });
+      const initialValidation = {
+        commitSha: initialArtifactTipSha,
+        completedAt: '2026-09-10T00:05:00.000Z',
+        passed: true,
+        commands: ['git diff --check', 'npm run coordination:docs'],
+        files: ['docs/release.md'],
+        docsOnly: true,
+        profile: {
+          kind: 'full',
+          reason: 'fixture initial validation',
+          commands: [],
+          evidence: {
+            baseSha,
+            branchSha: initialArtifactTipSha,
+            diffIdentity: createHash('sha256').update(initialDiff.trim()).digest('hex'),
+          },
+        },
+        reviews: { documentation: 'Initial artifact reviewed.' },
+      };
+
+      await runFixtureGit(root, ['switch', '-c', 'docs/revalidation-out-of-scope']);
+      await writeFile(resolve(root, 'docs/unrelated.md'), 'Unowned follow-up.\n');
+      await runFixtureGit(root, ['add', 'docs/unrelated.md']);
+      await runFixtureGit(root, ['commit', '-m', 'fixture unowned follow-up']);
+      const outOfScopeEntry = {
+        id: 'revalidation-out-of-scope',
+        worktree: root,
+        startedAt: '2026-09-10T00:00:00.000Z',
+        status: 'active',
+        intent: 'fixture reject unowned revalidation',
+        workType: 'documentation',
+        scopes: ['docs/release.md'],
+        claims: ['fixture-revalidation-out-of-scope'],
+        branchName: 'docs/revalidation-out-of-scope',
+        startBranchSha: baseSha,
+        startMainSha: baseSha,
+        versionPlan: 'Documentation-only; no application version change.',
+        preemptiveChangelog: 'No player-facing change.',
+        validation: initialValidation,
+      };
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [outOfScopeEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      await expect(execFileAsync(process.execPath, [
+        scriptPath,
+        'validate',
+        '--id',
+        outOfScopeEntry.id,
+        '--documentation-review',
+        'Original artifact remains reviewed.',
+      ], {
+        cwd: root,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      })).rejects.toThrow(/changed files outside declared scope.*docs\/unrelated\.md/i);
+      expect(JSON.parse(await readFile(filePath, 'utf8')).entries[0]?.validation)
+        .toMatchObject({ commitSha: initialArtifactTipSha });
+
+      await runFixtureGit(root, ['switch', 'docs/revalidation-refresh']);
 
       await writeFile(resolve(root, 'docs/release.md'), 'Corrected reviewed artifact.\n');
       await runFixtureGit(root, ['add', 'docs/release.md']);
@@ -2193,25 +2257,7 @@ describe('local emulator coordination', () => {
         startMainSha: baseSha,
         versionPlan: 'Documentation-only; no application version change.',
         preemptiveChangelog: 'No player-facing change.',
-        validation: {
-          commitSha: initialArtifactTipSha,
-          completedAt: '2026-09-10T00:05:00.000Z',
-          passed: true,
-          commands: ['git diff --check', 'npm run coordination:docs'],
-          files: ['docs/release.md'],
-          docsOnly: true,
-          profile: {
-            kind: 'full',
-            reason: 'fixture initial validation',
-            commands: [],
-            evidence: {
-              baseSha,
-              branchSha: initialArtifactTipSha,
-              diffIdentity: createHash('sha256').update(initialDiff.trim()).digest('hex'),
-            },
-          },
-          reviews: { documentation: 'Initial artifact reviewed.' },
-        },
+        validation: initialValidation,
       };
       await writeFile(filePath, JSON.stringify({
         version: 1,

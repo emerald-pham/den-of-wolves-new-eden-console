@@ -2468,6 +2468,10 @@ export async function validateCoordinationEntry(filePath, options) {
       startBranchSha,
       validation: entry.validation,
     });
+    const advancedBranchFiles = !options.release && entry.validation &&
+      release.branchSha !== entry.validation.commitSha
+      ? await readTaskChangedFiles(release.mainSha, release.branchSha, process.cwd())
+      : [];
     let provenanceRefresh;
     if (!options.release) {
       const changedFiles = postValidationTaskChangedFiles(entry, release);
@@ -2497,6 +2501,12 @@ export async function validateCoordinationEntry(filePath, options) {
     const outsideScopes = filesOutsideScopes(release.changedFiles ?? [], entry.scopes);
     if (outsideScopes.length > 0) {
       errors.push(`changed files outside declared scope: ${outsideScopes.join(', ')}`);
+    }
+    const advancedOutsideScopes = filesOutsideScopes(advancedBranchFiles, entry.scopes);
+    if (advancedOutsideScopes.length > 0) {
+      errors.push(
+        `changed files outside declared scope after the prior validation receipt: ${advancedOutsideScopes.join(', ')}`,
+      );
     }
     errors.push(...implementationPlanGateErrors(entry));
     const testGrowthJustification = text(options['test-growth-justification']);
