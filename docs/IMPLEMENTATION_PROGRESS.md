@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 728 Prompts
+# Implementation Plan Progress — All 729 Prompts
 
-This tracker records all 728 canonical prompt IDs in
+This tracker records all 729 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**84 / 728 prompts complete (11.54%)**
+**84 / 729 prompts complete (11.52%)**
 
-Status breakdown: **84 done · 24 partial · 0 active · 620 missing**.
+Status breakdown: **84 done · 24 partial · 0 active · 621 missing**.
 
 Active prompt: **none**.
 
@@ -27,6 +27,9 @@ implementation status. P660 and P661 are now complete as tooling-only
 validation infrastructure: exact validation can self-prepare and safely clean
 an isolated emulator row, while copy-only eligibility is derived from a
 committed AST/diff proof and fails closed to the full gate.
+Prompt 662 is a low-priority/deferred [DECISION] about ordinary-start Wolf
+designation policy and remains missing; no automatic or manual policy is
+selected in this roadmap entry.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 The country-flag regression report is retracted: P031a instead composes the
@@ -1045,6 +1048,7 @@ release classification and evidence.
 | 659 | missing | non-feature | — | Planned [PRESERVE] prompt: inventory reachable player-facing copy, check in the approved CIC lexicon, forbidden jargon, and reviewed exceptions, and enforce the contract deterministically; this includes removing `System reduced motion is off.` while preserving system/effective reduced-motion behavior and meaningful accessibility. |
 | 660 | done | non-feature | — | Completed as tooling-only infrastructure: exact full validation self-prepares a missing local emulator configuration through the atomic allocator, records configuration/content identity, preserves pre-existing or replaced files, and releases only its own reservation/files with the exact `npm run emulators:configure -- auto` fallback. |
 | 661 | done | non-feature | — | Completed as tooling-only infrastructure: exact validation derives an AST/diff-proven static-copy profile requiring an allowlisted player source plus focused test, runs focused copy/a11y and lightweight gates only for that profile, and fails closed to `test:all` for mixed, uncertain, structural, security, or infrastructure changes. |
+| 662 | missing | non-feature | — | Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing. |
 
 ## Working notes
 
