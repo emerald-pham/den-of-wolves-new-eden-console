@@ -887,7 +887,11 @@ export function requireSetupConfirmationRequest(data: {
   }
   const printed = recommendedRoleIds(configuration.playerCount);
   if (activeRoleIds.length !== printed.length || activeRoleIds.some((roleId, index) => roleId !== printed[index])) {
-    throw new HttpsError('failed-precondition', 'The setup role order must match the printed player-count roster.');
+    throw commandError(
+      'failed-precondition',
+      'The setup role order must match the printed player-count roster.',
+      'malformed-input',
+    );
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),

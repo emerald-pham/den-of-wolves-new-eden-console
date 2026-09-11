@@ -830,9 +830,10 @@ export const createSession = onCall<{
       }
       const reply = priorRequest.get('reply');
       if (!isSessionCreationReply(reply, uid)) {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+          'conflict',
         );
       }
       return reply;
@@ -927,9 +928,10 @@ export const createSession = onCall<{
           }
           const replay = priorRequest.get('reply');
           if (!isSessionCreationReply(replay, uid)) {
-            throw new HttpsError(
+            throw commandError(
               'failed-precondition',
               `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+              'conflict',
             );
           }
           return replay as typeof reply;
@@ -940,9 +942,10 @@ export const createSession = onCall<{
           sessionRef.id,
           membershipActive,
         )) {
-          throw new HttpsError(
+          throw commandError(
             'failed-precondition',
             'Disconnect from the current session before creating another.',
+            'conflict',
           );
         }
         if (membership.exists && !membershipActive) tx.delete(membershipRef);
@@ -1094,17 +1097,19 @@ async function rejectForeignLegacyM1Command(
   const refs = legacyM1CommandRefs(sessionId, requestId);
   const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
   if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       `This ${label} request id is already bound to a legacy command. ${REQUEST_RECOVERY_GUIDANCE}`,
+      'conflict',
     );
   }
 }
 
 function rejectLegacyEventReplay(label: string): never {
-  throw new HttpsError(
+  throw commandError(
     'failed-precondition',
     `This ${label} request has a legacy unbound receipt. ${REQUEST_RECOVERY_GUIDANCE}`,
+    'conflict',
   );
 }
 
@@ -1164,7 +1169,7 @@ function setupRevision(session: DocumentSnapshot): number {
 function requireCastingWindow(session: DocumentSnapshot): void {
   if (session.get('configurationLocked') === true ||
       !['lobby', 'casting'].includes(String(session.get('phase')))) {
-    throw new HttpsError('failed-precondition', 'Casting is locked after setup begins.');
+    throw commandError('failed-precondition', 'Casting is locked after setup begins.', 'invalid-phase');
   }
 }
 
@@ -1216,9 +1221,10 @@ async function reconcileStableSeats(
     .find(({ snapshot }) =>
       snapshot.exists && snapshot.get('status') === 'claimed' && snapshot.get('holderUid'));
   if (claimedSeat) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       `Seat ${claimedSeat.roleId} is claimed and cannot be removed from the setup.`,
+      'conflict',
     );
   }
 
@@ -1345,9 +1351,10 @@ function sameSetupCommandFingerprint(
 }
 
 function rejectLegacySetupMutation(): never {
-  throw new HttpsError(
+  throw commandError(
     'failed-precondition',
     'Legacy setup mutations are disabled; submit the complete tuple through confirmSetup.',
+    'malformed-input',
   );
 }
 
@@ -1416,7 +1423,7 @@ export const confirmSetup = onCall<{
         prior.get('actorUid') !== uid ||
         prior.get('instanceId') !== command.instanceId
       ) {
-        throw new HttpsError('failed-precondition', 'This request id belongs to a different setup command.');
+        throw commandError('failed-precondition', 'This request id belongs to a different setup command.', 'conflict');
       }
       const expectedFingerprint = setupCommandFingerprint(
         command.configuration,
@@ -1642,7 +1649,7 @@ export const setFacilitatorResponsibility = onCall<{
     if (!target) throw new HttpsError('not-found', 'No such target facilitator instance.');
     const onlyInstance = instances.docs.length === 1;
     if (onlyInstance && responsibility.mode === 'drop') {
-      throw new HttpsError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.');
+      throw commandError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.', 'conflict');
     }
 
     const nextByInstance = new Map<string, FacilitatorResponsibility[]>(
@@ -1949,9 +1956,10 @@ export const startGame = onCall<{
       nowMs: setupNowMs,
     });
     if (!readiness.ready) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         `Start blocked: ${readiness.reasons.join(', ')}.`,
+        'conflict',
       );
     }
 
@@ -1976,13 +1984,13 @@ export const startGame = onCall<{
     } else {
       const validation = validateExplicitLoyaltySetup(holders, explicitRecords);
       if (!validation.valid) {
-        throw new HttpsError('failed-precondition', `Start blocked: loyalties-${validation.reason}.`);
+        throw commandError('failed-precondition', `Start blocked: loyalties-${validation.reason}.`, 'conflict');
       }
       const explicitWolfRoles = holders
         .filter((holder) => validation.assignments[holder.uid]?.kind === 'wolf-agent')
         .map((holder) => holder.roleId);
       if (explicitWolfRoles.length !== routineWolf.wolfCount) {
-        throw new HttpsError('failed-precondition', 'Start blocked: loyalties-conflicting-wolf-count.');
+        throw commandError('failed-precondition', 'Start blocked: loyalties-conflicting-wolf-count.', 'conflict');
       }
       const roleOrder = new Map(canonicalRosterIds.map((roleId, index) => [roleId, index]));
       selectedWolfRoleIds = [...explicitWolfRoles].sort((left, right) =>
@@ -2027,7 +2035,7 @@ export const startGame = onCall<{
     for (const holder of holders) {
       if (loyaltySource === 'automatic-default') {
         const assignment = loyaltyAssignments[holder.uid];
-        if (!assignment) throw new HttpsError('failed-precondition', 'Start blocked: loyalties-missing-result.');
+        if (!assignment) throw commandError('failed-precondition', 'Start blocked: loyalties-missing-result.', 'unavailable-service');
         tx.set(db.doc(`sessions/${start.sessionId}/secrets/loyalty-${holder.uid}`), {
           visibleToUids: [holder.uid],
           payload: { type: 'loyalty', ...assignment },
@@ -2131,7 +2139,7 @@ export const setShipPreference = onCall<{
       .map((roleId) => roleShipId(roleId))
       .filter((shipId): shipId is string => typeof shipId === 'string');
     if (!activeVessels.includes(preference.shipId)) {
-      throw new HttpsError('failed-precondition', 'That vessel is not active in this roster.');
+      throw commandError('failed-precondition', 'That vessel is not active in this roster.', 'conflict');
     }
     const result = {
       sessionId: preference.sessionId,
@@ -2200,7 +2208,7 @@ export const assignRole = onCall<{
     if (legacyEvent.exists) rejectLegacyEventReplay('role assignment');
     requireCastingWindow(authority.session);
     if (!isActivePlayer(target) || target.get('role') === 'observer') {
-      throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
+      throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     }
     const activeRoleIds = configuredRoleIds(authority.session);
     const assignments = players.docs.flatMap((member) => {
@@ -2214,7 +2222,7 @@ export const assignRole = onCall<{
       activeRoleIds,
     );
     if (!decision.allowed) {
-      throw new HttpsError('failed-precondition', `Role assignment rejected: ${decision.reason}.`);
+      throw commandError('failed-precondition', `Role assignment rejected: ${decision.reason}.`, 'conflict');
     }
     const result = {
       sessionId: assignment.sessionId,
@@ -2290,7 +2298,7 @@ export const releaseRole = onCall<{
     }
     const partnerSecret = partnerSecretRef ? await tx.get(partnerSecretRef) : undefined;
     requireCastingWindow(authority.session);
-    if (!isActivePlayer(target)) throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
+    if (!isActivePlayer(target)) throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     const result = {
       sessionId: release.sessionId,
       setupRevision: setupRevision(authority.session) + 1,
@@ -2434,9 +2442,10 @@ function requireCanonicalLoyaltyHolder(
   label: string,
 ): void {
   if (isCanonicalLoyaltyHolder(player, uid, players, activeRoleIds)) return;
-  throw new HttpsError(
+  throw commandError(
     'failed-precondition',
     `${label} must be an active non-GM holder of one unique role in the configured roster.`,
+    'conflict',
   );
 }
 
@@ -2561,17 +2570,17 @@ export const assignLoyalty = onCall<{
     if (sharedReplay) return sharedReplay;
     if (prior.exists) {
       if (prior.get('fingerprint') === undefined) {
-        throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt without a fingerprint.');
+        throw commandError('failed-precondition', 'This loyalty request has a legacy unbound receipt without a fingerprint.', 'conflict');
       }
       const storedFingerprint = prior.get('fingerprint');
       if (!isBoundLoyaltyAssignmentFingerprint(storedFingerprint)) {
-        throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or legacy unbound fingerprint.');
+        throw commandError('failed-precondition', 'This loyalty request has a malformed or legacy unbound fingerprint.', 'conflict');
       }
       if (storedFingerprint.actorUid !== uid) {
         throw new HttpsError('permission-denied', 'This loyalty request belongs to a different facilitator.');
       }
       if (!hasMatchingLoyaltyReceiptBinding(prior, storedFingerprint)) {
-        throw new HttpsError('failed-precondition', 'This loyalty request has a malformed receipt binding.');
+        throw commandError('failed-precondition', 'This loyalty request has a malformed receipt binding.', 'conflict');
       }
       if (!sameLoyaltyAssignmentFingerprint(storedFingerprint, fingerprint)) {
         throw commandError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.', 'conflict');
@@ -2580,7 +2589,7 @@ export const assignLoyalty = onCall<{
       if (isBoundLoyaltyAssignmentResult(result, storedFingerprint)) {
         return result;
       }
-      throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or non-replayable result.');
+      throw commandError('failed-precondition', 'This loyalty request has a malformed or non-replayable result.', 'conflict');
     }
     if (legacyEvent.exists) rejectLegacyEventReplay('loyalty assignment');
 
@@ -2667,10 +2676,10 @@ export const assignLoyalty = onCall<{
       const intelligenceAgentCount = validSecrets
         .filter((record) => record.kind === 'intelligence-agent').length;
       if (wolfCount < 1) {
-        throw new HttpsError('failed-precondition', 'Intelligence Agent setup requires at least one Wolf agent.');
+        throw commandError('failed-precondition', 'Intelligence Agent setup requires at least one Wolf agent.', 'conflict');
       }
       if (intelligenceAgentCount >= 1) {
-        throw new HttpsError('failed-precondition', 'Only one Intelligence Agent may be assigned.');
+        throw commandError('failed-precondition', 'Only one Intelligence Agent may be assigned.', 'conflict');
       }
     }
     const validSuspicion = kind === 'android'
@@ -2821,9 +2830,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         throw new HttpsError('not-found', 'That session is being retired.');
       }
       if (isKickedPlayer(player)) {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           'This browser was kicked from that session and cannot rejoin.',
+          'unauthorized',
         );
       }
       const membershipActive = await membershipIsActive(tx, membership, uid);
@@ -2832,9 +2842,10 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         sessionId,
         membershipActive,
       )) {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           'Disconnect from the current session before joining another.',
+          'conflict',
         );
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
@@ -2982,9 +2993,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     throw new HttpsError('permission-denied', 'You are no longer in that session.');
   }
   if (isKickedPlayer(playerSnap)) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       'This browser was kicked from that session and cannot rejoin.',
+      'unauthorized',
     );
   }
   if (sessionSnap.get('phase') === 'closed') {
@@ -3008,9 +3020,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
     }
     if (isKickedPlayer(currentPlayer)) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'This browser was kicked from that session and cannot rejoin.',
+        'unauthorized',
       );
     }
     const membershipActive = await membershipIsActive(tx, membership, uid);
@@ -3019,9 +3032,10 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       sessionId,
       membershipActive,
     )) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'Disconnect from the current session before reconnecting to another.',
+        'conflict',
       );
     }
     if (membership.exists && !membershipActive) tx.delete(membershipRef);
@@ -3235,13 +3249,13 @@ export const claimGmInstance = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (hasCoreSeat(player) || hasCoreAssignment(player)) {
-      throw new HttpsError('failed-precondition', 'Release your core station before joining as GM.');
+      throw commandError('failed-precondition', 'Release your core station before joining as GM.', 'conflict');
     }
     if (
       !existing.exists &&
       !mayClaimGmInstance(session.get('gmControlsLocked') === true, activeInstances.size)
     ) {
-      throw new HttpsError('failed-precondition', 'GM registration is locked.');
+      throw commandError('failed-precondition', 'GM registration is locked.', 'conflict');
     }
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
@@ -3371,12 +3385,13 @@ async function removePlayer(
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (!isActivePlayer(target)) {
-      throw new HttpsError('failed-precondition', 'That player is no longer connected.');
+      throw commandError('failed-precondition', 'That player is no longer connected.', 'conflict');
     }
     if (target.get('role') === 'gm') {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'GM browsers must be removed from the GM instances panel.',
+        'conflict',
       );
     }
 
@@ -3626,10 +3641,10 @@ export const moveShipToLocation = onCall<{
     }
     requireActionPhase(session, 'movement', 'facilitator');
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
+      throw commandError('failed-precondition', 'Capybara is not in this session.', 'conflict');
     }
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Dione is not in this session.');
+      throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
     let move;
     try {
@@ -3643,9 +3658,10 @@ export const moveShipToLocation = onCall<{
         shipNames: FLEET_SHIP_NAMES,
       });
     } catch (cause) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         cause instanceof Error ? cause.message : 'The ship could not be moved.',
+        'conflict',
       );
     }
     tx.update(sessionRef, {
@@ -3690,10 +3706,10 @@ export const jumpShip = onCall<{
     requireTurnOneForPlayer(session, player);
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Capybara is not in this session.');
+      throw commandError('failed-precondition', 'Capybara is not in this session.', 'conflict');
     }
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Dione is not in this session.');
+      throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
 
     const currentTurn = sessionTurn(session.get('currentTurn'));
@@ -3708,7 +3724,7 @@ export const jumpShip = onCall<{
       ? currentCycle.charges.filter((charge): charge is string => typeof charge === 'string')
       : [];
     if (currentCycle.turn !== currentTurn || !charges.includes('jump-drive')) {
-      throw new HttpsError('failed-precondition', 'Charge the Jump Drive during this turn before departure.');
+      throw commandError('failed-precondition', 'Charge the Jump Drive during this turn before departure.', 'invalid-phase');
     }
 
     const inventories = shipResources(session.get('shipResources'));
@@ -3748,9 +3764,10 @@ export const jumpShip = onCall<{
         result = resolveJumpAttempt({ ...attempt, integrityRoll });
       }
     } catch (cause) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         cause instanceof Error ? cause.message : 'The jump drive rejected the departure.',
+        'conflict',
       );
     }
 
@@ -3953,30 +3970,33 @@ export const advanceTurn = onCall<{
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== advance.expectedTurn) {
-      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
     }
     const activePhase = turnPhaseState(session.get('turnPhase'));
     if (currentTurn === 0) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'Turn 0 is for setup. Start the game before advancing turns.',
+        'invalid-phase',
       );
     }
     if (!activePhase || activePhase.turn !== currentTurn) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'No valid current server phase is available for turn advancement.',
+        'invalid-phase',
       );
     }
     if (
       !advance.overridePhaseTimer &&
       (activePhase.airspace.state !== 'lifted' || isTurnPhaseTimerActive(activePhase))
     ) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         activePhase.airspace.state !== 'lifted'
           ? 'Advance is available only after the current Team Phase opens Coordination.'
           : 'A turn phase timer is still active. Confirm the override to advance early.',
+        'invalid-phase',
       );
     }
     return advanceTurnInTransaction(
@@ -4020,12 +4040,13 @@ export const startSinglePlayerDemo = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== 0) {
-      throw new HttpsError('failed-precondition', 'The single-player demo is only available from Turn 0.');
+      throw commandError('failed-precondition', 'The single-player demo is only available from Turn 0.', 'invalid-phase');
     }
     if (connectedPlayers.docs.length !== 1 || connectedPlayers.docs[0]?.id !== uid) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'The single-player demo requires this to be the only connected player.',
+        'conflict',
       );
     }
     return advanceTurnInTransaction(tx, sessionRef, sessionId, session, false);
@@ -4060,7 +4081,7 @@ export const replayTurnStartAnnouncement = onCall<{
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const current = turnStartAnnouncement(session.get('turnStartAnnouncement'));
     if (!current || current.turn !== currentTurn || currentTurn < 1) {
-      throw new HttpsError('failed-precondition', 'No current turn transmission is available to replay.');
+      throw commandError('failed-precondition', 'No current turn transmission is available to replay.', 'invalid-phase');
     }
     const next = {
       turn: current.turn,
@@ -4096,21 +4117,22 @@ export const beginOpenAirspacePhase = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== requestData.expectedTurn) {
-      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== requestData.expectedTurn) {
-      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
     }
     if (phase.timerPause) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'The emergency timer is paused. Resume it before changing airspace.',
+        'invalid-phase',
       );
     }
     requireLiveAirspaceWindow(phase);
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
-      throw new HttpsError('failed-precondition', 'The airspace-closed timer is still active.');
+      throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
     }
     if (phase.airspace.state === 'lifted') return { turnPhase: phase };
     const turnPhase = {
@@ -4152,15 +4174,15 @@ export const extendAirspaceWindow = onCall<{
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== requestData.expectedTurn) {
-      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) {
-      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
     }
     const turnPhase = extendActiveTurnPhase(phase, requestData.window);
     if (!turnPhase) {
-      throw new HttpsError('failed-precondition', 'The requested airspace window is no longer active.');
+      throw commandError('failed-precondition', 'The requested airspace window is no longer active.', 'stale-revision');
     }
     tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
     return { turnPhase };
@@ -4198,14 +4220,14 @@ export const setEmergencyTimerPaused = onCall<{
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn < 1) {
-      throw new HttpsError('failed-precondition', 'The emergency timer is unavailable during Turn 0.');
+      throw commandError('failed-precondition', 'The emergency timer is unavailable during Turn 0.', 'invalid-phase');
     }
     if (currentTurn !== requestData.expectedTurn) {
-      throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
+      throw commandError('failed-precondition', 'The turn changed. Wait for the live update and try again.', 'stale-revision');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== currentTurn) {
-      throw new HttpsError('failed-precondition', 'No current turn phase is available.');
+      throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
     }
     const currentlyPaused = phase.timerPause !== undefined;
     if (currentlyPaused === requestData.paused) return { turnPhase: phase };
@@ -4214,11 +4236,12 @@ export const setEmergencyTimerPaused = onCall<{
       ? pauseActiveTurnPhase(phase)
       : resumePausedTurnPhase(phase);
     if (!turnPhase) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         requestData.paused
           ? 'The live turn timer has already expired.'
           : 'The emergency timer is not currently paused.',
+        'stale-revision',
       );
     }
     const window = turnPhase.timerPause?.window ?? phase.timerPause?.window;
@@ -4255,20 +4278,21 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('pressEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Press is disabled.');
+      throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const phase = turnPhaseState(session.get('turnPhase'));
     if (!phase || phase.turn !== sessionTurn(session.get('currentTurn'))) {
-      throw new HttpsError('failed-precondition', 'No current airspace window is available.');
+      throw commandError('failed-precondition', 'No current airspace window is available.', 'invalid-phase');
     }
     if (phase.timerPause) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'The emergency timer is paused. Resume it before changing airspace.',
+        'invalid-phase',
       );
     }
     requireLiveAirspaceWindow(phase);
@@ -4376,10 +4400,10 @@ export const popShipConfetti = onCall<{
       );
     }
     if (shipId === 'capybara' && session.get('capybaraEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Capybara is not in this convoy.');
+      throw commandError('failed-precondition', 'Capybara is not in this convoy.', 'conflict');
     }
     if (shipId === 'dione' && session.get('dioneEnabled') === false) {
-      throw new HttpsError('failed-precondition', 'Dione is not in this convoy.');
+      throw commandError('failed-precondition', 'Dione is not in this convoy.', 'conflict');
     }
     const activeRoleIds = (session.get('activeRoleIds') as string[] | undefined) ??
       DEFAULT_ACTIVE_ROLE_IDS;
@@ -4416,7 +4440,7 @@ export const popShipConfetti = onCall<{
       activation.roleId !== 'press-officer' &&
       !activeRoleIds.includes(activation.roleId)
     ) {
-      throw new HttpsError('failed-precondition', 'That role is not active in this session.');
+      throw commandError('failed-precondition', 'That role is not active in this session.', 'conflict');
     }
     if (shipId !== 'aegis' && !canPopShipConfetti(used, shipId)) {
       throw new HttpsError('already-exists', 'That dispenser has already been used.');
@@ -4563,7 +4587,7 @@ export const refreshPresence = onCall<{
       const requestedRoleId = request.data.activeConsoleRoleId;
       const isPressRequest = requestedRoleId === 'press-officer';
       if (isPressRequest && session.get('pressEnabled') === false) {
-        throw new HttpsError('failed-precondition', 'Press is disabled.');
+        throw commandError('failed-precondition', 'Press is disabled.', 'unauthorized');
       }
       if (isPressRequest && player.get('role') !== 'player') {
         throw new HttpsError('permission-denied', 'Press is a player station.');
@@ -4575,9 +4599,10 @@ export const refreshPresence = onCall<{
         assignedRoleId !== undefined &&
         assignedRoleId !== ''
       ) {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           'Release your core role before selecting Press.',
+          'conflict',
         );
       }
       const configuredRoleIdsForSelection = configuredRoleIds(session);
@@ -4586,7 +4611,7 @@ export const refreshPresence = onCall<{
         (!isPressRequest && isJointEngineeringRoleId(requestedRoleId) &&
           !isJointEngineeringRoleAvailable(configuredRoleIdsForSelection, requestedRoleId))
       ) {
-        throw new HttpsError('failed-precondition', 'That console role is not active.');
+        throw commandError('failed-precondition', 'That console role is not active.', 'conflict');
       }
       const heldByAnotherPlayer = holders?.docs.some(
         (holder) => holder.id !== uid && (
@@ -4602,9 +4627,10 @@ export const refreshPresence = onCall<{
         if (heldByAnotherPlayer) {
           throw new HttpsError('already-exists', 'That console role is already taken.');
         }
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           'Release your current role in settings before selecting another.',
+          'conflict',
         );
       }
       if (isPressRequest) {
@@ -4907,7 +4933,7 @@ export const claimSeat = onCall<{
             prior.get('actorUid') !== uid ||
             !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
           ) {
-            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+            throw commandError('failed-precondition', 'This request id belongs to a different seat command.', 'conflict');
           }
           const reply = prior.get('reply');
           if (typeof reply !== 'object' || reply === null) {
@@ -4919,7 +4945,7 @@ export const claimSeat = onCall<{
         }
         requireCastingWindow(session);
         if (!canClaimSeat(player.get('seatId'))) {
-          throw new HttpsError('failed-precondition', 'Release your current seat before claiming another.');
+          throw commandError('failed-precondition', 'Release your current seat before claiming another.', 'conflict');
         }
         if (setupRevision(session) !== revisioned.expectedSetupRevision) {
           const reply = {
@@ -4939,21 +4965,21 @@ export const claimSeat = onCall<{
         }
         const configuredRoles = session.get('activeRoleIds');
         if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
-          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+          throw commandError('failed-precondition', 'That seat is not part of the active roster.', 'conflict');
         }
         if (!seat.exists) throw new HttpsError('not-found', 'No such seat.');
         if (seat.get('roleId') !== seatId) {
-          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+          throw commandError('failed-precondition', 'That seat record does not match its stable role id.', 'unavailable-service');
         }
         if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
-          throw new HttpsError('failed-precondition', 'Press is optional and cannot be claimed as a core seat.');
+          throw commandError('failed-precondition', 'Press is optional and cannot be claimed as a core seat.', 'malformed-input');
         }
         if (seat.get('status') !== 'open' || seat.get('holderUid') !== null) {
           throw new HttpsError('aborted', 'That seat was just taken.');
         }
         const assignedRoleId = player.get('assignedRoleId');
         if (typeof assignedRoleId === 'string' && assignedRoleId !== seatId) {
-          throw new HttpsError('failed-precondition', 'Your assigned role does not match that seat.');
+          throw commandError('failed-precondition', 'Your assigned role does not match that seat.', 'conflict');
         }
 
         const nextRevision = revisioned.expectedSetupRevision + 1;
@@ -5046,7 +5072,7 @@ export const releaseSeat = onCall<{
             prior.get('actorUid') !== uid ||
             !sameSeatMutationFingerprint(prior.get('fingerprint'), fingerprint)
           ) {
-            throw new HttpsError('failed-precondition', 'This request id belongs to a different seat command.');
+            throw commandError('failed-precondition', 'This request id belongs to a different seat command.', 'conflict');
           }
           const reply = prior.get('reply');
           if (typeof reply !== 'object' || reply === null) {
@@ -5061,16 +5087,16 @@ export const releaseSeat = onCall<{
 
         const configuredRoles = session.get('activeRoleIds');
         if (!Array.isArray(configuredRoles) || !configuredRoles.includes(seatId)) {
-          throw new HttpsError('failed-precondition', 'That seat is not part of the active roster.');
+          throw commandError('failed-precondition', 'That seat is not part of the active roster.', 'conflict');
         }
         if (seat.get('roleId') !== seatId) {
-          throw new HttpsError('failed-precondition', 'That seat record does not match its stable role id.');
+          throw commandError('failed-precondition', 'That seat record does not match its stable role id.', 'unavailable-service');
         }
         if (seatId === 'press-officer' || seat.get('roleId') === 'press-officer') {
-          throw new HttpsError('failed-precondition', 'Press is optional and cannot be released as a core seat.');
+          throw commandError('failed-precondition', 'Press is optional and cannot be released as a core seat.', 'malformed-input');
         }
         if (seat.get('status') !== 'claimed' || typeof seat.get('holderUid') !== 'string') {
-          throw new HttpsError('failed-precondition', 'That seat is not currently claimed.');
+          throw commandError('failed-precondition', 'That seat is not currently claimed.', 'conflict');
         }
 
         const holderUid = seat.get('holderUid') as string;
@@ -5108,7 +5134,7 @@ export const releaseSeat = onCall<{
         const staleHolder = !holder.exists || !isActivePlayer(holder) || holder.get('seatId') !== seatId;
         if (staleHolder && !gmInstance) {
           if (actor.get('role') !== 'gm' || !revisioned.instanceId || !revisioned.reason) {
-            throw new HttpsError('failed-precondition', 'The claimed holder and seat pointer do not agree.');
+            throw commandError('failed-precondition', 'The claimed holder and seat pointer do not agree.', 'unavailable-service');
           }
           gmInstance = (await requireFacilitatorInstance(
             tx, sessionId, uid, revisioned.instanceId,
@@ -5164,13 +5190,13 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
         throw new HttpsError('permission-denied', 'GM only.');
       }
       if (!isActivePlayer(target)) {
-        throw new HttpsError('failed-precondition', 'That player is not connected.');
+        throw commandError('failed-precondition', 'That player is not connected.', 'conflict');
       }
       if (
         hasCoreSeat(target) || hasCoreAssignment(target) || hasPressState(target) ||
         sessionSnap.get('pressHolderUid') === targetUid
       ) {
-        throw new HttpsError('failed-precondition', 'Release the target station before elevating to GM.');
+        throw commandError('failed-precondition', 'Release the target station before elevating to GM.', 'conflict');
       }
       tx.update(targetRef, { role: 'gm' });
       return { targetUid, role: 'gm' };
@@ -5290,7 +5316,7 @@ export const adjustShipResource = onCall<{
     const inventory = inventories[change.shipId];
     const current = inventory?.[change.resourceId];
     if (current === undefined) {
-      throw new HttpsError('failed-precondition', 'That ship does not hold this resource.');
+      throw commandError('failed-precondition', 'That ship does not hold this resource.', 'malformed-input');
     }
     const amount = nextResourceAmount(current, change.delta);
     tx.update(sessionRef, {
@@ -5317,7 +5343,7 @@ export const adjustShipUnrest = onCall<{
     const amounts = shipUnrest(session.get('shipUnrest'));
     const result = unrestChange(amounts[change.shipId] ?? 0, change.delta, Boolean(alerts[change.shipId]));
     if (result.kind === 'blocked') {
-      throw new HttpsError('failed-precondition', 'The GM unrest alert must be dismissed first.');
+      throw commandError('failed-precondition', 'The GM unrest alert must be dismissed first.', 'invalid-phase');
     }
     const nextAlerts = { ...alerts };
     if (result.kind === 'overflow') {
@@ -5509,7 +5535,7 @@ export const adjustShipPopulation = onCall<{
         Boolean(alerts[change.shipId]),
       );
     } catch (cause) {
-      throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.');
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid population change.', 'conflict');
     }
     const nextAlerts = { ...alerts };
     if (result.alertRaised) {
@@ -5561,7 +5587,7 @@ export const applyShipCounterSteps = onCall<{
       const inventory = inventories[change.shipId];
       const current = inventory?.[change.resourceId];
       if (current === undefined) {
-        throw new HttpsError('failed-precondition', 'That ship does not hold this resource.');
+        throw commandError('failed-precondition', 'That ship does not hold this resource.', 'malformed-input');
       }
       const result = applyResourceSteps(current, change.steps);
       tx.update(sessionRef, {
@@ -5578,9 +5604,10 @@ export const applyShipCounterSteps = onCall<{
       try {
         result = applyUnrestSteps(current, change.steps, Boolean(alerts[change.shipId]));
       } catch (cause) {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           cause instanceof Error ? cause.message : 'Invalid unrest change.',
+          'conflict',
         );
       }
       const nextAlerts = { ...alerts };
@@ -5617,9 +5644,10 @@ export const applyShipCounterSteps = onCall<{
         Boolean(alerts[change.shipId]),
       );
     } catch (cause) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         cause instanceof Error ? cause.message : 'Invalid population change.',
+        'conflict',
       );
     }
     const nextAlerts = { ...alerts };
@@ -5868,7 +5896,13 @@ export const runMaintenance = onCall<{
     requireTurnOneForPlayer(snapshot, player);
     if ((data.shipId === 'dione' && snapshot.get('dioneEnabled') === false) ||
         (data.shipId === 'capybara' && snapshot.get('capybaraEnabled') === false) ||
-        snapshot.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This ship is unavailable.');
+        snapshot.get('phase') === 'closed') {
+      throw commandError(
+        'failed-precondition',
+        'This ship is unavailable.',
+        snapshot.get('phase') === 'closed' ? 'terminal-session' : 'conflict',
+      );
+    }
     const current = (snapshot.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>;
     const currentTurn = sessionTurn(snapshot.get('currentTurn'));
     const currentCycle = current[data.shipId] ?? emptyMaintenanceCycle();
@@ -5906,7 +5940,9 @@ export const runMaintenance = onCall<{
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
     const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
     const populationAlerts = { ...(snapshot.get('populationAlerts') ?? {}) } as Record<string, StoredPopulationAlert>;
-    if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) throw new HttpsError('failed-precondition', 'A GM must acknowledge the ship alert first.');
+    if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) {
+      throw commandError('failed-precondition', 'A GM must acknowledge the ship alert first.', 'invalid-phase');
+    }
     const serverTime = stableOccurredAt;
     let result: ReturnType<typeof advanceMaintenance>;
     try {
@@ -5920,7 +5956,7 @@ export const runMaintenance = onCall<{
         entropy: stableEntropy, now: serverTime, damageDrawId: eventId,
       });
     } catch (cause) {
-      throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.');
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.', 'conflict');
     }
     const populationThreshold = result.population !== population && populationTrackForShip(data.shipId)?.thresholds.includes(result.population);
     if ((unrest < 8 && result.unrest >= 8) || populationThreshold) {
@@ -6065,7 +6101,7 @@ export const setFleetRedAlert = onCall<{
     const lastRaisedAt = toTimestampMillis(current?.raisedAt);
     const now = Date.now();
     if (data.active && !current?.active && lastRaisedAt !== undefined && now - lastRaisedAt < FLEET_ALERT_COOLDOWN_MS) {
-      throw new HttpsError('failed-precondition', 'Fleet red alert may be raised once every 10 minutes.');
+      throw commandError('failed-precondition', 'Fleet red alert may be raised once every 10 minutes.', 'invalid-phase');
     }
     const text = typeof data.text === 'string' ? data.text.trim().toUpperCase() : current?.text;
     if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) return { revision: current?.revision ?? 0 };
@@ -6187,7 +6223,7 @@ export const dismissPressDispatch = onCall<{
       );
     }
     if (!current.dispatches.some(dispatch => dispatch.id === data.dispatchId)) {
-      throw new HttpsError('failed-precondition', 'That press dispatch is no longer active.');
+      throw commandError('failed-precondition', 'That press dispatch is no longer active.', 'stale-revision');
     }
     const pressDispatch = {
       dispatches: current.dispatches.filter(dispatch => dispatch.id !== data.dispatchId),
@@ -6319,7 +6355,13 @@ export const rollbackMaintenance = onCall<{
     }
     let patch: Record<string, unknown>;
     try { patch = restoreMaintenanceUndo(last.fields, field => authority.session.get(field), change.shipId, change.expectedRevision); }
-    catch (cause) { throw new HttpsError('failed-precondition', cause instanceof Error ? cause.message : 'Rollback failed.'); }
+    catch (cause) {
+      throw commandError(
+        'failed-precondition',
+        cause instanceof Error ? cause.message : 'Rollback failed.',
+        'conflict',
+      );
+    }
     const reply = {
       status: 'committed' as const,
       requestId: change.requestId,
