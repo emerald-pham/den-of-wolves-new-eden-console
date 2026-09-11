@@ -24,12 +24,12 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     implementationPrompts: ["055"],
     implementationProgress: {
       completed: 93,
-      total: 732,
-      percentage: "12.70%",
+      total: 734,
+      percentage: "12.67%",
       done: 93,
       partial: 25,
       active: 0,
-      missing: 614,
+      missing: 616,
     },
     changes: [
       "Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
