@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   validateAgentModelEscalation,
+  validateBlockedMergeAgentHandoff,
   validateCampaignPlaybook,
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
@@ -216,6 +217,87 @@ describe('repository guidance', () => {
         sources: new Map([
           ['CLAUDE.md', mutation.source],
           ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
+          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
+        ]),
+        errors,
+      });
+
+      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.expected),
+      ]));
+    }
+  });
+
+  it('requires an exact pushed-branch handoff on every blocked-merge authority', () => {
+    const surfaces = [
+      'CLAUDE.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+
+    validateBlockedMergeAgentHandoff({ sources, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('rejects a blocked-merge handoff without ordering, merge instructions, or delivery proof', () => {
+    const compliant = [
+      'A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.',
+      'CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.',
+      'When that blocking agent prevents merge, commit and push the exact task branch before sending the handoff.',
+      'Send a direct user-visible message to the blocking agent with the destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims.',
+      'Instruct the blocking agent: after its blocker work is finished and its claims are released, start a handoff integration coordination entry and record its entry ID, fetch the branch, reconcile it with current main, rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish for that same handoff integration entry.',
+      'Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved; a coordination note is not proof of delivery.',
+      'If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.',
+    ].join(' ');
+    const mutations = [
+      {
+        source: compliant.replace('before sending the handoff', 'after closing the task'),
+        expected: 'must push the exact task branch before sending the handoff',
+      },
+      {
+        source: compliant.replace('CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.', 'Any blocker qualifies.'),
+        expected: 'must distinguish agent blockers from CI, external, user-input, and test blockers',
+      },
+      {
+        source: compliant.replace('Send a direct user-visible message', 'Leave a note'),
+        expected: 'must send direct user-visible instructions to the blocking agent',
+      },
+      {
+        source: compliant.replace('destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims', 'branch name'),
+        expected: 'must include the task ID, exact branch, SHA, blocker reason, and overlap',
+      },
+      {
+        source: compliant.replace('rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish', 'merge when convenient'),
+        expected: 'must instruct the blocker to reconcile, validate, merge, push, and finish',
+      },
+      {
+        source: compliant.replace('start a handoff integration coordination entry and record its entry ID', 'continue without coordination'),
+        expected: 'must require one identified handoff integration entry',
+      },
+      {
+        source: compliant.replace('Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved', 'Assume delivery'),
+        expected: 'must verify delivery before preserving and closing',
+      },
+      {
+        source: compliant.replace('If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.', 'Close the source entry even if delivery fails.'),
+        expected: 'must keep the source entry active when delivery is unverified',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateBlockedMergeAgentHandoff({
+        sources: new Map([
+          ['CLAUDE.md', mutation.source],
+          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
+          ['docs/WORKTREE_COORDINATION.md', mutation.source],
           ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
         ]),
         errors,

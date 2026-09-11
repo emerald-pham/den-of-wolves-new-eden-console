@@ -151,6 +151,26 @@ npm run coordination:status
 task commit contained by pushed `main`, and no live reservation owned by the
 entry. The command reports a live owned process instead of killing it.
 
+A blocking agent is the identifiable Codex task that owns an active overlapping
+coordination claim or required same-file work. CI visibility, an external
+dependency, pending user input, and an ordinary test failure are not agent
+blockers. When that blocking agent prevents merge, commit and push the exact
+task branch before sending the handoff. Send a direct user-visible message to
+the blocking agent with the destination task ID, remote branch, exact commit
+SHA, blocker reason, and overlapping files or claims. Include any still-needed
+same-file delta.
+
+Instruct the blocking agent: after its blocker work is finished and its claims
+are released, start a handoff integration coordination entry and record its
+entry ID, fetch the branch, reconcile it with current main, apply the named
+delta, rerun required validation on the exact reconciled SHA, merge to main,
+push origin/main, and run `coordination:finish` for that same handoff integration
+entry. Verify direct-message delivery and request an acknowledgement when
+supported before closing the source entry as preserved; a coordination note is
+not proof of delivery. Record the destination task ID, branch, SHA, delivery
+result, blocker, overlap, and merge sequence. If direct delivery cannot be
+verified, keep the source entry active and report the undelivered handoff.
+
 Use `preserved` only for clean committed work whose exact final SHA is verified
 at one remote preservation ref:
 

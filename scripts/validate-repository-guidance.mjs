@@ -16,6 +16,12 @@ const AGENT_MODEL_ESCALATION_SURFACES = Object.freeze([
   CAMPAIGN_PLAYBOOK_PATH,
   'docs/IMPLEMENTATION_PLAN.md',
 ]);
+const BLOCKED_MERGE_HANDOFF_SURFACES = Object.freeze([
+  'CLAUDE.md',
+  CAMPAIGN_PLAYBOOK_PATH,
+  'docs/WORKTREE_COORDINATION.md',
+  'docs/IMPLEMENTATION_PLAN.md',
+]);
 const RETIRED_PROMPT_IDS = new Set(['071']);
 
 function promptDependencyTargets(value) {
@@ -130,6 +136,75 @@ export function validateAgentModelEscalation({ sources, errors }) {
     }
     if (/\bluna-only rules\b/i.test(normalized)) {
       errors.push(`${filePath}: retains a Luna-only retry path that can reset role escalation`);
+    }
+  }
+}
+
+/**
+ * A branch blocked by another agent must become an explicit, delivered merge
+ * handoff rather than an unowned remote ref. The source agent pushes first;
+ * the blocking agent receives enough exact state to reconcile and land it.
+ */
+export function validateBlockedMergeAgentHandoff({ sources, errors }) {
+  for (const filePath of BLOCKED_MERGE_HANDOFF_SURFACES) {
+    const source = sources.get(filePath);
+    if (typeof source !== 'string') {
+      errors.push(`${filePath}: missing blocked-merge agent handoff policy`);
+      continue;
+    }
+    const normalized = normalizeGuidance(source);
+    if (filePath === 'docs/IMPLEMENTATION_PLAN.md') {
+      if (
+        /\.\.\/claude\.md#blocking-agent-merge-handoff/i.test(normalized) &&
+        /(?:mandatory[\s\S]{0,180}blocking agent[\s\S]{0,180}merge|blocking-agent merge handoff[\s\S]{0,180}mandatory)/i.test(normalized)
+      ) {
+        continue;
+      }
+    }
+    const checks = [
+      [
+        'must define an agent blocker as active overlapping ownership',
+        /blocking agent[\s\S]{0,180}identifiable codex task[\s\S]{0,220}active overlapping coordination claim[\s\S]{0,160}(?:same-file|same file) work/i,
+      ],
+      [
+        'must push the exact task branch before sending the handoff',
+        /blocking agent prevents merge[\s\S]{0,180}commit[\s\S]{0,100}push the exact task branch[\s\S]{0,120}before sending the handoff/i,
+      ],
+      [
+        'must distinguish agent blockers from CI, external, user-input, and test blockers',
+        /ci visibility[\s\S]{0,120}external dependency[\s\S]{0,120}(?:pending user input|user decision)[\s\S]{0,120}ordinary test failure[\s\S]{0,100}not (?:agent blockers|blocking-agent handoffs)/i,
+      ],
+      [
+        'must send direct user-visible instructions to the blocking agent',
+        /send a direct user-visible message[\s\S]{0,100}blocking agent/i,
+      ],
+      [
+        'must include the task ID, exact branch, SHA, blocker reason, and overlap',
+        /destination task id[\s\S]{0,100}remote branch[\s\S]{0,100}exact commit sha[\s\S]{0,120}blocker reason[\s\S]{0,120}overlapping files or claims/i,
+      ],
+      [
+        'must instruct the blocker to reconcile, validate, merge, push, and finish',
+        /after its blocker work is finished[\s\S]{0,180}claims are released[\s\S]{0,180}fetch the branch[\s\S]{0,180}reconcile it with current main[\s\S]{0,240}rerun required validation on the exact reconciled sha[\s\S]{0,180}merge to main[\s\S]{0,140}push origin\/main[\s\S]{0,140}coordination:finish/i,
+      ],
+      [
+        'must require one identified handoff integration entry',
+        /start a handoff integration coordination entry[\s\S]{0,120}record its entry id[\s\S]{0,700}coordination:finish[\s\S]{0,160}(?:same|that) handoff integration entry/i,
+      ],
+      [
+        'must verify delivery before preserving and closing',
+        /verify direct-message delivery[\s\S]{0,140}request an acknowledgement when supported[\s\S]{0,180}before closing the source entry as preserved/i,
+      ],
+      [
+        'must not treat a coordination note as delivery proof',
+        /coordination note is not proof of delivery/i,
+      ],
+      [
+        'must keep the source entry active when delivery is unverified',
+        /if direct delivery cannot be verified[\s\S]{0,140}keep the source entry active[\s\S]{0,140}report the undelivered handoff/i,
+      ],
+    ];
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
     }
   }
 }
@@ -480,6 +555,7 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
   validateAgentModelEscalation({ sources: guidanceSources, errors });
+  validateBlockedMergeAgentHandoff({ sources: guidanceSources, errors });
   validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 

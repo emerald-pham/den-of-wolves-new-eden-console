@@ -117,6 +117,26 @@ does not change a version, player changelog, or prompt count. Preserve server
 authority, privacy, accessibility, reduced-motion behavior, and the boundary
 between local checks, rendered review, deployment evidence, and capacity proof.
 
+A blocking agent is the identifiable Codex task that owns an active overlapping
+coordination claim or required same-file work. CI visibility, an external
+dependency, pending user input, and an ordinary test failure are not agent
+blockers. When that blocking agent prevents merge, commit and push the exact
+task branch before sending the handoff. Send a direct user-visible message to
+the blocking agent with the destination task ID, remote branch, exact commit
+SHA, blocker reason, and overlapping files or claims, plus any still-needed
+same-file delta.
+
+Instruct the blocking agent: after its blocker work is finished and its claims
+are released, start a handoff integration coordination entry and record its
+entry ID, fetch the branch, reconcile it with current main, apply the named
+delta, rerun required validation on the exact reconciled SHA, merge to main,
+push origin/main, and run `coordination:finish` for that same handoff integration
+entry. Verify direct-message delivery and request an acknowledgement when
+supported before closing the source entry as preserved; a coordination note is
+not proof of delivery. Record the destination task ID, remote branch, exact SHA,
+delivery result, blocker, and merge sequence. If direct delivery cannot be
+verified, keep the source entry active and report the undelivered handoff.
+
 “Reach a stopping point” means open no new lanes. Finish, commit, land,
 preserve, or explicitly discard only already-active bounded slices; release
 this task's claims and resources; immediately report the exact state; and
@@ -190,6 +210,23 @@ main movement, stop, fetch/rebase or selectively reapply only reviewed
 commits/files, fully re-read the dependency authority and row, rerun the dispatcher,
 reforecast/reacquire ownership, inspect the diff, and re-review changed
 semantics. Never wholesale-merge a stale branch.
+
+Blocked merge handoff: A blocking agent is the identifiable Codex task that
+owns an active overlapping coordination claim or required same-file work. CI
+visibility, an external dependency, pending user input, and an ordinary test
+failure are not agent blockers. When that blocking agent prevents merge, commit
+and push the exact task branch before sending the handoff. Send a direct
+user-visible message to the blocking agent with the destination task ID, remote
+branch, exact commit SHA, blocker reason, and overlapping files or claims.
+Instruct the blocking agent: after its blocker work is finished and its claims
+are released, start a handoff integration coordination entry and record its
+entry ID, fetch the branch, reconcile it with current main, apply any named
+same-file delta, rerun required validation on the exact reconciled SHA, merge to
+main, push origin/main, and run coordination:finish for that same handoff
+integration entry. Verify direct-message delivery and request an acknowledgement
+when supported before closing the source entry as preserved; a coordination
+note is not proof of delivery. If direct delivery cannot be verified, keep the
+source entry active and report the undelivered handoff.
 
 Stopping: “Reach a stopping point” means open no new lanes. Finish, commit,
 land, preserve, or explicitly discard only already-active slices; release
