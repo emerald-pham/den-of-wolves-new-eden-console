@@ -3399,7 +3399,7 @@ describe('local emulator coordination', () => {
       scopes: ['scripts/feature.mjs'],
       validation: { ...codeValidation, commitSha: exactHead },
     };
-    const change = 'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.';
+    const change = 'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.';
     try {
       await writeFile(filePath, JSON.stringify({
         version: 1,

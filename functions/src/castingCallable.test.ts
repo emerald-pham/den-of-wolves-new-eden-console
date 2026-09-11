@@ -218,3 +218,39 @@ it('does not delete an unrelated partner secret named by a corrupt Friend record
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
   );
 });
+
+it('deletes a reciprocal Friend only when both records are exact private Friend cards', async () => {
+  mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
+  mock.players.push({ id: 'u3', fields: { connected: true, role: 'player', assignedRoleId: 'admiral' } });
+  const validTarget = {
+    visibleToUids: ['u2'],
+    payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u3' },
+  };
+  const validPartner = {
+    visibleToUids: ['u3'],
+    payload: { type: 'loyalty', kind: 'friend', suspicion: 0, partnerUid: 'u2' },
+  };
+  const malformedPairs = [
+    [{ ...validTarget, visibleToUids: ['u2', 'u1'] }, validPartner],
+    [{ ...validTarget, payload: { ...validTarget.payload, type: 'legacy' } }, validPartner],
+    [{ ...validTarget, payload: { ...validTarget.payload, suspicion: 5 } }, validPartner],
+    [validTarget, { ...validPartner, visibleToUids: ['u3', 'u1'] }],
+    [validTarget, { ...validPartner, payload: { ...validPartner.payload, suspicion: 5 } }],
+  ] as const;
+
+  for (const [index, [targetSecret, partnerSecret]] of malformedPairs.entries()) {
+    mock.delete.mockClear();
+    mock.releasedSecret = targetSecret;
+    mock.releasedPartnerSecret = partnerSecret;
+
+    await expect(releaseRole.run(request({
+      sessionId: 's1', instanceId: 'bridge', requestId: `release-malformed-friend-${index}`, targetUid: 'u2',
+    }))).resolves.toEqual({ sessionId: 's1', setupRevision: 1 });
+    expect(mock.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    );
+    expect(mock.delete).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u3' }),
+    );
+  }
+});

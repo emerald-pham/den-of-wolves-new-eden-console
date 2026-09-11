@@ -99,7 +99,7 @@ it('rejects Intelligence Agent setup when no Wolf remains, without writing state
 it('assigns Intelligence Agent beside a Wolf with a private card and redacted event', async () => {
   mock.loyaltySecrets = [{
     id: 'loyalty-u3',
-    fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+    fields: { visibleToUids: ['u3'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
   }];
 
   await expect(assignLoyalty.run(request({
@@ -189,6 +189,28 @@ it('fails closed when a private loyalty receipt has a valid fingerprint but mism
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
     message: expect.stringMatching(/receipt|binding|fingerprint/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('fails closed when a bound private receipt contains a result for another command', async () => {
+  mock.priorResults['sessions/s1/loyaltyAssignmentRequests/malformed-receipt-result'] = {
+    action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    fingerprint: {
+      action: 'assign-loyalty', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
+      targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6, partnerUid: null,
+    },
+    result: { sessionId: 'other-session', setupRevision: 3, assignedUids: ['u3'] },
+  };
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'malformed-receipt-result',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/receipt|result|replay/i),
   });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
@@ -393,11 +415,33 @@ it('does not count malformed or non-loyalty secrets as a Wolf', async () => {
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('does not count a mis-audienced loyalty secret as a Wolf', async () => {
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u3',
+    fields: {
+      visibleToUids: ['u3', 'u1'],
+      payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 },
+    },
+  }];
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'mis-audienced-wolf',
+    targetUid: 'u2', kind: 'intelligence-agent', suspicion: 6,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/wolf/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects a second Intelligence Agent even when a Wolf remains', async () => {
   mock.players.push({ id: 'u4', fields: { connected: true, role: 'player', assignedRoleId: 'admiral' } });
   mock.loyaltySecrets = [
-    { id: 'loyalty-u3', fields: { payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } } },
-    { id: 'loyalty-u4', fields: { payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 } } },
+    {
+      id: 'loyalty-u3',
+      fields: { visibleToUids: ['u3'], payload: { type: 'loyalty', kind: 'wolf-agent', suspicion: 0 } },
+    },
+    {
+      id: 'loyalty-u4',
+      fields: { visibleToUids: ['u4'], payload: { type: 'loyalty', kind: 'intelligence-agent', suspicion: 6 } },
+    },
   ];
   await expect(assignLoyalty.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'duplicate-intelligence',

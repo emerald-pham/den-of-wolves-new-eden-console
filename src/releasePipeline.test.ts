@@ -499,6 +499,8 @@ it('exposes just-in-time coordination and release-fragment command surfaces', ()
   expect(throughputCommand).toContain("command === 'release-prepare'");
   expect(throughputCommand).toContain("command === 'release-land'");
   expect(coordinationRegistryCommand).toContain("command === 'release-reconcile'");
+  expect(coordinationRegistryCommand).toMatch(/usage:[^\n]*release-reconcile/);
+  expect(coordinationRegistryCommand).toContain('currentBinding.mainSha !== binding.mainSha');
 });
 
 it('re-runs the existing implementation-progress validator against generated release metadata', async () => {
@@ -729,6 +731,10 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
     'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
   ];
+  const correctedChanges = [
+    'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
+    changes[1],
+  ];
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
     await mkdir(resolve(root, 'docs'), { recursive: true });
@@ -738,7 +744,10 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     baseLockfile.packages[''].version = baseVersion;
     await writeFile(resolve(root, 'package.json'), `${JSON.stringify(basePackage, null, 2)}\n`);
     await writeFile(resolve(root, 'package-lock.json'), `${JSON.stringify(baseLockfile, null, 2)}\n`);
-    await writeFile(resolve(root, 'src/changelog.ts'), readFileSync('src/changelog.ts', 'utf8'));
+    await writeFile(
+      resolve(root, 'src/changelog.ts'),
+      readFileSync('src/changelog.ts', 'utf8').replace(changes[0], correctedChanges[0]),
+    );
     await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
     await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
     await runGit(root, ['init', '-b', 'main']);
@@ -845,6 +854,10 @@ it('reconciles an already-landed fragment to an exact validation receipt without
       coordinationEntryId: 'landed-recovery-task',
     })).rejects.toThrow(/task branch commit after current main/i);
     await writeFile(lanePath, JSON.stringify({ version: 1, nextSequence: 2, fragments: [fragment] }));
+    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+    })).rejects.toThrow(/visible checkout release metadata/i);
     const metadataBefore = await Promise.all([
       readFile(resolve(root, 'package.json'), 'utf8'),
       readFile(resolve(root, 'package-lock.json'), 'utf8'),
@@ -853,6 +866,7 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     const reconciled = await reconcileLandedCoordinationReleaseFragment(lanePath, {
       coordinationFilePath: coordinationPath,
       coordinationEntryId: 'landed-recovery-task',
+      changes: correctedChanges,
     });
     expect(reconciled).toMatchObject({ taskId: 'landed-recovery-task', idempotent: false });
     expect(await Promise.all([
@@ -863,6 +877,8 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     const recoveredLane = JSON.parse(await readFile(lanePath, 'utf8'));
     expect(recoveredLane.fragments[0]).toMatchObject({
       coordinationBranchSha: historicalBranchSha,
+      changes: correctedChanges,
+      releaseMetadataHistory: [{ changes }],
       reconciliation: {
         historicalCoordinationBranchSha: historicalBranchSha,
         historicalBranchRelation: 'merged-into-exact-head',
@@ -875,7 +891,44 @@ it('reconciles an already-landed fragment to an exact validation receipt without
     await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
       coordinationFilePath: coordinationPath,
       coordinationEntryId: 'landed-recovery-task',
+      changes: correctedChanges,
     })).resolves.toMatchObject({ idempotent: true });
+
+    await writeFile(resolve(root, 'src/descendant-repair.mjs'), 'export const descendantRepair = true;\n');
+    await runGit(root, ['add', 'src/descendant-repair.mjs']);
+    await runGit(root, ['commit', '-m', 'descendant exact head repair']);
+    const descendantBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
+    const coordination = JSON.parse(await readFile(coordinationPath, 'utf8'));
+    coordination.entries[0].validation.commitSha = descendantBranchSha;
+    await writeFile(coordinationPath, JSON.stringify(coordination));
+
+    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+      changes: correctedChanges,
+    })).resolves.toMatchObject({ idempotent: false });
+    const advancedLane = JSON.parse(await readFile(lanePath, 'utf8'));
+    expect(advancedLane.fragments[0]).toMatchObject({
+      coordinationBranchSha: historicalBranchSha,
+      changes: correctedChanges,
+      reconciliationHistory: [{
+        finalBranchSha,
+        validationReceiptCommitSha: finalBranchSha,
+      }],
+      reconciliation: {
+        finalBranchSha: descendantBranchSha,
+        validationReceiptCommitSha: descendantBranchSha,
+        baseMainSha: mainSha,
+      },
+    });
+
+    coordination.entries[0].validation.commitSha = finalBranchSha;
+    await writeFile(coordinationPath, JSON.stringify(coordination));
+    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
+      coordinationFilePath: coordinationPath,
+      coordinationEntryId: 'landed-recovery-task',
+      changes: correctedChanges,
+    })).rejects.toThrow(/exact|receipt|head/i);
   } finally {
     process.chdir(previousCwd);
     await rm(root, { recursive: true, force: true });

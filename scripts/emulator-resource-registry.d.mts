@@ -420,6 +420,8 @@ export function reconcileLandedCoordinationReleaseFragment(
     readonly worktree?: string;
     readonly currentMainSha?: string;
     readonly mainSha?: string;
+    readonly changes?: readonly string[];
+    readonly change?: string | readonly string[];
     readonly leaseMs?: number;
     readonly now?: string | number | Date;
   },

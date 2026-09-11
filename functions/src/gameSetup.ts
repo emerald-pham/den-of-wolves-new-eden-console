@@ -235,6 +235,11 @@ export function validateExplicitLoyaltySetup(
       return { valid: false, reason: 'conflicting' };
     }
   }
+  const intelligenceAgentCount = records.filter((record) => record.kind === 'intelligence-agent').length;
+  const wolfCount = records.filter((record) => record.kind === 'wolf-agent').length;
+  if (intelligenceAgentCount > 1 || (intelligenceAgentCount === 1 && wolfCount < 1)) {
+    return { valid: false, reason: 'conflicting' };
+  }
   return { valid: true, assignments };
 }
 

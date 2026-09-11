@@ -637,6 +637,15 @@ export function parseChangelogSnapshot(source, applicationVersion) {
   });
 }
 
+function changelogSnapshotMatchesChanges(source, applicationVersion, changes) {
+  if (!Array.isArray(changes) || changes.length === 0) return false;
+  const current = parseChangelogSnapshot(source, applicationVersion)[0];
+  const changeBlock = current?.source.match(/changes:\s*\[([\s\S]*?)\]/)?.[1] ?? '';
+  const changeCount = [...changeBlock.matchAll(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g)].length;
+  return current?.version === applicationVersion && changeCount === changes.length &&
+    changes.every((change) => current.source.includes(change));
+}
+
 function isToolingOnlyVersionPlan(versionPlan) {
   return /tooling-only|documentation-only|no application version|no[- ]player[- ]facing change/i
     .test(versionPlan ?? '');
@@ -1648,6 +1657,7 @@ export function pruneDeadReservations(state, isAlive = processIsAlive) {
 }
 
 function normalizedList(value) {
+  if (Array.isArray(value)) return value.map((item) => text(item)).filter(Boolean);
   return text(value).split(',').map((item) => item.trim()).filter(Boolean);
 }
 
@@ -2552,7 +2562,11 @@ function parseOptions(args) {
     const name = argument.slice(2);
     const value = args[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for --${name}.`);
-    options[name] = value;
+    if (name === 'change') {
+      options[name] = [...(Array.isArray(options[name]) ? options[name] : []), value];
+    } else {
+      options[name] = value;
+    }
     index += 1;
   }
   return options;
@@ -3307,10 +3321,17 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
       `(${binding.repositoryDirectory}).`,
     );
   }
-  if (fragment.baseVersion !== binding.applicationVersion || fragment.baseMainSha !== binding.mainSha) {
+  if (fragment.baseVersion !== binding.applicationVersion ||
+    !(await gitIsAncestor(fragment.baseMainSha, binding.mainSha, binding.repositoryDirectory))) {
     throw new Error(
-      `Landed release fragment ${taskId} must retain current main ${binding.mainVersion}@${binding.mainSha}.`,
+      `Landed release fragment ${taskId} must retain an ancestral main baseline at version ${binding.mainVersion}.`,
     );
+  }
+  const requestedChanges = options.changes === undefined && options.change === undefined
+    ? fragment.changes
+    : normalizedList(options.changes ?? options.change);
+  if (!Array.isArray(requestedChanges) || requestedChanges.length === 0) {
+    throw new Error(`Landed release fragment ${taskId} reconciliation requires at least one release change.`);
   }
   const historicalBranchSha = text(fragment.coordinationBranchSha);
   if (!historicalBranchSha || historicalBranchSha === binding.start.branchSha) {
@@ -3358,9 +3379,7 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
   if (text(lockfile?.packages?.['']?.version) !== inputs.applicationVersion) {
     throw new Error(`Landed release fragment ${taskId} requires package.json and package-lock.json to agree.`);
   }
-  const changelogVersion = inputs.changelogSource.match(/version\s*:\s*(APP_VERSION|['"](\d+\.\d+\.\d+)['"])/)?.[1];
-  if (!changelogVersion || (changelogVersion !== 'APP_VERSION' && changelogVersion !== inputs.applicationVersion) ||
-    !Array.isArray(fragment.changes) || !fragment.changes.every((change) => inputs.changelogSource.includes(change))) {
+  if (!changelogSnapshotMatchesChanges(inputs.changelogSource, inputs.applicationVersion, requestedChanges)) {
     throw new Error(`Landed release fragment ${taskId} does not match visible checkout release metadata.`);
   }
   const fragmentValidation = validateReleaseFragment({
@@ -3378,7 +3397,7 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
   const progressValidation = validateImplementationProgress({
     ...inputs,
     requiredPrompt: binding.requiredPrompt,
-    validatedFragment: { ...fragment, postRelease: true },
+    validatedFragment: { ...fragment, changes: requestedChanges, postRelease: true },
   });
   if (progressValidation.errors.length > 0) {
     throw new Error(
@@ -3399,9 +3418,25 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
   return reconcileLandedReleaseFragment(lanePath, {
     taskId,
     reconciliation,
+    changes: requestedChanges,
     now: options.now ?? new Date(),
     validateLandedMetadata: async ({ fragment: lockedFragment }) => {
-      if (lockedFragment.id !== fragment.id || lockedFragment.coordinationBranchSha !== historicalBranchSha) {
+      const immutableFields = [
+        'id',
+        'taskId',
+        'state',
+        'worktree',
+        'baseVersion',
+        'baseMainSha',
+        'coordinationEntryId',
+        'coordinationBranchName',
+        'coordinationBranchSha',
+        'requiredPrompt',
+        'version',
+      ];
+      if (immutableFields.some((field) => lockedFragment[field] !== fragment[field]) ||
+        JSON.stringify(lockedFragment.implementationPrompts) !== JSON.stringify(fragment.implementationPrompts) ||
+        JSON.stringify(lockedFragment.implementationProgress) !== JSON.stringify(fragment.implementationProgress)) {
         throw new Error(`Landed release fragment ${taskId} changed while reconciliation was pending.`);
       }
       const currentBinding = await readReleaseCoordinationBinding(
@@ -3409,9 +3444,65 @@ export async function reconcileLandedCoordinationReleaseFragment(filePath, optio
         { ...options, taskId },
         { laneState: await readReleaseLaneState(lanePath), requireValidation: true },
       );
-      if (currentBinding.start.branchSha !== binding.start.branchSha ||
+      if (currentBinding.entry.id !== binding.entry.id ||
+        currentBinding.repositoryDirectory !== binding.repositoryDirectory ||
+        currentBinding.start.branchName !== binding.start.branchName ||
+        currentBinding.mainSha !== binding.mainSha ||
+        currentBinding.start.branchSha !== binding.start.branchSha ||
         currentBinding.validationReceiptCommitSha !== binding.validationReceiptCommitSha) {
-        throw new Error(`Landed release fragment ${taskId} validation receipt changed while reconciliation was pending.`);
+        throw new Error(`Landed release fragment ${taskId} main, identity, or validation receipt changed while reconciliation was pending.`);
+      }
+      const currentStatus = await runGit(
+        ['status', '--porcelain', '--untracked-files=no'],
+        currentBinding.repositoryDirectory,
+      );
+      if (currentStatus) {
+        throw new Error(`Landed release fragment ${taskId} requires a clean exact-head checkout under lock.`);
+      }
+      const currentInputs = readImplementationProgress({ cwd: currentBinding.repositoryDirectory });
+      const currentLockfile = JSON.parse(
+        await readFile(resolve(currentBinding.repositoryDirectory, 'package-lock.json'), 'utf8'),
+      );
+      if (currentInputs.applicationVersion !== fragment.version ||
+        text(currentLockfile?.packages?.['']?.version) !== currentInputs.applicationVersion ||
+        !changelogSnapshotMatchesChanges(
+          currentInputs.changelogSource,
+          currentInputs.applicationVersion,
+          requestedChanges,
+        )) {
+        throw new Error(`Landed release fragment ${taskId} release metadata changed while reconciliation was pending.`);
+      }
+    },
+    validateReconciliationAdvance: async ({ previousReconciliation }) => {
+      const previous = objectRecord(previousReconciliation);
+      if (previous.historicalCoordinationBranchSha !== historicalBranchSha ||
+        !['based-on-current-main', 'merged-into-exact-head'].includes(previous.historicalBranchRelation) ||
+        previous.coordinationEntryId !== binding.entry.id ||
+        previous.coordinationWorktree !== binding.repositoryDirectory ||
+        previous.coordinationBranchName !== binding.start.branchName ||
+        previous.finalBranchSha !== previous.validationReceiptCommitSha ||
+        !text(previous.baseMainSha)) {
+        throw new Error(`Landed release fragment ${taskId} has mismatched historical reconciliation metadata.`);
+      }
+      if (previous.finalBranchSha === binding.start.branchSha ||
+        !(await gitIsAncestor(previous.finalBranchSha, binding.start.branchSha, binding.repositoryDirectory))) {
+        throw new Error(
+          `Landed release fragment ${taskId} may advance only to a strict descendant of its prior exact head.`,
+        );
+      }
+      if (!(await gitIsAncestor(historicalBranchSha, previous.finalBranchSha, binding.repositoryDirectory))) {
+        throw new Error(`Landed release fragment ${taskId} prior exact head lost the historical task commit.`);
+      }
+      if (!(await gitIsAncestor(previous.baseMainSha, binding.mainSha, binding.repositoryDirectory))) {
+        throw new Error(
+          `Landed release fragment ${taskId} cannot reconcile to a rolled-back or unrelated main baseline.`,
+        );
+      }
+      if (!(await gitIsAncestor(historicalBranchSha, binding.start.branchSha, binding.repositoryDirectory)) ||
+        !(await gitIsAncestor(binding.mainSha, binding.start.branchSha, binding.repositoryDirectory))) {
+        throw new Error(
+          `Landed release fragment ${taskId} exact head must contain both current main and the historical task commit.`,
+        );
       }
     },
   });
@@ -4194,6 +4285,7 @@ async function main() {
       coordinationFilePath: filePath,
       repositoryDirectory: options.repository || process.cwd(),
       currentMainSha: options['main-sha'],
+      changes: options.change ? normalizedList(options.change) : undefined,
       now: options.now,
     });
     console.log(JSON.stringify(result, null, 2));
@@ -4218,7 +4310,7 @@ async function main() {
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|amend|validate|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|release-reconcile|amend|validate|finish> [options]',
   );
 }
 

@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => ({
   seatDocs: [] as Array<{ id: string; fields: Record<string, unknown> }>,
   secretDocs: [] as string[],
   secretPayloads: {} as Record<string, Record<string, unknown>>,
+  secretAudiences: {} as Record<string, readonly string[]>,
   priorReply: undefined as unknown,
   priorFingerprint: undefined as unknown,
 }));
@@ -136,6 +137,7 @@ function provisionProductionRoster(
   }));
   mock.secretDocs = [];
   mock.secretPayloads = {};
+  mock.secretAudiences = {};
 }
 
 beforeEach(() => {
@@ -145,6 +147,7 @@ beforeEach(() => {
   mock.priorReply = undefined;
   mock.priorFingerprint = undefined;
   mock.secretPayloads = {};
+  mock.secretAudiences = {};
   mock.session = {
     phase: 'casting',
     configurationLocked: false,
@@ -204,7 +207,13 @@ beforeEach(() => {
       return { exists: true, docs: mock.seatDocs.map(({ id, fields }) => snapshot(fields, `sessions/s1/seats/${id}`)) };
     }
     if (ref.path === 'sessions/s1/secrets') {
-      return { exists: true, docs: mock.secretDocs.map((id) => snapshot({ payload: mock.secretPayloads[id] }, `sessions/s1/secrets/${id}`)) };
+      return {
+        exists: true,
+        docs: mock.secretDocs.map((id) => snapshot({
+          visibleToUids: mock.secretAudiences[id] ?? [id.slice('loyalty-'.length)],
+          payload: mock.secretPayloads[id],
+        }, `sessions/s1/secrets/${id}`)),
+      };
     }
     return snapshot({}, ref.path, false);
   });
@@ -490,6 +499,35 @@ it('preserves a complete explicit loyalty setup without silently rerolling it', 
     setupReceipt: expect.objectContaining({ loyaltySource: 'explicit-preserved', wolfCount: 1 }),
   });
   expect(mock.set.mock.calls.some(([ref]) => ref.path.includes('/secrets/loyalty-'))).toBe(false);
+});
+
+it('rejects complete-looking loyalty records with a public audience or non-loyalty payload', async () => {
+  provisionProductionRoster(8);
+  const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');
+  mock.secretDocs = corePlayers.map((player) => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(corePlayers.map((player, index) => [
+    `loyalty-${player.id}`,
+    { type: 'loyalty', kind: index === 0 ? 'wolf-agent' : 'fleet-loyalist', suspicion: 0 },
+  ]));
+  const firstSecretId = mock.secretDocs[0]!;
+  mock.secretAudiences[firstSecretId] = [corePlayers[0]!.id, 'u1'];
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-public-loyalty', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/loyalt|private|setup/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.secretAudiences[firstSecretId] = [corePlayers[0]!.id];
+  mock.secretPayloads[firstSecretId] = {
+    ...mock.secretPayloads[firstSecretId],
+    type: 'legacy-loyalty',
+  };
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-legacy-loyalty', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/loyalt|private|setup/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('blocks partial and conflicting explicit loyalty setup before any start writes', async () => {

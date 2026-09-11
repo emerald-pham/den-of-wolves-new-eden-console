@@ -1052,7 +1052,9 @@ function landedResult(fragment) {
 export async function reconcileLandedReleaseFragment(filePath, {
   taskId,
   reconciliation,
+  changes,
   validateLandedMetadata,
+  validateReconciliationAdvance,
   now = new Date(),
 } = {}) {
   return withFileLock(filePath, async () => {
@@ -1091,25 +1093,57 @@ export async function reconcileLandedReleaseFragment(filePath, {
       );
     }
     if (typeof validateLandedMetadata === 'function') {
-      await validateLandedMetadata({ fragment, reconciliation: proposed });
+      await validateLandedMetadata({ fragment, reconciliation: proposed, changes });
     }
 
+    const currentChanges = list(fragment.changes);
+    const requestedChanges = changes === undefined ? currentChanges : changes;
+    const proposedChanges = list(requestedChanges);
+    if (!Array.isArray(requestedChanges) || proposedChanges.length === 0 ||
+      proposedChanges.length !== requestedChanges.length) {
+      throw new Error(`Landed release fragment ${fragment.taskId} reconciliation requires valid release changes.`);
+    }
+    const changesChanged = currentChanges.length !== proposedChanges.length ||
+      currentChanges.some((change, index) => change !== proposedChanges[index]);
     const existing = objectRecord(fragment.reconciliation);
     if (Object.keys(existing).length > 0) {
       const changed = requiredFields.filter((field) => existing[field] !== proposed[field]);
-      if (changed.length > 0) {
+      if (changed.length === 0 && !changesChanged) {
+        return { ...landedResult(fragment), reconciled: true, idempotent: true };
+      }
+      if (typeof validateReconciliationAdvance !== 'function') {
         throw new Error(
-          `Landed release fragment ${fragment.taskId} already has a different reconciliation for ${changed.join(', ')}.`,
+          `Landed release fragment ${fragment.taskId} already has a different reconciliation` +
+          `${changed.length > 0 ? ` for ${changed.join(', ')}` : ''}; a verified descendant advance is required.`,
         );
       }
-      return { ...landedResult(fragment), reconciled: true, idempotent: true };
+      await validateReconciliationAdvance({
+        fragment,
+        previousReconciliation: existing,
+        reconciliation: proposed,
+        changes: proposedChanges,
+      });
     }
 
+    const reconciledAt = isoDate(now);
     const reconciled = {
       ...fragment,
+      changes: proposedChanges,
+      ...(changesChanged ? {
+        releaseMetadataHistory: [
+          ...(Array.isArray(fragment.releaseMetadataHistory) ? fragment.releaseMetadataHistory : []),
+          { changes: currentChanges, replacedAt: reconciledAt },
+        ],
+      } : {}),
+      ...(Object.keys(existing).length > 0 ? {
+        reconciliationHistory: [
+          ...(Array.isArray(fragment.reconciliationHistory) ? fragment.reconciliationHistory : []),
+          { ...existing },
+        ],
+      } : {}),
       reconciliation: {
         ...proposed,
-        reconciledAt: isoDate(now),
+        reconciledAt,
       },
     };
     state.fragments[index] = reconciled;

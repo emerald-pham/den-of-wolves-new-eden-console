@@ -1506,7 +1506,9 @@ function startLoyaltyRecord(
   roleId: string,
 ) {
   const payload = secret.get('payload');
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+  if (!hasExactPrivateSecretAudience(secret, uid) ||
+      typeof payload !== 'object' || payload === null || Array.isArray(payload) ||
+      (payload as Record<string, unknown>).type !== 'loyalty') {
     return { uid, roleId, kind: '', suspicion: null };
   }
   const value = payload as Record<string, unknown>;
@@ -1966,16 +1968,9 @@ export const releaseRole = onCall<{
       tx.get(targetSecretRef),
     ]);
     let partnerSecretRef: DocumentReference | undefined;
-    if (targetSecret.exists) {
-      const payload = targetSecret.get('payload');
-      const partnerUid = typeof payload === 'object' && payload !== null && !Array.isArray(payload) &&
-        (payload as Record<string, unknown>).kind === 'friend' &&
-        typeof (payload as Record<string, unknown>).partnerUid === 'string'
-        ? (payload as Record<string, unknown>).partnerUid as string
-        : undefined;
-      if (partnerUid && partnerUid !== release.targetUid) {
-        partnerSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${partnerUid}`);
-      }
+    const partnerUid = privateFriendPartnerUid(targetSecret, release.targetUid);
+    if (partnerUid) {
+      partnerSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${partnerUid}`);
     }
     const partnerSecret = partnerSecretRef ? await tx.get(partnerSecretRef) : undefined;
     if (prior.exists) {
@@ -1994,13 +1989,8 @@ export const releaseRole = onCall<{
     // record above also makes a concurrent assignment retry against this
     // transaction instead of leaving a stale hidden faction behind.
     if (targetSecret.exists) tx.delete(targetSecretRef);
-    if (partnerSecret?.exists && partnerSecretRef) {
-      const partnerPayload = partnerSecret.get('payload');
-      const reciprocal = typeof partnerPayload === 'object' && partnerPayload !== null &&
-        !Array.isArray(partnerPayload) &&
-        (partnerPayload as Record<string, unknown>).type === 'loyalty' &&
-        (partnerPayload as Record<string, unknown>).kind === 'friend' &&
-        (partnerPayload as Record<string, unknown>).partnerUid === release.targetUid;
+    if (partnerSecret?.exists && partnerSecretRef && partnerUid) {
+      const reciprocal = privateFriendPartnerUid(partnerSecret, partnerUid) === release.targetUid;
       if (reciprocal) tx.delete(partnerSecretRef);
     }
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
@@ -2093,6 +2083,22 @@ function hasMatchingLoyaltyReceiptBinding(
   }, fingerprint);
 }
 
+function isBoundLoyaltyAssignmentResult(
+  value: unknown,
+  fingerprint: LoyaltyAssignmentFingerprint,
+): value is CastingMutationResult & { assignedUids: readonly string[] } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const assignedUids = candidate.assignedUids;
+  const expectedUids = fingerprint.partnerUid
+    ? [fingerprint.targetUid, fingerprint.partnerUid]
+    : [fingerprint.targetUid];
+  return candidate.sessionId === fingerprint.sessionId &&
+    Number.isInteger(candidate.setupRevision) && (candidate.setupRevision as number) >= 0 &&
+    Array.isArray(assignedUids) && assignedUids.length === expectedUids.length &&
+    assignedUids.every((assignedUid, index) => assignedUid === expectedUids[index]);
+}
+
 function isCanonicalLoyaltyHolder(
   player: DocumentSnapshot | undefined,
   uid: string,
@@ -2136,6 +2142,7 @@ function canonicalLoyaltySecret(
   if (!secret.exists || !secret.id.startsWith('loyalty-')) return null;
   const uid = secret.id.slice('loyalty-'.length);
   if (!uid) return null;
+  if (!hasExactPrivateSecretAudience(secret, uid)) return null;
   const holder = players.find((candidate) => candidate.id === uid);
   if (!isCanonicalLoyaltyHolder(holder, uid, players, activeRoleIds)) return null;
   const payload = secret.get('payload');
@@ -2158,12 +2165,15 @@ function canonicalLoyaltySecret(
  * record. Reassignment may replace a holder's secret, but it must not erase a
  * malformed or unrelated secret merely because it names that holder.
  */
-function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: string): string | null {
-  if (!secret?.exists) return null;
+function hasExactPrivateSecretAudience(secret: DocumentSnapshot | undefined, uid: string): boolean {
+  if (!secret?.exists) return false;
   const visibleToUids = secret.get('visibleToUids');
-  if (!Array.isArray(visibleToUids) || visibleToUids.length !== 1 || visibleToUids[0] !== uid) {
-    return null;
-  }
+  return Array.isArray(visibleToUids) && visibleToUids.length === 1 && visibleToUids[0] === uid;
+}
+
+function privateFriendPartnerUid(secret: DocumentSnapshot | undefined, uid: string): string | null {
+  if (!hasExactPrivateSecretAudience(secret, uid)) return null;
+  if (!secret) return null;
   const payload = secret.get('payload');
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
   const record = payload as Record<string, unknown>;
@@ -2228,10 +2238,10 @@ export const assignLoyalty = onCall<{
         throw new HttpsError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.');
       }
       const result = prior.get('result');
-      if (typeof result === 'object' && result !== null) {
-        return result as CastingMutationResult & { assignedUids: readonly string[] };
+      if (isBoundLoyaltyAssignmentResult(result, storedFingerprint)) {
+        return result;
       }
-      throw new HttpsError('failed-precondition', 'This loyalty request has no replayable result.');
+      throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or non-replayable result.');
     }
     if (legacyEvent.exists) {
       throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt.');

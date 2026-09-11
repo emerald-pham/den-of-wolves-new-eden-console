@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 614,
     },
     changes: [
-      "Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
+      "Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
       "Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.",
     ],
   },

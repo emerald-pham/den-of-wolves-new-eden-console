@@ -211,6 +211,24 @@ describe('casting and private setup policy', () => {
     ])).toEqual({ valid: false, reason: 'stale' });
   });
 
+  it('rejects optional Intelligence Agent setups without exactly one card and a Wolf', () => {
+    const holders = [
+      { uid: 'u1', roleId: 'admiral' },
+      { uid: 'u2', roleId: 'wing-commander' },
+      { uid: 'u3', roleId: 'icebreaker-miner' },
+    ];
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'intelligence-agent', suspicion: 6 },
+      { ...holders[1]!, kind: 'fleet-loyalist', suspicion: 0 },
+      { ...holders[2]!, kind: 'fleet-loyalist', suspicion: 5 },
+    ])).toEqual({ valid: false, reason: 'conflicting' });
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'intelligence-agent', suspicion: 6 },
+      { ...holders[2]!, kind: 'intelligence-agent', suspicion: 6 },
+    ])).toEqual({ valid: false, reason: 'conflicting' });
+  });
+
   it('projects only a player\'s own brief and loyalty while facilitators receive the census', () => {
     const setup = {
       briefs: { u1: { roleId: 'admiral', text: 'private brief' }, u2: { roleId: 'miner', text: 'other brief' } },
