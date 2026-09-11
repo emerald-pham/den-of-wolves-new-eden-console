@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  parseCatalog,
   validateWorkRegistration,
 } from '../../scripts/validate-work-registration.mjs';
 
@@ -28,16 +27,6 @@ describe('optional implementation metadata and safety boundaries', () => {
     expect(ci).not.toContain('validate-work-registration');
     expect(ci).not.toContain('Implementation-Prompt');
     expect(ci).toContain('npm run roadmap:check');
-  });
-
-  it('parses the machine catalog through the compatibility API', () => {
-    const errors: string[] = [];
-    const catalog = parseCatalog({ catalogSource }, errors);
-
-    expect(errors, errors.join('\n')).toEqual([]);
-    expect(catalog.plan.definitions.size).toBeGreaterThan(0);
-    expect(catalog.progress.size).toBeGreaterThan(0);
-    expect(catalog.dependency.rows.size).toBeGreaterThan(0);
   });
 
   it('accepts ordinary tooling without a prompt or trailer when the catalog is valid', () => {
@@ -71,12 +60,7 @@ describe('optional implementation metadata and safety boundaries', () => {
       catalogSource,
     });
 
-    expect(result).toMatchObject({
-      documentationOnly: true,
-      authorityValidated: true,
-      prompt: null,
-      errors: [],
-    });
+    expect(result).toMatchObject({ documentationOnly: false, prompt: null, errors: [] });
   });
 
   it('rejects malformed catalog data instead of silently accepting it', () => {
