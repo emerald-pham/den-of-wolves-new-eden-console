@@ -640,6 +640,7 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   const ignoreSource = readFileSync(resolve(cwd, '.gitignore'), 'utf8');
   const dispatcherSource = readFileSync(resolve(cwd, 'scripts/prompt-dependencies.mjs'), 'utf8');
   const coordinationSource = readFileSync(resolve(cwd, 'scripts/emulator-resource-registry.mjs'), 'utf8');
+  const throughputSource = readFileSync(resolve(cwd, 'scripts/coordination-throughput.mjs'), 'utf8');
   if (packageJson.scripts?.['coordination:dependencies'] !== 'node scripts/prompt-dependencies.mjs' ||
     packageJson.scripts?.['coordination:dependencies:measure'] !== 'node scripts/prompt-dependencies.mjs --measure' ||
     packageJson.scripts?.['validate:dependencies'] !== 'node scripts/prompt-dependencies.mjs --verify') {
@@ -655,7 +656,8 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
     errors.push('scripts/prompt-dependencies.mjs must import the shared canonical authority parser');
   }
   if (!/import\s*\{[\s\S]*?coordinationClaimIsCrossRepository[\s\S]*?\}\s*from '\.\/coordination-throughput\.mjs'/.test(dispatcherSource) ||
-    !/export\s+function\s+coordinationClaimIsCrossRepository\s*\(/.test(coordinationSource)) {
+    !coordinationSource.includes('coordinationClaimIsCrossRepository,') ||
+    !/export\s+function\s+coordinationClaimIsCrossRepository\s*\(/.test(throughputSource)) {
     errors.push('dependency receipts and coordination lifecycle must share the host-wide claim policy');
   }
   if (!ignoreSource.split(/\r?\n/).includes('.codex/dependency-receipts/')) {
