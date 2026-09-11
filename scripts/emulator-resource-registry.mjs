@@ -213,8 +213,16 @@ async function readGitStartState(cwd = process.cwd()) {
   return { branchName, branchSha, mainSha: main.sha, repositoryRoot: resolve(repositoryRoot), repositoryIdentity: resolve(repositoryIdentity) };
 }
 
-export function changedFilesBaseRef({ mainSha, startBranchSha, mainContainsBranch, validatedBaseSha, validatedBaseIsAncestorOfMain }) {
+export function changedFilesBaseRef({
+  mainSha,
+  startBranchSha,
+  mainContainsBranch,
+  mainIsAncestorOfBranch,
+  validatedBaseSha,
+  validatedBaseIsAncestorOfMain,
+}) {
   if (validatedBaseSha && validatedBaseIsAncestorOfMain) return validatedBaseSha;
+  if (mainIsAncestorOfBranch) return mainSha;
   return mainContainsBranch && startBranchSha ? startBranchSha : mainSha;
 }
 
@@ -312,7 +320,19 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   const mainVersion = parseApplicationVersion(mainPackage, `${main.ref}:package.json`);
   const mainContainsBranch = await gitIsAncestor(branchSha, mainSha, cwd);
   const mainIsAncestorOfBranch = await gitIsAncestor(mainSha, branchSha, cwd);
-  const base = startBranchSha || (mainContainsBranch ? branchSha : mainSha);
+  const validatedProfileEvidence = objectRecord(validation?.profile?.evidence);
+  const validatedBaseSha = text(validation?.baseSha, text(validatedProfileEvidence.baseSha));
+  const validatedBaseIsAncestorOfMain = validatedBaseSha
+    ? await gitIsAncestor(validatedBaseSha, mainSha, cwd)
+    : false;
+  const base = changedFilesBaseRef({
+    mainSha,
+    startBranchSha,
+    mainContainsBranch,
+    mainIsAncestorOfBranch,
+    validatedBaseSha,
+    validatedBaseIsAncestorOfMain,
+  });
   const changedFiles = await readChangedFiles(base, branchSha, cwd);
   const diffText = await runGit(['diff', '--unified=0', `${base}...${branchSha}`], cwd);
   const profile = deriveValidationProfile({ changedFiles, repositoryDirectory: cwd });
@@ -983,12 +1003,17 @@ export async function validateCoordinationEntry(filePath, options = {}) {
   const files = changedFilesForRelease(release, snapshot);
   const profile = deriveValidationProfile({ changedFiles: files, repositoryDirectory: process.cwd(), forceFull: options.forceFull === true });
   const commands = validationPlanForFiles(files, { profile }).commands;
+  const releaseEvidence = objectRecord(release.validationProfile?.evidence);
+  const validationBaseSha = text(releaseEvidence.baseSha);
+  const validationDiffIdentity = text(releaseEvidence.diffIdentity);
   const previous = snapshot.validation;
   const reusable = options.force !== true && previous?.passed === true &&
     previous.commitSha === release.branchSha &&
     JSON.stringify(previous.files) === JSON.stringify(files) &&
     JSON.stringify(previous.commands) === JSON.stringify(commands) &&
-    previous.profile?.kind === profile.kind;
+    previous.profile?.kind === profile.kind &&
+    previous.baseSha === validationBaseSha &&
+    previous.diffIdentity === validationDiffIdentity;
 
   const recordValidation = async (validation, { reused = false } = {}) => withCoordinationLock(filePath, async () => {
     const state = await readStateUnlocked(filePath);
@@ -1023,6 +1048,8 @@ export async function validateCoordinationEntry(filePath, options = {}) {
     files,
     commands,
     outcomes,
+    ...(validationBaseSha ? { baseSha: validationBaseSha } : {}),
+    ...(validationDiffIdentity ? { diffIdentity: validationDiffIdentity } : {}),
     error: error instanceof Error ? error.message : String(error),
     validatedAt: isoNow(),
   });
@@ -1053,6 +1080,8 @@ export async function validateCoordinationEntry(filePath, options = {}) {
     files,
     commands,
     outcomes,
+    ...(validationBaseSha ? { baseSha: validationBaseSha } : {}),
+    ...(validationDiffIdentity ? { diffIdentity: validationDiffIdentity } : {}),
     ...(profile.requiresReview ? { review: text(options.review ?? options['independent-review']) } : {}),
     validatedAt: isoNow(),
   };

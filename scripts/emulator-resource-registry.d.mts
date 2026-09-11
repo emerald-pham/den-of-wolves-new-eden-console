@@ -62,6 +62,8 @@ export interface ValidationRecord {
   readonly files: readonly string[];
   readonly commands: readonly string[];
   readonly outcomes: readonly Readonly<Record<string, unknown>>[];
+  readonly baseSha?: string;
+  readonly diffIdentity?: string;
   readonly review?: string;
   readonly error?: string;
   readonly validatedAt: string;
@@ -258,6 +260,7 @@ export function changedFilesBaseRef(options: {
   readonly mainSha: string;
   readonly startBranchSha?: string;
   readonly mainContainsBranch: boolean;
+  readonly mainIsAncestorOfBranch?: boolean;
   readonly validatedBaseSha?: string;
   readonly validatedBaseIsAncestorOfMain?: boolean;
 }): string;

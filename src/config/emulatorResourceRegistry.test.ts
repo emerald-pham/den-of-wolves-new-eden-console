@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -9,10 +9,12 @@ import { promisify } from 'node:util';
 import {
   beginCoordinationEntry,
   chooseAvailableEmulatorSlot,
+  changedFilesBaseRef,
   finishCoordinationEntry,
   forecastCoordinationConflicts,
   parseChangelogSnapshot,
   parseCoordinationState,
+  readReleaseState,
   releaseConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
@@ -44,6 +46,32 @@ function releaseSnapshot(changedFiles: readonly string[], branchSha = 'validated
     branchChangelog: [{ version: '0.3.28', source: 'current release' }],
     mainChangelog: [{ version: '0.3.28', source: 'current release' }],
   };
+}
+
+async function releaseGitFixture() {
+  const root = await mkdtemp(resolve(tmpdir(), `emulator-release-${randomUUID()}-`));
+  const remote = resolve(root, 'remote.git');
+  const directory = resolve(root, 'checkout');
+  await execFileAsync('git', ['init', '--bare', remote]);
+  await execFileAsync('git', ['init', '-b', 'main', directory]);
+  await execFileAsync('git', ['config', 'user.email', 'runtime@example.test'], { cwd: directory });
+  await execFileAsync('git', ['config', 'user.name', 'Runtime Test'], { cwd: directory });
+  await execFileAsync('git', ['remote', 'add', 'origin', remote], { cwd: directory });
+  await mkdir(resolve(directory, 'src'), { recursive: true });
+  await mkdir(resolve(directory, 'scripts'), { recursive: true });
+  await writeFile(resolve(directory, 'package.json'), '{"name":"release-fixture","version":"1.0.0"}\n');
+  await writeFile(resolve(directory, 'package-lock.json'), '{"name":"release-fixture","version":"1.0.0","lockfileVersion":3,"packages":{"":{"name":"release-fixture","version":"1.0.0"}}}\n');
+  await writeFile(resolve(directory, 'src/changelog.ts'), 'export const entries = [{ version: APP_VERSION, text: \'fixture\' }];\n');
+  await execFileAsync('git', ['add', '.'], { cwd: directory });
+  await execFileAsync('git', ['commit', '-m', 'fixture baseline'], { cwd: directory });
+  await execFileAsync('git', ['push', '-u', 'origin', 'main'], { cwd: directory });
+  await execFileAsync('git', ['switch', '-c', 'tooling/late-registration'], { cwd: directory });
+  await writeFile(resolve(directory, 'scripts/task.mjs'), 'export const task = true;\n');
+  await execFileAsync('git', ['add', 'scripts/task.mjs'], { cwd: directory });
+  await execFileAsync('git', ['commit', '-m', 'candidate change'], { cwd: directory });
+  const branchSha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: directory })).stdout.trim();
+  const mainSha = (await execFileAsync('git', ['rev-parse', 'main'], { cwd: directory })).stdout.trim();
+  return { root, directory, branchSha, mainSha };
 }
 
 describe('simplified coordination registry', () => {
@@ -242,5 +270,60 @@ describe('simplified coordination registry', () => {
     expect(plan.profile.kind).toBe('tooling');
     expect(plan.requiresReview).toBe(false);
     expect(plan.commands).toContain('npm run lint');
+  });
+
+  it('uses current main for late registration and keeps the validated diff after landing', () => {
+    expect(changedFilesBaseRef({
+      mainSha: 'current-main',
+      startBranchSha: 'candidate',
+      mainContainsBranch: false,
+      mainIsAncestorOfBranch: true,
+    })).toBe('current-main');
+    expect(changedFilesBaseRef({
+      mainSha: 'landed-main',
+      startBranchSha: 'candidate',
+      mainContainsBranch: true,
+      mainIsAncestorOfBranch: true,
+      validatedBaseSha: 'validated-main',
+      validatedBaseIsAncestorOfMain: true,
+    })).toBe('validated-main');
+  });
+
+  it('derives late-registration files from current main and retains them after landing', async () => {
+    const fixtureState = await releaseGitFixture();
+    try {
+      const beforeLanding = await readReleaseState({
+        cwd: fixtureState.directory,
+        startBranchSha: fixtureState.branchSha,
+      });
+      expect(beforeLanding.mainSha).toBe(fixtureState.mainSha);
+      expect(beforeLanding.mainIsAncestorOfBranch).toBe(true);
+      expect(beforeLanding.changedFiles).toContain('scripts/task.mjs');
+      const validation = {
+        passed: true,
+        commitSha: fixtureState.branchSha,
+        profile: beforeLanding.validationProfile,
+        files: beforeLanding.changedFiles,
+        commands: [],
+        outcomes: [],
+        baseSha: beforeLanding.validationProfile?.evidence?.baseSha,
+        diffIdentity: beforeLanding.validationProfile?.evidence?.diffIdentity,
+        validatedAt: '2026-09-11T00:00:00.000Z',
+      };
+      await execFileAsync('git', ['switch', 'main'], { cwd: fixtureState.directory });
+      await execFileAsync('git', ['merge', '--ff-only', 'tooling/late-registration'], { cwd: fixtureState.directory });
+      await execFileAsync('git', ['push', 'origin', 'main'], { cwd: fixtureState.directory });
+      await execFileAsync('git', ['switch', 'tooling/late-registration'], { cwd: fixtureState.directory });
+      const afterLanding = await readReleaseState({
+        cwd: fixtureState.directory,
+        startBranchSha: fixtureState.branchSha,
+        validation,
+      });
+      expect(afterLanding.mainContainsBranch).toBe(true);
+      expect(afterLanding.changedFiles).toContain('scripts/task.mjs');
+      expect(afterLanding.validationProfile?.evidence?.baseSha).toBe(beforeLanding.validationProfile?.evidence?.baseSha);
+    } finally {
+      await rm(fixtureState.root, { recursive: true, force: true });
+    }
   });
 });
