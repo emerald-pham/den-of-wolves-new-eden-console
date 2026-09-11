@@ -184,14 +184,14 @@ describe('implementation progress integrity gate', () => {
       changelogSource: changelogSource.replace(
         /percentage:\s*['"][^'"]+['"]/, "percentage: '9.7%'",
       )
-        .replace('partial: 25', 'partial: 26'),
+        .replace('partial: 26', 'partial: 27'),
     });
 
     expect(badPercentage.errors.join('\n')).toContain(
       `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
     );
     expect(badPercentage.errors.join('\n')).toContain(
-      `changelog ${applicationVersion} implementation progress partial count is 26, but the ledger has 25`,
+      `changelog ${applicationVersion} implementation progress partial count is 27, but the ledger has 26`,
     );
   });
 
@@ -205,7 +205,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ total: 731, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ total: 732, resumePrompt: '012' });
     expect(result.summary?.complete).toBe(result.releaseProgress?.completed);
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');

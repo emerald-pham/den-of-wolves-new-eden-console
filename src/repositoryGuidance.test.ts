@@ -7,6 +7,7 @@ import {
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
   validatePromptDependencyGuidance,
+  validateSessionGoalGuidance,
 } from '../scripts/validate-repository-guidance.mjs';
 
 describe('repository guidance', () => {
@@ -166,6 +167,7 @@ describe('repository guidance', () => {
 
   it('requires role-scoped Luna to Terra to Sol escalation on every agent-model authority', () => {
     const surfaces = [
+      'AGENTS.md',
       'CLAUDE.md',
       'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
       'docs/IMPLEMENTATION_PLAN.md',
@@ -215,6 +217,7 @@ describe('repository guidance', () => {
       const errors: string[] = [];
       validateAgentModelEscalation({
         sources: new Map([
+          ['AGENTS.md', mutation.source],
           ['CLAUDE.md', mutation.source],
           ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
           ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
@@ -226,6 +229,49 @@ describe('repository guidance', () => {
         expect.stringContaining(mutation.expected),
       ]));
     }
+  });
+
+  it('requires phase-specific model floors and the durable session-goal lifecycle', () => {
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const modelErrors: string[] = [];
+    validateAgentModelEscalation({ sources, errors: modelErrors });
+    expect(modelErrors, modelErrors.join('\n')).toEqual([]);
+
+    const goalErrors: string[] = [];
+    validateSessionGoalGuidance({ sources, errors: goalErrors });
+    expect(goalErrors, goalErrors.join('\n')).toEqual([]);
+  });
+
+  it('rejects session-goal guidance that drops the machine-checked lifecycle', () => {
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const mutation = (sources.get('CLAUDE.md') ?? '').replaceAll('coordination:goals', 'coordination:status');
+    const errors: string[] = [];
+    validateSessionGoalGuidance({
+      sources: new Map([...sources, ['CLAUDE.md', mutation]]),
+      errors,
+    });
+    expect(errors, errors.join('\n')).toEqual(expect.arrayContaining([
+      expect.stringContaining('CLAUDE.md: must document the supported session-goal update path'),
+    ]));
   });
 
   it('requires an exact pushed-branch handoff on every blocked-merge authority', () => {

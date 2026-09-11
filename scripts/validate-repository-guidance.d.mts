@@ -24,6 +24,10 @@ export function validateAgentModelEscalation(
   input: PromptDependencyGuidanceInput,
 ): void;
 
+export function validateSessionGoalGuidance(
+  input: PromptDependencyGuidanceInput,
+): void;
+
 export function validateBlockedMergeAgentHandoff(
   input: PromptDependencyGuidanceInput,
 ): void;

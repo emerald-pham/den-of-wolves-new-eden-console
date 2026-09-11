@@ -56,6 +56,24 @@ Keep this objective unchecked until the sequence has actually happened. If the
 work is explicitly preserved or discarded instead of landed, replace it with
 that documented outcome and explain why it could not merge.
 
+The checklist must also be written to the coordination registry at session
+start: `coordination:begin` must receive each unchecked goal as a repeated
+`--session-goal "- [ ] ..."` argument, including the exact release objective above.
+The registry creates a deterministic ignored working artifact bound to the
+entry and preserves an immutable original representation. At wrap-up, run
+`coordination:goals -- --id <id> --goal-result "goal-001|checked|explanation"`
+once for every goal, using `checked` or `unchecked` and an explanation. The
+machine gate validates exact goal identity, order, and text against the
+original. `coordination:finish` fails closed if the artifact is absent,
+malformed, or un-compared; after every other finish gate succeeds it removes
+the artifact and verifies its absence before recording completion. Cleanup
+verifies artifact absence. The coordination path records checked/unchecked
+outcomes and explanations. Status exposes only the artifact path and lifecycle
+state, not unrelated goal text.
+The explicit `legacy-exempt` policy covers existing pre-feature P012/P014/P664
+entries without an artifact and records a durable comparison; all new entries
+require the artifact.
+
 For every non-documentation change, the same checklist must also include
 an unchecked dependency gate: read
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
@@ -86,6 +104,11 @@ between tiers. Before dispatching Sol, explain in user-visible chat why that
 role needs Sol, the observed Luna and Terra failures (or the recorded reason
 the role began at Terra), and that Sol is 10 times as expensive as Luna. This
 notice records the authorization; it is not a new permission request.
+
+Durable phase floors are role-specific: the implementation phase uses
+GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
+uses GPT-5.6 Luna at `max`.
 
 An attempt fails only after evidence: a terminal agent error; an abandoned or
 lost execution state with no relevant running process and no usable result; or
@@ -278,6 +301,15 @@ installs the hooks through the package `prepare` script; use
    no-player-facing-change note, does not add a release fragment, and does not
    change the application version or player-facing changelog. The lighter
    documentation-only review path is described in [Test first for code](#1-test-first-for-code).
+   Keep `--work-type product` for production-authority work, and declare the
+   immutable `--change-class feature|non-feature` from the canonical progress
+   row. Only the explicit `non-feature` class receives the no-version,
+   no-fragment, and no-player-facing-changelog exemption; free-text version
+   plans cannot bypass those gates. The owner-only, one-time migration for
+   already-active P012/P014 entries is:
+   `npm run coordination:amend -- --id "<coordination id>" --change-class non-feature`.
+   It fails closed unless the canonical row is `non-feature`, records the old
+   and new class in coordination history, and cannot be repeated or reversed.
    The path/branch preflight and root dependency bootstrap above precede every
    repository script; then follow the test-first, emulator-slot, and
    product-reference rules below.

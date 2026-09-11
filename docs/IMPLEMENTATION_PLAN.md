@@ -22,7 +22,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 731-prompt catalog from top to bottom for an ordinary
+Do **not** read this 732-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -90,7 +90,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-731-prompts-001664-plus-lettered-ids-prompt-071-retired)
+- [Prompt checklist](#execution-checklist--all-732-prompts-001664-plus-lettered-ids-prompt-071-retired)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -211,7 +211,15 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 731-prompt roadmap.
+claim completion of the remaining 732-prompt roadmap.
+
+Durable phase floors are role-specific: the implementation phase uses
+GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
+uses GPT-5.6 Luna at `max`. A failed Luna role escalates to Terra and a failed
+Terra role to Sol for that same role only; never reset or downgrade a role tier,
+and detect and stop Luna/Terra loops. Explain the failures and Sol's 10-times
+Luna cost in user-visible chat before any Sol dispatch.
 
 ## Scope and baseline
 
@@ -2074,9 +2082,9 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 731-ID queue (Prompts 001–664 plus the lettered prompts, with the
+The complete 732-ID queue (Prompts 001–664 plus the lettered prompts, with the
 retired Prompt 071 removed) is in scope for the active completion campaign. All
-731 canonical prompt IDs (001–664 plus the lettered prompts, with the retired
+732 canonical prompt IDs (001–664 plus the lettered prompts, with the retired
 Prompt 071 removed) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -2096,11 +2104,13 @@ because the prompt is independent.
 #### Implementation-plan agent authorization
 
 When working on numbered prompts from this implementation plan, the product
-owner specifically authorizes the coordinator to assign implementation, tests,
-verification, integration, release, merge, push, and coordination closeout to
-GPT-5.6 Luna (`gpt-5.6-luna`) agents at `max` reasoning. Non-coding work,
-including reconnaissance, planning, documentation review, evidence collation,
-and read-only verification, may use Luna at any supported reasoning level. If
+owner specifically authorizes the coordinator to assign implementation and
+tests to GPT-5.6 Luna (`gpt-5.6-luna`) agents at `max` reasoning, independent
+exact-HEAD review to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`, and
+reconciliation, validation, release, merge, push, deployment, and coordination
+closeout to GPT-5.6 Luna at `max`. Non-coding work, including reconnaissance,
+planning, documentation review, evidence collation, and read-only verification,
+may use the phase floor for its assigned role. If
 a Luna attempt fails, reassign that same agent role to GPT-5.6 Terra
 (`gpt-5.6-terra`) at `xhigh`; if a Terra attempt then fails, GPT-5.6 Sol
 (`gpt-5.6-sol`) is authorized for that same agent role only. The escalation tier
@@ -2129,7 +2139,7 @@ run its dispatcher, and reconcile the exact row, prerequisites, evidence,
 current `main`, and coordination ownership. The delegate must repeat that
 preflight after a rebase or material movement of current `main`; no prompt may
 be marked complete or merged while a hard prerequisite remains unmet.
-Use an independent Luna review for security/authorization, hidden information,
+Use an independent Terra review for security/authorization, hidden information,
 randomness, destructive migrations, endgame, capacity, or complex conflict
 resolution, and when ordinary risk judgment calls for one. Do not create a
 review-only agent for every low-risk prompt. If review or release work changes
@@ -2140,7 +2150,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 731 prompts (001–664 plus lettered IDs; Prompt 071 retired)
+#### Execution checklist — all 732 prompts (001–664 plus lettered IDs; Prompt 071 retired)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2876,6 +2886,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 662
 - [ ] Prompt 663
 - [x] Prompt 664
+- [ ] Prompt 665
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -3647,11 +3658,12 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 662 — [DECISION] Resolve ordinary-start Wolf designation policy.** Acceptance: current ordinary Setup intentionally has no manual designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, `resetWolves`, and manual-assignment guards require an explicit owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. If automatic server assignment is retained, retire or strictly constrain residual manual/random endpoints and stale guards, clarify in-universe copy explaining when the server assigns Wolves, and prove locked-roster-derived count, private audience, replay/CAS, and unauthorized denial. If manual designation is chosen, require a separate bounded GM-only pre-start flow with roster-derived count/candidates, authoritative validation, audit/replay/CAS, secrecy, a11y, and rules denial. Do not silently choose between policies. Note overlaps/dependencies 054, 071, 075, 496, and 586–588. This is low priority/deferred and remains missing until the owner-approved policy and bounded acceptance are recorded.
 - **Prompt 663 — [REPAIR] Make Fleetwide Red Alert discoverable in a normal browser.** Acceptance: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present so the authorized role has a visible, keyboard-accessible trigger and a rendered regression proves the alert appears and remains usable without obscured controls or overflow. Preserve server-authoritative role, session, phase, and callable checks, direct client-write denial, private/audience boundaries, screen-reader semantics, contrast, responsive containment, and reduced-motion behavior. Remains missing/deferred until separately implemented; existing text-only or isolated component assertions do not count as rendered browser proof.
 - **Prompt 664 — [REPAIR] Enforce universal roadmap registration before non-documentation commits.** Acceptance: every commit that changes anything beyond the repository-defined Markdown/README documentation boundary ends with exactly one canonical `Implementation-Prompt:` trailer and is rejected unless that item exists with matching tag, status, checklist state, prerequisite readiness, and source-backed dependency evidence in the implementation plan, progress ledger, and dependency index. Work uncharted at its trusted `main` branch baseline must atomically add all three authority records with its first non-documentation commit; a complete documentation-only planning registration already landed on `main` may be consumed by branches started afterward. The same fail-closed validator runs in the tracked commit and push hooks, CI, coordination validation, and preserved/discarded closeout; it covers merge conflict resolutions, rejects untrusted range baselines, and leaves product release/version rules intact. Dependencies: Prompts 660 and 661 provide exact validation execution and the canonical documentation-only classification.
+- **Prompt 665 — [EXTEND] Make session goals durable and machine-checked across coordination lifecycle.** Acceptance: `coordination:begin` requires explicit unchecked Markdown goals, including the exact immediate release objective, creates a deterministic ignored worktree-local artifact bound to the coordination entry, and preserves an immutable original goal identity/order/text representation. A supported `coordination:goals` wrap-up path records checked/unchecked outcomes and explanations; it must validate every outcome against the original and retain durable start/final comparison evidence in the coordination receipt without exposing unrelated goal text in status. `coordination:finish` fails closed when the working artifact is absent, malformed, un-compared, or identity/order/text-divergent; it cleans only the entry-owned artifact after every other finish gate succeeds and verifies absence before recording completion. Existing pre-feature P012/P014/P664 entries have an explicit `legacy-exempt` migration policy and durable comparison record; new entries always require the artifact. Add phase-specific durable model floors: Luna `max` for implementation and reconciliation/validation/merge/push/deployment, Terra `xhigh` for independent review, with same-role Luna→Terra→Sol escalation, monotonic tiers, loop detection, and a user-visible Sol explanation including the 10× Luna cost. Keep this slice non-feature: no application version, release fragment, or player-facing changelog change. Dependencies: Prompt 664 provides the universal registration gate and typed source-backed authority; Prompt 665 extends its coordination begin/finish lifecycle.
 
-The backlog contains **731 independently executable prompts** in this
-snapshot: 663 base IDs plus 68 lettered child IDs placed beside their closest
+The backlog contains **732 independently executable prompts** in this
+snapshot: 664 base IDs plus 68 lettered child IDs placed beside their closest
 dependency; retired Prompt 071 is preserved only in historical release notes.
-The current evidence classification is **160 `[PRESERVE]`, 104 `[EXTEND]`,
+The current evidence classification is **160 `[PRESERVE]`, 105 `[EXTEND]`,
 366 `[NEW]`, 49 `[PROVE]`, 24 `[DECISION]`, 25 `[REPAIR]`, 2 `[POLISH]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather

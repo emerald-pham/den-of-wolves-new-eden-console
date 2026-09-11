@@ -42,6 +42,7 @@ import {
   parseListeningPortSnapshot,
   coordinationStateChanged,
   beginCoordinationEntry,
+  updateSessionGoals,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 
@@ -151,6 +152,29 @@ function releaseState(overrides = {}) {
       { version: '0.3.2', source: 'previous release' },
     ],
     changedFiles: ['scripts/example.mjs'],
+    ...overrides,
+  };
+}
+
+const immediateReleaseObjective =
+  'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.';
+
+type BeginCoordinationOptions = Parameters<typeof beginCoordinationEntry>[1];
+
+function sessionGoalBeginOptions(
+  overrides: Partial<BeginCoordinationOptions> = {},
+): BeginCoordinationOptions {
+  return {
+    intent: 'exercise session-goal lifecycle',
+    'version-plan': 'Tooling-only; no application version change.',
+    'preemptive-changelog': 'No player-facing change.',
+    'work-type': 'tooling',
+    'implementation-prompt': '665',
+    'change-class': 'non-feature',
+    'session-goal': [
+      '- [ ] Exercise deterministic goal artifact creation.',
+      `- [ ] ${immediateReleaseObjective}`,
+    ],
     ...overrides,
   };
 }
@@ -270,9 +294,194 @@ describe('local emulator coordination', () => {
         'version-plan': 'Documentation-only; no application version change.',
         'preemptive-changelog': 'No player-facing change.',
         'work-type': 'documentation',
+        'session-goal': [
+          '- [ ] Clarify repository guidance.',
+          `- [ ] ${immediateReleaseObjective}`,
+        ],
       });
       expect(documentation.implementationPrompt).toBeUndefined();
       expect(documentation.implementationRegistrationRequired).toBe(true);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('creates an ignored immutable session-goal artifact with the required release objective', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    try {
+      const entry = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      expect(entry.sessionGoals).toMatchObject({
+        policy: 'required',
+        status: 'open',
+      });
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+      const artifact = JSON.parse(await readFile(artifactPath, 'utf8'));
+      expect(artifact).toMatchObject({
+        schemaVersion: 1,
+        entryId: entry.id,
+        original: [
+          { id: 'goal-001', text: 'Exercise deterministic goal artifact creation.' },
+          { id: 'goal-002', text: immediateReleaseObjective },
+        ],
+        current: [
+          { id: 'goal-001', text: 'Exercise deterministic goal artifact creation.', checked: false },
+          { id: 'goal-002', text: immediateReleaseObjective, checked: false },
+        ],
+      });
+      expect(entry.sessionGoals!.artifactPath).toBe(
+        `.codex/session-goals/${entry.id}.json`,
+      );
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('requires unchecked goals and the exact immediate release objective at begin', async () => {
+    const cases = [
+      {
+        options: { ...sessionGoalBeginOptions(), 'session-goal': undefined },
+        expected: /session[- ]goals?.*(?:requires|required)/i,
+      },
+      {
+        options: {
+          ...sessionGoalBeginOptions(),
+          'session-goal': ['- [x] Already checked.', `- [ ] ${immediateReleaseObjective}`],
+        },
+        expected: /unchecked/i,
+      },
+      {
+        options: {
+          ...sessionGoalBeginOptions(),
+          'session-goal': ['- [ ] A goal without release closeout.'],
+        },
+        expected: /release objective/i,
+      },
+    ];
+    for (const fixture of cases) {
+      const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-required-${randomUUID()}.json`);
+      try {
+        await expect(beginCoordinationEntry(filePath, fixture.options)).rejects.toThrow(fixture.expected);
+      } finally {
+        await unlink(filePath).catch(() => undefined);
+        await unlink(`${filePath}.lock`).catch(() => undefined);
+      }
+    }
+  });
+
+  it('records checked and unchecked explanations, compares exact goals, and removes the artifact only on finish', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-finish-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    try {
+      const entry = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+      await expect(updateSessionGoals(filePath, {
+        id: entry.id,
+        now: '2099-01-01T00:01:00.000Z',
+        outcomes: [
+          {
+            id: 'goal-001',
+            checked: true,
+            explanation: 'The artifact was created at the deterministic entry path.',
+          },
+          {
+            id: 'goal-002',
+            checked: false,
+            explanation: 'Release is intentionally owned by the downstream release agent.',
+          },
+        ],
+      })).resolves.toMatchObject({
+        id: entry.id,
+        sessionGoals: { status: 'compared' },
+      });
+
+      const updatedArtifact = JSON.parse(await readFile(artifactPath, 'utf8'));
+      expect(updatedArtifact.comparison).toMatchObject({
+        status: 'compared',
+        originalDigest: updatedArtifact.originalDigest,
+        checkedCount: 1,
+        uncheckedCount: 1,
+      });
+
+      const state = await readCoordinationState(filePath);
+      const updatedState = {
+        ...state,
+        entries: state.entries.map((candidate, index) => index === 0
+          ? { ...candidate, validation: codeValidation }
+          : candidate),
+      };
+      await writeFile(filePath, JSON.stringify(updatedState), 'utf8');
+
+      await finishCoordinationEntry(filePath, {
+        id: entry.id,
+        result: 'goals compared for release handoff',
+        release: releaseState({ branchName: entry.branchName }),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      });
+
+      const finished = await readCoordinationState(filePath);
+      expect(finished.entries[0]).toMatchObject({
+        status: 'complete',
+        sessionGoals: {
+          policy: 'required',
+          status: 'compared',
+          finalComparison: { status: 'compared', checkedCount: 1, uncheckedCount: 1 },
+        },
+      });
+      await expect(readFile(artifactPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('fails closed when the goal artifact is absent, malformed, or not compared', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-gate-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    try {
+      const entry = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+      const finish = () => finishCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({ branchName: entry.branchName }),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      });
+
+      await expect(finish()).rejects.toThrow(/session goal.*compared|comparison/i);
+      await writeFile(artifactPath, '{malformed', 'utf8');
+      await expect(finish()).rejects.toThrow(/session goal.*malformed|artifact/i);
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('migrates only pre-feature entries without a working goal artifact through an explicit legacy policy', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-legacy-${randomUUID()}.json`);
+    const legacyEntry = { ...releaseEntry, implementationPrompt: '664' };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [legacyEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await finishCoordinationEntry(filePath, {
+        id: legacyEntry.id,
+        release: releaseState(),
+      });
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+        status: 'complete',
+        sessionGoals: {
+          policy: 'legacy-exempt',
+          finalComparison: { status: 'legacy-exempt' },
+        },
+      });
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -352,6 +561,113 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('allows only the transferred tooling entry to advance Prompt 664 ownership to Prompt 665', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-prompt-continuation-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = {
+      ...amendmentEntry(),
+      ...identity,
+      workType: 'tooling',
+      implementationPrompt: '664',
+      implementationRegistrationRequired: true,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await heartbeatCoordinationEntry(filePath, {
+        id: entry.id,
+        now: '2099-01-01T00:01:00.000Z',
+      });
+      const amended = await amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'implementation-prompt': '665',
+        now: '2099-01-01T00:01:01.000Z',
+      });
+      expect(amended).toMatchObject({
+        implementationPrompt: '665',
+        amendments: [{
+          implementationPromptBefore: '664',
+          implementationPromptAfter: '665',
+        }],
+      });
+      await expect(amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'implementation-prompt': '664',
+        now: '2099-01-01T00:01:02.000Z',
+      })).rejects.toThrow(/cannot change|already.*665/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('requires product entries to declare a canonical feature or non-feature change class', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-change-class-${randomUUID()}.json`);
+    try {
+      await expect(beginCoordinationEntry(filePath, {
+        ...sessionGoalBeginOptions(),
+        'change-class': undefined,
+        'work-type': 'product',
+      })).rejects.toThrow(/change class/i);
+      await expect(beginCoordinationEntry(filePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'product',
+        'implementation-prompt': '141',
+        'change-class': 'non-feature',
+      })).rejects.toThrow(/canonical.*non-feature|change class/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('allows one owner-only product reclassification to canonical non-feature and audits old/new values', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-change-class-amend-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = {
+      ...amendmentEntry(),
+      ...identity,
+      workType: 'product',
+      implementationPrompt: '012',
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await heartbeatCoordinationEntry(filePath, {
+        id: entry.id,
+        now: '2099-01-01T00:01:00.000Z',
+      });
+      const amended = await amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'change-class': 'non-feature',
+        now: '2099-01-01T00:02:00.000Z',
+      });
+      expect(amended).toMatchObject({
+        changeClass: 'non-feature',
+        amendments: [{
+          changeClassBefore: null,
+          changeClassAfter: 'non-feature',
+        }],
+      });
+      await expect(amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'change-class': 'feature',
+      })).rejects.toThrow(/immutable|cannot change|already/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('registers intent without taking scopes or claims until an explicit just-in-time claim', async () => {
     const rootPath = resolve(tmpdir(), `den-of-wolves-coordination-intent-${randomUUID()}`);
     const originPath = `${rootPath}.origin.git`;
@@ -363,6 +679,9 @@ describe('local emulator coordination', () => {
       await runFixtureGit(rootPath, ['config', 'user.email', 'fixture@example.test']);
       await runFixtureGit(rootPath, ['config', 'user.name', 'Fixture']);
       await writeFile(resolve(rootPath, 'README.md'), 'fixture\n');
+      await mkdir(resolve(rootPath, 'docs'), { recursive: true });
+      await writeFile(resolve(rootPath, 'docs/IMPLEMENTATION_PROGRESS.md'),
+        '| 055 | partial | feature | — | Fixture prompt. |\n');
       await runFixtureGit(rootPath, ['add', 'README.md']);
       await runFixtureGit(rootPath, ['commit', '-m', 'fixture']);
       await runFixtureGit(rootPath, ['switch', '-c', 'feature/intent']);
@@ -377,6 +696,9 @@ describe('local emulator coordination', () => {
         '--preemptive-changelog', 'A visible feature note.',
         '--work-type', 'product',
         '--implementation-prompt', '055',
+        '--change-class', 'feature',
+        '--session-goal', '- [ ] Prepare a feature release.',
+        '--session-goal', `- [ ] ${immediateReleaseObjective}`,
         '--scope', 'src/components',
         '--claims', 'release-metadata',
       ], {
@@ -3655,6 +3977,48 @@ describe('local emulator coordination', () => {
     })).toThrow(/player-facing work must increment|version plan/i);
   });
 
+  it('uses the canonical non-feature change class to exempt product source work from release metadata gates', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'product',
+        implementationPrompt: '012',
+        changeClass: 'non-feature',
+        versionPlan: 'Production source work; no application version or release fragment.',
+      },
+      release: releaseState({
+        mainContainsBranch: true,
+        branchVersion: '0.3.2',
+        branchLockVersion: '0.3.2',
+        mainVersion: '0.3.2',
+        mainLockVersion: '0.3.2',
+        branchChangelog: [{ version: '0.3.2', source: 'previous release' }],
+        mainChangelog: [{ version: '0.3.2', source: 'previous release' }],
+      }),
+    })).not.toThrow();
+  });
+
+  it('does not let a non-feature class bypass the canonical feature classification', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'product',
+        implementationPrompt: '141',
+        changeClass: 'non-feature',
+        versionPlan: 'Production source work; no application version or release fragment.',
+      },
+      release: releaseState({
+        mainContainsBranch: true,
+        branchVersion: '0.3.2',
+        branchLockVersion: '0.3.2',
+        mainVersion: '0.3.2',
+        mainLockVersion: '0.3.2',
+        branchChangelog: [{ version: '0.3.2', source: 'previous release' }],
+        mainChangelog: [{ version: '0.3.2', source: 'previous release' }],
+      }),
+    })).toThrow(/change class.*canonical|canonical.*feature/i);
+  });
+
   it('requires product work to identify a plan prompt', () => {
     expect(() => validateReleaseCompletion({
       entry: {
@@ -3693,12 +4057,12 @@ describe('local emulator coordination', () => {
       implementationPrompts: ['141'],
       implementationProgress: {
         completed: 90,
-        total: 731,
-        percentage: '12.31%',
+        total: 732,
+        percentage: '12.30%',
         done: 90,
         partial: 25,
         active: 0,
-        missing: 616,
+        missing: 617,
       },
       changes: ['A release-lane feature note.'],
       validated: true,
@@ -3842,10 +4206,10 @@ describe('local emulator coordination', () => {
           implementationPrompts: ['055'],
           implementationProgress: {
             completed: 92,
-            total: 731,
-            percentage: '12.59%',
+            total: 732,
+            percentage: '12.57%',
             done: 92,
-            partial: 25,
+            partial: 26,
             active: 0,
             missing: 614,
           },

@@ -10,6 +10,14 @@ explicit location; `DOW_EMULATOR_COORDINATION_FILE` is a compatibility alias.
 Confirm the path printed by `coordination:status` before acting on another
 worktree's entry.
 
+Durable phase floors are role-specific: the implementation phase uses
+GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
+uses GPT-5.6 Luna at `max`. A failed Luna role escalates to Terra and a failed
+Terra role to Sol for that same role only; never reset or downgrade a role tier,
+and detect and stop Luna/Terra loops. Explain the failures and Sol's 10-times
+Luna cost in user-visible chat before any Sol dispatch.
+
 ## Start and inspect
 
 From the exact non-`main` checkout that will do the work:
@@ -24,12 +32,28 @@ npm run coordination:begin -- \
   --intent "Describe one bounded outcome." \
   --work-type "documentation" \
   --scope "README.md,docs/WORKTREE_COORDINATION.md" \
+  --session-goal "- [ ] Describe one bounded outcome." \
+  --session-goal "- [ ] As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination." \
   --version-plan "No application version bump: documentation only." \
   --preemptive-changelog "No player-facing change: documentation only." \
   --resources "No emulator; documentation review only."
 
 npm run coordination:status
 ```
+
+Every session start writes the unchecked `--session-goal` values to a
+deterministic ignored working artifact under `.codex/session-goals/`, bound to
+the coordination entry. The artifact retains an immutable original goal
+representation. At wrap-up, run the supported `coordination:goals` update path
+with one `--goal-result "goal-001|checked|explanation"` per goal;
+checked/unchecked outcomes and explanations are required, and exact goal identity,
+order, and text are compared with the original. `coordination:finish` fails
+closed when the artifact is absent, malformed, or un-compared. Cleanup happens
+only after every other finish gate succeeds and verifies artifact absence.
+Status exposes the path and lifecycle state without unrelated goal text.
+The explicit `legacy-exempt` policy covers entries created before this gate
+that lack an artifact—P012, P014, and P664—and records a durable comparison;
+new entries remain required.
 
 Save the printed id. Confirm its absolute worktree path and attached branch,
 then review every active entry for overlapping paths, prompts, claims, emulator
@@ -42,6 +66,21 @@ exist in all three implementation authorities, or the task's first
 non-documentation commit must add its plan definition/checklist, progress row,
 and dependency/evidence row together. Documentation-only means every changed
 file is Markdown or a README; a mixed diff is not exempt.
+
+Production-authority entries keep `--work-type product` and must also declare
+the immutable `--change-class feature|non-feature` matching the canonical
+progress row. A feature class requires the normal application version,
+release-fragment, and player-facing changelog gates. For the already-active
+P012/P014 product entries, an owner may perform the one-time audited
+reclassification only after confirming their canonical rows say `non-feature`:
+
+```bash
+npm run coordination:amend -- --id "<coordination id>" --change-class non-feature
+```
+
+The amendment is fail-closed against that row, records the old and new class,
+and cannot be repeated or changed back. Free-text version plans never grant the
+non-feature exemption.
 
 ## Mandatory numbered-prompt preflight
 

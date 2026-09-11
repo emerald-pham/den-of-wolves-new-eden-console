@@ -3,6 +3,7 @@ dist/
 functions/lib/
 functions/node_modules/
 coverage/
+.codex/session-goals/
 
 # Proprietary game source material must remain outside version control.
 /docs/reference/

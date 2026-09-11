@@ -76,8 +76,16 @@ export const COORDINATION_SCHEMA_VERSION = 1;
 export const COORDINATION_SCOPE = 'codex-wide';
 export const DEFAULT_VERSION_AGREEMENT =
   'Increment the patch version for each completed player-facing fix; roll 0.x.99 over to 0.(x+1).0; do not bump tooling-only work.';
+export const SESSION_GOALS_SCHEMA_VERSION = 1;
+export const SESSION_GOALS_RELEASE_OBJECTIVE =
+  'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.';
 
 const DEFAULT_COORDINATION_FILE = 'den-of-wolves-new-eden-coordination.json';
+const SESSION_GOALS_DIRECTORY = '.codex/session-goals';
+// Entries that began before the Prompt 665 lifecycle gate may close through
+// an explicit, auditable exemption. New begin entries always carry the
+// required artifact regardless of their prompt.
+const LEGACY_SESSION_GOAL_PROMPTS = new Set(['012', '014', '664']);
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
@@ -175,6 +183,232 @@ function contentIdentity(content) {
   return createHash('sha256').update(content).digest('hex');
 }
 
+function sessionGoalNow(value) {
+  if (value === undefined || value === null || value === '') {
+    return new Date().toISOString();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid session-goal timestamp: ${String(value)}.`);
+  }
+  return parsed.toISOString();
+}
+
+function sessionGoalArtifactRelativePath(entryId) {
+  const normalizedEntryId = text(entryId);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(normalizedEntryId)) {
+    throw new Error(`Session-goal artifact identity is invalid for entry ${String(entryId)}.`);
+  }
+  return `${SESSION_GOALS_DIRECTORY}/${normalizedEntryId}.json`;
+}
+
+function sessionGoalArtifactAbsolutePath(entry) {
+  return resolve(entry.worktree, sessionGoalArtifactRelativePath(entry.id));
+}
+
+function sessionGoalDigest(goals) {
+  return contentIdentity(JSON.stringify(goals));
+}
+
+function sessionGoalOutcomeDigest(goals) {
+  return contentIdentity(JSON.stringify(goals.map((goal) => ({
+    id: goal.id,
+    text: goal.text,
+    checked: goal.checked,
+    explanation: goal.explanation,
+  }))));
+}
+
+function sessionGoalValues(value) {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  if (values.length === 0) {
+    throw new Error(
+      'coordination begin session-goals requires at least one --session-goal "- [ ] <goal>" value.',
+    );
+  }
+  return values.map((line, index) => {
+    if (typeof line !== 'string') {
+      throw new Error(`coordination begin session goal ${index + 1} must be text.`);
+    }
+    const unchecked = line.match(/^- \[ \] (.+)$/);
+    if (!unchecked || unchecked[1].trim() !== unchecked[1]) {
+      if (/^- \[[xX]\]/.test(line)) {
+        throw new Error(
+          `coordination begin session goal ${index + 1} must start unchecked (- [ ]).`,
+        );
+      }
+      throw new Error(
+        `coordination begin session goal ${index + 1} must use the exact "- [ ] <goal>" format.`,
+      );
+    }
+    return {
+      id: `goal-${String(index + 1).padStart(3, '0')}`,
+      text: unchecked[1],
+    };
+  });
+}
+
+function requireSessionGoalReleaseObjective(goals) {
+  if (!goals.some((goal) => goal.text === SESSION_GOALS_RELEASE_OBJECTIVE)) {
+    throw new Error(
+      'coordination begin session goals must include the exact immediate release objective: ' +
+        SESSION_GOALS_RELEASE_OBJECTIVE,
+    );
+  }
+}
+
+function sessionGoalArtifact(entry, goals, now) {
+  return {
+    schemaVersion: SESSION_GOALS_SCHEMA_VERSION,
+    entryId: entry.id,
+    artifactPath: sessionGoalArtifactRelativePath(entry.id),
+    createdAt: now,
+    original: goals,
+    originalDigest: sessionGoalDigest(goals),
+    current: goals.map((goal) => ({ ...goal, checked: false, explanation: '' })),
+    comparison: null,
+  };
+}
+
+async function writeSessionGoalsArtifact(path, artifact, { noClobber = false } = {}) {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const content = `${JSON.stringify(artifact, null, 2)}\n`;
+  if (noClobber) {
+    await writeValidationFileAtomically(path, content);
+    return;
+  }
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, content, { encoding: 'utf8', mode: 0o600 });
+    await rename(temporaryPath, path);
+  } finally {
+    await unlink(temporaryPath).catch(() => undefined);
+  }
+}
+
+function sessionGoalLegacyPolicy(entry) {
+  const prompt = normalizePromptId(entry.implementationPrompt);
+  // Before Prompt 665, entries did not have a session-goal artifact. The
+  // explicit prompt allow-list is the migration boundary; an unstructured
+  // historical fixture is also accepted when it has no implementation gate.
+  return entry.sessionGoals === undefined && (
+    LEGACY_SESSION_GOAL_PROMPTS.has(prompt) ||
+    (entry.implementationPrompt === undefined && entry.implementationRegistrationRequired !== true)
+  );
+}
+
+function sessionGoalError(entry, message) {
+  return new Error(`Cannot complete coordination entry ${entry.id}: session goal ${message}.`);
+}
+
+function validateSessionGoalArtifactShape(entry, metadata, artifact, {
+  requireCurrentExplanations = true,
+} = {}) {
+  if (metadata.policy !== 'required') {
+    throw sessionGoalError(entry, 'policy is not required');
+  }
+  if (metadata.schemaVersion !== SESSION_GOALS_SCHEMA_VERSION) {
+    throw sessionGoalError(entry, 'metadata schema is malformed');
+  }
+  const expectedPath = sessionGoalArtifactRelativePath(entry.id);
+  if (metadata.artifactPath !== expectedPath) {
+    throw sessionGoalError(entry, `artifact path must be ${expectedPath}`);
+  }
+  if (!artifact || typeof artifact !== 'object' || Array.isArray(artifact)) {
+    throw sessionGoalError(entry, 'artifact is malformed');
+  }
+  if (artifact.schemaVersion !== SESSION_GOALS_SCHEMA_VERSION || artifact.entryId !== entry.id) {
+    throw sessionGoalError(entry, 'artifact identity is malformed');
+  }
+  if (artifact.artifactPath !== expectedPath) {
+    throw sessionGoalError(entry, 'artifact path identity does not match the entry');
+  }
+  if (!Array.isArray(metadata.original) || metadata.original.length === 0 ||
+    !Array.isArray(artifact.original) ||
+    JSON.stringify(metadata.original) !== JSON.stringify(artifact.original)) {
+    throw sessionGoalError(entry, 'original goals do not match the immutable start representation');
+  }
+  const originalDigest = sessionGoalDigest(metadata.original);
+  if (metadata.originalDigest !== originalDigest || artifact.originalDigest !== originalDigest) {
+    throw sessionGoalError(entry, 'original goal digest is malformed');
+  }
+  for (const [index, goal] of metadata.original.entries()) {
+    if (!goal || typeof goal.id !== 'string' || typeof goal.text !== 'string' ||
+      goal.id !== `goal-${String(index + 1).padStart(3, '0')}` || !goal.text) {
+      throw sessionGoalError(entry, 'original goal identity/order/text is malformed');
+    }
+  }
+  if (!Array.isArray(artifact.current) || artifact.current.length !== metadata.original.length) {
+    throw sessionGoalError(entry, 'current goals do not match the original goal count');
+  }
+  artifact.current.forEach((goal, index) => {
+    const original = metadata.original[index];
+    if (!goal || goal.id !== original.id || goal.text !== original.text ||
+      typeof goal.checked !== 'boolean') {
+      throw sessionGoalError(entry, 'current goals changed identity, order, or text');
+    }
+    if (requireCurrentExplanations && (!text(goal.explanation) || typeof goal.explanation !== 'string')) {
+      throw sessionGoalError(entry, `goal ${goal.id} is missing an explanation`);
+    }
+  });
+  return artifact;
+}
+
+function sessionGoalComparisonForArtifact(entry, metadata, artifact) {
+  const comparison = objectRecord(artifact.comparison);
+  if (comparison.status !== 'compared' || !text(comparison.comparedAt)) {
+    throw sessionGoalError(entry, 'artifact has not been compared at wrap-up');
+  }
+  try {
+    if (sessionGoalNow(comparison.comparedAt) !== comparison.comparedAt) {
+      throw new Error('comparison timestamp is not canonical');
+    }
+  } catch {
+    throw sessionGoalError(entry, 'comparison timestamp is malformed');
+  }
+  if (artifact.current.some((goal) => !text(goal.explanation) || typeof goal.explanation !== 'string')) {
+    throw sessionGoalError(entry, 'compared goals must include an explanation');
+  }
+  const originalDigest = sessionGoalDigest(metadata.original);
+  const currentDigest = sessionGoalOutcomeDigest(artifact.current);
+  const checkedCount = artifact.current.filter((goal) => goal.checked).length;
+  const uncheckedCount = artifact.current.length - checkedCount;
+  if (comparison.originalDigest !== originalDigest ||
+    comparison.currentDigest !== currentDigest ||
+    comparison.checkedCount !== checkedCount ||
+    comparison.uncheckedCount !== uncheckedCount ||
+    comparison.goalCount !== artifact.current.length) {
+    throw sessionGoalError(entry, 'artifact comparison does not match current goals');
+  }
+  return {
+    status: 'compared',
+    comparedAt: comparison.comparedAt,
+    originalDigest,
+    currentDigest,
+    goalCount: artifact.current.length,
+    checkedCount,
+    uncheckedCount,
+  };
+}
+
+async function readSessionGoalArtifactForEntry(entry) {
+  const metadata = objectRecord(entry.sessionGoals);
+  const path = sessionGoalArtifactAbsolutePath(entry);
+  let artifact;
+  try {
+    artifact = JSON.parse(await readFile(path, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') throw sessionGoalError(entry, 'artifact is missing');
+    if (error instanceof SyntaxError) throw sessionGoalError(entry, 'artifact is malformed');
+    throw sessionGoalError(entry, `artifact could not be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  validateSessionGoalArtifactShape(entry, metadata, artifact, {
+    requireCurrentExplanations: false,
+  });
+  const comparison = sessionGoalComparisonForArtifact(entry, metadata, artifact);
+  return { path, comparison };
+}
+
 async function optionalFileContentIdentity(path) {
   try {
     return contentIdentity(await readFile(path));
@@ -255,6 +489,7 @@ function validationEntryInputs(entry) {
     startedAt: entry.startedAt,
     branchName: entry.branchName ?? null,
     workType: entry.workType ?? null,
+    changeClass: entry.changeClass ?? null,
     implementationPrompt: entry.implementationPrompt ?? null,
     versionPlan: entry.versionPlan ?? null,
     preemptiveChangelog: entry.preemptiveChangelog ?? null,
@@ -660,6 +895,51 @@ function isToolingOnlyVersionPlan(versionPlan) {
     .test(versionPlan ?? '');
 }
 
+function normalizeChangeClass(value) {
+  const normalized = text(value).toLowerCase();
+  return ['feature', 'non-feature'].includes(normalized) ? normalized : null;
+}
+
+function canonicalChangeClassForPrompt(prompt, cwd = process.cwd()) {
+  const normalizedPrompt = normalizePromptId(prompt);
+  if (!normalizedPrompt) return null;
+  const progressPath = resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md');
+  if (!existsSync(progressPath)) return null;
+  const source = readFileSync(progressPath, 'utf8');
+  const row = source.match(new RegExp(
+    `^\\|\\s*${normalizedPrompt}\\s*\\|\\s*(?:done|partial|missing|blocked|in-progress)\\s*\\|\\s*(feature|non-feature)\\s*\\|`,
+    'im',
+  ));
+  return row?.[1]?.toLowerCase() ?? null;
+}
+
+function changeClassErrors(entry, changeClass = entry.changeClass) {
+  if (!entry.workType && entry.changeClass === undefined) return [];
+  if (entry.changeClass !== undefined && !normalizeChangeClass(entry.changeClass)) {
+    return ['change class must be exactly feature or non-feature'];
+  }
+  const effectiveChangeClass = entry.changeClass === undefined
+    ? changeClass
+    : normalizeChangeClass(entry.changeClass);
+  if (entry.workType && entry.workType !== 'product') {
+    if (effectiveChangeClass === 'feature') {
+      return ['only product work may declare the feature change class'];
+    }
+    return [];
+  }
+  const prompt = normalizePromptId(entry.implementationPrompt);
+  if (!prompt) return [];
+  if (!effectiveChangeClass) return [];
+  const canonical = canonicalChangeClassForPrompt(prompt);
+  if (!canonical) {
+    return [`change class ${effectiveChangeClass} cannot be verified against canonical Prompt ${prompt} progress`];
+  }
+  if (canonical !== effectiveChangeClass) {
+    return [`change class ${effectiveChangeClass} does not match canonical Prompt ${prompt} classification ${canonical}`];
+  }
+  return [];
+}
+
 function plannedApplicationVersion(versionPlan) {
   const matches = [...(versionPlan ?? '').matchAll(/\b\d+\.\d+\.\d+\b/g)];
   return matches.at(-1)?.[0];
@@ -731,7 +1011,8 @@ function implementationPlanMetadataErrors(entry, release, releaseFragment) {
       'release fragment must be explicitly validated and task-bound to the coordination entry',
     );
   }
-  if (!changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !fragmentIsBoundAndValidated) {
+  if (entry.changeClass !== 'non-feature' &&
+    !changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !fragmentIsBoundAndValidated) {
     errors.push(
       'implementation-plan product work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
     );
@@ -847,9 +1128,13 @@ function releaseMetadataErrors({
     );
   }
 
-  const toolingOnly = entry.workType
-    ? entry.workType !== 'product'
-    : isToolingOnlyVersionPlan(entry.versionPlan);
+  const changeClass = entry.changeClass ?? (
+    entry.workType
+      ? entry.workType !== 'product' ? 'non-feature' : 'feature'
+      : isToolingOnlyVersionPlan(entry.versionPlan) ? 'non-feature' : 'feature'
+  );
+  errors.push(...changeClassErrors(entry, changeClass));
+  const toolingOnly = changeClass === 'non-feature';
   if (!toolingOnly) {
     const branchParts = release.branchVersion.match(APPLICATION_VERSION_PATTERN);
     const mainParts = release.mainVersion.match(APPLICATION_VERSION_PATTERN);
@@ -2540,9 +2825,19 @@ function formatEntry(entry) {
     const implementationPrompt = normalizedPrompt
       ? ` | implementation prompt: ${normalizedPrompt}`
       : '';
+    const changeClass = entry.changeClass
+      ? ` | change class: ${entry.changeClass}`
+      : '';
     lines.push(
-      `  work type: ${text(entry.workType, 'legacy')}${implementationPrompt} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
+      `  work type: ${text(entry.workType, 'legacy')}${implementationPrompt}${changeClass} | scopes: ${entry.scopes?.join(', ') || 'none'} | claims: ${entry.claims?.join(', ') || 'none'}`,
     );
+  }
+  if (entry.sessionGoals?.policy === 'required') {
+    lines.push(
+      `  session goals: ${text(entry.sessionGoals.status, 'open')} | artifact: ${text(entry.sessionGoals.artifactPath, 'missing')}`,
+    );
+  } else if (entry.sessionGoals?.policy === 'legacy-exempt' || sessionGoalLegacyPolicy(entry)) {
+    lines.push('  session goals: legacy-exempt (pre-feature policy; no working artifact)');
   }
   if (Array.isArray(entry.requestedScopes) || Array.isArray(entry.requestedClaims)) {
     lines.push(
@@ -2684,7 +2979,7 @@ function parseOptions(args) {
     const name = argument.slice(2);
     const value = args[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for --${name}.`);
-    if (name === 'change') {
+    if (['change', 'session-goal', 'goal-result'].includes(name)) {
       options[name] = [...(Array.isArray(options[name]) ? options[name] : []), value];
     } else {
       options[name] = value;
@@ -2692,6 +2987,28 @@ function parseOptions(args) {
     index += 1;
   }
   return options;
+}
+
+function parseSessionGoalResults(value) {
+  const results = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  return results.map((raw, index) => {
+    const firstSeparator = raw.indexOf('|');
+    const secondSeparator = raw.indexOf('|', firstSeparator + 1);
+    if (firstSeparator < 1 || secondSeparator < firstSeparator + 2) {
+      throw new Error(
+        `coordination goals --goal-result ${index + 1} must use id|checked|explanation syntax.`,
+      );
+    }
+    const id = raw.slice(0, firstSeparator).trim();
+    const status = raw.slice(firstSeparator + 1, secondSeparator).trim().toLowerCase();
+    const explanation = raw.slice(secondSeparator + 1).trim();
+    if (!['checked', 'unchecked'].includes(status) || !explanation) {
+      throw new Error(
+        `coordination goals --goal-result ${index + 1} must include checked/unchecked and an explanation.`,
+      );
+    }
+    return { id, checked: status === 'checked', explanation };
+  });
 }
 
 async function readGitStartState(cwd = process.cwd()) {
@@ -2735,6 +3052,36 @@ export async function beginCoordinationEntry(filePath, options) {
       'coordination begin requires non-documentation work to record an implementation prompt with --implementation-prompt NNN or NNN<letter>.',
     );
   }
+  const requestedChangeClass = options['change-class'] === undefined
+    ? null
+    : normalizeChangeClass(options['change-class']);
+  if (options['change-class'] !== undefined && !requestedChangeClass) {
+    throw new Error('coordination begin requires --change-class feature|non-feature.');
+  }
+  if (workType === 'product' && !requestedChangeClass) {
+    throw new Error(
+      'coordination begin requires product work to declare a change class with --change-class feature|non-feature.',
+    );
+  }
+  if (workType !== 'product' && requestedChangeClass === 'feature') {
+    throw new Error('coordination begin allows the feature change class only for product work.');
+  }
+  const changeClass = requestedChangeClass ?? 'non-feature';
+  if (workType === 'product') {
+    const canonical = canonicalChangeClassForPrompt(implementationPrompt);
+    if (!canonical) {
+      throw new Error(
+        `coordination begin cannot verify Prompt ${implementationPrompt} change class in the canonical progress ledger.`,
+      );
+    }
+    if (canonical !== changeClass) {
+      throw new Error(
+        `coordination begin change class ${changeClass} does not match canonical Prompt ${implementationPrompt} classification ${canonical}.`,
+      );
+    }
+  }
+  const sessionGoals = sessionGoalValues(options['session-goal']);
+  requireSessionGoalReleaseObjective(sessionGoals);
   const { scopes, claims } = normalizedCoordinationOwnership(options);
   return withCoordinationLock(filePath, async () => {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
@@ -2746,8 +3093,9 @@ export async function beginCoordinationEntry(filePath, options) {
         `An active coordination entry already exists for this worktree: ${existing.id}.`,
       );
     }
+    const id = `${Date.now()}-${process.pid}-${randomUUID().slice(0, 8)}`;
     const entry = {
-      id: `${Date.now()}-${process.pid}-${randomUUID().slice(0, 8)}`,
+      id,
       worktree: process.cwd(),
       pid: process.pid,
       startedAt: new Date().toISOString(),
@@ -2761,6 +3109,7 @@ export async function beginCoordinationEntry(filePath, options) {
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
       workType,
+      changeClass,
       implementationRegistrationRequired: true,
       ...(workType !== 'documentation'
         ? { implementationPrompt }
@@ -2776,9 +3125,114 @@ export async function beginCoordinationEntry(filePath, options) {
       resources: options.resources
         ? options.resources.split(',').map((resource) => resource.trim()).filter(Boolean)
         : [],
+      sessionGoals: {
+        schemaVersion: SESSION_GOALS_SCHEMA_VERSION,
+        policy: 'required',
+        status: 'open',
+        artifactPath: sessionGoalArtifactRelativePath(id),
+        original: sessionGoals,
+        originalDigest: sessionGoalDigest(sessionGoals),
+      },
     };
     validateImplementationPromptClaims([...state.entries, entry]);
-    state.entries.push(entry);
+    const artifactPath = sessionGoalArtifactAbsolutePath(entry);
+    const artifact = sessionGoalArtifact(entry, sessionGoals, entry.startedAt);
+    await writeSessionGoalsArtifact(artifactPath, artifact, { noClobber: true });
+    try {
+      state.entries.push(entry);
+      await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+      return entry;
+    } catch (error) {
+      await unlink(artifactPath).catch(() => undefined);
+      throw error;
+    }
+  });
+}
+
+function normalizedSessionGoalOutcomes(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('coordination goals requires one --goal-result <id|checked|explanation> for every goal.');
+  }
+  const seen = new Set();
+  return value.map((outcome, index) => {
+    const record = objectRecord(outcome);
+    const id = text(record.id);
+    if (!id || seen.has(id)) {
+      throw new Error(`coordination goals outcome ${index + 1} has a missing or duplicate goal id.`);
+    }
+    if (typeof record.checked !== 'boolean') {
+      throw new Error(`coordination goals outcome ${id} must be checked or unchecked.`);
+    }
+    const explanation = text(record.explanation);
+    if (!explanation) {
+      throw new Error(`coordination goals outcome ${id} requires an explanation.`);
+    }
+    seen.add(id);
+    return { id, checked: record.checked, explanation };
+  });
+}
+
+/** Record a complete, exact comparison of the working session goals. */
+export async function updateSessionGoals(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination goals requires --id <entry-id>.');
+  const outcomes = normalizedSessionGoalOutcomes(options.outcomes);
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot update session goals for ${entry.id} from ${process.cwd()}; it belongs to ${entry.worktree}.`,
+      );
+    }
+    if (sessionGoalLegacyPolicy(entry)) {
+      throw new Error(`Cannot update session goals for legacy entry ${entry.id}; no artifact is required.`);
+    }
+    const metadata = objectRecord(entry.sessionGoals);
+    const path = sessionGoalArtifactAbsolutePath(entry);
+    let artifact;
+    try {
+      artifact = JSON.parse(await readFile(path, 'utf8'));
+    } catch (error) {
+      if (error?.code === 'ENOENT') throw new Error(`Cannot update session goals for ${entry.id}: artifact is missing.`);
+      if (error instanceof SyntaxError) throw new Error(`Cannot update session goals for ${entry.id}: artifact is malformed.`);
+      throw error;
+    }
+    validateSessionGoalArtifactShape(entry, metadata, artifact, {
+      requireCurrentExplanations: false,
+    });
+    if (outcomes.length !== metadata.original.length || outcomes.some((outcome, index) =>
+      outcome.id !== metadata.original[index].id)) {
+      throw new Error(
+        `Cannot update session goals for ${entry.id}: outcomes must preserve every original goal identity and order.`,
+      );
+    }
+    const now = sessionGoalNow(options.now);
+    artifact.current = metadata.original.map((goal, index) => ({
+      ...goal,
+      checked: outcomes[index].checked,
+      explanation: outcomes[index].explanation,
+    }));
+    const comparison = {
+      status: 'compared',
+      comparedAt: now,
+      originalDigest: sessionGoalDigest(metadata.original),
+      currentDigest: sessionGoalOutcomeDigest(artifact.current),
+      goalCount: artifact.current.length,
+      checkedCount: artifact.current.filter((goal) => goal.checked).length,
+      uncheckedCount: artifact.current.filter((goal) => !goal.checked).length,
+    };
+    artifact.comparison = comparison;
+    await writeSessionGoalsArtifact(path, artifact);
+    entry.sessionGoals = {
+      ...metadata,
+      status: 'compared',
+      lastUpdatedAt: now,
+      lastComparison: comparison,
+    };
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
     return entry;
   });
@@ -2812,13 +3266,20 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
   const requestedImplementationPrompt = options['implementation-prompt'] === undefined
     ? null
     : normalizePromptId(options['implementation-prompt']);
+  const requestedChangeClass = options['change-class'] === undefined
+    ? null
+    : normalizeChangeClass(options['change-class']);
+  if (options['change-class'] !== undefined && !requestedChangeClass) {
+    throw new Error('coordination amend requires --change-class feature|non-feature.');
+  }
   if (options['implementation-prompt'] !== undefined &&
     (!requestedImplementationPrompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(requestedImplementationPrompt))) {
     throw new Error('coordination amend requires --implementation-prompt NNN or NNN<letter>.');
   }
-  if (scopes.length === 0 && claims.length === 0 && requestedImplementationPrompt === null) {
+  if (scopes.length === 0 && claims.length === 0 && requestedImplementationPrompt === null &&
+    requestedChangeClass === null) {
     throw new Error(
-      'coordination amend requires at least one new --scope, --claims, or --implementation-prompt value.',
+      'coordination amend requires at least one new --scope, --claims, --implementation-prompt, or --change-class value.',
     );
   }
   const duplicateScope = scopes.find((scope, index) => scopes.indexOf(scope) !== index);
@@ -2842,8 +3303,11 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     const existingImplementationPrompt = entry.implementationPrompt === undefined
       ? null
       : normalizePromptId(entry.implementationPrompt);
+    const advancesTransferredPrompt = existingImplementationPrompt === '664' &&
+      requestedImplementationPrompt === '665' &&
+      entry.workType === 'tooling' && entry.implementationRegistrationRequired === true;
     if (requestedImplementationPrompt && existingImplementationPrompt &&
-      requestedImplementationPrompt !== existingImplementationPrompt) {
+      requestedImplementationPrompt !== existingImplementationPrompt && !advancesTransferredPrompt) {
       throw new Error(
         `Coordination entry ${entry.id} is already bound to implementation Prompt ` +
         `${existingImplementationPrompt}; it cannot change to ${requestedImplementationPrompt}.`,
@@ -2852,8 +3316,41 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     const bindsImplementationPrompt = Boolean(
       requestedImplementationPrompt && !existingImplementationPrompt,
     );
+    if (advancesTransferredPrompt && canonicalChangeClassForPrompt('665') !== 'non-feature') {
+      throw new Error(
+        `Coordination entry ${entry.id} cannot advance to Prompt 665 without a canonical non-feature row.`,
+      );
+    }
+    const existingChangeClass = normalizeChangeClass(entry.changeClass);
+    if (requestedChangeClass && existingChangeClass) {
+      throw new Error(
+        `Coordination entry ${entry.id} already has immutable change class ${existingChangeClass}; it cannot change to ${requestedChangeClass}.`,
+      );
+    }
+    if (requestedChangeClass && entry.changeClass !== undefined && !existingChangeClass) {
+      throw new Error(`Coordination entry ${entry.id} has a malformed immutable change class.`);
+    }
+    if (requestedChangeClass && entry.workType !== 'product') {
+      throw new Error(
+        `Coordination entry ${entry.id} may reclassify only product work with --change-class non-feature.`,
+      );
+    }
+    if (requestedChangeClass && requestedChangeClass !== 'non-feature') {
+      throw new Error(
+        `Coordination entry ${entry.id} may use one-time reclassification only for --change-class non-feature.`,
+      );
+    }
+    if (requestedChangeClass) {
+      const canonical = canonicalChangeClassForPrompt(entry.implementationPrompt);
+      if (canonical !== requestedChangeClass) {
+        throw new Error(
+          `Coordination entry ${entry.id} change class ${requestedChangeClass} does not match canonical Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'} classification ${canonical ?? 'unknown'}.`,
+        );
+      }
+    }
     if (requestedImplementationPrompt && existingImplementationPrompt &&
-      scopes.length === 0 && claims.length === 0) {
+      scopes.length === 0 && claims.length === 0 && requestedChangeClass === null &&
+      !advancesTransferredPrompt) {
       throw new Error(
         `Coordination entry ${entry.id} is already bound to implementation Prompt ` +
         `${existingImplementationPrompt}; no new amendment was requested.`,
@@ -2937,19 +3434,32 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
 
     entry.scopes = [...existingScopes, ...scopes];
     entry.claims = [...existingClaims, ...claims];
-    if (bindsImplementationPrompt) {
+    if (bindsImplementationPrompt || advancesTransferredPrompt) {
       entry.implementationPrompt = requestedImplementationPrompt;
       entry.implementationRegistrationRequired = true;
       validateImplementationPromptClaims(state.entries);
     }
+    if (requestedChangeClass) entry.changeClass = requestedChangeClass;
     const amendment = {
-      amendedAt: new Date().toISOString(),
+      amendedAt: sessionGoalNow(options.now),
       worktree: process.cwd(),
       branchName: start.branchName,
       scopes: [...scopes],
       claims: [...claims],
-      ...(bindsImplementationPrompt
+      ...(bindsImplementationPrompt || advancesTransferredPrompt
         ? { implementationPrompt: requestedImplementationPrompt }
+        : {}),
+      ...(advancesTransferredPrompt
+        ? {
+            implementationPromptBefore: existingImplementationPrompt,
+            implementationPromptAfter: requestedImplementationPrompt,
+          }
+        : {}),
+      ...(requestedChangeClass
+        ? {
+            changeClassBefore: existingChangeClass ?? null,
+            changeClassAfter: requestedChangeClass,
+          }
         : {}),
     };
     entry.amendments = [
@@ -3284,7 +3794,9 @@ async function readReleaseCoordinationBinding(filePath, options = {}, { laneStat
     applicationVersion: mainVersion || applicationVersion,
     mainSha: start.mainSha,
     mainVersion,
-    requiredPrompt: entry.workType === 'product' ? normalizePromptId(entry.implementationPrompt) : null,
+    requiredPrompt: entry.workType === 'product' && entry.changeClass !== 'non-feature'
+      ? normalizePromptId(entry.implementationPrompt)
+      : null,
     validationReceiptCommitSha: text(entry.validation?.commitSha) || null,
     recovering,
     landed,
@@ -3748,7 +4260,9 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory,
     progressSource: inputs.progressSource,
     planSource: inputs.planSource,
     applicationVersion: inputs.applicationVersion,
-    requiredPrompt: entry.workType === 'product' ? entry.implementationPrompt : null,
+    requiredPrompt: entry.workType === 'product' && entry.changeClass !== 'non-feature'
+      ? entry.implementationPrompt
+      : null,
     postRelease,
   });
   if (validation.errors.length > 0) {
@@ -3971,6 +4485,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entryBranchName: entry.branchName,
       entryVersionPlan: entry.versionPlan,
       entryWorkType: entry.workType,
+      entryChangeClass: entry.changeClass,
       entryImplementationPrompt: entry.implementationPrompt,
       entryPreemptiveChangelog: entry.preemptiveChangelog,
       entryScopes: Array.isArray(entry.scopes) ? [...entry.scopes] : [],
@@ -4111,6 +4626,7 @@ export async function validateCoordinationEntry(filePath, options) {
       branchName: preparation.entryBranchName,
       versionPlan: preparation.entryVersionPlan,
       workType: preparation.entryWorkType,
+      changeClass: preparation.entryChangeClass,
       implementationPrompt: preparation.entryImplementationPrompt,
     },
     release: finalRelease,
@@ -4138,6 +4654,7 @@ export async function validateCoordinationEntry(filePath, options) {
       branchName: preparation.entryBranchName,
       versionPlan: preparation.entryVersionPlan,
       workType: preparation.entryWorkType,
+      changeClass: preparation.entryChangeClass,
       implementationPrompt: preparation.entryImplementationPrompt,
       preemptiveChangelog: preparation.entryPreemptiveChangelog,
       scopes: preparation.entryScopes,
@@ -4356,6 +4873,10 @@ export async function finishCoordinationEntry(filePath, options) {
         );
       }
     }
+    const legacySessionGoals = sessionGoalLegacyPolicy(entry);
+    const sessionGoalReceipt = legacySessionGoals
+      ? null
+      : await readSessionGoalArtifactForEntry(entry);
     let pushed = false;
     if (outcome === 'landed') {
       pushed = validateReleaseCompletion({ entry, release }).pushed;
@@ -4466,6 +4987,42 @@ export async function finishCoordinationEntry(filePath, options) {
       };
       entry.discardedAt = new Date().toISOString();
     }
+    let finalSessionGoals;
+    if (legacySessionGoals) {
+      const comparedAt = new Date().toISOString();
+      finalSessionGoals = {
+        schemaVersion: SESSION_GOALS_SCHEMA_VERSION,
+        policy: 'legacy-exempt',
+        status: 'legacy-exempt',
+        reason: 'Entry began before Prompt 665 introduced the session-goal lifecycle gate.',
+        finalComparison: {
+          status: 'legacy-exempt',
+          comparedAt,
+          reason: 'No working artifact was created under the pre-feature coordination policy.',
+        },
+      };
+    } else {
+      const cleanup = options.sessionGoalsCleanup ?? (async (path) => {
+        await unlink(path);
+      });
+      try {
+        await cleanup(sessionGoalReceipt.path);
+      } catch (error) {
+        throw sessionGoalError(
+          entry,
+          `artifact cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (await fileContent(sessionGoalReceipt.path) !== undefined) {
+        throw sessionGoalError(entry, 'artifact cleanup could not be verified');
+      }
+      finalSessionGoals = {
+        ...objectRecord(entry.sessionGoals),
+        status: 'compared',
+        finalComparison: sessionGoalReceipt.comparison,
+      };
+    }
+    entry.sessionGoals = finalSessionGoals;
     entry.status = 'complete';
     entry.outcome = outcome;
     entry.completedAt = new Date().toISOString();
@@ -4530,6 +5087,15 @@ async function main() {
       console.log(`Normalized origin to SSH: ${transport.origin}`);
     }
     console.log(`Registered preemptive work entry ${entry.id} in ${filePath}.`);
+    return;
+  }
+  if (command === 'goals' || command === 'session-goals') {
+    const entry = await updateSessionGoals(filePath, {
+      id: options.id,
+      now: options.now,
+      outcomes: parseSessionGoalResults(options['goal-result']),
+    });
+    console.log(`Compared session goals for ${entry.id} in ${filePath}.`);
     return;
   }
   if (command === 'forecast' || command === 'conflict-forecast') {
@@ -4624,7 +5190,7 @@ async function main() {
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|release-reconcile|amend|validate|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|goals|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|release-reconcile|amend|validate|finish> [options]',
   );
 }
 

@@ -3,6 +3,8 @@ export const COORDINATION_FILE_ENV: string;
 export const COORDINATION_SCHEMA_VERSION: number;
 export const COORDINATION_SCOPE: string;
 export const DEFAULT_VERSION_AGREEMENT: string;
+export const SESSION_GOALS_SCHEMA_VERSION: number;
+export const SESSION_GOALS_RELEASE_OBJECTIVE: string;
 
 export interface CoordinationReservation {
   readonly id?: string;
@@ -32,6 +34,7 @@ export interface CoordinationEntry {
   readonly preemptiveChangelog: string;
   readonly resources?: readonly string[];
   readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
+  readonly changeClass?: 'feature' | 'non-feature';
   readonly implementationPrompt?: number | string;
   readonly implementationRegistrationRequired?: boolean;
   readonly scopes?: readonly string[];
@@ -67,6 +70,38 @@ export interface CoordinationEntry {
   readonly validationHistory?: readonly ValidationReceipt[];
   readonly validationReused?: boolean;
   readonly mergeHandoffs?: readonly CoordinationMergeHandoff[];
+  readonly sessionGoals?: CoordinationSessionGoals;
+}
+
+export interface CoordinationSessionGoal {
+  readonly id: string;
+  readonly text: string;
+  readonly checked?: boolean;
+  readonly explanation?: string;
+}
+
+export interface CoordinationSessionGoalComparison {
+  readonly status: 'compared' | 'legacy-exempt';
+  readonly comparedAt: string;
+  readonly originalDigest?: string;
+  readonly currentDigest?: string;
+  readonly goalCount?: number;
+  readonly checkedCount?: number;
+  readonly uncheckedCount?: number;
+  readonly reason?: string;
+}
+
+export interface CoordinationSessionGoals {
+  readonly schemaVersion: number;
+  readonly policy: 'required' | 'legacy-exempt';
+  readonly status: 'open' | 'compared' | 'legacy-exempt';
+  readonly artifactPath?: string;
+  readonly original?: readonly CoordinationSessionGoal[];
+  readonly originalDigest?: string;
+  readonly lastUpdatedAt?: string;
+  readonly lastComparison?: CoordinationSessionGoalComparison;
+  readonly finalComparison?: CoordinationSessionGoalComparison;
+  readonly reason?: string;
 }
 
 export interface CoordinationMergeHandoff {
@@ -129,6 +164,10 @@ export interface CoordinationAmendment {
   readonly branchName: string;
   readonly scopes: readonly string[];
   readonly claims: readonly string[];
+  readonly implementationPromptBefore?: number | string | null;
+  readonly implementationPromptAfter?: number | string;
+  readonly changeClassBefore?: 'feature' | 'non-feature' | null;
+  readonly changeClassAfter?: 'feature' | 'non-feature';
 }
 
 export interface ValidationReceipt {
@@ -338,6 +377,8 @@ export function beginCoordinationEntry(
     readonly 'preemptive-changelog': string;
     readonly 'work-type': 'product' | 'tooling' | 'documentation' | 'investigation';
     readonly 'implementation-prompt'?: number | string;
+    readonly 'change-class'?: 'feature' | 'non-feature' | undefined;
+    readonly 'session-goal'?: string | readonly string[] | undefined;
     readonly scope?: string;
     readonly claims?: string;
     readonly resources?: string;
@@ -350,6 +391,7 @@ export function claimCoordinationEntry(
     readonly scope?: string;
     readonly claims?: string;
     readonly claim?: string;
+    readonly 'change-class'?: 'feature' | 'non-feature' | undefined;
     readonly now?: string | number | Date;
     readonly leaseMs?: number;
   },
@@ -485,8 +527,21 @@ export function amendCoordinationEntry(
     claims?: string;
     claim?: string;
     'implementation-prompt'?: number | string;
+    'change-class'?: 'feature' | 'non-feature' | undefined;
     now?: string | number | Date;
     leaseMs?: number;
+  },
+): Promise<CoordinationEntry>;
+export function updateSessionGoals(
+  filePath: string,
+  options: {
+    readonly id: string;
+    readonly outcomes: readonly {
+      readonly id: string;
+      readonly checked: boolean;
+      readonly explanation: string;
+    }[];
+    readonly now?: string | number | Date;
   },
 ): Promise<CoordinationEntry>;
 export function finishCoordinationEntry(
@@ -516,6 +571,7 @@ export function finishCoordinationEntry(
       readonly results: readonly unknown[];
       readonly errors: readonly string[];
     };
+    sessionGoalsCleanup?: (path: string) => Promise<void>;
   },
 ): Promise<CoordinationEntry>;
 export function pruneDeadReservations(

@@ -35,6 +35,36 @@ The executable `coordination:validate` and `coordination:finish` commands are
 the machine-checked release gate; do not mark an entry complete by editing the
 ledger or supplying an unverified result.
 
+## Durable agent phase floors
+
+Phase floors are role-specific and durable: the implementation phase uses
+GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
+uses GPT-5.6 Luna at `max`. If a Luna attempt fails, reassign that same agent
+role to `gpt-5.6-terra` at `xhigh`; if a Terra attempt then fails,
+`gpt-5.6-sol` is authorized for that same agent role only. The escalation tier belongs to the role and
+must never reset or downgrade when a task or worktree is replaced. Detect and
+stop any Luna/Terra loop: do not retry Luna after that role reaches Terra or
+alternate between tiers. Before dispatching Sol, explain in user-visible chat
+why that role needs Sol, the observed failures, and that Sol is 10 times as
+expensive as Luna.
+
+## Session-goal lifecycle
+
+At `coordination:begin`, record every session goal as a repeated `--session-goal
+"- [ ] ..."` argument, including the immediate release objective. The registry
+creates a deterministic ignored working artifact with an immutable original
+representation. At wrap-up, use `coordination:goals` to record checked/unchecked
+outcomes and explanations; exact goal identity, order, and text are validated.
+`coordination:finish` fails when the artifact is absent, malformed, or
+un-compared, and it cleans up only after other gates succeed and verifies the
+artifact's absence. Cleanup verifies artifact absence before completion. The
+explicit `legacy-exempt` policy covers P012/P014/P664 entries without an
+artifact and records that comparison in history; every new entry remains
+required. Include this exact objective: As soon as required validation is
+green: commit, reconcile with current main, merge to main, push to origin, and
+close coordination.
+
 ## Private reference archive
 
 The removed `docs/reference/` library is retained for authorized local

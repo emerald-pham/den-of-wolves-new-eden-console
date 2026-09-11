@@ -12,9 +12,16 @@ function isDocumentationFile(filePath) {
 const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
 const CAMPAIGN_PLAYBOOK_PATH = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
 const AGENT_MODEL_ESCALATION_SURFACES = Object.freeze([
+  'AGENTS.md',
   'CLAUDE.md',
   CAMPAIGN_PLAYBOOK_PATH,
   'docs/IMPLEMENTATION_PLAN.md',
+]);
+const SESSION_GOAL_GUIDANCE_SURFACES = Object.freeze([
+  'AGENTS.md',
+  'CLAUDE.md',
+  'docs/WORKTREE_COORDINATION.md',
+  CAMPAIGN_PLAYBOOK_PATH,
 ]);
 const BLOCKED_MERGE_HANDOFF_SURFACES = Object.freeze([
   'CLAUDE.md',
@@ -108,6 +115,18 @@ export function validateAgentModelEscalation({ sources, errors }) {
     const normalized = normalizeGuidance(source);
     const checks = [
       [
+        'must assign the implementation phase to Luna at max',
+        /implementation phase (?:floor|uses)[\s\S]{0,120}\bluna\b[\s\S]{0,100}\bmax\b/i,
+      ],
+      [
+        'must assign independent review to Terra at xhigh',
+        /independent review (?:phase )?(?:floor|uses)[\s\S]{0,120}\bterra\b[\s\S]{0,100}\bxhigh\b/i,
+      ],
+      [
+        'must assign reconciliation, validation, merge, push, and deployment to Luna at max',
+        /reconciliation[\/ ]+validation[\/ ]+merge[\/ ]+push[\/ ]+deployment (?:phase )?(?:floor|uses)[\s\S]{0,140}\bluna\b[\s\S]{0,100}\bmax\b/i,
+      ],
+      [
         'must reassign a failed Luna role to Terra',
         /\bluna attempt fails\b[\s\S]{0,220}\bsame agent role\b[\s\S]{0,180}\bgpt-5\.6-terra\b/i,
       ],
@@ -136,6 +155,60 @@ export function validateAgentModelEscalation({ sources, errors }) {
     }
     if (/\bluna-only rules\b/i.test(normalized)) {
       errors.push(`${filePath}: retains a Luna-only retry path that can reset role escalation`);
+    }
+  }
+}
+
+/** Keep the working session-goal artifact lifecycle explicit on every
+ * operational guidance surface and fail closed when a surface regresses. */
+export function validateSessionGoalGuidance({ sources, errors }) {
+  const checks = [
+    [
+      'must document begin-time unchecked session goals',
+      /coordination:begin[\s\S]{0,320}--session-goal/i,
+    ],
+    [
+      'must document the supported session-goal update path',
+      /coordination:goals/i,
+    ],
+    [
+      'must document the immutable original goal representation',
+      /immutable original[\s\S]{0,140}(?:goal|representation)/i,
+    ],
+    [
+      'must document checked/unchecked outcomes and explanations',
+      /checked\/unchecked[\s\S]{0,180}explanation/i,
+    ],
+    [
+      'must document exact goal identity, order, and text validation',
+      /exact[\s\S]{0,120}identity[\s\S]{0,120}order[\s\S]{0,120}text/i,
+    ],
+    [
+      'must document absent, malformed, and un-compared finish failures',
+      /absent[\s\S]{0,120}malformed[\s\S]{0,120}(?:un-compared|uncompared|not compared)/i,
+    ],
+    [
+      'must document cleanup and verified artifact absence',
+      /cleanup[\s\S]{0,180}(?:verify|absence|removed)/i,
+    ],
+    [
+      'must document the explicit P012/P014/P664 legacy policy',
+      /legacy-exempt[\s\S]{0,160}012[\s\S]{0,160}014[\s\S]{0,160}664/i,
+    ],
+    [
+      'must document the immediate release objective',
+      /as soon as required validation is green:[\s\S]{0,220}close coordination/i,
+    ],
+  ];
+  for (const filePath of SESSION_GOAL_GUIDANCE_SURFACES) {
+    const source = sources.get(filePath);
+    if (typeof source !== 'string') {
+      errors.push(`${filePath}: missing session-goal lifecycle policy`);
+      continue;
+    }
+    const normalized = normalizeGuidance(source);
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
     }
   }
 }
@@ -575,6 +648,7 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
   validateAgentModelEscalation({ sources: guidanceSources, errors });
+  validateSessionGoalGuidance({ sources: guidanceSources, errors });
   validateBlockedMergeAgentHandoff({ sources: guidanceSources, errors });
   validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));

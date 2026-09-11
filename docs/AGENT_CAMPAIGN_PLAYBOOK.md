@@ -41,12 +41,42 @@ version, changelog, and progress contract; focused red/green checks; review
 and release owner; and stopping behavior. Resolve an ambiguity before
 launching work that depends on it.
 
+### Durable session-goal evidence
+
+At `coordination:begin`, pass every session goal as a repeated
+`--session-goal "- [ ] ..."` argument, including the exact immediate release
+objective: As soon as required validation is green: commit, reconcile with
+current main, merge to main, push to origin, and close coordination. The
+registry creates a deterministic ignored working artifact with an immutable
+original representation. At wrap-up, `coordination:goals` records
+checked/unchecked outcomes and explanations; exact goal identity, order, and text are
+validated against that original. `coordination:finish` fails when the artifact
+is absent, malformed, or un-compared, and removes it only after other gates
+succeed while verifying its absence. Cleanup verifies artifact absence. Status
+exposes lifecycle state and path, not unrelated goal text. The explicit
+`legacy-exempt` policy covers pre-feature P012/P014/P664 entries without an
+artifact and records a durable comparison; new entries remain required.
+
+Keep production-authority entries as `work-type product` and require an
+immutable `change-class feature|non-feature` that matches the canonical
+progress row. Only `non-feature` gets the no-version/no-fragment/no-player-
+facing-changelog path; a free-text version plan cannot bypass feature gates.
+Owners may amend an already-active P012/P014 entry once with
+`npm run coordination:amend -- --id "<coordination id>" --change-class non-feature`
+after verifying the canonical row. The amendment records old/new values and
+fails closed on mismatch or repetition.
+
 ### Model selection and role-scoped monotonic failure escalation
 
 Use `gpt-5.6-luna` at `xhigh` for repository changes and reviews by default.
 For numbered-plan code, configuration, scripts, or tests, retain the stricter
 repository-required Luna `max` baseline until the failover condition below
 occurs.
+
+Durable phase floors are role-specific: the implementation phase uses
+GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
+uses GPT-5.6 Luna at `max`.
 
 The escalation tier belongs to the role and must never reset or downgrade when
 an agent, task, or worktree is replaced. If a Luna attempt fails, reassign that
