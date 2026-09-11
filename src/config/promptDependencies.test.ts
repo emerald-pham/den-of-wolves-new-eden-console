@@ -229,6 +229,20 @@ describe('compact prompt dependency packets', () => {
         entry: fixture.entry,
         allowRefresh: false,
       })).resolves.toEqual(consumed);
+      const landedCandidateSha = git(fixture.root, ['rev-parse', 'HEAD']);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: {
+          ...fixture.context,
+          binding: { ...fixture.context.binding, mainSha: landedCandidateSha },
+        },
+        entry: fixture.entry,
+        allowRefresh: false,
+        landedMainBinding: {
+          baseSha: fixture.context.binding.mainSha,
+          candidateSha: landedCandidateSha,
+          validationFingerprint: 'e'.repeat(64),
+        },
+      })).resolves.toEqual(consumed);
       await expect(validateOrRefreshCompletionDependencyReceipt({
         context: fixture.context,
         entry: fixture.entry,

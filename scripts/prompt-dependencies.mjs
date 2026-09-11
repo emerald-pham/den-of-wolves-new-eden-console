@@ -822,10 +822,36 @@ function completionMetadataMatchesEntry(receipt, entry) {
   }
 }
 
-function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration, { pendingMetadata } = {}) {
+function completionReceiptContext(context, receipt, landedMainBinding) {
+  const receiptMainSha = String(receipt?.binding?.mainSha ?? '').toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(receiptMainSha)) {
+    throw new Error('Completion receipt binding has no exact base main SHA');
+  }
+  if (receiptMainSha === context.binding.mainSha) return context;
+  if (!landedMainBinding ||
+    landedMainBinding.baseSha !== receiptMainSha ||
+    landedMainBinding.candidateSha !== context.binding.mainSha ||
+    !/^[0-9a-f]{64}$/.test(landedMainBinding.validationFingerprint ?? '')) {
+    throw new Error('Completion receipt consumed predecessor does not match the active binding');
+  }
+  requireAncestor(context.binding.worktree, receiptMainSha, landedMainBinding.candidateSha);
+  return {
+    ...context,
+    binding: {
+      ...context.binding,
+      mainSha: receiptMainSha,
+    },
+  };
+}
+
+function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration, {
+  pendingMetadata,
+  landedMainBinding,
+} = {}) {
   if (receipt?.policy !== 'completion-refreshed' || !receipt?.completion) {
     throw new Error('Completion receipt is missing a consumed predecessor lineage');
   }
+  const receiptContext = completionReceiptContext(context, receipt, landedMainBinding);
   const completion = receipt.completion;
   const entryIdentity = completionEntry(entry, context.binding);
   if (stableJson(completion.entry) !== stableJson(entryIdentity) ||
@@ -856,7 +882,7 @@ function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration
   if (stableJson(completion.anchor.authority) !== stableJson(authorityIdentity(anchorSources))) {
     throw new Error('Completion receipt anchor authority drifted');
   }
-  const priorPacket = createDependencyPacket({ ...context, sources: anchorSources });
+  const priorPacket = createDependencyPacket({ ...receiptContext, sources: anchorSources });
   if (completion.prior.fingerprint !== priorPacket.fingerprint) {
     throw new Error('Completion receipt consumed predecessor does not match the active binding');
   }
@@ -864,7 +890,10 @@ function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration
   if (stableJson(completion.transition) !== stableJson(transition)) {
     throw new Error('Completion receipt canonical transition drifted');
   }
-  const expected = completionReceiptRecord(completionPacket(context, completion));
+  const expected = completionReceiptRecord(completionPacket(
+    receiptContext,
+    completion,
+  ));
   if (stableJson(receipt) !== stableJson(expected)) {
     throw new Error('Completion receipt binding, authority, main, scope, claim, or transition mismatch');
   }
@@ -877,6 +906,7 @@ export async function validateOrRefreshCompletionDependencyReceipt({
   exactLegacyMigration = false,
   allowRefresh = false,
   allowPending = false,
+  landedMainBinding,
 } = {}) {
   const active = (context?.coordinationState?.entries ?? []).find((candidate) => candidate?.id === entry?.id);
   if (!active || active.status !== 'active') {
@@ -891,7 +921,7 @@ export async function validateOrRefreshCompletionDependencyReceipt({
     if (allowRefresh) {
       throw new Error('Completion receipt has already consumed its predecessor; a second refresh is forbidden');
     }
-    return validateCompletionReceipt(context, active, receipt, exactLegacyMigration);
+    return validateCompletionReceipt(context, active, receipt, exactLegacyMigration, { landedMainBinding });
   }
   if (!allowRefresh && !allowPending) {
     throw new Error('Completion receipt consumption is permitted only at authoritative validation');

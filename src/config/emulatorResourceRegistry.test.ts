@@ -512,6 +512,178 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('accepts only the exact validated main landing when rechecking a consumed receipt at finish', async () => {
+    const baseSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD^']);
+    const candidateSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const createFixture = async (suffix: string) => {
+      const filePath = resolve(tmpdir(), `den-of-wolves-completion-landed-${suffix}-${randomUUID()}.json`);
+      const started = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      const entry: typeof started & Record<string, unknown> & { dependencyReceipt?: Record<string, unknown> } = {
+        ...started,
+        branchName: 'fix/release-task',
+        startBranchSha: baseSha,
+        startMainSha: baseSha,
+        workType: 'tooling',
+        changeClass: 'non-feature',
+        implementationPrompt: '666',
+        implementationRegistrationRequired: false,
+        scopes: ['scripts/example.mjs'],
+        claims: ['prompt-666'],
+        validation: {
+          ...codeValidation,
+          commitSha: candidateSha,
+          profile: {
+            kind: 'full',
+            reason: 'fixture full validation',
+            commands: [],
+            evidence: {
+              baseSha,
+              branchSha: candidateSha,
+              diffIdentity: 'e'.repeat(64),
+            },
+          },
+        },
+      };
+      const strictContext = await dependencyReceiptTestOptions.dependencyReceiptContextFactory(
+        entry,
+        { entries: [entry] },
+        { mainSha: baseSha },
+      );
+      const strictReceipt = await acceptedDependencyReceipt(strictContext);
+      const strictMetadata = dependencyReceiptMetadata(strictReceipt, 'required');
+      const completionReceipt = {
+        ...strictReceipt,
+        issuance: undefined,
+        policy: 'completion-refreshed',
+        completion: {
+          prior: strictMetadata,
+          consumedAt: '2026-09-11T00:01:00.000Z',
+          anchor: { commitSha: baseSha },
+        },
+      };
+      entry.dependencyReceipt = dependencyReceiptMetadata(completionReceipt, 'completion-refreshed');
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await updateSessionGoals(filePath, {
+        id: entry.id,
+        outcomes: [
+          { id: 'goal-001', checked: true, explanation: 'Fixture receipt was validated.' },
+          { id: 'goal-002', checked: true, explanation: 'Fixture candidate was landed.' },
+        ],
+      });
+      const release = releaseState({
+        branchName: entry.branchName,
+        branchSha: candidateSha,
+        startBranchSha: baseSha,
+        mainSha: candidateSha,
+        originMainSha: candidateSha,
+        originTrackingMainSha: candidateSha,
+        mainContainsBranch: true,
+        mainIsAncestorOfBranch: true,
+        branchVersion: '0.3.28',
+        mainVersion: '0.3.28',
+        branchLockVersion: '0.3.28',
+        mainLockVersion: '0.3.28',
+        branchChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        mainChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        validatedBaseSha: baseSha,
+        validatedBaseIsAncestorOfMain: true,
+        validationTaskTipSha: candidateSha,
+        validationReceiptCommitSha: candidateSha,
+        validationProfile: {
+          kind: 'full',
+          reason: 'fixture full validation',
+          commands: [],
+          evidence: {
+            baseSha,
+            branchSha: candidateSha,
+            diffIdentity: 'e'.repeat(64),
+          },
+        },
+      });
+      return { entry, filePath, release, completionReceipt };
+    };
+    const doneRejected = async () => { throw new Error('Prompt 666 is not mechanically ready: progress=done'); };
+    const cleanup = async (filePath: string, entryId: string) => {
+      await unlink(resolve(process.cwd(), '.codex', 'session-goals', `${entryId}.json`)).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    };
+
+    const accepted = await createFixture('accepted');
+    const acceptedValidator = vi.fn(async ({ allowRefresh, landedMainBinding }: Record<string, unknown>) => {
+      expect(allowRefresh).toBe(false);
+      expect(landedMainBinding).toEqual({
+        baseSha,
+        candidateSha,
+        validationFingerprint: 'e'.repeat(64),
+      });
+      return accepted.completionReceipt;
+    });
+    try {
+      await expect(finishCoordinationEntry(accepted.filePath, {
+        ...dependencyReceiptTestOptions,
+        id: accepted.entry.id,
+        release: accepted.release,
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: acceptedValidator,
+      } as Parameters<typeof finishCoordinationEntry>[1] & DependencyReceiptTestOptions))
+        .resolves.toMatchObject({ status: 'complete', mainSha: candidateSha, pushed: true });
+      expect(acceptedValidator).toHaveBeenCalledOnce();
+    } finally {
+      await cleanup(accepted.filePath, accepted.entry.id);
+    }
+
+    const rejectedCases = [
+      ['extra-main-descendant', { mainSha: baseSha }],
+      ['local-main-only', { originTrackingMainSha: baseSha }],
+      ['remote-main-mismatch', { originMainSha: baseSha }],
+      ['unvalidated-candidate', { branchSha: baseSha }],
+      ['non-ancestor-receipt-base', { validation: { profile: { evidence: { baseSha: candidateSha } } } }],
+    ] as const;
+    for (const [name, overrides] of rejectedCases) {
+      const rejected = await createFixture(name);
+      const rejectingValidator = vi.fn(async ({ landedMainBinding }: Record<string, unknown>) => {
+        if (landedMainBinding !== undefined) {
+          throw new Error(`unexpected landed receipt exception for ${name}`);
+        }
+        throw new Error(`strict receipt binding remains required for ${name}`);
+      });
+      const release = {
+        ...rejected.release,
+        ...('validation' in overrides ? {} : overrides),
+      };
+      const entryState = 'validation' in overrides
+        ? { ...rejected.entry, validation: { ...rejected.entry.validation, ...overrides.validation } }
+        : rejected.entry;
+      if (entryState !== rejected.entry) {
+        await writeFile(rejected.filePath, JSON.stringify({
+          version: 1,
+          entries: [entryState],
+          reservations: [],
+          configurations: [],
+        }));
+      }
+      try {
+        await expect(finishCoordinationEntry(rejected.filePath, {
+          ...dependencyReceiptTestOptions,
+          id: rejected.entry.id,
+          release,
+          dependencyReceiptValidator: doneRejected,
+          completionDependencyReceiptValidator: rejectingValidator,
+        } as Parameters<typeof finishCoordinationEntry>[1] & DependencyReceiptTestOptions))
+          .rejects.toThrow(/strict receipt binding remains required/i);
+        expect((await readCoordinationState(rejected.filePath)).entries[0]).toMatchObject({ status: 'active' });
+      } finally {
+        await cleanup(rejected.filePath, rejected.entry.id);
+      }
+    }
+  });
+
   it('reuses dependency file bytes only while inode and stat metadata are unchanged', async () => {
     const directory = resolve(tmpdir(), `dependency-identity-${randomUUID()}`);
     await mkdir(directory, { recursive: true });

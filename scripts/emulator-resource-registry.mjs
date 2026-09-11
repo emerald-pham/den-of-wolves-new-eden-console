@@ -191,6 +191,7 @@ async function requireDependencyReceipt(entry, state, options = {}, overrides = 
           allowRefresh: overrides.allowCompletionRefresh === true &&
             entry.dependencyReceipt?.policy !== 'completion-refreshed',
           allowPending: overrides.allowCompletionPending === true,
+          landedMainBinding: overrides.landedMainBinding,
         });
         return dependencyReceiptMetadata(
           receipt,
@@ -1874,10 +1875,11 @@ async function deriveValidationProfile({ release, startBranchSha, cwd, memo }) {
 
 /** Read the live checkout and remote state used by the completion gate. */
 export async function readReleaseState({ cwd = process.cwd(), startBranchSha, validation, memo } = {}) {
-  const [branchName, branchSha, main, remoteMainLine] = await Promise.all([
+  const [branchName, branchSha, main, originTrackingMainSha, remoteMainLine] = await Promise.all([
     runGit(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
     runGit(['rev-parse', 'HEAD'], cwd),
     readMainRef(cwd, memo),
+    runGit(['rev-parse', '--verify', 'origin/main^{commit}'], cwd),
     runGit(['ls-remote', '--exit-code', 'origin', 'refs/heads/main'], cwd),
   ]);
   const mainSha = main.sha;
@@ -1960,6 +1962,7 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
     branchName,
     branchSha,
     mainSha,
+    originTrackingMainSha,
     originMainSha,
     mainContainsBranch,
     mainIsAncestorOfBranch: await gitIsAncestor(mainSha, branchSha, cwd, memo),
@@ -1993,6 +1996,36 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
       memo,
     }),
   };
+}
+
+async function landedCompletionReceiptBinding(entry, release) {
+  const validation = entry.validation;
+  const candidateSha = text(validation?.commitSha).toLowerCase();
+  const evidence = objectRecord(validation?.profile?.evidence);
+  const baseSha = text(evidence.baseSha).toLowerCase();
+  const validationCandidateSha = text(evidence.branchSha).toLowerCase();
+  const validationFingerprint = text(evidence.diffIdentity).toLowerCase();
+  if (![candidateSha, baseSha, validationCandidateSha].every((sha) => /^[0-9a-f]{40}$/.test(sha)) ||
+    !/^[0-9a-f]{64}$/.test(validationFingerprint) ||
+    validation?.passed !== true ||
+    candidateSha !== validationCandidateSha ||
+    release.branchSha !== candidateSha ||
+    release.mainSha !== candidateSha ||
+    release.originTrackingMainSha !== candidateSha ||
+    release.originMainSha !== candidateSha ||
+    release.mainContainsBranch !== true ||
+    release.mainIsAncestorOfBranch !== true ||
+    (release.validationTaskTipSha !== undefined && release.validationTaskTipSha !== candidateSha) ||
+    (release.validationReceiptCommitSha !== undefined && release.validationReceiptCommitSha !== candidateSha) ||
+    (release.validatedBaseSha !== undefined && release.validatedBaseSha !== baseSha) ||
+    (release.validationProfile?.evidence !== undefined &&
+      (release.validationProfile.evidence.baseSha !== baseSha ||
+        release.validationProfile.evidence.branchSha !== candidateSha ||
+        release.validationProfile.evidence.diffIdentity !== validationFingerprint)) ||
+    !(await gitIsAncestor(baseSha, candidateSha, process.cwd()))) {
+    return undefined;
+  }
+  return { baseSha, candidateSha, validationFingerprint };
 }
 
 const VALIDATION_COMMANDS = new Map([
@@ -5609,6 +5642,9 @@ export async function finishCoordinationEntry(filePath, options) {
         mainSha: release.mainSha,
         allowLegacyRefresh: true,
         allowCompletionRead: true,
+        ...(outcome === 'landed'
+          ? { landedMainBinding: await landedCompletionReceiptBinding(entry, release) }
+          : {}),
       });
     }
     if (entry.implementationRegistrationRequired === true &&
