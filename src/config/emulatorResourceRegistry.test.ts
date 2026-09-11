@@ -2322,8 +2322,26 @@ describe('local emulator coordination', () => {
         requestedClaims: overrides.claims ?? entry.claims ?? entry.requestedClaims ?? [],
         mainSha: optionalString(overrides.mainSha, mainSha),
       });
+      const sources = entry.implementationPrompt === '014'
+        ? {
+            ...context.sources,
+            plan: context.sources.plan.replace('- [x] Prompt 014', '- [ ] Prompt 014'),
+            progress: context.sources.progress
+              .replace('**95 / 734 prompts complete (12.94%)**', '**94 / 734 prompts complete (12.81%)**')
+              .replace(
+                'Status breakdown: **95 done · 24 partial · 0 active · 615 missing**.',
+                'Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.',
+              )
+              .replace('| 014 | done |', '| 014 | partial |'),
+            dependency: context.sources.dependency.replace(
+              '| 014 | PRESERVE | done |',
+              '| 014 | PRESERVE | partial |',
+            ),
+          }
+        : context.sources;
       return {
         ...context,
+        sources,
         binding: {
           ...context.binding,
           worktree: receiptRoot,

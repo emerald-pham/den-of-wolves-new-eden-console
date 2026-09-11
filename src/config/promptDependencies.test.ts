@@ -42,6 +42,28 @@ function pendingPrompt666Sources() {
   };
 }
 
+function pendingPrompt014Sources() {
+  if (authoritySources.plan.includes('- [ ] Prompt 014')) return authoritySources;
+  return {
+    ...authoritySources,
+    plan: authoritySources.plan.replace('- [x] Prompt 014', '- [ ] Prompt 014'),
+    progress: authoritySources.progress
+      .replace('**95 / 734 prompts complete (12.94%)**', '**94 / 734 prompts complete (12.81%)**')
+      .replace(
+        'Status breakdown: **95 done · 24 partial · 0 active · 615 missing**.',
+        'Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.',
+      )
+      .replace(
+        '| 014 | done | non-feature | — | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale/late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. Focused rebased-candidate coverage: 247 tests passed across session, Firestore, airspace, secondary mutation, App, and header surfaces. |',
+        '| 014 | partial | non-feature | — | Revision fields/parsing exist; universal stale-mutation semantics remain open. |',
+      ),
+    dependency: authoritySources.dependency.replace(
+      '| 014 | PRESERVE | done |',
+      '| 014 | PRESERVE | partial |',
+    ),
+  };
+}
+
 const sources = pendingPrompt666Sources();
 
 const expectedWolfOrder = [
@@ -132,7 +154,9 @@ async function completionFixture({
 } = {}) {
   const pending = prompt === '668'
     ? Object.fromEntries(Object.entries(sources).map(([key, value]) => [key, value.replaceAll('666', '668')])) as typeof sources
-    : sources;
+    : prompt === '014'
+      ? pendingPrompt014Sources()
+      : sources;
   const root = await mkdtemp(resolve(tmpdir(), `p${prompt}-completion-nonce-`));
   const docs = resolve(root, 'docs');
   await mkdir(docs, { recursive: true });
