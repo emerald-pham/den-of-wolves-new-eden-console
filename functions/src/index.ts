@@ -751,6 +751,9 @@ async function consumeJoinCodeAttempt(uid: string): Promise<void> {
  */
 const CODE_ATTEMPTS = 12;
 
+const REQUEST_RECOVERY_GUIDANCE =
+  'Refresh or resume the authoritative result before retrying; start a new action only after confirming the intended action was not applied.';
+
 function isSessionCreationReply(value: unknown, uid: string): boolean {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const reply = value as Record<string, unknown>;
@@ -814,11 +817,17 @@ export const createSession = onCall<{
         throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
       }
       if (disposition.kind === 'collision') {
-        throw new HttpsError('failed-precondition', 'This creation request id is bound to a different command.');
+        throw new HttpsError(
+          'failed-precondition',
+          `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+        );
       }
       const reply = priorRequest.get('reply');
       if (!isSessionCreationReply(reply, uid)) {
-        throw new HttpsError('failed-precondition', 'This creation request has no replayable result.');
+        throw new HttpsError(
+          'failed-precondition',
+          `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+        );
       }
       return reply;
     });
@@ -904,11 +913,17 @@ export const createSession = onCall<{
             throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
           }
           if (disposition.kind === 'collision') {
-            throw new HttpsError('failed-precondition', 'This creation request id is bound to a different command.');
+            throw new HttpsError(
+              'failed-precondition',
+              `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+            );
           }
           const replay = priorRequest.get('reply');
           if (!isSessionCreationReply(replay, uid)) {
-            throw new HttpsError('failed-precondition', 'This creation request has no replayable result.');
+            throw new HttpsError(
+              'failed-precondition',
+              `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+            );
           }
           return replay as typeof reply;
         }
@@ -1074,7 +1089,7 @@ async function rejectForeignLegacyM1Command(
   if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
     throw new HttpsError(
       'failed-precondition',
-      `This ${label} request id is already bound to a legacy command; retry with a fresh request id.`,
+      `This ${label} request id is already bound to a legacy command. ${REQUEST_RECOVERY_GUIDANCE}`,
     );
   }
 }
@@ -1082,7 +1097,7 @@ async function rejectForeignLegacyM1Command(
 function rejectLegacyEventReplay(label: string): never {
   throw new HttpsError(
     'failed-precondition',
-    `This ${label} request has a legacy unbound receipt; retry with a fresh request id.`,
+    `This ${label} request has a legacy unbound receipt. ${REQUEST_RECOVERY_GUIDANCE}`,
   );
 }
 

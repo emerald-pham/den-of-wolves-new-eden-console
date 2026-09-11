@@ -447,6 +447,32 @@ it('rejects a changed creation payload under the same request id before another 
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('requires refresh before reissuing a creation command with an incomplete legacy receipt', async () => {
+  const requestPath = 'sessionCreationRequests/u1_legacy-create';
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === requestPath) {
+      return snapshot({
+        fingerprint: {
+          action: 'create-session', sessionId: null, requestId: 'legacy-create', actorUid: 'u1',
+          instanceId: null, expectedRevision: null,
+          payload: {
+            name: 'New session', displayName: 'GM', joinCodeLength: 4, playerCount: 8,
+            chartId: 'A', expansion: 'base', turnLimit: 8, dioneEnabled: false, capybaraEnabled: true,
+          },
+        },
+      });
+    }
+    return snapshot({}, false);
+  });
+
+  await expect(createSession.run(request({ requestId: 'legacy-create', playerCount: 8 }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/refresh|resume/i),
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('rejects a setup replay when the tuple payload changes under the same request id', async () => {
   const activeRoleIds = [
     'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',

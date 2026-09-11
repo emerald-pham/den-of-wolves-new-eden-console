@@ -17,13 +17,13 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**95 / 734 prompts complete (12.94%)**
+**96 / 734 prompts complete (13.08%)**
 
-Status breakdown: **95 done · 24 partial · 615 missing**.
+Status breakdown: **96 done · 23 partial · 615 missing**.
 
 Active prompt: **none**
 
-Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
+Resume pointer: Prompt 015 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
 <!-- END GENERATED PROMPT CATALOG: progress -->
 
 ### Version 0.3.28 progress evidence
@@ -421,7 +421,7 @@ release classification and evidence.
 | 009 | done | non-feature | — | Deterministic fixture seams in `functions/src/atddFixtures.ts` with five focused tests. |
 | 010 | done | non-feature | — | Prompt-by-prompt audit in `docs/IMPLEMENTATION_CONTRACTS.md` §5. |
 | 011 | done | non-feature | — | `functions/src/joinCodeSecurity.ts` exports immutable `JOIN_CODE_POLICY` for legacy/current lengths, digits-only format, session-until-retirement lifetime, non-enumerating lookup, and transactional `joinCodes` collision ownership. `joinCodeSecurity.test.ts`, `joinSessionCallable.test.ts`, `createSessionCallable.test.ts`, and `sessionLifecycleCallable.test.ts` prove the contract, malformed-input boundary, both code formats, duplicate-code skip, and retirement deletion; focused run: 4 files, 29 tests passed. |
-| 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
+| 012 | done | non-feature | — | M1 production callables use server-only actor/action/payload/revision-bound receipts and exact replay before any mutation, cost, randomness, or audit write. Fully bound legacy domain receipts retain authorized exact replay; unbound event-only records fail closed with refresh/reconcile guidance. Focused Functions coverage includes cross-action legacy namespace collisions, old-event recovery wording, duplicate Android-disclosure prevention, and the 57-test rules denial matrix. |
 | 013 | done | non-feature | — | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
 | 014 | done | feature | 0.3.29 | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale or late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. |
 | 015 | partial | feature | 0.3.5 | Callable error codes are tested, but no centralized taxonomy yet. |

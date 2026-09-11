@@ -756,7 +756,7 @@ it('rejects a start request id owned by a legacy setup command before writes or 
     sessionId: 's1', instanceId: 'bridge', requestId, expectedSetupRevision: 0,
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
-    message: expect.stringMatching(/legacy|fresh request/i),
+    message: expect.stringMatching(/legacy|refresh|resume|not applied/i),
   });
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
