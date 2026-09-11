@@ -288,6 +288,58 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('CAS-refreshes an issued receipt commitment only through explicit active-owner amendment', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-dependency-refresh-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const oldMetadata = { schemaVersion: 1, policy: 'required', contentDigest: 'old-digest' };
+    const entry = {
+      ...amendmentEntry({ id: 'dependency-refresh-owner' }),
+      ...identity,
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationPrompt: '666',
+      implementationRegistrationRequired: true,
+      dependencyReceipt: oldMetadata,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await heartbeatCoordinationEntry(filePath, { id: entry.id });
+      const refreshed = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        'refresh-dependency-receipt': 'true',
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions) as unknown as {
+        dependencyReceipt: Record<string, unknown>;
+        amendments: Array<Record<string, unknown>>;
+      };
+      expect(refreshed.dependencyReceipt).toMatchObject({
+        schemaVersion: 2,
+        policy: 'required',
+        issuance: { nonceCommitment: expect.stringMatching(/^[0-9a-f]{64}$/) },
+      });
+      expect(refreshed.amendments?.at(-1)).toMatchObject({
+        dependencyReceiptRefresh: {
+          beforeContentDigest: 'old-digest',
+          afterContentDigest: 'test-content-digest',
+        },
+      });
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        'refresh-dependency-receipt': 'true',
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions))
+        .rejects.toThrow(/already matches|no new amendment/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('never lets begin or amendment mint a receipt after a prompt is done', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-completion-begin-amend-${randomUUID()}.json`);
     const beginPath = resolve(tmpdir(), `den-of-wolves-completion-begin-${randomUUID()}.json`);

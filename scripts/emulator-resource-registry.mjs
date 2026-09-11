@@ -3921,6 +3921,10 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
   const requestedChangeClass = options['change-class'] === undefined
     ? null
     : normalizeChangeClass(options['change-class']);
+  const refreshDependencyReceipt = options['refresh-dependency-receipt'] === 'true';
+  if (options['refresh-dependency-receipt'] !== undefined && !refreshDependencyReceipt) {
+    throw new Error('coordination amend requires --refresh-dependency-receipt true when that option is supplied.');
+  }
   if (options['change-class'] !== undefined && !requestedChangeClass) {
     throw new Error('coordination amend requires --change-class feature|non-feature.');
   }
@@ -3929,9 +3933,9 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     throw new Error('coordination amend requires --implementation-prompt NNN or NNN<letter>.');
   }
   if (scopes.length === 0 && claims.length === 0 && requestedImplementationPrompt === null &&
-    requestedChangeClass === null) {
+    requestedChangeClass === null && !refreshDependencyReceipt) {
     throw new Error(
-      'coordination amend requires at least one new --scope, --claims, --implementation-prompt, or --change-class value.',
+      'coordination amend requires at least one new --scope, --claims, --implementation-prompt, --change-class, or --refresh-dependency-receipt true value.',
     );
   }
   const duplicateScope = scopes.find((scope, index) => scopes.indexOf(scope) !== index);
@@ -4008,7 +4012,7 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     }
     if (requestedImplementationPrompt && existingImplementationPrompt &&
       scopes.length === 0 && claims.length === 0 && requestedChangeClass === null &&
-      !advancesTransferredPrompt) {
+      !advancesTransferredPrompt && !refreshDependencyReceipt) {
       throw new Error(
         `Coordination entry ${entry.id} is already bound to implementation Prompt ` +
         `${existingImplementationPrompt}; no new amendment was requested.`,
@@ -4105,6 +4109,13 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
       mainSha: start.mainSha,
       allowLegacyRefresh: true,
     });
+    const previousDependencyReceipt = entry.dependencyReceipt ?? null;
+    const receiptChanged = JSON.stringify(dependencyReceipt ?? null) !==
+      JSON.stringify(previousDependencyReceipt);
+    if (refreshDependencyReceipt && !receiptChanged && scopes.length === 0 && claims.length === 0 &&
+      requestedImplementationPrompt === null && requestedChangeClass === null) {
+      throw new Error(`Coordination entry ${entry.id} dependency receipt already matches; no new amendment was requested.`);
+    }
     entry.scopes = [...existingScopes, ...scopes];
     entry.claims = [...existingClaims, ...claims];
     if (dependencyReceipt) entry.dependencyReceipt = dependencyReceipt;
@@ -4133,6 +4144,16 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
         ? {
             changeClassBefore: existingChangeClass ?? null,
             changeClassAfter: requestedChangeClass,
+          }
+        : {}),
+      ...(refreshDependencyReceipt && receiptChanged
+        ? {
+            dependencyReceiptRefresh: {
+              beforeContentDigest: previousDependencyReceipt?.contentDigest ?? null,
+              afterContentDigest: dependencyReceipt?.contentDigest ?? null,
+              beforeNonceCommitment: previousDependencyReceipt?.issuance?.nonceCommitment ?? null,
+              afterNonceCommitment: dependencyReceipt?.issuance?.nonceCommitment ?? null,
+            },
           }
         : {}),
     };

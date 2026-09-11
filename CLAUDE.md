@@ -108,6 +108,10 @@ remains unmet.
 
 The receipt's strict issuance contains a random nonce only in the ignored local
 file; the coordination entry records its commitment and exact receipt digest.
+After an intentional packet refresh while the prompt is still ready, persist
+the new commitment under the active-owner lock with `npm run
+coordination:amend -- --id "<coordination id>" --refresh-dependency-receipt
+true`; a matching receipt is a rejected no-op.
 Keep that issued file through a prompt's canonical partial-to-done transition.
 The final `coordination:validate` verifies the existing issuance against its
 pre-done ledger commitment and consumes it once into a nonce-free completion

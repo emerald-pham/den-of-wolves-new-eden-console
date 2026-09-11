@@ -138,7 +138,10 @@ prerequisite remains unmet.
 
 Each strict receipt carries a random nonce that remains only in the ignored
 worktree file. Begin and ownership amendment persist only its commitment and
-the exact receipt digest in the coordination entry. Preserve that file when the
+the exact receipt digest in the coordination entry. After regenerating a packet
+while its prompt is still ready, bind the new issuance atomically with `npm run
+coordination:amend -- --id "<coordination id>"
+--refresh-dependency-receipt true`. Preserve that file when the
 prompt moves from partial to done: the final validation verifies the canonical
 single-prompt completion delta and consumes the committed issuance once into a
 nonce-free completion receipt. A done prompt cannot create or amend a new
