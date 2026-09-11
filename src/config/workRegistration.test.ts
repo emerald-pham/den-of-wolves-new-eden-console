@@ -113,6 +113,11 @@ describe('universal implementation work registration', () => {
       expect(validateCommitRange({ cwd: root, range: `${base}..HEAD` }).errors).toEqual([]);
       await writeFile(resolve(root, 'scripts/exact-validation.mjs'), 'export const exact = true;\n');
       await git(root, 'add', 'scripts/exact-validation.mjs');
+      await writeFile(messageFile, 'tooling: extend the registered gate\n\nImplementation-Prompt: 664\n');
+      expect(validateStagedRegistration({ cwd: root, messageFile }).errors).toEqual([]);
+      await git(root, 'commit', '-F', messageFile);
+      await writeFile(resolve(root, 'scripts/another-validation.mjs'), 'export const another = true;\n');
+      await git(root, 'add', 'scripts/another-validation.mjs');
       await git(root, 'commit', '-m', 'tooling: extend exact validation', '-m', 'Implementation-Prompt: 660');
       expect(validateCommitRange({
         cwd: root,

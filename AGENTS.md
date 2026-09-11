@@ -65,6 +65,24 @@ required. Include this exact objective: As soon as required validation is
 green: commit, reconcile with current main, merge to main, push to origin, and
 close coordination.
 
+## Dormant-agent parking
+
+When a blocker requires an otherwise idle owner to stop, the top-level
+coordinator must checkpoint the clean branch and run
+`npm run coordination:park -- --id <id> --checkpoint-sha <exact SHA>` with
+the exact checkpoint SHA, blocker entry/claim evidence, and a concrete next
+action. Parking retains the owner's scopes and claims fail-closed and changes
+the entry to `parked`; the parked entry retains those scopes and claims, and its
+status says `no heartbeat required`. The parked owner's heartbeat, amend, claim,
+validation, and finish operations reject.
+Interrupt the idle agent after the registry records the park. Once the recorded
+blocker and overlap are clear, `npm run coordination:resume -- --id <id>` verifies the same
+worktree, branch, and checkpoint SHA and refuses while the recorded blocker or
+overlap remains; when clear it refreshes the lease and returns the entry to
+active. Do not run a status/heartbeat polling loop. The repository gate can
+enforce registry state, ownership, and checkpoint continuity; the Codex
+process pause/wake boundary cannot be machine-enforced by repository code.
+
 ## Private reference archive
 
 The removed `docs/reference/` library is retained for authorized local

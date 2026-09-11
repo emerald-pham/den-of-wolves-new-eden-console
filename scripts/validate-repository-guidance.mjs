@@ -199,6 +199,30 @@ export function validateSessionGoalGuidance({ sources, errors }) {
       'must document the immediate release objective',
       /as soon as required validation is green:[\s\S]{0,220}close coordination/i,
     ],
+    [
+      'must document owner-only checkpoint parking',
+      /coordination:park[\s\S]{0,260}(?:owner|checkpoint)[\s\S]{0,180}(?:clean|SHA)/i,
+    ],
+    [
+      'must document owner-only resume and blocker clearance',
+      /coordination:resume[\s\S]{0,300}(?:blocker|overlap)[\s\S]{0,180}(?:clear|continuity)/i,
+    ],
+    [
+      'must document retained parked scopes and claims',
+      /parked[\s\S]{0,260}retain(?:s|ed)?[\s\S]{0,120}(?:scope|claim)/i,
+    ],
+    [
+      'must document park suspension of heartbeat requirements',
+      /parked[\s\S]{0,260}(?:no heartbeat|heartbeat.{0,40}suspend)/i,
+    ],
+    [
+      'must document no status/heartbeat polling loop',
+      /(?:no|do not run a)\s+(?:status\/heartbeat|heartbeat\/status)\s+polling\s+loop/i,
+    ],
+    [
+      'must document the process pause/wake boundary',
+      /(?:process|runtime)[\s\S]{0,160}(?:pause|interrupt)[\s\S]{0,160}(?:wake|resume)[\s\S]{0,160}(?:cannot|not) be machine-enforced/i,
+    ],
   ];
   for (const filePath of SESSION_GOAL_GUIDANCE_SURFACES) {
     const source = sources.get(filePath);

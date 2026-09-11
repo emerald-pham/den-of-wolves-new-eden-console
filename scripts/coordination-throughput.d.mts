@@ -54,7 +54,7 @@ export function forecastCoordinationConflicts(options?: {
 export function formatConflictForecast(forecast: CoordinationConflictForecast): string;
 
 export interface CoordinationLeaseStatus {
-  readonly state: 'healthy' | 'owner-confirmation-needed' | 'terminal';
+  readonly state: 'healthy' | 'owner-confirmation-needed' | 'parked-no-heartbeat-required' | 'terminal';
   readonly ownerConfirmationRequired: boolean;
   readonly takeoverAllowed: false;
   readonly lastHeartbeatAt?: string;

@@ -440,6 +440,16 @@ function firstParent(cwd, commit) {
   return parents[0] ?? null;
 }
 
+function promptWasRegisteredOnBranch(cwd, baseline, head, prompt) {
+  const commits = git(cwd, ['rev-list', '--reverse', '--topo-order', `${baseline}..${head}`])
+    .split('\n')
+    .filter(Boolean);
+  return commits.some((commit) => {
+    const result = validateCommitRegistration({ cwd, commit });
+    return result.prompt === prompt && result.newPrompt && result.errors.length === 0;
+  });
+}
+
 export function validateCommitRegistration({ cwd = process.cwd(), commit = 'HEAD', coordinationPrompt = null } = {}) {
   const resolvedCommit = git(cwd, ['rev-parse', '--verify', `${commit}^{commit}`]);
   const parent = firstParent(cwd, resolvedCommit);
@@ -556,7 +566,7 @@ export function validateStagedRegistration({
     } else if (!sourceContainsPrompt(
       sourceAt(cwd, baseline, 'docs/IMPLEMENTATION_PLAN.md'),
       result.prompt,
-    )) {
+    ) && !promptWasRegisteredOnBranch(cwd, baseline, 'HEAD', result.prompt)) {
       result.errors.push(
         `Prompt ${result.prompt} was absent at the branch baseline and must be registered ` +
         'in the same non-documentation commit that first uses it',

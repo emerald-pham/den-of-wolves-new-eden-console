@@ -43,6 +43,10 @@ export interface CoordinationEntry {
   readonly requestedClaims?: readonly string[];
   readonly heartbeatAt?: string;
   readonly lease?: CoordinationLeaseStatus;
+  readonly parked?: CoordinationParkRecord;
+  readonly parkHistory?: readonly CoordinationParkRecord[];
+  readonly parkedAt?: string;
+  readonly resumedAt?: string;
   readonly claimReleases?: readonly CoordinationClaimRelease[];
   readonly amendments?: readonly CoordinationAmendment[];
   readonly outcome?: 'landed' | 'preserved' | 'discarded';
@@ -104,6 +108,21 @@ export interface CoordinationSessionGoals {
   readonly reason?: string;
 }
 
+export interface CoordinationParkRecord {
+  readonly status: 'parked' | 'resumed';
+  readonly parkedAt: string;
+  readonly resumedAt?: string;
+  readonly checkpointSha: string;
+  readonly worktree: string;
+  readonly branchName: string;
+  readonly repositoryRoot?: string;
+  readonly repositoryIdentity?: string;
+  readonly blockerEntryId?: string;
+  readonly blockerClaims: readonly string[];
+  readonly blockerScopes: readonly string[];
+  readonly nextAction: string;
+}
+
 export interface CoordinationMergeHandoff {
   readonly id: string;
   readonly status: 'pending' | 'landed';
@@ -132,7 +151,7 @@ export interface CoordinationClaimRelease {
 }
 
 export interface CoordinationLeaseStatus {
-  readonly state: 'healthy' | 'owner-confirmation-needed' | 'terminal';
+  readonly state: 'healthy' | 'owner-confirmation-needed' | 'parked-no-heartbeat-required' | 'terminal';
   readonly ownerConfirmationRequired: boolean;
   readonly takeoverAllowed: false;
   readonly lastHeartbeatAt?: string;
@@ -542,6 +561,28 @@ export function updateSessionGoals(
       readonly explanation: string;
     }[];
     readonly now?: string | number | Date;
+  },
+): Promise<CoordinationEntry>;
+export function parkCoordinationEntry(
+  filePath: string,
+  options: {
+    readonly id: string;
+    readonly 'checkpoint-sha': string;
+    readonly 'blocked-by-entry'?: string;
+    readonly 'blocked-by-claim'?: string | readonly string[];
+    readonly 'blocked-by-scope'?: string | readonly string[];
+    readonly 'next-action': string;
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
+  },
+): Promise<CoordinationEntry>;
+export function resumeCoordinationEntry(
+  filePath: string,
+  options: {
+    readonly id: string;
+    readonly 'checkpoint-sha'?: string;
+    readonly now?: string | number | Date;
+    readonly leaseMs?: number;
   },
 ): Promise<CoordinationEntry>;
 export function finishCoordinationEntry(

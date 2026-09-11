@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
   changedFilesBaseRef,
+  DEFAULT_VERSION_AGREEMENT,
   finishCoordinationEntry,
   claimCoordinationEntry,
   heartbeatCoordinationEntry,
@@ -43,6 +44,8 @@ import {
   coordinationStateChanged,
   beginCoordinationEntry,
   updateSessionGoals,
+  parkCoordinationEntry,
+  resumeCoordinationEntry,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 
@@ -482,6 +485,171 @@ describe('local emulator coordination', () => {
           finalComparison: { status: 'legacy-exempt' },
         },
       });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('parks at an exact clean checkpoint, retains ownership without heartbeats, and resumes only after the blocker clears', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-park-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const checkpointSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const owner = amendmentEntry({
+      id: 'park-owner',
+      ...identity,
+      branchName: identity.branchName,
+      scopes: ['scripts/emulator-resource-registry.mjs'],
+      claims: ['park-owner-claim'],
+    });
+    const blocker = amendmentEntry({
+      id: 'park-blocker',
+      ...identity,
+      worktree: '/other/park-blocker',
+      branchName: 'tooling/park-blocker',
+      scopes: ['docs/IMPLEMENTATION_PLAN.md'],
+      claims: ['park-blocker-claim'],
+    });
+    const gitState = {
+      branchName: identity.branchName,
+      branchSha: checkpointSha,
+      mainSha: checkpointSha,
+      repositoryRoot: identity.repositoryRoot,
+      repositoryIdentity: identity.repositoryIdentity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [owner, blocker],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      const parked = await parkCoordinationEntry(filePath, {
+        id: owner.id,
+        'checkpoint-sha': checkpointSha,
+        'blocked-by-entry': blocker.id,
+        'blocked-by-claim': 'park-blocker-claim',
+        'blocked-by-scope': 'docs/IMPLEMENTATION_PLAN.md',
+        'next-action': 'Resume after the blocker lands its plan update.',
+        now: '2099-01-01T00:01:00.000Z',
+        gitState,
+        workingTreeStatus: '',
+      } as never);
+      expect(parked).toMatchObject({
+        status: 'parked',
+        scopes: owner.scopes,
+        claims: owner.claims,
+        parked: {
+          checkpointSha,
+          blockerEntryId: blocker.id,
+          blockerClaims: ['park-blocker-claim'],
+          blockerScopes: ['docs/IMPLEMENTATION_PLAN.md'],
+          nextAction: 'Resume after the blocker lands its plan update.',
+        },
+      });
+      expect(formatCoordinationState({
+        version: 1,
+        versionAgreement: DEFAULT_VERSION_AGREEMENT,
+        entries: [parked],
+        reservations: [],
+        configurations: [],
+      })).toMatch(/parked[\s\S]*no heartbeat required/i);
+      expect(forecastCoordinationConflicts({
+        activeEntries: [parked],
+        repositoryIdentity: identity.repositoryIdentity,
+        repositoryRoot: identity.repositoryRoot,
+        worktree: '/other/worktree',
+        scopes: owner.scopes,
+        claims: owner.claims,
+      })).toMatchObject({ blocked: true });
+
+      const rejectedWhileParked = [
+        () => heartbeatCoordinationEntry(filePath, { id: owner.id }),
+        () => amendCoordinationEntry(filePath, { id: owner.id, scope: 'src/parked.mjs' }),
+        () => claimCoordinationEntry(filePath, { id: owner.id, scope: 'src/parked.mjs' }),
+        () => validateCoordinationEntry(filePath, { id: owner.id, release: releaseState() }),
+        () => finishCoordinationEntry(filePath, { id: owner.id, release: releaseState() }),
+        () => releaseCoordinationClaim(filePath, { id: owner.id, claims: owner.claims.join(',') }),
+      ];
+      for (const createOperation of rejectedWhileParked) {
+        await expect(createOperation()).rejects.toThrow(/parked|no heartbeat required/i);
+      }
+
+      await expect(resumeCoordinationEntry(filePath, {
+        id: owner.id,
+        gitState,
+        workingTreeStatus: '',
+      } as never))
+        .rejects.toThrow(/blocker|overlap|parked/i);
+      const blockedState = await readCoordinationState(filePath);
+      await writeFile(filePath, JSON.stringify({
+        ...blockedState,
+        entries: blockedState.entries.map((entry) => entry.id === blocker.id
+          ? { ...entry, status: 'complete' }
+          : entry),
+      }), 'utf8');
+
+      const resumed = await resumeCoordinationEntry(filePath, {
+        id: owner.id,
+        now: '2099-01-01T00:02:00.000Z',
+        gitState,
+        workingTreeStatus: '',
+      } as never);
+      expect(resumed).toMatchObject({
+        status: 'active',
+        scopes: owner.scopes,
+        claims: owner.claims,
+        heartbeatAt: '2099-01-01T00:02:00.000Z',
+        parked: {
+          checkpointSha,
+          resumedAt: '2099-01-01T00:02:00.000Z',
+        },
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('fails closed for missing park evidence and resume checkpoint drift', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-park-gates-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const checkpointSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const owner = amendmentEntry({
+      id: 'park-gate-owner',
+      ...identity,
+      branchName: identity.branchName,
+    });
+    const gitState = {
+      branchName: identity.branchName,
+      branchSha: checkpointSha,
+      mainSha: checkpointSha,
+      repositoryRoot: identity.repositoryRoot,
+      repositoryIdentity: identity.repositoryIdentity,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [owner],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await expect(parkCoordinationEntry(filePath, {
+        id: owner.id,
+        'checkpoint-sha': checkpointSha,
+        'next-action': 'Find the blocker.',
+        gitState,
+        workingTreeStatus: '',
+      } as never)).rejects.toThrow(/blocker|claim|scope|evidence/i);
+      await expect(parkCoordinationEntry(filePath, {
+        id: owner.id,
+        'checkpoint-sha': 'not-a-checkpoint',
+        'blocked-by-claim': 'external-blocker',
+        'next-action': 'Resume when clear.',
+        gitState,
+        workingTreeStatus: '',
+      } as never)).rejects.toThrow(/checkpoint.*SHA|checkpoint/i);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);

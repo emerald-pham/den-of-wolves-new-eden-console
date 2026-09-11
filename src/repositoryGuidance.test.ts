@@ -274,6 +274,29 @@ describe('repository guidance', () => {
     ]));
   });
 
+  it('requires park/resume guidance to checkpoint, retain ownership, and avoid polling loops', () => {
+    const surfaces = [
+      'AGENTS.md',
+      'CLAUDE.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+    validateSessionGoalGuidance({ sources, errors });
+    expect(errors, errors.join('\n')).toEqual([]);
+    for (const [surface, source] of sources) {
+      expect(source, `${surface} must document parking`).toContain('coordination:park');
+      expect(source, `${surface} must document resuming`).toContain('coordination:resume');
+      expect(source, `${surface} must document checkpoint continuity`).toMatch(/checkpoint.{0,120}(?:SHA|continuity)/i);
+      expect(source, `${surface} must document retained ownership`).toMatch(/retain[\s\S]{0,120}(?:scope|claim)/i);
+      expect(source, `${surface} must document no polling loops`).toMatch(/(?:no|do not run a)\s+(?:status\/heartbeat|heartbeat\/status)\s+polling\s+loop/i);
+    }
+  });
+
   it('requires an exact pushed-branch handoff on every blocked-merge authority', () => {
     const surfaces = [
       'CLAUDE.md',

@@ -55,6 +55,22 @@ The explicit `legacy-exempt` policy covers entries created before this gate
 that lack an artifact—P012, P014, and P664—and records a durable comparison;
 new entries remain required.
 
+### Parking a blocked idle owner
+
+The top-level coordinator must checkpoint the clean owner branch and run
+`npm run coordination:park -- --id <id> --checkpoint-sha <exact SHA>` with blocker
+entry/claim evidence and a concrete `--next-action`. The parked entry retains
+the owner's scopes and claims fail-closed, marks the
+entry `parked`, and reports `no heartbeat required`; heartbeat, amend, claim,
+validate, and finish reject while parked. Interrupt the idle owner only after
+the park is recorded. When the blocker and recorded overlap are clear,
+owner-only `npm run coordination:resume -- --id <id>` verifies worktree, branch, and
+checkpoint SHA continuity and refuses while the recorded blocker or overlap
+remains; when clear it refreshes the lease. Do not run a status/heartbeat
+polling loop. Repository code enforces registry state and checkpoint
+continuity, but the Codex process pause/wake boundary cannot be
+machine-enforced here.
+
 Save the printed id. Confirm its absolute worktree path and attached branch,
 then review every active entry for overlapping paths, prompts, claims, emulator
 rows, or release resources. Use `npm run coordination:status -- --history` only

@@ -46,6 +46,10 @@ function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function coordinationEntryOwnsOwnership(entry) {
+  return entry?.status === 'active' || entry?.status === 'parked';
+}
+
 function list(value) {
   return Array.isArray(value)
     ? value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
@@ -153,7 +157,7 @@ export function forecastCoordinationConflicts({
   };
 
   for (const entry of Array.isArray(activeEntries) ? activeEntries : []) {
-    if (entry?.status !== 'active' || entry.worktree === worktree) continue;
+    if (!coordinationEntryOwnsOwnership(entry) || entry.worktree === worktree) continue;
     const repositoryMatch = sameRepository(entry, { repositoryIdentity, repositoryRoot });
     const ownerScopes = [
       ...list(entry.scopes).map(normalizePath),
@@ -242,6 +246,16 @@ export function leaseStatusForEntry(entry, {
 } = {}) {
   const current = dateValue(now) ?? new Date();
   const duration = leaseDuration(leaseMs);
+  if (entry?.status === 'parked') {
+    return {
+      state: 'parked-no-heartbeat-required',
+      ownerConfirmationRequired: false,
+      takeoverAllowed: false,
+      lastHeartbeatAt: undefined,
+      expiresAt: undefined,
+      ageMs: 0,
+    };
+  }
   if (entry?.status !== 'active') {
     return {
       state: 'terminal',

@@ -66,6 +66,21 @@ Owners may amend an already-active P012/P014 entry once with
 after verifying the canonical row. The amendment records old/new values and
 fails closed on mismatch or repetition.
 
+### Parking dormant work
+
+If an owner is blocked and idle, the top-level coordinator must checkpoint its
+clean branch and run `npm run coordination:park -- --id <id> --checkpoint-sha <exact SHA>` with blocker
+entry/claim evidence, and a concrete next action. A parked entry retains its
+scopes and claims fail-closed and requires no heartbeat; the parked entry status
+says `parked` and `no heartbeat required`, while heartbeat, amend, claim,
+validate, and finish reject. Interrupt the parked agent after the registry
+write. Once the blocker and recorded overlap clear, owner-only
+`npm run coordination:resume -- --id <id>` verifies worktree, branch, and checkpoint SHA continuity
+and refuses while the recorded blocker or overlap remains; when clear it
+refreshes the lease. Do not run a status/heartbeat polling loop. The registry
+gate is machine-checked; the Codex process pause/wake boundary cannot be
+machine-enforced by repository code.
+
 ### Model selection and role-scoped monotonic failure escalation
 
 Use `gpt-5.6-luna` at `xhigh` for repository changes and reviews by default.

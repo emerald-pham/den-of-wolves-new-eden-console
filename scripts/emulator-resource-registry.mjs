@@ -103,7 +103,7 @@ const execFileAsync = promisify(execFile);
 export function validateImplementationPromptClaims(entries = []) {
   const owners = new Map();
   for (const entry of entries) {
-    if (entry?.status !== 'active' || entry?.implementationPrompt === undefined) continue;
+    if (!coordinationEntryOwnsOwnership(entry) || entry?.implementationPrompt === undefined) continue;
     const prompt = normalizePromptId(entry.implementationPrompt);
     if (!prompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(prompt)) {
       throw new Error(
@@ -127,6 +127,19 @@ function objectRecord(value) {
 
 function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+function coordinationEntryOwnsOwnership(entry) {
+  return entry?.status === 'active' || entry?.status === 'parked';
+}
+
+function rejectParkedCoordinationEntry(entry, operation) {
+  if (entry?.status === 'parked') {
+    throw new Error(
+      `Cannot ${operation} coordination entry ${entry.id}: it is parked; ` +
+        'no heartbeat is required while parked. Run coordination:resume after the blocker clears.',
+    );
+  }
 }
 
 /** Keep GitHub repository transport on SSH while preserving other remotes. */
@@ -2082,7 +2095,7 @@ export function findCoordinationConflict({
   claims = [],
 } = {}) {
   for (const entry of Array.isArray(activeEntries) ? activeEntries : []) {
-    if (entry?.status !== 'active' || entry.worktree === worktree) continue;
+    if (!coordinationEntryOwnsOwnership(entry) || entry.worktree === worktree) continue;
     const repositoryMatch = sameRepository(entry, { repositoryIdentity, repositoryRoot });
     const claim = (Array.isArray(claims) ? claims : []).find((candidateClaim) =>
       Array.isArray(entry.claims) && entry.claims.includes(candidateClaim) &&
@@ -2850,6 +2863,19 @@ function formatEntry(entry) {
       ? ' (owner confirmation required; takeover disabled)'
       : '';
     lines.push(`  lease: ${lease.state}${confirmation}`);
+  } else if (status === 'parked') {
+    const parking = objectRecord(entry.parked);
+    const blocker = text(parking.blockerEntryId, 'evidence recorded');
+    const claims = Array.isArray(parking.blockerClaims) && parking.blockerClaims.length > 0
+      ? parking.blockerClaims.join(', ')
+      : 'none';
+    const scopes = Array.isArray(parking.blockerScopes) && parking.blockerScopes.length > 0
+      ? parking.blockerScopes.join(', ')
+      : 'none';
+    lines.push(
+      `  parked: checkpoint ${text(parking.checkpointSha, 'unknown')} | blocker ${blocker} | claims ${claims} | scopes ${scopes} | next action: ${text(parking.nextAction, 'not recorded')}`,
+    );
+    lines.push('  lease: parked (no heartbeat required)');
   }
   if (entry.outcome) lines.push(`  outcome: ${entry.outcome}`);
   if (entry.preservation) {
@@ -2979,7 +3005,7 @@ function parseOptions(args) {
     const name = argument.slice(2);
     const value = args[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`Missing value for --${name}.`);
-    if (['change', 'session-goal', 'goal-result'].includes(name)) {
+    if (['change', 'session-goal', 'goal-result', 'blocked-by-claim', 'blocked-by-scope'].includes(name)) {
       options[name] = [...(Array.isArray(options[name]) ? options[name] : []), value];
     } else {
       options[name] = value;
@@ -3180,6 +3206,7 @@ export async function updateSessionGoals(filePath, options = {}) {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'update session goals for');
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
     }
@@ -3238,6 +3265,283 @@ export async function updateSessionGoals(filePath, options = {}) {
   });
 }
 
+function checkpointShaValue(value, operation) {
+  const checkpointSha = text(value).toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(checkpointSha)) {
+    throw new Error(
+      `coordination ${operation} requires an exact 40-character --checkpoint-sha value.`,
+    );
+  }
+  return checkpointSha;
+}
+
+function parkedEvidenceFromOptions(options = {}) {
+  const blockerEntryId = text(options['blocked-by-entry']);
+  const blockerClaims = [...new Set(normalizedList(options['blocked-by-claim'])
+    .map((claim) => claim.toLowerCase()))];
+  const blockerScopes = [...new Set(normalizedList(options['blocked-by-scope'])
+    .map(normalizeScope))];
+  if (!blockerEntryId && blockerClaims.length === 0 && blockerScopes.length === 0) {
+    throw new Error(
+      'coordination park requires blocker evidence with --blocked-by-entry, --blocked-by-claim, or --blocked-by-scope.',
+    );
+  }
+  return { blockerEntryId, blockerClaims, blockerScopes };
+}
+
+function parkedEvidenceFromRecord(entry, parking) {
+  const blockerEntryId = parking.blockerEntryId === undefined
+    ? ''
+    : text(parking.blockerEntryId);
+  if (parking.blockerEntryId !== undefined && !blockerEntryId) {
+    throw new Error(`Cannot resume coordination entry ${entry.id}: parked blocker entry evidence is malformed.`);
+  }
+  const readList = (field, normalize) => {
+    if (parking[field] === undefined) return [];
+    if (!Array.isArray(parking[field])) {
+      throw new Error(`Cannot resume coordination entry ${entry.id}: parked ${field} evidence is malformed.`);
+    }
+    try {
+      return [...new Set(parking[field].map((value) => normalize(value)))];
+    } catch (error) {
+      throw new Error(
+        `Cannot resume coordination entry ${entry.id}: parked ${field} evidence is malformed.`,
+        { cause: error },
+      );
+    }
+  };
+  const blockerClaims = readList('blockerClaims', (claim) => {
+    const normalized = text(claim).toLowerCase();
+    if (!normalized) throw new Error('empty claim');
+    return normalized;
+  });
+  const blockerScopes = readList('blockerScopes', (scope) => normalizeScope(scope));
+  if (!blockerEntryId && blockerClaims.length === 0 && blockerScopes.length === 0) {
+    throw new Error(`Cannot resume coordination entry ${entry.id}: parked blocker evidence is empty.`);
+  }
+  return { blockerEntryId, blockerClaims, blockerScopes };
+}
+
+function coordinationClaimIsCrossRepository(claim) {
+  return claim.startsWith('emulator-slot-') ||
+    claim.startsWith('coordination-') ||
+    claim.startsWith('release-');
+}
+
+function parkedBlockerConflicts(entry, state, parking) {
+  const evidence = parkedEvidenceFromRecord(entry, parking);
+  const repositoryIdentity = text(parking.repositoryIdentity, text(entry.repositoryIdentity));
+  const repositoryRoot = text(parking.repositoryRoot, text(entry.repositoryRoot));
+  const candidates = state.entries.filter((candidate) =>
+    candidate.id !== entry.id && coordinationEntryOwnsOwnership(candidate));
+  const conflicts = [];
+  const add = (candidate, type, value) => {
+    const key = `${candidate.id}:${type}:${value}`;
+    if (!conflicts.some((conflict) => conflict.key === key)) {
+      conflicts.push({ key, entryId: candidate.id, type, value });
+    }
+  };
+  for (const candidate of candidates) {
+    if (evidence.blockerEntryId && candidate.id === evidence.blockerEntryId) {
+      add(candidate, 'entry', candidate.id);
+    }
+    const repositoryMatch = sameRepository(candidate, { repositoryIdentity, repositoryRoot });
+    const candidateClaims = new Set(normalizedList(candidate.claims).map((claim) => claim.toLowerCase()));
+    for (const claim of evidence.blockerClaims) {
+      if (candidateClaims.has(claim) && (repositoryMatch || coordinationClaimIsCrossRepository(claim))) {
+        add(candidate, 'claim', claim);
+      }
+    }
+    if (repositoryMatch) {
+      const candidateScopes = normalizedList(candidate.scopes).map((scope) => {
+        try { return normalizeScope(scope); } catch { return scope; }
+      });
+      for (const scope of evidence.blockerScopes) {
+        const matchedScope = candidateScopes.find((candidateScope) => scopesOverlap(scope, candidateScope));
+        if (matchedScope) add(candidate, 'scope', matchedScope);
+      }
+    }
+  }
+  return { evidence, conflicts };
+}
+
+function parkedConflictDescription(conflicts) {
+  return conflicts.map((conflict) =>
+    `${conflict.type} ${conflict.value} held by ${conflict.entryId}`).join(', ');
+}
+
+function coordinationWorkingTreeStatus(options = {}) {
+  const suppliedStatus = options.gitStatus ?? options.workingTreeStatus;
+  return suppliedStatus === undefined
+    ? runGit(['status', '--porcelain', '--untracked-files=all'], process.cwd())
+    : Promise.resolve(suppliedStatus);
+}
+
+/** Park the current owner at one exact clean checkpoint without releasing ownership. */
+export async function parkCoordinationEntry(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination park requires --id <entry-id>.');
+  const checkpointSha = checkpointShaValue(options['checkpoint-sha'], 'park');
+  const nextAction = text(options['next-action']);
+  if (!nextAction) throw new Error('coordination park requires a concrete --next-action value.');
+  const evidence = parkedEvidenceFromOptions(options);
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'park');
+    if (entry.status !== 'active') {
+      throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id} from ${process.cwd()}; it belongs to ${entry.worktree}.`,
+      );
+    }
+    const lease = leaseStatusForEntry(entry, {
+      now: options.now ?? Date.now(),
+      leaseMs: options.leaseMs,
+    });
+    if (lease.ownerConfirmationRequired) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: owner confirmation is required; heartbeat the active owner first.`,
+      );
+    }
+    const start = options.gitState ?? await readGitStartState();
+    if (!entry.branchName || !start.branchName || start.branchName === 'HEAD') {
+      throw new Error(`Cannot park coordination entry ${entry.id}: an attached owner branch is required.`);
+    }
+    if (entry.branchName !== start.branchName) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: checkout branch ${start.branchName} does not match ${entry.branchName}.`,
+      );
+    }
+    if (String(start.branchSha).toLowerCase() !== checkpointSha) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: checkpoint SHA ${checkpointSha} does not match current HEAD ${start.branchSha}.`,
+      );
+    }
+    const workingTreeStatus = await coordinationWorkingTreeStatus(options);
+    if (String(workingTreeStatus).trim()) {
+      throw new Error(`Cannot park coordination entry ${entry.id}: the checkout is not clean at checkpoint ${checkpointSha}.`);
+    }
+    const liveReservations = state.reservations.filter(
+      (reservation) => reservation.worktree === entry.worktree,
+    );
+    if (liveReservations.length > 0) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: live reservations remain for this worktree; stop idle processes first.`,
+      );
+    }
+    const blocker = evidence.blockerEntryId
+      ? state.entries.find((candidate) => candidate.id === evidence.blockerEntryId)
+      : undefined;
+    if (evidence.blockerEntryId && (!blocker || blocker.id === entry.id || blocker.status !== 'active')) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: blocker entry ${evidence.blockerEntryId} must be active and distinct.`,
+      );
+    }
+    const parking = {
+      status: 'parked',
+      parkedAt: sessionGoalNow(options.now),
+      checkpointSha,
+      worktree: process.cwd(),
+      branchName: start.branchName,
+      repositoryRoot: start.repositoryRoot,
+      repositoryIdentity: start.repositoryIdentity,
+      ...(evidence.blockerEntryId ? { blockerEntryId: evidence.blockerEntryId } : {}),
+      blockerClaims: evidence.blockerClaims,
+      blockerScopes: evidence.blockerScopes,
+      nextAction,
+    };
+    const blockerConflicts = parkedBlockerConflicts(entry, state, parking).conflicts;
+    if (!evidence.blockerEntryId && blockerConflicts.length === 0) {
+      throw new Error(
+        `Cannot park coordination entry ${entry.id}: blocker evidence does not identify an active owner.`,
+      );
+    }
+    entry.status = 'parked';
+    entry.parked = parking;
+    entry.parkedAt = parking.parkedAt;
+    entry.lease = {
+      state: 'parked-no-heartbeat-required',
+      ownerConfirmationRequired: false,
+      takeoverAllowed: false,
+    };
+    validateImplementationPromptClaims(state.entries);
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return entry;
+  });
+}
+
+/** Resume a parked owner only when its checkpoint is unchanged and blockers are gone. */
+export async function resumeCoordinationEntry(filePath, options = {}) {
+  if (!options.id) throw new Error('coordination resume requires --id <entry-id>.');
+
+  return withCoordinationLock(filePath, async () => {
+    const state = pruneDeadReservations(await readStateUnlocked(filePath));
+    const entry = state.entries.find((candidate) => candidate.id === options.id);
+    if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    if (entry.status !== 'parked') {
+      throw new Error(`Cannot resume coordination entry ${entry.id}: it is not parked.`);
+    }
+    if (entry.worktree !== process.cwd()) {
+      throw new Error(
+        `Cannot resume coordination entry ${entry.id} from ${process.cwd()}; it belongs to ${entry.worktree}.`,
+      );
+    }
+    const parking = objectRecord(entry.parked);
+    const checkpointSha = checkpointShaValue(parking.checkpointSha, 'resume');
+    const requestedCheckpoint = options['checkpoint-sha'] === undefined
+      ? null
+      : checkpointShaValue(options['checkpoint-sha'], 'resume');
+    if (requestedCheckpoint && requestedCheckpoint !== checkpointSha) {
+      throw new Error(
+        `Cannot resume coordination entry ${entry.id}: requested checkpoint ${requestedCheckpoint} does not match parked checkpoint ${checkpointSha}.`,
+      );
+    }
+    if (parking.worktree !== process.cwd()) {
+      throw new Error(`Cannot resume coordination entry ${entry.id}: parked worktree continuity failed.`);
+    }
+    const start = options.gitState ?? await readGitStartState();
+    if (!entry.branchName || parking.branchName !== entry.branchName || start.branchName !== entry.branchName) {
+      throw new Error(`Cannot resume coordination entry ${entry.id}: parked branch continuity failed.`);
+    }
+    if (String(start.branchSha).toLowerCase() !== checkpointSha) {
+      throw new Error(
+        `Cannot resume coordination entry ${entry.id}: parked checkpoint ${checkpointSha} no longer matches current HEAD ${start.branchSha}.`,
+      );
+    }
+    const workingTreeStatus = await coordinationWorkingTreeStatus(options);
+    if (String(workingTreeStatus).trim()) {
+      throw new Error(`Cannot resume coordination entry ${entry.id}: the checkout is not clean at parked checkpoint ${checkpointSha}.`);
+    }
+    const blockerResult = parkedBlockerConflicts(entry, state, parking);
+    if (blockerResult.conflicts.length > 0) {
+      throw new Error(
+        `Cannot resume coordination entry ${entry.id}: recorded blocker/overlap remains (${parkedConflictDescription(blockerResult.conflicts)}).`,
+      );
+    }
+    const resumedAt = sessionGoalNow(options.now);
+    const resumedParking = { ...parking, status: 'resumed', resumedAt };
+    entry.parkHistory = [
+      ...(Array.isArray(entry.parkHistory) ? entry.parkHistory : []),
+      resumedParking,
+    ];
+    entry.status = 'active';
+    entry.parked = resumedParking;
+    entry.resumedAt = resumedAt;
+    const refreshed = refreshCoordinationLease(entry, {
+      now: resumedAt,
+      leaseMs: options.leaseMs,
+    });
+    Object.assign(entry, refreshed);
+    validateImplementationPromptClaims(state.entries);
+    await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+    return entry;
+  });
+}
+
 // Keep the internal/legacy name available to the command wiring and older
 // callers while exposing the explicit public begin API above.
 const beginEntry = beginCoordinationEntry;
@@ -3291,6 +3595,7 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'amend');
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
     }
@@ -3478,6 +3783,7 @@ export async function heartbeatCoordinationEntry(filePath, options = {}) {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'heartbeat');
     if (entry.status !== 'active') {
       throw new Error(`Cannot heartbeat coordination entry ${entry.id}: it is not active.`);
     }
@@ -3535,6 +3841,7 @@ export async function releaseCoordinationClaim(filePath, options = {}) {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'release claim from');
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
     }
@@ -4309,6 +4616,7 @@ export async function validateCoordinationEntry(filePath, options) {
     const matchedEntry = state.entries.find((candidate) => candidate.id === options.id);
     const entry = matchedEntry ? JSON.parse(JSON.stringify(matchedEntry)) : undefined;
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'validate');
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
     }
@@ -4679,6 +4987,7 @@ export async function validateCoordinationEntry(filePath, options) {
     const state = pruneDeadReservations(await readStateUnlocked(filePath));
     const entry = state.entries.find((candidate) => candidate.id === options.id);
     if (!entry) throw new Error(`No coordination entry found for ${options.id}.`);
+    rejectParkedCoordinationEntry(entry, 'finish');
     if (entry.status !== 'active') {
       throw new Error(`Coordination entry ${entry.id} is already ${text(entry.status, 'historical')}.`);
     }
@@ -5098,6 +5407,16 @@ async function main() {
     console.log(`Compared session goals for ${entry.id} in ${filePath}.`);
     return;
   }
+  if (command === 'park') {
+    const entry = await parkCoordinationEntry(filePath, options);
+    console.log(`Parked coordination entry ${entry.id} at ${entry.parked?.checkpointSha}.`);
+    return;
+  }
+  if (command === 'resume') {
+    const entry = await resumeCoordinationEntry(filePath, options);
+    console.log(`Resumed coordination entry ${entry.id} at ${entry.heartbeatAt}.`);
+    return;
+  }
   if (command === 'forecast' || command === 'conflict-forecast') {
     const forecast = await forecastCoordinationEntry(filePath, options);
     console.log(formatConflictForecast(forecast));
@@ -5190,7 +5509,7 @@ async function main() {
   }
 
   throw new Error(
-    'usage: node scripts/emulator-resource-registry.mjs <status|begin|goals|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|release-reconcile|amend|validate|finish> [options]',
+    'usage: node scripts/emulator-resource-registry.mjs <status|begin|goals|park|resume|forecast|claim|heartbeat|release-claim|lease-status|release-prepare|release-land|release-reconcile|amend|validate|finish> [options]',
   );
 }
 

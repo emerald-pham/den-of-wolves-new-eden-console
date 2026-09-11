@@ -74,6 +74,20 @@ The explicit `legacy-exempt` policy covers existing pre-feature P012/P014/P664
 entries without an artifact and records a durable comparison; all new entries
 require the artifact.
 
+For a blocked idle owner, the top-level coordinator must first checkpoint the
+clean branch and use the owner-only `npm run coordination:park -- --id <id>
+--checkpoint-sha <exact SHA>` command with blocker entry/claim evidence and a
+concrete next action. The parked entry retains its scopes and claims fail-closed,
+reports `parked (no
+heartbeat required)`, and rejects heartbeat, amend, claim, validate, and finish.
+After the recorded blocker and overlap clear, `coordination:resume` is owner-only
+and verifies the same worktree, branch, and checkpoint SHA; it refuses while the
+recorded blocker or overlap remains and refreshes the lease when clear. Interrupt
+parked idle agents after the park is recorded, and reactivate them only through
+resume; do not run a status/heartbeat polling loop. The registry enforces this
+state and continuity. The Codex process pause/wake boundary cannot be
+machine-enforced by repository code.
+
 For every non-documentation change, the same checklist must also include
 an unchecked dependency gate: read
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
