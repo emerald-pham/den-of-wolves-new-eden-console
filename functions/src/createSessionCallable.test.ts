@@ -66,6 +66,48 @@ it('rejects unsupported setup before opening a transaction', async () => {
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it.each([
+  { playerCount: 19, expansion: 'base', capybaraEnabled: true },
+  { playerCount: 8, expansion: 'capybara', capybaraEnabled: true },
+  { playerCount: 8, expansion: 'none', capybaraEnabled: true },
+  { playerCount: 19, expansion: 'capybara', capybaraEnabled: false },
+])('rejects a mixed vessel mode before opening a transaction: %o', async (configuration) => {
+  await expect(createSession.run(request({
+    requestId: `mixed-mode-${configuration.playerCount}-${configuration.expansion}`,
+    ...configuration,
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.get).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  [8, 'base', true],
+  [8, 'none', false],
+  [19, 'capybara', true],
+] as const)('keeps the %s-player %s vessel mode identical in nested and legacy snapshots', async (
+  playerCount,
+  expansion,
+  capybaraEnabled,
+) => {
+  const reply = await createSession.run(request({
+    requestId: `mode-parity-${playerCount}-${expansion}`,
+    playerCount,
+    expansion,
+    capybaraEnabled,
+  }));
+  const sessionWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(reply.session).toMatchObject({ playerCount, expansion, capybaraEnabled });
+  expect(reply.session.setup).toMatchObject({ playerCount, expansion, capybaraEnabled });
+  expect(sessionWrite).toMatchObject({
+    playerCount,
+    expansion,
+    capybaraEnabled,
+    setup: expect.objectContaining({ playerCount, expansion, capybaraEnabled }),
+  });
+});
+
 it('creates one configured lobby and persists a replayable creation result atomically', async () => {
   await expect(createSession.run(request({
     requestId: 'create-1',
@@ -281,6 +323,65 @@ it('denies a downsize that would remove a claimed stable seat without mutating s
     sessionId: 's1', instanceId: 'bridge', playerCount: 18,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('locks the effective vessel mode after casting begins without mutating setup', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'mode-change-after-casting',
+    expectedSetupRevision: 0, playerCount: 8, chartId: 'A', expansion: 'none', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: false, activeRoleIds,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/mode is locked/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('replays a same-mode setup retry after casting without applying another write', async () => {
+  const activeRoleIds = recommendedRoleIds(8);
+  let storedReceipt: Record<string, unknown> | undefined;
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/setupMutationRequests/same-mode-retry' && storedReceipt) {
+      return snapshot(storedReceipt);
+    }
+    return snapshot({}, false);
+  });
+  mock.set.mockImplementation((ref: { path: string }, data: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/setupMutationRequests/same-mode-retry') storedReceipt = data;
+  });
+
+  const command = request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'same-mode-retry',
+    expectedSetupRevision: 0, playerCount: 8, chartId: 'A', expansion: 'base', turnLimit: 6,
+    dioneEnabled: false, capybaraEnabled: true, activeRoleIds,
+  });
+  await expect(confirmSetup.run(command)).resolves.toMatchObject({ status: 'committed' });
+  const writesAfterCommit = mock.update.mock.calls.length + mock.set.mock.calls.length;
+  await expect(confirmSetup.run(command)).resolves.toMatchObject({ status: 'replayed' });
+  expect(mock.update.mock.calls.length + mock.set.mock.calls.length).toBe(writesAfterCommit);
 });
 
 it('returns a safe stale receipt when setup revision changed before confirmation', async () => {

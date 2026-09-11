@@ -20,6 +20,8 @@ export const SUPPORTED_TURN_LIMITS = [6, 7, 8] as const;
 export type SessionChartId = typeof SUPPORTED_CHART_IDS[number];
 export type SessionExpansionMode = typeof SUPPORTED_EXPANSION_MODES[number];
 export type SessionTurnLimit = typeof SUPPORTED_TURN_LIMITS[number];
+/** The one vessel definition a session may use for its complete setup. */
+export type SessionVesselMode = 'base-capybara' | 'expansion-capybara' | 'none';
 
 export interface SessionConfiguration {
   readonly playerCount: number;
@@ -37,6 +39,40 @@ export interface SessionConfiguration {
 export interface CanonicalSessionSetup extends SessionConfiguration {
   readonly activeRoleIds: readonly RoleId[];
   readonly activeVesselIds: readonly VesselId[];
+}
+
+/**
+ * Resolve the effective Capybara definition from the persisted setup tuple.
+ *
+ * `base` with Capybara disabled is a legacy representation of the no-Capybara
+ * choice. Keep that representation readable while making the effective mode
+ * unambiguous for locks and composition checks.
+ */
+export function vesselModeForConfiguration(
+  configuration: Pick<SessionConfiguration, 'expansion' | 'capybaraEnabled'>,
+): SessionVesselMode {
+  if (configuration.expansion === 'capybara') return 'expansion-capybara';
+  if (configuration.expansion === 'none' || configuration.capybaraEnabled === false) return 'none';
+  return 'base-capybara';
+}
+
+/** Reject a roster that would combine base and expansion Capybara definitions. */
+export function validateVesselModeRoster(
+  configuration: Pick<SessionConfiguration, 'expansion'>,
+  activeRoleIds: readonly string[],
+): void {
+  const capybaraRoleIds = activeRoleIds.filter((roleId) => roleId.startsWith('capybara-'));
+  if (configuration.expansion !== 'capybara') {
+    if (capybaraRoleIds.length > 0) {
+      throw new Error('Expansion Capybara roles are unavailable outside expansion mode.');
+    }
+    return;
+  }
+  const expectedRoles = ['capybara-captain', 'capybara-recycler'];
+  if (capybaraRoleIds.length !== expectedRoles.length ||
+      expectedRoles.some((roleId) => !capybaraRoleIds.includes(roleId))) {
+    throw new Error('Expansion mode requires the complete Capybara role pair.');
+  }
 }
 
 export interface StableSeatRecord {
@@ -705,6 +741,7 @@ export function canonicalSessionSetup(
   configuration: SessionConfiguration,
   activeRoleIds: readonly string[] = recommendedRoleIds(configuration.playerCount),
 ): CanonicalSessionSetup {
+  validateVesselModeRoster(configuration, activeRoleIds);
   return {
     ...configuration,
     activeRoleIds: [...activeRoleIds],

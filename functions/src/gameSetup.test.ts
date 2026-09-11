@@ -17,6 +17,8 @@ import {
   composeDefaultLoyaltyAssignments,
   optionalLoyaltyAssignmentDecision,
   validateExplicitLoyaltySetup,
+  validateVesselModeRoster,
+  vesselModeForConfiguration,
 } from './gameSetup';
 import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
 import { recommendedRoleIds as clientRecommendedRoleIds } from '../../src/data/rolePresets';
@@ -69,6 +71,27 @@ describe('authoritative setup configuration', () => {
       playerCount: 18,
       expansion: 'capybara',
     })).toThrow(/19 or 20/i);
+  });
+
+  it.each([
+    [{ expansion: 'base' as const, capybaraEnabled: true }, 'base-capybara'],
+    [{ expansion: 'capybara' as const, capybaraEnabled: true }, 'expansion-capybara'],
+    [{ expansion: 'none' as const, capybaraEnabled: false }, 'none'],
+    [{ expansion: 'base' as const, capybaraEnabled: false }, 'none'],
+  ] as const)('resolves the %s tuple to one effective vessel mode', (configuration, mode) => {
+    expect(vesselModeForConfiguration(configuration)).toBe(mode);
+  });
+
+  it('rejects expansion roles in a base or neither roster and requires the complete expansion pair', () => {
+    expect(() => validateVesselModeRoster({ expansion: 'base' }, ['admiral', 'capybara-captain']))
+      .toThrow(/outside expansion/i);
+    expect(() => validateVesselModeRoster({ expansion: 'none' }, ['admiral', 'capybara-recycler']))
+      .toThrow(/outside expansion/i);
+    expect(() => validateVesselModeRoster({ expansion: 'capybara' }, ['admiral', 'capybara-captain']))
+      .toThrow(/complete Capybara role pair/i);
+    expect(() => validateVesselModeRoster({ expansion: 'capybara' }, [
+      'admiral', 'capybara-captain', 'capybara-recycler', 'capybara-captain',
+    ])).toThrow(/complete Capybara role pair/i);
   });
 
   it('hydrates a legacy lower-count Capybara marker as a valid base tuple', () => {

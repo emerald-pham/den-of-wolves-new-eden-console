@@ -115,6 +115,7 @@ import {
   roleAssignmentDecision,
   stableSeatsForRoles,
   validateExplicitLoyaltySetup,
+  vesselModeForConfiguration,
   type LoyaltyKind,
 } from './gameSetup';
 import {
@@ -1196,11 +1197,14 @@ function canonicalSetupForSession(
   const playerCount = playerCountOverride ?? (
     Number.isSafeInteger(session.get('playerCount')) ? session.get('playerCount') as number : 18
   );
-  const expansion = playerCount >= 19
-    ? 'capybara'
-    : playerCountOverride === undefined && session.get('expansion') === 'capybara'
+  const persistedExpansion = session.get('expansion');
+  const expansion = playerCountOverride === undefined
+    ? persistedExpansion === undefined
+      ? (playerCount >= 19 ? 'capybara' : 'base')
+      : persistedExpansion
+    : playerCount >= 19
       ? 'capybara'
-      : session.get('expansion') === 'none' ? 'none' : 'base';
+      : persistedExpansion === 'none' ? 'none' : 'base';
   const configurationInput = {
     playerCount,
     chartId: session.get('chartId'),
@@ -1215,6 +1219,24 @@ function canonicalSetupForSession(
     ? normalizePersistedSessionConfiguration(configurationInput)
     : normalizeSessionConfiguration(configurationInput);
   return canonicalSessionSetup(configuration, activeRoleIds);
+}
+
+/** Keep the selected vessel definition immutable as soon as casting begins. */
+function requireVesselModeUnchanged(
+  session: DocumentSnapshot,
+  nextConfiguration: Parameters<typeof vesselModeForConfiguration>[0],
+): void {
+  if (String(session.get('phase')) !== 'casting') return;
+  const currentSetup = canonicalSetupForSession(session, sessionActiveRoleIds(session));
+  const currentMode = vesselModeForConfiguration(currentSetup);
+  const nextMode = vesselModeForConfiguration(nextConfiguration);
+  if (currentMode !== nextMode) {
+    throw commandError(
+      'failed-precondition',
+      'Vessel mode is locked once casting begins.',
+      'conflict',
+    );
+  }
 }
 
 /** Reconcile role-keyed seats before writing the tuple that advertises them. */
@@ -1491,6 +1513,7 @@ export const confirmSetup = onCall<{
       return reply;
     }
     requireCastingWindow(authority.session);
+    requireVesselModeUnchanged(authority.session, command.configuration);
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
