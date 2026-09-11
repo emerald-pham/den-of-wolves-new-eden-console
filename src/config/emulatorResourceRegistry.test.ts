@@ -231,12 +231,20 @@ describe('simplified coordination registry', () => {
         }),
       ]);
 
+      const results = [first, second];
+      const created = results.find((result) => result.created);
+      const reused = results.find((result) => !result.created);
       expect(reserveCalls).toBe(1);
-      expect(first.created).toBe(true);
-      expect(second.created).toBe(false);
-      expect(activeConfigurations).toEqual([{ id: first.configurationId!, slot: first.slot!, worktree: root }]);
+      expect(created).toBeDefined();
+      expect(reused).toBeDefined();
+      if (!created || !reused) throw new Error('same-worktree setup did not produce one owner and one reuse');
+      expect(created.configurationId).toBeDefined();
+      expect(created.files).toHaveLength(2);
+      expect(reused.configurationId).toBeUndefined();
+      expect(reused.files).toEqual([]);
+      expect(activeConfigurations).toEqual([{ id: created.configurationId!, slot: created.slot!, worktree: root }]);
       expect(await readFile(configurationPath, 'utf8')).toContain('firestore');
-      await cleanupValidationEmulator(first, { release });
+      await cleanupValidationEmulator(created, { release });
       expect(activeConfigurations).toEqual([]);
       await expect(readFile(configurationPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
       await expect(readFile(environmentPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
