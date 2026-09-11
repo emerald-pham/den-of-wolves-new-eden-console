@@ -5,20 +5,44 @@ import { tmpdir, userInfo } from 'node:os';
 import { resolve } from 'node:path';
 import {
   createDependencyPacket,
+  dependencyReceiptMetadata,
   dependencyReceiptPath,
   formatDependencyPacket,
+  readDependencyReceipt,
   resolveCurrentMainSha,
   validateDependencyReceipt,
+  validateOrRefreshCompletionDependencyReceipt,
   writeDependencyReceipt,
 // @ts-expect-error The executable JavaScript module is exercised directly rather than through a generated declaration.
 } from '../../scripts/prompt-dependencies.mjs';
 
-const sources = {
+const authoritySources = {
   plan: await readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PLAN.md'), 'utf8'),
   progress: await readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8'),
   dependency: await readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), 'utf8'),
   milestones: await readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8'),
 };
+
+function pendingPrompt666Sources() {
+  if (authoritySources.plan.includes('- [ ] Prompt 666')) return authoritySources;
+  return {
+    ...authoritySources,
+    plan: authoritySources.plan.replace('- [x] Prompt 666', '- [ ] Prompt 666'),
+    progress: authoritySources.progress
+      .replace('**94 / 734 prompts complete (12.81%)**', '**93 / 734 prompts complete (12.67%)**')
+      .replace(
+        'Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.',
+        'Status breakdown: **93 done · 26 partial · 0 active · 615 missing**.',
+      )
+      .replace('| 666 | done |', '| 666 | partial |'),
+    dependency: authoritySources.dependency.replace(
+      '| 666 | EXTEND | done | 665 |',
+      '| 666 | EXTEND | partial | 665 |',
+    ),
+  };
+}
+
+const sources = pendingPrompt666Sources();
 
 const expectedWolfOrder = [
   '425', '426', '428', '427', '432', '432a', '433', '433a', '433b', '434', '434a',
@@ -61,7 +85,325 @@ const ownerEntry = (worktree: string) => ({
   claims: ['prompt-666'],
 });
 
+function git(cwd: string, args: string[]) {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+}
+
+function completeAuthority(
+  pending: typeof sources,
+  prompt: string,
+  tag: string,
+) {
+  const completion = pending.progress.match(/\*\*(\d+) \/ (\d+) prompts complete \(\d+\.\d+%\)\*\*/);
+  const breakdown = pending.progress.match(
+    /Status breakdown: \*\*(\d+) done · (\d+) partial · (\d+) active · (\d+) missing\*\*\./,
+  );
+  if (!completion || !breakdown) throw new Error('fixture progress summary is missing');
+  const completed = Number(completion[1]) + 1;
+  const total = Number(completion[2]);
+  const done = Number(breakdown[1]) + 1;
+  const partial = Number(breakdown[2]) - 1;
+  return {
+    ...pending,
+    plan: pending.plan.replace(`- [ ] Prompt ${prompt}`, `- [x] Prompt ${prompt}`),
+    progress: pending.progress
+      .replace(completion[0], `**${completed} / ${total} prompts complete (${((completed / total) * 100).toFixed(2)}%)**`)
+      .replace(
+        breakdown[0],
+        `Status breakdown: **${done} done · ${partial} partial · ${breakdown[3]} active · ${breakdown[4]} missing**.`,
+      )
+      .replace(`Prompt ${prompt} is partial`, `Prompt ${prompt} is done`)
+      .replace(`| ${prompt} | partial |`, `| ${prompt} | done |`),
+    dependency: pending.dependency.replace(
+      `| ${prompt} | ${tag} | partial |`,
+      `| ${prompt} | ${tag} | done |`,
+    ),
+  };
+}
+
+async function completionFixture({
+  prompt = '668',
+  tag = 'EXTEND',
+  policy = 'required',
+}: {
+  prompt?: string;
+  tag?: string;
+  policy?: 'required' | 'legacy-refreshed';
+} = {}) {
+  const pending = prompt === '668'
+    ? Object.fromEntries(Object.entries(sources).map(([key, value]) => [key, value.replaceAll('666', '668')])) as typeof sources
+    : sources;
+  const root = await mkdtemp(resolve(tmpdir(), `p${prompt}-completion-nonce-`));
+  const docs = resolve(root, 'docs');
+  await mkdir(docs, { recursive: true });
+  const paths = {
+    plan: 'IMPLEMENTATION_PLAN.md',
+    progress: 'IMPLEMENTATION_PROGRESS.md',
+    dependency: 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+    milestones: 'IMPLEMENTATION_MILESTONES.md',
+  } as const;
+  for (const [name, content] of Object.entries(pending)) {
+    await writeFile(resolve(docs, paths[name as keyof typeof paths]), content);
+  }
+  git(root, ['init', '-b', 'main']);
+  git(root, ['config', 'user.email', 'fixture@example.test']);
+  git(root, ['config', 'user.name', 'Fixture']);
+  git(root, ['add', '.']);
+  git(root, ['commit', '-m', `partial P${prompt} authority`]);
+  const startSha = git(root, ['rev-parse', 'HEAD']);
+  const branch = `tooling/p${prompt}-completion`;
+  git(root, ['switch', '-c', branch]);
+  const entry = {
+    id: `p${prompt}-owner`,
+    status: 'active',
+    repositoryRoot: root,
+    repositoryIdentity: `${root}/.git`,
+    worktree: root,
+    implementationPrompt: prompt,
+    changeClass: 'non-feature',
+    branchName: branch,
+    startBranchSha: startSha,
+    startMainSha: startSha,
+    scopes: ['scripts/prompt-dependencies.mjs'],
+    claims: [`prompt-${prompt}`],
+  };
+  const context = {
+    prompt,
+    sources: pending,
+    binding: {
+      owner: `${userInfo().username}:${process.getuid?.() ?? 'unknown'}`,
+      worktree: root,
+      branch,
+      prompt,
+      changeClass: 'non-feature',
+      startBranchSha: startSha,
+      startMainSha: startSha,
+      mainSha: startSha,
+    },
+    coordinationState: { entries: [entry] },
+    requestedScopes: entry.scopes,
+    requestedClaims: entry.claims,
+    repositoryRoot: root,
+    repositoryIdentity: entry.repositoryIdentity,
+  };
+  await writeDependencyReceipt(createDependencyPacket(context));
+  const priorReceipt = await readDependencyReceipt(context.binding);
+  const issuedEntry = entry as typeof entry & { dependencyReceipt: Record<string, unknown> };
+  issuedEntry.dependencyReceipt = dependencyReceiptMetadata(priorReceipt, policy);
+  const done = completeAuthority(pending, prompt, tag);
+  for (const [name, content] of Object.entries(done)) {
+    await writeFile(resolve(docs, paths[name as keyof typeof paths]), content);
+  }
+  git(root, ['add', 'docs']);
+  git(root, ['commit', '-m', `complete P${prompt} authority`]);
+  return {
+    root,
+    entry: issuedEntry,
+    pending,
+    priorReceipt,
+    context: { ...context, sources: done },
+  };
+}
+
 describe('compact prompt dependency packets', () => {
+  it('requires an issued nonce commitment to consume one generic completion receipt', async () => {
+    const fixture = await completionFixture();
+    try {
+      expect(fixture.priorReceipt.issuance.nonce).toMatch(/^[0-9a-f]{64}$/);
+      expect(JSON.stringify(fixture.entry.dependencyReceipt)).not.toContain(fixture.priorReceipt.issuance.nonce);
+      expect(fixture.entry.dependencyReceipt).toMatchObject({
+        policy: 'required',
+        issuance: { nonceCommitment: expect.stringMatching(/^[0-9a-f]{64}$/) },
+      });
+
+      const consumed = await validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        allowRefresh: true,
+      });
+      expect(consumed).toMatchObject({ policy: 'completion-refreshed' });
+      expect(JSON.stringify(consumed)).not.toContain(fixture.priorReceipt.issuance.nonce);
+      fixture.entry.dependencyReceipt = dependencyReceiptMetadata(consumed, 'completion-refreshed');
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        allowRefresh: false,
+      })).resolves.toEqual(consumed);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/second refresh|already consumed/i);
+      for (const context of [
+        { ...fixture.context, binding: { ...fixture.context.binding, mainSha: 'f'.repeat(40) } },
+        { ...fixture.context, requestedScopes: ['scripts/other.mjs'] },
+        { ...fixture.context, requestedClaims: ['prompt-668-drift'] },
+        {
+          ...fixture.context,
+          sources: { ...fixture.context.sources, plan: `${fixture.context.sources.plan}\n` },
+        },
+      ]) {
+        await expect(validateOrRefreshCompletionDependencyReceipt({
+          context,
+          entry: fixture.entry,
+          allowRefresh: false,
+        })).rejects.toThrow(/predecessor|binding|authority|scope|claim|transition|drift/i);
+      }
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed after a receipt-file/ledger half-write and on cross-entry replay', async () => {
+    const halfWritten = await completionFixture();
+    const replaySource = await completionFixture();
+    const replayTarget = await completionFixture();
+    try {
+      await validateOrRefreshCompletionDependencyReceipt({
+        context: halfWritten.context,
+        entry: halfWritten.entry,
+        allowRefresh: true,
+      });
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: halfWritten.context,
+        entry: halfWritten.entry,
+        allowRefresh: false,
+      })).rejects.toThrow(/metadata does not match|active entry/i);
+
+      const replay = await readFile(dependencyReceiptPath(replaySource.root, '668'), 'utf8');
+      await writeFile(dependencyReceiptPath(replayTarget.root, '668'), replay);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: replayTarget.context,
+        entry: replayTarget.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/issuance|commitment|predecessor|active binding/i);
+    } finally {
+      await Promise.all([halfWritten, replaySource, replayTarget]
+        .map(({ root }) => rm(root, { recursive: true, force: true })));
+    }
+  });
+
+  it.each([
+    ['terminal', { status: 'complete' }],
+    ['parked', { status: 'parked' }],
+    ['taken over', { worktree: '/tmp/foreign-worktree' }],
+  ])('rejects a %s completion owner', async (_label, mutation) => {
+    const fixture = await completionFixture();
+    try {
+      const active = { ...fixture.entry, ...mutation };
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: { ...fixture.context, coordinationState: { entries: [active] } },
+        entry: active,
+        allowRefresh: true,
+      })).rejects.toThrow(/active|non-terminal|worktree|binding/i);
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects a symlinked completion receipt', async () => {
+    const fixture = await completionFixture();
+    const receiptPath = dependencyReceiptPath(fixture.root, '668');
+    const targetPath = resolve(fixture.root, 'foreign-receipt.json');
+    try {
+      const original = await readFile(receiptPath, 'utf8');
+      await unlink(receiptPath);
+      await writeFile(targetPath, original);
+      await symlink(targetPath, receiptPath);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/symlink/i);
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects deletion, post-done historical recreation, and replacement issuance', async () => {
+    const deleted = await completionFixture();
+    const recreated = await completionFixture();
+    const replaced = await completionFixture();
+    try {
+      await unlink(dependencyReceiptPath(deleted.root, '668'));
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: deleted.context,
+        entry: deleted.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/missing/i);
+
+      await unlink(dependencyReceiptPath(recreated.root, '668'));
+      await writeDependencyReceipt(createDependencyPacket({
+        ...recreated.context,
+        sources: recreated.pending,
+      }));
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: recreated.context,
+        entry: recreated.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/issuance|commitment|predecessor/i);
+
+      await writeDependencyReceipt(createDependencyPacket({
+        ...replaced.context,
+        sources: replaced.pending,
+      }));
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: replaced.context,
+        entry: replaced.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/issuance|commitment|predecessor/i);
+    } finally {
+      await Promise.all([deleted, recreated, replaced]
+        .map(({ root }) => rm(root, { recursive: true, force: true })));
+    }
+  });
+
+  it.each([
+    ['nonce commitment', { issuance: { nonceCommitment: '0'.repeat(64) } }],
+    ['content digest', { contentDigest: '0'.repeat(64) }],
+  ])('rejects a mismatched ledger %s', async (_label, replacement) => {
+    const fixture = await completionFixture();
+    try {
+      const currentIssuance = fixture.entry.dependencyReceipt.issuance as Record<string, unknown>;
+      const replacementIssuance = 'issuance' in replacement
+        ? replacement.issuance as Record<string, unknown>
+        : undefined;
+      fixture.entry.dependencyReceipt = {
+        ...fixture.entry.dependencyReceipt,
+        ...replacement,
+        ...(replacementIssuance ? {
+          issuance: { ...currentIssuance, ...replacementIssuance },
+        } : {}),
+      };
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        allowRefresh: true,
+      })).rejects.toThrow(/issuance|commitment|predecessor|digest/i);
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it.each(['012', '014'])('permits only the exact migrated P%s issuance to complete', async (prompt) => {
+    const fixture = await completionFixture({ prompt, tag: 'PRESERVE', policy: 'legacy-refreshed' });
+    try {
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        exactLegacyMigration: false,
+        allowRefresh: true,
+      })).rejects.toThrow(/exact migrated|legacy/i);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: true,
+      })).resolves.toMatchObject({ policy: 'completion-refreshed' });
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
   it('keeps the default packet compact while full and JSON retain the complete semantic view', () => {
     const worktree = '/tmp/p666-packet';
     const packet = createDependencyPacket({

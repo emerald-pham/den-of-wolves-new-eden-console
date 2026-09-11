@@ -106,6 +106,16 @@ The command writes the ignored worktree receipt required by
 the goal only after reconciliation; leave it unchecked if any hard prerequisite
 remains unmet.
 
+The receipt's strict issuance contains a random nonce only in the ignored local
+file; the coordination entry records its commitment and exact receipt digest.
+Keep that issued file through a prompt's canonical partial-to-done transition.
+The final `coordination:validate` verifies the existing issuance against its
+pre-done ledger commitment and consumes it once into a nonce-free completion
+receipt only after the other checks pass. A done prompt cannot mint or amend a
+new strict receipt, and deleting or recreating the prior file cannot recover the
+committed issuance. `coordination:finish` rechecks the consumed receipt
+read-only before cleanup.
+
 ## Campaign execution and stopping
 
 For an explicit multi-agent implementation campaign, read the
@@ -232,7 +242,11 @@ changes, stop and refresh the packet and receipt before continuing. Missing,
 stale, malformed, symlinked, mismatched, or relevant-conflict receipts fail
 begin, amendment, and validation; unrelated ledger noise does not invalidate a
 receipt. Only the exact already-active P012/P014 entries receive the one-time
-legacy refresh. A prompt with hard
+legacy refresh, which creates the same random issuance commitment before their
+future completion. When a prompt's only remaining change is its canonical
+partial-to-done bookkeeping, preserve the already-issued receipt: validation
+permits exactly one matching authority transition and consumes that issuance
+once. A prompt with hard
 prerequisites that remain unmet cannot be marked complete and cannot merge.
 Closure/evidence gates remain completion checks, while sequence,
 release-boundary, and related/consumes fields remain context unless the index

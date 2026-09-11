@@ -76,6 +76,7 @@ import {
   dependencyReceiptContextForEntry,
   dependencyReceiptMetadata,
   validateDependencyReceipt,
+  validateOrRefreshCompletionDependencyReceipt,
   writeDependencyReceipt,
 } from './prompt-dependencies.mjs';
 
@@ -160,11 +161,56 @@ async function requireDependencyReceipt(entry, state, options = {}, overrides = 
   try {
     receipt = await validator(context);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not mechanically ready: progress=done/i.test(message)) {
+      if (overrides.allowCompletionRead !== true) {
+        throw new Error(
+          `Dependency receipt gate failed for Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'}: ` +
+          'completed prompts may not begin or amend a dependency receipt lifecycle.',
+          { cause: error },
+        );
+      }
+      const lease = leaseStatusForEntry(entry, {
+        now: options.now ?? Date.now(),
+        leaseMs: options.leaseMs,
+      });
+      if (entry.status !== 'active' || lease.ownerConfirmationRequired) {
+        throw new Error(
+          `Dependency receipt completion gate failed for Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'}: ` +
+          'the exact active owner lease is required.',
+          { cause: error },
+        );
+      }
+      try {
+        const completionValidator = options.completionDependencyReceiptValidator ??
+          validateOrRefreshCompletionDependencyReceipt;
+        receipt = await completionValidator({
+          context,
+          entry,
+          exactLegacyMigration: legacyDependencyReceiptMigration(entry),
+          allowRefresh: overrides.allowCompletionRefresh === true &&
+            entry.dependencyReceipt?.policy !== 'completion-refreshed',
+          allowPending: overrides.allowCompletionPending === true,
+        });
+        return dependencyReceiptMetadata(
+          receipt,
+          receipt?.policy === 'completion-refreshed'
+            ? 'completion-refreshed'
+            : entry.dependencyReceipt?.policy,
+        );
+      } catch (completionError) {
+        throw new Error(
+          `Dependency receipt completion gate failed for Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'}: ` +
+          `${completionError instanceof Error ? completionError.message : String(completionError)}`,
+          { cause: completionError },
+        );
+      }
+    }
     if (!overrides.allowLegacyRefresh || !legacyDependencyReceiptMigration(entry) ||
-      !/missing/i.test(error instanceof Error ? error.message : String(error))) {
+      !/(?:missing|legacy schema version 1)/i.test(message)) {
       throw new Error(
         `Dependency receipt gate failed for Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'}: ` +
-        `${error instanceof Error ? error.message : String(error)}`,
+        message,
         { cause: error },
       );
     }
@@ -612,6 +658,7 @@ function validationEntryInputs(entry) {
     preemptiveChangelog: entry.preemptiveChangelog ?? null,
     scopes: sortedStrings(entry.scopes),
     claims: sortedStrings(entry.claims),
+    dependencyReceipt: entry.dependencyReceipt ?? null,
   };
 }
 
@@ -4982,6 +5029,8 @@ export async function validateCoordinationEntry(filePath, options) {
     const dependencyReceipt = await requireDependencyReceipt(entry, state, options, {
       mainSha: release.mainSha,
       allowLegacyRefresh: true,
+      allowCompletionRead: true,
+      allowCompletionPending: true,
     });
     const errors = releaseMetadataErrors({
       entry,
@@ -5145,6 +5194,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entryPreemptiveChangelog: entry.preemptiveChangelog,
       entryScopes: Array.isArray(entry.scopes) ? [...entry.scopes] : [],
       entryClaims: Array.isArray(entry.claims) ? [...entry.claims] : [],
+      entryDependencyReceipt: entry.dependencyReceipt ?? null,
       entryInputIdentity: contentIdentity(JSON.stringify(validationEntryInputs(entry))),
       previousValidation,
       validation: provenanceRefresh ? undefined : previousValidation,
@@ -5316,6 +5366,7 @@ export async function validateCoordinationEntry(filePath, options) {
       preemptiveChangelog: preparation.entryPreemptiveChangelog,
       scopes: preparation.entryScopes,
       claims: preparation.entryClaims,
+      dependencyReceipt: preparation.entryDependencyReceipt,
     },
     release: finalRelease,
     plan: finalPlan,
@@ -5383,8 +5434,14 @@ export async function validateCoordinationEntry(filePath, options) {
     const currentDependencyReceipt = await requireDependencyReceipt(entry, state, options, {
       mainSha: finalRelease.mainSha,
       allowLegacyRefresh: true,
+      allowCompletionRead: true,
+      allowCompletionRefresh: true,
     });
-    if (JSON.stringify(currentDependencyReceipt) !== JSON.stringify(preparation.dependencyReceipt)) {
+    const completedDuringValidation = currentDependencyReceipt?.policy === 'completion-refreshed' &&
+      preparation.dependencyReceipt?.policy !== 'completion-refreshed' &&
+      JSON.stringify(currentDependencyReceipt.predecessor) === JSON.stringify(preparation.dependencyReceipt);
+    if (!completedDuringValidation &&
+      JSON.stringify(currentDependencyReceipt) !== JSON.stringify(preparation.dependencyReceipt)) {
       throw new Error(
         `Cannot record validation for ${entry.id}: dependency receipt inputs changed while checks ran; rerun validation.`,
       );
@@ -5511,6 +5568,13 @@ export async function finishCoordinationEntry(filePath, options) {
     }
     if (release.branchBaselineIsAncestor === false) {
       throw new Error(`Cannot complete coordination entry ${entry.id}: task history was rewritten after coordination began.`);
+    }
+    if (entry.dependencyReceipt?.policy === 'completion-refreshed') {
+      await requireDependencyReceipt(entry, state, options, {
+        mainSha: release.mainSha,
+        allowLegacyRefresh: true,
+        allowCompletionRead: true,
+      });
     }
     if (entry.implementationRegistrationRequired === true &&
       Array.isArray(release.changedFiles) && release.changedFiles.length > 0) {

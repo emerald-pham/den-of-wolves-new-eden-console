@@ -48,6 +48,8 @@ import {
   resumeCoordinationEntry,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
+// @ts-expect-error The executable JavaScript module is exercised directly rather than through a generated declaration.
+import { dependencyReceiptMetadata } from '../../scripts/prompt-dependencies.mjs';
 import { validateCommitRange } from '../../scripts/validate-work-registration.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -179,10 +181,11 @@ type DependencyReceiptTestOptions = {
     overrides: Record<string, unknown>,
   ) => Promise<DependencyReceiptContext>;
   dependencyReceiptValidator: (context: DependencyReceiptContext) => Promise<Record<string, unknown>>;
+  completionDependencyReceiptValidator?: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
 };
 
 const acceptedDependencyReceipt = async (context: DependencyReceiptContext) => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   prompt: context.prompt,
   changeClass: context.binding.changeClass,
   binding: context.binding,
@@ -191,6 +194,11 @@ const acceptedDependencyReceipt = async (context: DependencyReceiptContext) => (
   fingerprint: 'test-fingerprint',
   fingerprintInputs: {},
   contentDigest: 'test-content-digest',
+  issuance: {
+    schemaVersion: 1,
+    issuedAt: '2026-09-11T00:00:00.000Z',
+    nonce: '1'.repeat(64),
+  },
 });
 
 function optionalString(value: unknown, fallback: string) {
@@ -275,6 +283,174 @@ describe('local emulator coordination', () => {
       expect(rejected).toHaveBeenCalledTimes(3);
     } finally {
       if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('never lets begin or amendment mint a receipt after a prompt is done', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-completion-begin-amend-${randomUUID()}.json`);
+    const beginPath = resolve(tmpdir(), `den-of-wolves-completion-begin-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const branchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const mainSha = await readFixtureMainSha(process.cwd());
+    const doneRejected = async () => { throw new Error('Prompt 666 is not mechanically ready: progress=done'); };
+    const entry = {
+      ...amendmentEntry({ id: 'done-p666-owner' }),
+      ...identity,
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationRegistrationRequired: true,
+      implementationPrompt: '666',
+      startBranchSha: branchSha,
+      startMainSha: mainSha,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await heartbeatCoordinationEntry(filePath, { id: entry.id });
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        scope: 'src/config/completionReceipt.test.ts',
+        dependencyReceiptValidator: doneRejected,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions))
+        .rejects.toThrow(/completed prompts may not begin or amend/i);
+      await expect(beginCoordinationEntry(beginPath, sessionGoalBeginOptions({
+        'implementation-prompt': '666',
+        dependencyReceiptValidator: doneRejected,
+      }))).rejects.toThrow(/completed prompts may not begin or amend/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+      await unlink(beginPath).catch(() => undefined);
+      await unlink(`${beginPath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('consumes a completion issuance at most once after checks and records the new lineage', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-completion-validate-${randomUUID()}.json`);
+    const strictContext = await dependencyReceiptTestOptions.dependencyReceiptContextFactory({
+      implementationPrompt: '666',
+      changeClass: 'non-feature',
+      worktree: process.cwd(),
+      branchName: 'fix/release-task',
+      startBranchSha: 'start-sha',
+      startMainSha: 'start-main-sha',
+      scopes: ['scripts/example.mjs'],
+      claims: ['prompt-666'],
+    }, {}, {});
+    const strictReceipt = await acceptedDependencyReceipt(strictContext);
+    const strictMetadata = dependencyReceiptMetadata(strictReceipt, 'required');
+    const completionReceipt = {
+      ...strictReceipt,
+      issuance: undefined,
+      policy: 'completion-refreshed',
+      completion: {
+        prior: strictMetadata,
+        consumedAt: '2026-09-11T00:01:00.000Z',
+        anchor: { commitSha: 'a'.repeat(40) },
+      },
+      contentDigest: 'completion-content-digest',
+    };
+    const completionValidator = vi.fn(async ({ allowRefresh }: { allowRefresh?: boolean }) =>
+      allowRefresh ? completionReceipt : strictReceipt);
+    const doneRejected = async () => { throw new Error('Prompt 666 is not mechanically ready: progress=done'); };
+    const entry = {
+      ...releaseEntry,
+      status: 'active',
+      heartbeatAt: '2099-01-01T00:00:00.000Z',
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationPrompt: '666',
+      scopes: ['scripts/example.mjs'],
+      claims: ['prompt-666'],
+      dependencyReceipt: strictMetadata,
+    };
+    const release = releaseState({
+      branchVersion: '0.3.28',
+      mainVersion: '0.3.28',
+      branchLockVersion: '0.3.28',
+      mainLockVersion: '0.3.28',
+      branchChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+      mainChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+    });
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release,
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        commandRunner: async () => undefined,
+      } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions);
+      const recorded = (await readCoordinationState(filePath)).entries[0] as unknown as {
+        dependencyReceipt: Record<string, unknown>;
+      };
+      expect(recorded.dependencyReceipt).toMatchObject({
+        policy: 'completion-refreshed',
+        predecessor: strictMetadata,
+      });
+      expect(completionValidator.mock.calls.filter(([options]) => options.allowRefresh === true)).toHaveLength(1);
+
+      completionValidator.mockImplementation(async () => completionReceipt);
+      await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release,
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        commandRunner: async () => undefined,
+      } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions);
+      expect(completionValidator.mock.calls.filter(([options]) => options.allowRefresh === true)).toHaveLength(1);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('rechecks a consumed completion receipt read-only before terminal cleanup', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-completion-finish-${randomUUID()}.json`);
+    const doneRejected = async () => { throw new Error('Prompt 666 is not mechanically ready: progress=done'); };
+    const completionRejected = vi.fn(async () => { throw new Error('Dependency receipt is missing'); });
+    const entry = {
+      ...releaseEntry,
+      status: 'active',
+      heartbeatAt: '2099-01-01T00:00:00.000Z',
+      branchName: 'fix/release-task',
+      implementationPrompt: '666',
+      changeClass: 'non-feature',
+      dependencyReceipt: { policy: 'completion-refreshed' },
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await expect(finishCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release: releaseState({ branchName: entry.branchName }),
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionRejected,
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof finishCoordinationEntry>[1] & DependencyReceiptTestOptions))
+        .rejects.toThrow(/completion gate.*missing/i);
+      expect(completionRejected).toHaveBeenCalledOnce();
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({ status: 'active' });
+    } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
@@ -1529,8 +1705,22 @@ describe('local emulator coordination', () => {
         now: '2099-01-01T00:00:01.000Z',
       });
       expect((refreshed as typeof refreshed & { dependencyReceipt?: Record<string, unknown> }).dependencyReceipt)
-        .toMatchObject({ policy: 'legacy-refreshed', prompt: '014' });
-      expect(await readFile(p014Receipt, 'utf8')).toContain('"prompt": "014"');
+        .toMatchObject({
+          policy: 'legacy-refreshed',
+          prompt: '014',
+          issuance: { nonceCommitment: expect.stringMatching(/^[0-9a-f]{64}$/) },
+        });
+      const migratedReceipt = JSON.parse(await readFile(p014Receipt, 'utf8'));
+      expect(migratedReceipt).toMatchObject({
+        schemaVersion: 2,
+        prompt: '014',
+        issuance: { nonce: expect.stringMatching(/^[0-9a-f]{64}$/) },
+      });
+      const stored = (await readCoordinationState(filePath)).entries[0] as unknown as {
+        dependencyReceipt: Record<string, unknown>;
+      };
+      expect(JSON.stringify(stored.dependencyReceipt))
+        .not.toContain(migratedReceipt.issuance.nonce);
 
       await unlink(ordinaryReceipt).catch(() => undefined);
       await writeFile(filePath, JSON.stringify({

@@ -136,6 +136,17 @@ after a rebase or material movement
 of current `main`. A prompt cannot be marked complete or merged while a hard
 prerequisite remains unmet.
 
+Each strict receipt carries a random nonce that remains only in the ignored
+worktree file. Begin and ownership amendment persist only its commitment and
+the exact receipt digest in the coordination entry. Preserve that file when the
+prompt moves from partial to done: the final validation verifies the canonical
+single-prompt completion delta and consumes the committed issuance once into a
+nonce-free completion receipt. A done prompt cannot create or amend a new
+strict receipt. Missing, recreated, replayed, mismatched, half-written, or
+already-consumed issuance fails closed, and finish verifies the consumed
+receipt without refreshing it. The exact P012/P014 migration issues the same
+random commitment before either prompt can complete.
+
 `NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
 it is advisory for concurrency, not a serial execution lock. A separate
 worktree may claim a later `READY_QUEUE` item as concurrent work only when its
