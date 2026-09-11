@@ -169,6 +169,10 @@ import {
   EventVisibility,
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
+import {
+  commandReceiptDisposition,
+  type CommandFingerprint,
+} from './commandIdempotency';
 
 /**
  * Server-side authority for the companion console.
@@ -747,6 +751,21 @@ async function consumeJoinCodeAttempt(uid: string): Promise<void> {
  */
 const CODE_ATTEMPTS = 12;
 
+const REQUEST_RECOVERY_GUIDANCE =
+  'Refresh or resume the authoritative result before retrying; start a new action only after confirming the intended action was not applied.';
+
+function isSessionCreationReply(value: unknown, uid: string): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const reply = value as Record<string, unknown>;
+  if (typeof reply.session !== 'object' || reply.session === null ||
+      typeof reply.player !== 'object' || reply.player === null) return false;
+  const session = reply.session as Record<string, unknown>;
+  const player = reply.player as Record<string, unknown>;
+  return typeof session.id === 'string' && session.id.length > 0 &&
+    typeof session.joinCode === 'string' && session.joinCode.length > 0 &&
+    player.uid === uid && player.sessionId === session.id;
+}
+
 export const createSession = onCall<{
   name?: string;
   displayName?: string;
@@ -768,6 +787,51 @@ export const createSession = onCall<{
     const joinCodeLength = joinCodeLengthForCreateRequest(request.data?.joinCodeVersion);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const creationRequestRef = db.doc(`sessionCreationRequests/${uid}_${creation.requestId}`);
+    const creationFingerprint: CommandFingerprint = {
+      action: 'create-session',
+      sessionId: null,
+      requestId: creation.requestId,
+      actorUid: uid,
+      instanceId: null,
+      expectedRevision: null,
+      payload: {
+        name,
+        displayName,
+        joinCodeLength,
+        playerCount: creation.configuration.playerCount,
+        chartId: creation.configuration.chartId,
+        expansion: creation.configuration.expansion,
+        turnLimit: creation.configuration.turnLimit,
+        dioneEnabled: creation.configuration.dioneEnabled,
+        capybaraEnabled: creation.configuration.capybaraEnabled,
+      },
+    };
+
+    // Receipt discovery precedes every random draw. It makes an ordinary retry
+    // a read-only operation and keeps the original code/session result stable.
+    const priorReply = await db.runTransaction(async (tx) => {
+      const priorRequest = await tx.get(creationRequestRef);
+      if (!priorRequest.exists) return null;
+      const disposition = commandReceiptDisposition(priorRequest.get('fingerprint'), creationFingerprint);
+      if (disposition.kind === 'foreign-actor') {
+        throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
+      }
+      if (disposition.kind === 'collision') {
+        throw new HttpsError(
+          'failed-precondition',
+          `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+        );
+      }
+      const reply = priorRequest.get('reply');
+      if (!isSessionCreationReply(reply, uid)) {
+        throw new HttpsError(
+          'failed-precondition',
+          `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+        );
+      }
+      return reply;
+    });
+    if (priorReply) return priorReply;
 
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
       const joinCode = makeJoinCode(joinCodeLength);
@@ -844,11 +908,24 @@ export const createSession = onCall<{
           tx.get(creationRequestRef),
         ]);
         if (priorRequest.exists) {
-          const priorReply = priorRequest.get('reply');
-          if (typeof priorReply !== 'object' || priorReply === null) {
-            throw new HttpsError('failed-precondition', 'This creation request has no replayable result.');
+          const disposition = commandReceiptDisposition(priorRequest.get('fingerprint'), creationFingerprint);
+          if (disposition.kind === 'foreign-actor') {
+            throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
           }
-          return priorReply as typeof reply;
+          if (disposition.kind === 'collision') {
+            throw new HttpsError(
+              'failed-precondition',
+              `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+            );
+          }
+          const replay = priorRequest.get('reply');
+          if (!isSessionCreationReply(replay, uid)) {
+            throw new HttpsError(
+              'failed-precondition',
+              `This creation request has no replayable result. ${REQUEST_RECOVERY_GUIDANCE}`,
+            );
+          }
+          return replay as typeof reply;
         }
         const membershipActive = await membershipIsActive(tx, membership, uid);
         if (activeSessionConflicts(
@@ -934,6 +1011,7 @@ export const createSession = onCall<{
         tx.set(creationRequestRef, {
           sessionId: sessionRef.id,
           requestId: creation.requestId,
+          fingerprint: creationFingerprint,
           reply,
           createdAt: FieldValue.serverTimestamp(),
         });
@@ -969,6 +1047,107 @@ type CastingMutationResult = {
   readonly sessionId: string;
   readonly setupRevision: number;
 };
+
+function commandReceiptRef(sessionId: string, requestId: string): DocumentReference {
+  return db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`);
+}
+
+/**
+ * Before commandReceipts existed, M1 callables stored replay state in several
+ * action-specific collections (or only in a public event). A request ID is a
+ * single namespace across those actions, so a new callable must fail closed
+ * when any foreign legacy record already owns it. The caller may allow its own
+ * legacy receipt/event so the retained, fully bound domain replay can run.
+ */
+function legacyM1CommandRefs(sessionId: string, requestId: string): readonly DocumentReference[] {
+  return [
+    db.doc(`sessions/${sessionId}/setupMutationRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/gmResponsibilityRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/seatMutationRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/loyaltyAssignmentRequests/${requestId}`),
+    db.doc(`sessionStartRequests/${sessionId}_${requestId}`),
+    db.doc(`sessions/${sessionId}/events/setup-confirm-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/gm-responsibility-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/start-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/seat-claim-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/seat-release-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/${requestId}`),
+    db.doc(`sessions/${sessionId}/events/press-availability-${requestId}`),
+  ];
+}
+
+async function rejectForeignLegacyM1Command(
+  tx: Transaction,
+  sessionId: string,
+  requestId: string,
+  label: string,
+  allowedPaths: readonly string[],
+): Promise<void> {
+  const allowed = new Set(allowedPaths);
+  const refs = legacyM1CommandRefs(sessionId, requestId);
+  const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+  if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
+    throw new HttpsError(
+      'failed-precondition',
+      `This ${label} request id is already bound to a legacy command. ${REQUEST_RECOVERY_GUIDANCE}`,
+    );
+  }
+}
+
+function rejectLegacyEventReplay(label: string): never {
+  throw new HttpsError(
+    'failed-precondition',
+    `This ${label} request has a legacy unbound receipt. ${REQUEST_RECOVERY_GUIDANCE}`,
+  );
+}
+
+function isCastingMutationResult(value: unknown, sessionId: string): value is CastingMutationResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return result.sessionId === sessionId &&
+    Number.isSafeInteger(result.setupRevision) && (result.setupRevision as number) >= 0;
+}
+
+function replayBoundCommand<T>(
+  receipt: DocumentSnapshot,
+  fingerprint: CommandFingerprint,
+  isResult: (value: unknown) => value is T,
+  label: string,
+): T | null {
+  if (!receipt.exists) return null;
+  const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprint);
+  if (disposition.kind === 'foreign-actor') {
+    throw new HttpsError('permission-denied', `This ${label} request belongs to a different actor.`);
+  }
+  if (disposition.kind === 'collision') {
+    throw new HttpsError('failed-precondition', `This ${label} request id is bound to a different command.`);
+  }
+  const result = receipt.get('result');
+  if (isResult(result)) return result;
+  throw new HttpsError('failed-precondition', `This ${label} request has no replayable result.`);
+}
+
+/**
+ * Established M1 commands retain their domain receipts, but every new receipt
+ * also occupies the shared request-id namespace. A compatible marker lets the
+ * domain receipt control the exact replay shape; a different marker is always
+ * rejected before any mutation or private result can be reached.
+ */
+function hasCompatibleCommandMarker(
+  receipt: DocumentSnapshot,
+  fingerprint: CommandFingerprint,
+  label: string,
+): boolean {
+  if (!receipt.exists) return false;
+  const disposition = commandReceiptDisposition(receipt.get('fingerprint'), fingerprint);
+  if (disposition.kind === 'foreign-actor') {
+    throw new HttpsError('permission-denied', `This ${label} request belongs to a different actor.`);
+  }
+  if (disposition.kind === 'collision') {
+    throw new HttpsError('failed-precondition', `This ${label} request id is bound to a different command.`);
+  }
+  return true;
+}
 
 function setupRevision(session: DocumentSnapshot): number {
   const value = session.get('setupRevision');
@@ -1184,7 +1363,25 @@ export const confirmSetup = onCall<{
   const command = requireSetupConfirmationRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${command.sessionId}`);
   const requestRef = db.doc(`sessions/${command.sessionId}/setupMutationRequests/${command.requestId}`);
+  const markerRef = commandReceiptRef(command.sessionId, command.requestId);
   const eventRef = db.doc(`sessions/${command.sessionId}/events/setup-confirm-${command.requestId}`);
+  const markerFingerprint: CommandFingerprint = {
+    action: 'confirm-setup',
+    sessionId: command.sessionId,
+    requestId: command.requestId,
+    actorUid: uid,
+    instanceId: command.instanceId,
+    expectedRevision: command.expectedSetupRevision,
+    payload: {
+      playerCount: command.configuration.playerCount,
+      chartId: command.configuration.chartId,
+      expansion: command.configuration.expansion,
+      turnLimit: command.configuration.turnLimit,
+      dioneEnabled: command.configuration.dioneEnabled,
+      capybaraEnabled: command.configuration.capybaraEnabled,
+      activeRoleIds: command.activeRoleIds,
+    },
+  };
 
   return db.runTransaction(async (tx) => {
     const fingerprint = setupCommandFingerprint(
@@ -1192,10 +1389,19 @@ export const confirmSetup = onCall<{
       command.activeRoleIds,
       command.expectedSetupRevision,
     );
-    const [prior, authority] = await Promise.all([
+    const [prior, marker, authority, legacyEvent] = await Promise.all([
       tx.get(requestRef),
+      tx.get(markerRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
+    );
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'setup') && !prior.exists) {
+      throw new HttpsError('failed-precondition', 'This setup request has a marker without a replayable receipt.');
+    }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('setup');
     if (prior.exists) {
       if (
         prior.get('action') !== 'confirm-setup' ||
@@ -1234,6 +1440,7 @@ export const confirmSetup = onCall<{
         fingerprint, reply,
         createdAt: FieldValue.serverTimestamp(),
       });
+      tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
     requireCastingWindow(authority.session);
@@ -1256,7 +1463,6 @@ export const confirmSetup = onCall<{
     tx.set(eventRef, {
       type: 'setup-confirm', action: 'confirm-setup', requestId: command.requestId,
       actorUid: uid, instanceId: command.instanceId, revision: reply.setupRevision,
-      fingerprint,
       activeRoleIds: [...setup.activeRoleIds], createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(requestRef, {
@@ -1265,6 +1471,7 @@ export const confirmSetup = onCall<{
       fingerprint, reply,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
@@ -1336,9 +1543,23 @@ export const setFacilitatorResponsibility = onCall<{
   const requestRef = db.doc(
     `sessions/${responsibility.sessionId}/gmResponsibilityRequests/${responsibility.requestId}`,
   );
+  const markerRef = commandReceiptRef(responsibility.sessionId, responsibility.requestId);
   const eventRef = db.doc(
     `sessions/${responsibility.sessionId}/events/gm-responsibility-${responsibility.requestId}`,
   );
+  const markerFingerprint: CommandFingerprint = {
+    action: 'set-facilitator-responsibility',
+    sessionId: responsibility.sessionId,
+    requestId: responsibility.requestId,
+    actorUid: uid,
+    instanceId: responsibility.instanceId,
+    expectedRevision: responsibility.expectedSetupRevision,
+    payload: {
+      responsibility: responsibility.responsibility,
+      mode: responsibility.mode,
+      targetInstanceId: responsibility.targetInstanceId ?? null,
+    },
+  };
   return db.runTransaction(async (tx) => {
     const fingerprint = {
       action: 'set-facilitator-responsibility',
@@ -1350,10 +1571,20 @@ export const setFacilitatorResponsibility = onCall<{
       targetInstanceId: responsibility.targetInstanceId ?? null,
       expectedSetupRevision: responsibility.expectedSetupRevision,
     } as const;
-    const [authority, prior] = await Promise.all([
+    const [authority, prior, marker, legacyEvent] = await Promise.all([
       requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
       tx.get(requestRef),
+      tx.get(markerRef),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, responsibility.sessionId, responsibility.requestId, 'responsibility',
+      [requestRef.path, eventRef.path],
+    );
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'responsibility') && !prior.exists) {
+      throw new HttpsError('failed-precondition', 'This responsibility request has a marker without a replayable receipt.');
+    }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('responsibility');
     if (prior.exists) {
       const stored = prior.get('fingerprint');
       const same = typeof stored === 'object' && stored !== null &&
@@ -1388,6 +1619,7 @@ export const setFacilitatorResponsibility = onCall<{
         fingerprint, reply,
         createdAt: FieldValue.serverTimestamp(),
       });
+      tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
 
@@ -1466,8 +1698,6 @@ export const setFacilitatorResponsibility = onCall<{
       requestId: responsibility.requestId,
       expectedSetupRevision: responsibility.expectedSetupRevision,
       revision: nextRevision,
-      fingerprint,
-      reply,
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(requestRef, {
@@ -1478,6 +1708,7 @@ export const setFacilitatorResponsibility = onCall<{
       reply,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
     return reply;
   });
 });
@@ -1541,21 +1772,40 @@ export const startGame = onCall<{
   };
   const sessionRef = db.doc(`sessions/${start.sessionId}`);
   const startRequestRef = db.doc(`sessionStartRequests/${start.sessionId}_${start.requestId}`);
+  const markerRef = commandReceiptRef(start.sessionId, start.requestId);
   const eventRef = db.doc(`sessions/${start.sessionId}/events/start-${start.requestId}`);
   const playersRef = db.collection(`sessions/${start.sessionId}/players`);
   const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
   const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
+  const markerFingerprint: CommandFingerprint = {
+    action: 'start-game',
+    sessionId: start.sessionId,
+    requestId: start.requestId,
+    actorUid: uid,
+    instanceId: start.instanceId,
+    expectedRevision: start.expectedSetupRevision,
+    payload: {},
+  };
 
   return db.runTransaction(async (tx) => {
-    const [prior, authority, players, instances, seats, secrets] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent] = await Promise.all([
       tx.get(startRequestRef),
+      tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
       tx.get(playersRef),
       tx.get(instancesRef),
       tx.get(seatsRef),
       tx.get(secretsRef),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
+    );
+    if (hasCompatibleCommandMarker(marker, markerFingerprint, 'start') && !prior.exists) {
+      throw new HttpsError('failed-precondition', 'This start request has a marker without a replayable receipt.');
+    }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('start');
     if (prior.exists) {
       if (!sameStartRequestFingerprint(prior.get('fingerprint'), fingerprint)) {
         throw new HttpsError('failed-precondition', 'This request id was already used for a different start payload or actor.');
@@ -1587,6 +1837,7 @@ export const startGame = onCall<{
         reply,
         createdAt: FieldValue.serverTimestamp(),
       });
+      tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
     requireCastingWindow(authority.session);
@@ -1814,6 +2065,7 @@ export const startGame = onCall<{
       reply: result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(markerRef, { fingerprint: markerFingerprint, result, createdAt: FieldValue.serverTimestamp() });
     tx.set(eventRef, {
       type: 'game-started',
       actorUid: uid,
@@ -1839,18 +2091,34 @@ export const setShipPreference = onCall<{
   const sessionRef = db.doc(`sessions/${preference.sessionId}`);
   const playerRef = db.doc(`sessions/${preference.sessionId}/players/${uid}`);
   const eventRef = db.doc(`sessions/${preference.sessionId}/events/${preference.requestId}`);
+  const receiptRef = commandReceiptRef(preference.sessionId, preference.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-ship-preference',
+    sessionId: preference.sessionId,
+    requestId: preference.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: null,
+    payload: { shipId: preference.shipId },
+  };
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
-    const [session, player, prior] = await Promise.all([
-      tx.get(sessionRef), tx.get(playerRef), tx.get(eventRef),
+    const [session, player, receipt, legacyEvent] = await Promise.all([
+      tx.get(sessionRef), tx.get(playerRef), tx.get(receiptRef), tx.get(eventRef),
     ]);
-    if (prior.exists) {
-      const result = prior.get('result');
-      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
-      throw new HttpsError('failed-precondition', 'This preference request has no replayable result.');
-    }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    await rejectForeignLegacyM1Command(
+      tx, preference.sessionId, preference.requestId, 'preference', [eventRef.path],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CastingMutationResult => isCastingMutationResult(value, preference.sessionId),
+      'preference',
+    );
+    if (replay) return replay;
+    if (legacyEvent.exists) rejectLegacyEventReplay('preference');
     requireCastingWindow(session);
     const activeVessels = configuredRoleIds(session)
       .map((roleId) => roleShipId(roleId))
@@ -1873,9 +2141,9 @@ export const setShipPreference = onCall<{
       actorUid: uid,
       shipId: preference.shipId,
       requestId: preference.requestId,
-      result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
@@ -1892,20 +2160,37 @@ export const assignRole = onCall<{
   const assignment = requireRoleAssignmentRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${assignment.sessionId}`);
   const eventRef = db.doc(`sessions/${assignment.sessionId}/events/${assignment.requestId}`);
+  const receiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
   const playersRef = db.collection(`sessions/${assignment.sessionId}/players`);
+  const fingerprint: CommandFingerprint = {
+    action: 'assign-role',
+    sessionId: assignment.sessionId,
+    requestId: assignment.requestId,
+    actorUid: uid,
+    instanceId: assignment.instanceId,
+    expectedRevision: null,
+    payload: { targetUid: assignment.targetUid, roleId: assignment.roleId },
+  };
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
-    const [prior, authority, target, players] = await Promise.all([
+    const [receipt, legacyEvent, authority, target, players] = await Promise.all([
+      tx.get(receiptRef),
       tx.get(eventRef),
       requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
       tx.get(db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`)),
       tx.get(playersRef),
     ]);
-    if (prior.exists) {
-      const result = prior.get('result');
-      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
-      throw new HttpsError('failed-precondition', 'This assignment request has no replayable result.');
-    }
+    await rejectForeignLegacyM1Command(
+      tx, assignment.sessionId, assignment.requestId, 'role assignment', [eventRef.path],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CastingMutationResult => isCastingMutationResult(value, assignment.sessionId),
+      'role assignment',
+    );
+    if (replay) return replay;
+    if (legacyEvent.exists) rejectLegacyEventReplay('role assignment');
     requireCastingWindow(authority.session);
     if (!isActivePlayer(target) || target.get('role') === 'observer') {
       throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
@@ -1940,9 +2225,9 @@ export const assignRole = onCall<{
       targetUid: assignment.targetUid,
       roleId: assignment.roleId,
       requestId: assignment.requestId,
-      result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
@@ -1958,12 +2243,36 @@ export const releaseRole = onCall<{
   const release = requireRoleReleaseRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${release.sessionId}`);
   const eventRef = db.doc(`sessions/${release.sessionId}/events/${release.requestId}`);
+  const receiptRef = commandReceiptRef(release.sessionId, release.requestId);
   const targetSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${release.targetUid}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'release-role',
+    sessionId: release.sessionId,
+    requestId: release.requestId,
+    actorUid: uid,
+    instanceId: release.instanceId,
+    expectedRevision: null,
+    payload: { targetUid: release.targetUid },
+  };
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult> => {
-    const [prior, authority, target, targetSecret] = await Promise.all([
+    const [receipt, legacyEvent, authority] = await Promise.all([
+      tx.get(receiptRef),
       tx.get(eventRef),
       requireFacilitatorInstance(tx, release.sessionId, uid, release.instanceId),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, release.sessionId, release.requestId, 'role release', [eventRef.path],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is CastingMutationResult => isCastingMutationResult(value, release.sessionId),
+      'role release',
+    );
+    if (replay) return { sessionId: replay.sessionId, setupRevision: replay.setupRevision };
+    if (legacyEvent.exists) rejectLegacyEventReplay('role release');
+    const [target, targetSecret] = await Promise.all([
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
       tx.get(targetSecretRef),
     ]);
@@ -1973,11 +2282,6 @@ export const releaseRole = onCall<{
       partnerSecretRef = db.doc(`sessions/${release.sessionId}/secrets/loyalty-${partnerUid}`);
     }
     const partnerSecret = partnerSecretRef ? await tx.get(partnerSecretRef) : undefined;
-    if (prior.exists) {
-      const result = prior.get('result');
-      if (typeof result === 'object' && result !== null) return result as CastingMutationResult;
-      throw new HttpsError('failed-precondition', 'This release request has no replayable result.');
-    }
     requireCastingWindow(authority.session);
     if (!isActivePlayer(target)) throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
     const result = {
@@ -1999,9 +2303,9 @@ export const releaseRole = onCall<{
       actorUid: uid,
       targetUid: release.targetUid,
       requestId: release.requestId,
-      result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
@@ -2211,15 +2515,43 @@ export const assignLoyalty = onCall<{
     ? db.doc(`sessions/${assignment.sessionId}/secrets/loyalty-${assignment.partnerUid}`)
     : undefined;
   const fingerprint = loyaltyAssignmentFingerprint(assignment, uid);
+  const sharedReceiptRef = commandReceiptRef(assignment.sessionId, assignment.requestId);
+  const sharedFingerprint: CommandFingerprint = {
+    action: fingerprint.action,
+    sessionId: fingerprint.sessionId,
+    requestId: assignment.requestId,
+    actorUid: fingerprint.actorUid,
+    instanceId: fingerprint.instanceId,
+    expectedRevision: null,
+    payload: {
+      targetUid: fingerprint.targetUid,
+      kind: fingerprint.kind,
+      suspicion: fingerprint.suspicion,
+      partnerUid: fingerprint.partnerUid,
+    },
+  };
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult & { assignedUids: readonly string[] }> => {
     // Authorize before replay. The receipt is server-only; the public event is
     // retained only as an audit projection and never as replay state.
-    const [prior, legacyEvent, authority] = await Promise.all([
+    const [sharedReceipt, prior, legacyEvent, authority] = await Promise.all([
+      tx.get(sharedReceiptRef),
       tx.get(receiptRef),
       tx.get(eventRef),
       requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, assignment.sessionId, assignment.requestId, 'loyalty assignment',
+      [receiptRef.path, eventRef.path],
+    );
+    const sharedReplay = replayBoundCommand(
+      sharedReceipt,
+      sharedFingerprint,
+      (value): value is CastingMutationResult & { assignedUids: readonly string[] } =>
+        isBoundLoyaltyAssignmentResult(value, fingerprint),
+      'loyalty assignment',
+    );
+    if (sharedReplay) return sharedReplay;
     if (prior.exists) {
       if (prior.get('fingerprint') === undefined) {
         throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt without a fingerprint.');
@@ -2243,9 +2575,7 @@ export const assignLoyalty = onCall<{
       }
       throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or non-replayable result.');
     }
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('loyalty assignment');
 
     const [target, partner, players, secrets, targetSecret, partnerSecret] = await Promise.all([
       tx.get(targetRef),
@@ -2391,6 +2721,7 @@ export const assignLoyalty = onCall<{
       result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(sharedReceiptRef, { fingerprint: sharedFingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 });
@@ -2404,14 +2735,38 @@ export const revealAndroidProof = onCall<{
   const disclosure = requireAndroidDisclosureRequest(request.data ?? {});
   const secretRef = db.doc(`sessions/${disclosure.sessionId}/secrets/loyalty-${uid}`);
   const eventRef = db.doc(`sessions/${disclosure.sessionId}/events/${disclosure.requestId}`);
+  const receiptRef = commandReceiptRef(disclosure.sessionId, disclosure.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'reveal-android-proof',
+    sessionId: disclosure.sessionId,
+    requestId: disclosure.requestId,
+    actorUid: uid,
+    instanceId: null,
+    expectedRevision: null,
+    payload: {},
+  };
   return db.runTransaction(async (tx) => {
-    const [secret, prior] = await Promise.all([tx.get(secretRef), tx.get(eventRef)]);
-    if (prior.exists) return { disclosed: true as const };
+    const [secret, receipt, legacyEvent] = await Promise.all([
+      tx.get(secretRef), tx.get(receiptRef), tx.get(eventRef),
+    ]);
     if (!secret.exists) throw new HttpsError('permission-denied', 'No private Android proof is assigned to this identity.');
     const payload = secret.get('payload');
     if (typeof payload !== 'object' || payload === null || payload.kind !== 'android') {
       throw new HttpsError('permission-denied', 'Only the Android holder may disclose Android proof.');
     }
+    await rejectForeignLegacyM1Command(
+      tx, disclosure.sessionId, disclosure.requestId, 'Android disclosure', [eventRef.path],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is { disclosed: true } =>
+        typeof value === 'object' && value !== null &&
+        (value as { disclosed?: unknown }).disclosed === true,
+      'Android disclosure',
+    );
+    if (replay) return { disclosed: true as const };
+    if (legacyEvent.exists) rejectLegacyEventReplay('Android disclosure');
     tx.update(secretRef, { payload: { ...payload as Record<string, unknown>, proofRevealed: true } });
     tx.set(eventRef, {
       type: 'android-proof-disclosed',
@@ -2419,7 +2774,9 @@ export const revealAndroidProof = onCall<{
       requestId: disclosure.requestId,
       createdAt: FieldValue.serverTimestamp(),
     });
-    return { disclosed: true as const };
+    const result = { disclosed: true as const };
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
@@ -3109,34 +3466,60 @@ export const setPressEnabled = onCall<{
   const eventRef = db.doc(
     `sessions/${setting.sessionId}/events/press-availability-${setting.requestId}`,
   );
+  const receiptRef = commandReceiptRef(setting.sessionId, setting.requestId);
   const playersRef = db.collection(`sessions/${setting.sessionId}/players`);
   const wolfSecretRef = db.doc(`sessions/${setting.sessionId}/secrets/wolf-assignment`);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-press-availability',
+    sessionId: setting.sessionId,
+    requestId: setting.requestId,
+    actorUid: uid,
+    instanceId: setting.instanceId,
+    expectedRevision: setting.expectedRevision,
+    payload: { pressEnabled: setting.pressEnabled },
+  };
 
   const result = await db.runTransaction(async (tx) => {
-    const [session, player, instance, players, prior, wolfSecret] = await Promise.all([
+    const [session, player, instance, players, receipt, legacyEvent, wolfSecret] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
       tx.get(playersRef),
+      tx.get(receiptRef),
       tx.get(eventRef),
       tx.get(wolfSecretRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const liveInstance = instance.exists
+      ? {
+        id: instance.id,
+        uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
+        connected: instance.get('connected') !== false,
+        lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+      }
+      : null;
     if (
       !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
+      liveInstance === null || liveInstance.uid !== uid || !isLiveSetupGm(liveInstance)
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
-    if (prior.exists) {
-      const priorResult = prior.get('result');
-      if (typeof priorResult !== 'object' || priorResult === null ||
-          typeof (priorResult as { pressEnabled?: unknown }).pressEnabled !== 'boolean' ||
-          !Number.isSafeInteger((priorResult as { revision?: unknown }).revision)) {
-        throw new HttpsError('failed-precondition', 'This Press setting request has no replayable result.');
-      }
-      return priorResult as { pressEnabled: boolean; revision: number };
+    await rejectForeignLegacyM1Command(
+      tx, setting.sessionId, setting.requestId, 'Press availability', [eventRef.path],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is { pressEnabled: boolean; revision: number } =>
+        typeof value === 'object' && value !== null && !Array.isArray(value) &&
+        typeof (value as { pressEnabled?: unknown }).pressEnabled === 'boolean' &&
+        Number.isSafeInteger((value as { revision?: unknown }).revision),
+      'Press availability',
+    );
+    if (replay) {
+      return { pressEnabled: replay.pressEnabled, revision: replay.revision };
     }
+    if (legacyEvent.exists) rejectLegacyEventReplay('Press availability');
 
     const storedRevision = session.get('pressAvailabilityRevision');
     const currentRevision = Number.isSafeInteger(storedRevision) && storedRevision >= 0
@@ -3145,7 +3528,9 @@ export const setPressEnabled = onCall<{
     const currentEnabled = session.get('pressEnabled') !== false;
     if (setting.expectedRevision !== currentRevision) {
       if (setting.pressEnabled === currentEnabled) {
-        return { pressEnabled: currentEnabled, revision: currentRevision };
+        const result = { pressEnabled: currentEnabled, revision: currentRevision } as const;
+        tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+        return result;
       }
       throw new HttpsError(
         'failed-precondition',
@@ -3153,7 +3538,9 @@ export const setPressEnabled = onCall<{
       );
     }
     if (setting.pressEnabled === currentEnabled) {
-      return { pressEnabled: currentEnabled, revision: currentRevision };
+      const result = { pressEnabled: currentEnabled, revision: currentRevision } as const;
+      tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
     }
 
     const result = {
@@ -3186,9 +3573,9 @@ export const setPressEnabled = onCall<{
       expectedRevision: setting.expectedRevision,
       previousPressEnabled: currentEnabled,
       pressEnabled: setting.pressEnabled,
-      result,
       createdAt: FieldValue.serverTimestamp(),
     });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
 
@@ -4473,11 +4860,22 @@ export const claimSeat = onCall<{
 
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const markerRef = commandReceiptRef(sessionId, revisioned.requestId);
     const eventRef = db.doc(`sessions/${sessionId}/events/seat-claim-${revisioned.requestId}`);
     const fingerprint = seatMutationFingerprint('claim', parsed, uid);
+    const markerFingerprint: CommandFingerprint = {
+      action: 'claim-seat',
+      sessionId,
+      requestId: revisioned.requestId,
+      actorUid: uid,
+      instanceId: null,
+      expectedRevision: revisioned.expectedSetupRevision,
+      payload: { seatId },
+    };
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
-        const [prior, session, seat, player] = await Promise.all([
-          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
+        const [prior, marker, session, seat, player, legacyEvent] = await Promise.all([
+          tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
+          tx.get(eventRef),
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(player)) {
@@ -4486,6 +4884,13 @@ export const claimSeat = onCall<{
         if (player.get('role') === 'gm') {
           throw new HttpsError('permission-denied', 'GMs cannot claim core seats.');
         }
+        await rejectForeignLegacyM1Command(
+          tx, sessionId, revisioned.requestId, 'seat claim', [requestRef.path, eventRef.path],
+        );
+        if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
+          throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
+        }
+        if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat claim');
         if (prior.exists) {
           if (
             prior.get('action') !== 'claim' ||
@@ -4521,6 +4926,7 @@ export const claimSeat = onCall<{
             requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
             fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
           });
+          tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
           return reply;
         }
         const configuredRoles = session.get('activeRoleIds');
@@ -4558,12 +4964,13 @@ export const claimSeat = onCall<{
         tx.set(eventRef, {
           type: 'seat-claim', seatId, actorUid: uid, revision: nextRevision,
           requestId: revisioned.requestId, expectedSetupRevision: revisioned.expectedSetupRevision,
-          fingerprint, createdAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         });
         tx.set(requestRef, {
           requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
           fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
         });
+        tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
         return reply;
     });
   },
@@ -4587,12 +4994,23 @@ export const releaseSeat = onCall<{
     const seatRef = db.doc(`sessions/${sessionId}/seats/${seatId}`);
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const requestRef = db.doc(`sessions/${sessionId}/seatMutationRequests/${revisioned.requestId}`);
+    const markerRef = commandReceiptRef(sessionId, revisioned.requestId);
     const eventRef = db.doc(`sessions/${sessionId}/events/seat-release-${revisioned.requestId}`);
     const fingerprint = seatMutationFingerprint('release', parsed, uid);
+    const markerFingerprint: CommandFingerprint = {
+      action: 'release-seat',
+      sessionId,
+      requestId: revisioned.requestId,
+      actorUid: uid,
+      instanceId: revisioned.instanceId ?? null,
+      expectedRevision: revisioned.expectedSetupRevision,
+      payload: { seatId, reason: revisioned.reason ?? null },
+    };
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
         const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-        const [prior, session, seat, actor] = await Promise.all([
-          tx.get(requestRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
+        const [prior, marker, session, seat, actor, legacyEvent] = await Promise.all([
+          tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
+          tx.get(eventRef),
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
@@ -4605,6 +5023,13 @@ export const releaseSeat = onCall<{
             tx, sessionId, uid, revisioned.instanceId,
           )).instance;
         }
+        await rejectForeignLegacyM1Command(
+          tx, sessionId, revisioned.requestId, 'seat release', [requestRef.path, eventRef.path],
+        );
+        if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
+          throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
+        }
+        if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat release');
         if (prior.exists) {
           if (
             prior.get('action') !== 'release' ||
@@ -4667,6 +5092,7 @@ export const releaseSeat = onCall<{
             reason: revisioned.reason ?? null,
             fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
           });
+          tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
           return reply;
         }
         const holderRef = db.doc(`sessions/${sessionId}/players/${holderUid}`);
@@ -4693,7 +5119,7 @@ export const releaseSeat = onCall<{
         tx.set(eventRef, {
           type: 'seat-release', seatId, actorUid: uid, revision: nextRevision,
           requestId: revisioned.requestId, reason: revisioned.reason ?? null,
-          expectedSetupRevision: revisioned.expectedSetupRevision, fingerprint,
+          expectedSetupRevision: revisioned.expectedSetupRevision,
           createdAt: FieldValue.serverTimestamp(),
         });
         tx.set(requestRef, {
@@ -4701,6 +5127,7 @@ export const releaseSeat = onCall<{
           reason: revisioned.reason ?? null,
           fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
         });
+        tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
         return reply;
     });
   },

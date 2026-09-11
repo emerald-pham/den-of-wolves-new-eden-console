@@ -193,6 +193,13 @@ it('changes Press with a server revision, audit, and holder revocation only', as
     actorUid: 'u1',
     expectedRevision: 0,
     pressEnabled: false,
+  });
+  expect(mock.documents.get('sessions/s1/commandReceipts/press-1')).toMatchObject({
+    fingerprint: {
+      action: 'set-press-availability', sessionId: 's1', requestId: 'press-1',
+      actorUid: 'u1', instanceId: 'gm-1', expectedRevision: 0,
+      payload: { pressEnabled: false },
+    },
     result: { pressEnabled: false, revision: 1 },
   });
 
@@ -281,16 +288,24 @@ it('rejects a stale opposite GM command without overwriting the newer choice', a
   });
 });
 
-it('acknowledges a stale same-state request from the authoritative current state', async () => {
+it('records a stale same-state receipt so its exact retry cannot observe a later revision', async () => {
   session({ pressEnabled: false, pressAvailabilityRevision: 3 });
   gm();
 
-  await expect(setPressEnabled.run(request({
+  const staleRequest = request({
     ...baseData,
     pressEnabled: false,
     expectedRevision: 1,
-  }))).resolves.toEqual({ pressEnabled: false, revision: 3 });
+  });
+  await expect(setPressEnabled.run(staleRequest)).resolves.toEqual({ pressEnabled: false, revision: 3 });
   expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/commandReceipts/press-1' }),
+    expect.objectContaining({ result: { pressEnabled: false, revision: 3 } }),
+  );
+
+  mock.set.mockClear();
+  await expect(setPressEnabled.run(staleRequest)).resolves.toEqual({ pressEnabled: false, revision: 3 });
   expect(mock.set).not.toHaveBeenCalled();
 });
 
@@ -306,6 +321,72 @@ it('replays a request result without writing a second audit event', async () => 
   expect(second).toEqual(first);
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['pressEnabled', { pressEnabled: true }],
+  ['expectedRevision', { expectedRevision: 1 }],
+] as const)('rejects a %s change when a Press request id is already bound', async (_field, change) => {
+  session({ pressEnabled: false, pressAvailabilityRevision: 1 });
+  gm();
+  const receiptPath = 'sessions/s1/commandReceipts/press-1';
+  const priorReceipt = {
+    fingerprint: {
+      action: 'set-press-availability', sessionId: 's1', requestId: 'press-1',
+      actorUid: 'u1', instanceId: 'gm-1', expectedRevision: 0,
+      payload: { pressEnabled: false },
+    },
+    result: { pressEnabled: false, revision: 1, privateDetail: 'classified prior result' },
+  } satisfies Fields;
+  put(receiptPath, priorReceipt);
+  const sessionBefore = { ...mock.documents.get('sessions/s1') };
+  const receiptBefore = { ...priorReceipt, result: { ...priorReceipt.result } };
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.remove.mockClear();
+  const replay = setPressEnabled.run(request({ ...baseData, ...change }));
+  await expect(replay).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.not.stringContaining('classified prior result'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1')).toEqual(sessionBefore);
+  expect(mock.documents.get(receiptPath)).toEqual(receiptBefore);
+});
+
+it('denies a foreign UID reusing a Press receipt without disclosing its result or writing', async () => {
+  session({ pressEnabled: false, pressAvailabilityRevision: 1 });
+  gm();
+  gm('u2', 'gm-2');
+  const receiptPath = 'sessions/s1/commandReceipts/press-1';
+  const priorReceipt = {
+    fingerprint: {
+      action: 'set-press-availability', sessionId: 's1', requestId: 'press-1',
+      actorUid: 'u1', instanceId: 'gm-1', expectedRevision: 0,
+      payload: { pressEnabled: false },
+    },
+    result: { pressEnabled: false, revision: 1, privateDetail: 'classified prior result' },
+  } satisfies Fields;
+  put(receiptPath, priorReceipt);
+  const sessionBefore = { ...mock.documents.get('sessions/s1') };
+  const receiptBefore = { ...priorReceipt, result: { ...priorReceipt.result } };
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  mock.remove.mockClear();
+  const replay = setPressEnabled.run(request({ ...baseData, instanceId: 'gm-2' }, 'u2'));
+  await expect(replay).rejects.toMatchObject({
+    code: 'permission-denied',
+    message: expect.not.stringContaining('classified prior result'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.remove).not.toHaveBeenCalled();
+  expect(mock.documents.get('sessions/s1')).toEqual(sessionBefore);
+  expect(mock.documents.get(receiptPath)).toEqual(receiptBefore);
 });
 
 it('requires the calling UID to own the named live GM instance', async () => {
@@ -354,9 +435,13 @@ it('serializes two authorized GMs with a stale rejection and current-revision re
     pressAvailabilityRevision: 2,
   });
   expect(mock.documents.get('sessions/s1/events/press-availability-press-gm1-off'))
-    .toMatchObject({ actorUid: 'u1', result: { pressEnabled: false, revision: 1 } });
+    .toMatchObject({ actorUid: 'u1' });
   expect(mock.documents.get('sessions/s1/events/press-availability-press-gm2-on'))
-    .toMatchObject({ actorUid: 'u2', result: { pressEnabled: true, revision: 2 } });
+    .toMatchObject({ actorUid: 'u2' });
+  expect(mock.documents.get('sessions/s1/commandReceipts/press-gm1-off'))
+    .toMatchObject({ result: { pressEnabled: false, revision: 1 } });
+  expect(mock.documents.get('sessions/s1/commandReceipts/press-gm2-on'))
+    .toMatchObject({ result: { pressEnabled: true, revision: 2 } });
 });
 
 it('rejects disconnected and missing stale GM instances without writing', async () => {
@@ -375,6 +460,12 @@ it('rejects disconnected and missing stale GM instances without writing', async 
   mock.set.mockClear();
 
   await expect(setPressEnabled.run(request({ ...baseData, requestId: 'missing-instance' })))
+    .rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.documents.set('sessions/s1/gmInstances/gm-1', { uid: 'u1', connected: false });
+  await expect(setPressEnabled.run(request({ ...baseData, requestId: 'disconnected-instance' })))
     .rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();

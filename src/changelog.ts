@@ -21,11 +21,27 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['012'],
+    implementationProgress: {
+      completed: 96,
+      total: 734,
+      percentage: '13.08%',
+      done: 96,
+      partial: 23,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Retried setup actions now recover the original result when available and guide you to refresh before repeating an action, so delayed or older responses cannot create duplicate changes.',
+    ],
+  },
+  {
+    version: '0.3.29',
     implementationPrompts: ['014'],
     implementationProgress: {
       completed: 95,
       total: 734,
-      percentage: "12.94%",
+      percentage: '12.94%',
       done: 95,
       partial: 24,
       active: 0,

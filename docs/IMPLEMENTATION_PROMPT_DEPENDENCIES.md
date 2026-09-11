@@ -106,7 +106,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 009 | PROVE | done | none | none | none | none | none | none | none | none | none | M1 | Create deterministic ATDD fixtures. |
 | 010 | PROVE | done | none | none | none | none | none | none | none | none | none | M1 | Audit current `main` against the rule matrix. |
 | 011 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Decide the session-code contract. |
-| 012 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Define command idempotency. |
+| 012 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define command idempotency. |
 | 013 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define authoritative server time. |
 | 014 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define stale-snapshot semantics. |
 | 015 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Define the command error taxonomy. |

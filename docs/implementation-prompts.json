@@ -480,7 +480,7 @@
         "acceptance": "retrying a command returns its original result without duplicating state, cost, randomness, or audit events.",
         "title": "Define command idempotency."
       },
-      "description": "Selected callables replay results; no universal command matrix yet.",
+      "description": "M1 production callables use server-only actor/action/payload/revision-bound receipts and exact replay before any mutation, cost, randomness, or audit write. Fully bound legacy domain receipts retain authorized exact replay; unbound event-only records fail closed with refresh/reconcile guidance. Focused Functions coverage includes cross-action legacy namespace collisions, old-event recovery wording, duplicate Android-disclosure prevention, and the 57-test rules denial matrix.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -489,10 +489,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.30"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

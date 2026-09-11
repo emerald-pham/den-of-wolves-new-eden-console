@@ -234,6 +234,7 @@ describe('claimSeat', () => {
       actorUid: 'u1',
       revision: 1,
     });
+    expect(read('sessions/s1/events/seat-claim-claim-admiral-1')).not.toHaveProperty('fingerprint');
 
     await expect(claimSeat.run(request(command))).resolves.toMatchObject({
       status: 'replayed',
@@ -529,6 +530,7 @@ describe('releaseSeat', () => {
       actorUid: 'u1',
       revision: 5,
     });
+    expect(read('sessions/s1/events/seat-release-release-admiral-1')).not.toHaveProperty('fingerprint');
 
     await expect(releaseSeat.run(request(command))).resolves.toMatchObject({
       status: 'replayed',

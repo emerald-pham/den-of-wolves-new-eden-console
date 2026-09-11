@@ -21,6 +21,8 @@ const mock = vi.hoisted(() => ({
   secretAudiences: {} as Record<string, readonly string[]>,
   priorReply: undefined as unknown,
   priorFingerprint: undefined as unknown,
+  legacyNamespacePaths: new Set<string>(),
+  randomInt: vi.fn(() => 0),
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -44,6 +46,10 @@ vi.mock('firebase-admin/firestore', () => ({
     }),
   }),
   FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
+}));
+vi.mock('node:crypto', () => ({
+  randomInt: mock.randomInt,
+  randomUUID: vi.fn(() => 'start-test-uuid'),
 }));
 
 import { setFacilitatorResponsibility, startGame } from './index';
@@ -146,6 +152,8 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.priorReply = undefined;
   mock.priorFingerprint = undefined;
+  mock.legacyNamespacePaths.clear();
+  mock.randomInt.mockClear();
   mock.secretPayloads = {};
   mock.secretAudiences = {};
   mock.session = {
@@ -197,6 +205,7 @@ beforeEach(() => {
         ? snapshot({}, ref.path, false)
         : snapshot({ reply: mock.priorReply, fingerprint: mock.priorFingerprint }, ref.path);
     }
+    if (mock.legacyNamespacePaths.has(ref.path)) return snapshot({ legacy: true }, ref.path);
     if (ref.path === 'sessions/s1/players') {
       return { exists: true, docs: mock.playerDocs.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
     }
@@ -733,6 +742,23 @@ it('rejects the same request id when the actor changes without exposing the prio
   }, 'u2'))).rejects.toMatchObject({
     code: 'permission-denied',
   });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects a start request id owned by a legacy setup command before writes or random draws', async () => {
+  provisionProductionRoster(8);
+  const requestId = 'legacy-setup-before-start';
+  mock.legacyNamespacePaths.add(`sessions/s1/setupMutationRequests/${requestId}`);
+  mock.legacyNamespacePaths.add(`sessions/s1/events/setup-confirm-${requestId}`);
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId, expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/legacy|refresh|resume|not applied/i),
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });
