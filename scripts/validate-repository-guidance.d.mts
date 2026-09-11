@@ -20,6 +20,14 @@ export function validatePromptDependencyConcurrency(
   input: PromptDependencyGuidanceInput,
 ): void;
 
+export function validateAgentModelEscalation(
+  input: PromptDependencyGuidanceInput,
+): void;
+
+export function validateBlockedMergeAgentHandoff(
+  input: PromptDependencyGuidanceInput,
+): void;
+
 export interface CampaignPlaybookInput {
   source?: string;
   errors: string[];

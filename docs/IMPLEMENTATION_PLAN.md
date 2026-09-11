@@ -195,9 +195,18 @@ Bind every roadmap slice and review to these explicit product goals:
 11. For this active completion campaign, the root coordinator remains
     read-only for product code and owns orchestration/documentation. All
     application, Functions, rules, configuration, script, and test changes are
-    delegated to authorized implementation subagents under the plan's scoped
-    Luna-max contract below; integration conflicts that touch those files are
-    delegated too.
+    delegated to authorized implementation subagents under the plan's
+    role-scoped model-escalation contract below; integration conflicts that
+    touch those files are delegated too. If a Luna attempt fails, reassign
+    that same agent role to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`; if a
+    Terra attempt then fails, GPT-5.6 Sol (`gpt-5.6-sol`) is authorized for that
+    same agent role only. The escalation tier belongs to the role and must
+    never reset or downgrade when an agent, task, or worktree is replaced;
+    detect and stop any Luna/Terra loop. Before dispatching Sol, explain in
+    user-visible chat why that role needs Sol and that Sol is 10 times as
+    expensive as Luna. The mandatory process for the blocking agent merge
+    handoff is canonical in
+    [`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
 
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
@@ -2089,13 +2098,19 @@ because the prompt is independent.
 When working on numbered prompts from this implementation plan, the product
 owner specifically authorizes the coordinator to assign implementation, tests,
 verification, integration, release, merge, push, and coordination closeout to
-GPT-5.6 Luna (`gpt-5.6-luna`) agents. Non-coding work,
+GPT-5.6 Luna (`gpt-5.6-luna`) agents at `max` reasoning. Non-coding work,
 including reconnaissance, planning, documentation review, evidence collation,
-and read-only verification, may use Luna at any supported reasoning level. Any
-agent that writes or changes application code, Cloud Functions, Firestore
-rules, configuration, scripts, or tests must use Luna at `max` reasoning. A
-merge or conflict-resolution task that edits any of those files also counts as
-coding and has the same `max` requirement.
+and read-only verification, may use Luna at any supported reasoning level. If
+a Luna attempt fails, reassign that same agent role to GPT-5.6 Terra
+(`gpt-5.6-terra`) at `xhigh`; if a Terra attempt then fails, GPT-5.6 Sol
+(`gpt-5.6-sol`) is authorized for that same agent role only. The escalation tier
+belongs to the role and must never reset or downgrade when an agent, task, or
+worktree is replaced. Detect and stop any Luna/Terra loop rather than retrying
+at a lower tier or oscillating between tiers. Before dispatching Sol, explain
+in user-visible chat why that role needs Sol and that Sol is 10 times as
+expensive as Luna. The mandatory process for the blocking agent merge
+handoff is canonical in
+[`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
 
 This is an implementation-plan-scoped override of the routine `high`-reasoning
 default and primary-agent implementation/integration ownership in `CLAUDE.md`;

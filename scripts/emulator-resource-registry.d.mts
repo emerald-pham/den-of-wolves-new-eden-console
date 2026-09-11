@@ -26,6 +26,7 @@ export interface CoordinationEntry {
   readonly startBranchSha?: string;
   readonly startMainSha?: string;
   readonly repositoryRoot?: string;
+  readonly repositoryIdentity?: string;
   readonly intent: string;
   readonly versionPlan: string;
   readonly preemptiveChangelog: string;
@@ -46,6 +47,7 @@ export interface CoordinationEntry {
     readonly destination: string;
     readonly commitSha: string;
     readonly verifiedAt: string;
+    readonly classification?: string;
   };
   readonly discard?: {
     readonly reason: string;
@@ -63,6 +65,26 @@ export interface CoordinationEntry {
   readonly validation?: ValidationReceipt;
   readonly validationHistory?: readonly ValidationReceipt[];
   readonly validationReused?: boolean;
+  readonly mergeHandoffs?: readonly CoordinationMergeHandoff[];
+}
+
+export interface CoordinationMergeHandoff {
+  readonly id: string;
+  readonly status: 'pending' | 'landed';
+  readonly sourceEntryId: string;
+  readonly blockerEntryId: string;
+  readonly destinationTaskId: string;
+  readonly remoteRef: string;
+  readonly sourceCommitSha: string;
+  readonly blockerReason: string;
+  readonly overlappingScopes: readonly string[];
+  readonly remainingDelta: string;
+  readonly deliveryEvidence: string;
+  readonly createdAt: string;
+  readonly integrationEntryId?: string;
+  readonly integrationBranchSha?: string;
+  readonly mainSha?: string;
+  readonly resolvedAt?: string;
 }
 
 export interface CoordinationClaimRelease {
@@ -473,8 +495,16 @@ export function finishCoordinationEntry(
     outcome?: 'landed' | 'preserved' | 'discarded';
     reason?: string;
     'preserve-ref'?: string;
+    'preservation-kind'?: string;
+    'blocked-by-entry'?: string;
+    'handoff-to-task'?: string;
+    'handoff-reason'?: string;
+    'handoff-overlap'?: string;
+    'handoff-delta'?: string;
+    'handoff-delivery'?: string;
     preservedRefSha?: string;
     release?: ReleaseState;
+    handoffCommitIsAncestor?: (ancestor: string, descendant: string) => Promise<boolean>;
   },
 ): Promise<CoordinationEntry>;
 export function pruneDeadReservations(

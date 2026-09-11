@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  validateAgentModelEscalation,
+  validateBlockedMergeAgentHandoff,
   validateCampaignPlaybook,
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
@@ -162,6 +164,184 @@ describe('repository guidance', () => {
     expect(guidance).toMatch(/For routine \(non-campaign\) tasks,[\s\S]{0,420}The primary agent also owns all review, integration, versioning, merge, and push/i);
   });
 
+  it('requires role-scoped Luna to Terra to Sol escalation on every agent-model authority', () => {
+    const surfaces = [
+      'CLAUDE.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+
+    validateAgentModelEscalation({ sources, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('rejects role-tier resets, Luna/Terra loops, and Sol dispatch without its cost explanation', () => {
+    const compliant = [
+      'If a Luna attempt fails, reassign that same agent role to gpt-5.6-terra.',
+      'If a Terra attempt then fails, gpt-5.6-sol is authorized for that same agent role only.',
+      'The escalation tier belongs to the role and must never reset or downgrade when an agent, task, or worktree is replaced; detect and stop any Luna/Terra loop.',
+      'Before dispatching Sol, explain in user-visible chat why that role needs Sol and that Sol is 10 times as expensive as Luna.',
+    ].join(' ');
+    const mutations = [
+      {
+        source: compliant.replace('must never reset or downgrade', 'may reset or downgrade'),
+        expected: 'must keep the role escalation tier monotonic across replacements',
+      },
+      {
+        source: compliant.replace('detect and stop any Luna/Terra loop', 'allow another Luna retry'),
+        expected: 'must detect and stop Luna/Terra loops',
+      },
+      {
+        source: compliant.replace('10 times as expensive as Luna', 'more expensive than Luna'),
+        expected: 'must explain every Sol dispatch in user-visible chat before dispatch',
+      },
+      {
+        source: `${compliant} Never dispatch a Sol child.`,
+        expected: 'retains the obsolete blanket prohibition on Sol child dispatch',
+      },
+      {
+        source: `${compliant} Delegate it under Luna-only rules.`,
+        expected: 'retains a Luna-only retry path that can reset role escalation',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateAgentModelEscalation({
+        sources: new Map([
+          ['CLAUDE.md', mutation.source],
+          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
+          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
+        ]),
+        errors,
+      });
+
+      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.expected),
+      ]));
+    }
+  });
+
+  it('requires an exact pushed-branch handoff on every blocked-merge authority', () => {
+    const surfaces = [
+      'CLAUDE.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+      'docs/WORKTREE_COORDINATION.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+
+    validateBlockedMergeAgentHandoff({ sources, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('rejects a blocked-merge handoff without ordering, merge instructions, or delivery proof', () => {
+    const compliant = [
+      'A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.',
+      'CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.',
+      'When that blocking agent prevents merge, commit and push the exact task branch before sending the handoff.',
+      'Send a direct user-visible message to the blocking agent with the destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims.',
+      'Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.',
+      'The registry creates a structured pending merge handoff on the active blocker entry only after verifying the exact pushed --preserve-ref SHA, same-repository ownership, and the named overlap.',
+      'coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.',
+      'Instruct the blocking agent: after its original blocker work is finished, keep that exact blocker entry active, fetch the branch, reconcile it with current main, merge the exact source commit into that same entry task branch, apply any named delta, rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish for that same blocker entry.',
+      'coordination:finish refuses landed, preserved, and discarded outcomes for the blocker until its validated task branch contains every assigned source commit and pushed origin/main contains that branch.',
+      '--result prose and --handoff-delivery text cannot waive the MERGE OTHER BRANCHES hard gate.',
+      'Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved; a coordination note is not proof of delivery.',
+      'If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.',
+    ].join(' ');
+    const mutations = [
+      {
+        source: compliant.replace('A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.', 'Anything can be an agent blocker.'),
+        expected: 'must define an agent blocker as active overlapping ownership',
+      },
+      {
+        source: compliant.replace('before sending the handoff', 'after closing the task'),
+        expected: 'must push the exact task branch before sending the handoff',
+      },
+      {
+        source: compliant.replace('CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.', 'Any blocker qualifies.'),
+        expected: 'must distinguish agent blockers from CI, external, user-input, and test blockers',
+      },
+      {
+        source: compliant.replace('Send a direct user-visible message', 'Leave a note'),
+        expected: 'must send direct user-visible instructions to the blocking agent',
+      },
+      {
+        source: compliant.replace('destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims', 'branch name'),
+        expected: 'must include the task ID, exact branch, SHA, blocker reason, and overlap',
+      },
+      {
+        source: compliant.replace('rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish', 'merge when convenient'),
+        expected: 'must instruct the blocker to reconcile, validate, merge, push, and finish',
+      },
+      {
+        source: compliant.replace('keep that exact blocker entry active', 'close the blocker entry first'),
+        expected: 'must bind the merge obligation to the existing blocker entry',
+      },
+      {
+        source: compliant.replace('Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.', 'Record the handoff in the result summary.'),
+        expected: 'must create the structured blocked-agent handoff at preservation',
+      },
+      {
+        source: compliant.replace('coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.', 'coordination:status hides the queue.'),
+        expected: 'must expose the MERGE OTHER BRANCHES hard gate in status',
+      },
+      {
+        source: compliant.replace('refuses landed, preserved, and discarded outcomes', 'allows any closeout outcome'),
+        expected: 'must block every closeout outcome while assigned branches remain',
+      },
+      {
+        source: compliant.replace('validated task branch contains every assigned source commit and pushed origin/main contains that branch', 'agent says the work was considered'),
+        expected: 'must require exact source containment in the validated branch and pushed main',
+      },
+      {
+        source: compliant.replace('--result prose and --handoff-delivery text cannot waive', '--result prose may waive'),
+        expected: 'must not allow prose to waive the hard gate',
+      },
+      {
+        source: compliant.replace('Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved', 'Assume delivery'),
+        expected: 'must verify delivery before preserving and closing',
+      },
+      {
+        source: compliant.replace('a coordination note is not proof of delivery', 'a coordination note proves delivery'),
+        expected: 'must not treat a coordination note as delivery proof',
+      },
+      {
+        source: compliant.replace('If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.', 'Close the source entry even if delivery fails.'),
+        expected: 'must keep the source entry active when delivery is unverified',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateBlockedMergeAgentHandoff({
+        sources: new Map([
+          ['CLAUDE.md', mutation.source],
+          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
+          ['docs/WORKTREE_COORDINATION.md', mutation.source],
+          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
+        ]),
+        errors,
+      });
+
+      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.expected),
+      ]));
+    }
+  });
+
   it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
     const repositoryRoot = process.cwd();
     const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
@@ -313,7 +493,7 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
-  it('fails closed if the Luna abandonment failover or another critical campaign control is weakened', () => {
+  it('fails closed if role escalation or another critical campaign control is weakened', () => {
     const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
     const mutations = [
       {
@@ -337,15 +517,23 @@ describe('repository guidance', () => {
         expected: 'must require independent exact-HEAD review before one final full coordination validation',
       },
       {
-        source: source.replace(/switch that task to\s+`?gpt-5\.6-terra`?\s+at\s+`?xhigh`?/gi, 'retry Luna'),
-        expected: 'must require Terra xhigh after the observed Luna abandonment failure',
+        source: source.replace(/Luna attempt fails/gi, 'Luna attempt succeeds'),
+        expected: 'must require Terra xhigh after a Luna role failure',
       },
       {
-        source: source.replace(/never dispatch a Sol child/gi, 'Sol is available'),
-        expected: 'must prohibit Sol child dispatch',
+        source: source.replace(/`?gpt-5\.6-sol`? is authorized\s+for that same agent role only/gi, 'retry Terra'),
+        expected: 'must authorize Sol after Terra fails in the same role',
       },
       {
-        source: source.replace(/immediately report/gi, 'report later'),
+        source: source.replace(/must never reset or downgrade/gi, 'may reset or downgrade'),
+        expected: 'must keep role escalation monotonic and stop Luna/Terra loops',
+      },
+      {
+        source: source.replace(/10\s+times as expensive as\s+Luna/gi, 'more expensive than Luna'),
+        expected: 'must require a user-visible 10x-cost explanation before Sol dispatch',
+      },
+      {
+        source: source.replace(/immediately\s+report/gi, 'report later'),
         expected: 'must require immediate idle or terminal reports with status, paths, commands, and blockers',
       },
       {
