@@ -11,15 +11,6 @@ import {
   prepareReleaseFragmentFile,
 } from '../scripts/coordination-throughput.mjs';
 import {
-  finalizeReleaseFragment,
-  prepareCoordinationReleaseFragment,
-  reconcileLandedCoordinationReleaseFragment,
-} from '../scripts/emulator-resource-registry.mjs';
-import {
-  readImplementationProgress,
-  validateImplementationProgress,
-} from '../scripts/validate-implementation-progress.mjs';
-import {
   ALL_DEPLOYMENT_TARGETS,
   classifyChangedFiles,
   formatGitHubOutputs,
@@ -34,8 +25,6 @@ const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as {
 };
 const emulatorCommand = readFileSync('scripts/run-emulator-command.mjs', 'utf8');
 const configureEmulatorCommand = readFileSync('scripts/configure-emulator-slot.mjs', 'utf8');
-const coordinationRegistryCommand = readFileSync('scripts/emulator-resource-registry.mjs', 'utf8');
-const throughputCommand = readFileSync('scripts/coordination-throughput.mjs', 'utf8');
 const firestoreIndexes = JSON.parse(readFileSync('firestore.indexes.json', 'utf8')) as {
   fieldOverrides: Array<{
     collectionGroup: string;
@@ -55,7 +44,6 @@ it('classifies changed files into affected deployment surfaces', () => {
   expect(classifyChangedFiles(['src/routes/Landing.tsx', 'functions/src/index.ts']).targets)
     .toEqual(['hosting', 'functions']);
 });
-
 it('classifies the cumulative range from the last successful deployment', () => {
   // A queued main run must include every surface changed since the deployed
   // SHA, not only the latest push's event.before..event.after range.
@@ -71,9 +59,11 @@ it('skips proven documentation, test, and tooling-only changes', () => {
   const result = classifyChangedFiles([
     'README.md',
     'docs/ci-deploy-setup.md',
+    'docs/implementation-prompts.json',
     'src/routes/Landing.test.tsx',
     'functions/src/index.test.ts',
     'scripts/deployment-targets.mjs',
+    '.githooks/commit-msg',
     '.github/workflows/ci.yml',
   ]);
 
@@ -352,21 +342,6 @@ async function runGit(cwd: string, args: string[]) {
   return stdout.trim();
 }
 
-function currentImplementationProgress() {
-  const source = readFileSync('src/changelog.ts', 'utf8');
-  const block = source.match(/implementationProgress:\s*{([\s\S]*?)}/)?.[1] ?? '';
-  const number = (field: string) => Number.parseInt(block.match(new RegExp(`${field}:\\s*(\\d+)`))?.[1] ?? '0', 10);
-  return {
-    completed: number('completed'),
-    total: number('total'),
-    percentage: block.match(/percentage:\s*['"]([^'"]+)['"]/)?.[1] ?? '0.00%',
-    done: number('done'),
-    partial: number('partial'),
-    active: number('active'),
-    missing: number('missing'),
-  };
-}
-
 it('tests Firestore rules before a main-branch deployment', () => {
   const rulesTest = ci.indexOf('npm run test:rules');
   const deployment = deploy.indexOf(`${FIREBASE_CLI} deploy`);
@@ -377,7 +352,7 @@ it('tests Firestore rules before a main-branch deployment', () => {
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });
 
-it('does not repeat unit tests during deployment after the pre-push gate', () => {
+it('does not repeat unit tests during deployment after CI artifact verification', () => {
   expect(ci).toMatch(/^\s*run:\s+npm test\s*$/m);
   expect(deploy).not.toMatch(/^\s*run:\s+npm test\s*$/m);
 });
@@ -390,7 +365,8 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
   expect(ci).toContain('exact_head_commit:');
   expect(ci).toContain('git rev-parse --verify "$head_sha^"');
-  expect(ci).toContain('validate:work-registration -- --commit "$head_sha"');
+  expect(ci).toContain('Identify changed paths');
+  expect(ci).not.toContain('validate:work-registration');
   expect(ci).toContain('actions/upload-artifact@v7');
   expect(deploy).toContain('ref: ${{ github.sha }}');
   expect(deploy).toContain('exact_head_commit: true');
@@ -489,37 +465,16 @@ it('coordinates emulator commands and gives rules tests an isolated fallback slo
   );
 });
 
-it('exposes just-in-time coordination and release-fragment command surfaces', () => {
-  expect(coordinationRegistryCommand).toContain("command === 'forecast'");
-  expect(coordinationRegistryCommand).toContain("command === 'claim'");
-  expect(coordinationRegistryCommand).toContain("command === 'heartbeat'");
-  expect(coordinationRegistryCommand).toContain("command === 'release-claim'");
-  expect(coordinationRegistryCommand).toContain('prepareCoordinationReleaseFragment');
-  expect(coordinationRegistryCommand).toContain('coordinationEntryId');
-  expect(coordinationRegistryCommand).toContain('validation.commitSha');
-  expect(coordinationRegistryCommand).toContain('baseMainSha');
-  expect(coordinationRegistryCommand).toContain('withValidationLease(');
-  expect(coordinationRegistryCommand).toContain('validation-queue');
-  expect(throughputCommand).toContain("command === 'release-prepare'");
-  expect(throughputCommand).toContain("command === 'release-land'");
-  expect(coordinationRegistryCommand).toContain("command === 'release-reconcile'");
-  expect(coordinationRegistryCommand).toMatch(/usage:[^\n]*release-reconcile/);
-  expect(coordinationRegistryCommand).toContain('currentBinding.mainSha !== binding.mainSha');
-});
-
-it('re-runs the existing implementation-progress validator against generated release metadata', async () => {
+it('applies a release fragment and updates release metadata', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-release-finalizer-'));
   const lanePath = resolve(root, 'release-lane.json');
   const baseVersion = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
   const nextVersion = nextReleaseVersion(baseVersion);
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
-    await mkdir(resolve(root, 'docs'), { recursive: true });
     await writeFile(resolve(root, 'package.json'), readFileSync('package.json', 'utf8'));
     await writeFile(resolve(root, 'package-lock.json'), readFileSync('package-lock.json', 'utf8'));
     await writeFile(resolve(root, 'src/changelog.ts'), readFileSync('src/changelog.ts', 'utf8'));
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
 
     await prepareReleaseFragmentFile(lanePath, {
       taskId: 'finalizer-task',
@@ -527,21 +482,11 @@ it('re-runs the existing implementation-progress validator against generated rel
       baseVersion,
       baseMainSha: 'main-a',
       changes: ['A validated finalizer note.'],
-      implementationProgress: currentImplementationProgress(),
     });
     await applyReleaseFragment(lanePath, {
       taskId: 'finalizer-task',
       repositoryDirectory: root,
       currentMainSha: 'main-a',
-      validateFinalMetadata: async ({ version, changelogSource }) => {
-        const inputs = readImplementationProgress({ cwd: root });
-        const result = validateImplementationProgress({
-          ...inputs,
-          applicationVersion: version,
-          changelogSource,
-        });
-        expect(result.errors).toEqual([]);
-      },
     });
 
     const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
@@ -552,392 +497,6 @@ it('re-runs the existing implementation-progress validator against generated rel
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(`${lanePath}.lock`, { force: true });
-  }
-});
-
-it('refuses central release landing without a task-bound validation receipt', async () => {
-  const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-unbound-release-'));
-  const lanePath = resolve(root, 'release-lane.json');
-  const coordinationPath = resolve(root, 'coordination.json');
-  const previousCwd = process.cwd();
-  try {
-    await mkdir(resolve(root, 'src'), { recursive: true });
-    await writeFile(resolve(root, 'package.json'), '{"version":"0.3.23"}\n');
-    await writeFile(resolve(root, 'package-lock.json'), '{"packages":{"":{"version":"0.3.23"}}}\n');
-    await writeFile(resolve(root, 'src/changelog.ts'), `export const CHANGELOG = [
-  { version: APP_VERSION, changes: ['Current.'] },
-];
-`);
-    await runGit(root, ['init', '-b', 'main']);
-    await runGit(root, ['config', 'user.email', 'coordination@example.test']);
-    await runGit(root, ['config', 'user.name', 'Coordination Tests']);
-    await runGit(root, ['add', '.']);
-    await runGit(root, ['commit', '-m', 'fixture main']);
-    await runGit(root, ['checkout', '-b', 'feature/unbound-release']);
-    const branchSha = await runGit(root, ['rev-parse', 'HEAD']);
-    const mainSha = await runGit(root, ['rev-parse', 'main']);
-    const repositoryIdentity = await runGit(root, [
-      'rev-parse', '--path-format=absolute', '--git-common-dir',
-    ]);
-    const now = new Date().toISOString();
-    await writeFile(coordinationPath, JSON.stringify({
-      version: 1,
-      entries: [{
-        id: 'unbound-task',
-        worktree: root,
-        pid: process.pid,
-        startedAt: now,
-        heartbeatAt: now,
-        status: 'active',
-        branchName: 'feature/unbound-release',
-        startBranchSha: branchSha,
-        startMainSha: mainSha,
-        repositoryRoot: root,
-        repositoryIdentity,
-        intent: 'fixture release',
-        versionPlan: 'Tooling-only; retain the application version for the fixture.',
-        preemptiveChangelog: 'No player-facing change.',
-        workType: 'tooling',
-        scopes: [],
-        claims: [],
-      }],
-      reservations: [],
-      configurations: [],
-    }));
-
-    process.chdir(root);
-    await expect(finalizeReleaseFragment(lanePath, {
-      taskId: 'unbound-task',
-      repositoryDirectory: root,
-      coordinationFilePath: coordinationPath,
-      baseVersion: '0.3.23',
-      baseMainSha: mainSha,
-      currentMainSha: mainSha,
-      changes: ['Should not land.'],
-    })).rejects.toThrow(
-      'Release fragment unbound-task requires a passing task-bound validation receipt before landing.',
-    );
-    expect(JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8')).version).toBe('0.3.23');
-  } finally {
-    process.chdir(previousCwd);
-    await rm(root, { recursive: true, force: true });
-    await rm(`${lanePath}.lock`, { force: true });
-    await rm(`${coordinationPath}.lock`, { force: true });
-  }
-});
-
-it('binds central fragment preparation and landing to the task receipt and current main', async () => {
-  const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-bound-release-'));
-  const lanePath = resolve(root, 'release-lane.json');
-  const coordinationPath = resolve(root, 'coordination.json');
-  const applicationVersion = JSON.parse(readFileSync('package.json', 'utf8')).version as string;
-  const expectedVersion = nextReleaseVersion(applicationVersion);
-  const previousCwd = process.cwd();
-  try {
-    await mkdir(resolve(root, 'src'), { recursive: true });
-    await mkdir(resolve(root, 'docs'), { recursive: true });
-    await writeFile(resolve(root, 'package.json'), readFileSync('package.json', 'utf8'));
-    await writeFile(resolve(root, 'package-lock.json'), readFileSync('package-lock.json', 'utf8'));
-    await writeFile(resolve(root, 'src/changelog.ts'), readFileSync('src/changelog.ts', 'utf8'));
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
-    await runGit(root, ['init', '-b', 'main']);
-    await runGit(root, ['config', 'user.email', 'coordination@example.test']);
-    await runGit(root, ['config', 'user.name', 'Coordination Tests']);
-    await runGit(root, ['add', '.']);
-    await runGit(root, ['commit', '-m', 'fixture main']);
-    const mainSha = await runGit(root, ['rev-parse', 'HEAD']);
-    await runGit(root, ['checkout', '-b', 'feature/bound-release']);
-    await writeFile(resolve(root, 'src/feature.mjs'), 'export const feature = true;\n');
-    await runGit(root, ['add', 'src/feature.mjs']);
-    await runGit(root, ['commit', '-m', 'fixture task']);
-    const branchSha = await runGit(root, ['rev-parse', 'HEAD']);
-    const repositoryIdentity = await runGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    const now = new Date().toISOString();
-    await writeFile(coordinationPath, JSON.stringify({
-      version: 1,
-      entries: [{
-        id: 'bound-release-task',
-        worktree: root,
-        pid: process.pid,
-        startedAt: now,
-        heartbeatAt: now,
-        status: 'active',
-        branchName: 'feature/bound-release',
-        startBranchSha: branchSha,
-        startMainSha: mainSha,
-        repositoryRoot: root,
-        repositoryIdentity,
-        intent: 'fixture release',
-        versionPlan: 'Tooling-only; retain the application version for the fixture.',
-        preemptiveChangelog: 'No player-facing change.',
-        workType: 'tooling',
-        scopes: ['src/feature.mjs'],
-        claims: [],
-        validation: {
-          commitSha: branchSha,
-          completedAt: now,
-          passed: true,
-          commands: ['focused fixture test'],
-          files: ['src/feature.mjs'],
-          docsOnly: false,
-        },
-      }],
-      reservations: [],
-      configurations: [],
-    }));
-
-    process.chdir(root);
-    const prepared = await prepareCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'bound-release-task',
-      changes: ['A bound release note.'],
-      implementationProgress: currentImplementationProgress(),
-    });
-    expect(prepared.fragment).toMatchObject({
-      taskId: 'bound-release-task',
-      coordinationEntryId: 'bound-release-task',
-      coordinationBranchName: 'feature/bound-release',
-      coordinationBranchSha: branchSha,
-      baseMainSha: mainSha,
-    });
-
-    const landed = await finalizeReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'bound-release-task',
-    });
-    expect(landed).toMatchObject({ taskId: 'bound-release-task', version: expectedVersion });
-    const lane = JSON.parse(await readFile(lanePath, 'utf8'));
-    expect(lane.fragments[0]).toMatchObject({
-      state: 'landed',
-      provenance: {
-        coordinationEntryId: 'bound-release-task',
-        baseMainSha: mainSha,
-        validationReceiptCommitSha: branchSha,
-        finalBranchSha: branchSha,
-      },
-    });
-  } finally {
-    process.chdir(previousCwd);
-    await rm(root, { recursive: true, force: true });
-    await rm(`${lanePath}.lock`, { force: true });
-  }
-});
-
-it('reconciles an already-landed fragment to an exact validation receipt without rewriting its historical branch SHA', async () => {
-  const root = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-landed-recovery-'));
-  const lanePath = resolve(root, 'release-lane.json');
-  const coordinationPath = resolve(root, 'coordination.json');
-  const previousCwd = process.cwd();
-  const baseVersion = '0.3.27';
-  const landedVersion = '0.3.28';
-  const changes = [
-    'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
-    'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
-  ] as const;
-  const correctedChanges = [
-    'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
-    changes[1],
-  ] as const;
-  try {
-    await mkdir(resolve(root, 'src'), { recursive: true });
-    await mkdir(resolve(root, 'docs'), { recursive: true });
-    const basePackage = JSON.parse(readFileSync('package.json', 'utf8'));
-    basePackage.version = baseVersion;
-    const baseLockfile = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-    baseLockfile.packages[''].version = baseVersion;
-    await writeFile(resolve(root, 'package.json'), `${JSON.stringify(basePackage, null, 2)}\n`);
-    await writeFile(resolve(root, 'package-lock.json'), `${JSON.stringify(baseLockfile, null, 2)}\n`);
-    await writeFile(
-      resolve(root, 'src/changelog.ts'),
-      readFileSync('src/changelog.ts', 'utf8').replace(changes[0], correctedChanges[0]),
-    );
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8'));
-    await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8'));
-    await runGit(root, ['init', '-b', 'main']);
-    await runGit(root, ['config', 'user.email', 'coordination@example.test']);
-    await runGit(root, ['config', 'user.name', 'Coordination Tests']);
-    await runGit(root, ['add', '.']);
-    await runGit(root, ['commit', '-m', 'fixture main']);
-    const initialMainSha = await runGit(root, ['rev-parse', 'HEAD']);
-    await runGit(root, ['checkout', '-b', 'feature/landed-recovery']);
-    await writeFile(resolve(root, 'src/historical-feature.mjs'), 'export const historical = true;\n');
-    await runGit(root, ['add', 'src/historical-feature.mjs']);
-    await runGit(root, ['commit', '-m', 'historical task commit']);
-    const historicalBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
-    // The historical task commit and current main may be siblings. The final
-    // repair must contain both through an explicit merge, not misrepresent the
-    // task commit as having been based on the later main tip.
-    await runGit(root, ['checkout', 'main']);
-    await writeFile(resolve(root, 'src/current-main-advance.mjs'), 'export const currentMain = true;\n');
-    await runGit(root, ['add', 'src/current-main-advance.mjs']);
-    await runGit(root, ['commit', '-m', 'advance current main']);
-    const mainSha = await runGit(root, ['rev-parse', 'HEAD']);
-    await runGit(root, ['checkout', 'feature/landed-recovery']);
-    await runGit(root, ['merge', '--no-ff', 'main', '-m', 'merge current main into repair']);
-
-    const landedPackage = { ...basePackage, version: landedVersion };
-    const landedLockfile = {
-      ...baseLockfile,
-      packages: { ...baseLockfile.packages, '': { ...baseLockfile.packages[''], version: landedVersion } },
-    };
-    await writeFile(resolve(root, 'package.json'), `${JSON.stringify(landedPackage, null, 2)}\n`);
-    await writeFile(resolve(root, 'package-lock.json'), `${JSON.stringify(landedLockfile, null, 2)}\n`);
-    await runGit(root, ['add', 'package.json', 'package-lock.json']);
-    await runGit(root, ['commit', '-m', 'land historical release metadata']);
-    await writeFile(resolve(root, 'src/exact-head-repair.mjs'), 'export const repaired = true;\n');
-    await runGit(root, ['add', 'src/exact-head-repair.mjs']);
-    await runGit(root, ['commit', '-m', 'exact head repair']);
-    const finalBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
-    const repositoryIdentity = await runGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    const now = new Date().toISOString();
-    await writeFile(coordinationPath, JSON.stringify({
-      version: 1,
-      entries: [{
-        id: 'landed-recovery-task',
-        worktree: root,
-        pid: process.pid,
-        startedAt: now,
-        heartbeatAt: now,
-        status: 'active',
-        branchName: 'feature/landed-recovery',
-        startBranchSha: historicalBranchSha,
-        startMainSha: initialMainSha,
-        repositoryRoot: root,
-        repositoryIdentity,
-        intent: 'reconcile a historical release fragment',
-        versionPlan: 'Reserve application patch version 0.3.28.',
-        preemptiveChangelog: changes[0],
-        workType: 'product',
-        implementationPrompt: 55,
-        scopes: ['src/exact-head-repair.mjs'],
-        claims: [],
-        validation: {
-          commitSha: finalBranchSha,
-          completedAt: now,
-          passed: true,
-          commands: ['focused fixture test'],
-          files: ['src/exact-head-repair.mjs'],
-          docsOnly: false,
-        },
-      }],
-      reservations: [],
-      configurations: [],
-    }));
-    const fragment = {
-      id: 'release-fragment-landed-recovery',
-      sequence: 1,
-      taskId: 'landed-recovery-task',
-      worktree: root,
-      state: 'landed',
-      preparedAt: now,
-      allocatedAt: now,
-      landedAt: now,
-      changes,
-      implementationPrompts: ['055'],
-      implementationProgress: currentImplementationProgress(),
-      baseVersion,
-      baseMainSha: mainSha,
-      coordinationEntryId: 'landed-recovery-task',
-      coordinationBranchName: 'feature/landed-recovery',
-      coordinationBranchSha: historicalBranchSha,
-      requiredPrompt: '055',
-      version: landedVersion,
-      changedFiles: ['package.json', 'package-lock.json', 'src/changelog.ts'],
-    };
-    await writeFile(lanePath, JSON.stringify({ version: 1, nextSequence: 2, fragments: [fragment] }));
-
-    process.chdir(root);
-    await writeFile(lanePath, JSON.stringify({
-      version: 1,
-      nextSequence: 2,
-      fragments: [{ ...fragment, coordinationBranchSha: mainSha }],
-    }));
-    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-    })).rejects.toThrow(/task branch commit after current main/i);
-    await writeFile(lanePath, JSON.stringify({ version: 1, nextSequence: 2, fragments: [fragment] }));
-    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-    })).rejects.toThrow(/visible checkout release metadata/i);
-    const metadataBefore = await Promise.all([
-      readFile(resolve(root, 'package.json'), 'utf8'),
-      readFile(resolve(root, 'package-lock.json'), 'utf8'),
-      readFile(resolve(root, 'src/changelog.ts'), 'utf8'),
-    ]);
-    const reconciled = await reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-      changes: correctedChanges,
-    });
-    expect(reconciled).toMatchObject({ taskId: 'landed-recovery-task', idempotent: false });
-    expect(await Promise.all([
-      readFile(resolve(root, 'package.json'), 'utf8'),
-      readFile(resolve(root, 'package-lock.json'), 'utf8'),
-      readFile(resolve(root, 'src/changelog.ts'), 'utf8'),
-    ])).toEqual(metadataBefore);
-    const recoveredLane = JSON.parse(await readFile(lanePath, 'utf8'));
-    expect(recoveredLane.fragments[0]).toMatchObject({
-      coordinationBranchSha: historicalBranchSha,
-      changes: correctedChanges,
-      releaseMetadataHistory: [{ changes }],
-      reconciliation: {
-        historicalCoordinationBranchSha: historicalBranchSha,
-        historicalBranchRelation: 'merged-into-exact-head',
-        finalBranchSha,
-        validationReceiptCommitSha: finalBranchSha,
-        coordinationEntryId: 'landed-recovery-task',
-        baseMainSha: mainSha,
-      },
-    });
-    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-      changes: correctedChanges,
-    })).resolves.toMatchObject({ idempotent: true });
-
-    await writeFile(resolve(root, 'src/descendant-repair.mjs'), 'export const descendantRepair = true;\n');
-    await runGit(root, ['add', 'src/descendant-repair.mjs']);
-    await runGit(root, ['commit', '-m', 'descendant exact head repair']);
-    const descendantBranchSha = await runGit(root, ['rev-parse', 'HEAD']);
-    const coordination = JSON.parse(await readFile(coordinationPath, 'utf8'));
-    coordination.entries[0].validation.commitSha = descendantBranchSha;
-    await writeFile(coordinationPath, JSON.stringify(coordination));
-
-    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-      changes: correctedChanges,
-    })).resolves.toMatchObject({ idempotent: false });
-    const advancedLane = JSON.parse(await readFile(lanePath, 'utf8'));
-    expect(advancedLane.fragments[0]).toMatchObject({
-      coordinationBranchSha: historicalBranchSha,
-      changes: correctedChanges,
-      reconciliationHistory: [{
-        finalBranchSha,
-        validationReceiptCommitSha: finalBranchSha,
-      }],
-      reconciliation: {
-        finalBranchSha: descendantBranchSha,
-        validationReceiptCommitSha: descendantBranchSha,
-        baseMainSha: mainSha,
-      },
-    });
-
-    coordination.entries[0].validation.commitSha = finalBranchSha;
-    await writeFile(coordinationPath, JSON.stringify(coordination));
-    await expect(reconcileLandedCoordinationReleaseFragment(lanePath, {
-      coordinationFilePath: coordinationPath,
-      coordinationEntryId: 'landed-recovery-task',
-      changes: correctedChanges,
-    })).rejects.toThrow(/exact|receipt|head/i);
-  } finally {
-    process.chdir(previousCwd);
-    await rm(root, { recursive: true, force: true });
-    await rm(`${lanePath}.lock`, { force: true });
-    await rm(`${coordinationPath}.lock`, { force: true });
   }
 });
 
@@ -972,15 +531,17 @@ it('expires server-only join-attempt limiter records without indexing their time
   });
 });
 
-it('validates canonical authority docs while skipping application jobs and documentation deployment', () => {
+it('keeps documentation and roadmap checks separate from application jobs and deployment', () => {
   expect(ci).not.toContain('paths-ignore:');
   expect(ci).toContain("'!**/*.md'");
   expect(ci).toContain("'docs/IMPLEMENTATION_PROGRESS.md'");
+  expect(ci).toContain('Check prompt catalog and generated views');
+  expect(ci).toContain("if: steps.change_scope.outputs.roadmap_changed == 'true'");
+  expect(ci).toContain('run: npm run roadmap:check');
   expect(ci).toContain('npm run coordination:docs');
-  expect(ci).toContain("if: steps.work_registration.outputs.documentation_only != 'true'");
-  expect(ci.indexOf('npm run validate:work-registration')).toBeLessThan(
-    ci.indexOf('documentation_only=true'),
-  );
+  expect(ci).toContain("if: steps.change_scope.outputs.documentation_only == 'true'");
+  expect(ci).toContain("if: steps.change_scope.outputs.documentation_only != 'true'");
+  expect(ci).not.toContain('implementation-registration');
   expect(deploy).toContain('paths-ignore:');
   expect(deploy).toContain("'**/*.md'");
   expect(deploy).toContain("'**/README'");

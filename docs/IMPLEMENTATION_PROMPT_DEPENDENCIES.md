@@ -1,53 +1,29 @@
 # Implementation prompt dependency index
 
-This is the mandatory dependency authority and fast triage index for the
-canonical prompt catalog. The acceptance narrative, source-of-truth decisions,
-and completion evidence remain authoritative in
-[IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md),
-[IMPLEMENTATION_MILESTONES.md](./IMPLEMENTATION_MILESTONES.md), and
-[IMPLEMENTATION_PROGRESS.md](./IMPLEMENTATION_PROGRESS.md); the plan is not
-standalone. This index records only dependencies that the source explicitly
-states; an empty cell is written as none, not inferred as permission to skip
-the prompt.
+This is the generated dependency view for the canonical prompt catalog. The
+single editable authority is
+[`implementation-prompts.json`](./implementation-prompts.json); the generator
+projects its prompt definitions, status, class, release mapping, hard gates,
+sequence rules, and evidence into this view. The plan and progress documents
+retain acceptance context and historical release prose, while milestones retain
+their route narrative. Empty dependency fields are written as `none`, not
+inferred as permission to skip a prompt.
 
-## Mandatory gate: generate before prompt work
+## Read-only lookup
 
-Every agent selecting, assigning, starting, or editing a numbered prompt must
-first run `npm run coordination:dependencies -- --prompt NNN`, including the
-intended `--scope` and `--claims` values before begin, and read the compact
-packet generated from this authority. The shared deterministic dispatcher
-reconciles the exact row, live progress, hard prerequisites,
-milestone/contract/owner gates, closure scope, sequence/order context, evidence,
-current `main`, and relevant active coordination. A plan definition, numeric
-adjacency, or prose attestation cannot replace an unmet prerequisite.
-
-If a branch is rebased, current `main` materially moves, or dependency status
-or relevant ownership changes, stop and refresh the packet and its atomic
-ignored worktree receipt before continuing. Use `--full` to audit or edit the
-complete authority and `--json` for stable machine consumption. A prompt
-cannot be marked complete or merged while a hard prerequisite remains unmet;
-closure/evidence gates are checked at completion and do not silently become
-start blockers.
-
-Every session start also writes explicit unchecked `--session-goal` values to a
-deterministic ignored worktree-local artifact. Use `coordination:goals` at
-wrap-up to record checked/unchecked outcomes and explanations; the immutable
-original goal identity, order, and text is compared before finish. Missing,
-malformed, or un-compared artifacts fail `coordination:finish`, which cleans
-only after all other gates and verifies absence. P012/P014/P664 entries created
-before this lifecycle use an explicit `legacy-exempt` migration policy. The
-self-bootstrap migration for Prompt 665 is restricted to exact coordination
-entry `1789089073940-29496-766886f1` with its historical explicit `sessionGoals: null`;
-it requires a supported ledger-only goals comparison before finish. The
-comparison is single-write, all later goals updates fail without mutation, and
-finish validates the recorded receipt. No other Prompt 665 entry is exempt, and
-an entry with required-artifact metadata always retains the artifact validation,
-cleanup, and absence gates.
+Use `npm run coordination:dependencies -- --prompt NNN` for a compact packet,
+`--full` for the complete queue, `--json` for stable machine consumption, and
+`--verify` to validate the catalog and dispatcher without changing the
+worktree. The command reads only the catalog and never creates local state.
+No prompt-registration trailer is required for ordinary tooling or fixes. When
+work is intentionally tied to a roadmap prompt, the selected packet still
+exposes hard prerequisites, milestone/contract/owner gates, and evidence so
+the owner can make the correct decision.
 
 ## Fast path: choose the next prompt
 
-1. Run the compact dispatcher for the candidate. It includes the exact row,
-   progress, evidence, milestone route, and readiness result. The lowest
+1. Run the compact dispatcher for the candidate. It includes the exact catalog
+   record, acceptance, progress, evidence, and readiness result. The lowest
    unresolved ID is a resume pointer, not a dependency lock.
 2. For a missing or partial prompt, only hard_prompt_prerequisites,
    hard_milestone, hard_contract, and decision_owner block start readiness.
@@ -58,9 +34,9 @@ cleanup, and absence gates.
 3. Use milestone_hints, sequence_rules, release_boundaries, and related_consumes
    to pick a bounded slice with the right story context. These fields never
    become hidden readiness blockers.
-4. Before assigning work, read those generated packet fields. Preserve the plan
-   workflow: separate documentation/proof from implementation and do not turn
-   this index into completion evidence.
+4. Read those generated packet fields before selecting bounded work. The packet
+   is advisory context; coordination ownership and release gates remain their
+   own concerns.
 
 ### Concurrent prompt selection
 
@@ -82,23 +58,23 @@ npm run coordination:dependencies -- --prompt 020a
 
 ## Coverage and integrity
 
-At this commit the plan contains 734 canonical IDs: 666 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run the shared check after any catalog or progress edit:
+Run the shared check after any catalog edit or generated-view change:
 
 ~~~sh
 npm run validate:dependencies
 ~~~
 
-The executable shared parser validates full parity, typed evidence provenance,
-hard cycles, and dispatcher readiness. The generated rows remain below as the
-complete authority; the CLI replaces duplicated copy-paste parser code.
+The executable catalog validator checks IDs, typed evidence, hard cycles, and
+dispatcher readiness. Generated rows remain below as a navigable view, never a
+second editable authority.
 
 ## Field contract
 
 | Field | Readiness meaning |
 | --- | --- |
 | prompt_id | Canonical ID copied from the plan definition; lettered IDs are explicit rows. |
-| plan_tag | Acceptance class copied from the plan heading; the checker compares it with the live heading. |
-| progress | Current status copied from the progress ledger; the checker requires parity before lookup. done is required for a hard prompt prerequisite. |
+| plan_tag | Projection of the catalog `tag`; generated with the plan definition. |
+| progress | Projection of the catalog `status`; `done` is required for a hard prompt prerequisite. |
 | hard_prompt_prerequisites | Explicit prompt IDs or inclusive numeric ranges that block this prompt until their progress rows are done. |
 | hard_milestone | Explicit milestone or release gate that must be green/merged before selection. |
 | hard_contract | Named source-of-truth contract explicitly required before selection; verify its current evidence rather than guessing from row order. |
@@ -109,10 +85,12 @@ complete authority; the CLI replaces duplicated copy-paste parser code.
 | related_consumes | Explicitly related/consumed prompt context that is useful for navigation, but never blocks readiness. |
 | evidence_ids | Source register entries supporting every non-none dependency, closure, release-boundary, or ordering field in the row. |
 | milestone_hints | Exact primary-neighborhood hints from the compact milestone map; navigation only, not an ownership claim. |
-| title | Short title copied from the plan definition for fast visual scanning. |
+| title | Generated from the catalog definition title for fast visual scanning. |
 
 Numeric ranges are inclusive and fail closed: every expanded member must be canonical or explicitly listed as retired. The current retired set is 071, which has no row and is never a valid hard target. Lettered IDs are always explicit tokens; lettered ranges are not supported. A range never creates an edge to a lettered prompt, and none means that no explicit dependency was found in the current source.
 
+<!-- BEGIN GENERATED PROMPT CATALOG: dependency -->
+<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Prompt rows
 
 | prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |
@@ -848,27 +826,25 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 662 | DECISION | missing | none | none | none | OWNER-APPROVED-WOLF-DESIGNATION-POLICY | none | none | none | 054;075;496;586-588 | E-662 | none | Resolve ordinary-start Wolf designation policy. |
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
-| 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
+| 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable and machine-checked across coordination lifecycle. |
 | 666 | EXTEND | done | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
-| 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Rebaseline runtime threats for hostile session-code clients and DDoS. |
+| 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Runtime threat-model rebaseline: session-code compromise and DDoS. |
 
 ## Explicit sequence rules
 
 | Rule | Explicit order or meaning | Blocking? | Evidence |
 | --- | --- | --- | --- |
-| M1-SETUP | Historical order: Prompt 004 -> the separately evidenced 0.3.12 slice (021/030/073) -> the 0.3.13 slice (051/054/075 setup) -> Prompt 020. The current ledger records this sequence as satisfied. | No; this historical sequence is context, not a current readiness blocker. | E-M1-SETUP |
-| UNIFIED-ENTRY | Prompt 031a follows the current setup/readiness slice and consumes the stable seat claim/release/race/resume contract. | No; its named hard prompt/contract fields govern. | E-031A; E-031A-SETUP |
-| TICKER-LIFECYCLE | Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b experiment; 652b runs only after its listed lifecycle/layout prerequisites. | No; only hard fields block. | E-TICKER; E-603A |
-| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645. | No; this is delivery order, not a blanket range dependency. | E-WOLF |
-| ATTACK-DRADIS | Stable 433a precedes the DRADIS consumers 351 and 353-360; deferred 605a also waits on 433a and owner approval. | No; only 605a hard prompt and owner fields block. | E-ATTACK-DRADIS; E-605A |
-| ATTACK-PRESSURE | Prompts 485-494 become authoritative before attack pressure depends on them. | No; do not infer a target prompt from this statement. | E-ATTACK-PRESSURE |
-| PRESS-DESK | Prompt 275b is a dedicated regression after the current dependency slice and outside release 0.3.12. These are sequence/release boundaries, not hard contracts. | No; the boundary selects a release slice but never blocks by itself. | E-275B |
-| RETURN-REPAIR | Universal Prompt 602 is a closure/evidence gate: it cannot be complete until ordinary shuttle return repair 602a is green. This does not block starting Prompt 602. | No; the closure gate is separate from start readiness. | E-602-CLOSURE |
-| REACTOR-REPAIR | Prompt 122a follows the capacity, damage/upgrade, eligibility, expiry, and atomicity contracts named in its definition. | No; its hard prompt field blocks. | E-REACTOR |
-| PRESENTATION-INDEPENDENT | P485a and compact-DRADIS P611 consume existing fleetRedAlert independently of broader P485/P605a; P611a and P589b may ship independently after characterization/accessibility gates. | No; shared gates are not prompt edges. | E-PRESENTATION |
-| M1-REPAIR | Prompt 654 is a Milestone 1 repair and needs an owner-approved zero-eligible-Wolf outcome. | No; milestone and owner fields block. | E-M1-REPAIR |
-
-The sequence table intentionally does not convert adjacency, domain ranges, or the narrative order of unrelated prompts into hard edges. This keeps next-prompt selection fast without creating false blockers.
+| M1-SETUP | Historical order: Prompt 004 -> the separately evidenced 0.3.12 slice (021/030/073) -> the 0.3.13 slice (051/054/075 setup) -> Prompt 020. The current ledger records this sequence as satisfied | No; this historical sequence is context, not a current readiness blocker. | E-M1-SETUP |
+| UNIFIED-ENTRY | Prompt 031a follows the current setup/readiness slice and consumes the stable seat claim/release/race/resume contract | No; its named hard prompt/contract fields govern. | E-031A;E-031A-SETUP |
+| TICKER-LIFECYCLE | Prompt 106c precedes 652a and 652b; 652a runs alongside the still-open 652 contract; 603a is required before the 652b experiment; 652b runs only after its listed lifecycle/layout prerequisites | No; only hard fields block. | E-TICKER;E-603A |
+| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645 | No; this is delivery order, not a blanket range dependency. | E-WOLF |
+| ATTACK-DRADIS | Stable 433a precedes the DRADIS consumers 351 and 353-360; deferred 605a also waits on 433a and owner approval | No; only 605a hard prompt and owner fields block. | E-ATTACK-DRADIS;E-605A |
+| ATTACK-PRESSURE | Prompts 485-494 become authoritative before attack pressure depends on them | No; do not infer a target prompt from this statement. | E-ATTACK-PRESSURE |
+| PRESS-DESK | Prompt 275b is a dedicated regression after the current dependency slice and outside release 0.3.12. These are sequence/release boundaries, not hard contracts | No; the boundary selects a release slice but never blocks by itself. | E-275B |
+| RETURN-REPAIR | Universal Prompt 602 is a closure/evidence gate: it cannot be complete until ordinary shuttle return repair 602a is green. This does not block starting Prompt 602 | No; the closure gate is separate from start readiness. | E-602-CLOSURE |
+| REACTOR-REPAIR | Prompt 122a follows the capacity, damage/upgrade, eligibility, expiry, and atomicity contracts named in its definition | No; its hard prompt field blocks. | E-REACTOR |
+| PRESENTATION-INDEPENDENT | P485a and compact-DRADIS P611 consume existing fleetRedAlert independently of broader P485/P605a; P611a and P589b may ship independently after characterization/accessibility gates | No; shared gates are not prompt edges. | E-PRESENTATION |
+| M1-REPAIR | Prompt 654 is a Milestone 1 repair and needs an owner-approved zero-eligible-Wolf outcome | No; milestone and owner fields block. | E-M1-REPAIR |
 
 ## Edge evidence register
 
@@ -904,22 +880,22 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-665 | hard_prompt | 665 -> 664 | IMPLEMENTATION_PLAN.md - Prompt 665 definition | Dependencies: Prompt 664 provides the universal roadmap-registration gate and typed source-backed authority; Prompt 665 extends its coordination lifecycle with durable session-goal evidence. |
 | E-666 | hard_prompt | 666 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 666 definition | Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the compact dependency receipt. |
 | E-667 | hard_prompt | 667 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 667 definition | Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 independently rebaselines hostile-client and resource-exhaustion controls without blocking P012/P014 or depending on Prompt 666. |
+<!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate
 
-Run `npm run validate:dependencies`. It invokes the same parser used by
-`coordination:dependencies` and fails closed on plan/progress/index parity,
-typed evidence provenance, hard dependency cycles, and readiness drift.
+Run `npm run validate:dependencies`. It validates the catalog and generated
+dispatcher view, failing closed on malformed records, typed evidence, hard
+dependency cycles, and readiness drift.
 
 ## Deterministic dispatcher
 
 Run `npm run coordination:dependencies -- --prompt NNN` from the repository
-root. The compact default contains the selected prompt context and receipt
-fingerprint within the 80-line/12-KiB budget. `--full` emits the complete
-`NEXT`, `READY_QUEUE`, `NEEDS_CONFIRMATION`, and `BLOCKED` view; `--json`
-emits the stable machine schema. The command refuses a prompt that is not
-mechanically ready and refuses to write a receipt while relevant ownership
-conflicts exist.
+root. The compact default contains the selected prompt context within the
+80-line/12-KiB budget. `--full` emits the complete `NEXT`, `READY_QUEUE`,
+`NEEDS_CONFIRMATION`, and `BLOCKED` view; `--json` emits the stable machine
+schema. The command is read-only: a blocked or manually gated prompt is
+reported with its reasons and is never silently treated as ready.
 
 `NEXT` (the first `READY_QUEUE` item) remains advisory for concurrency, not a
 serial lock. Later ready prompts still require satisfied hard prerequisites,
@@ -927,25 +903,28 @@ cleared or confirmed manual gates, and conflict-free coordination ownership.
 
 ## Generated packet, not copied context
 
-Do not preserve a checked-in packet transcript: it becomes stale whenever
-authority, current `main`, evidence, milestones, or relevant coordination moves.
-The dispatcher generates the current compact packet and receipt together. Use
-`--full` for the complete queue and `--json` when another machine consumes the
-same semantic record.
+Do not preserve a checked-in packet transcript: it becomes stale whenever the
+catalog changes. The dispatcher generates the current packet directly from the
+catalog. Use `--full` for the complete queue and `--json` when another machine
+consumes the same semantic record.
 
 ## Maintenance rules
 
-- Treat the generated packet as a required preflight, not optional navigation:
-  refresh it before selecting, starting, editing, marking, or merging a numbered
-  prompt, and after any rebase or material movement of current `main`.
+- Treat the generated packet as compact navigation and readiness context. Run it
+  when selecting a prompt; ordinary tooling and fixes do not need a prompt
+  registration trailer.
 - Never mark a prompt complete or merge its slice while a hard prompt
   prerequisite is not `done`. The executable documentation gate checks this
   completion invariant; closure/evidence gates remain completion scope and do
   not become hidden start blockers.
 - Refresh this index whenever the plan adds, retires, renames, or reclassifies a canonical prompt, and rerun the coverage, parity, integrity, and deterministic-dispatcher checks above.
 - Preserve typed edges and their evidence. If the source is silent, write none; do not infer a previous-prompt edge, numeric adjacency, a whole domain range, or a milestone edge from ordering alone.
-- Reconcile the progress column and plan_tag with the live source ledgers whenever statuses or acceptance classes change. The shared validator must fail before lookup on drift.
+- Edit status, tag, class, and release mappings only in the catalog. The
+  generator derives the progress checklist and dependency columns, so those
+  views cannot drift independently.
 - Keep hard readiness limited to hard prompt, milestone, contract, and owner fields. Closure/evidence gates are completion audits; sequence, release-boundary, and related/consumes rows are planning context and must never become hidden start blockers.
 - Numeric ranges must fail closed when any member is unknown; keep the explicit retired set synchronized with the plan. Lettered IDs remain explicit and are never silently expanded.
 - Keep source evidence directionally explicit (from prompt to prerequisite/closure target), with a source-of-truth path, anchor, and source language for every non-none typed field.
-- This dependency authority and its generated receipt do not authorize implementation, change player-facing behavior, replace source-of-truth acceptance, or bypass the repository test, security, accessibility, release, merge, or coordination gates.
+- This dependency view does not authorize implementation, change player-facing
+  behavior, replace source-of-truth acceptance, or bypass repository test,
+  security, accessibility, release, merge, or coordination gates.

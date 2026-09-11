@@ -4,6 +4,7 @@ export interface WorkRegistrationValidationInput {
   readonly planSource?: string;
   readonly progressSource?: string;
   readonly dependencySource?: string;
+  readonly catalogSource?: string;
   readonly parentPlanSource?: string;
   readonly parentProgressSource?: string;
   readonly parentDependencySource?: string;

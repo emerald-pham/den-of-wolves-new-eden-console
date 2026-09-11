@@ -2,8 +2,6 @@ export const COORDINATION_THROUGHPUT_SCHEMA_VERSION: number;
 export const DEFAULT_COORDINATION_LEASE_MS: number;
 export const DEFAULT_VALIDATION_CONCURRENCY: number;
 export const RELEASE_VERSION_PATTERN: RegExp;
-export function validationPollDelay(currentDelayMs: number, maxDelayMs?: number): number;
-export function coordinationClaimIsCrossRepository(claim: unknown): boolean;
 
 export interface CoordinationThroughputEntry {
   readonly id?: string;
@@ -14,17 +12,25 @@ export interface CoordinationThroughputEntry {
   readonly intent?: string;
   readonly startedAt?: string;
   readonly heartbeatAt?: string;
-  readonly requestedScopes?: readonly string[];
-  readonly requestedClaims?: readonly string[];
   readonly scopes?: readonly string[];
   readonly files?: readonly string[];
   readonly claims?: readonly string[];
+  readonly resources?: readonly string[];
   readonly lease?: Readonly<Record<string, unknown>>;
   readonly [key: string]: unknown;
 }
 
+export interface CoordinationLeaseStatus {
+  readonly state: 'healthy' | 'owner-confirmation-needed' | 'parked-no-heartbeat-required' | 'terminal';
+  readonly ownerConfirmationRequired: boolean;
+  readonly takeoverAllowed: false;
+  readonly lastHeartbeatAt?: string;
+  readonly expiresAt?: string;
+  readonly ageMs: number;
+}
+
 export interface CoordinationConflictForecastItem {
-  readonly type: 'scope' | 'file' | 'claim';
+  readonly type: 'claim' | 'resource';
   readonly ownerId: string;
   readonly ownerWorktree: string;
   readonly ownerIntent: string;
@@ -41,6 +47,8 @@ export interface CoordinationConflictForecast {
   readonly suggestedScopes: readonly string[];
 }
 
+export function validationPollDelay(currentDelayMs: number, maxDelayMs?: number): number;
+export function coordinationClaimIsCrossRepository(claim: unknown): boolean;
 export function forecastCoordinationConflicts(options?: {
   readonly activeEntries?: readonly CoordinationThroughputEntry[];
   readonly repositoryIdentity?: string;
@@ -49,42 +57,16 @@ export function forecastCoordinationConflicts(options?: {
   readonly scopes?: readonly string[];
   readonly files?: readonly string[];
   readonly claims?: readonly string[];
+  readonly resources?: readonly string[];
   readonly now?: string | number | Date;
   readonly leaseMs?: number;
 }): CoordinationConflictForecast;
 export function formatConflictForecast(forecast: CoordinationConflictForecast): string;
-
-export interface CoordinationLeaseStatus {
-  readonly state: 'healthy' | 'owner-confirmation-needed' | 'parked-no-heartbeat-required' | 'terminal';
-  readonly ownerConfirmationRequired: boolean;
-  readonly takeoverAllowed: false;
-  readonly lastHeartbeatAt?: string;
-  readonly expiresAt?: string;
-  readonly ageMs: number;
-}
-
-export function leaseStatusForEntry(
-  entry: CoordinationThroughputEntry,
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
-): CoordinationLeaseStatus;
+export function leaseStatusForEntry(entry: CoordinationThroughputEntry, options?: { readonly now?: string | number | Date; readonly leaseMs?: number }): CoordinationLeaseStatus;
 export function coordinationTakeoverAllowed(): false;
-export function refreshCoordinationLease(
-  entry: CoordinationThroughputEntry,
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
-): CoordinationThroughputEntry;
-export function leaseStatusesForEntries(
-  entries?: readonly CoordinationThroughputEntry[],
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
-): readonly { readonly entry: CoordinationThroughputEntry; readonly lease: CoordinationLeaseStatus }[];
-export function heartbeatCoordinationEntryFile(
-  filePath: string,
-  options: {
-    readonly id: string;
-    readonly worktree?: string;
-    readonly now?: string | number | Date;
-    readonly leaseMs?: number;
-  },
-): Promise<CoordinationThroughputEntry>;
+export function refreshCoordinationLease(entry: CoordinationThroughputEntry, options?: { readonly now?: string | number | Date; readonly leaseMs?: number }): CoordinationThroughputEntry;
+export function leaseStatusesForEntries(entries?: readonly CoordinationThroughputEntry[], options?: { readonly now?: string | number | Date; readonly leaseMs?: number }): readonly { readonly entry: CoordinationThroughputEntry; readonly lease: CoordinationLeaseStatus }[];
+export function heartbeatCoordinationEntryFile(filePath: string, options: { readonly id: string; readonly worktree?: string; readonly now?: string | number | Date; readonly leaseMs?: number }): Promise<CoordinationThroughputEntry>;
 
 export interface ValidationTicket {
   readonly id: string;
@@ -125,11 +107,7 @@ export interface ValidationRequest {
 
 export function emptyValidationQueueState(options?: { readonly maxConcurrency?: number }): ValidationQueueState;
 export function validationRequestMode(request?: ValidationRequest): 'focused' | 'expensive';
-export function enqueueValidation(
-  state: ValidationQueueState,
-  request?: ValidationRequest,
-  options?: { readonly now?: string | number | Date },
-): {
+export function enqueueValidation(state: ValidationQueueState, request?: ValidationRequest, options?: { readonly now?: string | number | Date }): {
   readonly state: ValidationQueueState;
   readonly ticket: ValidationTicket;
   readonly queued?: boolean;
@@ -137,35 +115,11 @@ export function enqueueValidation(
   readonly duplicate?: boolean;
 };
 export const queueValidationRequest: typeof enqueueValidation;
-export function releaseValidationLease(
-  state: ValidationQueueState,
-  ticketId: string,
-  options: {
-    readonly now?: string | number | Date;
-    readonly ownerToken: string;
-    readonly ownerPid: number;
-  },
-): ValidationQueueState;
+export function releaseValidationLease(state: ValidationQueueState, ticketId: string, options: { readonly now?: string | number | Date; readonly ownerToken: string; readonly ownerPid: number }): ValidationQueueState;
 export const markValidationLeaseReleased: typeof releaseValidationLease;
-export function refreshValidationLease(
-  state: ValidationQueueState,
-  ticketId: string,
-  options: {
-    readonly now?: string | number | Date;
-    readonly leaseMs?: number;
-    readonly ownerToken: string;
-    readonly ownerPid: number;
-  },
-): ValidationQueueState;
-export function pruneValidationQueue(
-  state: ValidationQueueState,
-  isAlive?: (pid: number) => boolean,
-  options?: { readonly now?: string | number | Date },
-): ValidationQueueState;
-export function validationLeaseStatus(
-  ticket: ValidationTicket,
-  options?: { readonly now?: string | number | Date; readonly leaseMs?: number },
-): CoordinationLeaseStatus;
+export function refreshValidationLease(state: ValidationQueueState, ticketId: string, options: { readonly now?: string | number | Date; readonly leaseMs?: number; readonly ownerToken: string; readonly ownerPid: number }): ValidationQueueState;
+export function pruneValidationQueue(state: ValidationQueueState, isAlive?: (pid: number) => boolean, options?: { readonly now?: string | number | Date }): ValidationQueueState;
+export function validationLeaseStatus(ticket: ValidationTicket, options?: { readonly now?: string | number | Date; readonly leaseMs?: number }): CoordinationLeaseStatus;
 export function validationQueueStatus(state: ValidationQueueState): {
   readonly maxConcurrency: number;
   readonly active: number;
@@ -189,63 +143,34 @@ export interface ReleaseFragment {
   readonly coordinationEntryId?: string;
   readonly coordinationBranchName?: string;
   readonly coordinationBranchSha?: string;
-  readonly requiredPrompt?: string;
   readonly version?: string;
   readonly changes: readonly string[];
-  readonly implementationPrompts?: readonly (number | string)[];
-  readonly implementationProgress?: Readonly<Record<string, unknown>>;
   readonly changedFiles?: readonly string[];
-  readonly provenance?: Readonly<Record<string, unknown>>;
+  readonly [key: string]: unknown;
 }
 
 export interface ReleaseLaneState {
   readonly version: number;
   readonly nextSequence: number;
   readonly fragments: readonly ReleaseFragment[];
-  readonly finalization?: ReleaseFinalizationJournal;
-}
-
-export interface ReleaseFinalizationJournal {
-  readonly state: 'finalizing';
-  readonly taskId: string;
-  readonly fragmentId: string;
-  readonly targetVersion: string;
-  readonly startedAt?: string;
-  readonly changedFiles?: readonly string[];
-  readonly provenance?: Readonly<Record<string, unknown>>;
-  readonly files: readonly {
-    readonly path: string;
-    readonly originalContent: string | null;
-    readonly nextContent: string;
-  }[];
+  readonly finalization?: Readonly<Record<string, unknown>>;
 }
 
 export function compareReleaseVersions(left: string, right: string): -1 | 0 | 1;
 export function nextReleaseVersion(version: string): string;
 export function emptyReleaseLaneState(): ReleaseLaneState;
-export function prepareReleaseFragment(
-  state: ReleaseLaneState,
-  options: {
-    readonly taskId: string;
-    readonly worktree: string;
-    readonly changes: readonly string[];
-    readonly implementationPrompts?: readonly (number | string)[];
-    readonly implementationProgress?: Readonly<Record<string, unknown>>;
-    readonly baseVersion: string;
-    readonly baseMainSha?: string;
-    readonly baseSha?: string;
-    readonly coordinationEntryId?: string;
-    readonly coordinationBranchName?: string;
-    readonly coordinationBranchSha?: string;
-    readonly requiredPrompt?: number | string;
-  },
-  operationOptions?: { readonly now?: string | number | Date },
-): { readonly state: ReleaseLaneState; readonly fragment: ReleaseFragment };
-export function allocateReleaseFragment(
-  state: ReleaseLaneState,
-  options: { readonly taskId: string; readonly currentVersion: string },
-  operationOptions?: { readonly now?: string | number | Date },
-): {
+export function prepareReleaseFragment(state: ReleaseLaneState, options: {
+  readonly taskId: string;
+  readonly worktree: string;
+  readonly changes: readonly string[];
+  readonly baseVersion: string;
+  readonly baseMainSha?: string;
+  readonly baseSha?: string;
+  readonly coordinationEntryId?: string;
+  readonly coordinationBranchName?: string;
+  readonly coordinationBranchSha?: string;
+}, operationOptions?: { readonly now?: string | number | Date }): { readonly state: ReleaseLaneState; readonly fragment: ReleaseFragment };
+export function allocateReleaseFragment(state: ReleaseLaneState, options: { readonly taskId: string; readonly currentVersion: string }, operationOptions?: { readonly now?: string | number | Date }): {
   readonly state: ReleaseLaneState;
   readonly fragment: ReleaseFragment;
   readonly changelogEntry?: string;
@@ -253,20 +178,9 @@ export function allocateReleaseFragment(
 };
 export function renderReleaseChangelogEntry(fragment: ReleaseFragment, version?: string): string;
 export function insertReleaseChangelogEntry(source: string, fragment: ReleaseFragment, version?: string): string;
-
 export function readReleaseLaneState(filePath: string): Promise<ReleaseLaneState>;
-export function prepareReleaseFragmentFile(
-  filePath: string,
-  options: Parameters<typeof prepareReleaseFragment>[1],
-  operationOptions?: Parameters<typeof prepareReleaseFragment>[2],
-): ReturnType<typeof prepareReleaseFragment> extends Promise<infer _Result>
-  ? ReturnType<typeof prepareReleaseFragment>
-  : Promise<ReturnType<typeof prepareReleaseFragment>>;
-export function allocateReleaseFragmentFile(
-  filePath: string,
-  options: Parameters<typeof allocateReleaseFragment>[1],
-  operationOptions?: Parameters<typeof allocateReleaseFragment>[2],
-): Promise<ReturnType<typeof allocateReleaseFragment>>;
+export function prepareReleaseFragmentFile(filePath: string, options: Parameters<typeof prepareReleaseFragment>[1], operationOptions?: Parameters<typeof prepareReleaseFragment>[2]): Promise<{ readonly state: ReleaseLaneState; readonly fragment: ReleaseFragment }>;
+export function allocateReleaseFragmentFile(filePath: string, options: Parameters<typeof allocateReleaseFragment>[1], operationOptions?: Parameters<typeof allocateReleaseFragment>[2]): Promise<ReturnType<typeof allocateReleaseFragment>>;
 
 export interface AppliedReleaseFragment {
   readonly taskId: string;
@@ -277,66 +191,38 @@ export interface AppliedReleaseFragment {
   readonly changelogEntry?: string;
 }
 
-export function applyReleaseFragment(
-  filePath: string,
-  options: {
-    readonly taskId: string;
-    readonly repositoryDirectory?: string;
-    readonly packagePath?: string;
-    readonly lockfilePath?: string;
-    readonly changelogPath?: string;
-    readonly now?: string | number | Date;
-    readonly currentMainSha?: string;
-    readonly mainSha?: string;
-    readonly provenance?: Readonly<Record<string, unknown>>;
-    readonly validateFinalMetadata?: (metadata: {
-      readonly taskId: string;
-      readonly fragment: ReleaseFragment;
-      readonly version: string;
-      readonly packageJson: Readonly<Record<string, unknown>>;
-      readonly lockfile: Readonly<Record<string, unknown>>;
-      readonly packageSource: string;
-      readonly lockfileSource: string;
-      readonly changelogSource: string;
-    }) => unknown | Promise<unknown>;
-  },
-): Promise<AppliedReleaseFragment>;
+export interface ReleaseFinalMetadata {
+  readonly taskId: string;
+  readonly fragment: ReleaseFragment;
+  readonly version: string;
+  readonly packageJson: Readonly<Record<string, unknown>>;
+  readonly lockfile: Readonly<Record<string, unknown>>;
+  readonly packageSource: string;
+  readonly lockfileSource: string;
+  readonly changelogSource: string;
+}
 
-export function queueValidationLease(
-  filePath: string,
-  request: ValidationRequest,
-  options?: { readonly now?: string | number | Date },
-): Promise<ReturnType<typeof enqueueValidation>>;
-export function releaseValidationLeaseFile(
-  filePath: string,
-  ticketId: string,
-  options: {
-    readonly now?: string | number | Date;
-    readonly ownerToken: string;
-    readonly ownerPid: number;
-  },
-): Promise<ValidationQueueState>;
-export function heartbeatValidationLeaseFile(
-  filePath: string,
-  ticketId: string,
-  options: {
-    readonly now?: string | number | Date;
-    readonly leaseMs?: number;
-    readonly ownerToken: string;
-    readonly ownerPid: number;
-  },
-): Promise<ValidationQueueState>;
-export function withValidationLease<T>(
-  filePath: string,
-  request: ValidationRequest,
-  operation: (ticket: ValidationTicket) => Promise<T> | T,
-  options?: {
-    readonly pollMs?: number;
-    readonly maxPollMs?: number;
-    readonly timeoutMs?: number;
-    readonly signal?: AbortSignal;
-    readonly now?: string | number | Date;
-    readonly leaseMs?: number;
-    readonly heartbeatMs?: number;
-  },
-): Promise<T>;
+export function applyReleaseFragment(filePath: string, options: {
+  readonly taskId: string;
+  readonly repositoryDirectory?: string;
+  readonly packagePath?: string;
+  readonly lockfilePath?: string;
+  readonly changelogPath?: string;
+  readonly now?: string | number | Date;
+  readonly currentMainSha?: string;
+  readonly mainSha?: string;
+  readonly validateFinalMetadata?: (metadata: ReleaseFinalMetadata) => unknown | Promise<unknown>;
+}): Promise<AppliedReleaseFragment>;
+
+export function queueValidationLease(filePath: string, request: ValidationRequest, options?: { readonly now?: string | number | Date }): Promise<ReturnType<typeof enqueueValidation>>;
+export function releaseValidationLeaseFile(filePath: string, ticketId: string, options: { readonly now?: string | number | Date; readonly ownerToken: string; readonly ownerPid: number }): Promise<ValidationQueueState>;
+export function heartbeatValidationLeaseFile(filePath: string, ticketId: string, options: { readonly now?: string | number | Date; readonly leaseMs?: number; readonly ownerToken: string; readonly ownerPid: number }): Promise<ValidationQueueState>;
+export function withValidationLease<T>(filePath: string, request: ValidationRequest, operation: (ticket: ValidationTicket) => Promise<T> | T, options?: {
+  readonly pollMs?: number;
+  readonly maxPollMs?: number;
+  readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
+  readonly now?: string | number | Date;
+  readonly leaseMs?: number;
+  readonly heartbeatMs?: number;
+}): Promise<T>;

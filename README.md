@@ -25,34 +25,21 @@ from the 60-client browser capacity target.
 ## Current status
 
 This is an active, staged work in progress rather than a claim of a complete
-game or release-ready implementation. The
-[implementation progress ledger](docs/IMPLEMENTATION_PROGRESS.md) is the source
-of truth for completed, partial, and missing work, with named evidence for each
-prompt. A passing local check or deployed build does not by itself establish
-that the full gameplay roadmap or capacity target is complete.
+game or release-ready implementation. The JSON
+[prompt catalog](docs/implementation-prompts.json) owns roadmap facts; generated
+implementation Markdown views provide readable objectives, progress, and
+dependencies. A passing local check or deployed build does not by itself
+establish that the full gameplay roadmap or capacity target is complete.
 
-Every repository change except documentation-only work is dependency-gated.
-Before selecting or starting a non-documentation task, agents must bind it to
-a registered implementation prompt and run `npm run coordination:dependencies
--- --prompt NNN`. Read the generated compact packet backed by the mandatory
-[prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), then reconcile the
-prompt row, hard prerequisites, evidence, and coordination ownership with
-current `main`. The implementation plan is not
-standalone; a prompt cannot be marked complete or merged while a hard
-prerequisite remains unmet. Uncharted work must add itself to the plan,
-progress ledger, and dependency index, with an explicit dependency assessment,
-in its first implementation commit. Refresh the packet after a rebase or
-material movement of current `main`; use `--full` only to audit or edit the
-complete authority and `--json` for machine consumers.
-
-`NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
-it is advisory for concurrency, not a serial execution lock. A separate
-worktree may claim a later `READY_QUEUE` item concurrently only when its hard
-prompt prerequisites are done, every hard milestone, hard contract, and
-decision-owner gate is satisfied or explicitly confirmed, and the coordination
-forecast shows conflict-free ownership with no active claim overlap. A worktree
-must not bypass an unmet dependency, active claim, or unresolved decision-owner
-gate merely because the prompt is independent.
+When a task follows a prompt, read its catalog record and use the optional
+read-only dependency check (`npm run coordination:dependencies -- --prompt NNN`)
+to see hard prerequisites and current readiness. `NEXT` is a useful ready-work
+hint, not a serial lock. Coordination can record the owner, branch, worktree,
+and real shared session/callable/rules, deploy/auth, release, or emulator
+hotspots, but there is no universal implementation registration or commit
+trailer. After catalog edits, run `node scripts/generate-prompt-views.mjs` (or
+`--check` to verify) to refresh the generated views. Accept and freeze a bounded
+scope; queue unrelated additions except a directly blocking defect.
 
 ## Stack
 
@@ -114,9 +101,9 @@ npm run dev
 ```
 
 For emulator-backed work, configure an isolated worktree slot first. The
-[coordination quick reference](docs/WORKTREE_COORDINATION.md) has the commands;
-the full slot matrix and safety rules live in
-[CLAUDE.md](CLAUDE.md#concurrent-worktrees-and-emulator-ports).
+[coordination quick reference](docs/WORKTREE_COORDINATION.md) has the commands,
+full slot matrix, and safety rules. Preserve other tasks' rows and do not infer
+that an old or quiet reservation is safe to take.
 
 ## Validation
 
@@ -134,14 +121,19 @@ npm run build
 npm run build --prefix functions
 ```
 
-Code changes follow the test-first and local validation gates in
-[CLAUDE.md](CLAUDE.md). Documentation-only changes—where every changed tracked
-file is Markdown or a README—use the lighter rendered-text, link, example, and
-diff review described there (the executable gate is `npm run coordination:docs`);
-they do not change application versioning or the player-facing changelog.
-Every other commit must include one `Implementation-Prompt: NNN` trailer. The
-repository installs commit/push hooks with `npm ci`, and CI independently
-checks the same plan/progress/dependency registration.
+Code changes use focused, meaningful tests described in [CLAUDE.md](CLAUDE.md).
+Red-before-green TDD is reserved for new security, authority, callable, rules,
+and complex gameplay behavior; low-impact reversible copy or CSS can use a
+focused or rendered check. Risk review is required only for shared
+session/callable/rules behavior or deploy/auth infrastructure. Documentation-
+only changes review rendered text, links, examples, and `git diff --check`; they
+do not change application versioning or the player-facing changelog. One owner
+carries each task through review, reconciliation, final validation, merge,
+push, and truthful deployment verification. There is no universal prompt
+registration or commit-trailer requirement. Risk review returns all findings in
+one pass; the owner repairs them in a bounded follow-up. Rerun validation only
+after a meaningful input changed, a failure, or an unresolved concern. The
+owner's final validation runs after reconciliation with current `main`.
 
 ## Security model
 
@@ -152,11 +144,9 @@ Functions inside transactions. The rules suite tests those denials.
 
 ## Emulator-backed development
 
-Attach the task branch and register it from the checkout that will run the
-emulators. The [coordination command reference](docs/WORKTREE_COORDINATION.md)
-contains the exact begin, forecast, claim, validation, and finish commands;
-[CLAUDE.md](CLAUDE.md#concurrent-worktrees-and-emulator-ports) owns the complete
-port-safety and concurrent-worktree policy.
+Use the [coordination command reference](docs/WORKTREE_COORDINATION.md) for
+optional ownership notes and the complete port-safety policy. Keep each
+emulator row isolated to its worktree and preserve other tasks' reservations.
 
 ```bash
 npm run emulators:configure -- auto
@@ -178,12 +168,15 @@ Check, capacity evidence, monitoring, and rollback guidance belong in the
 
 ## Deployment
 
-Before merging, agents record the required local checks with
-`coordination:validate`; the main-branch workflow then runs its deployment
-checks and deploys only affected Firebase surfaces. Product edits also update
-the visible application version and player-facing changelog. Documentation-only
-pushes do not trigger CI or deployment. A manually dispatched deployment runs
-against all three configured Firebase surfaces.
+The task owner runs the focused checks appropriate to the change, reconciles
+the reviewed candidate with current `main`, commits it, and runs one final
+appropriate validation before merging. The main-branch workflow then deploys
+affected Firebase surfaces. Product edits update the visible application
+version and player-facing changelog; tooling and documentation do not. A
+pushed workflow is not proof that production finished, so verify the actual
+workflow result or deployed behavior. Documentation-only pushes do not trigger
+CI or deployment. A manually dispatched deployment runs against all three
+configured Firebase surfaces.
 
 For Workload Identity Federation setup and repository variables, see the
 [deployment setup handoff](docs/ci-deploy-setup.md). Manual deployment uses:

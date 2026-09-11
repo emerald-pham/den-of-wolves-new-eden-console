@@ -6,36 +6,39 @@ work and records which foundation is implemented versus still incomplete.
 This plan describes how to take the Companion Console from its current
 server-authoritative session and console foundation to a complete,
 rules-faithful game loop. It does not authorize a broad rewrite or the
-creation of speculative controls. Each future change must select a bounded
-slice of this plan, write its failing test first, and implement only the
-smallest rules-complete increment needed for that slice.
+creation of speculative controls. Numbered gameplay prompts select a bounded
+slice of this plan and implement the smallest rules-complete increment needed
+for that slice. `CLAUDE.md` governs proportional tests and workflow; ordinary
+tooling and maintenance work does not require prompt registration and follows
+the proportional testing policy in `CLAUDE.md`.
 
-The plan is not standalone. Before selecting, assigning, starting, or editing
-any numbered prompt, agents must run `npm run coordination:dependencies --
---prompt NNN` and read the compact packet generated from the mandatory
-[prompt dependency index](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Reconcile
-its row and evidence with current `main` and coordination. The shared dispatcher
-controls readiness and ordering; this plan supplies acceptance narrative and
-source-of-truth context.
+The plan is projected from the single machine-readable
+[prompt catalog](./implementation-prompts.json). Before selecting, assigning,
+starting, or editing any numbered prompt, agents may run
+`npm run coordination:dependencies -- --prompt NNN` for the compact read-only
+packet and should reconcile its hard prerequisites, gates, and evidence with
+current `main` and coordination. The shared dispatcher controls readiness and
+ordering; this plan supplies the generated acceptance view and source-of-truth
+context. Ordinary tooling and maintenance fixes do not require prompt
+registration or a trailer.
 
 No application code, tests, rules, configuration, version metadata, or
 player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 734-prompt catalog from top to bottom for an ordinary
+Do **not** read the prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
 
-Default reading path for one prompt (the dependency index is always first):
+Default reading path for one prompt:
 
-1. Generate and read the compact dependency packet for the exact prompt. Use
-   `--full` only when auditing or editing
+1. Read the compact, read-only dependency packet for the exact prompt when
+   dependency context is needed. Use `--full` only when auditing the generated
    [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
-   Do not select a prompt
-   until hard prerequisites, milestone/contract/owner gates, and coordination
-   ownership are reconciled with current `main`.
+   Do not select a prompt until hard prerequisites, milestone/contract/owner
+   gates, and coordination ownership are reconciled with current `main`.
 2. Read the selected row in the compact
    [`IMPLEMENTATION_MILESTONES.md`](./IMPLEMENTATION_MILESTONES.md) completion
    route, including its dependencies and exit fixture.
@@ -54,8 +57,8 @@ Default reading path for one prompt (the dependency index is always first):
    do not reread duplicated workflow prose here.
 
 If the branch is rebased, current `main` materially moves, or a prerequisite's
-status or ownership changes, stop and refresh the compact packet and receipt,
-then reconcile coordination before continuing. A
+status or ownership changes, stop and rerun the read-only packet, then
+reconcile coordination before continuing. A
 prompt cannot be marked complete or merged while a hard prerequisite remains
 unmet; closure/evidence gates are completion checks, not inferred start locks.
 
@@ -92,7 +95,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-734-prompts-001667-plus-lettered-ids-prompt-071-retired)
+- [Prompt checklist](#prompt-checklist)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -189,39 +192,19 @@ Bind every roadmap slice and review to these explicit product goals:
 9. The Capybara printed v1.1 source and provenance are routed into every
    affected prompt. The Scrap Refinery visual authority is `7♠`; hidden `5♦`
    extraction text is provenance-only, not a gameplay ambiguity.
-10. Carry the full roadmap through failing-first and composed acceptance,
-    security, visual/accessibility, focused, and full release gates. Each
-    completed slice is committed, reconciled with current `main`, merged,
-    pushed, closed in coordination, and reported with verified local and remote
-    SHAs; no local or partial result counts as roadmap completion.
-11. For this active completion campaign, the root coordinator remains
-    read-only for product code and owns orchestration/documentation. All
-    application, Functions, rules, configuration, script, and test changes are
-    delegated to authorized implementation subagents under the plan's
-    role-scoped model-escalation contract below; integration conflicts that
-    touch those files are delegated too. If a Luna attempt fails, reassign
-    that same agent role to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`; if a
-    Terra attempt then fails, GPT-5.6 Sol (`gpt-5.6-sol`) is authorized for that
-    same agent role only. The escalation tier belongs to the role and must
-    never reset or downgrade when an agent, task, or worktree is replaced;
-    detect and stop any Luna/Terra loop. Before dispatching Sol, explain in
-    user-visible chat why that role needs Sol and that Sol is 10 times as
-    expensive as Luna. The mandatory process for the blocking agent merge
-    handoff is canonical in
-    [`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
+10. Roadmap work follows the current one-owner, proportional validation and
+    release policy in `CLAUDE.md`. Evidence and status claims stay accurate to
+    the declared slice; partial work is not described as complete.
+11. This completion campaign adds no model sequence, delegation requirement,
+    phase floor, or mandatory coordination closeout beyond `CLAUDE.md`.
 
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
 claim completion of the remaining 734-prompt roadmap.
 
-Durable phase floors are role-specific: the implementation phase uses
-GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
-(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
-uses GPT-5.6 Luna at `max`. A failed Luna role escalates to Terra and a failed
-Terra role to Sol for that same role only; never reset or downgrade a role tier,
-and detect and stop Luna/Terra loops. Explain the failures and Sol's 10-times
-Luna cost in user-visible chat before any Sol dispatch.
+Agent roles, review, and escalation follow the current `CLAUDE.md` policy;
+this plan sets no durable phase floors or workflow override.
 
 ## Scope and baseline
 
@@ -2103,60 +2086,19 @@ the coordination forecast shows conflict-free ownership. No worktree may
 bypass dependencies, active claims, or unresolved decision-owner gates merely
 because the prompt is independent.
 
-#### Implementation-plan agent authorization
+#### Implementation-plan agent policy
 
-When working on numbered prompts from this implementation plan, the product
-owner specifically authorizes the coordinator to assign implementation and
-tests to GPT-5.6 Luna (`gpt-5.6-luna`) agents at `max` reasoning, independent
-exact-HEAD review to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`, and
-reconciliation, validation, release, merge, push, deployment, and coordination
-closeout to GPT-5.6 Luna at `max`. Non-coding work, including reconnaissance,
-planning, documentation review, evidence collation, and read-only verification,
-may use the phase floor for its assigned role. If
-a Luna attempt fails, reassign that same agent role to GPT-5.6 Terra
-(`gpt-5.6-terra`) at `xhigh`; if a Terra attempt then fails, GPT-5.6 Sol
-(`gpt-5.6-sol`) is authorized for that same agent role only. The escalation tier
-belongs to the role and must never reset or downgrade when an agent, task, or
-worktree is replaced. Detect and stop any Luna/Terra loop rather than retrying
-at a lower tier or oscillating between tiers. Before dispatching Sol, explain
-in user-visible chat why that role needs Sol and that Sol is 10 times as
-expensive as Luna. The mandatory process for the blocking agent merge
-handoff is canonical in
-[`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
+For numbered prompts, [`CLAUDE.md`](../CLAUDE.md) is the sole authority for
+one-owner execution, proportional testing, risk-based independent review,
+model selection, reconciliation, and release. This plan adds no campaign-wide
+agent sequence, model floor, delegation count, or coordination-closeout rule.
+The JSON prompt catalog remains the current prompt authority; the optional
+read-only dependency query may inform a numbered task but creates no receipt.
 
-This is an implementation-plan-scoped override of the routine `high`-reasoning
-default and primary-agent implementation/integration ownership in `CLAUDE.md`;
-it does not change the repository-wide default for unrelated work. GPT-5.3
-Codex Spark remains prohibited.
-
-Each modifying delegate must receive one bounded prompt or an inseparable,
-dependency-safe prompt slice with explicit Given/When/Then acceptance criteria,
-use its own worktree and short-lived branch, and follow the test-first contract
-above, including observing the failing test before implementation. Each slice
-must satisfy the applicable reference, authority, denial, retry, audit,
-accessibility, responsive-review, version, and standalone changelog contracts.
-Before a delegate selects, starts, or edits a prompt, it must run `npm run
-coordination:dependencies -- --prompt NNN`, read the compact packet, and
-reconcile the exact row, prerequisites, evidence, current `main`, and
-coordination ownership. The delegate must refresh that packet and receipt after
-a rebase or material movement of current `main`; no prompt may
-be marked complete or merged while a hard prerequisite remains unmet.
-Use an independent Terra review for security/authorization, hidden information,
-randomness, destructive migrations, endgame, capacity, or complex conflict
-resolution, and when ordinary risk judgment calls for one. Do not create a
-review-only agent for every low-risk prompt. If review or release work changes
-code, rules, configuration, scripts, or tests, the agent must use `max`. A
-prompt may move to `done` only after its proof is current on the reconciled
-branch, every applicable executable gate passes, the slice is merged to `main`,
-`origin/main` is verified at that merge, and the slice's coordination entry is
-closed. No partial implementation, local-only result, unmerged green branch,
-or unchecked release obligation counts toward the campaign finish.
-
-#### Execution checklist — all 734 prompts (001–667 plus lettered IDs; Prompt 071 retired)
-
-Unchecked entries are partial or missing, never silently complete; the evidence
-and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
-
+<!-- BEGIN GENERATED PROMPT CATALOG: plan -->
+<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
+#### Prompt checklist
+#### Execution checklist — all 734 prompts (catalog view)
 - [x] Prompt 001
 - [x] Prompt 002
 - [x] Prompt 003
@@ -2893,7 +2835,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 667
 
 #### Foundation, session, casting, and start (Prompts 001–090)
-
 - **Prompt 001 — [PRESERVE] Build the canonical rule-source index.** Acceptance: every planned mechanic resolves to a routed reference, with printed component sheets taking precedence over generic guides.
 - **Prompt 002 — [PRESERVE] Encode source precedence.** Acceptance: conflicting generic and ship-specific values resolve to the printed component value and the conflict remains traceable.
 - **Prompt 003 — [DECISION] Create the ambiguity ledger.** Acceptance: every known discrepancy is an explicit facilitator decision, product decision, or blocked action rather than a speculative control.
@@ -2987,7 +2928,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 090 — [PROVE] Prove hidden-state redaction.** Acceptance: serialized public and crew projections contain no unrevealed loyalty, deck order, private card, candidate bonus, or facilitator note.
 
 #### Turn, maintenance, and airspace foundations (Prompts 091–160)
-
 - **Prompt 091 — [PRESERVE] Implement the turn entity.** Acceptance: active state records current/max turn, phase, phase revision, and server start/end timestamps.
 - **Prompt 092 — [PRESERVE] Enter Team Phase authoritatively.** Acceptance: the server opens the correct action window and rejects a duplicate or illegal transition.
 - **Prompt 093 — [PRESERVE] Enter Coordination Phase authoritatively.** Acceptance: Team Phase closes once, Coordination opens with correct timestamps, and late Team actions fail.
@@ -3073,7 +3013,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 160 — [PROVE] Publish the foundation regression matrix.** Acceptance: Prompts 001–159 each have a current status, red-test target, decision dependency, and proof link; rendered UI alone never means complete.
 
 #### Core ships, economies, and role workspaces (Prompts 161–233)
-
 - **Prompt 161 — [PRESERVE] Register every vessel variant.** Acceptance: six core ships, four base small ships, Voyage 33-0, and expansion Capybara have distinct stable definitions.
 - **Prompt 162 — [PRESERVE] Encode printed vessel statistics.** Acceptance: nation, class, capacity, population, jump costs, Reactor capacity, and maintenance steps match each sheet.
 - **Prompt 163 — [PRESERVE] Register the optional sixth resource.** Acceptance: Scrap exists only in enabled Capybara-expansion inventories and cannot leak into base sessions.
@@ -3159,7 +3098,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 233b — [NEW] Complete the PDF Colonel workspace.** Acceptance: Fighter Bay, Escort Wing, Chepu, boarding, news relay, and mission participation remain role-bound.
 
 #### Extra vessels, craft registration, and replacement roles (Prompts 234–280)
-
 - **Prompt 234 — [EXTEND] Implement shared small-ship rules.** Acceptance: Gorgoneion, base Capybara, Warrior, and Vulcan dock for Team/attack, use host stores, run steps 1–4, and never take ship damage.
 - **Prompt 234a — [DECISION] Apply the extra-role balance dial.** Acceptance: facilitators see the printed roughly-three Wolf-capacity-per-extra-role guidance without automatic or player-controlled attack mutation.
 - **Prompt 235 — [EXTEND] Complete Gorgoneion identity and maintenance.** Acceptance: the frigate tracks 1,000 survivors and no more than two charged consoles.
@@ -3217,7 +3155,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 280 — [EXTEND] Build replacement-role workspace shells.** Acceptance: Comms Officer, VIP Host, Commissar, Doctor, Militia Leader, Fighter Ace, and Wolf Commander each load only after valid reassignment and expose no fictional action.
 
 #### Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)
-
 - **Prompt 281 — [PRESERVE] Encode the canonical star-chart graph.** Acceptance: every printed system returns its exact adjacency list from server-safe immutable data.
 - **Prompt 282 — [NEW] Select and lock chart A, B, or C.** Acceptance: only a facilitator chooses once before start and every later code lookup uses that chart.
 - **Prompt 283 — [NEW] Resolve system codes by chart.** Acceptance: a coordinate returns the selected chart's title/code, including L/M threats and N/O/P candidates.
@@ -3290,7 +3227,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 350 — [NEW] Make split/rejoin retries safe.** Acceptance: duplicate requests cannot strand an entity, duplicate membership, expose early communication, or merge twice.
 
 #### DRADIS, shuttle travel, capabilities, and away missions (Prompts 351–424)
-
 - **Prompt 351 — [EXTEND] Show only arrived local ships on DRADIS.** Acceptance: extend the current ship-local presentation primitive so a viewer sees ships whose authoritative coordinate and fleet group match their own; current catalog/filter rendering alone is not composed split-fleet proof.
 - **Prompt 352 — [EXTEND] Represent jumping ships in transition.** Acceptance: extend the current presentation-only transition primitive so an authoritative departure removes the old arrived contact and destination does not appear before commit.
 - **Prompt 353 — [EXTEND] Publish sampled transit contacts.** Acceptance: DRADIS consumes server-owned samples and never derives hidden destination or movement authority from animation; later Wolf-attack contacts consume only Prompt 433a's audience-safe endpoint.
@@ -3374,14 +3310,6 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - **Prompt 424 — [PROVE] Run the split-fleet exploration scenario.** Acceptance: two groups scout, jump independently, hide contacts/comms, ferry a legal payload, complete a mission, rejoin, and retain correct pursuit.
 
 #### Wolf attack engine, fleet combat, and boarding (Prompts 425–484)
-
-Implement this block in dependency order: 425 → 426 → 428 → 427 → 432/432a
-→ 433/433a/433b → 434/434a → 435–444 → 445–473 → 475–482 → 474/484
-→ 621 → 645. Prompts 351 and 353–360 consume the stable 433a contract only
-after it exists; Prompts 485–494 must become authoritative before attack
-pressure depends on them. Existing DRADIS, pursuit, damage, and console code is
-a presentation/data primitive, not proof of a playable attack.
-
 - **Prompt 425 — [NEW] Define the Wolf ship catalog.** Acceptance: Fighter Wing, Assault Transport, Destroyer, Cruiser, Strikecarrier, and Battlestation capacities/effects match every range and return rule.
 - **Prompt 426 — [NEW] Define attack-composition rules.** Acceptance: Turn 1 and later attacks meet their exact composition/capacity constraints without player-selected hidden cards.
 - **Prompt 427 — [NEW] Prepare an attack privately from the GM console.** Acceptance: one GM can stage eligible cards, targets, modifiers, and notes before declaration while players receive nothing early; a second GM sees the same revision without becoming required.
@@ -3453,7 +3381,6 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 484 — [EXTEND] Publish the complete aftermath.** Acceptance: extend current crew/GM/broadcast surfaces so each crew sees damage, casualties, stores, salvage, repairs, surviving/returning Wolves, and outstanding recovery work with one-GM next-action visibility.
 
 #### Threat pressure, Wolf loyalties, deduction, and facilitator actions (Prompts 485–524)
-
 - **Prompt 485 — [REPAIR] Make pursuit authoritative from Turn 1.** Acceptance: repair the current client-only calculation/presentation so attack scheduling, navigation, failure transitions, and threat views consume the same server-owned group value initialized at 2; stale presentation cannot declare game over or drive attack pressure.
 - **Prompt 485a — [REPAIR] Restore alert-scoped Pursuit Track color.** Acceptance: restore the normal ship/faction presentation from `0215488` whenever authoritative Red Alert is inactive, and use hostile danger red only while that shared alert is active; `0d64e25` documents the always-danger departure to repair. Stand-down, reconnect, late join, stale revision, split-fleet scope, reduced motion, and terminal text converge on authority without changing countdown placement, pursuit math, or claiming P485's broader server-value repair complete. Prove non-color alert/terminal meaning, CIC contrast, and 320×844, 390×844, 1440×900, and 844×390 containment.
 - **Prompt 486 — [PROVE] Verify the per-turn pursuit rise.** Acceptance: every active group adds two once and attack calculations use the committed score.
@@ -3507,7 +3434,6 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 524d — [NEW] Enforce presidential authority boundaries.** Acceptance: fleet leadership and crisis powers never grant arbitrary ship resources, hidden information, or GM mutations.
 
 #### Crises, catastrophe, candidates, and Capybara integration (Prompts 525–585)
-
 - **Prompt 525 — [NEW] Create the crisis state machine.** Acceptance: draft, delivered, debated, resolved, escalated, announced, and closed states have facilitator authority and audience-safe events.
 - **Prompt 526 — [NEW] Gate crises by configuration.** Acceptance: President-dependent and loyalty-dependent crises cannot appear in an incompatible roster without an explicit facilitator override.
 - **Prompt 527 — [NEW] Deliver Approaching Vessel.** Acceptance: players receive the scouting-vessel report while trap/reality state and difficulty reasoning remain facilitator-private.
@@ -3571,7 +3497,6 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 585 — [PROVE] Run the base/expansion isolation scenario.** Acceptance: identical display names cannot cross-load roles, stores, damage, jump, targeting, or craft behavior; toggling Press and connecting multiple GM instances cannot change either roster or its readiness, loyalty, and Wolf math.
 
 #### Onboarding, help, settings, and operational truth (Prompts 586–600)
-
 - **Prompt 586 — [EXTEND] Build the roster configuration flow.** Acceptance: setup presents only supported counts/options and explains Dione, Union, Wolf, and expansion effects before lock.
 - **Prompt 587 — [EXTEND] Present private casting assignments.** Acceptance: players see only their ship, role, device mode, and allowed route; facilitators see the complete roster.
 - **Prompt 588 — [EXTEND] Present private loyalty assignment.** Acceptance: the entitled player sees exact card/suspicion and unrelated clients receive no serialized secret.
@@ -3591,7 +3516,6 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 600 — [PROVE] Run the onboarding-to-first-action scenario.** Acceptance: a new player acknowledges safety, joins, receives private assignments, learns the loop, enters the right route, completes one real action, and returns.
 
 #### Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)
-
 - **Prompt 601 — [EXTEND] Make primary status universal.** Acceptance: every player, role, ship, shuttle, observer, GM, mission, attack, and debrief route names turn, phase, location, authority, next action, and failure state.
 - **Prompt 602 — [PROVE] Prove return navigation everywhere.** Acceptance: every nonlanding route has a visible keyboard-accessible logical return that preserves state unless explicitly released.
 - **Prompt 602a — [REPAIR] Restore shuttle-to-associated-ship return navigation.** Acceptance: audit current `ShuttleConsole`, `ShuttleConsoleTemplate`, shuttle/role/docking catalogs, route policy, tests, responsive styles, and the history around `d259cb0`, `9009807`, `dced782`, and `3299767`; if a prior generic return exists, preserve it as the design baseline. Every entitled ordinary shuttle console exposes one explicit visible return to its deterministic associated ship console, resolved from authoritative docking/association state and canonical route helpers rather than a client guess. If no entitled target exists, return safely to the established role-selection parent instead of inventing a ship. Navigation preserves session, seat, active console, shuttle state, and pending authoritative work; it does not release authority or mutate gameplay. Direct deep links, reconnect hydration, browser Back/Forward, and route replacement converge on the same permitted target without loops or cross-ship access. Preserve Press's `Back to Independent Stations`, Joint Engineering's Union return, and GM leave behavior as distinct cases. The control has an exact accessible name, visible focus, at least 44px target, screen-reader semantics, and nonoverlapping placement on mobile and short landscape; reduced motion removes decorative transition only. Add chronological route/entitlement/state/reconnect/history regression tests and real viewport proof before marking the universal Prompt 602 complete.
@@ -3663,28 +3587,6 @@ a presentation/data primitive, not proof of a playable attack.
 - **Prompt 663 — [REPAIR] Make Fleetwide Red Alert discoverable in a normal browser.** Acceptance: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present so the authorized role has a visible, keyboard-accessible trigger and a rendered regression proves the alert appears and remains usable without obscured controls or overflow. Preserve server-authoritative role, session, phase, and callable checks, direct client-write denial, private/audience boundaries, screen-reader semantics, contrast, responsive containment, and reduced-motion behavior. Remains missing/deferred until separately implemented; existing text-only or isolated component assertions do not count as rendered browser proof.
 - **Prompt 664 — [REPAIR] Enforce universal roadmap registration before non-documentation commits.** Acceptance: every commit that changes anything beyond the repository-defined Markdown/README documentation boundary ends with exactly one canonical `Implementation-Prompt:` trailer and is rejected unless that item exists with matching tag, status, checklist state, prerequisite readiness, and source-backed dependency evidence in the implementation plan, progress ledger, and dependency index. Work uncharted at its trusted `main` branch baseline must atomically add all three authority records with its first non-documentation commit; a complete documentation-only planning registration already landed on `main` may be consumed by branches started afterward. The same fail-closed validator runs in the tracked commit and push hooks, CI, coordination validation, and preserved/discarded closeout; it covers merge conflict resolutions, rejects untrusted range baselines, and leaves product release/version rules intact. Dependencies: Prompts 660 and 661 provide exact validation execution and the canonical documentation-only classification.
 - **Prompt 665 — [EXTEND] Make session goals durable and machine-checked across coordination lifecycle.** Acceptance: `coordination:begin` requires explicit unchecked Markdown goals, including the exact immediate release objective, creates a deterministic ignored worktree-local artifact bound to the coordination entry, and preserves an immutable original goal identity/order/text representation. A supported `coordination:goals` wrap-up path records checked/unchecked outcomes and explanations; it must validate every outcome against the original and retain durable start/final comparison evidence in the coordination receipt without exposing unrelated goal text in status. `coordination:finish` fails closed when the working artifact is absent, malformed, un-compared, or identity/order/text-divergent; it cleans only the entry-owned artifact after every other finish gate succeeds and verifies absence before recording completion. Existing pre-feature P012/P014/P664 entries have an explicit `legacy-exempt` migration policy and durable comparison record; new entries always require the artifact. Add owner-only `coordination:park` and `coordination:resume`: parking requires an exact clean checkpoint SHA, blocker entry/claim evidence, and a concrete next action, retains fail-closed scopes/claims while suspending heartbeat requirements, and rejects other owner operations while parked; resume verifies worktree/branch/checkpoint continuity and refuses until the recorded active blocker/overlap clears. The top-level coordinator checkpoints and parks before interrupting idle agents, then resumes only after clearance; process pause/wake is not machine-enforceable by repository code, so the registry state remains the hard gate and no status/heartbeat polling loop is allowed. Add phase-specific durable model floors: Luna `max` for implementation and reconciliation/validation/merge/push/deployment, Terra `xhigh` for independent review, with same-role Luna→Terra→Sol escalation, monotonic tiers, loop detection, and a user-visible Sol explanation including the 10× Luna cost. Keep this slice non-feature: no application version, release fragment, or player-facing changelog change. Dependencies: Prompt 664 provides the universal registration gate and typed source-backed authority; Prompt 665 extends its coordination begin/finish lifecycle.
-
-  **Prompt 665 self-bootstrap acceptance:** the sole migration is exact
-  coordination entry `1789089073940-29496-766886f1` while bound to Prompt 665
-  with its historical explicit `sessionGoals: null`. Supported goals must first persist
-  a ledger-only digest/count comparison; that comparison is single-write, every
-  later goals update fails without mutation, and finish validates the recorded
-  receipt. No other Prompt 665 entry is exempt, and any entry carrying
-  required-artifact metadata retains artifact validation, cleanup, and
-  verified-absence duties.
-
 - **Prompt 666 — [EXTEND] Generate a compact deterministic dependency packet and worktree receipt.** Acceptance: provide one executable shared `coordination:dependencies` dispatcher whose parser is shared with the full integrity/readiness gate. Its default prompt packet is at most 80 lines and 12 KiB, with explicit `--full` and machine-readable `--json` modes, while preserving exact plan/progress/dependency parity, cycle detection, typed evidence provenance, and readiness enforcement. Fingerprint the exact current `main`, all three authority inputs, applicable milestone/contract/evidence inputs, and only relevant active coordination ownership. Write an atomic ignored worktree-local receipt bound to owner, worktree, branch, and prompt; reject missing, stale, malformed, symlinked, or mismatched receipts. Relevant scope/claim overlap invalidates the receipt, while unrelated ledger noise does not. Require the receipt at coordination begin, ownership amendment, and validation, with only the exact legacy P012/P014 migrations needed for already-active work. Replace mandatory giant-context dependency reading with a small stable policy plus the generated packet, keep guidance and CI drift checks aligned, and record old/new line count, byte count, and execution time. This is non-feature tooling only: no application version, release fragment, or player-facing changelog item. Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the receipt.
-
 - **Prompt 667 — [PROVE] Runtime threat-model rebaseline: session-code compromise and DDoS.** Acceptance: check in one canonical machine-readable threat-model manifest and a CI drift/mapping gate. Contributors and the build pipeline are trusted, but every contributor or agent output remains untrusted until the mandatory independent review receipt and release gate accept it; machine gates protect against mistakes, stale work, missing review, and regressions, not deliberate contributor, commit, or history forgery. Explicitly place malicious-contributor/history attacks out of scope and audit away repository-governance complexity whose sole purpose is that discarded threat, without weakening independent review or ordinary correctness gates. Treat an external attacker who obtains or guesses a session code as a hostile client and keep DDoS/resource exhaustion in scope. Inventory and prove the existing authoritative platform baseline first: Firebase Hosting's global CDN, reCAPTCHA Enterprise-backed Firebase App Check initialized before Firebase services in `src/lib/firebase.ts`, production `enforceAppCheck: true` and `maxInstances: 10` in the shared `functions/src/runtimeOptions.ts` callable options, Cloud Firestore App Check enforcement, and the `functions/src/joinCodeSecurity.ts` six-digit/non-enumerating/transactional-collision policy plus six-attempt-per-authenticated-identity ten-minute limiter. Map every in-scope session-code/resource-exhaustion vector to existing control IDs, configuration, and tests; fail on an unmapped gap or drift, and preserve server authority, authorization, replay resistance, privacy, and input validation. Do not duplicate, replace, or redesign an equivalent platform control without a demonstrated gap and explicit owner decision, and do not add speculative security scope. Prompt 667 changes no runtime/player-facing behavior or platform limits: any demonstrated entropy, throttling, cost/concurrency, observability, overload, or other runtime gap must become a separately registered feature prompt with owner-visible thresholds and the normal version, release-fragment, and player-facing changelog gates. Keep docs/code from silently reintroducing the out-of-scope malicious-contributor assumption; minimize new governance code and return promptly to product work. Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 does not block P012 or P014 and has no dependency on Prompt 666.
-
-The backlog contains **734 independently executable prompts** in this
-snapshot: 666 base IDs plus 68 lettered child IDs placed beside their closest
-dependency; retired Prompt 071 is preserved only in historical release notes.
-The current evidence classification is **160 `[PRESERVE]`, 106 `[EXTEND]`,
-366 `[NEW]`, 50 `[PROVE]`, 24 `[DECISION]`, 25 `[REPAIR]`, 2 `[POLISH]`, and 1
-`[DEFERRED-OWNER]`**. That distribution
-is the practical consequence of starting from the existing application rather
-than pretending it is empty. It is a reviewable snapshot, not a scope promise:
-reclassify prompts as `main` advances, retain completed IDs, add a suffix when a
-red test proves two independent outcomes, and never renumber completed prompts
-to make the total look tidy.
+<!-- END GENERATED PROMPT CATALOG: plan -->

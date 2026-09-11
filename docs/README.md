@@ -12,25 +12,30 @@ code, tests, or canonical policy.
 | Product overview, setup, and validation entry point | [Project README](../README.md) | Contributor introduction and quick start |
 | Repository workflow, testing, security, release, and cleanup policy | [CLAUDE.md](../CLAUDE.md) | Canonical repository policy |
 | Agent discovery and private-reference warning | [AGENTS.md](../AGENTS.md) | Thin routing and safety pointer |
-| Multi-agent campaign execution, recovery, and stopping | [Agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) | Reusable campaign goal and enforceable orchestration controls |
-| Coordination commands | [WORKTREE_COORDINATION.md](WORKTREE_COORDINATION.md) | Command reference; `CLAUDE.md` remains canonical |
+| Multi-agent campaign execution, recovery, and stopping | [Agent campaign playbook](AGENT_CAMPAIGN_PLAYBOOK.md) | Optional multi-task coordination and stopping guidance |
+| Coordination commands | [WORKTREE_COORDINATION.md](WORKTREE_COORDINATION.md) | Lightweight worktree, resource, and emulator command reference |
 | Cowork-specific invocation preferences | [Cowork instructions](../.cowork/instructions.md) | Tool-specific preferences only |
 
 ## Implementation roadmap
 
 Read these as separate, cooperating authorities rather than one interchangeable
-roadmap:
+roadmap. The catalog is the source of roadmap facts; generated Markdown views
+are regenerated from it:
 
 | Document | Owns |
 | --- | --- |
-| [IMPLEMENTATION_PROMPT_DEPENDENCIES.md](IMPLEMENTATION_PROMPT_DEPENDENCIES.md) | Mandatory prompt-readiness and dependency gate |
+| [implementation-prompts.json](implementation-prompts.json) | Canonical prompt definitions, statuses, dependencies, and release facts |
+| [IMPLEMENTATION_PROMPT_DEPENDENCIES.md](IMPLEMENTATION_PROMPT_DEPENDENCIES.md) | Generated dependency/readiness view |
 | [IMPLEMENTATION_MILESTONES.md](IMPLEMENTATION_MILESTONES.md) | Compact dependency-ordered player-story route |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Canonical prompt definitions, objectives, acceptance, and source decisions |
-| [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Current prompt status and release evidence |
-| [IMPLEMENTATION_CONTRACTS.md](IMPLEMENTATION_CONTRACTS.md) | Bounded contract-audit ledger for its named prompts |
+| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Generated prompt objectives, acceptance, and source decisions |
+| [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) | Generated prompt status and release evidence |
+| [IMPLEMENTATION_CONTRACTS.md](IMPLEMENTATION_CONTRACTS.md) | Generated bounded contract view for named prompts |
 
-Do not copy live counts or active-prompt status into another guide. Link to the
-progress ledger so one checked source remains current.
+Do not manually edit or copy live counts, dependencies, or active-prompt status
+into generated guides. Update the catalog and regenerate its Markdown views;
+the views remain useful for human review and links. The optional
+`coordination:dependencies` check is read-only, creates no nonce or receipt,
+and `NEXT` is an advisory ready-work hint rather than a serial lock.
 
 ## Product and presentation contracts
 

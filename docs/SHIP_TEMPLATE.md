@@ -131,5 +131,5 @@ Acceptance checks:
 - Both capacity warnings appear at 20,000 and 6,000 and disappear at 5,000.
 - All values and navigation remain accessible on narrow, wide and short screens.
 
-Use the repository's [test-first policy](../CLAUDE.md#1-test-first-for-code) when
+Use the repository's [risk-based testing guidance](../CLAUDE.md#testing-and-review) when
 implementing these behaviors.
