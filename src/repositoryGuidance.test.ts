@@ -190,10 +190,6 @@ describe('repository guidance', () => {
     ].join(' ');
     const mutations = [
       {
-        source: compliant.replace('A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.', 'Anything can be an agent blocker.'),
-        expected: 'must define an agent blocker as active overlapping ownership',
-      },
-      {
         source: compliant.replace('must never reset or downgrade', 'may reset or downgrade'),
         expected: 'must keep the role escalation tier monotonic across replacements',
       },
@@ -266,6 +262,10 @@ describe('repository guidance', () => {
       'If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.',
     ].join(' ');
     const mutations = [
+      {
+        source: compliant.replace('A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.', 'Anything can be an agent blocker.'),
+        expected: 'must define an agent blocker as active overlapping ownership',
+      },
       {
         source: compliant.replace('before sending the handoff', 'after closing the task'),
         expected: 'must push the exact task branch before sending the handoff',
