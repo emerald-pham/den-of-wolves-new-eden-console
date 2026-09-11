@@ -1340,8 +1340,38 @@ describe('session lifecycle commands', () => {
     const disconnecting = disconnectFromSession();
 
     expect(useSessionStore.getState().session).toBeNull();
+    await vi.waitFor(() => expect(finishDisconnect).toBeTypeOf('function'));
+    const sessionB = { ...session, id: 's2', joinCode: '918204' };
+    const playerB = { ...player, sessionId: sessionB.id, activeConsoleRoleId: 'b-console-role' };
+    const gmB = {
+      id: 'gm-b', sessionId: sessionB.id, uid: 'u1', name: 'Bridge B',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const seatsB = [{
+      id: 'seat-b', sessionId: sessionB.id, label: 'Seat B', status: 'claimed' as const,
+      holderUid: 'u1', factionId: null, claimedAt: '2026-01-01T00:00:00.000Z',
+    }];
+    const store = useSessionStore.getState();
+    store.setIdentity(sessionB, playerB);
+    store.setGmInstance(gmB);
+    store.setSeats(seatsB);
+    store.setPrivateLoyalty({ kind: 'B loyalty', suspicion: 2 });
+    store.setMode('gm');
+    store.setLastRoute('/gm/session-b');
+    store.setConnection('live');
     finishDisconnect?.({ data: { sessionId: 's1' } });
     await expect(disconnecting).resolves.toBe('applied');
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: sessionB,
+      me: playerB,
+      gmInstance: gmB,
+      seats: seatsB,
+      privateLoyalty: { kind: 'B loyalty', suspicion: 2 },
+      connection: 'live',
+      mode: 'gm',
+      lastRoute: '/gm/session-b',
+    });
   });
 
   it('queues an offline disconnect and immediately clears the local session', async () => {
@@ -1382,18 +1412,49 @@ describe('session lifecycle commands', () => {
     online.mockReturnValue(false);
     useSessionStore.getState().setIdentity(session, player);
     await disconnectFromSession();
+    const sessionB = { ...session, id: 's2', joinCode: '918204' };
+    const playerB = { ...player, sessionId: sessionB.id, activeConsoleRoleId: 'b-console-role' };
+    const gmB = {
+      id: 'gm-b', sessionId: sessionB.id, uid: 'u1', name: 'Bridge B',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    };
+    const seatsB = [{
+      id: 'seat-b', sessionId: sessionB.id, label: 'Seat B', status: 'claimed' as const,
+      holderUid: 'u1', factionId: null, claimedAt: '2026-01-01T00:00:00.000Z',
+    }];
+    const store = useSessionStore.getState();
+    store.setIdentity(sessionB, playerB);
+    store.setGmInstance(gmB);
+    store.setSeats(seatsB);
+    store.setPrivateLoyalty({ kind: 'B loyalty', suspicion: 2 });
+    store.setMode('gm');
+    store.setLastRoute('/gm/session-b');
+    store.setSessionSnapshotFreshness('server');
     online.mockReturnValue(true);
     vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
+      if (name === 'resumeSession') {
+        return callableReturning({ data: { session: sessionB, player: playerB } });
+      }
       if (name === 'disconnectFromSession') {
         return callableReturning({ data: { sessionId: 's1' } });
       }
+      if (name === 'listGmInstances') return callableReturning({ data: { instances: [gmB] } });
       return callableRejecting(new Error('Unexpected callable ' + name));
     });
 
     await connect();
 
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
-    expect(useSessionStore.getState().connection).toBe('live');
+    expect(useSessionStore.getState()).toMatchObject({
+      session: sessionB,
+      me: playerB,
+      gmInstance: gmB,
+      seats: seatsB,
+      privateLoyalty: { kind: 'B loyalty', suspicion: 2 },
+      connection: 'live',
+      mode: 'gm',
+      lastRoute: '/gm/session-b',
+    });
   });
 
   it('drops unrelated queued actions when disconnecting locally', async () => {

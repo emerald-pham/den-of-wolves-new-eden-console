@@ -295,7 +295,6 @@ function applyCommandResult(
     store.setMode(null);
     store.setLastRoute('/roles');
   }
-  if (command.kind === 'disconnectFromSession') store.disconnect();
   if (
     command.kind === 'confirmSetup' &&
     store.session?.id === command.payload.sessionId &&
