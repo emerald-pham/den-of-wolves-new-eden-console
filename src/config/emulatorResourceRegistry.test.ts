@@ -834,6 +834,54 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it.each([
+    {
+      boundary: 'entry id',
+      id: ' 1789089073940-29496-766886f1',
+      implementationPrompt: '665',
+    },
+    {
+      boundary: 'implementation prompt',
+      id: '1789089073940-29496-766886f1',
+      implementationPrompt: ' 665',
+    },
+  ])('rejects a padded bootstrap $boundary without mutating the ledger', async ({
+    id,
+    implementationPrompt,
+  }) => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-bootstrap-padding-${randomUUID()}.json`);
+    const entry = {
+      ...releaseEntry,
+      id,
+      implementationPrompt,
+      implementationRegistrationRequired: true,
+      sessionGoals: null,
+    };
+    const outcomes = [{
+      id: 'goal-001',
+      checked: true,
+      explanation: 'A padded identity must not receive the historical bootstrap exemption.',
+    }];
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      const originalState = await readFile(filePath, 'utf8');
+
+      await expect(updateSessionGoals(filePath, {
+        id: entry.id,
+        outcomes,
+      })).rejects.toThrow(/artifact.*(?:missing|identity.*invalid)/i);
+      await expect(readFile(filePath, 'utf8')).resolves.toBe(originalState);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('parks at an exact clean checkpoint, retains ownership without heartbeats, and resumes only after the blocker clears', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-coordination-park-${randomUUID()}.json`);
     const identity = await currentGitIdentity();

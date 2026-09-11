@@ -86,9 +86,6 @@ const SESSION_GOALS_DIRECTORY = '.codex/session-goals';
 // an explicit, auditable exemption. New begin entries always carry the
 // required artifact regardless of their prompt.
 const LEGACY_SESSION_GOAL_PROMPTS = new Set(['012', '014', '664']);
-const LEGACY_SESSION_GOAL_BOOTSTRAP_ENTRY_PROMPTS = new Map([
-  ['1789089073940-29496-766886f1', '665'],
-]);
 const LEGACY_SESSION_GOAL_BOOTSTRAP_REASON =
   'Exact historical Prompt 665 self-bootstrap entry began without a session-goal artifact.';
 const LEGACY_CHANGE_CLASS_MIGRATIONS = new Map([
@@ -325,8 +322,8 @@ function sessionGoalLegacyPolicy(entry) {
 }
 
 function sessionGoalBootstrapMigration(entry) {
-  return LEGACY_SESSION_GOAL_BOOTSTRAP_ENTRY_PROMPTS.get(text(entry.id)) ===
-    normalizePromptId(entry.implementationPrompt);
+  return entry.id === '1789089073940-29496-766886f1' &&
+    entry.implementationPrompt === '665';
 }
 
 function sessionGoalBootstrapPending(entry) {
