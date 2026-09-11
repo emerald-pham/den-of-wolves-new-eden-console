@@ -227,6 +227,7 @@ it('rehydrates the live timer and permitted actions from the same server phase a
   };
   const liftedSnapshot = {
     ...authoritativeSnapshot,
+    updatedAt: '2026-09-09T17:06:00.000Z',
     turnPhase: {
       ...authoritativeSnapshot.turnPhase,
       teamPhaseEndsAt: '2026-09-09T17:05:00.000Z',

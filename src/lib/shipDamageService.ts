@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 
 interface ShipDamageCommand {
   readonly sessionId: string;
@@ -21,10 +22,11 @@ export type AssignShipDamageResult =
   };
 
 async function damageCommand<Result>(shipId: string, callable: string): Promise<Result> {
-  const { session, me, gmInstance, connection } = useSessionStore.getState();
-  if (!session || connection !== 'live' || me?.role !== 'gm' || !gmInstance) {
+  const { session, me, gmInstance } = useSessionStore.getState();
+  if (!session || me?.role !== 'gm' || !gmInstance) {
     throw new Error('A connected GM instance is required to assign damage.');
   }
+  requireFreshSessionAuthority();
   const response = await httpsCallable<ShipDamageCommand, Result>(functions(), callable)({
     sessionId: session.id,
     shipId,

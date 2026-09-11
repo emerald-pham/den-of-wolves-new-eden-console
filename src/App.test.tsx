@@ -34,6 +34,7 @@ vi.mock('@/lib/sessionService', () => ({
 }));
 
 vi.mock('@/lib/firestore', () => ({
+  sessionSnapshotAuthorityFor: vi.fn(() => ({ hasServerSessionAuthority: false })),
   subscribeConnectedPlayers: vi.fn(() => vi.fn()),
   subscribeSessionState: vi.fn(() => vi.fn()),
   subscribeGmInstances: vi.fn((
@@ -68,7 +69,7 @@ const {
   selectConsoleRole,
 } =
   await import('@/lib/sessionService');
-const { subscribeSessionState } = await import('@/lib/firestore');
+const { sessionSnapshotAuthorityFor, subscribeSessionState } = await import('@/lib/firestore');
 const { startVersionUpgradeMonitor } = await import('@/lib/versionUpgrade');
 
 describe('App', () => {
@@ -383,13 +384,51 @@ describe('App', () => {
   });
 
   it('subscribes to authoritative session state while a player is connected', async () => {
+    const authority = { hasServerSessionAuthority: true };
+    vi.mocked(sessionSnapshotAuthorityFor).mockReturnValue(authority);
     useSessionStore.getState().setIdentity(session, player);
 
     render(<App />);
 
-    await waitFor(() => expect(subscribeSessionState).toHaveBeenCalledWith(
-      's1', 'u1', expect.any(Object),
-    ));
+    await waitFor(() => {
+      expect(sessionSnapshotAuthorityFor).toHaveBeenCalledWith('s1', 'u1');
+      expect(subscribeSessionState).toHaveBeenCalledWith(
+        's1', 'u1', expect.objectContaining({ sessionSnapshotAuthority: authority }),
+      );
+    });
+  });
+
+  it('renders cached session state while showing the existing red Offline indicator', async () => {
+    let onFreshness: ((fresh: boolean) => void) | undefined;
+    let onSession: ((next: GameSession) => void) | undefined;
+    vi.mocked(subscribeSessionState).mockImplementation((_sessionId, _uid, handlers) => {
+      onFreshness = handlers.onSessionFreshness;
+      onSession = handlers.onSession;
+      return vi.fn();
+    });
+    useSessionStore.getState().setIdentity(session, player);
+
+    render(<App />);
+    await waitFor(() => expect(onFreshness).toBeDefined());
+
+    act(() => {
+      onSession?.({ ...session, name: 'Cached table' });
+      onFreshness?.(false);
+    });
+
+    expect(useSessionStore.getState().session).toMatchObject({ name: 'Cached table' });
+    expect(useSessionStore.getState().connection).toBe('offline');
+    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'red');
+    expect(screen.getByRole('status')).toHaveTextContent('Offline');
+
+    act(() => {
+      onSession?.({ ...session, name: 'Server table' });
+      onFreshness?.(true);
+    });
+
+    expect(useSessionStore.getState().session).toMatchObject({ name: 'Server table' });
+    expect(useSessionStore.getState().connection).toBe('live');
+    expect(screen.getByRole('status')).toHaveAttribute('data-status', 'green');
   });
 
   it('returns a kicked browser to the launcher', async () => {

@@ -24,6 +24,7 @@ beforeEach(() => {
     activeConsoleRoleId: 'press-officer', joinedAt: '',
   });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 
 it('publishes against the current dispatch revision without optimistic shared state', async () => {
@@ -56,4 +57,13 @@ it('rejects offline dismissals', async () => {
   useSessionStore.getState().setConnection('offline');
   await expect(dismissPressDispatch('dispatch-1')).rejects.toThrow('Reconnect');
   expect(mocks.call).not.toHaveBeenCalled();
+});
+
+it.each([
+  ['publish', () => publishPressDispatch('News')],
+  ['dismiss', () => dismissPressDispatch('dispatch-1')],
+] as const)('rejects a cache-backed %s without contacting the callable', async (_name, invoke) => {
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  await expect(invoke()).rejects.toThrow(/live session state/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });

@@ -201,6 +201,25 @@ it('keeps a cached session light green when a refreshed browser has not been act
   expect(indicator).toHaveAttribute('data-status', 'green');
 });
 
+it('shows a cache-derived snapshot as Offline without changing ordinary reconnect grace', async () => {
+  vi.useFakeTimers();
+  useSessionStore.getState().setMe(connectedPlayer('u1'));
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+
+  render(<MemoryRouter><AppHeader /></MemoryRouter>);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+  const indicator = screen.getByRole('status');
+  expect(indicator).toHaveAttribute('data-status', 'red');
+  expect(indicator).toHaveTextContent('Offline');
+
+  act(() => {
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+  });
+  expect(indicator).toHaveAttribute('data-status', 'green');
+});
+
 it('does not let a page return after an outage make disconnected eligible', async () => {
   vi.useFakeTimers();
   useSessionStore.getState().setMe(connectedPlayer('u1'));

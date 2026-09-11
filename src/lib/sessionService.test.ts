@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
 
 vi.mock('firebase/auth', () => ({
@@ -45,9 +46,19 @@ const {
   selectConsoleRole,
   applyRolePreset,
   applyShipCounterSteps,
+  adjustShipPopulation,
+  adjustShipResource,
+  adjustShipUnrest,
+  dismissPopulationAlert,
+  dismissUnrestAlert,
+  jumpShip,
+  moveShipToLocation,
+  setShipConsoleLock,
+  startSinglePlayerDemo,
   triggerDradisContact,
 } = await import('./sessionService');
 const { httpsCallable } = await import('firebase/functions');
+const { acceptCallableSessionAuthority, sessionSnapshotAuthorityFor } = await import('./firestore');
 const authorityService = await import('./sessionService') as unknown as {
   confirmSetup: (setup: {
     playerCount: number;
@@ -125,6 +136,42 @@ describe('connect', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
+  it('does not promote a cache-marked offline connection before authority is accepted', async () => {
+    useSessionStore.getState().setSession(session);
+    useSessionStore.getState().setMe(player);
+    let finishResume!: (value: { data: { session: typeof session; player: typeof player } }) => void;
+    const resume = Object.assign(vi.fn(() => new Promise<{ data: { session: typeof session; player: typeof player } }>((resolve) => {
+      finishResume = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return resume;
+      return callableReturning({ data: {} });
+    });
+
+    const connecting = connect();
+    await vi.waitFor(() => expect(resume).toHaveBeenCalled());
+    act(() => useSessionStore.getState().setConnection('offline'));
+    finishResume({ data: { session, player } });
+    await connecting;
+
+    expect(useSessionStore.getState().connection).toBe('offline');
+  });
+
+  it('does not authorize a mutation while cached state is offline', async () => {
+    useSessionStore.getState().setIdentity(
+      { ...session, phase: 'casting', currentTurn: 0, setupRevision: 4 },
+      { ...player, role: 'gm' },
+    );
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('offline');
+
+    await expect(startGame()).rejects.toThrow('Reconnect before starting the game.');
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'startGame');
+  });
+
   it('keeps the persisted session during a transient reconnect failure', async () => {
     useSessionStore.getState().setSession(session);
     useSessionStore.getState().setMe(player);
@@ -185,6 +232,7 @@ describe('connect', () => {
       id: 'command-1', kind: 'kickGmInstance',
       payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
       createdAt: new Date().toISOString(),
+      queuedWithServerAuthority: true,
     });
     let attempts = 0;
     vi.mocked(httpsCallable).mockImplementation((_, name) => {
@@ -211,6 +259,8 @@ describe('connect', () => {
 
   it('queues a command when callable capacity is temporarily exhausted', async () => {
     useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
     vi.mocked(httpsCallable).mockReturnValue(
       callableRejecting({ code: 'functions/resource-exhausted', message: 'Try again shortly.' }),
     );
@@ -278,6 +328,19 @@ describe('joinSession', () => {
     );
     expect(useSessionStore.getState().me).toEqual(player);
   });
+
+  it('seeds the listener authority from an accepted callable reply', async () => {
+    const callableSession = { ...session, id: 'join-authority', joinCode: '918204' };
+    const callablePlayer = { ...player, sessionId: callableSession.id };
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { session: callableSession, player: callablePlayer },
+    }));
+
+    await joinSession(callableSession.joinCode);
+
+    expect(sessionSnapshotAuthorityFor(callableSession.id, callablePlayer.uid))
+      .toMatchObject({ hasServerSessionAuthority: true });
+  });
 });
 
 describe('authoritative session replies', () => {
@@ -314,6 +377,73 @@ describe('authoritative session replies', () => {
       me: player,
     });
   });
+
+  it('keeps cached freshness and blocks mutations after a stale callable reply', async () => {
+    const sessionId = 'stale-callable';
+    const newerSession = {
+      ...session,
+      id: sessionId,
+      phase: 'active' as const,
+      currentTurn: 1,
+      updatedAt: '2026-09-11T12:00:00.000Z',
+    };
+    const staleSession = {
+      ...session,
+      id: sessionId,
+      updatedAt: '2026-09-11T11:00:00.000Z',
+    };
+    const gmPlayer = { ...player, role: 'gm' as const, sessionId };
+    useSessionStore.getState().setIdentity(newerSession, gmPlayer);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId, uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    const freshReply = callableReturning({ data: { session: newerSession, player: gmPlayer } });
+    const staleReply = callableReturning({ data: { session: staleSession, player: gmPlayer } });
+    vi.mocked(httpsCallable)
+      .mockReturnValueOnce(freshReply)
+      .mockReturnValueOnce(staleReply);
+
+    await expect(resumeSession(sessionId)).resolves.toBe(true);
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    await expect(resumeSession(sessionId)).resolves.toBe(true);
+
+    expect(useSessionStore.getState().session).toMatchObject({
+      phase: 'active', currentTurn: 1, updatedAt: newerSession.updatedAt,
+    });
+    expect(useSessionStore.getState().sessionSnapshotFreshness).toBe('cache');
+    await expect(startGame()).rejects.toThrow(/reconnect/i);
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'startGame');
+  });
+
+  it('does not promote a stale callable reconnect to live authority', async () => {
+    const newerSession = {
+      ...session,
+      id: 'stale-connect',
+      phase: 'active' as const,
+      currentTurn: 1,
+      updatedAt: '2026-09-11T12:00:00.000Z',
+    };
+    const staleSession = { ...newerSession, updatedAt: '2026-09-11T11:00:00.000Z' };
+    const reconnectPlayer = { ...player, sessionId: newerSession.id };
+    useSessionStore.getState().setIdentity(newerSession, reconnectPlayer);
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    expect(acceptCallableSessionAuthority(newerSession, reconnectPlayer.uid)).toBe(true);
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: { session: staleSession, player: reconnectPlayer },
+    }));
+
+    await connect();
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: newerSession,
+      me: reconnectPlayer,
+      connection: 'offline',
+      sessionSnapshotFreshness: 'cache',
+    });
+  });
 });
 
 it('starts production through one server receipt and hydrates the GM-private setup result', async () => {
@@ -326,6 +456,7 @@ it('starts production through one server receipt and hydrates the GM-private set
     deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmSetupReceipt(null);
   const callable = callableReturning({
     data: {
@@ -378,6 +509,7 @@ it('reuses the same start request id after an ambiguous transport failure', asyn
     deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   const reply = {
     status: 'replayed' as const, sessionId: 's1', requestId: 'retry-start', currentTurn: 1,
     setupRevision: 5,
@@ -418,6 +550,7 @@ it('keeps a structured stale start result out of local Turn 1 hydration', async 
     deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
   });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmSetupReceipt(null);
   const stale = {
     status: 'stale' as const, sessionId: 's1', requestId: 'stale-start',
@@ -465,6 +598,8 @@ describe('GM instance commands', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
     useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -489,24 +624,17 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().me?.role).toBe('gm');
   });
 
-  it('queues a GM command while offline without contacting Firebase', async () => {
+  it('rejects a cache-derived GM mutation while offline without contacting Firebase', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
     });
 
-    await kickGmInstance('instance-2');
+    await expect(kickGmInstance('instance-2')).rejects.toThrow(/reconnect/i);
 
     expect(httpsCallable).not.toHaveBeenCalled();
-    expect(useSessionStore.getState().pendingCommands).toEqual([
-      expect.objectContaining({
-        kind: 'kickGmInstance',
-        payload: {
-          sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2',
-        },
-      }),
-    ]);
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
   it('sends a player kick through the named GM instance', async () => {
@@ -525,7 +653,7 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
   });
 
-  it('replays queued commands after refreshing the session on reconnect', async () => {
+  it('replays a server-authorized queued command after refreshing the session on reconnect', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
@@ -534,6 +662,7 @@ describe('GM instance commands', () => {
       id: 'command-1', kind: 'kickGmInstance',
       payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
       createdAt: new Date().toISOString(),
+      queuedWithServerAuthority: true,
     });
     vi.mocked(httpsCallable).mockImplementation((_, name) => {
       if (name === 'resumeSession') return callableReturning({ data: { session, player } });
@@ -551,11 +680,59 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().connection).toBe('live');
   });
 
+  it('reconciles GM authority after a server-authorized resume while reconnecting', async () => {
+    const sessionId = 'reconcile-on-connect';
+    const reconnectSession = { ...session, id: sessionId };
+    const reconnectPlayer = { ...player, sessionId };
+    useSessionStore.getState().setIdentity(reconnectSession, reconnectPlayer);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId, uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({
+        data: { session: reconnectSession, player: reconnectPlayer },
+      });
+      if (name === 'listGmInstances') return callableReturning({ data: { instances: [] } });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(useSessionStore.getState().gmInstance).toBeNull();
+    expect(useSessionStore.getState().connection).toBe('live');
+  });
+
+  it('drops a cache-derived outbox mutation instead of replaying it after reconnect', async () => {
+    useSessionStore.getState().setConnection('offline');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    useSessionStore.getState().enqueueCommand({
+      id: 'cached-command', kind: 'kickGmInstance',
+      payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
+      createdAt: new Date().toISOString(),
+    });
+    vi.mocked(httpsCallable).mockImplementation((_, name) => {
+      if (name === 'resumeSession') return callableReturning({ data: { session, player } });
+      if (name === 'kickGmInstance') return callableReturning({ data: {} });
+      return callableRejecting(new Error(`Unexpected callable ${name}`));
+    });
+
+    await connect();
+
+    expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
+    expect(useSessionStore.getState().pendingCommands).toEqual([]);
+    expect(useSessionStore.getState().communicationError).toEqual({
+      code: 'stale',
+      message: 'The live session changed before this command committed. Refresh the live state and retry.',
+    });
+  });
+
   it('reports and drops a queued command that conflicts with server state', async () => {
     useSessionStore.getState().enqueueCommand({
       id: 'command-1', kind: 'kickGmInstance',
       payload: { sessionId: 's1', instanceId: 'instance-1', targetInstanceId: 'instance-2' },
       createdAt: new Date().toISOString(),
+      queuedWithServerAuthority: true,
     });
     vi.mocked(httpsCallable).mockImplementation((_, name) => {
       if (name === 'resumeSession') return callableReturning({ data: { session, player } });
@@ -1098,6 +1275,8 @@ describe('command role presence', () => {
   beforeEach(() => {
     useSessionStore.getState().reset();
     useSessionStore.getState().setIdentity(session, player);
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: { sessionId: 's1' } }));
   });
 
@@ -1266,6 +1445,8 @@ describe('client authority boundaries', () => {
       id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
     });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -1295,8 +1476,103 @@ describe('client authority boundaries', () => {
   });
 });
 
+describe('immediate mutations require fresh server authority', () => {
+  beforeEach(() => {
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity({
+      ...session,
+      phase: 'casting',
+      currentTurn: 1,
+      turnStartAnnouncement: { turn: 1, survivorPopulation: 240_000 },
+    }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('cache');
+    vi.mocked(httpsCallable).mockReset();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    ['resource counter', () => adjustShipResource('aegis', 'ore', 1), true],
+    ['unrest counter', () => adjustShipUnrest('aegis', 1), true],
+    ['unrest acknowledgement', () => dismissUnrestAlert('aegis'), true],
+    ['population counter', () => adjustShipPopulation('aegis', 1), true],
+    ['population acknowledgement', () => dismissPopulationAlert('aegis'), true],
+    ['counter batch', () => applyShipCounterSteps('aegis', { counter: 'unrest' }, []), true],
+    ['ship movement', () => moveShipToLocation('aegis', 'A-1'), true],
+    ['console lock', () => setShipConsoleLock('aegis', true), true],
+    ['ship jump', () => jumpShip('aegis', 'A-1'), true],
+    ['game start', () => startGame(), true],
+    ['turn advance', () => advanceTurn(), true],
+    ['single-player demo', () => {
+      const state = useSessionStore.getState();
+      state.setSession({ ...state.session!, currentTurn: 0 });
+      return startSinglePlayerDemo();
+    }, true],
+    ['fleetwide replay', () => replayTurnStartAnnouncement('everyone'), true],
+    ['automatic airspace handoff', () => beginOpenAirspacePhase(1), false],
+    ['airspace extension', () => extendAirspaceWindow('restricted'), true],
+    ['emergency timer interlock', () => setEmergencyTimerPaused(true), true],
+    ['DRADIS contact', () => triggerDradisContact(), true],
+    ['console-role claim', () => selectConsoleRole('admiral'), true],
+    ['console-role release', () => releaseConsoleRole(), true],
+    ['presence heartbeat', () => refreshPresence(), false],
+  ] as const)('does not call %s from a cache-backed session', async (_name, invoke, rejects) => {
+    const pending = invoke();
+    if (rejects) {
+      await expect(pending).rejects.toThrow(/reconnect/i);
+    } else {
+      await expect(pending).resolves.toBeUndefined();
+    }
+    expect(httpsCallable).not.toHaveBeenCalled();
+  });
+});
+
+it('does not let a delayed direct callable patch overwrite newer session authority', async () => {
+  const sessionId = 'direct-patch-race';
+  const playerForRace = { ...player, sessionId };
+  const initialSession = {
+    ...session,
+    id: sessionId,
+    phase: 'active' as const,
+    currentTurn: 1,
+    updatedAt: '2026-09-11T12:00:00.000Z',
+  };
+  const newerSession = {
+    ...initialSession,
+    currentTurn: 2,
+    updatedAt: '2026-09-11T12:01:00.000Z',
+  };
+  useSessionStore.getState().setIdentity(initialSession, playerForRace);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  expect(acceptCallableSessionAuthority(initialSession, playerForRace.uid)).toBe(true);
+
+  let finishMove!: (value: { data: { shipId: string; destination: string } }) => void;
+  const move = Object.assign(vi.fn(() => new Promise<{ data: { shipId: string; destination: string } }>((resolve) => {
+    finishMove = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(move as never);
+  const moving = moveShipToLocation('aegis', 'A-1');
+  await vi.waitFor(() => expect(move).toHaveBeenCalled());
+
+  expect(acceptCallableSessionAuthority(newerSession, playerForRace.uid)).toBe(true);
+  useSessionStore.getState().setSession(newerSession);
+  finishMove({ data: { shipId: 'aegis', destination: 'A-1' } });
+  await moving;
+
+  expect(useSessionStore.getState().session).toEqual(newerSession);
+  expect(useSessionStore.getState().session?.shipGalacticCoordinates?.aegis).not.toBe('A-1');
+});
+
 it('sends population changes and acknowledgement with the GM instance', async () => {
   useSessionStore.getState().setIdentity(session, player);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance({ id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now' });
   const call = callableReturning({ data: {} });
   vi.mocked(httpsCallable).mockReturnValue(call);
@@ -1314,6 +1590,8 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
     ...session,
     shipResources: { dione: { ore: 0, fuel: 6, food: 0, water: 0, materials: 0, securityTeams: 0 } },
   }, player);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
   useSessionStore.getState().setGmInstance({
     id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: 'Test', claimedAt: 'now',
   });
@@ -1365,6 +1643,8 @@ describe('authoritative setup and seating wrappers', () => {
       id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
       deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
     });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
     vi.mocked(httpsCallable).mockReset();
   });
 

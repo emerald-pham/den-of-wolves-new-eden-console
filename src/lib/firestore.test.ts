@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession } from '@/types/game';
 import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
@@ -21,7 +22,16 @@ vi.mock('./firebaseConfig', () => ({
   useEmulators: false,
 }));
 
-const { sessionFrom, subscribeGmInstances, subscribeSessionEvents, subscribeSessionState } = await import('./firestore');
+const {
+  acceptCallableSessionAuthority,
+  sessionFrom,
+  sessionSnapshotAuthorityFor,
+  subscribeGmInstances,
+  subscribeConnectedPlayers,
+  subscribeDamageDraws,
+  subscribeSessionEvents,
+  subscribeSessionState,
+} = await import('./firestore');
 const { onSnapshot } = await import('firebase/firestore');
 
 function sessionData(playerCount: number) {
@@ -372,7 +382,17 @@ type SessionSnapshot = {
   readonly exists: () => boolean;
   readonly id: string;
   readonly data: () => Record<string, unknown>;
+  readonly metadata?: { readonly fromCache?: boolean };
 };
+
+function timestamp(seconds: number, nanoseconds: number) {
+  return {
+    seconds,
+    nanoseconds,
+    toMillis: () => seconds * 1_000 + Math.floor(nanoseconds / 1_000_000),
+    toDate: () => new Date(seconds * 1_000 + Math.floor(nanoseconds / 1_000_000)),
+  };
+}
 
 function liveTurnData(
   currentTurn: number,
@@ -393,15 +413,23 @@ function liveTurnData(
   };
 }
 
-function sessionSnapshot(data: Record<string, unknown>): SessionSnapshot {
-  return { exists: () => true, id: 's1', data: () => data };
+function sessionSnapshot(
+  data: Record<string, unknown>,
+  fromCache?: boolean,
+): SessionSnapshot {
+  return {
+    exists: () => true,
+    id: 's1',
+    data: () => data,
+    ...(fromCache === undefined ? {} : { metadata: { fromCache } }),
+  };
 }
 
 function captureSessionListener() {
-  const callbacks: Array<(snapshot: SessionSnapshot) => void> = [];
+  const callbacks: Array<(snapshot: unknown) => void> = [];
   const unsubscribeSpies: Array<ReturnType<typeof vi.fn>> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
-    callbacks.push(callback as (snapshot: SessionSnapshot) => void);
+    callbacks.push(callback as (snapshot: unknown) => void);
     const unsubscribe = vi.fn();
     unsubscribeSpies.push(unsubscribe);
     return unsubscribe;
@@ -417,10 +445,288 @@ it('suppresses delayed older lifecycle snapshots at the session listener boundar
   });
 
   callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted')));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:01.000Z',
+  })));
 
   expect(onSession).toHaveBeenCalledTimes(1);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
+});
+
+it('rejects a delayed older server snapshot in the same lifecycle window', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
+    updatedAt: timestamp(1_789_077_000, 900_400_000),
+    setupRevision: 8,
+    activeRoleIds: ['admiral'],
+    shipResources: { aegis: { ore: 9, fuel: 4, food: 3, water: 2, materials: 1, securityTeams: 0 } },
+  })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', {
+    updatedAt: timestamp(1_789_076_999, 900_400_000),
+    setupRevision: 7,
+    activeRoleIds: ['wing-commander'],
+    shipResources: { aegis: { ore: 1, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 } },
+  })));
+
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    setupRevision: 8,
+    activeRoleIds: ['admiral'],
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+});
+
+it('preserves nanosecond precision when same-millisecond callbacks arrive out of order', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: timestamp(1_789_077_000, 900_100_000),
+      shipResources: { aegis: { ore: 1 } },
+    }),
+    false,
+  ));
+  callbacks[0]?.(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: timestamp(1_789_077_000, 900_400_000),
+      shipResources: { aegis: { ore: 9 } },
+    }),
+    false,
+  ));
+  callbacks[0]?.(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: timestamp(1_789_077_000, 900_200_000),
+      shipResources: { aegis: { ore: 2 } },
+    }),
+    false,
+  ));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+});
+
+it('rejects an equal trusted server cursor instead of replaying its callback', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const cursor = timestamp(1_789_077_000, 900_400_000);
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: cursor,
+      shipResources: { aegis: { ore: 9 } },
+    }), false,
+  ));
+  callbacks[0]?.(sessionSnapshot(
+    liveTurnData(2, 'lifted', {
+      updatedAt: cursor,
+      shipResources: { aegis: { ore: 1 } },
+    }), false,
+  ));
+
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({
+    shipResources: { aegis: expect.objectContaining({ ore: 9 }) },
+  });
+});
+
+it('keeps only the first legacy hydration and accepts a later trusted cursor upgrade', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  const legacy = liveTurnData(2, 'restricted');
+  delete legacy.updatedAt;
+  callbacks[0]?.(sessionSnapshot(legacy));
+  const repeatedLegacy = liveTurnData(2, 'restricted', { setupRevision: 3 });
+  delete repeatedLegacy.updatedAt;
+  callbacks[0]?.(sessionSnapshot(repeatedLegacy));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted', {
+    updatedAt: '2026-09-10T12:10:00.000Z', setupRevision: 8,
+  })));
+  const unversioned = liveTurnData(2, 'restricted', { setupRevision: 7 });
+  delete unversioned.updatedAt;
+  callbacks[0]?.(sessionSnapshot(unversioned));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ setupRevision: 8 });
+});
+
+it('does not let a delayed cache snapshot overwrite an accepted callable reply', () => {
+  const sessionId = 'callable-race';
+  const uid = 'callable-player';
+  const callableSession = sessionFrom(sessionId, liveTurnData(2, 'lifted', {
+    name: 'Fresh callable table',
+    updatedAt: '2026-09-10T12:10:00.000Z',
+  }));
+  expect(acceptCallableSessionAuthority(callableSession, uid)).toBe(true);
+
+  const { callbacks } = captureSessionListener();
+  let displayedSession = callableSession;
+  const onSession = vi.fn();
+  subscribeSessionState(sessionId, uid, {
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, uid),
+    onSession: (next) => {
+      displayedSession = next;
+      onSession(next);
+    },
+    onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted', {
+    name: 'Delayed cached table',
+    updatedAt: timestamp(1_789_076_999, 900_000_000),
+  }), true));
+
+  expect(onSession).not.toHaveBeenCalled();
+  expect(displayedSession.name).toBe('Fresh callable table');
+});
+
+it('renders an initial cached session while marking it stale until server authority arrives', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const onFreshness = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onSessionFreshness: onFreshness,
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted', { shipResources: { aegis: { ore: 2 } } }), true));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted', { shipResources: { aegis: { ore: 3 } } }), false));
+
+  expect(onSession).toHaveBeenCalledTimes(2);
+  expect(onSession.mock.calls[0]?.[0]).toMatchObject({ shipResources: { aegis: { ore: 2 } } });
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ shipResources: { aegis: { ore: 3 } } });
+  expect(onFreshness.mock.calls).toEqual([[false], [true]]);
+});
+
+it('does not let a late cached callback overwrite accepted server authority', () => {
+  const { callbacks } = captureSessionListener();
+  const onSession = vi.fn();
+  const onFreshness = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    onSessionFreshness: onFreshness,
+  });
+
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', { shipResources: { aegis: { ore: 3 } } }), false));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted', { shipResources: { aegis: { ore: 1 } } }), true));
+
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ shipResources: { aegis: { ore: 3 } } });
+  expect(onFreshness.mock.calls).toEqual([[true]]);
+});
+
+it('does not let cached identity projections overwrite accepted server authority', () => {
+  const { callbacks } = captureSessionListener();
+  const onPlayer = vi.fn();
+  const onKicked = vi.fn();
+  const onSeats = vi.fn();
+  const onPrivateLoyalty = vi.fn();
+  const onSetupReceipt = vi.fn();
+  const onError = vi.fn();
+  subscribeSessionState('projection-race', 'projection-player', {
+    onSession: vi.fn(),
+    onPlayer,
+    onKicked,
+    onSeats,
+    onPrivateLoyalty,
+    onSetupReceipt,
+    onError,
+    sessionSnapshotAuthority: sessionSnapshotAuthorityFor('projection-race', 'projection-player'),
+  });
+
+  callbacks[0]?.(sessionSnapshot({
+    ...liveTurnData(2, 'lifted'),
+    updatedAt: '2026-09-11T12:00:00.000Z',
+  }, false));
+  callbacks[1]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    get: (field: string) => field === 'connected' ? true : undefined,
+    data: () => ({ role: 'gm' }),
+  });
+  callbacks[2]?.({ metadata: { fromCache: true }, docs: [] });
+  callbacks[3]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    get: () => ({ kind: 'fleet-loyalist', suspicion: 5 }),
+  });
+  callbacks[4]?.({ metadata: { fromCache: true }, docs: [] });
+
+  expect(onPlayer).not.toHaveBeenCalled();
+  expect(onKicked).not.toHaveBeenCalled();
+  expect(onSeats).not.toHaveBeenCalled();
+  expect(onPrivateLoyalty).not.toHaveBeenCalled();
+  expect(onSetupReceipt).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+});
+
+it('drops delayed cached secondary query snapshots after a server snapshot', () => {
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onInstances = vi.fn();
+  const onPlayers = vi.fn();
+  const onEvents = vi.fn();
+  const onDraws = vi.fn();
+  subscribeGmInstances('secondary-race', onInstances, vi.fn());
+  subscribeConnectedPlayers('secondary-race', onPlayers);
+  subscribeSessionEvents('secondary-race', onEvents);
+  const stopDraws = subscribeDamageDraws('secondary-race', onDraws);
+
+  callbacks.forEach((callback) => {
+    callback({ metadata: { fromCache: false }, docs: [] });
+    callback({ metadata: { fromCache: true }, docs: [] });
+  });
+
+  expect(onInstances).toHaveBeenCalledTimes(1);
+  expect(onPlayers).toHaveBeenCalledTimes(1);
+  expect(onEvents).toHaveBeenCalledTimes(1);
+  expect(onDraws).toHaveBeenCalledTimes(1);
+  stopDraws();
+});
+
+it('shares accepted session authority with secondary queries before their first server callback', () => {
+  const sessionId = 'secondary-authority';
+  const uid = 'secondary-player';
+  expect(acceptCallableSessionAuthority(sessionFrom(sessionId, liveTurnData(1, 'restricted', {
+    updatedAt: '2026-09-11T12:00:00.000Z',
+  })), uid)).toBe(true);
+  useSessionStore.setState({
+    me: {
+      uid, sessionId, displayName: 'Player', role: 'player', seatId: null, joinedAt: '',
+    },
+  });
+
+  const callbacks: Array<(snapshot: unknown) => void> = [];
+  vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
+    callbacks.push(callback as (snapshot: unknown) => void);
+    return vi.fn();
+  }) as never);
+  const onPlayers = vi.fn();
+  subscribeConnectedPlayers(sessionId, onPlayers, vi.fn());
+  callbacks[0]?.({ metadata: { fromCache: true }, docs: [] });
+
+  expect(onPlayers).not.toHaveBeenCalled();
+  useSessionStore.getState().reset();
 });
 
 it('suppresses an earlier airspace phase within the same turn but keeps newer data in the current window', () => {
@@ -430,9 +736,17 @@ it('suppresses an earlier airspace phase within the same turn but keeps newer da
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
 
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 2 } } })));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 3 } } })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:01.000Z',
+    shipResources: { aegis: { ore: 2 } },
+  })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted', {
+    updatedAt: '2026-01-01T00:00:02.000Z',
+  })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:03.000Z',
+    shipResources: { aegis: { ore: 3 } },
+  })));
 
   expect(onSession).toHaveBeenCalledTimes(2);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
@@ -448,8 +762,14 @@ it('delivers equal lifecycle snapshots when only current-window data changes', (
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
 
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 2 } } })));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', { shipResources: { aegis: { ore: 3 } } })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:01.000Z',
+    shipResources: { aegis: { ore: 2 } },
+  })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:02.000Z',
+    shipResources: { aegis: { ore: 3 } },
+  })));
 
   expect(onSession).toHaveBeenCalledTimes(2);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({
@@ -466,8 +786,12 @@ it('allows the authoritative phase reset for a legitimate next turn', () => {
     onSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
   });
 
-  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted')));
-  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'lifted', {
+    updatedAt: '2026-01-01T00:00:01.000Z',
+  })));
+  callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted', {
+    updatedAt: '2026-01-01T00:00:02.000Z',
+  })));
 
   expect(onSession).toHaveBeenCalledTimes(2);
   expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
@@ -486,7 +810,9 @@ it.each(['success', 'failure', 'debrief', 'closed'] as const)(
     });
 
     callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: terminalPhase, currentTurn: 2 }));
-    callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted')));
+    callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'restricted', {
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    })));
 
     expect(onSession).toHaveBeenCalledTimes(1);
     expect(onSession.mock.lastCall?.[0]).toMatchObject({ phase: terminalPhase });
@@ -506,7 +832,12 @@ it.each([
     });
 
     callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: acceptedPhase, currentTurn: 2 }));
-    callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: delayedPhase, currentTurn: 3 }));
+    callbacks[0]?.(sessionSnapshot({
+      ...sessionData(8),
+      phase: delayedPhase,
+      currentTurn: 3,
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    }));
 
     expect(onSession).toHaveBeenCalledTimes(1);
     expect(onSession.mock.lastCall?.[0]).toMatchObject({
@@ -515,26 +846,68 @@ it.each([
     });
   });
 
-it('resets ordering when a session listener is torn down and re-subscribed', () => {
+it('preserves server authority and lifecycle ordering across listener re-subscription', () => {
+  const sessionSnapshotAuthority = {
+    hasServerSessionAuthority: false,
+  };
   const first = captureSessionListener();
-  const firstOnSession = vi.fn();
+  const onSession = vi.fn();
+  const onFreshness = vi.fn();
+  const handlers = {
+    onSession,
+    onSessionFreshness: onFreshness,
+    onPlayer: vi.fn(),
+    onKicked: vi.fn(),
+    onSeats: vi.fn(),
+    onError: vi.fn(),
+    sessionSnapshotAuthority,
+  };
   const unsubscribe = subscribeSessionState('s1', 'u1', {
-    onSession: firstOnSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    ...handlers,
   });
-  first.callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted')));
+  first.callbacks[0]?.(sessionSnapshot(liveTurnData(2, 'lifted'), false));
   unsubscribe();
 
   const second = captureSessionListener();
-  const secondOnSession = vi.fn();
   subscribeSessionState('s1', 'u1', {
-    onSession: secondOnSession, onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(), onError: vi.fn(),
+    ...handlers,
   });
-  second.callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
+  second.callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted'), true));
 
-  expect(firstOnSession).toHaveBeenCalledTimes(1);
-  expect(secondOnSession).toHaveBeenCalledTimes(1);
-  expect(secondOnSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 1 });
+  expect(onSession).toHaveBeenCalledTimes(1);
+  expect(onSession.mock.lastCall?.[0]).toMatchObject({ currentTurn: 2 });
+  expect(onFreshness.mock.calls).toEqual([[true]]);
   expect(first.unsubscribeSpies.every((unsubscribeSpy) => unsubscribeSpy.mock.calls.length === 1)).toBe(true);
+});
+
+it('ignores every delayed projection callback after unsubscribe', () => {
+  const { callbacks } = captureSessionListener();
+  const onPlayer = vi.fn();
+  const onSeats = vi.fn();
+  const onPrivateLoyalty = vi.fn();
+  const onSetupReceipt = vi.fn();
+  const onError = vi.fn();
+  const unsubscribe = subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(),
+    onPlayer,
+    onKicked: vi.fn(),
+    onSeats,
+    onPrivateLoyalty,
+    onSetupReceipt,
+    onError,
+  });
+
+  unsubscribe();
+  callbacks[1]?.({ exists: () => false });
+  callbacks[2]?.({ docs: [] });
+  callbacks[3]?.({ exists: () => false });
+  callbacks[4]?.({ docs: [] });
+
+  expect(onPlayer).not.toHaveBeenCalled();
+  expect(onSeats).not.toHaveBeenCalled();
+  expect(onPrivateLoyalty).not.toHaveBeenCalled();
+  expect(onSetupReceipt).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
 });
 
 it('keeps malformed and legacy lifecycle fields safe without throwing or inventing authority', () => {
@@ -546,7 +919,9 @@ it('keeps malformed and legacy lifecycle fields safe without throwing or inventi
 
   expect(() => {
     callbacks[0]?.(sessionSnapshot({ ...sessionData(8), phase: 'legacy-phase', currentTurn: 'old' }));
-    callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted')));
+    callbacks[0]?.(sessionSnapshot(liveTurnData(1, 'restricted', {
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    })));
   }).not.toThrow();
   expect(onSession).toHaveBeenCalledTimes(2);
 });

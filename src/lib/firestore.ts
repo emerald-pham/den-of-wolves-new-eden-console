@@ -47,6 +47,7 @@ import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
+import { useSessionStore } from '@/store/useSessionStore';
 import {
   LEGAL_LIFECYCLE_TRANSITIONS,
   type LifecyclePhase,
@@ -405,6 +406,60 @@ type SessionLifecycleCursor = {
   readonly airspaceState?: 0 | 1;
 };
 
+/** Firestore's full-precision monotonic server timestamp. */
+type ServerAuthorityCursor = {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+};
+
+/**
+ * Subscription-independent authority for session snapshots. App route effects
+ * may briefly tear down and recreate listeners without surrendering the newest
+ * server lifecycle cursor to a delayed cache callback.
+ */
+export interface SessionSnapshotAuthority {
+  hasServerSessionAuthority: boolean;
+  /** Increments only when a newer accepted server snapshot wins the cursor. */
+  authorityVersion?: number;
+  latestSessionLifecycle?: SessionLifecycleCursor;
+  latestServerAuthorityCursor?: ServerAuthorityCursor;
+}
+
+export function createSessionSnapshotAuthority(): SessionSnapshotAuthority {
+  return { hasServerSessionAuthority: false, authorityVersion: 0 };
+}
+
+export function sessionSnapshotAuthorityVersion(
+  authority: SessionSnapshotAuthority,
+): number {
+  return authority.authorityVersion ?? 0;
+}
+
+const sessionSnapshotAuthorities = new Map<string, SessionSnapshotAuthority>();
+
+/** One authority object shared by callable hydration and every listener for an identity. */
+export function sessionSnapshotAuthorityFor(
+  sessionId: string,
+  uid: string,
+): SessionSnapshotAuthority {
+  const key = JSON.stringify([sessionId, uid]);
+  const existing = sessionSnapshotAuthorities.get(key);
+  if (existing) return existing;
+  const authority = createSessionSnapshotAuthority();
+  sessionSnapshotAuthorities.set(key, authority);
+  return authority;
+}
+
+function projectionSessionAuthority(
+  sessionId: string,
+  supplied: SessionSnapshotAuthority | undefined,
+): SessionSnapshotAuthority | undefined {
+  if (supplied) return supplied;
+  const store = useSessionStore.getState();
+  const uid = store.me?.uid ?? store.gmInstance?.uid;
+  return uid ? sessionSnapshotAuthorityFor(sessionId, uid) : undefined;
+}
+
 const ACTIONABLE_LIFECYCLE_PHASES: readonly LifecyclePhase[] = [
   'lobby', 'casting', 'briefing', 'active',
 ];
@@ -414,6 +469,88 @@ function lifecyclePhase(value: unknown): value is LifecyclePhase {
     LEGAL_LIFECYCLE_TRANSITIONS,
     value,
   );
+}
+
+function cursorFromMillis(value: unknown): ServerAuthorityCursor | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const seconds = Math.floor(value / 1_000);
+  const nanoseconds = Math.round((value - seconds * 1_000) * 1_000_000);
+  if (!Number.isSafeInteger(seconds) || nanoseconds < 0 || nanoseconds >= 1_000_000_000) {
+    return undefined;
+  }
+  return { seconds, nanoseconds };
+}
+
+function timestampFieldsCursor(value: Readonly<Record<string, unknown>>): ServerAuthorityCursor | undefined {
+  const seconds = value.seconds ?? value._seconds;
+  const nanoseconds = value.nanoseconds ?? value._nanoseconds;
+  if (
+    typeof seconds !== 'number' || !Number.isSafeInteger(seconds) ||
+    typeof nanoseconds !== 'number' || !Number.isSafeInteger(nanoseconds) ||
+    nanoseconds < 0 || nanoseconds >= 1_000_000_000
+  ) return undefined;
+  return { seconds, nanoseconds };
+}
+
+function trustedTimestampCursor(value: unknown): ServerAuthorityCursor | undefined {
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return cursorFromMillis(parsed);
+  }
+  if (value instanceof Date) return cursorFromMillis(value.getTime());
+  if (typeof value !== 'object' || value === null) return undefined;
+  const timestamp = value as Readonly<Record<string, unknown>> & {
+    readonly toMillis?: unknown;
+    readonly toDate?: unknown;
+  };
+  const fieldCursor = timestampFieldsCursor(timestamp);
+  if (fieldCursor) return fieldCursor;
+  if (typeof timestamp.toMillis === 'function') {
+    const millis = timestamp.toMillis();
+    return cursorFromMillis(millis);
+  }
+  if (typeof timestamp.toDate === 'function') {
+    const date = timestamp.toDate();
+    return date instanceof Date ? cursorFromMillis(date.getTime()) : undefined;
+  }
+  return undefined;
+}
+
+function serverAuthorityCursor(
+  snapshot: { readonly data: () => DocumentData },
+  data: DocumentData,
+): ServerAuthorityCursor | undefined {
+  const documentSnapshot = snapshot as { readonly updateTime?: unknown; readonly data: () => DocumentData };
+  return trustedTimestampCursor(documentSnapshot.updateTime) ??
+    trustedTimestampCursor(data.updatedAt);
+}
+
+function compareServerAuthorityCursors(
+  left: ServerAuthorityCursor,
+  right: ServerAuthorityCursor,
+): number {
+  return left.seconds === right.seconds
+    ? left.nanoseconds - right.nanoseconds
+    : left.seconds - right.seconds;
+}
+
+function acceptsServerAuthorityCursor(
+  hasServerSessionAuthority: boolean,
+  previous: ServerAuthorityCursor | undefined,
+  next: ServerAuthorityCursor | undefined,
+  allowEqual = false,
+): boolean {
+  // Preserve one intentional legacy hydration. After any server callback has
+  // been accepted, another unversioned callback cannot overwrite it; a trusted
+  // cursor may upgrade that legacy authority exactly once. Once present, only
+  // a strictly newer full-precision listener cursor may advance server
+  // authority. A fresh callable may reconcile an equal cursor so disconnect
+  // followed by a same-state rejoin can restore local identity.
+  if (!hasServerSessionAuthority) return true;
+  if (previous === undefined) return next !== undefined;
+  if (next === undefined) return false;
+  const order = compareServerAuthorityCursors(next, previous);
+  return allowEqual ? order >= 0 : order > 0;
 }
 
 function canReachLifecyclePhase(
@@ -514,8 +651,43 @@ function acceptsSessionLifecycleSnapshot(
   return true;
 }
 
+function acceptServerSessionAuthority(
+  authority: SessionSnapshotAuthority,
+  session: GameSession,
+  cursor: ServerAuthorityCursor | undefined,
+  allowEqualCursor = false,
+): boolean {
+  if (!acceptsServerAuthorityCursor(
+    authority.hasServerSessionAuthority,
+    authority.latestServerAuthorityCursor,
+    cursor,
+    allowEqualCursor,
+  )) return false;
+  const nextLifecycle = sessionLifecycleCursor(session, authority.latestSessionLifecycle);
+  if (!acceptsSessionLifecycleSnapshot(authority.latestSessionLifecycle, nextLifecycle)) return false;
+  authority.hasServerSessionAuthority = true;
+  authority.authorityVersion = sessionSnapshotAuthorityVersion(authority) + 1;
+  authority.latestSessionLifecycle = nextLifecycle;
+  if (cursor !== undefined) authority.latestServerAuthorityCursor = cursor;
+  return true;
+}
+
+/** Reconcile a fresh join/resume result with the same authority used by listeners. */
+export function acceptCallableSessionAuthority(session: GameSession, uid: string): boolean {
+  return acceptServerSessionAuthority(
+    sessionSnapshotAuthorityFor(session.id, uid),
+    session,
+    trustedTimestampCursor(session.updatedAt),
+    true,
+  );
+}
+
 export interface SessionStateHandlers {
   readonly onSession: (session: GameSession) => void;
+  /** Whether the accepted session snapshot is backed by server authority. */
+  readonly onSessionFreshness?: (fresh: boolean) => void;
+  /** Retain accepted server authority when an equivalent listener is restarted. */
+  readonly sessionSnapshotAuthority?: SessionSnapshotAuthority;
   readonly onPlayer: (player: Player) => void;
   readonly onKicked: () => void;
   readonly onSeats: (seats: readonly Seat[]) => void;
@@ -532,37 +704,68 @@ export function subscribeSessionState(
 ): Unsubscribe {
   const database = db();
   let subscribed = true;
-  let latestSessionLifecycle: SessionLifecycleCursor | undefined;
+  const sessionSnapshotAuthority =
+    handlers.sessionSnapshotAuthority ?? createSessionSnapshotAuthority();
+  const onError = () => {
+    if (subscribed) handlers.onError();
+  };
   const unsubscribes = [
     onSnapshot(doc(database, `sessions/${sessionId}`), (snapshot) => {
       if (!subscribed) return;
       if (snapshot.exists()) {
-        const session = sessionFrom(snapshot.id, snapshot.data());
-        const nextLifecycle = sessionLifecycleCursor(session, latestSessionLifecycle);
-        if (!acceptsSessionLifecycleSnapshot(latestSessionLifecycle, nextLifecycle)) return;
-        latestSessionLifecycle = nextLifecycle;
+        const fromCache = snapshot.metadata?.fromCache === true;
+        // A cache callback can arrive after Firestore has delivered a newer
+        // server snapshot. It remains useful for the first render, but never
+        // gets to roll back accepted authority or its freshness signal.
+        if (fromCache && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        const data = snapshot.data();
+        const session = sessionFrom(snapshot.id, data);
+        if (!fromCache && !acceptServerSessionAuthority(
+          sessionSnapshotAuthority,
+          session,
+          serverAuthorityCursor(snapshot, data),
+        )) return;
         handlers.onSession(session);
+        if (fromCache) {
+          handlers.onSessionFreshness?.(false);
+        } else {
+          handlers.onSessionFreshness?.(true);
+        }
       }
-      else handlers.onError();
-    }, handlers.onError),
+      else onError();
+    }, onError),
     onSnapshot(doc(database, `sessions/${sessionId}/players/${uid}`), (snapshot) => {
-      if (snapshot.exists() && snapshot.get('kickedAt')) {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      // Player role/seat projections are part of the same reconnect identity.
+      // Once the session cursor is server-authoritative, a delayed cached
+      // projection must not replace the role or seat used by the UI.
+      if (fromCache && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+      // A cached kickedAt is not enough to tear down the persisted identity;
+      // wait for the server projection to confirm that terminal decision.
+      if (snapshot.exists() && snapshot.get('kickedAt') && !fromCache) {
         handlers.onKicked();
       } else if (snapshot.exists() && snapshot.get('connected') === true) {
         handlers.onPlayer(playerFrom(sessionId, uid, snapshot.data()));
-      } else handlers.onError();
-    }, handlers.onError),
+      } else onError();
+    }, onError),
     onSnapshot(collection(database, `sessions/${sessionId}/seats`), (snapshot) => {
+      if (!subscribed) return;
+      if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
       handlers.onSeats(snapshot.docs
         .map((seat) => seatFrom(sessionId, seat.id, seat.data()))
         .filter((seat) => seat.roleId !== 'press-officer'));
-    }, handlers.onError),
+    }, onError),
     ...(handlers.onPrivateLoyalty ? [onSnapshot(
       doc(database, `sessions/${sessionId}/secrets/loyalty-${uid}`),
-      (snapshot) => handlers.onPrivateLoyalty?.(
-        snapshot.exists() ? privateLoyalty(snapshot.get('payload')) : null,
-      ),
-      handlers.onError,
+      (snapshot) => {
+        if (!subscribed) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
+        handlers.onPrivateLoyalty?.(
+          snapshot.exists() ? privateLoyalty(snapshot.get('payload')) : null,
+        );
+      },
+      onError,
     )] : []),
     ...(handlers.onSetupReceipt ? [onSnapshot(
       query(
@@ -570,6 +773,8 @@ export function subscribeSessionState(
         where('visibleToUids', 'array-contains', uid),
       ),
       (snapshot) => {
+        if (!subscribed) return;
+        if (snapshot.metadata?.fromCache === true && sessionSnapshotAuthority.hasServerSessionAuthority) return;
         const latest = snapshot.docs
           .map((secret) => setupReceipt(secret.get('payload')))
           .filter((receipt): receipt is SetupReceipt => receipt !== null)
@@ -577,7 +782,7 @@ export function subscribeSessionState(
           .at(-1) ?? null;
         handlers.onSetupReceipt?.(latest);
       },
-      handlers.onError,
+      onError,
     )] : []),
   ];
   return () => {
@@ -590,29 +795,61 @@ export function subscribeGmInstances(
   sessionId: string,
   onInstances: (instances: readonly GmInstance[]) => void,
   onError: () => void,
+  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
-  return onSnapshot(
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
     query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
-    (snapshot) => onInstances(snapshot.docs.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1))),
-    onError,
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onInstances(snapshot.docs.map((instance) =>
+        gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1)));
+    },
+    () => { if (subscribed) onError(); },
   );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
 }
 
 export function subscribeConnectedPlayers(
   sessionId: string,
   onPlayers: (players: readonly Player[]) => void,
   onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
-  return onSnapshot(
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
     query(
       collection(db(), `sessions/${sessionId}/players`),
       where('connected', '==', true),
     ),
-    (snapshot) => onPlayers(snapshot.docs.map((player) =>
-      playerFrom(sessionId, player.id, player.data()))),
-    onError,
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onPlayers(snapshot.docs.map((player) =>
+        playerFrom(sessionId, player.id, player.data())));
+    },
+    () => { if (subscribed) onError(); },
   );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
 }
 
 export function subscribeShipConfetti(
@@ -620,12 +857,22 @@ export function subscribeShipConfetti(
   shipId: string,
   onPop: (sourceShipId: string, actorRoleName?: string, actorName?: string) => void,
   onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
   let initial = true;
+  let subscribed = true;
+  let hasServerSnapshot = false;
   let lastSignal: string | null = null;
-  return onSnapshot(
+  const unsubscribe = onSnapshot(
     doc(db(), `sessions/${sessionId}/shipConfetti/${shipId}`),
     (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
       const signal = snapshot.exists() ? iso(snapshot.get('createdAt')) : null;
       const sourceShipId = snapshot.exists() ? String(snapshot.get('shipId')) : shipId;
       const actorRoleName = snapshot.exists() ? String(snapshot.get('actorRoleName')) : '';
@@ -641,99 +888,135 @@ export function subscribeShipConfetti(
       if (signal && signal !== lastSignal) onPop(sourceShipId, actorRoleName, actorName);
       lastSignal = signal;
     },
-    onError,
+    () => { if (subscribed) onError(); },
   );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
 }
 
 export function subscribeSessionEvents(
   sessionId: string,
   onEvents: (events: readonly SessionEvent[]) => void,
   onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
-  return onSnapshot(
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
     query(
       collection(db(), `sessions/${sessionId}/events`),
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
-    (snapshot) => onEvents(snapshot.docs.flatMap<SessionEvent>((event) => {
-      const data = event.data();
-      if (data.type === 'fullscreen-alert') return [{
-        id: event.id,
-        sessionId,
-        type: 'fullscreen-alert' as const,
-        sourceRoleName: data.sourceRoleName as string,
-        message: data.message as string,
-        createdAt: iso(data.createdAt),
-      }];
-      if (data.type === 'maintenance') {
-        const maintenance = parseMaintenanceEvent(event.id, sessionId, data, iso(data.createdAt));
-        return maintenance ? [maintenance] : [];
-      }
-      if (
-        data.type === 'timer-pause' &&
-        (data.action === 'paused' || data.action === 'resumed') &&
-        (data.window === 'restricted' || data.window === 'open') &&
-        typeof data.turn === 'number' && Number.isSafeInteger(data.turn) && data.turn >= 1
-      ) return [{
-        id: event.id,
-        sessionId,
-        type: 'timer-pause' as const,
-        action: data.action,
-        turn: data.turn,
-        window: data.window,
-        actorName: typeof data.actorName === 'string' ? data.actorName : 'GM',
-        createdAt: iso(data.createdAt),
-      }];
-      if (data.type !== 'ship-confetti') return [];
-      return [{
-        id: event.id,
-        sessionId,
-        type: 'ship-confetti' as const,
-        shipId: data.shipId as string,
-        shipName: data.shipName as string,
-        actorName: data.actorName as string,
-        actorRoleName: data.actorRoleName as string,
-        createdAt: iso(data.createdAt),
-      }];
-    })),
-    onError,
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onEvents(snapshot.docs.flatMap<SessionEvent>((event) => {
+        const data = event.data();
+        if (data.type === 'fullscreen-alert') return [{
+          id: event.id,
+          sessionId,
+          type: 'fullscreen-alert' as const,
+          sourceRoleName: data.sourceRoleName as string,
+          message: data.message as string,
+          createdAt: iso(data.createdAt),
+        }];
+        if (data.type === 'maintenance') {
+          const maintenance = parseMaintenanceEvent(event.id, sessionId, data, iso(data.createdAt));
+          return maintenance ? [maintenance] : [];
+        }
+        if (
+          data.type === 'timer-pause' &&
+          (data.action === 'paused' || data.action === 'resumed') &&
+          (data.window === 'restricted' || data.window === 'open') &&
+          typeof data.turn === 'number' && Number.isSafeInteger(data.turn) && data.turn >= 1
+        ) return [{
+          id: event.id,
+          sessionId,
+          type: 'timer-pause' as const,
+          action: data.action,
+          turn: data.turn,
+          window: data.window,
+          actorName: typeof data.actorName === 'string' ? data.actorName : 'GM',
+          createdAt: iso(data.createdAt),
+        }];
+        if (data.type !== 'ship-confetti') return [];
+        return [{
+          id: event.id,
+          sessionId,
+          type: 'ship-confetti' as const,
+          shipId: data.shipId as string,
+          shipName: data.shipName as string,
+          actorName: data.actorName as string,
+          actorRoleName: data.actorRoleName as string,
+          createdAt: iso(data.createdAt),
+        }];
+      }));
+    },
+    () => { if (subscribed) onError(); },
   );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
 }
 
 export function subscribeDamageDraws(
   sessionId: string,
   onDraws: (draws: readonly DamageDraw[]) => void,
   onError: () => void = () => undefined,
+  suppliedAuthority?: SessionSnapshotAuthority,
 ): Unsubscribe {
-  return onSnapshot(
+  let subscribed = true;
+  let hasServerSnapshot = false;
+  const unsubscribe = onSnapshot(
     query(
       collection(db(), `sessions/${sessionId}/damageDraws`),
       orderBy('createdAt', 'desc'),
       limit(30),
     ),
-    (snapshot) => onDraws(snapshot.docs.flatMap<DamageDraw>((draw) => {
-      const data = draw.data();
-      if (data.type === 'ship-destroyed') return [{
-        id: draw.id,
-        sessionId,
-        type: 'ship-destroyed' as const,
-        shipId: data.shipId as string,
-        createdAt: iso(data.createdAt),
-      }];
-      if (data.type !== 'ship-damage') return [];
-      return [{
-        id: draw.id,
-        sessionId,
-        type: 'ship-damage' as const,
-        shipId: data.shipId as string,
-        card: data.card as string,
-        systemId: data.systemId as string,
-        systemName: data.systemName as string,
-        recycled: data.recycled === true,
-        createdAt: iso(data.createdAt),
-      }];
-    })),
-    onError,
+    (snapshot) => {
+      if (!subscribed) return;
+      const fromCache = snapshot.metadata?.fromCache === true;
+      if (fromCache && (
+        hasServerSnapshot ||
+        projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
+      )) return;
+      if (!fromCache) hasServerSnapshot = true;
+      onDraws(snapshot.docs.flatMap<DamageDraw>((draw) => {
+        const data = draw.data();
+        if (data.type === 'ship-destroyed') return [{
+          id: draw.id,
+          sessionId,
+          type: 'ship-destroyed' as const,
+          shipId: data.shipId as string,
+          createdAt: iso(data.createdAt),
+        }];
+        if (data.type !== 'ship-damage') return [];
+        return [{
+          id: draw.id,
+          sessionId,
+          type: 'ship-damage' as const,
+          shipId: data.shipId as string,
+          card: data.card as string,
+          systemId: data.systemId as string,
+          systemName: data.systemName as string,
+          recycled: data.recycled === true,
+          createdAt: iso(data.createdAt),
+        }];
+      }));
+    },
+    () => { if (subscribed) onError(); },
   );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+  };
 }

@@ -72,10 +72,19 @@ function AppRoutes() {
     if (!sessionId || !playerUid) return;
     let active = true;
     let unsubscribe: () => void = () => undefined;
-    void import('@/lib/firestore').then(({ subscribeSessionState }) => {
+    void import('@/lib/firestore').then(({
+      sessionSnapshotAuthorityFor,
+      subscribeSessionState,
+    }) => {
       if (!active) return;
       unsubscribe = subscribeSessionState(sessionId, playerUid, {
+        sessionSnapshotAuthority: sessionSnapshotAuthorityFor(sessionId, playerUid),
         onSession: (next) => useSessionStore.getState().setSession(next),
+        onSessionFreshness: (fresh) => {
+          const store = useSessionStore.getState();
+          store.setSessionSnapshotFreshness(fresh ? 'server' : 'cache');
+          store.setConnection(fresh ? 'live' : 'offline');
+        },
         onPlayer: (next) => useSessionStore.getState().setMe(next),
         onKicked: () => useSessionStore.getState().disconnect(),
         onSeats: (next) => useSessionStore.getState().setSeats(next),

@@ -10,6 +10,7 @@ beforeEach(() => {
   useSessionStore.getState().setIdentity({ id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '', fleetRedAlert: { active: true, revision: 3 } },
     { uid: 'u1', sessionId: 's1', displayName: 'Admiral', role: 'player', seatId: null, joinedAt: '' });
   useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
 });
 it('sends the current revision to the callable without optimistically changing shared state', async () => {
   await setFleetRedAlert(false);
@@ -21,6 +22,11 @@ it('rejects offline commands without queueing a delayed warning', async () => {
   useSessionStore.getState().setConnection('offline');
   await expect(setFleetRedAlert(true)).rejects.toThrow('Reconnect');
   expect(mocks.call).not.toHaveBeenCalled();
+});
+it('rejects cache-backed commands even when the connection label is live', async () => {
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  await expect(setFleetRedAlert(true)).rejects.toThrow(/live session state/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });
 it('includes the GM instance for observer write mode', async () => {
   useSessionStore.setState({ gmInstance: { id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: '', claimedAt: '' } });
