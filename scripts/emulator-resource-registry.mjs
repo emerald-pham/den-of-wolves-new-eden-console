@@ -229,6 +229,20 @@ function objectRecord(value) {
     : {};
 }
 
+function canonicalJsonValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalJsonValue);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) =>
+      [key, canonicalJsonValue(value[key])],
+    ));
+  }
+  return value;
+}
+
+function jsonSemanticallyEqual(left, right) {
+  return JSON.stringify(canonicalJsonValue(left)) === JSON.stringify(canonicalJsonValue(right));
+}
+
 function text(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
@@ -5460,9 +5474,9 @@ export async function validateCoordinationEntry(filePath, options) {
     });
     const completedDuringValidation = currentDependencyReceipt?.policy === 'completion-refreshed' &&
       preparation.dependencyReceipt?.policy !== 'completion-refreshed' &&
-      JSON.stringify(currentDependencyReceipt.predecessor) === JSON.stringify(preparation.dependencyReceipt);
+      jsonSemanticallyEqual(currentDependencyReceipt.predecessor, preparation.dependencyReceipt);
     if (!completedDuringValidation &&
-      JSON.stringify(currentDependencyReceipt) !== JSON.stringify(preparation.dependencyReceipt)) {
+      !jsonSemanticallyEqual(currentDependencyReceipt, preparation.dependencyReceipt)) {
       throw new Error(
         `Cannot record validation for ${entry.id}: dependency receipt inputs changed while checks ran; rerun validation.`,
       );

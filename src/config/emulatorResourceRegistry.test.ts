@@ -398,12 +398,16 @@ describe('local emulator coordination', () => {
     }, {}, {});
     const strictReceipt = await acceptedDependencyReceipt(strictContext);
     const strictMetadata = dependencyReceiptMetadata(strictReceipt, 'required');
+    const reorderedStrictMetadata = Object.fromEntries(Object.entries(strictMetadata).reverse());
     const completionReceipt = {
       ...strictReceipt,
       issuance: undefined,
       policy: 'completion-refreshed',
       completion: {
-        prior: strictMetadata,
+        // Receipt JSON is canonically key-sorted on disk, while ledger objects
+        // retain construction order. Semantic equality must not become a
+        // fail-closed half-write after the receipt file is consumed.
+        prior: reorderedStrictMetadata,
         consumedAt: '2026-09-11T00:01:00.000Z',
         anchor: { commitSha: 'a'.repeat(40) },
       },
