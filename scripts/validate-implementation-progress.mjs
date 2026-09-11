@@ -2,6 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  deriveProgressSummary,
+  loadPromptCatalog,
+} from './prompt-catalog.mjs';
 
 const FINAL_STATUSES = ['done', 'partial', 'missing', 'blocked'];
 const ALL_STATUSES = [...FINAL_STATUSES, 'in-progress'];
@@ -470,6 +474,29 @@ function validateFragmentProgressMetadata(progress, headline, errors) {
   return values;
 }
 
+function catalogProgressInputs(catalogSource, errors) {
+  let catalog;
+  try {
+    catalog = loadPromptCatalog({ source: catalogSource });
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+    return null;
+  }
+  const summary = deriveProgressSummary(catalog);
+  return {
+    catalog,
+    summary,
+    headline: { complete: summary.complete, total: summary.total },
+    ledgerRows: catalog.prompts.map((prompt) => ({
+      prompt: prompt.id,
+      status: prompt.status,
+      changeClass: prompt.changeClass,
+      changelogVersions: prompt.releases,
+    })),
+    canonicalPromptIds: catalog.prompts.map((prompt) => prompt.id),
+  };
+}
+
 /**
  * Validate release-lane metadata before it is copied into package/changelog
  * files. This does not mutate or relax the normal progress gate; it gives a
@@ -479,6 +506,7 @@ export function validateReleaseFragment({
   fragment,
   progressSource,
   planSource,
+  catalogSource,
   applicationVersion,
   requiredPrompt = null,
   postRelease = false,
@@ -520,10 +548,14 @@ export function validateReleaseFragment({
   }
 
   const prompts = fragmentPromptIds(candidate.implementationPrompts, errors);
-  const headline = typeof progressSource === 'string' ? parseHeadline(progressSource, errors) : null;
-  const ledgerRows = typeof progressSource === 'string' ? parseLedger(progressSource, errors) : [];
-  const canonicalRows = typeof planSource === 'string' ? parseCanonicalPromptIds(planSource, errors) : [];
-  const canonicalPromptIds = canonicalRows.map((row) => row.prompt);
+  const catalogInputs = typeof catalogSource === 'string' && catalogSource.trim()
+    ? catalogProgressInputs(catalogSource, errors)
+    : null;
+  const headline = catalogInputs?.headline ?? (typeof progressSource === 'string' ? parseHeadline(progressSource, errors) : null);
+  const ledgerRows = catalogInputs?.ledgerRows ?? (typeof progressSource === 'string' ? parseLedger(progressSource, errors) : []);
+  const canonicalPromptIds = catalogInputs?.canonicalPromptIds ?? (
+    typeof planSource === 'string' ? parseCanonicalPromptIds(planSource, errors).map((row) => row.prompt) : []
+  );
   const ledgerByPrompt = new Map(ledgerRows.map((row) => [row.prompt, row]));
   for (const prompt of prompts) {
     if (!canonicalPromptIds.includes(prompt)) {
@@ -565,15 +597,74 @@ export function validateReleaseFragment({
   };
 }
 
+function validateCatalogBackedProgress({
+  catalogSource,
+  applicationVersion,
+  requiredPrompt = null,
+  validatedFragment = null,
+  releaseFragment = null,
+} = {}) {
+  const errors = [];
+  const inputs = catalogProgressInputs(catalogSource, errors);
+  if (!inputs) return { errors, summary: null };
+  const { catalog, summary } = inputs;
+  if (requiredPrompt !== null && requiredPrompt !== undefined) {
+    const prompt = normalizePromptId(requiredPrompt);
+    if (!prompt || !catalog.prompts.some((candidate) => candidate.id === prompt)) {
+      errors.push(`required implementation-plan Prompt ${promptLabel(requiredPrompt)} is not in the prompt catalog`);
+    }
+  }
+
+  const fragmentCandidate = validatedFragment ?? releaseFragment;
+  const postRelease = fragmentCandidate?.postRelease === true;
+  const fragmentValidation = fragmentCandidate
+    ? validateReleaseFragment({
+        fragment: fragmentCandidate,
+        catalogSource,
+        applicationVersion,
+        requiredPrompt,
+        postRelease,
+      })
+    : null;
+  if (fragmentValidation) {
+    errors.push(...fragmentValidation.errors.map((error) => `release fragment gate: ${error}`));
+  }
+  return {
+    errors,
+    releaseProgress: null,
+    ...(fragmentValidation ? { validatedFragment: fragmentValidation.fragment } : {}),
+    summary: {
+      complete: summary.complete,
+      total: summary.total,
+      partial: summary.partial,
+      missing: summary.missing,
+      blocked: summary.blocked,
+      inProgress: summary.inProgress,
+      resumePrompt: summary.resumePrompt,
+      activePrompt: summary.activePrompt,
+    },
+  };
+}
+
 export function validateImplementationProgress({
   progressSource,
   planSource,
+  catalogSource,
   changelogSource,
   applicationVersion,
   requiredPrompt = null,
   validatedFragment = null,
   releaseFragment = null,
 } = {}) {
+  if (typeof catalogSource === 'string' && catalogSource.trim()) {
+    return validateCatalogBackedProgress({
+      catalogSource,
+      applicationVersion,
+      requiredPrompt,
+      validatedFragment,
+      releaseFragment,
+    });
+  }
   const errors = [];
   if (typeof progressSource !== 'string' || typeof planSource !== 'string') {
     return { errors: ['progressSource and planSource must be text'], summary: null };
@@ -760,6 +851,7 @@ export function formatImplementationProgress(summary) {
 export function readImplementationProgress({ cwd = process.cwd() } = {}) {
   const packageSource = readFileSync(resolve(cwd, 'package.json'), 'utf8');
   return {
+    catalogSource: readFileSync(resolve(cwd, 'docs/implementation-prompts.json'), 'utf8'),
     progressSource: readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8'),
     planSource: readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8'),
     changelogSource: readFileSync(resolve(cwd, 'src/changelog.ts'), 'utf8'),

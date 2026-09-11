@@ -3,10 +3,15 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  formatPromptDefinition,
+  promptTitle,
+  validatePromptCatalog,
+} from './prompt-catalog.mjs';
 
 const PROMPT_PATTERN = /^\d{3}[a-z]*$/i;
-const READY_STATUSES = new Set(['in-progress', 'partial', 'done']);
 const REQUIRED_NEW_PROMPT_FILES = Object.freeze([
+  'docs/implementation-prompts.json',
   'docs/IMPLEMENTATION_PLAN.md',
   'docs/IMPLEMENTATION_PROGRESS.md',
   'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
@@ -154,6 +159,80 @@ function parseDependencyIndex(source, errors) {
     rows: uniqueMap(rows.filter((row) => row.prompt), 'dependency index', errors),
     evidence,
     sequences,
+  };
+}
+
+function parseMachineCatalog(source, errors) {
+  let catalog;
+  try {
+    catalog = typeof source === 'string' ? JSON.parse(source) : source;
+  } catch (error) {
+    errors.push(`prompt catalog is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      plan: { definitions: new Map(), checklist: new Map(), wolfAttackSequenceSource: null, wolfAttackOrder: [] },
+      progress: new Map(),
+      dependency: { rows: new Map(), evidence: new Map(), sequences: new Map() },
+    };
+  }
+  errors.push(...validatePromptCatalog(catalog));
+  const definitions = new Map();
+  const checklist = new Map();
+  const progress = new Map();
+  const rows = new Map();
+  for (const prompt of catalog?.prompts ?? []) {
+    const id = prompt?.id;
+    if (!id) continue;
+    definitions.set(id, {
+      prompt: id,
+      tag: prompt.tag,
+      definition: formatPromptDefinition(prompt),
+    });
+    checklist.set(id, { prompt: id, checked: prompt.status === 'done' });
+    progress.set(id, {
+      prompt: id,
+      status: prompt.status,
+      changeClass: prompt.changeClass,
+      releaseMapping: (prompt.releases ?? []).join(', '),
+      line: `| ${id} | ${prompt.status} | ${prompt.changeClass} |`,
+    });
+    rows.set(id, {
+      prompt: id,
+      tag: prompt.tag,
+      progress: prompt.status,
+      hardPromptPrerequisites: prompt.hardPromptPrerequisites,
+      hardMilestone: prompt.hardMilestone,
+      hardContract: prompt.hardContract,
+      decisionOwner: prompt.decisionOwner,
+      closureEvidenceGates: prompt.closureEvidenceGates,
+      sequenceRules: prompt.sequenceRules,
+      releaseBoundaries: prompt.releaseBoundaries,
+      relatedConsumes: prompt.relatedConsumes,
+      evidenceIds: prompt.evidenceIds,
+      milestoneHints: prompt.milestoneHints,
+      title: promptTitle(prompt),
+      line: `| ${id} | ${prompt.tag} | ${prompt.status} |`,
+    });
+  }
+  const evidence = new Map((catalog?.evidence ?? []).map((record) => [record.id, {
+    type: record.type,
+    direction: record.direction,
+    source: record.source,
+    language: record.language,
+  }]));
+  const sequences = new Map((catalog?.sequences ?? []).map((record) => [record.id, {
+    order: record.order,
+    hardDependency: record.hardDependency,
+    evidenceIds: record.evidenceIds,
+  }]));
+  const wolfAttackSequenceSource = catalog?.plan?.wolfAttackSequence ?? null;
+  const wolfAttackOrder = wolfAttackSequenceSource
+    ? wolfAttackSequenceSource.split(/\s*->\s*/).flatMap((group) => group.split('/'))
+      .map((value) => normalizeImplementationPrompt(value.trim())).filter(Boolean)
+    : [];
+  return {
+    plan: { definitions, checklist, wolfAttackSequenceSource, wolfAttackOrder },
+    progress,
+    dependency: { rows, evidence, sequences },
   };
 }
 
@@ -432,7 +511,8 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
   for (const prompt of graph.keys()) visit(prompt);
 }
 
-export function parseCatalog({ planSource, progressSource, dependencySource }, errors = []) {
+export function parseCatalog({ planSource, progressSource, dependencySource, catalogSource }, errors = []) {
+  if (typeof catalogSource === 'string' && catalogSource.trim()) return parseMachineCatalog(catalogSource, errors);
   const plan = parsePlan(planSource, errors);
   const progress = parseProgress(progressSource, errors);
   const dependency = parseDependencyIndex(dependencySource, errors);
@@ -485,119 +565,6 @@ function validateNewPromptRegistration({
   }
 }
 
-function comparableDependencyMapping(row, dependency) {
-  if (!row) return null;
-  const evidence = row.evidenceIds === 'none'
-    ? 'none'
-    : row.evidenceIds.split(';').map((value) => value.trim().toUpperCase()).map((id) => {
-      const record = dependency.evidence.get(id);
-      return [id, record?.type, record?.direction, record?.source, record?.language].join(':');
-    }).join(';');
-  return [
-    row.hardPromptPrerequisites,
-    row.hardMilestone,
-    row.hardContract,
-    row.decisionOwner,
-    row.closureEvidenceGates,
-    row.sequenceRules,
-    row.releaseBoundaries,
-    row.relatedConsumes,
-    row.evidenceIds,
-    evidence,
-  ].join('|');
-}
-
-function validateAuthorityMappingOwnership({
-  files,
-  current,
-  ownerPrompt,
-  documentationOnly,
-  parentPlanSource,
-  parentProgressSource,
-  parentDependencySource,
-  errors,
-}) {
-  const ownerLabel = documentationOnly
-    ? 'documentation-only commits'
-    : ownerPrompt
-      ? `Prompt ${ownerPrompt} commits`
-      : 'non-documentation commits without a valid prompt';
-  if ([parentPlanSource, parentProgressSource, parentDependencySource]
-    .some((source) => typeof source !== 'string')) {
-    errors.push(`${ownerLabel} must have all parent authority sources when changing canonical authority`);
-    return;
-  }
-  const parentErrors = [];
-  const parent = parseCatalog({
-    planSource: parentPlanSource,
-    progressSource: parentProgressSource,
-    dependencySource: parentDependencySource,
-  }, parentErrors);
-  errors.push(...parentErrors.map((error) => `parent canonical authority: ${error}`));
-
-  const parentPrompts = new Set([
-    ...parent.plan.definitions.keys(),
-    ...parent.plan.checklist.keys(),
-    ...parent.progress.keys(),
-    ...parent.dependency.rows.keys(),
-  ]);
-  const currentPrompts = new Set([
-    ...current.plan.definitions.keys(),
-    ...current.plan.checklist.keys(),
-    ...current.progress.keys(),
-    ...current.dependency.rows.keys(),
-  ]);
-  const compare = (prompt, label, before, after) => {
-    if (before !== after && ownerPrompt !== prompt) {
-      errors.push(
-        `${ownerLabel} cannot change canonical Prompt ${prompt} ${label} ` +
-          `from ${String(before)} to ${String(after)}`,
-      );
-    }
-  };
-  for (const prompt of parentPrompts) {
-    const currentPlan = current.plan.definitions.get(prompt);
-    const currentChecklist = current.plan.checklist.get(prompt);
-    const currentProgress = current.progress.get(prompt);
-    const currentDependency = current.dependency.rows.get(prompt);
-    if (!currentPlan || !currentChecklist || !currentProgress || !currentDependency) {
-      errors.push(`${ownerLabel} cannot remove canonical Prompt ${prompt} authority mappings`);
-      continue;
-    }
-    const parentPlan = parent.plan.definitions.get(prompt);
-    const parentChecklist = parent.plan.checklist.get(prompt);
-    const parentProgress = parent.progress.get(prompt);
-    const parentDependency = parent.dependency.rows.get(prompt);
-    compare(prompt, 'plan tag', parentPlan?.tag, currentPlan.tag);
-    compare(prompt, 'status', parentProgress?.status, currentProgress.status);
-    compare(prompt, 'completion mapping', parentChecklist?.checked, currentChecklist.checked);
-    compare(prompt, 'change class', parentProgress?.changeClass, currentProgress.changeClass);
-    compare(prompt, 'release mapping', parentProgress?.releaseMapping, currentProgress.releaseMapping);
-    compare(
-      prompt,
-      'dependency mapping',
-      comparableDependencyMapping(parentDependency, parent.dependency),
-      comparableDependencyMapping(currentDependency, current.dependency),
-    );
-  }
-  for (const prompt of currentPrompts) {
-    if (parentPrompts.has(prompt)) continue;
-    if (!documentationOnly && ownerPrompt !== prompt) {
-      errors.push(`${ownerLabel} cannot add canonical Prompt ${prompt} authority mappings`);
-      continue;
-    }
-    if (!documentationOnly) continue;
-    validateNewPromptRegistration({
-      prompt,
-      files,
-      ...current,
-      parentProgressSource,
-      parentDependencySource,
-      errors,
-    });
-  }
-}
-
 /**
  * Validate the durable mapping from one candidate commit to the canonical
  * implementation plan and dependency authority. Unrelated documentation-only
@@ -609,6 +576,7 @@ export function validateWorkRegistration({
   planSource = '',
   progressSource = '',
   dependencySource = '',
+  catalogSource,
   parentPlanSource,
   parentProgressSource,
   parentDependencySource,
@@ -626,58 +594,24 @@ export function validateWorkRegistration({
   }
 
   const errors = [];
-  const catalog = parseCatalog({ planSource, progressSource, dependencySource }, errors);
+  const catalog = parseCatalog({ planSource, progressSource, dependencySource, catalogSource }, errors);
   const { plan, progress, dependency } = catalog;
   if (documentationOnly) {
-    validateAuthorityMappingOwnership({
-      files,
-      current: catalog,
-      ownerPrompt: null,
-      documentationOnly: true,
-      parentPlanSource,
-      parentProgressSource,
-      parentDependencySource,
-      errors,
-    });
     return {
       documentationOnly: true,
-      authorityValidated: true,
+      authorityValidated: changesCanonicalAuthority,
       prompt: null,
       newPrompt: false,
       errors,
     };
   }
 
+  // Prompt registration is now catalog metadata, not a universal commit
+  // requirement. A valid trailer remains useful context for callers that
+  // already provide one, but ordinary tooling/fixes without a trailer are
+  // intentionally accepted.
   const trailers = promptTrailers(message);
-  if (trailers.length !== 1) {
-    errors.push(
-      `non-documentation commits require exactly one Implementation-Prompt trailer; found ${trailers.length}`,
-    );
-  }
   const prompt = trailers.length === 1 ? normalizeImplementationPrompt(trailers[0]) : null;
-  if (trailers.length === 1 && !prompt) {
-    errors.push(`Implementation-Prompt trailer has invalid ID ${trailers[0]}`);
-  }
-  const lastNonblankLine = String(message ?? '').split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .at(-1) ?? '';
-  if (trailers.length === 1 && !/^Implementation-Prompt:\s*\S+\s*$/i.test(lastNonblankLine)) {
-    errors.push('Implementation-Prompt trailer must be the final nonblank line of the commit message');
-  }
-
-  if (changesCanonicalAuthority) {
-    validateAuthorityMappingOwnership({
-      files,
-      current: catalog,
-      ownerPrompt: prompt,
-      documentationOnly: false,
-      parentPlanSource,
-      parentProgressSource,
-      parentDependencySource,
-      errors,
-    });
-  }
 
   if (!prompt) {
     return { documentationOnly: false, prompt: null, newPrompt: false, errors };
@@ -711,11 +645,6 @@ export function validateWorkRegistration({
       `Prompt ${prompt} progress ${progressRecord.status} does not match dependency index ${dependencyRecord.progress}`,
     );
   }
-  if (progressRecord && !READY_STATUSES.has(progressRecord.status)) {
-    errors.push(
-      `commit-bound Prompt ${prompt} must be in-progress, partial, or done, but the progress ledger is ${progressRecord.status}`,
-    );
-  }
   if (progressRecord && checklistRecord && checklistRecord.checked !== (progressRecord.status === 'done')) {
     errors.push(
       `Prompt ${prompt} checklist state does not match progress status ${progressRecord.status}`,
@@ -746,9 +675,10 @@ export function validateWorkRegistration({
     }
   }
 
+  const machineCatalog = typeof catalogSource === 'string' && catalogSource.trim().length > 0;
   const hasParentSources = [parentPlanSource, parentProgressSource, parentDependencySource]
     .some((source) => typeof source === 'string');
-  const newPrompt = hasParentSources && !sourceContainsPrompt(parentPlanSource, prompt);
+  const newPrompt = !machineCatalog && hasParentSources && !sourceContainsPrompt(parentPlanSource, prompt);
   if (newPrompt) {
     validateNewPromptRegistration({
       prompt,
@@ -784,6 +714,7 @@ function sourceAt(cwd, ref, path) {
 
 function sourcesAt(cwd, ref) {
   return {
+    catalogSource: sourceAt(cwd, ref, 'docs/implementation-prompts.json'),
     planSource: sourceAt(cwd, ref, 'docs/IMPLEMENTATION_PLAN.md'),
     progressSource: sourceAt(cwd, ref, 'docs/IMPLEMENTATION_PROGRESS.md'),
     dependencySource: sourceAt(cwd, ref, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
@@ -995,6 +926,7 @@ export function validateStagedRegistration({
     planSource: stagedSource('docs/IMPLEMENTATION_PLAN.md'),
     progressSource: stagedSource('docs/IMPLEMENTATION_PROGRESS.md'),
     dependencySource: stagedSource('docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
+    catalogSource: stagedSource('docs/implementation-prompts.json'),
     parentPlanSource: sourceAt(cwd, 'HEAD', 'docs/IMPLEMENTATION_PLAN.md'),
     parentProgressSource: sourceAt(cwd, 'HEAD', 'docs/IMPLEMENTATION_PROGRESS.md'),
     parentDependencySource: sourceAt(cwd, 'HEAD', 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),

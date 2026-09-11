@@ -22,6 +22,7 @@ export interface ImplementationProgressValidationResult {
 }
 
 export interface ImplementationProgressInputs {
+  readonly catalogSource: string;
   readonly progressSource: string;
   readonly planSource: string;
   readonly changelogSource: string;
@@ -34,13 +35,16 @@ export function validateReleaseFragment(options: {
   readonly fragment?: Readonly<Record<string, unknown>> | null;
   readonly progressSource?: string;
   readonly planSource?: string;
+  readonly catalogSource?: string;
   readonly applicationVersion?: string;
   readonly requiredPrompt?: number | string | null;
+  readonly postRelease?: boolean;
 }): ReleaseFragmentValidationResult;
 
 export function validateImplementationProgress(options: {
-  readonly progressSource: string;
-  readonly planSource: string;
+  readonly catalogSource?: string;
+  readonly progressSource?: string;
+  readonly planSource?: string;
   readonly changelogSource?: string;
   readonly applicationVersion?: string;
   readonly requiredPrompt?: number | string | null;

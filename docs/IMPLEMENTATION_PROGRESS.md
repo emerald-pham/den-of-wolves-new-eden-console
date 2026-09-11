@@ -1,8 +1,8 @@
-# Implementation Plan Progress — All 734 Prompts
+# Implementation Plan Progress
 
-This tracker records all 734 canonical prompt IDs in
-[`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
-complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
+This tracker records every canonical prompt ID from the machine-readable
+[`implementation-prompts.json`](./implementation-prompts.json). A prompt
+counts as complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
 `[DEFERRED-OWNER]` prompt remains missing until the owner explicitly activates
 and accepts it. The
@@ -13,48 +13,18 @@ Completed prompts are also marked with `- [x]` in the execution checklist in
 the source plan. Open or blocked prompts remain unchecked there so a later
 session can resume at the first unresolved acceptance.
 
+<!-- BEGIN GENERATED PROMPT CATALOG: progress -->
+<!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
 **94 / 734 prompts complete (12.81%)**
 
-Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.
+Status breakdown: **94 done · 25 partial · 615 missing**.
 
 Active prompt: **none**
 
-The eleven-prompt future roadmap addendum records P031a, P106c, P485a, P611a,
-P652a, P652b, P657, P658, and P659 as missing without changing any landed
-implementation status. P660 and P661 are now complete as tooling-only
-validation infrastructure: exact validation can self-prepare and safely clean
-an isolated emulator row, while copy-only eligibility is derived from a
-committed AST/diff proof and fails closed to the full gate.
-Prompt 662 is a low-priority/deferred [DECISION] about ordinary-start Wolf
-designation policy and remains missing; no automatic or manual policy is
-selected in this roadmap entry.
-Prompt 663 is a deferred [REPAIR] for Fleetwide Red Alert discoverability and
-standard desktop rendered-browser proof; it remains missing until separately
-implemented and does not count toward completed behavior.
-Prompt 664 is complete as tooling-only repository governance: every
-non-documentation commit is bound to a dependency-ready canonical item across
-all three roadmap authorities at commit, push, CI, validation, and closeout.
-Prompt 665 is complete as non-feature coordination governance: session goals
-have a durable ignored artifact, exact wrap-up comparison, fail-closed cleanup,
-legacy migration policy, and phase-specific delegation floors, with reconciled
-exact-SHA release evidence recorded by the coordination gate.
-Prompt 666 is done as a non-feature compact dependency-packet/receipt follow-on
-to Prompt 665. Its focused red/green proof covers compact/full/JSON parity,
-relevant-only coordination fingerprints, atomic receipt integrity, and
-begin/amend/validate enforcement. A strict receipt now keeps a random 256-bit
-nonce only in the ignored worktree file while its active ledger entry stores
-the nonce commitment and exact receipt digest. Authoritative validation can
-consume that issuance once for the canonical partial-to-done transition;
-deletion, post-done recreation, replay, mismatch, half-write, or a second
-refresh fails closed, and finish revalidates the consumed lineage read-only.
-Prompt 667
-remains missing as a non-feature security-governance rebaseline that maps hostile
-runtime clients and resource exhaustion to existing controls under mandatory
-independent review; any runtime gap becomes a separately registered feature.
-P589b remains missing but is reclassified from preservation to a narrow copy
-repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
+Resume pointer: Prompt 012 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
+<!-- END GENERATED PROMPT CATALOG: progress -->
 
 ### Version 0.3.28 progress evidence
 
@@ -388,25 +358,24 @@ provisioning, and does not close Prompts 021, 030, 051, 054, 071, 073, 075, or
 
 ## Progress integrity gate
 
-This page is a checked status contract, not a manually edited progress
-summary. Run `npm run validate:implementation-progress` after changing the
-ledger and before reporting progress. The gate derives its allowed prompt IDs
-from every canonical prompt heading in the source plan, cross-checks one status
-row per ID, the headline count and percentage, the status breakdown, the checked
-source-plan boxes, changelog coverage, and the resume pointer. It accepts both
-base and lettered IDs without a 001–100 range assumption.
+This page is a generated status view, not a second manually edited authority.
+The machine-readable prompt catalog owns each prompt's status, class, release
+mapping, and progress description; run the view generator after catalog edits.
+`npm run validate:implementation-progress` checks the catalog-backed summary,
+ledger shape, release-fragment references, changelog history, and resume
+pointer. It accepts both base and lettered IDs without a 001–100 range
+assumption.
 
-## Mandatory dependency preflight
+## Read-only dependency lookup
 
-Before selecting, assigning, starting, or editing a numbered prompt, run
-`npm run coordination:dependencies -- --prompt NNN` and read the compact packet
-generated from the mandatory
+When dependency context is needed, run
+`npm run coordination:dependencies -- --prompt NNN` and read the compact
+read-only packet generated from the catalog-backed
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
-Reconcile the exact row, hard
-prerequisites, evidence, and ownership with current `main` and active
-coordination before continuing. Refresh the packet and receipt after a
-rebase or material movement of current `main`. A prompt cannot be marked
-complete or merged while a hard prerequisite remains unmet.
+Reconcile the exact row, hard prerequisites, evidence, and ownership with
+current `main` and active coordination before continuing. Rerun the lookup
+after a rebase or material movement of current `main`. A prompt cannot be
+marked complete or merged while a hard prerequisite remains unmet.
 
 `NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
 it is advisory for concurrency, not a serial execution lock. A separate
@@ -438,6 +407,7 @@ release classification and evidence.
 
 ## Execution ledger
 
+<!-- BEGIN GENERATED PROMPT CATALOG: progress-ledger -->
 | Prompt | Status | Change | Changelog | Evidence / result |
 | ---: | :--- | :--- | :--- | :--- |
 | 001 | done | non-feature | — | Source map and precedence in `docs/IMPLEMENTATION_PLAN.md` and routed reference overview. |
@@ -1169,12 +1139,12 @@ release classification and evidence.
 | 660 | done | non-feature | — | Completed as tooling-only infrastructure: exact full validation self-prepares a missing local emulator configuration through the atomic allocator, records configuration/content identity, preserves pre-existing or replaced files, and releases only its own reservation/files with the exact `npm run emulators:configure -- auto` fallback. |
 | 661 | done | non-feature | — | Completed as tooling-only infrastructure: exact validation derives an AST/diff-proven static-copy profile requiring an allowlisted player source plus focused test, runs focused copy/a11y and lightweight gates only for that profile, and fails closed to `test:all` for mixed, uncertain, structural, security, or infrastructure changes. |
 | 662 | missing | non-feature | — | Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing. |
-
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 | 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
 | 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
 | 666 | done | non-feature | — | Completed [EXTEND] tooling provides the shared compact/full/JSON dispatcher, full parity/cycle/typed-evidence/readiness validation, authority/main/milestone/evidence and relevant-coordination fingerprints, atomic ignored receipt integrity, begin/amend/validate gates, exact P012/P014 legacy refresh, CI/guidance drift checks, and a repeatable `npm run coordination:dependencies:measure -- --entry <id>` fixture. Strict issuance uses a worktree-only random nonce with a ledger commitment and exact digest; authoritative validation consumes it once for the canonical partial-to-done transition, preserves the predecessor lineage without the nonce, and rejects deletion, post-done recreation, replay, mismatch, half-write, or repeat consumption. Current measured content is 24 lines / 2,541 bytes versus 670 lines / 51,297 bytes for the complete view; a representative 25-iteration run took 0.159 ms compact versus 3.498 ms full wall time. |
 | 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
+<!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes
 
