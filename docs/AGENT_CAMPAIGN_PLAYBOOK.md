@@ -41,25 +41,41 @@ version, changelog, and progress contract; focused red/green checks; review
 and release owner; and stopping behavior. Resolve an ambiguity before
 launching work that depends on it.
 
-### Model selection and mandatory Luna failure failover
+### Model selection and role-scoped monotonic failure escalation
 
 Use `gpt-5.6-luna` at `xhigh` for repository changes and reviews by default.
 For numbered-plan code, configuration, scripts, or tests, retain the stricter
 repository-required Luna `max` baseline until the failover condition below
-occurs. Never dispatch a Sol child.
+occurs.
 
-If a Luna attempt becomes idle or loses execution state with a dirty worktree,
-no relevant running process, and no commit or result, do not keep steering it.
-The same rule applies when one bounded recovery still repeats no-progress.
-Immediately report the exact status, changed paths, commands and results, and
-blocker; preserve or discard the attempt truthfully; then switch that task to
-`gpt-5.6-terra` at `xhigh`. This is a mandatory failover for the observed
-abandonment mode, not a suggestion to retry Luna.
+The escalation tier belongs to the role and must never reset or downgrade when
+an agent, task, or worktree is replaced. If a Luna attempt fails, reassign that
+same agent role to `gpt-5.6-terra` at `xhigh`. If a Terra attempt then fails,
+`gpt-5.6-sol` is authorized for that same agent role only. Detect and stop any
+Luna/Terra loop: do not retry Luna after that role reaches Terra, alternate
+between Luna and Terra, or treat a new child ID or worktree as a fresh tier.
+Sol authorization for one role does not upgrade its reviewer, release owner,
+sibling role, or the rest of the campaign.
+
+Before dispatching Sol, explain in user-visible chat why that exact role needs
+Sol, the observed Luna and Terra failures (or the recorded reason the role
+began at Terra), why a cheaper tier is no longer viable, and that Sol is 10
+times as expensive as Luna. This notice records the authorized escalation and
+its cost; it is not a new permission request.
+
+An attempt fails only after evidence: a terminal agent error; an abandoned or
+lost execution state with no relevant running process and no usable result; or
+a materially unusable result after one bounded recovery or correction repeats
+no-progress. Immediately report the exact status, changed paths, commands and
+results, and blocker, then preserve or discard the attempt truthfully before
+reassigning the role. A quiet live process, wrapper timeout, external blocker,
+or pending user input is not by itself a model failure; inspect the process,
+output, and blocker before advancing the role's tier.
 
 Terra is also justified when it is reasonably cheaper than five Luna attempts
 or repeated steering is predictably required. Record the reason for every
-Terra exception. A quiet but still-running process is not a failure: inspect
-the process and its output before classifying it.
+Terra exception. A role that legitimately begins at Terra may advance to Sol
+after its evidenced Terra failure without manufacturing a Luna attempt.
 
 ### Dependency, ownership, and current-state gate
 
@@ -142,13 +158,24 @@ reconcile, one final full coordination validation, merge, push,
 coordination:finish, and cleanup. Do not leave a handoff implicit.
 
 Delegation: Use gpt-5.6-luna at xhigh by default, retaining any stricter
-numbered-plan Luna max baseline until failover. Never dispatch a Sol child. If
-a Luna attempt is idle or has lost execution state with a dirty worktree, no
-relevant process, and no commit or result, or one bounded recovery repeats
-no-progress, immediately report status, changed paths, commands/results, and
-blocker; preserve or discard truthfully; then switch that task to
-gpt-5.6-terra at xhigh and record the reason. Terra is also allowed when it is
-cheaper than five Luna attempts or repeated steering is predictably required.
+numbered-plan Luna max baseline until failover. The escalation tier belongs to
+the role and must never reset or downgrade when an agent, task, or worktree is
+replaced. If a Luna attempt fails, reassign that same agent role to
+gpt-5.6-terra at xhigh. If a Terra attempt then fails, gpt-5.6-sol is authorized
+for that same agent role only. Detect and stop any Luna/Terra loop; never return
+an escalated role to Luna or spread one role's escalation to another role.
+Before dispatching Sol, explain in user-visible chat why that role needs Sol,
+the observed lower-tier failures or recorded Terra-start exception, why a
+cheaper tier is no longer viable, and that Sol is 10 times as expensive as
+Luna. This is an authorization notice, not a permission request. Immediately
+report status, changed paths, commands/results, and blocker for each evidenced
+failure; preserve or discard truthfully before reassignment. A terminal error,
+lost execution state with no relevant process or usable result, or one bounded
+recovery/correction that repeats no-progress is a failure. A quiet live process,
+wrapper timeout, external blocker, or pending user input alone is not. Terra is
+also allowed when it is cheaper than five Luna attempts or repeated steering is
+predictably required; record that exception, and allow a role that begins at
+Terra to advance to Sol after an evidenced Terra failure.
 
 Execution: Send one complete initial brief with the dependency packet, exact
 leaf-file scopes/claims, product/proof boundary, live release metadata,

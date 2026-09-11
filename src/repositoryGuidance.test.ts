@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  validateAgentModelEscalation,
   validateCampaignPlaybook,
   validatePromptDependencyCompletion,
   validatePromptDependencyConcurrency,
@@ -162,6 +163,70 @@ describe('repository guidance', () => {
     expect(guidance).toMatch(/For routine \(non-campaign\) tasks,[\s\S]{0,420}The primary agent also owns all review, integration, versioning, merge, and push/i);
   });
 
+  it('requires role-scoped Luna to Terra to Sol escalation on every agent-model authority', () => {
+    const surfaces = [
+      'CLAUDE.md',
+      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+      'docs/IMPLEMENTATION_PLAN.md',
+    ];
+    const sources = new Map(surfaces.map((surface) => [
+      surface,
+      readFileSync(resolve(process.cwd(), surface), 'utf8'),
+    ]));
+    const errors: string[] = [];
+
+    validateAgentModelEscalation({ sources, errors });
+
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  it('rejects role-tier resets, Luna/Terra loops, and Sol dispatch without its cost explanation', () => {
+    const compliant = [
+      'If a Luna attempt fails, reassign that same agent role to gpt-5.6-terra.',
+      'If a Terra attempt then fails, gpt-5.6-sol is authorized for that same agent role only.',
+      'The escalation tier belongs to the role and must never reset or downgrade when an agent, task, or worktree is replaced; detect and stop any Luna/Terra loop.',
+      'Before dispatching Sol, explain in user-visible chat why that role needs Sol and that Sol is 10 times as expensive as Luna.',
+    ].join(' ');
+    const mutations = [
+      {
+        source: compliant.replace('must never reset or downgrade', 'may reset or downgrade'),
+        expected: 'must keep the role escalation tier monotonic across replacements',
+      },
+      {
+        source: compliant.replace('detect and stop any Luna/Terra loop', 'allow another Luna retry'),
+        expected: 'must detect and stop Luna/Terra loops',
+      },
+      {
+        source: compliant.replace('10 times as expensive as Luna', 'more expensive than Luna'),
+        expected: 'must explain every Sol dispatch in user-visible chat before dispatch',
+      },
+      {
+        source: `${compliant} Never dispatch a Sol child.`,
+        expected: 'retains the obsolete blanket prohibition on Sol child dispatch',
+      },
+      {
+        source: `${compliant} Delegate it under Luna-only rules.`,
+        expected: 'retains a Luna-only retry path that can reset role escalation',
+      },
+    ];
+
+    for (const mutation of mutations) {
+      const errors: string[] = [];
+      validateAgentModelEscalation({
+        sources: new Map([
+          ['CLAUDE.md', mutation.source],
+          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
+          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
+        ]),
+        errors,
+      });
+
+      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
+        expect.stringContaining(mutation.expected),
+      ]));
+    }
+  });
+
   it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
     const repositoryRoot = process.cwd();
     const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
@@ -313,7 +378,7 @@ describe('repository guidance', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 
-  it('fails closed if the Luna abandonment failover or another critical campaign control is weakened', () => {
+  it('fails closed if role escalation or another critical campaign control is weakened', () => {
     const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
     const mutations = [
       {
@@ -337,15 +402,23 @@ describe('repository guidance', () => {
         expected: 'must require independent exact-HEAD review before one final full coordination validation',
       },
       {
-        source: source.replace(/switch that task to\s+`?gpt-5\.6-terra`?\s+at\s+`?xhigh`?/gi, 'retry Luna'),
-        expected: 'must require Terra xhigh after the observed Luna abandonment failure',
+        source: source.replace(/Luna attempt fails/gi, 'Luna attempt succeeds'),
+        expected: 'must require Terra xhigh after a Luna role failure',
       },
       {
-        source: source.replace(/never dispatch a Sol child/gi, 'Sol is available'),
-        expected: 'must prohibit Sol child dispatch',
+        source: source.replace(/`?gpt-5\.6-sol`? is authorized\s+for that same agent role only/gi, 'retry Terra'),
+        expected: 'must authorize Sol after Terra fails in the same role',
       },
       {
-        source: source.replace(/immediately report/gi, 'report later'),
+        source: source.replace(/must never reset or downgrade/gi, 'may reset or downgrade'),
+        expected: 'must keep role escalation monotonic and stop Luna/Terra loops',
+      },
+      {
+        source: source.replace(/10\s+times as expensive as\s+Luna/gi, 'more expensive than Luna'),
+        expected: 'must require a user-visible 10x-cost explanation before Sol dispatch',
+      },
+      {
+        source: source.replace(/immediately\s+report/gi, 'report later'),
         expected: 'must require immediate idle or terminal reports with status, paths, commands, and blockers',
       },
       {
