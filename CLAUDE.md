@@ -315,15 +315,22 @@ installs the hooks through the package `prepare` script; use
    no-player-facing-change note, does not add a release fragment, and does not
    change the application version or player-facing changelog. The lighter
    documentation-only review path is described in [Test first for code](#1-test-first-for-code).
-   Keep `--work-type product` for production-authority work, and declare the
-   immutable `--change-class feature|non-feature` from the canonical progress
-   row. Only the explicit `non-feature` class receives the no-version,
-   no-fragment, and no-player-facing-changelog exemption; free-text version
-   plans cannot bypass those gates. The owner-only, one-time migration for
-   already-active P012/P014 entries is:
+   Keep `--work-type product` for production-authority work, but treat work
+   type as ownership metadata: every entry bound to a canonical prompt derives
+   its immutable `feature|non-feature` class from the progress ledger. A
+   canonical feature keeps its version, release-fragment,
+   player-facing-changelog, and implementation-progress gates even when it is
+   registered as tooling or investigation; free-text version plans cannot
+   bypass those gates. Only a canonical `non-feature` class receives the
+   no-version, no-fragment, and no-player-facing-changelog exemption.
+   Documentation-only work without an implementation prompt remains exempt.
+   The owner-only, one-time migration is restricted to exact active P012
+   entry `1789087354152-96620-2cf1ba3e` and P014 entry
+   `1789086651641-63909-707fa4ab`:
    `npm run coordination:amend -- --id "<coordination id>" --change-class non-feature`.
-   It fails closed unless the canonical row is `non-feature`, records the old
-   and new class in coordination history, and cannot be repeated or reversed.
+   It fails closed unless that exact entry's canonical row is `non-feature`,
+   records the old and new class in coordination history, and cannot be
+   repeated or reversed.
    The path/branch preflight and root dependency bootstrap above precede every
    repository script; then follow the test-first, emulator-slot, and
    product-reference rules below.

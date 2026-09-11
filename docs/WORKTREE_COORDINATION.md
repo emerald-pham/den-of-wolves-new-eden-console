@@ -83,20 +83,25 @@ non-documentation commit must add its plan definition/checklist, progress row,
 and dependency/evidence row together. Documentation-only means every changed
 file is Markdown or a README; a mixed diff is not exempt.
 
-Production-authority entries keep `--work-type product` and must also declare
-the immutable `--change-class feature|non-feature` matching the canonical
-progress row. A feature class requires the normal application version,
-release-fragment, and player-facing changelog gates. For the already-active
-P012/P014 product entries, an owner may perform the one-time audited
-reclassification only after confirming their canonical rows say `non-feature`:
+Production-authority entries keep `--work-type product`, but the canonical
+progress-row classification governs every entry bound to a canonical prompt
+regardless of whether its work type is product, tooling, investigation, or
+documentation. A canonical feature always requires the normal application version, release fragment,
+player-facing changelog, and implementation-progress gates; free-text plans
+and a non-product work type cannot grant the non-feature exemption.
+Documentation-only entries without an implementation prompt remain exempt.
+Only the exact active P012/P014 product entries may perform the one-time
+audited reclassification after confirming their canonical rows say
+`non-feature`:
 
 ```bash
 npm run coordination:amend -- --id "<coordination id>" --change-class non-feature
 ```
 
-The amendment is fail-closed against that row, records the old and new class,
-and cannot be repeated or changed back. Free-text version plans never grant the
-non-feature exemption.
+The amendment is limited to P012 entry `1789087354152-96620-2cf1ba3e` or P014
+entry `1789086651641-63909-707fa4ab`, fails closed against that row, records
+the old and new class, and cannot be repeated or changed back. Free-text
+version plans never grant the non-feature exemption.
 
 ## Mandatory numbered-prompt preflight
 

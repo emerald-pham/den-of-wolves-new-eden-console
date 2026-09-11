@@ -86,6 +86,10 @@ const SESSION_GOALS_DIRECTORY = '.codex/session-goals';
 // an explicit, auditable exemption. New begin entries always carry the
 // required artifact regardless of their prompt.
 const LEGACY_SESSION_GOAL_PROMPTS = new Set(['012', '014', '664']);
+const LEGACY_CHANGE_CLASS_MIGRATIONS = new Map([
+  ['1789087354152-96620-2cf1ba3e', '012'],
+  ['1789086651641-63909-707fa4ab', '014'],
+]);
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
@@ -926,29 +930,37 @@ function canonicalChangeClassForPrompt(prompt, cwd = process.cwd()) {
   return row?.[1]?.toLowerCase() ?? null;
 }
 
+function canonicalChangeClassForEntry(entry) {
+  return canonicalChangeClassForPrompt(entry.implementationPrompt);
+}
+
+function isLegacyChangeClassMigration(entry) {
+  return LEGACY_CHANGE_CLASS_MIGRATIONS.get(entry.id) === normalizePromptId(entry.implementationPrompt);
+}
+
+function effectiveChangeClass(entry) {
+  const canonical = canonicalChangeClassForEntry(entry);
+  if (canonical) return canonical;
+  const declared = normalizeChangeClass(entry.changeClass);
+  if (declared) return declared;
+  if (entry.workType) return entry.workType === 'product' ? 'feature' : 'non-feature';
+  return isToolingOnlyVersionPlan(entry.versionPlan) ? 'non-feature' : 'feature';
+}
+
 function changeClassErrors(entry, changeClass = entry.changeClass) {
   if (!entry.workType && entry.changeClass === undefined) return [];
   if (entry.changeClass !== undefined && !normalizeChangeClass(entry.changeClass)) {
     return ['change class must be exactly feature or non-feature'];
   }
-  const effectiveChangeClass = entry.changeClass === undefined
-    ? changeClass
-    : normalizeChangeClass(entry.changeClass);
-  if (entry.workType && entry.workType !== 'product') {
-    if (effectiveChangeClass === 'feature') {
-      return ['only product work may declare the feature change class'];
-    }
-    return [];
-  }
   const prompt = normalizePromptId(entry.implementationPrompt);
   if (!prompt) return [];
-  if (!effectiveChangeClass) return [];
-  const canonical = canonicalChangeClassForPrompt(prompt);
+  const canonical = canonicalChangeClassForEntry(entry);
   if (!canonical) {
-    return [`change class ${effectiveChangeClass} cannot be verified against canonical Prompt ${prompt} progress`];
+    return [`change class ${changeClass ?? 'unknown'} cannot be verified against canonical Prompt ${prompt} progress`];
   }
-  if (canonical !== effectiveChangeClass) {
-    return [`change class ${effectiveChangeClass} does not match canonical Prompt ${prompt} classification ${canonical}`];
+  const declared = normalizeChangeClass(entry.changeClass);
+  if (declared && canonical !== declared) {
+    return [`change class ${declared} does not match canonical Prompt ${prompt} classification ${canonical}`];
   }
   return [];
 }
@@ -1009,12 +1021,13 @@ function changelogPreservationErrors(
 }
 
 function implementationPlanMetadataErrors(entry, release, releaseFragment) {
-  if (entry.workType !== 'product') return [];
-
   const errors = [];
   const implementationPrompt = normalizePromptId(entry.implementationPrompt);
+  const canonicalChangeClass = canonicalChangeClassForEntry(entry);
+  const requiresPlanMetadata = entry.workType === 'product' || canonicalChangeClass === 'feature';
+  if (!requiresPlanMetadata) return errors;
   if (!implementationPrompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(implementationPrompt)) {
-    errors.push('product work must record an implementation prompt with --implementation-prompt NNN or NNN<letter>');
+    errors.push('product or canonical feature work must record an implementation prompt with --implementation-prompt NNN or NNN<letter>');
   }
   const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
   const fragmentIsBoundAndValidated = releaseFragment?.validated === true &&
@@ -1024,17 +1037,18 @@ function implementationPlanMetadataErrors(entry, release, releaseFragment) {
       'release fragment must be explicitly validated and task-bound to the coordination entry',
     );
   }
-  if (entry.changeClass !== 'non-feature' &&
+  if (canonicalChangeClass === 'feature' &&
     !changedFiles.includes('docs/IMPLEMENTATION_PROGRESS.md') && !fragmentIsBoundAndValidated) {
     errors.push(
-      'implementation-plan product work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
+      'implementation-plan canonical feature work must update docs/IMPLEMENTATION_PROGRESS.md so the prompt gate can close',
     );
   }
   return errors;
 }
 
 function implementationPlanGateErrors(entry, releaseFragment = null) {
-  if (entry.workType !== 'product') return [];
+  const canonicalChangeClass = canonicalChangeClassForEntry(entry);
+  if (entry.workType !== 'product' && canonicalChangeClass !== 'feature') return [];
   try {
     const implementationPrompt = normalizePromptId(entry.implementationPrompt);
     const result = validateImplementationProgress({
@@ -1141,11 +1155,7 @@ function releaseMetadataErrors({
     );
   }
 
-  const changeClass = entry.changeClass ?? (
-    entry.workType
-      ? entry.workType !== 'product' ? 'non-feature' : 'feature'
-      : isToolingOnlyVersionPlan(entry.versionPlan) ? 'non-feature' : 'feature'
-  );
+  const changeClass = effectiveChangeClass(entry);
   errors.push(...changeClassErrors(entry, changeClass));
   const toolingOnly = changeClass === 'non-feature';
   if (!toolingOnly) {
@@ -3089,23 +3099,24 @@ export async function beginCoordinationEntry(filePath, options) {
       'coordination begin requires product work to declare a change class with --change-class feature|non-feature.',
     );
   }
-  if (workType !== 'product' && requestedChangeClass === 'feature') {
-    throw new Error('coordination begin allows the feature change class only for product work.');
-  }
-  const changeClass = requestedChangeClass ?? 'non-feature';
-  if (workType === 'product') {
-    const canonical = canonicalChangeClassForPrompt(implementationPrompt);
-    if (!canonical) {
+  let canonicalChangeClass = null;
+  if (implementationPrompt) {
+    canonicalChangeClass = canonicalChangeClassForPrompt(implementationPrompt);
+    if (!canonicalChangeClass) {
       throw new Error(
         `coordination begin cannot verify Prompt ${implementationPrompt} change class in the canonical progress ledger.`,
       );
     }
-    if (canonical !== changeClass) {
+    if (requestedChangeClass && canonicalChangeClass !== requestedChangeClass) {
       throw new Error(
-        `coordination begin change class ${changeClass} does not match canonical Prompt ${implementationPrompt} classification ${canonical}.`,
+        `coordination begin change class ${requestedChangeClass} does not match canonical Prompt ${implementationPrompt} classification ${canonicalChangeClass}.`,
       );
     }
   }
+  if (workType === 'documentation' && requestedChangeClass === 'feature' && !canonicalChangeClass) {
+    throw new Error('coordination begin allows the feature change class only for a canonical feature implementation prompt.');
+  }
+  const changeClass = canonicalChangeClass ?? requestedChangeClass ?? 'non-feature';
   const sessionGoals = sessionGoalValues(options['session-goal']);
   requireSessionGoalReleaseObjective(sessionGoals);
   const { scopes, claims } = normalizedCoordinationOwnership(options);
@@ -3645,6 +3656,11 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
         `Coordination entry ${entry.id} may use one-time reclassification only for --change-class non-feature.`,
       );
     }
+    if (requestedChangeClass && !isLegacyChangeClassMigration(entry)) {
+      throw new Error(
+        `Coordination entry ${entry.id} may use the legacy change-class migration only for exact active P012/P014 entries.`,
+      );
+    }
     if (requestedChangeClass) {
       const canonical = canonicalChangeClassForPrompt(entry.implementationPrompt);
       if (canonical !== requestedChangeClass) {
@@ -4101,7 +4117,7 @@ async function readReleaseCoordinationBinding(filePath, options = {}, { laneStat
     applicationVersion: mainVersion || applicationVersion,
     mainSha: start.mainSha,
     mainVersion,
-    requiredPrompt: entry.workType === 'product' && entry.changeClass !== 'non-feature'
+    requiredPrompt: canonicalChangeClassForEntry(entry) === 'feature'
       ? normalizePromptId(entry.implementationPrompt)
       : null,
     validationReceiptCommitSha: text(entry.validation?.commitSha) || null,
@@ -4567,7 +4583,7 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory,
     progressSource: inputs.progressSource,
     planSource: inputs.planSource,
     applicationVersion: inputs.applicationVersion,
-    requiredPrompt: entry.workType === 'product' && entry.changeClass !== 'non-feature'
+    requiredPrompt: canonicalChangeClassForEntry(entry) === 'feature'
       ? entry.implementationPrompt
       : null,
     postRelease,

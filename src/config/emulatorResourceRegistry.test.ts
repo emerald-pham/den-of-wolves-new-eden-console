@@ -794,12 +794,51 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('derives a canonical feature class even when tooling or investigation work names the prompt', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-class-${randomUUID()}.json`);
+    const investigationFilePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-investigation-${randomUUID()}.json`);
+    const documentationFilePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-documentation-${randomUUID()}.json`);
+    try {
+      const toolingEntry = await beginCoordinationEntry(filePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'tooling',
+        'implementation-prompt': '141',
+        'change-class': undefined,
+        'version-plan': 'Tooling-only free text must not change the canonical release class.',
+      });
+      expect(toolingEntry.changeClass).toBe('feature');
+      await expect(beginCoordinationEntry(investigationFilePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'investigation',
+        'implementation-prompt': '141',
+        'change-class': 'non-feature',
+        'version-plan': 'Free text must not relabel a canonical feature investigation.',
+      })).rejects.toThrow(/canonical.*feature|change class/i);
+      const documentationEntry = await beginCoordinationEntry(documentationFilePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'documentation',
+        'implementation-prompt': '141',
+        'change-class': undefined,
+        'version-plan': 'Documentation wording with a canonical feature prompt must keep that class.',
+      });
+      expect(documentationEntry.changeClass).toBe('feature');
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+      await unlink(investigationFilePath).catch(() => undefined);
+      await unlink(`${investigationFilePath}.lock`).catch(() => undefined);
+      await unlink(documentationFilePath).catch(() => undefined);
+      await unlink(`${documentationFilePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('allows one owner-only product reclassification to canonical non-feature and audits old/new values', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-change-class-amend-${randomUUID()}.json`);
     const identity = await currentGitIdentity();
     const entry = {
       ...amendmentEntry(),
       ...identity,
+      id: '1789087354152-96620-2cf1ba3e',
       workType: 'product',
       implementationPrompt: '012',
     };
@@ -830,6 +869,59 @@ describe('local emulator coordination', () => {
         id: entry.id,
         'change-class': 'feature',
       })).rejects.toThrow(/immutable|cannot change|already/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('permits the one-time legacy change-class migration only for the exact P012/P014 entries', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-legacy-change-class-boundary-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const p014 = {
+      ...amendmentEntry({
+        id: '1789086651641-63909-707fa4ab',
+        claims: ['prompt-014-legacy-migration'],
+      }),
+      ...identity,
+      workType: 'product',
+      implementationPrompt: '014',
+    };
+    const anotherCanonicalNonFeature = {
+      ...amendmentEntry({
+        id: 'not-a-legacy-migration',
+        claims: ['not-a-legacy-migration'],
+      }),
+      ...identity,
+      workType: 'product',
+      implementationPrompt: '665',
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [p014, anotherCanonicalNonFeature],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await heartbeatCoordinationEntry(filePath, {
+        id: p014.id,
+        now: '2099-01-01T00:01:00.000Z',
+      });
+      await heartbeatCoordinationEntry(filePath, {
+        id: anotherCanonicalNonFeature.id,
+        now: '2099-01-01T00:01:00.000Z',
+      });
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: p014.id,
+        'change-class': 'non-feature',
+        now: '2099-01-01T00:02:00.000Z',
+      })).resolves.toMatchObject({ changeClass: 'non-feature' });
+      await expect(amendCoordinationEntry(filePath, {
+        id: anotherCanonicalNonFeature.id,
+        'change-class': 'non-feature',
+        now: '2099-01-01T00:02:00.000Z',
+      })).rejects.toThrow(/legacy|P012|P014|exact/i);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -4185,6 +4277,51 @@ describe('local emulator coordination', () => {
         mainChangelog: [{ version: '0.3.2', source: 'previous release' }],
       }),
     })).toThrow(/change class.*canonical|canonical.*feature/i);
+  });
+
+  it('does not let tooling metadata or free text evade a canonical feature release', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        implementationPrompt: '141',
+        changeClass: 'non-feature',
+        versionPlan: 'Tooling-only free text says no application version or release fragment.',
+      },
+      release: releaseState({
+        mainContainsBranch: true,
+        branchVersion: '0.3.2',
+        branchLockVersion: '0.3.2',
+        mainVersion: '0.3.2',
+        mainLockVersion: '0.3.2',
+        branchChangelog: [{ version: '0.3.2', source: 'previous release' }],
+        mainChangelog: [{ version: '0.3.2', source: 'previous release' }],
+      }),
+    })).toThrow(/change class.*canonical|canonical.*feature|player-facing work/i);
+  });
+
+  it('keeps canonical feature release-fragment and progress obligations for tooling work', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        implementationPrompt: '141',
+        changeClass: 'feature',
+        versionPlan: 'Reserve application patch version 0.3.3.',
+      },
+      release: releaseState({
+        mainContainsBranch: false,
+        branchVersion: '0.3.3',
+        branchLockVersion: '0.3.3',
+        mainVersion: '0.3.2',
+        mainLockVersion: '0.3.2',
+        branchChangelog: [
+          { version: '0.3.3', source: 'new release' },
+          { version: '0.3.2', source: 'previous release' },
+        ],
+        mainChangelog: [{ version: '0.3.2', source: 'previous release' }],
+      }),
+    })).toThrow(/implementation-plan canonical feature work must update.*IMPLEMENTATION_PROGRESS/i);
   });
 
   it('requires product work to identify a plan prompt', () => {
