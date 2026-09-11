@@ -1,0 +1,46 @@
+#!/bin/sh
+set -eu
+
+# Keep the removed proprietary source library unreachable, then apply the same
+# commit registration check that CI runs. Deletions are safe.
+repository_root=$(git rev-parse --show-toplevel)
+zero_oid=0000000000000000000000000000000000000000
+updates_file=$(mktemp "${TMPDIR:-/tmp}/den-of-wolves-pre-push.XXXXXX")
+trap 'rm -f "$updates_file"' EXIT HUP INT TERM
+cat >"$updates_file"
+
+blocked=0
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [ "$local_oid" = "$zero_oid" ]; then
+    continue
+  fi
+
+  if [ -n "$(git log -1 --format=%H "$local_oid" -- docs/reference)" ]; then
+    echo "Blocked push of $local_ref to $remote_ref: its history still contains docs/reference." >&2
+    echo "Rebase or cherry-pick the work onto the rewritten origin/main before pushing." >&2
+    blocked=1
+  fi
+done <"$updates_file"
+
+if [ "$blocked" -ne 0 ]; then
+  exit "$blocked"
+fi
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [ "$local_oid" = "$zero_oid" ]; then
+    continue
+  fi
+
+  base_oid=$remote_oid
+  if [ "$remote_oid" = "$zero_oid" ]; then
+    base_oid=$(git merge-base origin/main "$local_oid" 2>/dev/null || true)
+  fi
+  if [ -z "$base_oid" ]; then
+    echo "Blocked push of $local_ref: could not derive a trusted registration base." >&2
+    exit 1
+  fi
+
+  node "$repository_root/scripts/validate-work-registration.mjs" \
+    --cwd "$repository_root" \
+    --range "$base_oid..$local_oid"
+done <"$updates_file"

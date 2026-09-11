@@ -69,7 +69,7 @@ rg -n "^\| $prompt_id \|" docs/IMPLEMENTATION_PROGRESS.md
 
 ## Coverage and integrity
 
-At this commit the plan contains 730 canonical IDs: 662 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
+At this commit the plan contains 731 canonical IDs: 663 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
 
 ~~~sh
 plan_count=$(rg -c '^- \*\*Prompt [0-9]{3}[a-z]* —' docs/IMPLEMENTATION_PLAN.md)
@@ -839,6 +839,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 661 | POLISH | done | none | none | none | none | none | none | none | none | none | none | Add a safe copy-only validation fast path. |
 | 662 | DECISION | missing | none | none | none | OWNER-APPROVED-WOLF-DESIGNATION-POLICY | none | none | none | 054;075;496;586-588 | E-662 | none | Resolve ordinary-start Wolf designation policy. |
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
+| 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 
 ## Explicit sequence rules
 
@@ -888,6 +889,7 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-M1-REPAIR | hard_milestone / decision_owner | 654 -> M1; owner-approved zero-eligible-Wolf outcome | IMPLEMENTATION_PLAN.md - Prompt 654 definition | The repair depends on Milestone 1 and requires an owner-approved server outcome for zero eligible Wolf/private-loyalty holders. |
 | E-M1-REPAIR-SEQUENCE | sequence | 654 -> M1-REPAIR | IMPLEMENTATION_PLAN.md - Prompt 654 definition | Prompt 654 is the Milestone 1 repair slice after the owner-approved outcome is recorded. |
 | E-662 | related/consumes / decision_owner | 662 -> 054;075;496;586-588; OWNER-APPROVED-WOLF-DESIGNATION-POLICY | IMPLEMENTATION_PLAN.md - Prompt 662 definition | The decision notes overlaps/dependencies 054, 071, 075, 496, and 586-588 and remains missing until the owner-approved policy is recorded; retired 071 is excluded from the canonical related set. |
+| E-664 | hard_prompt | 664 -> 660;661 | IMPLEMENTATION_PLAN.md - Prompt 664 definition | Dependencies: Prompts 660 and 661 provide exact validation execution and the canonical documentation-only classification; every non-documentation commit must resolve to one dependency-ready canonical item before it can land. |
 
 ## Integrity checker
 

@@ -31,14 +31,17 @@ of truth for completed, partial, and missing work, with named evidence for each
 prompt. A passing local check or deployed build does not by itself establish
 that the full gameplay roadmap or capacity target is complete.
 
-Numbered prompt work is dependency-gated. Before selecting, assigning,
-starting, or editing a prompt, agents must fully read the mandatory
+Every repository change except documentation-only work is dependency-gated.
+Before selecting or starting a non-documentation task, agents must bind it to
+a registered implementation prompt and fully read the mandatory
 [prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), first, then run its
 dispatcher, and reconcile the prompt row, hard prerequisites, evidence, and
 coordination ownership with current `main`. The implementation plan is not
 standalone; a prompt cannot be marked complete or merged while a hard
-prerequisite remains unmet. Re-read the index after a rebase or material
-movement of current `main`.
+prerequisite remains unmet. Uncharted work must add itself to the plan,
+progress ledger, and dependency index, with an explicit dependency assessment,
+in its first implementation commit. Re-read the index after a rebase or
+material movement of current `main`.
 
 `NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
 it is advisory for concurrency, not a serial execution lock. A separate
@@ -134,6 +137,9 @@ Code changes follow the test-first and local validation gates in
 file is Markdown or a README—use the lighter rendered-text, link, example, and
 diff review described there (the executable gate is `npm run coordination:docs`);
 they do not change application versioning or the player-facing changelog.
+Every other commit must include one `Implementation-Prompt: NNN` trailer. The
+repository installs commit/push hooks with `npm ci`, and CI independently
+checks the same plan/progress/dependency registration.
 
 ## Security model
 

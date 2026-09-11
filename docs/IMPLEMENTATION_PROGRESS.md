@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 730 Prompts
+# Implementation Plan Progress — All 731 Prompts
 
-This tracker records all 730 canonical prompt IDs in
+This tracker records all 731 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**91 / 730 prompts complete (12.47%)**
+**92 / 731 prompts complete (12.59%)**
 
-Status breakdown: **91 done · 25 partial · 0 active · 614 missing**.
+Status breakdown: **92 done · 25 partial · 0 active · 614 missing**.
 
 Active prompt: **none**
 
@@ -33,13 +33,17 @@ selected in this roadmap entry.
 Prompt 663 is a deferred [REPAIR] for Fleetwide Red Alert discoverability and
 standard desktop rendered-browser proof; it remains missing until separately
 implemented and does not count toward completed behavior.
+Prompt 664 is complete as tooling-only repository governance: every
+non-documentation commit is bound to a dependency-ready canonical item across
+all three roadmap authorities at commit, push, CI, validation, and closeout.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 
 ### Version 0.3.28 progress evidence
 
-The release boundary records Prompt 055 complete at **91 / 730 = 12.47%** with
-**91 done · 25 partial · 0 active · 614 missing**. Intelligence Agent setup now
+The current release boundary records Prompt 055 plus the non-feature Prompt 664
+governance repair complete at **92 / 731 = 12.59%** with
+**92 done · 25 partial · 0 active · 614 missing**. Intelligence Agent setup now
 requires canonical active non-GM holders, counts only valid current loyalty
 secrets, removes released loyalty records atomically, binds retries to a
 server-only actor/payload fingerprint, and keeps public events redacted.
@@ -1149,6 +1153,7 @@ release classification and evidence.
 | 662 | missing | non-feature | — | Low-priority/deferred [DECISION]: current ordinary Setup intentionally has no manual Wolf designation under Prompts 054/075, but residual exported caller-controlled `assignWolves`, `assignWolfRoles`, and `resetWolves` plus manual-assignment guards require an owner-approved policy. Audit printed references, current UI, callables, guards, secrets, tests, and history. Do not choose automatic versus bounded manual policy here; record the locked-roster/private-audience/replay-CAS/authorization or GM-only roster-derived/a11y/rules-denial acceptance and overlaps/dependencies 054, 071, 075, 496, and 586–588. Remains missing. |
 
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
+| 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
 
 ## Working notes
 

@@ -14,7 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { execFile, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
@@ -65,6 +65,10 @@ import {
   measureTestGrowth,
   reviewTestGrowth,
 } from './test-growth-gate.mjs';
+import {
+  validateCommitRange,
+  validateWorkRegistration,
+} from './validate-work-registration.mjs';
 
 export const CODEX_COORDINATION_FILE_ENV = 'CODEX_COORDINATION_FILE';
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
@@ -126,7 +130,7 @@ export function normalizeGitHubOriginToSsh(originUrl) {
 
 function isDocumentationFile(filePath) {
   const fileName = basename(filePath);
-  return /\.mdx?$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
+  return /\.md$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
 }
 
 function isVisualFile(filePath) {
@@ -143,9 +147,14 @@ export function validationPlanForFiles(changedFiles = [], { profile } = {}) {
   const commands = documentationOnly
     ? ['git diff --check', 'npm run coordination:docs']
     : profile?.kind === 'copy-only'
-      ? ['git diff --check', ...profile.commands]
+      ? [
+          'git diff --check',
+          'npm run validate:work-registration -- --commit HEAD',
+          ...profile.commands,
+        ]
     : [
         'git diff --check',
+        'npm run validate:work-registration -- --commit HEAD',
         'npm run validate:implementation-progress',
         'npm run lint',
         'npm run test:all',
@@ -747,6 +756,34 @@ function implementationPlanGateErrors(entry, releaseFragment = null) {
   }
 }
 
+function workRegistrationGateErrors(entry, release) {
+  // Historical test fixtures and pre-gate ledger entries have no structured
+  // work type. New coordination entries always do, so preserve those records
+  // without weakening the authoritative changed-file rule for current work.
+  if (entry.implementationRegistrationRequired !== true) return [];
+  try {
+    const sources = readImplementationProgress({ cwd: process.cwd() });
+    const result = validateWorkRegistration({
+      changedFiles: release.changedFiles,
+      message: entry.implementationPrompt === undefined
+        ? ''
+        : `Implementation-Prompt: ${entry.implementationPrompt}`,
+      planSource: sources.planSource,
+      progressSource: sources.progressSource,
+      dependencySource: readFileSync(
+        resolve(process.cwd(), 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
+        'utf8',
+      ),
+      coordinationPrompt: entry.implementationPrompt ?? null,
+    });
+    return result.errors.map((error) => `implementation work registration gate: ${error}`);
+  } catch (error) {
+    return [
+      `implementation work registration gate could not run: ${error instanceof Error ? error.message : String(error)}`,
+    ];
+  }
+}
+
 function releaseMetadataErrors({
   entry,
   release,
@@ -873,6 +910,7 @@ function releaseMetadataErrors({
   }
 
   errors.push(...implementationPlanMetadataErrors(entry, release, releaseFragment));
+  errors.push(...workRegistrationGateErrors(entry, release));
 
   return errors;
 }
@@ -1335,6 +1373,9 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
 
 const VALIDATION_COMMANDS = new Map([
   ['npm run coordination:docs', ['run', 'coordination:docs']],
+  ['npm run validate:work-registration -- --commit HEAD', [
+    'run', 'validate:work-registration', '--', '--commit', 'HEAD',
+  ]],
   ['npm run validate:implementation-progress', ['run', 'validate:implementation-progress']],
   ['npm run lint', ['run', 'lint']],
   ['npm run test:all', ['run', 'test:all']],
@@ -1544,7 +1585,7 @@ export function executeValidationProcess(
   });
 }
 
-async function runValidationCommand(command, cwd, options = {}) {
+export async function runValidationCommand(command, cwd, options = {}) {
   if (command === 'git diff --check') {
     await runGit(['diff', '--check', 'main...HEAD'], cwd);
     return;
@@ -2687,10 +2728,11 @@ export async function beginCoordinationEntry(filePath, options) {
   if (!['product', 'tooling', 'documentation', 'investigation'].includes(workType)) {
     throw new Error('coordination begin requires --work-type product|tooling|documentation|investigation.');
   }
-  const implementationPrompt = options['implementation-prompt'];
-  if (workType === 'product' && !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(implementationPrompt ?? '')) {
+  const implementationPrompt = normalizePromptId(options['implementation-prompt']);
+  if (workType !== 'documentation' &&
+    (!implementationPrompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(implementationPrompt))) {
     throw new Error(
-      'coordination begin requires product work to record an implementation prompt with --implementation-prompt NNN or NNN<letter>.',
+      'coordination begin requires non-documentation work to record an implementation prompt with --implementation-prompt NNN or NNN<letter>.',
     );
   }
   const { scopes, claims } = normalizedCoordinationOwnership(options);
@@ -2719,8 +2761,9 @@ export async function beginCoordinationEntry(filePath, options) {
       versionPlan: options['version-plan'],
       preemptiveChangelog: options['preemptive-changelog'],
       workType,
-      ...(workType === 'product'
-        ? { implementationPrompt: implementationPrompt.toLowerCase() }
+      implementationRegistrationRequired: true,
+      ...(workType !== 'documentation'
+        ? { implementationPrompt }
         : {}),
       // Begin records intent only. File and shared-claim ownership is acquired
       // just in time through `claimCoordinationEntry`, so idle work cannot
@@ -2766,8 +2809,17 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
   if (!options.id) throw new Error('coordination amend requires --id <entry-id>.');
 
   const { scopes, claims } = normalizedCoordinationOwnership(options);
-  if (scopes.length === 0 && claims.length === 0) {
-    throw new Error('coordination amend requires at least one new --scope or --claims value.');
+  const requestedImplementationPrompt = options['implementation-prompt'] === undefined
+    ? null
+    : normalizePromptId(options['implementation-prompt']);
+  if (options['implementation-prompt'] !== undefined &&
+    (!requestedImplementationPrompt || !IMPLEMENTATION_PROMPT_CLAIM_PATTERN.test(requestedImplementationPrompt))) {
+    throw new Error('coordination amend requires --implementation-prompt NNN or NNN<letter>.');
+  }
+  if (scopes.length === 0 && claims.length === 0 && requestedImplementationPrompt === null) {
+    throw new Error(
+      'coordination amend requires at least one new --scope, --claims, or --implementation-prompt value.',
+    );
   }
   const duplicateScope = scopes.find((scope, index) => scopes.indexOf(scope) !== index);
   if (duplicateScope) {
@@ -2785,6 +2837,26 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
       throw new Error(
         `Cannot amend coordination entry ${entry.id} from ${process.cwd()}; ` +
         `it belongs to ${entry.worktree}.`,
+      );
+    }
+    const existingImplementationPrompt = entry.implementationPrompt === undefined
+      ? null
+      : normalizePromptId(entry.implementationPrompt);
+    if (requestedImplementationPrompt && existingImplementationPrompt &&
+      requestedImplementationPrompt !== existingImplementationPrompt) {
+      throw new Error(
+        `Coordination entry ${entry.id} is already bound to implementation Prompt ` +
+        `${existingImplementationPrompt}; it cannot change to ${requestedImplementationPrompt}.`,
+      );
+    }
+    const bindsImplementationPrompt = Boolean(
+      requestedImplementationPrompt && !existingImplementationPrompt,
+    );
+    if (requestedImplementationPrompt && existingImplementationPrompt &&
+      scopes.length === 0 && claims.length === 0) {
+      throw new Error(
+        `Coordination entry ${entry.id} is already bound to implementation Prompt ` +
+        `${existingImplementationPrompt}; no new amendment was requested.`,
       );
     }
 
@@ -2865,12 +2937,20 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
 
     entry.scopes = [...existingScopes, ...scopes];
     entry.claims = [...existingClaims, ...claims];
+    if (bindsImplementationPrompt) {
+      entry.implementationPrompt = requestedImplementationPrompt;
+      entry.implementationRegistrationRequired = true;
+      validateImplementationPromptClaims(state.entries);
+    }
     const amendment = {
       amendedAt: new Date().toISOString(),
       worktree: process.cwd(),
       branchName: start.branchName,
       scopes: [...scopes],
       claims: [...claims],
+      ...(bindsImplementationPrompt
+        ? { implementationPrompt: requestedImplementationPrompt }
+        : {}),
     };
     entry.amendments = [
       ...(Array.isArray(entry.amendments) ? entry.amendments : []),
@@ -3762,6 +3842,24 @@ export async function validateCoordinationEntry(filePath, options) {
       requireReconciled: true,
       releaseFragment,
     });
+    if (!options.release && entry.implementationRegistrationRequired === true &&
+      release.mainSha && release.branchSha) {
+      try {
+        const registration = validateCommitRange({
+          cwd: validationDirectory,
+          range: `${release.mainSha}..${release.branchSha}`,
+          coordinationPrompt: entry.implementationPrompt ?? null,
+        });
+        errors.push(...registration.errors.map(
+          (error) => `implementation work registration gate: ${error}`,
+        ));
+      } catch (error) {
+        errors.push(
+          `implementation work registration gate could not validate the task commit range: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     if (release.branchBaselineIsAncestor === false) {
       errors.push(
         `start branch SHA ${startBranchSha} is not an ancestor of branch ${release.branchSha}; do not rewrite the task history`,
@@ -4204,6 +4302,35 @@ export async function finishCoordinationEntry(filePath, options) {
     }
     if (release.branchBaselineIsAncestor === false) {
       throw new Error(`Cannot complete coordination entry ${entry.id}: task history was rewritten after coordination began.`);
+    }
+    if (entry.implementationRegistrationRequired === true &&
+      Array.isArray(release.changedFiles) && release.changedFiles.length > 0) {
+      if (!release.mainSha || !release.branchSha) {
+        throw new Error(
+          `Cannot complete coordination entry ${entry.id}: implementation work registration ` +
+            'requires exact main and branch commit SHAs.',
+        );
+      }
+      const validator = options.workRegistrationValidator ?? validateCommitRange;
+      let registration;
+      try {
+        registration = validator({
+          cwd: process.cwd(),
+          range: `${release.mainSha}..${release.branchSha}`,
+          coordinationPrompt: entry.implementationPrompt ?? null,
+        });
+      } catch (error) {
+        throw new Error(
+          `Cannot complete coordination entry ${entry.id}: implementation work registration gate ` +
+            `could not run: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      if (registration.errors.length > 0) {
+        throw new Error(
+          `Cannot complete coordination entry ${entry.id}: implementation work registration gate failed: ` +
+            registration.errors.join('; '),
+        );
+      }
     }
     const pendingMergeHandoffs = (Array.isArray(entry.mergeHandoffs) ? entry.mergeHandoffs : [])
       .filter((handoff) =>

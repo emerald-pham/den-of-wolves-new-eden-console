@@ -11,6 +11,12 @@ deterministic dispatcher and reconcile the exact row and hard prerequisites
 with current `main` and active coordination before work begins. Re-read this
 authority after a rebase or material movement of current `main`. A prompt
 cannot be marked complete or merged while a hard prerequisite remains unmet.
+All repository changes except documentation-only commits must be bound to a
+registered implementation prompt. Work not charted at its trusted `main`
+branch baseline must add its plan, progress-ledger, and dependency-index records
+with explicit dependency evidence in its first non-documentation commit, which
+must carry the matching `Implementation-Prompt:` trailer. `CLAUDE.md` defines
+the executable gates and the exact documentation-only boundary.
 
 The dependency authority's `NEXT` (first `READY_QUEUE`) item is the primary
 resume/default lane but is advisory for concurrency, not a serial execution

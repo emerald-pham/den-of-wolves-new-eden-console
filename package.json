@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepare": "node scripts/install-git-hooks.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:bundle": "npm run build && node scripts/check-bundle-size.mjs",
@@ -26,6 +27,7 @@
     "coordination:validate": "node scripts/emulator-resource-registry.mjs validate",
     "coordination:docs": "node scripts/validate-repository-guidance.mjs && node scripts/validate-implementation-progress.mjs",
     "validate:implementation-progress": "node scripts/validate-implementation-progress.mjs",
+    "validate:work-registration": "node scripts/validate-work-registration.mjs",
     "coordination:finish": "node scripts/emulator-resource-registry.mjs finish",
     "emulators:configure": "node scripts/configure-emulator-slot.mjs",
     "emulators": "npm run build --prefix functions && node scripts/run-emulator-command.mjs start",

@@ -33,6 +33,7 @@ export interface CoordinationEntry {
   readonly resources?: readonly string[];
   readonly workType?: 'product' | 'tooling' | 'documentation' | 'investigation';
   readonly implementationPrompt?: number | string;
+  readonly implementationRegistrationRequired?: boolean;
   readonly scopes?: readonly string[];
   readonly claims?: readonly string[];
   readonly requestedScopes?: readonly string[];
@@ -483,6 +484,7 @@ export function amendCoordinationEntry(
     scope?: string;
     claims?: string;
     claim?: string;
+    'implementation-prompt'?: number | string;
     now?: string | number | Date;
     leaseMs?: number;
   },
@@ -505,6 +507,15 @@ export function finishCoordinationEntry(
     preservedRefSha?: string;
     release?: ReleaseState;
     handoffCommitIsAncestor?: (ancestor: string, descendant: string) => Promise<boolean>;
+    workRegistrationValidator?: (options: {
+      readonly cwd: string;
+      readonly range: string;
+      readonly coordinationPrompt: number | string | null;
+    }) => {
+      readonly commits: readonly string[];
+      readonly results: readonly unknown[];
+      readonly errors: readonly string[];
+    };
   },
 ): Promise<CoordinationEntry>;
 export function pruneDeadReservations(
@@ -561,6 +572,11 @@ export function executeValidationProcess(
     readonly timeoutMs?: number;
   },
 ): Promise<{ readonly stdout: string; readonly stderr: string }>;
+export function runValidationCommand(
+  command: string,
+  cwd: string,
+  options?: Record<string, unknown>,
+): Promise<void>;
 export function reserveEmulatorSlot(options: {
   filePath?: string;
   slot: number;

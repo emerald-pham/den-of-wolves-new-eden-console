@@ -56,12 +56,12 @@ Keep this objective unchecked until the sequence has actually happened. If the
 work is explicitly preserved or discarded instead of landed, replace it with
 that documented outcome and explain why it could not merge.
 
-For numbered implementation-plan work, the same checklist must also include
+For every non-documentation change, the same checklist must also include
 an unchecked dependency gate: read
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-run its dispatcher, and reconcile the selected row with current `main` and
-coordination before selecting, starting, or editing the prompt. Check it only
-after that reconciliation is recorded; leave it unchecked if any hard
+run its dispatcher, and reconcile the selected registered implementation-item
+row with current `main` and coordination before starting or editing. Check it
+only after that reconciliation is recorded; leave it unchecked if any hard
 prerequisite remains unmet.
 
 ## Campaign execution and stopping
@@ -170,6 +170,36 @@ prerequisites that remain unmet cannot be marked complete and cannot merge.
 Closure/evidence gates remain completion checks, while sequence,
 release-boundary, and related/consumes fields remain context unless the index
 explicitly classifies them as hard.
+
+This gate covers every repository change except documentation-only commits,
+not only pre-existing product prompts. Before non-documentation work begins,
+bind its coordination entry with `--implementation-prompt NNN` or
+`NNN<letter>`. If the work is not already charted at the trusted `main`
+baseline where its branch starts, its first implementation commit must add, in
+that same commit, a tagged definition and checklist item in
+`docs/IMPLEMENTATION_PLAN.md`, a progress row in
+`docs/IMPLEMENTATION_PROGRESS.md`, and a dependency row plus source-backed
+evidence in `docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md`. The plan definition
+must state an explicit `Dependencies:` assessment; use `none` only after the
+relationship review proves independence. Workflow, tooling, test,
+configuration, security, and mixed documentation/code changes are included.
+
+Every non-documentation commit carries exactly one final trailer:
+
+```text
+Implementation-Prompt: NNN
+```
+
+The tracked `commit-msg` and `pre-push` hooks, branch/PR CI, and
+`coordination:validate` invoke the same fail-closed validator. It rejects an
+unknown ID, a missing record in any authority, unmet hard prerequisites,
+manual hard gates that are not mechanically clear, mismatched coordination,
+and a branch-local ID whose three records do not land with its first code
+commit. A documentation-only planning change may register a future item on
+`main`; once that complete registration is part of a new branch's trusted
+baseline, later implementation commits may bind to it normally. `npm ci`
+installs the hooks through the package `prepare` script; use
+`npm run validate:work-registration -- --commit HEAD` for a direct check.
 
 ### Start
 
@@ -388,6 +418,7 @@ shared local coordination pane:
 npm run coordination:begin -- \
   --intent "What this work changes or investigates." \
   --work-type "tooling" \
+  --implementation-prompt "NNN" \
   --scope "scripts,src/config,docs" \
   --claims "coordination-registry,emulator-slot" \
   --version-plan "The planned application version, or why this is tooling-only." \
@@ -435,14 +466,15 @@ no shared resource or file area. These fields remain in historical entries so
 cleanup can identify ownership without guessing from free-form intent.
 `--resources` remains the human-readable emulator/service detail and does not
 replace structured claims.
-Product work must also provide `--implementation-prompt NNN` or
-`NNN<letter>`; this binds the coordination entry to the progress ledger and
-prevents a feature task from closing without its prompt being marked. The
+Every work type except `documentation` must also provide
+`--implementation-prompt NNN` or `NNN<letter>`; this binds the coordination
+entry to the plan, progress ledger, and dependency index. The
 registry rejects duplicate active claims for the same normalized prompt ID but
 allows separate agents to claim distinct base or lettered IDs concurrently. The
-executable progress gate checks
-that the ledger row, source-plan checkbox, release version, and real
-`src/changelog.ts` coverage agree.
+executable registration gate checks dependency readiness and catalog parity;
+product work additionally checks the source-plan checkbox, release version,
+and real `src/changelog.ts` coverage. Documentation-only commits remain exempt,
+but any mixed diff is non-documentation work.
 
 Run `npm run coordination:status` before overlapping work and after finishing
 to confirm the entry and any resource reservations are clear.
@@ -766,6 +798,8 @@ uncertain change must use the full validation profile.
 
 Commit messages: imperative subject under 72 characters, and a body that says
 *why* when the why is not obvious. Reference the behavior, not the file list.
+Every non-documentation commit must end with exactly one
+`Implementation-Prompt: NNN` or `NNN<letter>` trailer.
 
 Before merging concurrent product branches, inspect the changelog diff against
 current `main`. It must add one new top-level entry for the task's reserved
@@ -1118,6 +1152,10 @@ tests/rules/      assertions against the emulator
 - [ ] For changes that are not documentation-only, local lint and tests were
   run before deployment; any known failure was reviewed against the
   deployment-safety rule above.
+- [ ] Every non-documentation commit records exactly one implementation prompt;
+  that item exists in the plan, progress ledger, and dependency index, and any
+  newly charted item added all three records plus explicit dependency evidence
+  in its first implementation commit.
 - [ ] For changes that are not documentation-only, `npm run build` and
   `npm run build --prefix functions` succeed.
 - [ ] For documentation-only changes, rendered text, links, examples, and the

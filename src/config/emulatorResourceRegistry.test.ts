@@ -32,6 +32,7 @@ import {
   prepareValidationEmulator,
   cleanupValidationEmulator,
   executeValidationProcess,
+  runValidationCommand,
   validateImplementationPromptClaims,
   validateCoordinationEntry,
   amendCoordinationEntry,
@@ -40,6 +41,7 @@ import {
   directoryContentIdentity,
   parseListeningPortSnapshot,
   coordinationStateChanged,
+  beginCoordinationEntry,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 
@@ -102,6 +104,7 @@ const codeValidation = {
   passed: true,
           commands: [
             'git diff --check',
+            'npm run validate:work-registration -- --commit HEAD',
             'npm run validate:implementation-progress',
             'npm run lint',
             'npm run test:all',
@@ -252,6 +255,30 @@ describe('local emulator coordination', () => {
     };
   }
 
+  it('requires every new non-documentation coordination entry to claim an implementation item', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-registration-${randomUUID()}.json`);
+    try {
+      await expect(beginCoordinationEntry(filePath, {
+        intent: 'change repository tooling',
+        'version-plan': 'Tooling-only; no application version change.',
+        'preemptive-changelog': 'No player-facing change.',
+        'work-type': 'tooling',
+      })).rejects.toThrow(/implementation prompt/i);
+
+      const documentation = await beginCoordinationEntry(filePath, {
+        intent: 'clarify repository guidance',
+        'version-plan': 'Documentation-only; no application version change.',
+        'preemptive-changelog': 'No player-facing change.',
+        'work-type': 'documentation',
+      });
+      expect(documentation.implementationPrompt).toBeUndefined();
+      expect(documentation.implementationRegistrationRequired).toBe(true);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('allows the active owner to append normalized scopes and claims with an audit event', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-coordination-amend-${randomUUID()}.json`);
     const identity = await currentGitIdentity();
@@ -288,6 +315,37 @@ describe('local emulator coordination', () => {
       expect(amended.startBranchSha).toBeUndefined();
       expect(amended.versionPlan).toBe(entry.versionPlan);
       expect(amended.preemptiveChangelog).toBe(entry.preemptiveChangelog);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('allows a legacy active entry to bind one immutable implementation item', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-coordination-prompt-amend-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const entry = { ...amendmentEntry(), ...identity };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        versionAgreement: 'agreement',
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+
+      const amended = await amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'implementation-prompt': '664',
+      });
+      expect(amended.implementationPrompt).toBe('664');
+      expect(amended.implementationRegistrationRequired).toBe(true);
+      expect(amended.amendments).toEqual([expect.objectContaining({ implementationPrompt: '664' })]);
+
+      await expect(amendCoordinationEntry(filePath, {
+        id: entry.id,
+        'implementation-prompt': '665',
+      })).rejects.toThrow(/cannot change|already.*664/i);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
@@ -1028,9 +1086,10 @@ describe('local emulator coordination', () => {
       documentationOnly: false,
       requiresDocumentationReview: false,
       requiresVisualReview: true,
-  commands: [
-    'git diff --check',
-    'npm run validate:implementation-progress',
+      commands: [
+        'git diff --check',
+        'npm run validate:work-registration -- --commit HEAD',
+        'npm run validate:implementation-progress',
     'npm run lint',
         'npm run test:all',
         'npm run build',
@@ -1040,6 +1099,25 @@ describe('local emulator coordination', () => {
     expect(validationPlanForFiles(['CLAUDE.md', 'scripts/release.mjs']).commands).toContain(
       'npm run coordination:docs',
     );
+  });
+
+  it('executes the work-registration command from the real validation map', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'work-registration-command-'));
+    try {
+      await writeFile(resolve(root, 'package.json'), JSON.stringify({
+        private: true,
+        scripts: {
+          'validate:work-registration': 'node -e "process.exit(0)" --',
+        },
+      }));
+
+      await expect(runValidationCommand(
+        'npm run validate:work-registration -- --commit HEAD',
+        root,
+      )).resolves.toBeUndefined();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('fails closed for uncertain copy-only diffs and derives a bounded focused plan', () => {
@@ -2280,6 +2358,27 @@ describe('local emulator coordination', () => {
     })).toThrow(/main.*does not contain.*branch commit/i);
   });
 
+  it('rejects newly gated non-documentation work without a registered implementation item', () => {
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        implementationRegistrationRequired: true,
+      },
+      release: releaseState(),
+    })).toThrow(/implementation work registration.*Implementation-Prompt/i);
+
+    expect(() => validateReleaseCompletion({
+      entry: {
+        ...releaseEntry,
+        workType: 'tooling',
+        implementationPrompt: '660',
+        implementationRegistrationRequired: true,
+      },
+      release: releaseState(),
+    })).not.toThrow();
+  });
+
   it('rejects completion from a dirty checkout', () => {
     expect(() => validateReleaseCompletion({
       entry: releaseEntry,
@@ -3421,6 +3520,48 @@ describe('local emulator coordination', () => {
     } finally { await unlink(filePath).catch(() => undefined); }
   });
 
+  it.each(['preserved', 'discarded'] as const)(
+    'rejects %s closeout when committed work fails registration validation',
+    async (outcome) => {
+      const filePath = resolve(tmpdir(), `den-of-wolves-${outcome}-registration-${randomUUID()}.json`);
+      const entry = {
+        ...releaseEntry,
+        implementationPrompt: '664',
+        implementationRegistrationRequired: true,
+      };
+      try {
+        await writeFile(filePath, JSON.stringify({
+          version: 1,
+          entries: [entry],
+          reservations: [],
+          configurations: [],
+        }));
+        await expect(finishCoordinationEntry(filePath, {
+          id: entry.id,
+          outcome,
+          ...(outcome === 'preserved'
+            ? {
+                'preserve-ref': 'origin/fix/release-task',
+                preservedRefSha: 'branch-sha',
+              }
+            : { reason: 'Superseded by another implementation.' }),
+          release: releaseState({
+            mainContainsBranch: false,
+            changedFiles: ['scripts/unregistered.mjs'],
+          }),
+          workRegistrationValidator: () => ({
+            commits: ['branch-sha'],
+            results: [],
+            errors: ['branch-sha: missing Implementation-Prompt trailer'],
+          }),
+        })).rejects.toThrow(/implementation work registration gate.*missing Implementation-Prompt trailer/i);
+        expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+      } finally {
+        await unlink(filePath).catch(() => undefined);
+      }
+    },
+  );
+
   it('rejects discard when the checkout is dirty or no reason is supplied', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-discard-${randomUUID()}.json`);
     try {
@@ -3552,12 +3693,12 @@ describe('local emulator coordination', () => {
       implementationPrompts: ['141'],
       implementationProgress: {
         completed: 90,
-        total: 730,
-        percentage: '12.33%',
+        total: 731,
+        percentage: '12.31%',
         done: 90,
         partial: 25,
         active: 0,
-        missing: 615,
+        missing: 616,
       },
       changes: ['A release-lane feature note.'],
       validated: true,
@@ -3700,10 +3841,10 @@ describe('local emulator coordination', () => {
           changes: [change],
           implementationPrompts: ['055'],
           implementationProgress: {
-            completed: 91,
-            total: 730,
-            percentage: '12.47%',
-            done: 91,
+            completed: 92,
+            total: 731,
+            percentage: '12.59%',
+            done: 92,
             partial: 25,
             active: 0,
             missing: 614,

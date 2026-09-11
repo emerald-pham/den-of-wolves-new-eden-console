@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+repository_root=$(git rev-parse --show-toplevel)
+exec node "$repository_root/scripts/validate-work-registration.mjs" \
+  --cwd "$repository_root" \
+  --staged true \
+  --message-file "$1"

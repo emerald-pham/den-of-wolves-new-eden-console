@@ -36,6 +36,13 @@ then review every active entry for overlapping paths, prompts, claims, emulator
 rows, or release resources. Use `npm run coordination:status -- --history` only
 when a historical receipt is needed.
 
+For any work type except `documentation`, include
+`--implementation-prompt "NNN"` in `coordination:begin`. The ID must already
+exist in all three implementation authorities, or the task's first
+non-documentation commit must add its plan definition/checklist, progress row,
+and dependency/evidence row together. Documentation-only means every changed
+file is Markdown or a README; a mixed diff is not exempt.
+
 ## Mandatory numbered-prompt preflight
 
 Before selecting, assigning, starting, or editing a numbered prompt, fully read
@@ -131,6 +138,13 @@ committed diff: documentation-only changes run the Markdown/README diff and
 documentation checks; code changes use the canonical code gates. A numbered
 prompt cannot complete when the dependency index lists an unmet hard
 prerequisite. Review flags are human attestations, not rendered-proof evidence.
+
+Before committing, stage the complete task and end every non-documentation
+commit message with exactly one `Implementation-Prompt: NNN` trailer. The
+installed `commit-msg` hook checks the staged sources, the `pre-push` hook
+checks the pushed commit range, and CI repeats the range check independently.
+Run `npm run validate:work-registration -- --commit HEAD` to inspect a committed
+tip directly.
 
 ## Merge, push, and finish
 

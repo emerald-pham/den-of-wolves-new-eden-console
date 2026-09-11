@@ -55,6 +55,28 @@ jobs:
       - run: npm ci --prefer-offline --no-audit
       - run: npm ci --prefix functions --prefer-offline --no-audit
 
+      - name: Validate implementation work registration
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          head_sha=$(git rev-parse HEAD)
+          base_sha="$PR_BASE_SHA"
+          if [ -z "$base_sha" ]; then
+            base_sha="$PUSH_BEFORE_SHA"
+          fi
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            if ! base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null); then
+              echo "Unable to derive a trusted implementation-registration base from origin/main." >&2
+              exit 1
+            fi
+          fi
+          if [ "$base_sha" = "$head_sha" ]; then
+            echo "Unable to derive a trusted implementation-registration base before the exact head." >&2
+            exit 1
+          fi
+          npm run validate:work-registration -- --range "$base_sha..$head_sha"
+
       - name: Lint
         run: npm run lint
 
