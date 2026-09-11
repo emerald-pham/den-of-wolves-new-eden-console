@@ -137,8 +137,12 @@ describe('compact prompt dependency packets', () => {
     };
     const mutations = [
       sources.plan.replace('425 → 426 → 428', '426 → 425 → 428'),
+      sources.plan.replace('425 → 426 → 428', '425 / 426 → 428'),
       sources.plan.replace('425 → 426 → 428', '425 → 425 → 426 → 428'),
       sources.plan.replace('425 → 426 → 428', '425 → 428'),
+      sources.plan.replace('432/432a', '432a/432'),
+      sources.plan.replace('432/432a', '432/432a/432'),
+      sources.plan.replace('432/432a', '432'),
     ];
     for (const plan of mutations) {
       expect(() => createDependencyPacket({ ...options, sources: { ...sources, plan } }))
@@ -151,6 +155,26 @@ describe('compact prompt dependency packets', () => {
         dependency: sources.dependency.replace(
           '425 -> 426 -> 428 -> 427',
           '426 -> 425 -> 428 -> 427',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| E-WOLF | sequence | 425 -> 426 -> 428',
+          '| E-WOLF | sequence | 425/426 -> 428',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| WOLF-ATTACK | 425 -> 426 -> 428',
+          '| WOLF-ATTACK | 425/426 -> 428',
         ),
       },
     })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
@@ -198,6 +222,58 @@ describe('compact prompt dependency packets', () => {
     expect(noisy.fingerprint).toBe(clean.fingerprint);
     expect(conflict.fingerprint).not.toBe(clean.fingerprint);
     expect(conflict.coordination.conflicts).toHaveLength(1);
+  });
+
+  it('treats emulator and release claims as host-wide while ordinary foreign claims stay irrelevant', async () => {
+    const worktree = '/tmp/p666-host-claims';
+    const baseOptions = {
+      prompt: '666',
+      sources,
+      binding: binding(worktree),
+      requestedScopes: [],
+      repositoryRoot: worktree,
+      repositoryIdentity: '/tmp/repository.git',
+    };
+    const foreignEntry = (claim: string) => ({
+      id: `foreign-${claim}`,
+      status: 'active',
+      repositoryRoot: '/tmp/foreign-repository',
+      repositoryIdentity: '/tmp/foreign-repository.git',
+      worktree: '/tmp/foreign-worktree',
+      scopes: ['src/foreign.ts'],
+      claims: [claim],
+    });
+    for (const claim of ['emulator-slot-7', 'release-0.3.29']) {
+      const clean = createDependencyPacket({
+        ...baseOptions,
+        requestedClaims: [claim],
+        coordinationState: { entries: [ownerEntry(worktree)] },
+      });
+      const collision = createDependencyPacket({
+        ...baseOptions,
+        requestedClaims: [claim],
+        coordinationState: { entries: [ownerEntry(worktree), foreignEntry(claim)] },
+      });
+      expect(collision.fingerprint).not.toBe(clean.fingerprint);
+      expect(collision.coordination.conflicts).toEqual([
+        expect.objectContaining({ type: 'claim', requested: claim, matched: claim }),
+      ]);
+      await expect(writeDependencyReceipt(collision)).rejects.toThrow(/relevant coordination conflicts/i);
+    }
+
+    const ordinaryClaim = 'prompt-local-helper';
+    const cleanOrdinary = createDependencyPacket({
+      ...baseOptions,
+      requestedClaims: [ordinaryClaim],
+      coordinationState: { entries: [ownerEntry(worktree)] },
+    });
+    const foreignOrdinary = createDependencyPacket({
+      ...baseOptions,
+      requestedClaims: [ordinaryClaim],
+      coordinationState: { entries: [ownerEntry(worktree), foreignEntry(ordinaryClaim)] },
+    });
+    expect(foreignOrdinary.fingerprint).toBe(cleanOrdinary.fingerprint);
+    expect(foreignOrdinary.coordination.conflicts).toEqual([]);
   });
 
   it('writes an atomic ignored receipt and rejects missing, malformed, symlinked, stale, or mismatched receipts', async () => {

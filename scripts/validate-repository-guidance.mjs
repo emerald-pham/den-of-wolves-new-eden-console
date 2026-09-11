@@ -654,6 +654,10 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   if (!/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/.test(dispatcherSource)) {
     errors.push('scripts/prompt-dependencies.mjs must import the shared canonical authority parser');
   }
+  if (!/import\s*\{[\s\S]*?coordinationClaimIsCrossRepository[\s\S]*?\}\s*from '\.\/coordination-throughput\.mjs'/.test(dispatcherSource) ||
+    !/export\s+function\s+coordinationClaimIsCrossRepository\s*\(/.test(coordinationSource)) {
+    errors.push('dependency receipts and coordination lifecycle must share the host-wide claim policy');
+  }
   if (!ignoreSource.split(/\r?\n/).includes('.codex/dependency-receipts/')) {
     errors.push('.gitignore must keep worktree-local dependency receipts out of Git');
   }

@@ -19,6 +19,7 @@ import {
   normalizeImplementationPrompt,
   parseCatalog,
 } from './validate-work-registration.mjs';
+import { coordinationClaimIsCrossRepository } from './coordination-throughput.mjs';
 
 export const DEPENDENCY_PACKET_SCHEMA_VERSION = 1;
 export const DEPENDENCY_RECEIPT_SCHEMA_VERSION = 1;
@@ -94,7 +95,8 @@ function relevantCoordination({
       }
     }
     for (const requested of claims) {
-      if (ownerClaims.includes(requested) && (repositoryMatch || requested.startsWith('coordination-'))) {
+      if (ownerClaims.includes(requested) &&
+        (repositoryMatch || coordinationClaimIsCrossRepository(requested))) {
         conflicts.push({ type: 'claim', ownerId: entry.id, requested, matched: requested });
       }
     }

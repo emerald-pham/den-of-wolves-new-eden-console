@@ -30,6 +30,7 @@ import {
 import { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
 import {
   applyReleaseFragment,
+  coordinationClaimIsCrossRepository,
   formatConflictForecast,
   forecastCoordinationConflicts,
   leaseStatusForEntry,
@@ -44,6 +45,7 @@ import {
 export { deriveCopyOnlyValidationProfile } from './validation-profile.mjs';
 export {
   applyReleaseFragment,
+  coordinationClaimIsCrossRepository,
   formatConflictForecast,
   forecastCoordinationConflicts,
   leaseStatusForEntry,
@@ -2362,7 +2364,7 @@ export function findCoordinationConflict({
     const repositoryMatch = sameRepository(entry, { repositoryIdentity, repositoryRoot });
     const claim = (Array.isArray(claims) ? claims : []).find((candidateClaim) =>
       Array.isArray(entry.claims) && entry.claims.includes(candidateClaim) &&
-      (candidateClaim.startsWith('emulator-slot-') || repositoryMatch));
+      (coordinationClaimIsCrossRepository(candidateClaim) || repositoryMatch));
     if (claim) {
       return { entry, type: 'claim', requested: claim, matched: claim };
     }
@@ -3625,12 +3627,6 @@ function parkedEvidenceFromRecord(entry, parking) {
     throw new Error(`Cannot resume coordination entry ${entry.id}: parked blocker evidence is empty.`);
   }
   return { blockerEntryId, blockerClaims, blockerScopes };
-}
-
-function coordinationClaimIsCrossRepository(claim) {
-  return claim.startsWith('emulator-slot-') ||
-    claim.startsWith('coordination-') ||
-    claim.startsWith('release-');
 }
 
 function parkedBlockerConflicts(entry, state, parking) {

@@ -83,7 +83,8 @@ function sameRepository(candidate, { repositoryIdentity, repositoryRoot }) {
   return Boolean(candidate?.repositoryRoot && repositoryRoot && candidate.repositoryRoot === repositoryRoot);
 }
 
-function claimIsCrossRepository(claim) {
+export function coordinationClaimIsCrossRepository(value) {
+  const claim = normalizeClaim(value);
   return claim.startsWith('emulator-slot-') ||
     claim.startsWith('coordination-') ||
     claim.startsWith('release-');
@@ -178,7 +179,7 @@ export function forecastCoordinationConflicts({
 
     const ownerClaims = new Set(list(entry.claims).map(normalizeClaim));
     for (const requested of requestedClaims) {
-      if (ownerClaims.has(requested) && (repositoryMatch || claimIsCrossRepository(requested))) {
+      if (ownerClaims.has(requested) && (repositoryMatch || coordinationClaimIsCrossRepository(requested))) {
         addConflict(entry, 'claim', requested, requested, []);
       }
     }

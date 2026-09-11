@@ -2038,6 +2038,36 @@ describe('local emulator coordination', () => {
     })).toBeUndefined();
   });
 
+  it('uses the shared host-wide claim policy for emulator and release claims across repositories', () => {
+    const foreignOwner = (claim: string) => ({
+      id: `foreign-${claim}`,
+      worktree: '/worktrees/foreign-owner',
+      repositoryRoot: '/foreign-repo',
+      repositoryIdentity: '/foreign-repo/.git',
+      status: 'active',
+      scopes: ['src/foreign.ts'],
+      claims: [claim],
+    });
+    for (const claim of ['emulator-slot-7', 'release-0.3.29']) {
+      expect(findCoordinationConflict({
+        activeEntries: [foreignOwner(claim)],
+        repositoryIdentity: '/repo/.git',
+        repositoryRoot: '/repo',
+        worktree: '/worktrees/current',
+        scopes: [],
+        claims: [claim],
+      })).toMatchObject({ type: 'claim', requested: claim, matched: claim });
+    }
+    expect(findCoordinationConflict({
+      activeEntries: [foreignOwner('ordinary-local-claim')],
+      repositoryIdentity: '/repo/.git',
+      repositoryRoot: '/repo',
+      worktree: '/worktrees/current',
+      scopes: [],
+      claims: ['ordinary-local-claim'],
+    })).toBeUndefined();
+  });
+
   it('uses repositoryRoot as the compatibility identity for legacy active entries', () => {
     expect(findCoordinationConflict({
       activeEntries: [{

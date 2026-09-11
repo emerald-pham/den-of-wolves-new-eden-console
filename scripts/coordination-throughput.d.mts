@@ -3,6 +3,7 @@ export const DEFAULT_COORDINATION_LEASE_MS: number;
 export const DEFAULT_VALIDATION_CONCURRENCY: number;
 export const RELEASE_VERSION_PATTERN: RegExp;
 export function validationPollDelay(currentDelayMs: number, maxDelayMs?: number): number;
+export function coordinationClaimIsCrossRepository(claim: unknown): boolean;
 
 export interface CoordinationThroughputEntry {
   readonly id?: string;

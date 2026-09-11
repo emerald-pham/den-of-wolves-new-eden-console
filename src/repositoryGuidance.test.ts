@@ -456,7 +456,9 @@ describe('repository guidance', () => {
     expect(packageJson.scripts['coordination:dependencies:measure']).toBe('node scripts/prompt-dependencies.mjs --measure');
     expect(packageJson.scripts['validate:dependencies']).toBe('node scripts/prompt-dependencies.mjs --verify');
     expect(dispatcher).toMatch(/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/);
+    expect(dispatcher).toContain("coordinationClaimIsCrossRepository } from './coordination-throughput.mjs'");
     expect(coordination).toContain("from './prompt-dependencies.mjs'");
+    expect(coordination).toContain('coordinationClaimIsCrossRepository,');
     expect(coordination.match(/requireDependencyReceipt\(/g)?.length).toBeGreaterThanOrEqual(4);
     expect(ci).toContain('npm run validate:dependencies');
     expect(ignore.split(/\r?\n/)).toContain('.codex/dependency-receipts/');

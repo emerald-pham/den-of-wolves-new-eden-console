@@ -188,17 +188,18 @@ export function expandPromptTargets(value, knownPrompts, errors, label) {
   return output;
 }
 
-function expandOrderedPromptSequence(value, knownPrompts, errors, label) {
+function parseOrderedPromptSequence(value, knownPrompts, errors, label) {
   if (typeof value !== 'string' || !value.trim()) {
     errors.push(`${label} is missing`);
-    return [];
+    return { groups: [], order: [] };
   }
-  const order = [];
+  const groups = [];
   const seen = new Set();
-  const groups = value.replaceAll('→', '->').split(/\s*->\s*/).filter(Boolean);
-  for (const group of groups) {
-    const members = group.split('/').map((token) => token.trim()).filter(Boolean);
+  const sourceGroups = value.replaceAll('→', '->').split(/\s*->\s*/).filter(Boolean);
+  for (const sourceGroup of sourceGroups) {
+    const members = sourceGroup.split('/').map((token) => token.trim()).filter(Boolean);
     if (members.length === 0) errors.push(`${label} contains an empty group`);
+    const group = [];
     for (const member of members) {
       const expanded = expandPromptTargets(
         member.replace(/[–—]/g, '-'),
@@ -209,11 +210,12 @@ function expandOrderedPromptSequence(value, knownPrompts, errors, label) {
       for (const prompt of expanded) {
         if (seen.has(prompt)) errors.push(`${label} repeats Prompt ${prompt}`);
         else seen.add(prompt);
-        order.push(prompt);
+        group.push(prompt);
       }
     }
+    if (group.length > 0) groups.push(group);
   }
-  return order;
+  return { groups, order: groups.flat() };
 }
 
 function promptTrailers(message) {
@@ -261,40 +263,40 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
   const hasWolfContract = plan.definitions.has('425') || plan.wolfAttackSequenceSource !== null ||
     Boolean(wolfEvidence) || Boolean(wolfSequence) || wolfRows.size > 0;
   if (hasWolfContract) {
-    const planWolfOrder = expandOrderedPromptSequence(
+    const planWolfSequence = parseOrderedPromptSequence(
       plan.wolfAttackSequenceSource,
       plan.definitions,
       errors,
       'canonical plan WOLF-ATTACK order',
     );
-    const evidenceWolfOrder = expandOrderedPromptSequence(
+    const evidenceWolfSequence = parseOrderedPromptSequence(
       wolfEvidence?.direction,
       plan.definitions,
       errors,
       `${WOLF_SEQUENCE_EVIDENCE_ID} direction`,
     );
-    const indexWolfOrder = expandOrderedPromptSequence(
+    const indexWolfSequence = parseOrderedPromptSequence(
       wolfSequence?.order,
       plan.definitions,
       errors,
       'dependency index WOLF-ATTACK order',
     );
-    if (JSON.stringify(planWolfOrder) !== JSON.stringify(evidenceWolfOrder)) {
+    if (JSON.stringify(planWolfSequence.groups) !== JSON.stringify(evidenceWolfSequence.groups)) {
       errors.push(`canonical plan WOLF-ATTACK order does not match ${WOLF_SEQUENCE_EVIDENCE_ID} evidence direction`);
     }
-    if (JSON.stringify(planWolfOrder) !== JSON.stringify(indexWolfOrder)) {
+    if (JSON.stringify(planWolfSequence.groups) !== JSON.stringify(indexWolfSequence.groups)) {
       errors.push('canonical plan WOLF-ATTACK order does not match the dependency index sequence table');
     }
     if (!wolfSequence?.evidenceIds.includes(WOLF_SEQUENCE_EVIDENCE_ID)) {
       errors.push(`dependency index WOLF-ATTACK order must cite ${WOLF_SEQUENCE_EVIDENCE_ID}`);
     }
-    for (const prompt of planWolfOrder) {
+    for (const prompt of planWolfSequence.order) {
       if (!wolfRows.has(prompt)) {
         errors.push(`canonical plan WOLF-ATTACK order includes Prompt ${prompt} without a WOLF-ATTACK row`);
       }
     }
     for (const prompt of wolfRows) {
-      if (!planWolfOrder.includes(prompt)) {
+      if (!planWolfSequence.order.includes(prompt)) {
         errors.push(`WOLF-ATTACK row Prompt ${prompt} is missing from the canonical plan order`);
       }
       const evidenceIds = dependency.rows.get(prompt)?.evidenceIds.split(';')
@@ -303,7 +305,7 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
         errors.push(`WOLF-ATTACK row Prompt ${prompt} must cite ${WOLF_SEQUENCE_EVIDENCE_ID}`);
       }
     }
-    plan.wolfAttackOrder = planWolfOrder;
+    plan.wolfAttackOrder = planWolfSequence.order;
   }
   for (const prompt of promptIds) {
     if (!plan.definitions.has(prompt)) errors.push(`canonical plan is missing Prompt ${prompt}`);
