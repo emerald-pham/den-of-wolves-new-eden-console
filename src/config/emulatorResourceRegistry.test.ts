@@ -619,6 +619,7 @@ describe('local emulator coordination', () => {
       changeClass: 'non-feature',
       implementationPrompt: '665',
       implementationRegistrationRequired: true,
+      sessionGoals: null,
     };
     const outcomes = [
       {
@@ -689,6 +690,34 @@ describe('local emulator coordination', () => {
       if (!comparisonDigest) throw new Error('Expected a durable bootstrap comparison digest.');
       await expect(readFile(artifactPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
 
+      const immutableState = await readFile(filePath, 'utf8');
+      const rewriteAttempts = [
+        outcomes,
+        outcomes.map((outcome, index) => index === 0
+          ? { ...outcome, explanation: 'Changed after the comparison was recorded.' }
+          : outcome),
+        outcomes.slice(0, 1),
+        [outcomes[1]!, outcomes[0]!],
+      ];
+      for (const rewrite of rewriteAttempts) {
+        await expect(updateSessionGoals(filePath, {
+          id: entry.id,
+          now: '2099-01-01T00:02:00.000Z',
+          outcomes: rewrite,
+        })).rejects.toThrow(/bootstrap comparison.*immutable/i);
+        await expect(readFile(filePath, 'utf8')).resolves.toBe(immutableState);
+      }
+
+      const tamperedState = JSON.parse(immutableState);
+      tamperedState.entries[0].sessionGoals.lastComparison.checkedCount = 2;
+      await writeFile(filePath, JSON.stringify(tamperedState), 'utf8');
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState(),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      })).rejects.toThrow(/bootstrap comparison evidence is malformed/i);
+      await writeFile(filePath, immutableState, 'utf8');
+
       await expect(finishCoordinationEntry(filePath, {
         id: entry.id,
         release: releaseState({ worktreeClean: false }),
@@ -751,6 +780,11 @@ describe('local emulator coordination', () => {
         originalDigest: 'not-a-valid-digest',
       },
     };
+    const missingEntry = {
+      ...otherEntry,
+      id: '1789089073940-29496-766886f1',
+    };
+    delete (missingEntry as { sessionGoals?: unknown }).sessionGoals;
     const outcomes = [{
       id: 'goal-001',
       checked: true,
@@ -765,6 +799,17 @@ describe('local emulator coordination', () => {
       }), 'utf8');
       await expect(updateSessionGoals(filePath, {
         id: otherEntry.id,
+        outcomes,
+      })).rejects.toThrow(/artifact is missing/i);
+
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [missingEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await expect(updateSessionGoals(filePath, {
+        id: missingEntry.id,
         outcomes,
       })).rejects.toThrow(/artifact is missing/i);
 

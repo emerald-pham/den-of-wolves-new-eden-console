@@ -331,7 +331,7 @@ function sessionGoalBootstrapMigration(entry) {
 
 function sessionGoalBootstrapPending(entry) {
   return sessionGoalBootstrapMigration(entry) &&
-    (entry.sessionGoals === null || entry.sessionGoals === undefined);
+    Object.hasOwn(entry, 'sessionGoals') && entry.sessionGoals === null;
 }
 
 function sessionGoalBootstrapComparison(entry) {
@@ -3328,11 +3328,13 @@ export async function updateSessionGoals(filePath, options = {}) {
       );
     }
     const bootstrapMetadata = objectRecord(entry.sessionGoals);
-    if (sessionGoalBootstrapPending(entry) ||
-      (sessionGoalBootstrapMigration(entry) && bootstrapMetadata.policy === 'legacy-exempt')) {
-      if (bootstrapMetadata.policy === 'legacy-exempt') {
-        sessionGoalBootstrapComparison(entry);
-      }
+    if (sessionGoalBootstrapMigration(entry) && bootstrapMetadata.policy === 'legacy-exempt') {
+      sessionGoalBootstrapComparison(entry);
+      throw new Error(
+        `Cannot update session goals for ${entry.id}: bootstrap comparison is immutable once recorded.`,
+      );
+    }
+    if (sessionGoalBootstrapPending(entry)) {
       if (outcomes.some((outcome, index) =>
         outcome.id !== `goal-${String(index + 1).padStart(3, '0')}`)) {
         throw new Error(

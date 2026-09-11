@@ -3662,10 +3662,12 @@ a presentation/data primitive, not proof of a playable attack.
 
   **Prompt 665 self-bootstrap acceptance:** the sole migration is exact
   coordination entry `1789089073940-29496-766886f1` while bound to Prompt 665
-  with its historical absent/null `sessionGoals`. Supported goals must first persist
-  a ledger-only digest/count comparison. No other Prompt 665 entry is exempt,
-  and any entry carrying required-artifact metadata retains artifact validation,
-  cleanup, and verified-absence duties.
+  with its historical explicit `sessionGoals: null`. Supported goals must first persist
+  a ledger-only digest/count comparison; that comparison is single-write, every
+  later goals update fails without mutation, and finish validates the recorded
+  receipt. No other Prompt 665 entry is exempt, and any entry carrying
+  required-artifact metadata retains artifact validation, cleanup, and
+  verified-absence duties.
 
 The backlog contains **732 independently executable prompts** in this
 snapshot: 664 base IDs plus 68 lettered child IDs placed beside their closest

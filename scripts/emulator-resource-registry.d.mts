@@ -74,7 +74,8 @@ export interface CoordinationEntry {
   readonly validationHistory?: readonly ValidationReceipt[];
   readonly validationReused?: boolean;
   readonly mergeHandoffs?: readonly CoordinationMergeHandoff[];
-  readonly sessionGoals?: CoordinationSessionGoals;
+  /** Historical entries may carry the exact pre-artifact null sentinel. */
+  readonly sessionGoals?: CoordinationSessionGoals | null;
 }
 
 export interface CoordinationSessionGoal {
@@ -106,6 +107,11 @@ export interface CoordinationSessionGoals {
   readonly lastComparison?: CoordinationSessionGoalComparison;
   readonly finalComparison?: CoordinationSessionGoalComparison;
   readonly reason?: string;
+}
+
+/** Every entry returned by current coordination:begin has required, non-null goals. */
+export interface BegunCoordinationEntry extends CoordinationEntry {
+  readonly sessionGoals: CoordinationSessionGoals;
 }
 
 export interface CoordinationParkRecord {
@@ -402,7 +408,7 @@ export function beginCoordinationEntry(
     readonly claims?: string;
     readonly resources?: string;
   },
-): Promise<CoordinationEntry>;
+): Promise<BegunCoordinationEntry>;
 export function claimCoordinationEntry(
   filePath: string,
   options: {
