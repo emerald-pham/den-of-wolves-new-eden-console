@@ -961,6 +961,7 @@ function workRegistrationCoordinationOptions(state, entry) {
     const sourcePrompt = normalizePromptId(sourceEntry?.implementationPrompt);
     const sourceCommit = text(handoff.sourceCommitSha);
     if (!sourcePrompt || sourcePrompt === currentPrompt ||
+      canonicalChangeClassForPrompt(sourcePrompt) !== 'non-feature' ||
       sourceEntry?.status !== 'complete' || sourceEntry?.outcome !== 'preserved' ||
       sourceEntry?.implementationRegistrationRequired !== true ||
       sourceEntry?.validation?.passed !== true || sourceEntry.validation.commitSha !== sourceCommit ||

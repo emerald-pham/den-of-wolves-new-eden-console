@@ -218,7 +218,9 @@ A coordination release range binds every non-documentation commit to the
 entry's prompt. The exact recorded Prompt 664 to Prompt 665 transition is the
 sole local prompt-transition exception. A blocked-agent integration may also
 contain a foreign prompt only when the registry ties it to the exact validated
-commit of a completed preserved source entry; arbitrary mixed-prompt commits
+commit of a completed preserved source entry. The binding covers only that SHA,
+not its ancestors, and is limited to canonical non-feature work; feature work
+keeps its own prompt-specific release entry. Arbitrary mixed-prompt commits
 remain invalid for landed, preserved, and discarded closeout.
 
 ## Merge, push, and finish

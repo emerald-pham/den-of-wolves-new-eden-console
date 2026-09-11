@@ -4265,7 +4265,12 @@ describe('local emulator coordination', () => {
     }
   });
 
-  it('binds an integrated cross-prompt handoff only to its validated preserved source commit', async () => {
+  it.each([
+    { prompt: '660', expectedBinding: [{ prompt: '660', commit: 'source-branch-sha' }] },
+    { prompt: '141', expectedBinding: undefined },
+  ])('forwards only canonical non-feature preserved handoffs for Prompt $prompt', async ({
+    prompt, expectedBinding,
+  }) => {
     const filePath = resolve(tmpdir(), `den-of-wolves-registration-handoff-${randomUUID()}.json`);
     let receivedOptions: Record<string, unknown> | undefined;
     const sourceEntry = {
@@ -4273,7 +4278,7 @@ describe('local emulator coordination', () => {
       id: 'source-entry',
       status: 'complete',
       outcome: 'preserved',
-      implementationPrompt: '141',
+      implementationPrompt: prompt,
       implementationRegistrationRequired: true,
       validation: { ...codeValidation, commitSha: 'source-branch-sha' },
       preservation: {
@@ -4320,10 +4325,8 @@ describe('local emulator coordination', () => {
         },
       })).rejects.toThrow(/session goal artifact is missing/i);
 
-      expect(receivedOptions).toMatchObject({
-        coordinationPrompt: '665',
-        coordinationPromptBindings: [{ prompt: '141', commit: 'source-branch-sha' }],
-      });
+      expect(receivedOptions).toMatchObject({ coordinationPrompt: '665' });
+      expect(receivedOptions?.coordinationPromptBindings).toEqual(expectedBinding);
     } finally {
       await unlink(filePath).catch(() => undefined);
     }

@@ -388,8 +388,12 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(ci).not.toContain('branches: [main]');
   expect(ci).toContain('fetch-depth: 0');
   expect(ci).toContain('git switch --create "ci-verify-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"');
+  expect(ci).toContain('exact_head_commit:');
+  expect(ci).toContain('git rev-parse --verify "$head_sha^"');
+  expect(ci).toContain('validate:work-registration -- --commit "$head_sha"');
   expect(ci).toContain('actions/upload-artifact@v7');
   expect(deploy).toContain('ref: ${{ github.sha }}');
+  expect(deploy).toContain('exact_head_commit: true');
   expect(deploy).toContain('actions/download-artifact@v8');
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });

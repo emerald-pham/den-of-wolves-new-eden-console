@@ -625,18 +625,10 @@ export function validateCommitRegistration({ cwd = process.cwd(), commit = 'HEAD
   };
 }
 
-function commitIsAncestor(cwd, ancestor, descendant) {
-  try {
-    git(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function validateCoordinationRangeBindings({
   cwd,
   results,
+  progressSource,
   coordinationPrompt,
   coordinationPromptBefore,
   coordinationPromptBindings,
@@ -660,6 +652,7 @@ function validateCoordinationRangeBindings({
   }
 
   const bindings = [];
+  const canonicalProgress = parseProgress(progressSource);
   if (!Array.isArray(coordinationPromptBindings)) {
     errors.push('coordination prompt bindings must be an array');
   } else {
@@ -670,7 +663,15 @@ function validateCoordinationRangeBindings({
         errors.push('coordination prompt binding requires a valid prompt and commit');
         continue;
       }
-      bindings.push({ prompt, commit });
+      const resolvedCommit = git(cwd, ['rev-parse', '--verify', `${commit}^{commit}`]);
+      const changeClass = canonicalProgress.get(prompt)?.changeClass ?? null;
+      if (prompt !== currentPrompt && changeClass !== 'non-feature') {
+        errors.push(changeClass === 'feature'
+          ? `canonical feature Prompt ${prompt} cannot be preserved by coordination Prompt ${currentPrompt}`
+          : `preserved Prompt ${prompt} has no canonical non-feature classification at the range head`);
+        continue;
+      }
+      bindings.push({ prompt, commit: resolvedCommit });
     }
   }
 
@@ -683,7 +684,7 @@ function validateCoordinationRangeBindings({
     }
     if (previousPrompt && result.prompt === previousPrompt && !reachedCurrentPrompt) continue;
     if (bindings.some((binding) =>
-      binding.prompt === result.prompt && commitIsAncestor(cwd, result.commit, binding.commit))) {
+      binding.prompt === result.prompt && binding.commit === result.commit)) {
       continue;
     }
     errors.push(
@@ -706,6 +707,12 @@ export function validateCommitRange({
   coordinationPromptBindings = [],
 } = {}) {
   if (!range) throw new Error('work registration range validation requires --range <base>..<head>');
+  const separator = range.indexOf('..');
+  if (separator < 1 || separator + 2 >= range.length || range[separator + 2] === '.') {
+    throw new Error('work registration range validation requires --range <base>..<head>');
+  }
+  const baseRef = range.slice(0, separator);
+  const headRef = range.slice(separator + 2);
   const commits = git(cwd, ['rev-list', '--reverse', '--topo-order', range]).split('\n').filter(Boolean);
   const results = commits.map((commit) => {
     const parents = git(cwd, ['rev-list', '--parents', '-n', '1', commit]).split(/\s+/).slice(1);
@@ -738,10 +745,11 @@ export function validateCommitRange({
   });
   const errors = results.flatMap((result) =>
     result.errors.map((error) => `${result.commit.slice(0, 12)}: ${error}`));
-  const base = range.match(/^(.+?)\.\./)?.[1];
-  const basePlanSource = base
-    ? sourceAt(cwd, git(cwd, ['rev-parse', '--verify', `${base}^{commit}`]), 'docs/IMPLEMENTATION_PLAN.md')
-    : '';
+  const basePlanSource = sourceAt(
+    cwd,
+    git(cwd, ['rev-parse', '--verify', `${baseRef}^{commit}`]),
+    'docs/IMPLEMENTATION_PLAN.md',
+  );
   for (const prompt of new Set(results.map((result) => result.prompt).filter(Boolean))) {
     if (!sourceContainsPrompt(basePlanSource, prompt) &&
       !results.some((result) => result.prompt === prompt && result.newPrompt)) {
@@ -754,6 +762,11 @@ export function validateCommitRange({
   validateCoordinationRangeBindings({
     cwd,
     results,
+    progressSource: sourceAt(
+      cwd,
+      git(cwd, ['rev-parse', '--verify', `${headRef}^{commit}`]),
+      'docs/IMPLEMENTATION_PROGRESS.md',
+    ),
     coordinationPrompt,
     coordinationPromptBefore,
     coordinationPromptBindings,

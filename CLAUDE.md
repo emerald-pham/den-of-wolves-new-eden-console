@@ -252,7 +252,9 @@ range must bind to that entry's prompt. The only local transition exception is
 the recorded, monotonic Prompt 664 to Prompt 665 handoff on the original tooling
 entry. A pending blocked-agent merge may carry another prompt only when its
 source commit is the exact validated SHA of the completed preserved source
-entry; the source entry remains responsible for that prompt's release gates.
+entry. That exception is exact-commit-only, never ancestor-wide, and applies
+only to canonically non-feature prompts. Feature work must retain its own
+prompt entry and release gates instead of inheriting a non-feature closeout.
 
 ### Start
 
@@ -856,6 +858,9 @@ uncertain change must use the full validation profile.
 - The main-branch deployment workflow does not repeat `npm test`; it relies on
   the required local pre-push gate and the branch or pull-request CI run. It
   continues to run lint, Firestore rule tests, and both production builds.
+  Its reusable CI call validates the exact deployment head from its first
+  parent, or validates the exact commit directly for a root commit; pull-request
+  and branch-push CI still reject an untrusted or zero-length range.
 - Do not stack unfinished work. Do not leave a task open "for later." If a
   change is not going to land, make an explicit preserve-or-discard decision.
   Preserved work must have its commits or artifacts recorded and, if it must

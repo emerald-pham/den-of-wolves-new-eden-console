@@ -79,7 +79,9 @@ describe('universal implementation work registration', () => {
     expect(pushHook).toContain('--range');
     expect(ciSource).toContain('Validate implementation work registration');
     expect(ciSource).toContain('validate:work-registration -- --range');
-    expect(ciSource).not.toContain('git rev-parse "$head_sha^"');
+    expect(ciSource).toContain('git rev-parse --verify "$head_sha^"');
+    expect(ciSource).toContain('validate:work-registration -- --commit "$head_sha"');
+    expect(ciSource).toContain('EXACT_HEAD_COMMIT: ${{ inputs.exact_head_commit || false }}');
     expect(ciSource).toContain('Unable to derive a trusted implementation-registration base');
     expect(ciSource).toContain('[ "$base_sha" = "$head_sha" ]');
     expect(ciSource).not.toContain('paths-ignore:');
@@ -169,6 +171,16 @@ describe('universal implementation work registration', () => {
         coordinationPromptBefore: '664',
         coordinationPromptBindings: [{ prompt: '660', commit: preservedSourceCommit }],
       }).errors.join('\n')).toContain('commit trailer Prompt 660 does not match coordination Prompt 665');
+      const preservedSourceTip = await git(root, 'rev-parse', 'HEAD');
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+        coordinationPromptBefore: '664',
+        coordinationPromptBindings: [{ prompt: '660', commit: preservedSourceTip }],
+      }).errors.join('\n')).toContain(
+        `${preservedSourceCommit.slice(0, 12)}: commit trailer Prompt 660 does not match coordination Prompt 665`,
+      );
 
       await git(root, 'switch', '-c', 'split-registration', base);
       await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), planSource);
@@ -189,7 +201,7 @@ describe('universal implementation work registration', () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 15_000);
 
   it('fails closed when staged validation cannot resolve main as a trusted branch baseline', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'work-registration-no-baseline-'));
@@ -396,12 +408,17 @@ describe('universal implementation work registration', () => {
       await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), [
         '- [x] Prompt 141',
         '- **Prompt 141 — [PROMPT] Ship a player-facing feature.** Acceptance: done.',
+        '- [x] Prompt 665',
+        '- **Prompt 665 — [REPAIR] Bind coordination ranges.** Acceptance: done. Dependencies: Prompt 141.',
       ].join('\n'));
-      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'),
-        '| 141 | done | feature | 0.3.2 | Feature release. |');
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), [
+        '| 141 | done | feature | 0.3.2 | Feature release. |',
+        '| 665 | done | non-feature | — | Exact coordination binding. |',
+      ].join('\n'));
       await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), [
         '| prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |',
         '| 141 | PROMPT | done | none | none | none | none | none | none | none | none | none | none | Ship a player-facing feature. |',
+        '| 665 | REPAIR | done | 141 | none | none | none | none | none | none | none | none | none | Bind coordination ranges. |',
       ].join('\n'));
       await git(root, 'add', 'docs');
       await git(root, 'commit', '-m', 'docs: seed Prompt 141');
@@ -410,12 +427,24 @@ describe('universal implementation work registration', () => {
       await writeFile(resolve(root, 'src/feature.ts'), 'export const feature = true;\n');
       await git(root, 'add', 'src/feature.ts');
       await git(root, 'commit', '-m', 'feat: ship Prompt 141', '-m', 'Implementation-Prompt: 141');
+      const foreignFeatureCommit = await git(root, 'rev-parse', 'HEAD');
+      await writeFile(resolve(root, 'src/feature-tip.ts'), 'export const featureTip = true;\n');
+      await git(root, 'add', 'src/feature-tip.ts');
+      await git(root, 'commit', '-m', 'feat: preserve Prompt 141 tip', '-m', 'Implementation-Prompt: 141');
+      const preservedFeatureTip = await git(root, 'rev-parse', 'HEAD');
+      await mkdir(resolve(root, 'scripts'), { recursive: true });
+      await writeFile(resolve(root, 'scripts/prompt-665.mjs'), 'export const exactBinding = true;\n');
+      await git(root, 'add', 'scripts/prompt-665.mjs');
+      await git(root, 'commit', '-m', 'tooling: bind Prompt 665', '-m', 'Implementation-Prompt: 665');
 
-      expect(validateCommitRange({
+      const errors = validateCommitRange({
         cwd: root,
         range: `${base}..HEAD`,
         coordinationPrompt: '665',
-      }).errors.join('\n')).toContain('does not match coordination Prompt 665');
+        coordinationPromptBindings: [{ prompt: '141', commit: preservedFeatureTip }],
+      }).errors.join('\n');
+      expect(errors).toContain(foreignFeatureCommit.slice(0, 12));
+      expect(errors).toContain('canonical feature Prompt 141 cannot be preserved by coordination Prompt 665');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

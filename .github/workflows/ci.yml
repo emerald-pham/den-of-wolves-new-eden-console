@@ -24,8 +24,12 @@ on:
     inputs:
       ref:
         description: Exact commit SHA to verify.
-        required: false
+        required: true
         type: string
+      exact_head_commit:
+        description: Validate only the exact ref commit for a trusted reusable-workflow caller.
+        required: true
+        type: boolean
 
 permissions:
   contents: read
@@ -60,23 +64,35 @@ jobs:
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
+          EXACT_HEAD_COMMIT: ${{ inputs.exact_head_commit || false }}
         run: |
           head_sha=$(git rev-parse HEAD)
-          base_sha="$PR_BASE_SHA"
-          if [ -z "$base_sha" ]; then
-            base_sha="$PUSH_BEFORE_SHA"
-          fi
-          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
-            if ! base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null); then
-              echo "Unable to derive a trusted implementation-registration base from origin/main." >&2
+          if [ "$EXACT_HEAD_COMMIT" = "true" ]; then
+            if base_sha=$(git rev-parse --verify "$head_sha^" 2>/dev/null); then
+              npm run validate:work-registration -- --range "$base_sha..$head_sha"
+              changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
+            else
+              npm run validate:work-registration -- --commit "$head_sha"
+              changed_paths=$(git diff-tree --root --no-commit-id --name-only -r "$head_sha")
+            fi
+          else
+            base_sha="$PR_BASE_SHA"
+            if [ -z "$base_sha" ]; then
+              base_sha="$PUSH_BEFORE_SHA"
+            fi
+            if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+              if ! base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null); then
+                echo "Unable to derive a trusted implementation-registration base from origin/main." >&2
+                exit 1
+              fi
+            fi
+            if [ "$base_sha" = "$head_sha" ]; then
+              echo "Unable to derive a trusted implementation-registration base before the exact head." >&2
               exit 1
             fi
+            npm run validate:work-registration -- --range "$base_sha..$head_sha"
+            changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
           fi
-          if [ "$base_sha" = "$head_sha" ]; then
-            echo "Unable to derive a trusted implementation-registration base before the exact head." >&2
-            exit 1
-          fi
-          npm run validate:work-registration -- --range "$base_sha..$head_sha"
           documentation_only=true
           while IFS= read -r changed_path; do
             case "$changed_path" in
@@ -84,7 +100,7 @@ jobs:
               *) documentation_only=false ;;
             esac
           done <<EOF
-          $(git diff --name-only "$base_sha" "$head_sha")
+          $changed_paths
           EOF
           if [ "$documentation_only" = true ]; then
             npm run coordination:docs
