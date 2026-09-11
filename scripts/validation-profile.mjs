@@ -1,4 +1,6 @@
 import ts from 'typescript';
+import { readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 // The fast path is intentionally narrower than the set of files that can
 // contain text. It is for colocated player-facing JSX and its focused JSX
@@ -52,10 +54,171 @@ const TEXT_MATCHER_METHODS = new Set([
   'toHaveTextContent',
 ]);
 const COPY_ONLY_COMMANDS = Object.freeze([
-  'npm run validate:implementation-progress',
   'npm run lint',
   'npm run build',
 ]);
+
+const FULL_VALIDATION_COMMANDS = Object.freeze([
+  'git diff --check',
+  'npm run lint',
+  'npm run test:all',
+  'npm run build',
+  'npm run build --prefix functions',
+]);
+
+const TOOLING_PATH_PATTERN = /^(?:scripts\/|\.githooks\/|\.github\/|docs\/implementation-prompts\.json$|vitest\.config\.|eslint\.config\.)/i;
+const UI_PATH_PATTERN = /^(?:src\/(?:components|routes|styles)\/|public\/|index\.html$)/i;
+const DATA_HELPER_PATH_PATTERN = /^src\/data\//i;
+const TEST_PATH_PATTERN_ANY = /(?:^|\/)(?:__tests__|tests)(?:\/|$)|(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/i;
+const HIGH_RISK_PATH_PATTERN = /^(?:functions\/|firestore\.rules$|firestore\.indexes\.json$|firebase\.json$|\.firebaserc$|\.github\/workflows\/(?:deploy|ci)\.ya?ml$|src\/lib\/(?:firebase|firestore)|src\/(?:store|services)\/|src\/config\/deploy|src\/config\/.*(?:auth|security|authority)|scripts\/(?:run-emulator-command|emulator-resource-registry|coordination-throughput|validation-profile)\.mjs$)/i;
+
+function isDocumentationPath(file) {
+  return /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i.test(file);
+}
+
+function affectedTestStem(file) {
+  return file
+    .replace(/\\/g, '/')
+    .split('/')
+    .at(-1)
+    ?.replace(/\.(?:test|spec)\.[^.]+$/i, '')
+    .replace(/\.[^.]+$/i, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toLowerCase() ?? '';
+}
+
+function existingTestFiles(repositoryDirectory = process.cwd()) {
+  const root = join(repositoryDirectory, 'src');
+  const found = [];
+  const visit = (directory) => {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const absolute = join(directory, entry.name);
+      if (entry.isDirectory()) visit(absolute);
+      else if (entry.isFile() && TEST_PATH_PATTERN_ANY.test(entry.name)) found.push(absolute);
+    }
+  };
+  visit(root);
+  return found.map((file) => relative(repositoryDirectory, file).replaceAll('\\', '/'));
+}
+
+function discoverAffectedTests(files, affectedTests, repositoryDirectory = process.cwd()) {
+  const tests = new Set(normalizedFiles(affectedTests));
+  const stems = files
+    .filter((file) => !TEST_PATH_PATTERN_ANY.test(file))
+    .map(affectedTestStem)
+    .filter(Boolean);
+  for (const candidate of existingTestFiles(repositoryDirectory)) {
+    const candidateStem = affectedTestStem(candidate);
+    if (stems.some((stem) => candidateStem === stem || candidateStem.includes(stem) || stem.includes(candidateStem))) {
+      tests.add(candidate);
+    }
+  }
+  return [...tests].sort();
+}
+
+function normalizedFiles(changedFiles) {
+  return [...new Set((Array.isArray(changedFiles) ? changedFiles : [])
+    .map((file) => String(file ?? '').trim().replaceAll('\\', '/').replace(/^\.\//, ''))
+    .filter(Boolean))].sort();
+}
+
+function testCommands(files, affectedTests, repositoryDirectory) {
+  const candidates = normalizedFiles([
+    ...files.filter((file) => TEST_PATH_PATTERN_ANY.test(file)),
+    ...discoverAffectedTests(files, affectedTests, repositoryDirectory),
+  ]);
+  return candidates.map((file) => `npm test -- --run ${file}`);
+}
+
+/**
+ * Classify a changed-file set into the smallest safe validation profile.
+ * Profiles are deterministic and intentionally depend on paths only; callers
+ * may promote a profile to `full` for a cross-cutting migration.
+ */
+export function deriveValidationProfile({
+  changedFiles = [],
+  affectedTests = [],
+  forceFull = false,
+  repositoryDirectory = process.cwd(),
+} = {}) {
+  const files = normalizedFiles(changedFiles);
+  if (files.length === 0) {
+    return fullProfile('no changed files');
+  }
+  if (files.every((file) => /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i.test(file))) {
+    return {
+      kind: 'docs',
+      reason: 'documentation-only changes do not require application validation',
+      commands: ['git diff --check'],
+      requiresReview: false,
+    };
+  }
+
+  const highRisk = forceFull || files.some((file) => HIGH_RISK_PATH_PATTERN.test(file));
+  if (highRisk) {
+    return {
+      kind: 'full',
+      reason: forceFull
+        ? 'cross-cutting workflow migration requires the full final gate'
+        : 'server, rules, authority, deployment, or authentication paths changed',
+      commands: [...FULL_VALIDATION_COMMANDS],
+      requiresReview: true,
+      reviewReason: 'one independent holistic review is required for high-risk changes',
+    };
+  }
+
+  const nonDocumentationFiles = files.filter((file) => !isDocumentationPath(file));
+  const tooling = nonDocumentationFiles.some((file) => TOOLING_PATH_PATTERN.test(file)) &&
+    nonDocumentationFiles.every((file) => TOOLING_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
+  const uiOrData = nonDocumentationFiles.some((file) => UI_PATH_PATTERN.test(file) || DATA_HELPER_PATH_PATTERN.test(file)) &&
+    nonDocumentationFiles.every((file) => UI_PATH_PATTERN.test(file) ||
+      DATA_HELPER_PATH_PATTERN.test(file) || TEST_PATH_PATTERN_ANY.test(file));
+  const discoveredTests = discoverAffectedTests(files, affectedTests, repositoryDirectory);
+  if (tooling) {
+    return {
+      kind: 'tooling',
+      reason: 'tooling changes use focused tooling tests, lint, and the affected build',
+      commands: [
+        'git diff --check',
+        ...testCommands(files, discoveredTests, repositoryDirectory),
+        'npm run lint',
+        'npm run build',
+      ],
+      requiresReview: false,
+    };
+  }
+  if (uiOrData) {
+    return {
+      kind: 'focused',
+      reason: 'UI, CSS, or data-helper changes use affected tests, lint, and the affected build',
+      commands: [
+        'git diff --check',
+        ...testCommands(files, discoveredTests, repositoryDirectory),
+        'npm run lint',
+        'npm run build',
+      ],
+      requiresReview: false,
+    };
+  }
+
+  return {
+    kind: 'full',
+    reason: 'changed paths are not covered by a lower-risk profile',
+    commands: [...FULL_VALIDATION_COMMANDS],
+    requiresReview: true,
+    reviewReason: 'unknown or high-impact changes require one independent holistic review',
+  };
+}
+
+export const validationProfileForFiles = deriveValidationProfile;
+export const FULL_VALIDATION_COMMANDS_LIST = FULL_VALIDATION_COMMANDS;
 
 function fullProfile(reason) {
   return {

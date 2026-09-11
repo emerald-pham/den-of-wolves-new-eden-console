@@ -10,14 +10,10 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import {
-  readImplementationProgress,
-  validateImplementationProgress,
-} from './validate-implementation-progress.mjs';
 
 export const COORDINATION_THROUGHPUT_SCHEMA_VERSION = 1;
 export const DEFAULT_COORDINATION_LEASE_MS = 90_000;
@@ -65,15 +61,19 @@ function normalizeClaim(value) {
   return text(value).toLowerCase();
 }
 
-function pathOverlaps(left, right) {
-  if (!left || !right) return false;
-  return left === '*' || right === '*' || left === right ||
-    left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
-}
+const CENTRAL_RELEASE_FILES = new Set([
+  'package.json',
+  'package-lock.json',
+  'src/changelog.ts',
+]);
 
-function pathLooksLikeFile(value) {
-  const name = basename(value);
-  return /\.[a-z0-9]+$/i.test(name);
+function isCentralReleaseClaim(value) {
+  const claim = normalizeClaim(value).replaceAll('\\', '/').replace(/^\.\//, '');
+  return CENTRAL_RELEASE_FILES.has(claim) ||
+    claim.startsWith('release-') ||
+    claim.startsWith('coordination-') ||
+    claim.startsWith('emulator-slot-') ||
+    claim.startsWith('validation-queue');
 }
 
 function sameRepository(candidate, { repositoryIdentity, repositoryRoot }) {
@@ -84,19 +84,7 @@ function sameRepository(candidate, { repositoryIdentity, repositoryRoot }) {
 }
 
 export function coordinationClaimIsCrossRepository(value) {
-  const claim = normalizeClaim(value);
-  return claim.startsWith('emulator-slot-') ||
-    claim.startsWith('coordination-') ||
-    claim.startsWith('release-');
-}
-
-function leafSuggestion(requested, files = []) {
-  const candidates = files
-    .map(normalizePath)
-    .filter((file) => file && pathOverlaps(file, requested) && pathLooksLikeFile(file));
-  if (candidates.length > 0) return candidates;
-  if (pathLooksLikeFile(requested)) return [requested];
-  return [`${requested.replace(/\/$/, '')}/<leaf-file>`];
+  return isCentralReleaseClaim(value);
 }
 
 function conflictKey(conflict) {
@@ -116,28 +104,23 @@ export function forecastCoordinationConflicts({
   scopes = [],
   files = [],
   claims = [],
+  resources = [],
   now = Date.now(),
   leaseMs = DEFAULT_COORDINATION_LEASE_MS,
 } = {}) {
-  const requestedScopes = list(scopes).map(normalizePath).filter(Boolean);
-  const requestedFiles = list(files).map(normalizePath).filter(Boolean);
+  void scopes;
+  void files;
   const requestedClaims = [...new Set(list(claims).map(normalizeClaim).filter(Boolean))];
+  const requestedResources = [...new Set(list(resources).map(normalizeClaim).filter(Boolean))];
   const conflicts = [];
-  const suggestions = [];
 
-  const addConflict = (entry, type, requested, matched, ownerScopes) => {
+  const addConflict = (entry, type, requested, matched) => {
     const normalizedRequested = normalizePath(requested);
     const normalizedMatched = normalizePath(matched);
     if (!normalizedRequested || !normalizedMatched) return;
-    const sameFile = pathLooksLikeFile(normalizedRequested) &&
-      pathLooksLikeFile(normalizedMatched) && normalizedRequested === normalizedMatched;
-    const candidateFiles = requestedFiles.length > 0 ? requestedFiles : ownerScopes;
-    const suggestedScopes = leafSuggestion(normalizedRequested, candidateFiles);
     const suggestion = type === 'claim'
       ? 'The shared claim remains exclusive; wait for the owner.'
-      : sameFile
-      ? `Wait for the owner; the exact leaf file "${normalizedMatched}" remains exclusive.`
-      : `Narrow to exact leaf-file scopes such as ${suggestedScopes.map((scope) => `"${scope}"`).join(', ')}.`;
+      : 'The shared resource remains exclusive; wait for the owner.';
     const conflict = {
       type,
       ownerId: text(entry?.id, 'unknown'),
@@ -145,50 +128,39 @@ export function forecastCoordinationConflicts({
       ownerIntent: text(entry?.intent, ''),
       requested: normalizedRequested,
       matched: normalizedMatched,
-      sameFile,
+      sameFile: false,
       suggestion,
       lease: leaseStatusForEntry(entry, { now, leaseMs }),
     };
     const key = conflictKey(conflict);
     if (conflicts.some((candidate) => conflictKey(candidate) === key)) return;
     conflicts.push(conflict);
-    for (const scope of suggestedScopes) {
-      if (!suggestions.includes(scope)) suggestions.push(scope);
-    }
   };
 
   for (const entry of Array.isArray(activeEntries) ? activeEntries : []) {
     if (!coordinationEntryOwnsOwnership(entry) || entry.worktree === worktree) continue;
     const repositoryMatch = sameRepository(entry, { repositoryIdentity, repositoryRoot });
-    const ownerScopes = [
-      ...list(entry.scopes).map(normalizePath),
-      ...list(entry.files).map(normalizePath),
-    ].filter(Boolean);
-    if (repositoryMatch) {
-      for (const requested of requestedScopes) {
-        for (const matched of ownerScopes.filter((scope) => pathOverlaps(requested, scope))) {
-          addConflict(entry, 'scope', requested, matched, ownerScopes);
-        }
-      }
-      for (const requested of requestedFiles) {
-        for (const matched of ownerScopes.filter((scope) => pathOverlaps(requested, scope))) {
-          addConflict(entry, 'file', requested, matched, ownerScopes);
-        }
-      }
-    }
+    // Source scopes and changed-file hints are advisory. They are useful in
+    // the status pane but never block an independent worktree. Only a central
+    // release/resource claim below is an exclusive coordination boundary.
 
     const ownerClaims = new Set(list(entry.claims).map(normalizeClaim));
     for (const requested of requestedClaims) {
-      if (ownerClaims.has(requested) && (repositoryMatch || coordinationClaimIsCrossRepository(requested))) {
-        addConflict(entry, 'claim', requested, requested, []);
+      if (ownerClaims.has(requested) && (repositoryMatch || coordinationClaimIsCrossRepository(requested)) &&
+        isCentralReleaseClaim(requested)) {
+        addConflict(entry, 'claim', requested, requested);
       }
+    }
+    const ownerResources = new Set(list(entry.resources).map(normalizeClaim));
+    for (const requested of requestedResources) {
+      if (ownerResources.has(requested)) addConflict(entry, 'resource', requested, requested);
     }
   }
 
   return {
     blocked: conflicts.length > 0,
     conflicts,
-    suggestedScopes: suggestions,
+    suggestedScopes: [],
   };
 }
 
@@ -198,7 +170,7 @@ export function formatConflictForecast(forecast) {
   if (conflicts.length === 0) return 'No coordination conflicts forecast.';
   return conflicts.map((conflict) => {
     const owner = `${text(conflict.ownerId, 'unknown')} at ${text(conflict.ownerWorktree, 'unknown')}`;
-    const type = text(conflict.type, 'scope');
+    const type = text(conflict.type, 'claim');
     const base = `Conflict with ${owner}: requested ${type} "${conflict.requested}" matches owner ${type} "${conflict.matched}".`;
     const suggestion = text(conflict.suggestion, 'Wait for the active owner before writing.');
     const exclusivity = conflict.sameFile
@@ -609,27 +581,17 @@ function validateFragmentChanges(changes) {
   return normalized;
 }
 
-function implementationPrompts(value) {
-  if (!Array.isArray(value)) return [];
-  return value.filter((prompt) => (typeof prompt === 'number' && Number.isInteger(prompt)) ||
-    (typeof prompt === 'string' && /^\d{3}[a-z]*$/i.test(prompt.trim())))
-    .map((prompt) => typeof prompt === 'string' ? prompt.trim().toLowerCase() : prompt);
-}
-
 /** Prepare metadata only; package.json, package-lock.json, and changelog stay untouched. */
 export function prepareReleaseFragment(state, {
   taskId,
   worktree,
   changes,
-  implementationPrompts: prompts = [],
-  implementationProgress,
   baseVersion,
   baseMainSha,
   baseSha,
   coordinationEntryId,
   coordinationBranchName,
   coordinationBranchSha,
-  requiredPrompt,
 } = {}, { now = new Date() } = {}) {
   const normalizedTaskId = text(taskId);
   if (!normalizedTaskId) throw new Error('A release fragment requires a task id.');
@@ -643,15 +605,17 @@ export function prepareReleaseFragment(state, {
   const next = cloneReleaseLaneState(state);
   const existing = next.fragments.find((fragment) => fragment.taskId === normalizedTaskId);
   if (existing) throw new Error(`Release fragment for ${normalizedTaskId} already exists (${existing.state}).`);
+  const stableTaskId = normalizedTaskId.replace(/[^A-Za-z0-9._-]+/g, '-');
   const fragment = {
-    id: `release-fragment-${randomUUID()}`,
+    // A release fragment is ordinary coordination metadata. Its identity is
+    // stable for the task/sequence pair so recovery can resume deterministically.
+    id: `release-fragment-${stableTaskId}-${next.nextSequence}`,
     sequence: next.nextSequence,
     taskId: normalizedTaskId,
     worktree: normalizedWorktree,
     state: 'prepared',
     preparedAt: isoDate(now),
     changes: validateFragmentChanges(changes),
-    implementationPrompts: implementationPrompts(prompts),
     baseVersion: normalizedBaseVersion,
     ...((text(baseMainSha) || text(baseSha))
       ? { baseMainSha: text(baseMainSha) || text(baseSha) }
@@ -659,10 +623,6 @@ export function prepareReleaseFragment(state, {
     ...(text(coordinationEntryId) ? { coordinationEntryId: text(coordinationEntryId) } : {}),
     ...(text(coordinationBranchName) ? { coordinationBranchName: text(coordinationBranchName) } : {}),
     ...(text(coordinationBranchSha) ? { coordinationBranchSha: text(coordinationBranchSha) } : {}),
-    ...(text(requiredPrompt) ? { requiredPrompt: text(requiredPrompt).toLowerCase() } : {}),
-    ...(Object.keys(objectRecord(implementationProgress)).length > 0
-      ? { implementationProgress: { ...objectRecord(implementationProgress) } }
-      : {}),
   };
   next.nextSequence += 1;
   next.fragments.push(fragment);
@@ -723,10 +683,6 @@ function sourceString(value) {
   return JSON.stringify(String(value));
 }
 
-function progressLiteral(value) {
-  return Number.isInteger(value) ? String(value) : sourceString(value);
-}
-
 /** Render one independent top-level ChangelogEntry for one task. */
 export function renderReleaseChangelogEntry(fragment, version = fragment?.version) {
   const normalizedVersion = text(version);
@@ -735,16 +691,6 @@ export function renderReleaseChangelogEntry(fragment, version = fragment?.versio
     '  {',
     '    version: APP_VERSION,',
   ];
-  const prompts = implementationPrompts(fragment?.implementationPrompts);
-  if (prompts.length > 0) lines.push(`    implementationPrompts: ${JSON.stringify(prompts)},`);
-  const progress = objectRecord(fragment?.implementationProgress);
-  if (Object.keys(progress).length > 0) {
-    lines.push('    implementationProgress: {');
-    for (const field of ['completed', 'total', 'percentage', 'done', 'partial', 'active', 'missing']) {
-      if (progress[field] !== undefined) lines.push(`      ${field}: ${progressLiteral(progress[field])},`);
-    }
-    lines.push('    },');
-  }
   lines.push('    changes: [');
   for (const change of validateFragmentChanges(fragment?.changes)) lines.push(`      ${sourceString(change)},`);
   lines.push('    ],', '  },');
@@ -1033,7 +979,6 @@ async function recoverReleaseFinalization(filePath, state, {
 
   const landed = {
     ...fragment,
-    ...(journal.provenance ? { provenance: { ...objectRecord(journal.provenance) } } : {}),
     state: 'landed',
     landedAt: isoDate(now),
     changedFiles: Array.isArray(journal.changedFiles)
@@ -1058,116 +1003,6 @@ function landedResult(fragment) {
 }
 
 /**
- * Attach an exact validation provenance record to an already-landed release
- * fragment without changing the release files or its historical allocation
- * binding. This is intentionally separate from normal landing: a historical
- * fragment may be reconciled only by a caller that has already verified the
- * current task receipt and checkout.
- */
-export async function reconcileLandedReleaseFragment(filePath, {
-  taskId,
-  reconciliation,
-  changes,
-  validateLandedMetadata,
-  validateReconciliationAdvance,
-  now = new Date(),
-} = {}) {
-  return withFileLock(filePath, async () => {
-    const state = cloneReleaseLaneState(await readJsonState(filePath, emptyReleaseLaneState()));
-    if (state.finalization) {
-      throw new Error(
-        `Release fragment reconciliation cannot run while ${text(state.finalization.taskId, 'another task')} is finalizing.`,
-      );
-    }
-    const index = state.fragments.findIndex((fragment) => fragment.taskId === text(taskId));
-    if (index < 0) throw new Error(`No landed release fragment exists for ${text(taskId, 'unknown task')}.`);
-    const fragment = state.fragments[index];
-    if (fragment.state !== 'landed') {
-      throw new Error(`Release fragment ${fragment.taskId} is ${text(fragment.state, 'unprepared')}, not landed.`);
-    }
-    const proposed = objectRecord(reconciliation);
-    const requiredFields = [
-      'historicalCoordinationBranchSha',
-      'historicalBranchRelation',
-      'finalBranchSha',
-      'validationReceiptCommitSha',
-      'coordinationEntryId',
-      'coordinationWorktree',
-      'coordinationBranchName',
-      'baseMainSha',
-    ];
-    const missing = requiredFields.filter((field) => !text(proposed[field]));
-    if (missing.length > 0) {
-      throw new Error(
-        `Landed release fragment ${fragment.taskId} reconciliation requires ${missing.join(', ')}.`,
-      );
-    }
-    if (!['based-on-current-main', 'merged-into-exact-head'].includes(text(proposed.historicalBranchRelation))) {
-      throw new Error(
-        `Landed release fragment ${fragment.taskId} reconciliation requires a supported historical branch relation.`,
-      );
-    }
-    if (typeof validateLandedMetadata === 'function') {
-      await validateLandedMetadata({ fragment, reconciliation: proposed, changes });
-    }
-
-    const currentChanges = list(fragment.changes);
-    const requestedChanges = changes === undefined ? currentChanges : changes;
-    const proposedChanges = list(requestedChanges);
-    if (!Array.isArray(requestedChanges) || proposedChanges.length === 0 ||
-      proposedChanges.length !== requestedChanges.length) {
-      throw new Error(`Landed release fragment ${fragment.taskId} reconciliation requires valid release changes.`);
-    }
-    const changesChanged = currentChanges.length !== proposedChanges.length ||
-      currentChanges.some((change, index) => change !== proposedChanges[index]);
-    const existing = objectRecord(fragment.reconciliation);
-    if (Object.keys(existing).length > 0) {
-      const changed = requiredFields.filter((field) => existing[field] !== proposed[field]);
-      if (changed.length === 0 && !changesChanged) {
-        return { ...landedResult(fragment), reconciled: true, idempotent: true };
-      }
-      if (typeof validateReconciliationAdvance !== 'function') {
-        throw new Error(
-          `Landed release fragment ${fragment.taskId} already has a different reconciliation` +
-          `${changed.length > 0 ? ` for ${changed.join(', ')}` : ''}; a verified descendant advance is required.`,
-        );
-      }
-      await validateReconciliationAdvance({
-        fragment,
-        previousReconciliation: existing,
-        reconciliation: proposed,
-        changes: proposedChanges,
-      });
-    }
-
-    const reconciledAt = isoDate(now);
-    const reconciled = {
-      ...fragment,
-      changes: proposedChanges,
-      ...(changesChanged ? {
-        releaseMetadataHistory: [
-          ...(Array.isArray(fragment.releaseMetadataHistory) ? fragment.releaseMetadataHistory : []),
-          { changes: currentChanges, replacedAt: reconciledAt },
-        ],
-      } : {}),
-      ...(Object.keys(existing).length > 0 ? {
-        reconciliationHistory: [
-          ...(Array.isArray(fragment.reconciliationHistory) ? fragment.reconciliationHistory : []),
-          { ...existing },
-        ],
-      } : {}),
-      reconciliation: {
-        ...proposed,
-        reconciledAt,
-      },
-    };
-    state.fragments[index] = reconciled;
-    await writeJsonAtomically(filePath, state);
-    return { ...landedResult(reconciled), reconciled: true, idempotent: false };
-  });
-}
-
-/**
  * Strictly land one prepared fragment. Main metadata must still be the
  * fragment's base; the allocated version must be exactly next(main), and the
  * three release files are written as one guarded transaction.
@@ -1182,7 +1017,6 @@ export async function applyReleaseFragment(filePath, {
   validateFinalMetadata,
   currentMainSha,
   mainSha,
-  provenance,
 } = {}) {
   return withFileLock(filePath, async () => {
     const observedMainSha = text(currentMainSha) || text(mainSha);
@@ -1310,7 +1144,6 @@ export async function applyReleaseFragment(filePath, {
       targetVersion: fragment.version,
       startedAt: isoDate(now),
       changedFiles: [packagePath, lockfilePath, changelogPath],
-      ...(provenance ? { provenance: { ...objectRecord(provenance) } } : {}),
       files: releaseFiles.map(({ path, original, content }) => ({
         path,
         originalContent: original ?? null,
@@ -1324,7 +1157,6 @@ export async function applyReleaseFragment(filePath, {
 
     const landed = {
       ...fragment,
-      ...(provenance ? { provenance: { ...objectRecord(provenance) } } : {}),
       state: 'landed',
       landedAt: isoDate(now),
       changedFiles: [packagePath, lockfilePath, changelogPath],
@@ -1447,29 +1279,6 @@ async function gitMainSha(cwd) {
   }
 }
 
-function finalProgressValidator(repositoryDirectory) {
-  return async ({ fragment, version, changelogSource }) => {
-    let inputs;
-    try {
-      inputs = readImplementationProgress({ cwd: repositoryDirectory });
-    } catch (error) {
-      if (error?.code === 'ENOENT') return undefined;
-      throw error;
-    }
-    const result = validateImplementationProgress({
-      ...inputs,
-      applicationVersion: version,
-      changelogSource,
-    });
-    if (result.errors.length > 0) {
-      throw new Error(
-        `Release fragment ${fragment.taskId} failed final implementation-progress validation: ${result.errors.join('; ')}`,
-      );
-    }
-    return result;
-  };
-}
-
 function parseCliOptions(args) {
   const options = {};
   for (let index = 0; index < args.length; index += 1) {
@@ -1512,6 +1321,7 @@ async function cliMain() {
       scopes: options.scope?.split(',').filter(Boolean),
       files: options.files?.split(',').filter(Boolean),
       claims: options.claims?.split(',').filter(Boolean),
+      resources: options.resources?.split(',').filter(Boolean),
     });
     console.log(formatConflictForecast(forecast));
     return;
@@ -1522,7 +1332,6 @@ async function cliMain() {
       taskId: options['task-id'],
       worktree: options.worktree || repositoryDirectory,
       changes: options.change,
-      implementationPrompts: options['implementation-prompts']?.split(',').filter(Boolean),
       baseVersion: options['base-version'],
       baseMainSha: options['base-main-sha'] || await gitMainSha(repositoryDirectory),
     });
@@ -1535,7 +1344,6 @@ async function cliMain() {
       taskId: options['task-id'],
       repositoryDirectory,
       currentMainSha: options['main-sha'] || await gitMainSha(repositoryDirectory),
-      validateFinalMetadata: finalProgressValidator(repositoryDirectory),
     });
     console.log(JSON.stringify(result, null, 2));
     return;

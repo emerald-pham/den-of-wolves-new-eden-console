@@ -158,7 +158,7 @@ describe('coordination throughput primitives', () => {
     }
   });
 
-  it('forecasts every matching owner with requested and matched scopes plus a leaf-file suggestion', () => {
+  it('keeps source scopes advisory even when another worktree has a broad scope', () => {
     const forecast = forecastCoordinationConflicts({
       activeEntries: [activeEntry()],
       repositoryIdentity: repoIdentity,
@@ -169,26 +169,9 @@ describe('coordination throughput primitives', () => {
       files: ['src/components/RoleSelect.tsx'],
     });
 
-    expect(forecast.blocked).toBe(true);
-    expect(forecast.conflicts).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        ownerId: 'owner-entry',
-        ownerWorktree: '/worktrees/owner',
-        requested: 'src/components',
-        matched: 'src/components/RoleSelect.tsx',
-        sameFile: false,
-      }),
-      expect.objectContaining({
-        requested: 'src/components/RoleSelect.tsx',
-        matched: 'src/components/RoleSelect.tsx',
-        sameFile: true,
-      }),
-    ]));
-    expect(formatConflictForecast(forecast)).toContain(
-      'owner-entry at /worktrees/owner: requested scope "src/components" matches owner scope "src/components/RoleSelect.tsx"',
-    );
-    expect(formatConflictForecast(forecast)).toContain('Narrow to exact leaf-file scopes');
-    expect(formatConflictForecast(forecast)).toContain('same-file writes remain exclusive');
+    expect(forecast.blocked).toBe(false);
+    expect(forecast.conflicts).toEqual([]);
+    expect(formatConflictForecast(forecast)).toBe('No coordination conflicts forecast.');
   });
 
   it('reports exact cross-repository claims but leaves unrelated scopes available', () => {
@@ -226,11 +209,12 @@ describe('coordination throughput primitives', () => {
 
   it('includes owner lease expiration and confirmation state in the forecast', () => {
     const forecast = forecastCoordinationConflicts({
-      activeEntries: [activeEntry()],
+      activeEntries: [activeEntry({ claims: ['package.json'] })],
       repositoryIdentity: repoIdentity,
       repositoryRoot: repoRoot,
       worktree: '/worktrees/current',
       scopes: ['src/components/RoleSelect.tsx'],
+      claims: ['package.json'],
       now: '2026-09-10T12:03:00.000Z',
       leaseMs: 60_000,
     } as never);
@@ -279,7 +263,7 @@ describe('coordination throughput primitives', () => {
     try {
       await writeFile(filePath, JSON.stringify({
         version: 1,
-        entries: [activeEntry()],
+        entries: [activeEntry({ claims: ['package.json'] })],
         reservations: [],
         configurations: [],
       }));
@@ -312,7 +296,7 @@ describe('coordination throughput primitives', () => {
     try {
       await writeFile(filePath, JSON.stringify({
         version: 1,
-        entries: [activeEntry()],
+        entries: [activeEntry({ claims: ['package.json'] })],
         reservations: [],
         configurations: [],
       }));
@@ -332,9 +316,9 @@ describe('coordination throughput primitives', () => {
         '--repository-root', repoRoot,
         '--repository-identity', repoIdentity,
         '--worktree', '/worktrees/current',
-        '--scope', 'src/components/RoleSelect.tsx',
+        '--claims', 'package.json',
       ], { encoding: 'utf8' });
-      expect(forecast.stdout).toContain('same-file writes remain exclusive');
+      expect(forecast.stdout).toContain('shared claim remains exclusive');
     } finally {
       await rm(filePath, { force: true });
       await rm(`${filePath}.lock`, { force: true });
