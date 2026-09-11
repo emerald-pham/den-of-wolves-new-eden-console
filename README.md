@@ -33,15 +33,17 @@ that the full gameplay roadmap or capacity target is complete.
 
 Every repository change except documentation-only work is dependency-gated.
 Before selecting or starting a non-documentation task, agents must bind it to
-a registered implementation prompt and fully read the mandatory
-[prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), first, then run its
-dispatcher, and reconcile the prompt row, hard prerequisites, evidence, and
-coordination ownership with current `main`. The implementation plan is not
+a registered implementation prompt and run `npm run coordination:dependencies
+-- --prompt NNN`. Read the generated compact packet backed by the mandatory
+[prompt dependency index](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md), then reconcile the
+prompt row, hard prerequisites, evidence, and coordination ownership with
+current `main`. The implementation plan is not
 standalone; a prompt cannot be marked complete or merged while a hard
 prerequisite remains unmet. Uncharted work must add itself to the plan,
 progress ledger, and dependency index, with an explicit dependency assessment,
-in its first implementation commit. Re-read the index after a rebase or
-material movement of current `main`.
+in its first implementation commit. Refresh the packet after a rebase or
+material movement of current `main`; use `--full` only to audit or edit the
+complete authority and `--json` for machine consumers.
 
 `NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
 it is advisory for concurrency, not a serial execution lock. A separate

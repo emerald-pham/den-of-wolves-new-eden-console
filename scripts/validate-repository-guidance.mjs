@@ -87,10 +87,10 @@ export function validatePromptDependencyCompletion({ dependencySource, progressS
 const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
   ['AGENTS.md', /before selecting[\s\S]*prompt/i],
   ['CLAUDE.md', /before selecting[\s\S]*prompt/i],
-  ['README.md', /before selecting[\s\S]*prompt/i],
+  ['README.md', /before selecting[\s\S]*task/i],
   ['docs/WORKTREE_COORDINATION.md', /before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_PLAN.md', /before selecting[\s\S]*prompt/i],
-  [PROMPT_DEPENDENCY_INDEX_PATH, /mandatory[\s\S]*before selecting[\s\S]*prompt/i],
+  [PROMPT_DEPENDENCY_INDEX_PATH, /before prompt work/i],
   ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
   ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
   [CAMPAIGN_PLAYBOOK_PATH, /before selecting[\s\S]*prompt/i],
@@ -326,12 +326,12 @@ export function validateBlockedMergeAgentHandoff({ sources, errors }) {
   }
 }
 
-function hasPromptDependencyReadRequirement(source) {
-  return /(?:\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md[\s\S]{0,180}(?:first|before selecting|before assigning|before starting|before editing)|before (?:selecting|assigning|starting|editing)[\s\S]{0,180}\bread(?:ing)?[\s\S]{0,180}implementation_prompt_dependencies\.md)/i.test(source);
+function hasPromptDependencyPacketRequirement(source) {
+  return /coordination:dependencies[\s\S]{0,240}\b(?:compact )?packet\b|\b(?:compact )?packet\b[\s\S]{0,240}coordination:dependencies/i.test(source);
 }
 
 function hasDispatcherRequirement(source) {
-  return /\b(?:run|use|refresh)(?:\s+\w+){0,8}\s+(?:deterministic\s+)?dispatcher\b/i.test(source);
+  return /npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i.test(source);
 }
 
 function hasCurrentStateReconciliation(source) {
@@ -339,7 +339,7 @@ function hasCurrentStateReconciliation(source) {
 }
 
 function hasMainMovementReread(source) {
-  return /\bre-?read\b/i.test(source) &&
+  return /\brefresh\b/i.test(source) &&
     /\b(?:rebase|material (?:main )?movement)\b/i.test(source) &&
     /\bcurrent main\b/i.test(source);
 }
@@ -426,9 +426,9 @@ export function validateCampaignPlaybook({ source, errors } = {}) {
     ['must provide a reusable campaign goal template', /campaign goal template/i],
     [
       'must require the dependency authority before prompt selection',
-      /before selecting[\s\S]{0,180}fully read[\s\S]{0,180}implementation_prompt_dependencies\.md/i,
+      /before selecting[\s\S]{0,220}coordination:dependencies[\s\S]{0,220}compact/i,
     ],
-    ['must require the deterministic dispatcher', /run[\s\S]{0,120}deterministic dispatcher/i],
+    ['must require the deterministic dispatcher', /npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i],
     [
       'must prohibit new lanes at a stopping point',
       /(?:reach a stopping point|stopping)[\s\S]{0,260}open no new lanes/i,
@@ -509,14 +509,14 @@ export function validatePromptDependencyGuidance({ sources, errors }) {
       continue;
     }
     const normalized = normalizeGuidance(source);
-    if (!normalized.includes('implementation_prompt_dependencies.md')) {
+    if (filePath !== PROMPT_DEPENDENCY_INDEX_PATH && !normalized.includes('implementation_prompt_dependencies.md')) {
       errors.push(`${filePath}: must link IMPLEMENTATION_PROMPT_DEPENDENCIES.md`);
     }
     if (!selectionPattern.test(normalized)) {
-      errors.push(`${filePath}: must require reading prompt dependencies before selecting a prompt`);
+      errors.push(`${filePath}: must require generating prompt dependencies before selecting a prompt`);
     }
-    if (!hasPromptDependencyReadRequirement(normalized)) {
-      errors.push(`${filePath}: must explicitly require reading prompt dependencies before prompt work`);
+    if (!hasPromptDependencyPacketRequirement(normalized)) {
+      errors.push(`${filePath}: must explicitly require reading the compact dependency packet before prompt work`);
     }
     if (!hasDispatcherRequirement(normalized)) {
       errors.push(`${filePath}: must require running the prompt dependency dispatcher`);
@@ -525,7 +525,7 @@ export function validatePromptDependencyGuidance({ sources, errors }) {
       errors.push(`${filePath}: must require reconciling current main and coordination`);
     }
     if (!hasMainMovementReread(normalized)) {
-      errors.push(`${filePath}: must require re-reading after rebase or material current-main movement`);
+      errors.push(`${filePath}: must require refreshing after rebase or material current-main movement`);
     }
     if (!hasCompletionBlock(normalized)) {
       errors.push(`${filePath}: must block completion/merge while hard prerequisites are unmet`);
@@ -636,6 +636,31 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   const claude = readFileSync(resolve(cwd, 'CLAUDE.md'), 'utf8');
   const dependencySource = readFileSync(resolve(cwd, PROMPT_DEPENDENCY_INDEX_PATH), 'utf8');
   const progressSource = readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8');
+  const ciSource = readFileSync(resolve(cwd, '.github/workflows/ci.yml'), 'utf8');
+  const ignoreSource = readFileSync(resolve(cwd, '.gitignore'), 'utf8');
+  const dispatcherSource = readFileSync(resolve(cwd, 'scripts/prompt-dependencies.mjs'), 'utf8');
+  const coordinationSource = readFileSync(resolve(cwd, 'scripts/emulator-resource-registry.mjs'), 'utf8');
+  if (packageJson.scripts?.['coordination:dependencies'] !== 'node scripts/prompt-dependencies.mjs' ||
+    packageJson.scripts?.['coordination:dependencies:measure'] !== 'node scripts/prompt-dependencies.mjs --measure' ||
+    packageJson.scripts?.['validate:dependencies'] !== 'node scripts/prompt-dependencies.mjs --verify') {
+    errors.push('package.json must expose the shared compact dispatcher and dependency validation commands');
+  }
+  if (!ciSource.includes('npm run validate:dependencies')) {
+    errors.push('.github/workflows/ci.yml must run the shared dependency drift gate');
+  }
+  if (dependencySource.includes('node --input-type=module') || dependencySource.includes('~~~js')) {
+    errors.push(`${PROMPT_DEPENDENCY_INDEX_PATH}: must not duplicate the executable dependency parser`);
+  }
+  if (!/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/.test(dispatcherSource)) {
+    errors.push('scripts/prompt-dependencies.mjs must import the shared canonical authority parser');
+  }
+  if (!ignoreSource.split(/\r?\n/).includes('.codex/dependency-receipts/')) {
+    errors.push('.gitignore must keep worktree-local dependency receipts out of Git');
+  }
+  if (!coordinationSource.includes("from './prompt-dependencies.mjs'") ||
+    (coordinationSource.match(/requireDependencyReceipt\(/g) ?? []).length < 4) {
+    errors.push('coordination begin, ownership amendment, and validation must retain the dependency receipt gate');
+  }
   for (const requiredText of [
     'CLAUDE.md',
     'coordination:validate',

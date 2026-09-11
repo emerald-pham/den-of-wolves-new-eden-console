@@ -3,9 +3,10 @@
 Use this operational companion to [CLAUDE.md](../CLAUDE.md) when a coordinator
 runs a multi-agent implementation campaign. `CLAUDE.md` remains the canonical
 repository policy. Before selecting, assigning, starting, or editing any
-numbered prompt, fully read the mandatory
+numbered prompt, run `npm run coordination:dependencies -- --prompt NNN` and
+read its compact packet generated from the mandatory
 [implementation prompt dependency authority](IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-run its deterministic dispatcher, and reconcile the exact row, hard gates,
+then reconcile the exact row, hard gates,
 current `main`, and active coordination. This playbook does not replace that
 authority.
 
@@ -141,8 +142,8 @@ state. Forecast exact exclusive leaf-file claims before editing; no broad
 scope expands.
 
 After any rebase or material main movement, stop. Fetch, rebase or selectively
-reapply only reviewed commits/files, fully re-read the dependency authority and
-selected row, rerun the dispatcher, reforecast and reacquire ownership, and
+reapply only reviewed commits/files, refresh the compact dependency packet and
+receipt, reforecast and reacquire ownership, and
 inspect the resulting diff. Re-review if reconciliation changes semantics.
 Never wholesale-merge a stale branch.
 
@@ -223,8 +224,8 @@ coordination entries]. Use only these newly observed values. Do not reuse a
 reported SHA, version, count, or NEXT prompt without live verification.
 
 Dependency contract: Before selecting, assigning, starting, or editing a
-numbered prompt, fully read docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md, run its
-deterministic dispatcher, and reconcile the exact selected row, evidence, hard
+numbered prompt, run `npm run coordination:dependencies -- --prompt NNN` and
+read the compact deterministic dispatcher packet. Reconcile the exact selected row, evidence, hard
 prompt prerequisites, hard milestone, hard contract, decision-owner gate,
 current main, and coordination. Treat NEXT as the advisory primary resume lane.
 Claim later READY_QUEUE work only when all hard gates are satisfied or
@@ -266,7 +267,7 @@ candidate; do not repeat an unchanged full matrix.
 Movement and ownership: Before edits, forecast and claim exact leaf files; do
 not claim broad docs/* or another owner's files. After any rebase or material
 main movement, stop, fetch/rebase or selectively reapply only reviewed
-commits/files, fully re-read the dependency authority and row, rerun the dispatcher,
+commits/files, refresh the compact dependency packet and receipt,
 reforecast/reacquire ownership, inspect the diff, and re-review changed
 semantics. Never wholesale-merge a stale branch.
 

@@ -17,7 +17,7 @@ session can resume at the first unresolved acceptance.
 
 **93 / 734 prompts complete (12.67%)**
 
-Status breakdown: **93 done · 25 partial · 0 active · 616 missing**.
+Status breakdown: **93 done · 26 partial · 0 active · 615 missing**.
 
 Active prompt: **none**
 
@@ -40,9 +40,11 @@ Prompt 665 is complete as non-feature coordination governance: session goals
 have a durable ignored artifact, exact wrap-up comparison, fail-closed cleanup,
 legacy migration policy, and phase-specific delegation floors, with reconciled
 exact-SHA release evidence recorded by the coordination gate.
-Prompts 666 and 667 are registered and remain missing: Prompt 666 is a
-non-feature compact dependency-packet/receipt follow-on to Prompt 665, while
-Prompt 667 is a non-feature security-governance rebaseline that maps hostile
+Prompt 666 is partial as a non-feature compact
+dependency-packet/receipt follow-on to Prompt 665. Its focused red/green proof
+covers compact/full/JSON parity, relevant-only coordination fingerprints,
+atomic receipt integrity, and begin/amend/validate enforcement. Prompt 667
+remains missing as a non-feature security-governance rebaseline that maps hostile
 runtime clients and resource exhaustion to existing controls under mandatory
 independent review; any runtime gap becomes a separately registered feature.
 P589b remains missing but is reclassified from preservation to a narrow copy
@@ -390,12 +392,13 @@ base and lettered IDs without a 001–100 range assumption.
 
 ## Mandatory dependency preflight
 
-Before selecting, assigning, starting, or editing a numbered prompt, fully read
-the mandatory
-[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
-first. Run its deterministic dispatcher and reconcile the exact row, hard
+Before selecting, assigning, starting, or editing a numbered prompt, run
+`npm run coordination:dependencies -- --prompt NNN` and read the compact packet
+generated from the mandatory
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
+Reconcile the exact row, hard
 prerequisites, evidence, and ownership with current `main` and active
-coordination before continuing. Re-read this dependency authority after a
+coordination before continuing. Refresh the packet and receipt after a
 rebase or material movement of current `main`. A prompt cannot be marked
 complete or merged while a hard prerequisite remains unmet.
 
@@ -1164,7 +1167,7 @@ release classification and evidence.
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 | 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
 | 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
-| 666 | missing | non-feature | — | Planned [EXTEND] prompt: generate a compact deterministic dependency packet and atomic worktree receipt, with shared full-parity/readiness parsing, exact authority/main/milestone/relevant-coordination fingerprints, begin/amend/validate gates, narrow legacy P012/P014 migration, CI/guidance drift checks, and measured output/runtime improvement. |
+| 666 | partial | non-feature | — | Candidate [EXTEND] tooling provides the shared compact/full/JSON dispatcher, full parity/cycle/typed-evidence/readiness validation, authority/main/milestone/evidence and relevant-coordination fingerprints, atomic ignored receipt integrity, begin/amend/validate gates, exact P012/P014 legacy refresh, CI/guidance drift checks, and a repeatable `npm run coordination:dependencies:measure -- --entry <id>` fixture. Current measured content is 24 lines / 2,541 bytes versus 670 lines / 51,297 bytes for the complete view; a representative 25-iteration run took 0.159 ms compact versus 3.498 ms full wall time. It remains partial until independent review, reconciliation, merge, push, and coordination closeout. |
 | 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
 
 ## Working notes

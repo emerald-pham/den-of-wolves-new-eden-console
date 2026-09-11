@@ -4,12 +4,13 @@ Read [`CLAUDE.md`](./CLAUDE.md) before doing repository work. It is the single
 source of truth for agent and contributor workflow, including branch and
 worktree setup, test-first requirements, delegation, security, versioning,
 validation, merge, and cleanup rules. For numbered implementation-plan work,
-fully read the mandatory
+run `npm run coordination:dependencies -- --prompt NNN` before selecting,
+assigning, starting, or editing a prompt and read its compact packet. The
+command uses the mandatory
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
-authority before selecting, assigning, starting, or editing a prompt; run its
-deterministic dispatcher and reconcile the exact row and hard prerequisites
-with current `main` and active coordination before work begins. Re-read this
-authority after a rebase or material movement of current `main`. A prompt
+authority, writes the required worktree receipt, and reconciles the exact row
+and hard prerequisites with current `main` and active coordination. Refresh the
+packet after a rebase or material movement of current `main`. A prompt
 cannot be marked complete or merged while a hard prerequisite remains unmet.
 All repository changes except documentation-only commits must be bound to a
 registered implementation prompt. Work not charted at its trusted `main`
@@ -96,7 +97,6 @@ not be copied, committed, linked, or quoted into this repository or GitHub.
 Instructions read and followed at the start of an agent run are more likely to
 stick than instructions added at the end. Read `CLAUDE.md` before substantive
 work and follow its startup checklist—including the per-agent changelog
-preflight—and read the prompt dependency authority before selecting or editing
-any numbered prompt—before coding. Run its dispatcher and reconcile current
-coordination before continuing, then re-read it after a rebase or material
-movement of current `main`.
+preflight—and generate the compact prompt dependency packet before selecting
+or editing any numbered prompt. Refresh it after a rebase or material movement
+of current `main`.

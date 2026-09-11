@@ -107,6 +107,9 @@ jobs:
           fi
           echo "documentation_only=$documentation_only" >> "$GITHUB_OUTPUT"
 
+      - name: Validate dependency authority and dispatcher drift
+        run: npm run validate:dependencies
+
       - uses: actions/setup-java@v5
         if: steps.work_registration.outputs.documentation_only != 'true'
         with:

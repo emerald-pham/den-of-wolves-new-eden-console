@@ -76,6 +76,7 @@ function parseProgress(source, errors) {
       status: match[2].toLowerCase(),
       changeClass: match[3].toLowerCase(),
       releaseMapping: match[4].split(',').map((value) => value.trim()).join(','),
+      line: match[0],
     })).filter((record) => record.prompt),
     'progress ledger',
     errors,
@@ -134,7 +135,7 @@ function parseDependencyIndex(source, errors) {
   };
 }
 
-function expandPromptTargets(value, knownPrompts, errors, label) {
+export function expandPromptTargets(value, knownPrompts, errors, label) {
   if (value === 'none') return [];
   const output = [];
   for (const rawToken of value.split(';')) {
@@ -185,6 +186,23 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
     ...dependency.rows.keys(),
   ]);
   const graph = new Map();
+  const expandedEdges = new Set();
+  const evidenceTypes = new Map([...dependency.evidence].map(([id, record]) => [
+    id,
+    record.type.split(' / ').map((value) => value.trim()),
+  ]));
+  for (const [evidenceId, record] of dependency.evidence) {
+    if (!record.source.includes(' - ')) {
+      errors.push(`dependency evidence ${evidenceId} is missing a source anchor separator`);
+    } else if (!['IMPLEMENTATION_PLAN.md', 'IMPLEMENTATION_MILESTONES.md', 'IMPLEMENTATION_PROGRESS.md']
+      .includes(record.source.split(' - ')[0])) {
+      errors.push(`dependency evidence ${evidenceId} does not name a source-of-truth path`);
+    }
+    if (!/->|↝/.test(record.direction)) {
+      errors.push(`dependency evidence ${evidenceId} is missing an edge direction`);
+    }
+    if (!record.language.trim()) errors.push(`dependency evidence ${evidenceId} has empty source language`);
+  }
   for (const prompt of promptIds) {
     if (!plan.definitions.has(prompt)) errors.push(`canonical plan is missing Prompt ${prompt}`);
     if (!plan.checklist.has(prompt)) errors.push(`canonical plan checklist is missing Prompt ${prompt}`);
@@ -212,6 +230,35 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
       `Prompt ${prompt} hard prerequisites`,
     );
     graph.set(prompt, prerequisites);
+    const related = expandPromptTargets(
+      row.relatedConsumes,
+      plan.definitions,
+      errors,
+      `Prompt ${prompt} related/consumes`,
+    );
+    for (const target of [...prerequisites, ...related]) {
+      if (target === prompt) errors.push(`Prompt ${prompt} has a self edge`);
+      const edge = `${prompt}>${target}`;
+      if (expandedEdges.has(edge)) errors.push(`dependency graph repeats expanded edge ${edge}`);
+      expandedEdges.add(edge);
+    }
+    if (row.closureEvidenceGates !== 'none') {
+      for (const segment of row.closureEvidenceGates.split(';')) {
+        const separator = segment.indexOf(':');
+        if (separator < 1 || !segment.slice(separator + 1).trim()) {
+          errors.push(`Prompt ${prompt} has invalid closure evidence gate ${segment}`);
+          continue;
+        }
+        for (const target of expandPromptTargets(
+          segment.slice(0, separator),
+          plan.definitions,
+          errors,
+          `Prompt ${prompt} closure evidence gates`,
+        )) {
+          if (target === prompt) errors.push(`Prompt ${prompt} has a self closure gate`);
+        }
+      }
+    }
     if (progressRecord?.status === 'done') {
       for (const prerequisite of prerequisites) {
         const status = progress.get(prerequisite)?.status ?? 'unknown';
@@ -241,6 +288,20 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
         errors.push(`Prompt ${prompt} references unknown dependency evidence ${evidenceId}`);
       }
     }
+    for (const [field, value, expectedType] of [
+      ['hard_prompt_prerequisites', row.hardPromptPrerequisites, 'hard_prompt'],
+      ['hard_milestone', row.hardMilestone, 'hard_milestone'],
+      ['hard_contract', row.hardContract, 'hard_contract'],
+      ['decision_owner', row.decisionOwner, 'decision_owner'],
+      ['closure_evidence_gates', row.closureEvidenceGates, 'evidence/audit closure'],
+      ['sequence_rules', row.sequenceRules, 'sequence'],
+      ['release_boundaries', row.releaseBoundaries, 'release-boundary'],
+      ['related_consumes', row.relatedConsumes, 'related/consumes'],
+    ]) {
+      if (value !== 'none' && !evidenceIds.some((id) => evidenceTypes.get(id)?.includes(expectedType))) {
+        errors.push(`Prompt ${prompt} ${field} is missing typed ${expectedType} evidence`);
+      }
+    }
   }
 
   const visiting = new Set();
@@ -259,7 +320,7 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
   for (const prompt of graph.keys()) visit(prompt);
 }
 
-function parseCatalog({ planSource, progressSource, dependencySource }, errors) {
+export function parseCatalog({ planSource, progressSource, dependencySource }, errors = []) {
   const plan = parsePlan(planSource, errors);
   const progress = parseProgress(progressSource, errors);
   const dependency = parseDependencyIndex(dependencySource, errors);

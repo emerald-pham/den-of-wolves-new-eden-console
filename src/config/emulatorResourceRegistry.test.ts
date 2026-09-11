@@ -5,7 +5,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   chooseAvailableEmulatorSlot,
   changedFilesBaseRef,
@@ -165,9 +165,64 @@ const immediateReleaseObjective =
 
 type BeginCoordinationOptions = Parameters<typeof beginCoordinationEntry>[1];
 
+type DependencyReceiptContext = {
+  prompt: string;
+  binding: { changeClass: string } & Record<string, unknown>;
+  requestedScopes: unknown;
+  requestedClaims: unknown;
+};
+
+type DependencyReceiptTestOptions = {
+  dependencyReceiptContextFactory: (
+    entry: Record<string, unknown>,
+    state: Record<string, unknown>,
+    overrides: Record<string, unknown>,
+  ) => Promise<DependencyReceiptContext>;
+  dependencyReceiptValidator: (context: DependencyReceiptContext) => Promise<Record<string, unknown>>;
+};
+
+const acceptedDependencyReceipt = async (context: DependencyReceiptContext) => ({
+  schemaVersion: 1,
+  prompt: context.prompt,
+  changeClass: context.binding.changeClass,
+  binding: context.binding,
+  requestedScopes: context.requestedScopes,
+  requestedClaims: context.requestedClaims,
+  fingerprint: 'test-fingerprint',
+  fingerprintInputs: {},
+  contentDigest: 'test-content-digest',
+});
+
+function optionalString(value: unknown, fallback: string) {
+  return typeof value === 'string' ? value : fallback;
+}
+
+const dependencyReceiptTestOptions: DependencyReceiptTestOptions = {
+  dependencyReceiptContextFactory: async (
+    entry: Record<string, unknown>,
+    _state: Record<string, unknown>,
+    overrides: Record<string, unknown>,
+  ) => ({
+    prompt: String(entry.implementationPrompt),
+    binding: {
+      owner: 'test-owner',
+      worktree: optionalString(entry.worktree, process.cwd()),
+      branch: optionalString(entry.branchName, 'test-branch'),
+      prompt: String(entry.implementationPrompt),
+      changeClass: optionalString(entry.changeClass, 'non-feature'),
+      startBranchSha: optionalString(entry.startBranchSha, 'a'.repeat(40)),
+      startMainSha: optionalString(entry.startMainSha, 'b'.repeat(40)),
+      mainSha: optionalString(overrides.mainSha, 'b'.repeat(40)),
+    },
+    requestedScopes: overrides.requestedScopes ?? overrides.scopes ?? entry.scopes ?? [],
+    requestedClaims: overrides.requestedClaims ?? overrides.claims ?? entry.claims ?? [],
+  }),
+  dependencyReceiptValidator: acceptedDependencyReceipt,
+};
+
 function sessionGoalBeginOptions(
-  overrides: Partial<BeginCoordinationOptions> = {},
-): BeginCoordinationOptions {
+  overrides: Partial<BeginCoordinationOptions & DependencyReceiptTestOptions> = {},
+): BeginCoordinationOptions & DependencyReceiptTestOptions {
   return {
     intent: 'exercise session-goal lifecycle',
     'version-plan': 'Tooling-only; no application version change.',
@@ -179,11 +234,52 @@ function sessionGoalBeginOptions(
       '- [ ] Exercise deterministic goal artifact creation.',
       `- [ ] ${immediateReleaseObjective}`,
     ],
+    ...dependencyReceiptTestOptions,
     ...overrides,
   };
 }
 
 describe('local emulator coordination', () => {
+  it('requires one current dependency receipt at begin, amend, and validation', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-dependency-gate-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    const rejected = vi.fn(async () => { throw new Error('Dependency receipt is missing'); });
+    try {
+      await expect(beginCoordinationEntry(filePath, sessionGoalBeginOptions({
+        dependencyReceiptValidator: rejected,
+      }))).rejects.toThrow(/dependency receipt.*missing/i);
+
+      const entry = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+      await expect(amendCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'scripts/example.mjs',
+        dependencyReceiptValidator: rejected,
+      } as Parameters<typeof amendCoordinationEntry>[1] & Partial<DependencyReceiptTestOptions>))
+        .rejects.toThrow(/dependency receipt.*missing/i);
+      await amendCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'scripts/example.mjs',
+        dependencyReceiptValidator: sessionGoalBeginOptions().dependencyReceiptValidator,
+        dependencyReceiptContextFactory: dependencyReceiptTestOptions.dependencyReceiptContextFactory,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions);
+      await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release: releaseState({ branchName: entry.branchName }),
+        dependencyReceiptValidator: rejected,
+        commandRunner: async () => undefined,
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof validateCoordinationEntry>[1] & Partial<DependencyReceiptTestOptions>))
+        .rejects.toThrow(/dependency receipt.*missing/i);
+      expect(rejected).toHaveBeenCalledTimes(3);
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('reuses dependency file bytes only while inode and stat metadata are unchanged', async () => {
     const directory = resolve(tmpdir(), `dependency-identity-${randomUUID()}`);
     await mkdir(directory, { recursive: true });
@@ -644,6 +740,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         release: releaseState(),
         commandRunner: async () => undefined,
@@ -1061,6 +1158,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       const amended = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         scope: './src\\config\\emulatorResourceRegistry.test.ts/',
         claims: 'Implementation-Dependencies-Prompt-122, implementation-dependencies-prompt-122',
@@ -1103,6 +1201,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       const amended = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         'implementation-prompt': '664',
       });
@@ -1143,6 +1242,7 @@ describe('local emulator coordination', () => {
         now: '2099-01-01T00:01:00.000Z',
       });
       const amended = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         'implementation-prompt': '665',
         now: '2099-01-01T00:01:01.000Z',
@@ -1279,11 +1379,13 @@ describe('local emulator coordination', () => {
       });
       artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
       await claimCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         scope: 'docs/canonical-feature.md',
       });
 
       await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         release: releaseState({
           branchName: entry.branchName,
@@ -1321,6 +1423,7 @@ describe('local emulator coordination', () => {
         now: '2099-01-01T00:01:00.000Z',
       });
       const amended = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         'change-class': 'non-feature',
         now: '2099-01-01T00:02:00.000Z',
@@ -1380,6 +1483,7 @@ describe('local emulator coordination', () => {
       });
 
       await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: p014.id,
         'change-class': 'non-feature',
         now: '2099-01-01T00:02:00.000Z',
@@ -1395,11 +1499,66 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('auto-refreshes a missing dependency receipt only for the exact active P012/P014 migration entries', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-legacy-dependency-receipt-${randomUUID()}.json`);
+    const p014Receipt = resolve(process.cwd(), '.codex/dependency-receipts/014.json');
+    const ordinaryReceipt = resolve(process.cwd(), '.codex/dependency-receipts/012.json');
+    const identity = await currentGitIdentity();
+    const branchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const mainSha = await readFixtureMainSha(process.cwd());
+    const base = {
+      ...amendmentEntry(),
+      ...identity,
+      workType: 'product',
+      changeClass: 'non-feature',
+      implementationRegistrationRequired: true,
+      startBranchSha: branchSha,
+      startMainSha: mainSha,
+    };
+    try {
+      await unlink(p014Receipt).catch(() => undefined);
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{ ...base, id: '1789086651641-63909-707fa4ab', implementationPrompt: '014' }],
+        reservations: [],
+        configurations: [],
+      }));
+      const refreshed = await amendCoordinationEntry(filePath, {
+        id: '1789086651641-63909-707fa4ab',
+        scope: 'src/config/legacyDependencyReceipt.test.ts',
+        now: '2099-01-01T00:00:01.000Z',
+      });
+      expect((refreshed as typeof refreshed & { dependencyReceipt?: Record<string, unknown> }).dependencyReceipt)
+        .toMatchObject({ policy: 'legacy-refreshed', prompt: '014' });
+      expect(await readFile(p014Receipt, 'utf8')).toContain('"prompt": "014"');
+
+      await unlink(ordinaryReceipt).catch(() => undefined);
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{ ...base, id: 'ordinary-entry', implementationPrompt: '012' }],
+        reservations: [],
+        configurations: [],
+      }));
+      await expect(amendCoordinationEntry(filePath, {
+        id: 'ordinary-entry',
+        scope: 'src/config/ordinaryDependencyReceipt.test.ts',
+        now: '2099-01-01T00:00:01.000Z',
+      })).rejects.toThrow(/dependency receipt.*missing/i);
+      await expect(readFile(ordinaryReceipt, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await unlink(p014Receipt).catch(() => undefined);
+      await unlink(ordinaryReceipt).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('registers intent without taking scopes or claims until an explicit just-in-time claim', async () => {
     const rootPath = resolve(tmpdir(), `den-of-wolves-coordination-intent-${randomUUID()}`);
     const originPath = `${rootPath}.origin.git`;
     const filePath = resolve(tmpdir(), `den-of-wolves-coordination-intent-${randomUUID()}.json`);
     const scriptPath = resolve(process.cwd(), 'scripts/emulator-resource-registry.mjs');
+    const dependencyScriptPath = resolve(process.cwd(), 'scripts/prompt-dependencies.mjs');
     try {
       await mkdir(rootPath, { recursive: true });
       await runFixtureGit(rootPath, ['init', '-b', 'main']);
@@ -1409,11 +1568,30 @@ describe('local emulator coordination', () => {
       await mkdir(resolve(rootPath, 'docs'), { recursive: true });
       await writeFile(resolve(rootPath, 'docs/IMPLEMENTATION_PROGRESS.md'),
         '| 055 | partial | feature | — | Fixture prompt. |\n');
-      await runFixtureGit(rootPath, ['add', 'README.md']);
+      await writeFile(resolve(rootPath, 'docs/IMPLEMENTATION_PLAN.md'), [
+        '- **Prompt 055 — [EXTEND] Fixture prompt.** Dependencies: none.',
+        '- [ ] Prompt 055',
+        '',
+      ].join('\n'));
+      await writeFile(resolve(rootPath, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
+        '| 055 | EXTEND | partial | none | none | none | none | none | none | none | none | none | none | Fixture prompt. |\n');
+      await writeFile(resolve(rootPath, 'docs/IMPLEMENTATION_MILESTONES.md'), '# Fixture milestones\n');
+      await runFixtureGit(rootPath, ['add', '.']);
       await runFixtureGit(rootPath, ['commit', '-m', 'fixture']);
       await runFixtureGit(rootPath, ['switch', '-c', 'feature/intent']);
       await runFixtureGit(rootPath, ['init', '--bare', originPath]);
       await runFixtureGit(rootPath, ['remote', 'add', 'origin', originPath]);
+
+      await execFileAsync(process.execPath, [
+        dependencyScriptPath,
+        '--prompt', '055',
+        '--scope', 'src/components',
+        '--claims', 'release-metadata',
+      ], {
+        cwd: rootPath,
+        env: { ...process.env, CODEX_COORDINATION_FILE: filePath },
+        encoding: 'utf8',
+      });
 
       await execFileAsync(process.execPath, [
         scriptPath,
@@ -4129,6 +4307,7 @@ describe('local emulator coordination', () => {
         scope: 'scripts/example.mjs',
       }));
       await claimCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         scope: 'scripts/example.mjs',
         claims: 'fixture-landed-registration-range',
@@ -4143,6 +4322,7 @@ describe('local emulator coordination', () => {
       const taskTipSha = await runFixtureGit(rootPath, ['rev-parse', 'HEAD']);
 
       await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         commandRunner: async () => undefined,
       });
@@ -4846,6 +5026,7 @@ describe('local emulator coordination', () => {
         configurations: [],
       }));
       const error = await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         release: releaseState({
           branchVersion: '0.3.28',
@@ -4963,6 +5144,7 @@ describe('local emulator coordination', () => {
         ...releaseEntry, workType: 'tooling', scopes: ['scripts/'],
       }], reservations: [], configurations: [] }));
       await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: releaseEntry.id,
         release: releaseState({ mainContainsBranch: false, mainIsAncestorOfBranch: true, changedFiles: ['src/App.tsx'] }),
         commandRunner: async () => undefined,
@@ -5185,6 +5367,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: releaseEntry.id,
         release: releaseState({
           branchVersion: '0.3.24',
@@ -5231,6 +5414,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       const validated = await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         release: releaseState({
           branchVersion: nextApplicationVersion(applicationVersion),
@@ -5337,6 +5521,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       const validated = await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: entry.id,
         release: releaseState({
           branchName,
@@ -5419,6 +5604,7 @@ describe('local emulator coordination', () => {
       }), 'utf8');
 
       await expect(validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
         id: releaseEntry.id,
         release: releaseState({
           changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md'],

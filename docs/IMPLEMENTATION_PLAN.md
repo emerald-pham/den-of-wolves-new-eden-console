@@ -11,11 +11,12 @@ slice of this plan, write its failing test first, and implement only the
 smallest rules-complete increment needed for that slice.
 
 The plan is not standalone. Before selecting, assigning, starting, or editing
-any numbered prompt, agents must read the mandatory
-[prompt dependency index](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md), reconcile
-its row and evidence with current `main` and coordination, and run its
-deterministic dispatcher. The dependency index controls readiness and ordering;
-this plan supplies acceptance narrative and source-of-truth context.
+any numbered prompt, agents must run `npm run coordination:dependencies --
+--prompt NNN` and read the compact packet generated from the mandatory
+[prompt dependency index](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md). Reconcile
+its row and evidence with current `main` and coordination. The shared dispatcher
+controls readiness and ordering; this plan supplies acceptance narrative and
+source-of-truth context.
 
 No application code, tests, rules, configuration, version metadata, or
 player-facing changelog entries are changed by this planning document.
@@ -29,9 +30,10 @@ headings and targeted searches below.
 
 Default reading path for one prompt (the dependency index is always first):
 
-1. Read the exact row and evidence entries in
-   [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-   confirm the live status, and run its dispatcher. Do not select a prompt
+1. Generate and read the compact dependency packet for the exact prompt. Use
+   `--full` only when auditing or editing
+   [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
+   Do not select a prompt
    until hard prerequisites, milestone/contract/owner gates, and coordination
    ownership are reconciled with current `main`.
 2. Read the selected row in the compact
@@ -52,8 +54,8 @@ Default reading path for one prompt (the dependency index is always first):
    do not reread duplicated workflow prose here.
 
 If the branch is rebased, current `main` materially moves, or a prerequisite's
-status or ownership changes, stop and re-read the dependency index and selected
-row, refresh its dispatcher, and reconcile coordination before continuing. A
+status or ownership changes, stop and refresh the compact packet and receipt,
+then reconcile coordination before continuing. A
 prompt cannot be marked complete or merged while a hard prerequisite remains
 unmet; closure/evidence gates are completion checks, not inferred start locks.
 
@@ -2133,11 +2135,11 @@ use its own worktree and short-lived branch, and follow the test-first contract
 above, including observing the failing test before implementation. Each slice
 must satisfy the applicable reference, authority, denial, retry, audit,
 accessibility, responsive-review, version, and standalone changelog contracts.
-Before a delegate selects, starts, or edits a prompt, it must read
-[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-run its dispatcher, and reconcile the exact row, prerequisites, evidence,
-current `main`, and coordination ownership. The delegate must repeat that
-preflight after a rebase or material movement of current `main`; no prompt may
+Before a delegate selects, starts, or edits a prompt, it must run `npm run
+coordination:dependencies -- --prompt NNN`, read the compact packet, and
+reconcile the exact row, prerequisites, evidence, current `main`, and
+coordination ownership. The delegate must refresh that packet and receipt after
+a rebase or material movement of current `main`; no prompt may
 be marked complete or merged while a hard prerequisite remains unmet.
 Use an independent Terra review for security/authorization, hidden information,
 randomness, destructive migrations, endgame, capacity, or complex conflict

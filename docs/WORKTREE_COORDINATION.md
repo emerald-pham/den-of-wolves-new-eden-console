@@ -111,15 +111,16 @@ version plans never grant the non-feature exemption.
 
 ## Mandatory numbered-prompt preflight
 
-Before selecting, assigning, starting, or editing a numbered prompt, fully read
-[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
-Run its deterministic dispatcher, then reconcile the exact row, live progress,
+Before selecting, assigning, starting, or editing a numbered prompt, run
+`npm run coordination:dependencies -- --prompt NNN` and read the compact packet
+generated from [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
+The deterministic dispatcher writes the worktree receipt and exposes the exact row, live progress,
 hard prompt prerequisites, hard milestone, hard contract, decision-owner gate,
 closure scope, ordering context, and evidence with current `main` and active
 coordination. Claim only dependency-ready, conflict-free ownership.
 
-Re-read the dependency authority and selected row, refresh the dispatcher, and
-reconcile current `main` with coordination after a rebase or material movement
+Refresh the packet and receipt, and reconcile current `main` with coordination
+after a rebase or material movement
 of current `main`. A prompt cannot be marked complete or merged while a hard
 prerequisite remains unmet.
 

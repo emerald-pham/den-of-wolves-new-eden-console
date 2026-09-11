@@ -7,12 +7,13 @@ IDs remain in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md); live
 completion evidence remains in
 [`IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md).
 
-Before selecting, assigning, starting, or editing a numbered prompt, fully read
-the mandatory
-[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
-first. Run its deterministic dispatcher and reconcile the exact row, hard
+Before selecting, assigning, starting, or editing a numbered prompt, run
+`npm run coordination:dependencies -- --prompt NNN` and read the compact packet
+generated from the mandatory
+[`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](./IMPLEMENTATION_PROMPT_DEPENDENCIES.md).
+Reconcile the exact row, hard
 prerequisites, evidence, and ownership with current `main` and active
-coordination before continuing. Re-read this dependency authority after a
+coordination before continuing. Refresh the packet and receipt after a
 rebase or material movement of current `main`. A prompt cannot be marked
 complete or merged while a hard prerequisite remains unmet.
 
@@ -32,8 +33,8 @@ gates below are the truthful player-story measure.
 
 ## How to use this file
 
-1. Complete the mandatory dependency preflight above; the dependency index and
-   its dispatcher control prompt readiness and ordering.
+1. Complete the mandatory dependency preflight above; the compact packet from
+   the shared dispatcher controls prompt readiness and ordering.
 2. Start from the earliest dependency-ready milestone, not automatically the
    lowest unresolved prompt ID.
 3. Select one vertical result that a player or facilitator can observe.

@@ -27,9 +27,9 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       total: 734,
       percentage: "12.67%",
       done: 93,
-      partial: 25,
+      partial: 26,
       active: 0,
-      missing: 616,
+      missing: 615,
     },
     changes: [
       "Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",

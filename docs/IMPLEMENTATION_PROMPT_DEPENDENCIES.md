@@ -10,19 +10,21 @@ standalone. This index records only dependencies that the source explicitly
 states; an empty cell is written as none, not inferred as permission to skip
 the prompt.
 
-## Mandatory gate: read before prompt work
+## Mandatory gate: generate before prompt work
 
 Every agent selecting, assigning, starting, or editing a numbered prompt must
-fully read this `IMPLEMENTATION_PROMPT_DEPENDENCIES.md` document first. Before selection, reconcile its exact row, live
-progress status, hard prerequisites, milestone/contract/owner gates, closure
-scope, sequence/order context, and evidence entries with current `main` and the
-active coordination registry. Run the deterministic dispatcher and claim only
-the resulting dependency-ready scope. A plan definition, numeric adjacency, or
-prose attestation cannot replace an unmet prerequisite.
+first run `npm run coordination:dependencies -- --prompt NNN`, including the
+intended `--scope` and `--claims` values before begin, and read the compact
+packet generated from this authority. The shared deterministic dispatcher
+reconciles the exact row, live progress, hard prerequisites,
+milestone/contract/owner gates, closure scope, sequence/order context, evidence,
+current `main`, and relevant active coordination. A plan definition, numeric
+adjacency, or prose attestation cannot replace an unmet prerequisite.
 
 If a branch is rebased, current `main` materially moves, or dependency status
-or ownership changes, stop and re-read this document and the selected row,
-refresh the dispatcher, and reconcile coordination before continuing. A prompt
+or relevant ownership changes, stop and refresh the packet and its atomic
+ignored worktree receipt before continuing. Use `--full` to audit or edit the
+complete authority and `--json` for stable machine consumption. A prompt
 cannot be marked complete or merged while a hard prerequisite remains unmet;
 closure/evidence gates are checked at completion and do not silently become
 start blockers.
@@ -44,9 +46,9 @@ cleanup, and absence gates.
 
 ## Fast path: choose the next prompt
 
-1. Read the candidate prompt row here and confirm its status in
-   `IMPLEMENTATION_PROGRESS.md`. The lowest unresolved ID is a resume pointer,
-   not a dependency lock.
+1. Run the compact dispatcher for the candidate. It includes the exact row,
+   progress, evidence, milestone route, and readiness result. The lowest
+   unresolved ID is a resume pointer, not a dependency lock.
 2. For a missing or partial prompt, only hard_prompt_prerequisites,
    hard_milestone, hard_contract, and decision_owner block start readiness.
    closure_evidence_gates are completion/audit gates, not start blockers;
@@ -56,10 +58,9 @@ cleanup, and absence gates.
 3. Use milestone_hints, sequence_rules, release_boundaries, and related_consumes
    to pick a bounded slice with the right story context. These fields never
    become hidden readiness blockers.
-4. Before assigning work, read the prompt definition, its progress row, the
-   matching milestone, and the evidence_ids source entries below. Preserve the
-   plan workflow: separate documentation/proof from implementation and do not
-   turn this index into completion evidence.
+4. Before assigning work, read those generated packet fields. Preserve the plan
+   workflow: separate documentation/proof from implementation and do not turn
+   this index into completion evidence.
 
 ### Concurrent prompt selection
 
@@ -73,31 +74,23 @@ forecast shows conflict-free ownership with no active claim overlap.
 bypass an unmet dependency, active claim, or unresolved decision-owner gate
 merely because the prompt is independent.
 
-Exact lookup for one prompt:
+Exact compact lookup for one prompt:
 
 ~~~sh
-prompt_id=020a
-rg -n "^\| $prompt_id \|" docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md
-rg -n -A 2 "^- \*\*Prompt $prompt_id —" docs/IMPLEMENTATION_PLAN.md
-rg -n "^\| $prompt_id \|" docs/IMPLEMENTATION_PROGRESS.md
+npm run coordination:dependencies -- --prompt 020a
 ~~~
 
 ## Coverage and integrity
 
-At this commit the plan contains 734 canonical IDs: 666 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
+At this commit the plan contains 734 canonical IDs: 666 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run the shared check after any catalog or progress edit:
 
 ~~~sh
-plan_count=$(rg -c '^- \*\*Prompt [0-9]{3}[a-z]* —' docs/IMPLEMENTATION_PLAN.md)
-index_count=$(rg -c '^\| [0-9]{3}[a-z]* \|' docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
-progress_count=$(rg -c '^\| [0-9]{3}[a-z]* \|' docs/IMPLEMENTATION_PROGRESS.md)
-test "$plan_count" -eq "$index_count"
-test "$index_count" -eq "$progress_count"
-awk '/^~~~js$/{inside=1; next} inside && /^~~~$/{exit} inside{print}' docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md | node
+npm run validate:dependencies
 ~~~
 
-The full integrity checker, typed evidence/sequence rules, deterministic
-dispatcher, current-ledger sample, and maintenance rules follow the generated
-rows in this file.
+The executable shared parser validates full parity, typed evidence provenance,
+hard cycles, and dispatcher readiness. The generated rows remain below as the
+complete authority; the CLI replaces duplicated copy-paste parser code.
 
 ## Field contract
 
@@ -856,7 +849,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
-| 666 | EXTEND | missing | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
+| 666 | EXTEND | partial | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
 | 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Rebaseline runtime threats for hostile session-code clients and DDoS. |
 
 ## Explicit sequence rules
@@ -912,500 +905,47 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-666 | hard_prompt | 666 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 666 definition | Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the compact dependency receipt. |
 | E-667 | hard_prompt | 667 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 667 definition | Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 independently rebaselines hostile-client and resource-exhaustion controls without blocking P012/P014 or depending on Prompt 666. |
 
-## Integrity checker
+## Shared integrity gate
 
-Run the following from the repository root. It checks the row set, live plan tags/status parity, typed dependency graph, closure scopes, and evidence provenance; sequence and related/consumes edges are deliberately excluded from the hard cycle test.
-
-~~~js
-const fs = require('node:fs');
-const artifact = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
-const text = fs.readFileSync(artifact, 'utf8');
-const plan = fs.readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8');
-const progress = fs.readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8');
-const rows = [];
-for (const line of text.split(/\n/)) {
-  if (!/^\| [0-9]{3}[a-z]* \|/.test(line)) continue;
-  const cells = line.slice(2, -1).split(' | ');
-  if (cells.length !== 14) throw new Error('row must have 14 columns: ' + line);
-  rows.push(cells);
-}
-const ids = rows.map((row) => row[0]);
-const idSet = new Set(ids);
-if (idSet.size !== ids.length) throw new Error('duplicate prompt row');
-const retiredIds = new Set(['071']);
-if (idSet.has('071')) throw new Error('retired prompt 071 must not have an index row');
-const planRecords = Array.from(plan.matchAll(/^- \*\*Prompt ([0-9]{3}[a-z]*) — \[([^\]]+)\]/gm), (match) => [match[1], match[2]]);
-const progressRecords = Array.from(progress.matchAll(/^\| ([0-9]{3}[a-z]*) \| ([^|]+) \|/gm), (match) => [match[1], match[2].trim()]);
-const assertSourceSet = (name, records) => {
-  const sourceSet = new Set(records.map((record) => record[0]));
-  if (sourceSet.size !== records.length) throw new Error('duplicate ' + name + ' source ID');
-  if (records.length !== ids.length) throw new Error(name + ' row count differs from index');
-  for (const [id] of records) if (!idSet.has(id)) throw new Error('unknown ' + name + ' ID ' + id);
-  for (const id of ids) if (!sourceSet.has(id)) throw new Error('index ID missing from ' + name + ': ' + id);
-};
-assertSourceSet('plan', planRecords);
-assertSourceSet('progress', progressRecords);
-const planTags = new Map(planRecords);
-const liveProgress = new Map(progressRecords);
-for (const row of rows) {
-  if (row[1] !== planTags.get(row[0])) throw new Error('plan_tag mismatch on ' + row[0]);
-  if (row[2] !== liveProgress.get(row[0])) throw new Error('progress mismatch on ' + row[0]);
-}
-const evidenceRows = [];
-for (const line of text.split(/\n/)) {
-  const match = line.match(/^\| (E-[A-Z0-9-]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| (.+) \|$/);
-  if (match) evidenceRows.push(match.slice(1));
-}
-const evidenceById = new Map();
-for (const row of evidenceRows) {
-  if (evidenceById.has(row[0])) throw new Error('duplicate evidence ' + row[0]);
-  evidenceById.set(row[0], row);
-  if (!row[3].includes(' - ')) throw new Error('evidence source anchor missing separator on ' + row[0]);
-  const sourcePath = row[3].split(' - ')[0];
-  if (!new Set(['IMPLEMENTATION_PLAN.md', 'IMPLEMENTATION_MILESTONES.md', 'IMPLEMENTATION_PROGRESS.md']).has(sourcePath)) throw new Error('evidence source path not source-of-truth on ' + row[0]);
-  if (!row[4].trim()) throw new Error('evidence source language empty on ' + row[0]);
-  if (!/->|↝/.test(row[2])) throw new Error('evidence edge direction missing on ' + row[0]);
-  for (const token of row[2].match(/\b[0-9]{3}[a-z]?\b/g) || []) {
-    if (!idSet.has(token) && !retiredIds.has(token)) throw new Error('unknown prompt token ' + token + ' in evidence ' + row[0]);
-  }
-}
-const evidenceIds = new Set(evidenceById.keys());
-const evidenceTypes = new Map(Array.from(evidenceById, ([id, row]) => [id, row[1].split(' / ')]));
-const evidenceTypeForField = new Map([
-  [3, 'hard_prompt'],
-  [4, 'hard_milestone'],
-  [5, 'hard_contract'],
-  [6, 'decision_owner'],
-  [7, 'evidence/audit closure'],
-  [8, 'sequence'],
-  [9, 'release-boundary'],
-  [10, 'related/consumes']
-]);
-const parseTargets = (value, label) => {
-  if (value === 'none') return [];
-  const output = [];
-  for (const token of value.split(';')) {
-    if (token === 'none' || token.trim() === '') throw new Error('empty/none mixed into targets in ' + label);
-    const range = token.match(/^([0-9]{3})-([0-9]{3})$/);
-    if (range) {
-      const start = Number(range[1]);
-      const end = Number(range[2]);
-      if (start > end) throw new Error('reverse range ' + token + ' in ' + label);
-      for (let n = start; n <= end; n += 1) {
-        const id = String(n).padStart(3, '0');
-        if (idSet.has(id)) output.push(id);
-        else if (retiredIds.has(id)) continue;
-        else throw new Error('unknown range member ' + id + ' in ' + label);
-      }
-    } else if (/^[0-9]{3}[a-z]*$/.test(token)) {
-      if (retiredIds.has(token)) throw new Error('retired target ' + token + ' in ' + label);
-      if (!idSet.has(token)) throw new Error('unknown target ' + token + ' in ' + label);
-      output.push(token);
-    } else {
-      throw new Error('invalid target ' + token + ' in ' + label);
-    }
-  }
-  return output;
-};
-const parseClosure = (value, label) => {
-  if (value === 'none') return [];
-  const output = [];
-  for (const segment of value.split(';')) {
-    const match = segment.match(/^([^:]+):(.+)$/);
-    if (!match || !match[2].trim()) throw new Error('invalid closure gate ' + segment + ' in ' + label);
-    const targets = parseTargets(match[1], label);
-    if (!targets.length) throw new Error('closure gate has no target in ' + label);
-    output.push(...targets);
-  }
-  return output;
-};
-const seenEdges = new Set();
-const hardEdges = [];
-for (const row of rows) {
-  const id = row[0];
-  for (const index of [3, 10]) {
-    const field = index === 3 ? 'hard_prompt_prerequisites' : 'related_consumes';
-    for (const target of parseTargets(row[index], id + '.' + field)) {
-      if (target === id) throw new Error('self edge ' + id + ' -> ' + target);
-      const edge = id + '>' + target;
-      if (seenEdges.has(edge)) throw new Error('duplicate expanded edge ' + edge);
-      seenEdges.add(edge);
-      if (index === 3) hardEdges.push([id, target]);
-    }
-  }
-  for (const target of parseClosure(row[7], id + '.closure_evidence_gates')) {
-    if (target === id) throw new Error('self closure gate ' + id + ' -> ' + target);
-  }
-  if (row[9] !== 'none' && !row[9].trim()) throw new Error('empty release boundary on ' + id);
-  const hasGate = [3, 4, 5, 6, 7, 8, 9, 10].some((index) => row[index] !== 'none');
-  const refs = row[11] === 'none' ? [] : row[11].split(';');
-  if (hasGate && refs.length === 0) throw new Error('dependency without evidence on ' + id);
-  for (const ref of refs) if (!evidenceIds.has(ref)) throw new Error('unknown evidence ' + ref + ' on ' + id);
-  for (const [index, expectedType] of evidenceTypeForField) {
-    if (row[index] === 'none') continue;
-    if (!refs.some((ref) => evidenceTypes.get(ref)?.includes(expectedType))) {
-      throw new Error('typed evidence mismatch on ' + id + '.' + index + ': expected ' + expectedType);
-    }
-  }
-}
-const adjacency = new Map();
-for (const [from, to] of hardEdges) {
-  if (!adjacency.has(from)) adjacency.set(from, []);
-  adjacency.get(from).push(to);
-}
-const visiting = new Set();
-const visited = new Set();
-const visit = (id) => {
-  if (visiting.has(id)) throw new Error('hard-prompt cycle at ' + id);
-  if (visited.has(id)) return;
-  visiting.add(id);
-  for (const target of adjacency.get(id) || []) visit(target);
-  visiting.delete(id);
-  visited.add(id);
-};
-for (const id of ids) visit(id);
-const dispatcherStatuses = new Set(['missing', 'partial']);
-const dispatcherCandidates = rows.filter((row) => {
-  if (!dispatcherStatuses.has(row[2])) return false;
-  if (parseTargets(row[3], row[0] + '.hard_prompt_prerequisites').some((target) => progressRecords.find(([id]) => id === target)?.[1] !== 'done')) return false;
-  return [4, 5, 6].every((index) => row[index] === 'none');
-});
-if (dispatcherCandidates.some((row) => retiredIds.has(row[0]) || !idSet.has(row[0]))) throw new Error('dispatcher selected unknown/retired prompt');
-if (dispatcherCandidates.some((row) => [4, 5, 6].some((index) => row[index] !== 'none'))) throw new Error('dispatcher selected manual-gated prompt');
-console.log('OK: ' + rows.length + ' rows, ' + hardEdges.length + ' hard-prompt edges, ' + evidenceIds.size + ' evidence records; plan tags/progress parity, evidence provenance, cycles, and dispatcher gates verified');
-~~~
+Run `npm run validate:dependencies`. It invokes the same parser used by
+`coordination:dependencies` and fails closed on plan/progress/index parity,
+typed evidence provenance, hard dependency cycles, and readiness drift.
 
 ## Deterministic dispatcher
 
-Run this copy-paste dispatcher from the repository root. It refreshes live
-plan/progress state and fails closed on ID, tag, or status drift before it
-selects anything. It emits exactly one NEXT prompt, a ranked READY_QUEUE,
-explicit NEEDS_CONFIRMATION and BLOCKED reasons with dependency statuses, and a
-self-contained CONTEXT_PACKET for the selected prompt. A hard milestone, hard
-contract, or owner gate is never mechanically proven by this document, so a
-row carrying one is never printed as ready. Closure/evidence gates are
-completion scope and never start blockers.
+Run `npm run coordination:dependencies -- --prompt NNN` from the repository
+root. The compact default contains the selected prompt context and receipt
+fingerprint within the 80-line/12-KiB budget. `--full` emits the complete
+`NEXT`, `READY_QUEUE`, `NEEDS_CONFIRMATION`, and `BLOCKED` view; `--json`
+emits the stable machine schema. The command refuses a prompt that is not
+mechanically ready and refuses to write a receipt while relevant ownership
+conflicts exist.
 
-~~~sh
-node --input-type=module <<'NODE'
-import fs from 'node:fs';
+`NEXT` (the first `READY_QUEUE` item) remains advisory for concurrency, not a
+serial lock. Later ready prompts still require satisfied hard prerequisites,
+cleared or confirmed manual gates, and conflict-free coordination ownership.
 
-const artifactText = fs.readFileSync('docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md', 'utf8');
-const planText = fs.readFileSync('docs/IMPLEMENTATION_PLAN.md', 'utf8');
-const progressText = fs.readFileSync('docs/IMPLEMENTATION_PROGRESS.md', 'utf8');
-const milestoneText = fs.readFileSync('docs/IMPLEMENTATION_MILESTONES.md', 'utf8');
-const artifactLines = artifactText.split(/\n/);
-const planLines = planText.split(/\n/);
-const progressLines = progressText.split(/\n/);
-const milestoneLines = milestoneText.split(/\n/);
-const rows = artifactLines
-  .filter((line) => /^\| [0-9]{3}[a-z]* \|/.test(line))
-  .map((line) => ({ line, cells: line.slice(2, -1).split(' | ').map((cell) => cell.trim()) }));
-if (rows.some(({ cells }) => cells.length !== 14)) throw new Error('index row width is not 14');
-const ids = rows.map(({ cells }) => cells[0]);
-const idSet = new Set(ids);
-if (idSet.size !== ids.length) throw new Error('duplicate index ID');
-const retiredIds = new Set(['071']);
-if (idSet.has('071')) throw new Error('retired prompt 071 must not be selectable');
+## Generated packet, not copied context
 
-const liveRecords = progressLines.flatMap((line) => {
-  const match = line.match(/^\| ([0-9]{3}[a-z]*) \| ([^|]+) \|/);
-  return match ? [[match[1], match[2].trim(), line]] : [];
-});
-const liveIds = new Set(liveRecords.map(([id]) => id));
-if (liveIds.size !== liveRecords.length) throw new Error('duplicate live progress ID');
-if (liveRecords.length !== rows.length) throw new Error('live progress/index count mismatch');
-for (const id of ids) if (!liveIds.has(id)) throw new Error('index ID missing from live progress: ' + id);
-for (const id of liveIds) if (!idSet.has(id)) throw new Error('unknown live progress ID: ' + id);
-const liveStatus = new Map(liveRecords.map(([id, status]) => [id, status]));
-const liveProgressLine = new Map(liveRecords.map(([id, , line]) => [id, line]));
-
-const planRecords = planLines.flatMap((line) => {
-  const match = line.match(/^- \*\*Prompt ([0-9]{3}[a-z]*) — \[([^\]]+)\]/);
-  return match ? [[match[1], match[2], line]] : [];
-});
-const planIds = new Set(planRecords.map(([id]) => id));
-if (planIds.size !== planRecords.length) throw new Error('duplicate plan ID');
-if (planRecords.length !== rows.length) throw new Error('live plan/index count mismatch');
-for (const id of ids) if (!planIds.has(id)) throw new Error('index ID missing from live plan: ' + id);
-for (const id of planIds) if (!idSet.has(id)) throw new Error('unknown live plan ID: ' + id);
-const planTags = new Map(planRecords.map(([id, tag]) => [id, tag]));
-const planDefinition = new Map(planRecords.map(([id, , line]) => [id, line]));
-for (const { cells } of rows) {
-  if (cells[1] !== planTags.get(cells[0])) throw new Error('plan_tag mismatch on ' + cells[0]);
-  if (cells[2] !== liveStatus.get(cells[0])) throw new Error('progress mismatch on ' + cells[0]);
-}
-
-const expand = (value, label) => {
-  if (value === 'none') return [];
-  const output = [];
-  for (const token of value.split(';')) {
-    if (token === 'none' || token.trim() === '') throw new Error('empty/none mixed into ' + label);
-    const range = token.match(/^([0-9]{3})-([0-9]{3})$/);
-    if (range) {
-      const start = Number(range[1]);
-      const end = Number(range[2]);
-      if (start > end) throw new Error('reverse range ' + token + ' in ' + label);
-      for (let n = start; n <= end; n += 1) {
-        const id = String(n).padStart(3, '0');
-        if (idSet.has(id)) output.push(id);
-        else if (retiredIds.has(id)) continue;
-        else throw new Error('unknown range member ' + id + ' in ' + label);
-      }
-    } else {
-      if (retiredIds.has(token)) throw new Error('retired target ' + token + ' in ' + label);
-      if (!/^[0-9]{3}[a-z]*$/.test(token) || !idSet.has(token)) throw new Error('unknown target ' + token + ' in ' + label);
-      output.push(token);
-    }
-  }
-  return output;
-};
-
-const milestoneRank = (row) => {
-  if (row[12] === 'none') return 999;
-  const match = row[12].match(/M([0-9]+)/);
-  return match ? Number(match[1]) : 998;
-};
-const sourceOrdinal = new Map(rows.map(({ cells: row }, index) => [row[0], index]));
-const wolfOrderMatch = planText.match(/Implement this block in dependency order:\s*([\s\S]*?)\.\s*Prompts 351/);
-if (!wolfOrderMatch) throw new Error('Wolf attack dependency order missing from IMPLEMENTATION_PLAN.md');
-const expandSequenceToken = (value, label) => expand(value.trim().replace(/[–—]/g, '-'), label);
-const wolfOrderGroups = wolfOrderMatch[1]
-  .replace(/\s+/g, ' ')
-  .replace(/→/g, '->')
-  .split(/\s*->\s*/)
-  .map((group) => group.trim())
-  .filter(Boolean);
-const wolfOrdinalById = new Map();
-for (const [groupIndex, group] of wolfOrderGroups.entries()) {
-  const members = group.split('/').flatMap((token) => expandSequenceToken(token, 'WOLF-ATTACK source order'));
-  if (!members.length) throw new Error('empty WOLF-ATTACK source-order group ' + group);
-  for (const [memberIndex, id] of members.entries()) {
-    if (wolfOrdinalById.has(id)) throw new Error('duplicate WOLF-ATTACK source-order prompt ' + id);
-    wolfOrdinalById.set(id, groupIndex * 1000 + memberIndex);
-  }
-}
-const expectedWolfOrder = [
-  '425', '426', '428', '427', '432', '432a', '433', '433a', '433b', '434', '434a',
-  ...Array.from({ length: 10 }, (_, index) => String(435 + index)),
-  ...Array.from({ length: 29 }, (_, index) => String(445 + index)),
-  ...Array.from({ length: 8 }, (_, index) => String(475 + index)),
-  '474', '484', '621', '645'
-];
-if (JSON.stringify([...wolfOrdinalById.keys()]) !== JSON.stringify(expectedWolfOrder)) {
-  throw new Error('WOLF-ATTACK source order drifted: expected ' + expectedWolfOrder.join(' -> ') + ', got ' + [...wolfOrdinalById.keys()].join(' -> '));
-}
-const rowByPromptId = new Map(rows.map(({ cells: row }) => [row[0], row]));
-for (const id of expectedWolfOrder) {
-  const row = rowByPromptId.get(id);
-  if (!row || !row[8].split(';').includes('WOLF-ATTACK')) throw new Error('WOLF-ATTACK prompt missing sequence tag: ' + id);
-  const refs = row[11] === 'none' ? [] : row[11].split(';');
-  if (!refs.includes('E-WOLF')) throw new Error('WOLF-ATTACK prompt missing E-WOLF evidence: ' + id);
-}
-const sequenceRank = (row) => wolfOrdinalById.get(row[0]) ?? Number.MAX_SAFE_INTEGER;
-const dispatchCompare = (left, right) => {
-  const milestoneDelta = milestoneRank(left) - milestoneRank(right);
-  if (milestoneDelta) return milestoneDelta;
-  const sequenceDelta = sequenceRank(left) - sequenceRank(right);
-  if (sequenceDelta) return sequenceDelta;
-  return sourceOrdinal.get(left[0]) - sourceOrdinal.get(right[0]);
-};
-const sorted = (items) => items.slice().sort(dispatchCompare);
-const statusOf = (id) => liveStatus.get(id) || (retiredIds.has(id) ? 'retired' : 'unknown');
-const dependencySummary = (row) => {
-  const targets = expand(row[3], row[0] + '.hard_prompt_prerequisites');
-  return {
-    targets,
-    all: targets.length ? targets.map((id) => id + '=' + statusOf(id)).join(',') : 'none',
-    unresolved: targets.filter((id) => statusOf(id) !== 'done')
-  };
-};
-const gatesOf = (row) => [
-  ['hard_milestone', row[4]],
-  ['hard_contract', row[5]],
-  ['decision_owner', row[6]]
-].filter(([, value]) => value !== 'none');
-const busyStatuses = new Set(['active', 'in-progress', 'in_progress']);
-const selectableStatuses = new Set(['missing', 'partial']);
-const ready = [];
-const needsConfirmation = [];
-const blocked = [];
-for (const { cells: row } of rows) {
-  const status = statusOf(row[0]);
-  if (status === 'done') continue;
-  const dependency = dependencySummary(row);
-  const gates = gatesOf(row);
-  if (busyStatuses.has(status)) {
-    blocked.push([row, ['progress=' + status + ' (agent already working)']]);
-  } else if (!selectableStatuses.has(status)) {
-    blocked.push([row, ['progress=' + status + ' (unsupported for automatic selection)']]);
-  } else if (dependency.unresolved.length) {
-    blocked.push([row, ['hard_prompt_prerequisites: ' + dependency.all]]);
-  } else if (gates.length) {
-    needsConfirmation.push([row, ['hard_prompt_prerequisites: ' + dependency.all, ...gates.map(([name, value]) => name + '=' + value + ' (not mechanically proven)')]]);
-  } else {
-    ready.push(row);
-  }
-}
-const readyQueue = sorted(ready);
-const readyWolfRanks = readyQueue
-  .filter((row) => wolfOrdinalById.has(row[0]))
-  .map((row) => wolfOrdinalById.get(row[0]));
-if (readyWolfRanks.some((rank, index) => index > 0 && readyWolfRanks[index - 1] > rank)) {
-  throw new Error('READY_QUEUE violates the explicit WOLF-ATTACK order');
-}
-const rowById = new Map(rows.map(({ cells: row, line }) => [row[0], { row, line }]));
-const evidenceLine = new Map(artifactLines.flatMap((line) => {
-  const match = line.match(/^\| (E-[A-Z0-9-]+) \|/);
-  return match ? [[match[1], line]] : [];
-}));
-const routeFor = (hints) => {
-  const names = hints.match(/M[0-9]+/g) || [];
-  if (!names.length) return ['none'];
-  const route = [];
-  for (const name of names) {
-    const start = milestoneLines.findIndex((line) => line.startsWith('### Milestone ' + name.slice(1) + ' —'));
-    if (start < 0) {
-      route.push(name + ': missing from IMPLEMENTATION_MILESTONES.md');
-      continue;
-    }
-    const end = milestoneLines.findIndex((line, index) => index > start && /^### Milestone [0-9]+ —/.test(line));
-    const section = milestoneLines.slice(start, end < 0 ? milestoneLines.length : end);
-    let capturingField = false;
-    for (const line of section) {
-      if (/^### Milestone /.test(line)) {
-        route.push(line);
-        capturingField = false;
-      } else if (/^\*\*(Outcome|Depends on|Primary prompt neighborhood|Exit fixture):/.test(line)) {
-        route.push(line);
-        capturingField = true;
-      } else if (capturingField && line.trim()) {
-        route.push(line);
-      } else if (!line.trim()) {
-        capturingField = false;
-      }
-    }
-  }
-  return route;
-};
-const milestoneOneRoute = routeFor('M1');
-for (const fragment of [
-  'the exact roster, privately assigns loyalties, seats players, and advances from',
-  'privacy contracts.',
-  'callable path, with unsupported rosters, leaked secrets, stale requests, and',
-  'duplicate commands denied.'
-]) {
-  if (!milestoneOneRoute.some((line) => line.includes(fragment))) throw new Error('Milestone 1 route lost continuation: ' + fragment);
-}
-const printReasons = (items) => {
-  for (const [row, reasons] of items) console.log(row[0] + '\t' + reasons.join('; ') + '\t' + row[13]);
-};
-const selected = readyQueue[0] || null;
-console.log('NEXT: ' + (selected ? selected[0] : 'NONE'));
-console.log('READY_QUEUE');
-readyQueue.forEach((row, index) => console.log((index + 1) + '. ' + row[0] + '\t' + 'milestone=' + row[12] + '\tsequence=' + row[8] + '\t' + row[13]));
-console.log('NEEDS_CONFIRMATION');
-printReasons(needsConfirmation.sort(([left], [right]) => dispatchCompare(left, right)));
-console.log('BLOCKED');
-printReasons(blocked.sort(([left], [right]) => dispatchCompare(left, right)));
-console.log('CONTEXT_PACKET');
-if (!selected) {
-  console.log('none: no mechanically selectable prompt exists in the current live ledger');
-} else {
-  const selectedRecord = rowById.get(selected[0]);
-  const dependency = dependencySummary(selected);
-  console.log('prompt_id: ' + selected[0]);
-  console.log('index_row: ' + selectedRecord.line);
-  console.log('plan_definition: ' + planDefinition.get(selected[0]));
-  console.log('live_progress_row: ' + liveProgressLine.get(selected[0]));
-  console.log('milestone_route:');
-  for (const line of routeFor(selected[12])) console.log('  ' + line);
-  console.log('dependency_evidence_anchors:');
-  const refs = selected[11] === 'none' ? [] : selected[11].split(';');
-  for (const ref of refs) console.log('  ' + (evidenceLine.get(ref) || ref + ': missing evidence row'));
-  console.log('required_preceding_contracts:');
-  console.log('  hard_prompt_prerequisites=' + selected[3] + ' [' + dependency.all + ']');
-  console.log('  hard_milestone=' + selected[4]);
-  console.log('  hard_contract=' + selected[5]);
-  console.log('  decision_owner=' + selected[6]);
-  console.log('  closure_evidence_gates=' + selected[7] + ' (closure only; never a start blocker)');
-  console.log('proof_validation_expectation: Follow CLAUDE.md; state the Given/When/Then outcome; preserve current proof or observe the smallest missing acceptance fail; deliver one bounded authoritative retry-safe audience-correct result; record focused evidence and complete the single reconciled release gate.');
-  console.log('coordination_claim_reminder: NEXT (the first READY_QUEUE item) is the primary resume/default lane, but it is advisory for concurrency; a separate worktree may claim a later READY_QUEUE item only after hard prerequisites and any hard milestone, contract, or decision-owner gates are satisfied/confirmed and the coordination forecast shows conflict-free ownership; never bypass dependencies, active claims, or unresolved decision-owner gates merely because the prompt is independent.');
-}
-NODE
-~~~
-
-`NEXT` (the first `READY_QUEUE` item) is the primary resume/default lane and is
-advisory for concurrency, not a serial execution lock. A separate worktree may
-claim a later `READY_QUEUE` item concurrently only when its hard prompt
-prerequisites are done, every hard milestone, hard contract, and decision-owner
-gate is satisfied or explicitly confirmed, and the coordination forecast shows
-conflict-free ownership with no active claim overlap. If a coordination claim
-fails, choose another dependency-ready item only after the same checks pass;
-never bypass dependencies, active claims, or unresolved decision-owner gates
-merely because the prompt is independent. The lowest unresolved ID remains
-only a resume pointer.
-
-## Current-ledger sample
-
-This sample was generated by the dispatcher above from the current plan and
-progress ledgers. It is a compact transcript showing the required shape; rerun
-the command for the live full queue and packet.
-
-~~~text
-NEXT: 012
-READY_QUEUE
-1. 012  milestone=M1  sequence=none      Define command idempotency.
-2. 014  milestone=M1  sequence=none      Define stale-snapshot semantics.
-3. 015  milestone=M1  sequence=none      Define the command error taxonomy.
-...
-NEEDS_CONFIRMATION
-031a  hard_prompt_prerequisites: 030=done,031=done,032=done,034=done; hard_contract=CURRENT-SETUP-READINESS (not mechanically proven)
-654   hard_prompt_prerequisites: none; hard_milestone=M1 (not mechanically proven); decision_owner=OWNER-APPROVED-ZERO-ELIGIBLE-WOLF-OUTCOME (not mechanically proven)
-602a  hard_prompt_prerequisites: none; hard_contract=AUTHORITATIVE-SHUTTLE-ASSOCIATION;CONSOLE-ROUTE-ENTITLEMENT (not mechanically proven)
-662   hard_prompt_prerequisites: none; decision_owner=OWNER-APPROVED-WOLF-DESIGNATION-POLICY (not mechanically proven)
-BLOCKED
-020a  hard_prompt_prerequisites: 020=done,074=done,075=partial,076=done,077=partial,078=done,079=done,080=missing,081=done,177=done,287=missing,...
-CONTEXT_PACKET
-prompt_id: 012
-index_row: | 012 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Define command idempotency. |
-plan_definition: - **Prompt 012 — [PRESERVE] Define command idempotency.** Acceptance: retrying a command returns its original result without duplicating state, cost, randomness, or audit events.
-live_progress_row: | 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
-milestone_route:
-  ### Milestone 1 — Cast and start a real game
-  **Outcome:** a facilitator selects a supported immutable configuration, casts
-  the exact roster, privately assigns loyalties, seats players, and advances from
-  Turn 0 to Turn 1 without invalid or orphaned authority.
-  **Depends on:** session lifecycle, join/seat/GM authority, configuration and
-  privacy contracts.
-  **Primary prompt neighborhood:** 001–090.
-  **Exit fixture:** create → join → cast → start → Turn 1 using the production
-  callable path, with unsupported rosters, leaked secrets, stale requests, and
-  duplicate commands denied.
-dependency_evidence_anchors:
-required_preceding_contracts:
-  hard_prompt_prerequisites=none [none]
-  hard_milestone=none
-  hard_contract=none
-  decision_owner=none
-  closure_evidence_gates=none (closure only; never a start blocker)
-proof_validation_expectation: Follow CLAUDE.md; state the Given/When/Then outcome; preserve current proof or observe the smallest missing acceptance fail; deliver one bounded authoritative retry-safe audience-correct result; record focused evidence and complete the single reconciled release gate.
-coordination_claim_reminder: NEXT (the first READY_QUEUE item) is the primary resume/default lane, but it is advisory for concurrency; later READY_QUEUE items may be claimed only after hard prerequisites and any hard milestone, contract, or decision-owner gates are satisfied/confirmed and coordination ownership is conflict-free; never bypass dependencies, active claims, or unresolved decision-owner gates merely because the prompt is independent.
-~~~
+Do not preserve a checked-in packet transcript: it becomes stale whenever
+authority, current `main`, evidence, milestones, or relevant coordination moves.
+The dispatcher generates the current compact packet and receipt together. Use
+`--full` for the complete queue and `--json` when another machine consumes the
+same semantic record.
 
 ## Maintenance rules
 
-- Treat this index as a required preflight, not optional navigation: re-read it
-  before selecting, starting, editing, marking, or merging a numbered prompt,
-  and after any rebase or material movement of current `main`.
+- Treat the generated packet as a required preflight, not optional navigation:
+  refresh it before selecting, starting, editing, marking, or merging a numbered
+  prompt, and after any rebase or material movement of current `main`.
 - Never mark a prompt complete or merge its slice while a hard prompt
   prerequisite is not `done`. The executable documentation gate checks this
   completion invariant; closure/evidence gates remain completion scope and do
   not become hidden start blockers.
 - Refresh this index whenever the plan adds, retires, renames, or reclassifies a canonical prompt, and rerun the coverage, parity, integrity, and deterministic-dispatcher checks above.
 - Preserve typed edges and their evidence. If the source is silent, write none; do not infer a previous-prompt edge, numeric adjacency, a whole domain range, or a milestone edge from ordering alone.
-- Reconcile the progress column and plan_tag with the live source ledgers whenever statuses or acceptance classes change. The embedded checker must fail before lookup on drift.
+- Reconcile the progress column and plan_tag with the live source ledgers whenever statuses or acceptance classes change. The shared validator must fail before lookup on drift.
 - Keep hard readiness limited to hard prompt, milestone, contract, and owner fields. Closure/evidence gates are completion audits; sequence, release-boundary, and related/consumes rows are planning context and must never become hidden start blockers.
 - Numeric ranges must fail closed when any member is unknown; keep the explicit retired set synchronized with the plan. Lettered IDs remain explicit and are never silently expanded.
 - Keep source evidence directionally explicit (from prompt to prerequisite/closure target), with a source-of-truth path, anchor, and source language for every non-none typed field.
-- This is a documentation-only navigation aid. It does not authorize implementation, change player-facing behavior, replace source-of-truth acceptance, or bypass the repository test, security, accessibility, release, merge, or coordination gates.
+- This dependency authority and its generated receipt do not authorize implementation, change player-facing behavior, replace source-of-truth acceptance, or bypass the repository test, security, accessibility, release, merge, or coordination gates.

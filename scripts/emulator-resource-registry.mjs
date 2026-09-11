@@ -69,6 +69,13 @@ import {
   validateCommitRange,
   validateWorkRegistration,
 } from './validate-work-registration.mjs';
+import {
+  createDependencyPacket,
+  dependencyReceiptContextForEntry,
+  dependencyReceiptMetadata,
+  validateDependencyReceipt,
+  writeDependencyReceipt,
+} from './prompt-dependencies.mjs';
 
 export const CODEX_COORDINATION_FILE_ENV = 'CODEX_COORDINATION_FILE';
 export const COORDINATION_FILE_ENV = 'DOW_EMULATOR_COORDINATION_FILE';
@@ -92,6 +99,7 @@ const LEGACY_CHANGE_CLASS_MIGRATIONS = new Map([
   ['1789087354152-96620-2cf1ba3e', '012'],
   ['1789086651641-63909-707fa4ab', '014'],
 ]);
+const LEGACY_DEPENDENCY_RECEIPT_MIGRATIONS = LEGACY_CHANGE_CLASS_MIGRATIONS;
 const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
@@ -129,6 +137,42 @@ export function validateImplementationPromptClaims(entries = []) {
     owners.set(prompt, owner);
   }
   return owners;
+}
+
+function legacyDependencyReceiptMigration(entry) {
+  return LEGACY_DEPENDENCY_RECEIPT_MIGRATIONS.get(entry?.id) === normalizePromptId(entry?.implementationPrompt);
+}
+
+async function requireDependencyReceipt(entry, state, options = {}, overrides = {}) {
+  if (!entry?.implementationPrompt) return null;
+  const contextFactory = options.dependencyReceiptContextFactory ?? dependencyReceiptContextForEntry;
+  const validator = options.dependencyReceiptValidator ?? validateDependencyReceipt;
+  const context = await contextFactory(entry, state, {
+    cwd: process.cwd(),
+    requestedScopes: overrides.scopes ?? entry.scopes ?? entry.requestedScopes ?? [],
+    requestedClaims: overrides.claims ?? entry.claims ?? entry.requestedClaims ?? [],
+    mainSha: overrides.mainSha,
+  });
+  let receipt;
+  let policy = 'required';
+  try {
+    receipt = await validator(context);
+  } catch (error) {
+    if (!overrides.allowLegacyRefresh || !legacyDependencyReceiptMigration(entry) ||
+      !/missing/i.test(error instanceof Error ? error.message : String(error))) {
+      throw new Error(
+        `Dependency receipt gate failed for Prompt ${normalizePromptId(entry.implementationPrompt) ?? 'unknown'}: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+    const packet = createDependencyPacket(context);
+    const writer = options.dependencyReceiptWriter ?? writeDependencyReceipt;
+    await writer(packet);
+    receipt = await validator(context);
+    policy = 'legacy-refreshed';
+  }
+  return dependencyReceiptMetadata(receipt, policy);
 }
 
 function objectRecord(value) {
@@ -3381,6 +3425,12 @@ export async function beginCoordinationEntry(filePath, options) {
       },
     };
     validateImplementationPromptClaims([...state.entries, entry]);
+    const dependencyReceipt = await requireDependencyReceipt(entry, state, options, {
+      scopes,
+      claims,
+      mainSha: start.mainSha,
+    });
+    if (dependencyReceipt) entry.dependencyReceipt = dependencyReceipt;
     const artifactPath = sessionGoalArtifactAbsolutePath(entry);
     const artifact = sessionGoalArtifact(entry, sessionGoals, entry.startedAt);
     await writeSessionGoalsArtifact(artifactPath, artifact, { noClobber: true });
@@ -3997,8 +4047,24 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     });
     if (conflict) throw new Error(formatCoordinationConflict(conflict));
 
+    const prospectiveScopes = [...existingScopes, ...scopes];
+    const prospectiveClaims = [...existingClaims, ...claims];
+    const prospectiveEntry = {
+      ...entry,
+      ...(bindsImplementationPrompt || advancesTransferredPrompt
+        ? { implementationPrompt: requestedImplementationPrompt }
+        : {}),
+      ...(requestedChangeClass ? { changeClass: requestedChangeClass } : {}),
+    };
+    const dependencyReceipt = await requireDependencyReceipt(prospectiveEntry, state, options, {
+      scopes: prospectiveScopes,
+      claims: prospectiveClaims,
+      mainSha: start.mainSha,
+      allowLegacyRefresh: true,
+    });
     entry.scopes = [...existingScopes, ...scopes];
     entry.claims = [...existingClaims, ...claims];
+    if (dependencyReceipt) entry.dependencyReceipt = dependencyReceipt;
     if (bindsImplementationPrompt || advancesTransferredPrompt) {
       entry.implementationPrompt = requestedImplementationPrompt;
       entry.implementationRegistrationRequired = true;
@@ -4917,6 +4983,10 @@ export async function validateCoordinationEntry(filePath, options) {
         release = await readReleaseState({ startBranchSha, memo: validationMemo });
       }
     }
+    const dependencyReceipt = await requireDependencyReceipt(entry, state, options, {
+      mainSha: release.mainSha,
+      allowLegacyRefresh: true,
+    });
     const errors = releaseMetadataErrors({
       entry,
       release,
@@ -5093,6 +5163,7 @@ export async function validateCoordinationEntry(filePath, options) {
       testGrowthReview,
       releaseFragment,
       registrationReceipt,
+      dependencyReceipt,
     };
     };
   });
@@ -5313,9 +5384,19 @@ export async function validateCoordinationEntry(filePath, options) {
         );
       }
     }
+    const currentDependencyReceipt = await requireDependencyReceipt(entry, state, options, {
+      mainSha: finalRelease.mainSha,
+      allowLegacyRefresh: true,
+    });
+    if (JSON.stringify(currentDependencyReceipt) !== JSON.stringify(preparation.dependencyReceipt)) {
+      throw new Error(
+        `Cannot record validation for ${entry.id}: dependency receipt inputs changed while checks ran; rerun validation.`,
+      );
+    }
 
     entry.startBranchSha = preparation.startBranchSha;
     entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
+    if (currentDependencyReceipt) entry.dependencyReceipt = currentDependencyReceipt;
     if (entry.validation) {
       entry.validationHistory = [
         ...(Array.isArray(entry.validationHistory) ? entry.validationHistory : []),

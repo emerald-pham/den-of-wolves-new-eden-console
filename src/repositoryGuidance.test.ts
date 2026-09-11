@@ -428,20 +428,38 @@ describe('repository guidance', () => {
 
     for (const surface of surfaces) {
       const source = readFileSync(resolve(repositoryRoot, surface), 'utf8');
-      expect(source, surface).toContain(dependencyDoc);
+      if (surface !== `docs/${dependencyDoc}`) expect(source, surface).toContain(dependencyDoc);
       const normalized = source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
       expect(normalized, surface).toMatch(
-        /(?:read[\s\S]{0,180}implementation_prompt_dependencies\.md[\s\S]{0,180}(?:first|before selecting|before assigning|before starting|before editing)|before (?:selecting|assigning|starting|editing)[\s\S]{0,180}read[\s\S]{0,180}implementation_prompt_dependencies\.md)/i,
+        /coordination:dependencies[\s\S]{0,240}\b(?:compact )?packet\b|\b(?:compact )?packet\b[\s\S]{0,240}coordination:dependencies/i,
       );
-      expect(normalized, surface).toMatch(/\b(?:run|use|refresh)(?:\s+\w+){0,6}\s+dispatcher\b/i);
+      expect(normalized, surface).toMatch(/npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i);
       expect(normalized, surface).toMatch(/reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i);
-      expect(normalized, surface).toMatch(/\bre-?read\b/i);
+      expect(normalized, surface).toMatch(/\brefresh\b/i);
       expect(normalized, surface).toMatch(/\b(?:rebase|material (?:main )?movement)\b/i);
       expect(normalized, surface).toContain('current main');
       expect(normalized, surface).toMatch(/cannot be marked complete/i);
       expect(normalized, surface).toMatch(/\b(?:cannot merge|merged)\b/i);
       expect(normalized, surface).toMatch(/hard prerequisites?[\s\S]{0,120}unmet/i);
     }
+  });
+
+  it('keeps the shared dependency parser, ignored receipt, lifecycle gates, and CI drift check wired', () => {
+    const repositoryRoot = process.cwd();
+    const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
+    const dispatcher = readFileSync(resolve(repositoryRoot, 'scripts/prompt-dependencies.mjs'), 'utf8');
+    const coordination = readFileSync(resolve(repositoryRoot, 'scripts/emulator-resource-registry.mjs'), 'utf8');
+    const ci = readFileSync(resolve(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
+    const ignore = readFileSync(resolve(repositoryRoot, '.gitignore'), 'utf8');
+
+    expect(packageJson.scripts['coordination:dependencies']).toBe('node scripts/prompt-dependencies.mjs');
+    expect(packageJson.scripts['coordination:dependencies:measure']).toBe('node scripts/prompt-dependencies.mjs --measure');
+    expect(packageJson.scripts['validate:dependencies']).toBe('node scripts/prompt-dependencies.mjs --verify');
+    expect(dispatcher).toMatch(/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/);
+    expect(coordination).toContain("from './prompt-dependencies.mjs'");
+    expect(coordination.match(/requireDependencyReceipt\(/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(ci).toContain('npm run validate:dependencies');
+    expect(ignore.split(/\r?\n/)).toContain('.codex/dependency-receipts/');
   });
 
   it('rejects a dependency surface that only links the index without the mandatory operational gate', () => {
@@ -474,10 +492,10 @@ describe('repository guidance', () => {
       validatePromptDependencyGuidance({ sources: weakSources, errors });
 
       expect(errors).toEqual(expect.arrayContaining([
-        `${weakSurface}: must explicitly require reading prompt dependencies before prompt work`,
+        `${weakSurface}: must explicitly require reading the compact dependency packet before prompt work`,
         `${weakSurface}: must require running the prompt dependency dispatcher`,
         `${weakSurface}: must require reconciling current main and coordination`,
-        `${weakSurface}: must require re-reading after rebase or material current-main movement`,
+        `${weakSurface}: must require refreshing after rebase or material current-main movement`,
         `${weakSurface}: must block completion/merge while hard prerequisites are unmet`,
       ]));
     }
@@ -570,7 +588,7 @@ describe('repository guidance', () => {
         expected: 'must prohibit new lanes at a stopping point',
       },
       {
-        source: source.replace(/fully read/gi, 'consult'),
+        source: source.replace(/npm run coordination:dependencies\s+--\s+--prompt NNN/gi, 'consult dependencies'),
         expected: 'must require the dependency authority before prompt selection',
       },
       {

@@ -95,13 +95,16 @@ resume; do not run a status/heartbeat polling loop. The registry enforces this
 state and continuity. The Codex process pause/wake boundary cannot be
 machine-enforced by repository code.
 
-For every non-documentation change, the same checklist must also include
-an unchecked dependency gate: read
+For every non-documentation change, the same checklist must also include an
+unchecked dependency gate: run `npm run coordination:dependencies -- --prompt
+NNN` (including intended `--scope` and `--claims` values), read the compact
+packet generated from
 [`IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-run its dispatcher, and reconcile the selected registered implementation-item
-row with current `main` and coordination before starting or editing. Check it
-only after that reconciliation is recorded; leave it unchecked if any hard
-prerequisite remains unmet.
+and reconcile it with current `main` and coordination before begin or editing.
+The command writes the ignored worktree receipt required by
+`coordination:begin`, ownership amendment, and `coordination:validate`. Check
+the goal only after reconciliation; leave it unchecked if any hard prerequisite
+remains unmet.
 
 ## Campaign execution and stopping
 
@@ -149,17 +152,19 @@ For numbered implementation-plan work, do not read the 729-prompt
 as prompt evidence is updated, so required reading is defined by stable
 headings and targeted rows instead.
 
-Read the mandatory [`docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
-first, before selecting, assigning, starting, or editing any numbered prompt.
-It is the dependency authority and the plan is not standalone: a plan row
+Run `npm run coordination:dependencies -- --prompt NNN` first, before selecting,
+assigning, starting, or editing any numbered prompt, and read its compact
+packet. The mandatory
+[`docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md`](docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md)
+remains the dependency authority and the plan is not standalone: a plan row
 cannot waive a hard prerequisite, milestone, contract, owner decision, or
-closure gate recorded by the index.
+closure gate recorded by the index. Use `--full` only for authority audit/edit
+work and `--json` for stable machine consumption.
 
 Read these items before implementation, in this order:
 
-1. The dependency index fast path, exact prompt row, and its evidence entries.
-   Run its deterministic dispatcher so hard prompt prerequisites and their live
-   statuses are visible before claiming a slice.
+1. The compact deterministic dispatcher packet, including the exact prompt row,
+   evidence entries, hard prompt statuses, and current coordination conflicts.
 2. The selected milestone, dependencies, exit fixture, and review budget in
    `docs/IMPLEMENTATION_MILESTONES.md`.
 3. `IMPLEMENTATION_PLAN.md` sections **Reading map and table of contents**,
@@ -199,17 +204,22 @@ gate merely because the prompt is independent.
 ### Prompt dependency gate
 
 The dependency index is a mandatory preflight for every numbered prompt. Before
-selecting or assigning a prompt, read its index row, current progress row, plan
-definition, milestone route, and evidence entries; reconcile all hard
-prerequisites and named ownership/order data with current `main` and the active
-coordination registry. Before starting or editing, run the index dispatcher and
-claim only the exact dependency-ready scope. Do not treat the plan as
+selecting or assigning a prompt, run `npm run coordination:dependencies --
+--prompt NNN`, read its compact packet, and reconcile the index row, progress,
+plan definition, milestone route, evidence, hard prerequisites, and named
+ownership/order data with current `main` and active coordination. Include the
+intended scope and claims before begin; the dispatcher writes an atomic receipt
+bound to the owner, worktree, branch, prompt, class, start SHAs, current main,
+authority inputs, and relevant coordination state. Do not treat the plan as
 standalone, infer dependencies from numeric adjacency, or replace an unmet
 hard prerequisite with a prose attestation.
 
 After rebase or material main movement, or when a prerequisite's status/ownership
-changes, stop and re-read the dependency index and selected row, refresh the
-dispatcher, and reconcile coordination before continuing. A prompt with hard
+changes, stop and refresh the packet and receipt before continuing. Missing,
+stale, malformed, symlinked, mismatched, or relevant-conflict receipts fail
+begin, amendment, and validation; unrelated ledger noise does not invalidate a
+receipt. Only the exact already-active P012/P014 entries receive the one-time
+legacy refresh. A prompt with hard
 prerequisites that remain unmet cannot be marked complete and cannot merge.
 Closure/evidence gates remain completion checks, while sequence,
 release-boundary, and related/consumes fields remain context unless the index
