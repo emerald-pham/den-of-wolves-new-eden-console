@@ -232,10 +232,17 @@ reason.
 
 Before designing or changing player-facing game content, consult the authorized
 private source library outside this repository and the source it routes to for
-the affected mechanic. Printed component sheets control their named ship,
-shuttle, fighter wing, console, card, value, or owner when they conflict with a
-generic guide. If the private library is unavailable, stop rather than invent a
-rule. Never commit, link, quote, or reproduce that library in this public repo.
+the affected mechanic. Start with the local-only source index at
+`/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/docs/reference/README.md`;
+its authorized Markdown summaries are under
+`/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/docs/reference/den-of-wolves-new-eden/`.
+These paths are recorded as locators for this single-machine workflow only. Do
+not add repository links to private contents, or copy, quote, reproduce, or
+commit private source files or content. Printed component sheets control their
+named ship, shuttle, fighter wing, console, card, value, or owner when they
+conflict with a generic guide. If the private library is unavailable, or a
+routed source leaves a gap, stop and record the unresolved owner decision
+rather than inventing a rule.
 The owner-only archive is outside Git at
 `/Users/emeraldpham/.codex/private-reference/den-of-wolves-new-eden-console/`;
 do not touch it in routine repository work.

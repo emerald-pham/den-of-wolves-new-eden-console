@@ -80,7 +80,9 @@ belongs to the
 [Capybara ship template](docs/SHIP_TEMPLATE.md) and
 [SNN shuttle template](docs/SHUTTLE_TEMPLATE.md) define their respective
 surfaces. The authoritative printed/source library is maintained privately
-outside this repository. Do not commit, link, or reproduce that source material
+outside this repository. The canonical local-only locator and routing rules for
+this single-machine workflow are recorded in [CLAUDE.md](CLAUDE.md). Do not add
+links to private contents, or commit, quote, or reproduce that source material
 in the public project.
 
 The [preserved-in-amber rollback anchor](docs/PRESERVED_IN_AMBER.md) is an
