@@ -54,7 +54,7 @@ function pendingPrompt014Sources() {
         'Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.',
       )
       .replace(
-        '| 014 | done | non-feature | — | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale/late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. Focused rebased-candidate coverage: 247 tests passed across session, Firestore, airspace, secondary mutation, App, and header surfaces. |',
+        /\| 014 \| done \| non-feature \| — \|.*\|/,
         '| 014 | partial | non-feature | — | Revision fields/parsing exist; universal stale-mutation semantics remain open. |',
       ),
     dependency: authoritySources.dependency.replace(
@@ -143,6 +143,17 @@ function completeAuthority(
   };
 }
 
+function p014CompletionEvidence(sources: typeof authoritySources, count: number) {
+  return {
+    ...sources,
+    progress: sources.progress.replace(
+      /\| 014 \| done \| non-feature \| — \|.*\|/,
+      '| 014 | done | non-feature | — | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale/late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. Focused rebased-candidate coverage: ' +
+        `${count} tests passed across session, Firestore, airspace, secondary mutation, App, and header surfaces. |`,
+    ),
+  };
+}
+
 async function completionFixture({
   prompt = '668',
   tag = 'EXTEND',
@@ -214,7 +225,8 @@ async function completionFixture({
   const priorReceipt = await readDependencyReceipt(context.binding);
   const issuedEntry = entry as typeof entry & { dependencyReceipt: Record<string, unknown> };
   issuedEntry.dependencyReceipt = dependencyReceiptMetadata(priorReceipt, policy);
-  const done = completeAuthority(pending, prompt, tag);
+  const completed = completeAuthority(pending, prompt, tag);
+  const done = prompt === '014' ? p014CompletionEvidence(completed, 247) : completed;
   for (const [name, content] of Object.entries(done)) {
     await writeFile(resolve(docs, paths[name as keyof typeof paths]), content);
   }
@@ -230,6 +242,165 @@ async function completionFixture({
 }
 
 describe('compact prompt dependency packets', () => {
+  it('permits only a committed P014 completion-evidence correction after consuming its receipt', async () => {
+    const fixture = await completionFixture({ prompt: '014', tag: 'PRESERVE', policy: 'legacy-refreshed' });
+    try {
+      const consumed = await validateOrRefreshCompletionDependencyReceipt({
+        context: fixture.context,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: true,
+      });
+      fixture.entry.dependencyReceipt = dependencyReceiptMetadata(consumed, 'completion-refreshed');
+      const corrected = { ...fixture.context, sources: p014CompletionEvidence(fixture.context.sources, 253) };
+
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: corrected,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).resolves.toEqual(consumed);
+
+      const driftedContexts = [
+        {
+          label: 'another prompt row',
+          context: {
+            ...corrected,
+            sources: {
+              ...corrected.sources,
+              progress: corrected.sources.progress.replace('| 015 | partial | feature |', '| 015 | done | feature |'),
+            },
+          },
+        },
+        {
+          label: 'aggregate counts',
+          context: {
+            ...corrected,
+            sources: {
+              ...corrected.sources,
+              progress: corrected.sources.progress.replace('**95 / 734 prompts complete (12.94%)**', '**96 / 734 prompts complete (13.08%)**'),
+            },
+          },
+        },
+        {
+          label: 'selected prompt status',
+          context: {
+            ...corrected,
+            sources: {
+              ...corrected.sources,
+              progress: corrected.sources.progress.replace('| 014 | done |', '| 014 | partial |'),
+            },
+          },
+        },
+        {
+          label: 'plan authority',
+          context: {
+            ...corrected,
+            sources: { ...corrected.sources, plan: `${corrected.sources.plan}\n` },
+          },
+        },
+        {
+          label: 'dependency authority',
+          context: {
+            ...corrected,
+            sources: { ...corrected.sources, dependency: `${corrected.sources.dependency}\n` },
+          },
+        },
+        {
+          label: 'milestone authority',
+          context: {
+            ...corrected,
+            sources: { ...corrected.sources, milestones: `${corrected.sources.milestones}\n` },
+          },
+        },
+      ];
+      for (const { label, context } of driftedContexts) {
+        await expect(validateOrRefreshCompletionDependencyReceipt({
+          context,
+          entry: fixture.entry,
+          exactLegacyMigration: true,
+          allowRefresh: false,
+        }), label).rejects.toThrow(/authority|transition|drift|completion|evidence/i);
+      }
+
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: {
+          ...corrected,
+          binding: { ...corrected.binding, mainSha: 'f'.repeat(40) },
+        },
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/binding|predecessor/i);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: { ...corrected, requestedScopes: ['scripts/other.mjs'] },
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/scope|claim|authority|binding/i);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: { ...corrected, requestedClaims: ['prompt-014-drift'] },
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/scope|claim|authority|binding/i);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: {
+          ...corrected,
+          coordinationState: {
+            entries: [{
+              ...relevantEntry(fixture.root),
+              repositoryIdentity: fixture.entry.repositoryIdentity,
+            }, fixture.entry],
+          },
+        },
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/scope|claim|authority|binding/i);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: corrected,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: true,
+      })).rejects.toThrow(/second refresh|already consumed/i);
+
+      const receiptPath = dependencyReceiptPath(fixture.root, '014');
+      const originalReceipt = await readFile(receiptPath, 'utf8');
+      await unlink(receiptPath);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: corrected,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/missing/i);
+      await writeFile(receiptPath, originalReceipt);
+
+      const forgedReceipt = JSON.parse(originalReceipt) as {
+        completion: { anchor: { authority: Record<string, string> } };
+      };
+      forgedReceipt.completion.anchor.authority.progress = '0'.repeat(64);
+      await writeFile(receiptPath, JSON.stringify(forgedReceipt));
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: corrected,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/anchor authority|mismatch|malformed|digest/i);
+      await writeFile(receiptPath, originalReceipt);
+
+      git(fixture.root, ['reset', '--hard', fixture.entry.startBranchSha]);
+      await expect(validateOrRefreshCompletionDependencyReceipt({
+        context: corrected,
+        entry: fixture.entry,
+        exactLegacyMigration: true,
+        allowRefresh: false,
+      })).rejects.toThrow(/completion authority has no derivable active-branch anchor/i);
+    } finally {
+      await rm(fixture.root, { recursive: true, force: true });
+    }
+  });
+
   it('requires an issued nonce commitment to consume one generic completion receipt', async () => {
     const fixture = await completionFixture();
     try {
@@ -285,7 +456,7 @@ describe('compact prompt dependency packets', () => {
           context,
           entry: fixture.entry,
           allowRefresh: false,
-        })).rejects.toThrow(/predecessor|binding|authority|scope|claim|transition|drift/i);
+        })).rejects.toThrow(/predecessor|binding|authority|scope|claim|transition|drift|completion|evidence/i);
       }
     } finally {
       await rm(fixture.root, { recursive: true, force: true });

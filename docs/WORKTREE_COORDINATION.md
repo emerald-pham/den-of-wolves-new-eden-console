@@ -150,6 +150,31 @@ already-consumed issuance fails closed, and finish verifies the consumed
 receipt without refreshing it. The exact P012/P014 migration issues the same
 random commitment before either prompt can complete.
 
+After consumption, a later correction may update only that same prompt's
+completion-evidence text in `IMPLEMENTATION_PROGRESS.md`, including before the
+completion candidate lands. The receipt remains immutable: validation first
+locates an exact committed authority state on the active branch whose authority
+identity matches the receipt, then revalidates its binding, digest, completion
+lineage, selected checked/done prompt, scopes, claims, conflicts, main binding,
+and anchor transition against that state. Current authority may differ only
+under the existing same-prompt normalized completion-progress comparison; plan,
+dependency, milestones, aggregate/status metadata, other rows, and coordination
+identity remain fail-closed. This is not a second receipt refresh.
+
+A consumed receipt may record one atomic, receipt-bound **additive** scope
+extension only when its active owner has an exact prior full validation on the
+current branch lineage and a newer committed candidate. The immutable extension
+records the original receipt identity and digest, prior validation identity/SHA,
+original scopes and claims, authorization branch SHA, exact additions, and a
+semantic fingerprint; validation continues to prove the original receipt with
+its original scopes/claims before accepting the current `original + additions`
+scope list. Existing scopes and claims cannot be removed, narrowed, renamed,
+reordered, or changed; a later unrecorded scope, conflict, lineage/anchor drift,
+or another refresh fails closed. The currently authorized additions are exactly
+`docs/WORKTREE_COORDINATION.md`, `scripts/emulator-resource-registry.mjs`, and
+`scripts/prompt-dependencies.mjs`; record them through `coordination:amend`,
+then run a new exact validation before landing.
+
 When independent review finds a defect only after the exact validated completion
 candidate has landed, use the still-active entry for one claimed-scope repair
 chain. Validation first requires local `main`, tracking `origin/main`, and live

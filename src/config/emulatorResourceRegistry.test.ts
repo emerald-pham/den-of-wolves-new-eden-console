@@ -384,6 +384,212 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('records one receipt-bound completion scope extension without changing its claims', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-completion-scope-extension-${randomUUID()}.json`);
+    const identity = await currentGitIdentity();
+    const branchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
+    const priorValidationSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD~1']);
+    const mainSha = await readFixtureMainSha(process.cwd());
+    const priorValidation = {
+      ...codeValidation,
+      commitSha: priorValidationSha,
+      profile: { kind: 'full', reason: 'fixture completion anchor', commands: [] },
+    };
+    const strictContext = await dependencyReceiptTestOptions.dependencyReceiptContextFactory({
+      implementationPrompt: '014',
+      changeClass: 'non-feature',
+      worktree: process.cwd(),
+      branchName: identity.branchName,
+      startBranchSha: mainSha,
+      startMainSha: mainSha,
+      scopes: ['src/config/promptDependencies.test.ts'],
+      claims: ['prompt-014'],
+    }, {}, {});
+    const strictReceipt = await acceptedDependencyReceipt(strictContext);
+    const completionReceipt = {
+      ...strictReceipt,
+      issuance: undefined,
+      policy: 'completion-refreshed',
+      completion: {
+        prior: dependencyReceiptMetadata(strictReceipt, 'required'),
+        consumedAt: '2026-09-11T00:01:00.000Z',
+        anchor: { commitSha: mainSha },
+      },
+    };
+    const entry = {
+      ...amendmentEntry({ id: 'completion-scope-extension-owner' }),
+      ...identity,
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationRegistrationRequired: true,
+      implementationPrompt: '014',
+      startBranchSha: mainSha,
+      startMainSha: mainSha,
+      scopes: ['src/config/promptDependencies.test.ts'],
+      claims: ['prompt-014'],
+      dependencyReceipt: dependencyReceiptMetadata(completionReceipt, 'completion-refreshed'),
+      validation: priorValidation,
+      validationHistory: [priorValidation],
+    };
+    const doneRejected = async () => { throw new Error('Prompt 014 is not mechanically ready: progress=done'); };
+    const completionValidator = vi.fn(async (options: Record<string, unknown>) => {
+      const { context } = options as { context: DependencyReceiptContext };
+      expect(context.requestedScopes).toEqual(['src/config/promptDependencies.test.ts']);
+      expect(context.requestedClaims).toEqual(['prompt-014']);
+      return completionReceipt;
+    });
+    const extensionAnchor = vi.fn(async () => priorValidation);
+    const extensionScopes = [
+      'docs/WORKTREE_COORDINATION.md',
+      'scripts/emulator-resource-registry.mjs',
+      'scripts/prompt-dependencies.mjs',
+    ];
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await heartbeatCoordinationEntry(filePath, { id: entry.id });
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        scope: 'src/another-scope.ts',
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/only these additive scopes/i);
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        claims: 'prompt-014-drift',
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/scope-only|claim changes/i);
+      const amended = await amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        scope: extensionScopes.join(','),
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      });
+      expect(amended).toMatchObject({
+        claims: ['prompt-014'],
+        scopes: ['src/config/promptDependencies.test.ts', ...extensionScopes],
+        completionScopeExtension: {
+          schemaVersion: 1,
+          priorScopes: ['src/config/promptDependencies.test.ts'],
+          priorClaims: ['prompt-014'],
+          addedScopes: extensionScopes,
+          authorizationBranchSha: branchSha,
+          priorValidationSha,
+          fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+        },
+      });
+      expect(completionValidator).toHaveBeenCalledOnce();
+      expect(extensionAnchor).toHaveBeenCalledOnce();
+
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        scope: 'src/another-scope.ts',
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/scope extension|already recorded|scope-only/i);
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        claims: 'prompt-014-drift',
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/scope-only|claims|completion/i);
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        'refresh-dependency-receipt': 'true',
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/cannot be refreshed a second time/i);
+
+      const validationOptions = {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release: releaseState({
+          branchName: identity.branchName,
+          branchSha,
+          mainSha,
+          originMainSha: mainSha,
+          startBranchSha: mainSha,
+          mainContainsBranch: false,
+          changedFiles: ['src/config/promptDependencies.test.ts', ...extensionScopes],
+        }),
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+        commandRunner: async () => undefined,
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      };
+      const assertStoredExtensionRejected = async (
+        mutate: (state: { entries: Array<Record<string, unknown>> }) => void,
+        error: RegExp,
+      ) => {
+        const pristine = await readCoordinationState(filePath);
+        const tampered = structuredClone(pristine) as unknown as { entries: Array<Record<string, unknown>> };
+        mutate(tampered);
+        await writeFile(filePath, JSON.stringify(tampered));
+        await expect(validateCoordinationEntry(filePath, validationOptions)).rejects.toThrow(error);
+        await writeFile(filePath, JSON.stringify(pristine));
+      };
+      await assertStoredExtensionRejected((state) => {
+        state.entries[0]!.scopes = [...extensionScopes, 'src/unrecorded.ts'];
+      }, /scope extension.*immutable receipt ownership/i);
+      await assertStoredExtensionRejected((state) => {
+        state.entries[0]!.claims = ['prompt-014-drift'];
+      }, /scope extension.*immutable receipt ownership/i);
+      await assertStoredExtensionRejected((state) => {
+        const extension = state.entries[0]!.completionScopeExtension as Record<string, unknown>;
+        extension.fingerprint = '0'.repeat(64);
+      }, /scope extension.*immutable receipt ownership/i);
+      await assertStoredExtensionRejected((state) => {
+        state.entries[0]!.validation = undefined;
+        state.entries[0]!.validationHistory = [];
+      }, /prior validation identity.*missing|tampered/i);
+      await assertStoredExtensionRejected((state) => {
+        state.entries.push({
+          ...state.entries[0],
+          id: 'completion-scope-extension-conflict',
+          worktree: resolve(tmpdir(), 'other-completion-scope-extension-worktree'),
+          scopes: ['docs/WORKTREE_COORDINATION.md'],
+          claims: [],
+          completionScopeExtension: undefined,
+        });
+      }, /scope extension.*conflict-free/i);
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
   it('consumes a completion issuance at most once after checks and records the new lineage', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-completion-validate-${randomUUID()}.json`);
     const strictContext = await dependencyReceiptTestOptions.dependencyReceiptContextFactory({

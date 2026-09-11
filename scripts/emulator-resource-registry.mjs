@@ -123,6 +123,12 @@ const POST_LANDING_REPAIR_FORBIDDEN_FILES = new Set([
   'docs/IMPLEMENTATION_MILESTONES.md',
   'src/changelog.ts',
 ]);
+const COMPLETION_SCOPE_EXTENSION_SCHEMA_VERSION = 1;
+const COMPLETION_SCOPE_EXTENSION_ALLOWED_SCOPES = Object.freeze([
+  'docs/WORKTREE_COORDINATION.md',
+  'scripts/emulator-resource-registry.mjs',
+  'scripts/prompt-dependencies.mjs',
+]);
 const execFileAsync = promisify(execFile);
 
 /**
@@ -681,6 +687,7 @@ function validationEntryInputs(entry) {
     scopes: sortedStrings(entry.scopes),
     claims: sortedStrings(entry.claims),
     dependencyReceipt: entry.dependencyReceipt ?? null,
+    completionScopeExtension: entry.completionScopeExtension ?? null,
     postLandingRepair: entry.postLandingRepair ?? null,
   };
 }
@@ -2008,6 +2015,134 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
 
 function semanticIdentity(value) {
   return contentIdentity(JSON.stringify(canonicalJsonValue(value)));
+}
+
+function completionScopeExtensionRecord({ entry, validation, addedScopes, authorizationBranchSha }) {
+  const record = {
+    schemaVersion: COMPLETION_SCOPE_EXTENSION_SCHEMA_VERSION,
+    receiptIdentity: semanticIdentity(entry.dependencyReceipt),
+    receiptContentDigest: entry.dependencyReceipt?.contentDigest,
+    priorValidationIdentity: semanticIdentity(validation),
+    priorValidationSha: validation.commitSha,
+    priorScopes: [...entry.scopes],
+    priorClaims: [...entry.claims],
+    addedScopes: [...addedScopes],
+    authorizationBranchSha,
+  };
+  return { ...record, fingerprint: semanticIdentity(record) };
+}
+
+function assertCompletionScopeExtensionRequest(entry, scopes, claims) {
+  if (entry.dependencyReceipt?.policy !== 'completion-refreshed') return;
+  if (entry.completionScopeExtension) {
+    throw new Error('A consumed completion receipt already has an immutable scope extension.');
+  }
+  if (claims.length > 0 || scopes.length === 0) {
+    throw new Error('A consumed completion receipt permits one scope-only extension with no claim changes.');
+  }
+  if (!exactArrayMatch(scopes, COMPLETION_SCOPE_EXTENSION_ALLOWED_SCOPES)) {
+    throw new Error(
+      `A consumed completion receipt permits only these additive scopes: ${COMPLETION_SCOPE_EXTENSION_ALLOWED_SCOPES.join(', ')}.`,
+    );
+  }
+}
+
+function completionScopeExtensionReceiptEntry(entry) {
+  const extension = objectRecord(entry.completionScopeExtension);
+  if (Object.keys(extension).length === 0) return entry;
+  return {
+    ...entry,
+    scopes: extension.priorScopes,
+    claims: extension.priorClaims,
+  };
+}
+
+function completionScopeExtensionPriorValidation(entry, extension) {
+  const candidates = [entry.validation, ...(Array.isArray(entry.validationHistory) ? entry.validationHistory : [])]
+    .filter((validation) => validation?.commitSha === extension.priorValidationSha);
+  const validation = candidates.find((candidate) =>
+    semanticIdentity(candidate) === extension.priorValidationIdentity);
+  if (!validation) {
+    throw new Error('Completion scope extension prior validation identity is missing or tampered.');
+  }
+  return validation;
+}
+
+async function verifiedCompletionScopeExtensionValidation(entry, validation, authorizationBranchSha, {
+  cwd,
+  memo,
+  options,
+} = {}) {
+  if (!validation || typeof validation !== 'object') {
+    throw new Error('Completion scope extension requires one exact prior full passing validation anchor.');
+  }
+  const expectedIdentity = semanticIdentity(validation);
+  const finder = options?.completionScopeExtensionValidationAnchor;
+  const verified = finder
+    ? await finder({ entry, candidateSha: validation.commitSha, expectedIdentity })
+    : await fullValidationForCandidate(entry, validation.commitSha, cwd, memo, expectedIdentity);
+  if (!verified || semanticIdentity(verified) !== expectedIdentity ||
+    verified.passed !== true || verified.profile?.kind !== 'full' ||
+    !/^[0-9a-f]{40}$/.test(text(verified.commitSha).toLowerCase())) {
+    throw new Error('Completion scope extension requires one exact prior full passing validation anchor.');
+  }
+  const authorizationSha = text(authorizationBranchSha).toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(authorizationSha) ||
+    !(await gitIsAncestor(verified.commitSha, authorizationSha, cwd, memo)) ||
+    verified.commitSha === authorizationSha) {
+    throw new Error(
+      'Completion scope extension requires a new committed candidate after its prior full validation; rerun exact validation after the extension.',
+    );
+  }
+  return verified;
+}
+
+async function assertStoredCompletionScopeExtension(entry, state, {
+  branchSha,
+  cwd,
+  memo,
+  options,
+} = {}) {
+  const extension = objectRecord(entry.completionScopeExtension);
+  if (Object.keys(extension).length === 0) return null;
+  const { fingerprint, ...record } = extension;
+  const priorScopes = Array.isArray(extension.priorScopes) ? extension.priorScopes : [];
+  const priorClaims = Array.isArray(extension.priorClaims) ? extension.priorClaims : [];
+  const addedScopes = Array.isArray(extension.addedScopes) ? extension.addedScopes : [];
+  if (extension.schemaVersion !== COMPLETION_SCOPE_EXTENSION_SCHEMA_VERSION ||
+    !/^[0-9a-f]{64}$/.test(text(fingerprint).toLowerCase()) ||
+    fingerprint !== semanticIdentity(record) ||
+    extension.receiptIdentity !== semanticIdentity(entry.dependencyReceipt) ||
+    extension.receiptContentDigest !== entry.dependencyReceipt?.contentDigest ||
+    !exactArrayMatch(addedScopes, COMPLETION_SCOPE_EXTENSION_ALLOWED_SCOPES) ||
+    !exactArrayMatch(entry.scopes, [...priorScopes, ...addedScopes]) ||
+    !exactArrayMatch(entry.claims, priorClaims)) {
+    throw new Error('Completion scope extension is missing, malformed, or no longer matches immutable receipt ownership.');
+  }
+  const validation = completionScopeExtensionPriorValidation(entry, extension);
+  const verified = await verifiedCompletionScopeExtensionValidation(
+    entry,
+    validation,
+    extension.authorizationBranchSha,
+    { cwd, memo, options },
+  );
+  const currentBranchSha = text(branchSha).toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(currentBranchSha) ||
+    !(await gitIsAncestor(extension.authorizationBranchSha, currentBranchSha, cwd, memo))) {
+    throw new Error('Completion scope extension authorization branch is not on the current branch lineage.');
+  }
+  const conflict = findCoordinationConflict({
+    activeEntries: (state.entries ?? []).filter((candidate) => candidate.id !== entry.id),
+    repositoryIdentity: entry.repositoryIdentity,
+    repositoryRoot: entry.repositoryRoot,
+    worktree: entry.worktree,
+    scopes: addedScopes,
+    claims: [],
+  });
+  if (conflict) {
+    throw new Error(`Completion scope extension is no longer conflict-free: ${formatCoordinationConflict(conflict)}`);
+  }
+  return verified;
 }
 
 async function fullValidationForCandidate(entry, candidateSha, cwd, memo, expectedIdentity) {
@@ -4308,6 +4443,16 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
 
     const existingScopes = Array.isArray(entry.scopes) ? entry.scopes : [];
     const existingClaims = Array.isArray(entry.claims) ? entry.claims : [];
+    const completionScopeExtension = entry.dependencyReceipt?.policy === 'completion-refreshed';
+    if (completionScopeExtension && refreshDependencyReceipt) {
+      throw new Error('A consumed completion receipt cannot be refreshed a second time.');
+    }
+    if (completionScopeExtension &&
+      (requestedImplementationPrompt !== null || requestedChangeClass !== null)) {
+      throw new Error('A consumed completion receipt scope extension cannot change its prompt or change class.');
+    }
+    const amendmentScopes = completionScopeExtension ? sortedStrings(scopes) : scopes;
+    assertCompletionScopeExtensionRequest(entry, amendmentScopes, claims);
     const normalizedExistingScopes = existingScopes.map((scope) => {
       try {
         return normalizeScope(scope);
@@ -4318,7 +4463,7 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
     const normalizedExistingClaims = new Set(existingClaims.map((claim) =>
       typeof claim === 'string' ? claim.trim().toLowerCase() : claim,
     ));
-    const duplicateExistingScope = scopes.find((scope) =>
+    const duplicateExistingScope = amendmentScopes.find((scope) =>
       normalizedExistingScopes.some((existingScope) => scopesOverlap(scope, existingScope)),
     );
     if (duplicateExistingScope) {
@@ -4340,12 +4485,12 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
       repositoryIdentity: start.repositoryIdentity,
       repositoryRoot: start.repositoryRoot,
       worktree: process.cwd(),
-      scopes,
+      scopes: amendmentScopes,
       claims,
     });
     if (conflict) throw new Error(formatCoordinationConflict(conflict));
 
-    const prospectiveScopes = [...existingScopes, ...scopes];
+    const prospectiveScopes = [...existingScopes, ...amendmentScopes];
     const prospectiveClaims = [...existingClaims, ...claims];
     const prospectiveEntry = {
       ...entry,
@@ -4354,12 +4499,31 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
         : {}),
       ...(requestedChangeClass ? { changeClass: requestedChangeClass } : {}),
     };
-    const dependencyReceipt = await requireDependencyReceipt(prospectiveEntry, state, options, {
-      scopes: prospectiveScopes,
-      claims: prospectiveClaims,
-      mainSha: start.mainSha,
-      allowLegacyRefresh: true,
-    });
+    const dependencyReceipt = completionScopeExtension
+      ? await requireDependencyReceipt(completionScopeExtensionReceiptEntry(entry), state, options, {
+          mainSha: start.mainSha,
+          allowLegacyRefresh: true,
+          allowCompletionRead: true,
+        })
+      : await requireDependencyReceipt(prospectiveEntry, state, options, {
+          scopes: prospectiveScopes,
+          claims: prospectiveClaims,
+          mainSha: start.mainSha,
+          allowLegacyRefresh: true,
+        });
+    const completionExtension = completionScopeExtension
+      ? completionScopeExtensionRecord({
+          entry,
+          validation: await verifiedCompletionScopeExtensionValidation(
+            entry,
+            entry.validation,
+            start.branchSha,
+            { cwd: process.cwd(), memo: { git: new Map() }, options },
+          ),
+          addedScopes: amendmentScopes,
+          authorizationBranchSha: start.branchSha,
+        })
+      : null;
     const previousDependencyReceipt = entry.dependencyReceipt ?? null;
     const receiptChanged = JSON.stringify(dependencyReceipt ?? null) !==
       JSON.stringify(previousDependencyReceipt);
@@ -4367,9 +4531,10 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
       requestedImplementationPrompt === null && requestedChangeClass === null) {
       throw new Error(`Coordination entry ${entry.id} dependency receipt already matches; no new amendment was requested.`);
     }
-    entry.scopes = [...existingScopes, ...scopes];
+    entry.scopes = prospectiveScopes;
     entry.claims = [...existingClaims, ...claims];
     if (dependencyReceipt) entry.dependencyReceipt = dependencyReceipt;
+    if (completionExtension) entry.completionScopeExtension = completionExtension;
     if (bindsImplementationPrompt || advancesTransferredPrompt) {
       entry.implementationPrompt = requestedImplementationPrompt;
       entry.implementationRegistrationRequired = true;
@@ -4380,7 +4545,7 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
       amendedAt: sessionGoalNow(options.now),
       worktree: process.cwd(),
       branchName: start.branchName,
-      scopes: [...scopes],
+      scopes: [...amendmentScopes],
       claims: [...claims],
       ...(bindsImplementationPrompt || advancesTransferredPrompt
         ? { implementationPrompt: requestedImplementationPrompt }
@@ -4406,6 +4571,9 @@ async function amendCoordinationOwnership(filePath, options = {}, { requireFresh
               afterNonceCommitment: dependencyReceipt?.issuance?.nonceCommitment ?? null,
             },
           }
+        : {}),
+      ...(completionExtension
+        ? { completionScopeExtension: completionExtension }
         : {}),
     };
     entry.amendments = [
@@ -5304,12 +5472,18 @@ export async function validateCoordinationEntry(filePath, options) {
       validationDirectory,
       validationMemo,
     );
-    const dependencyReceipt = await requireDependencyReceipt(entry, state, options, {
+    const dependencyReceipt = await requireDependencyReceipt(completionScopeExtensionReceiptEntry(entry), state, options, {
       mainSha: release.mainSha,
       allowLegacyRefresh: true,
       allowCompletionRead: true,
       allowCompletionPending: true,
       ...(postLandingRepair ? { landedMainBinding: postLandingRepair.landedMainBinding } : {}),
+    });
+    await assertStoredCompletionScopeExtension(entry, state, {
+      branchSha: release.branchSha,
+      cwd: process.cwd(),
+      memo: validationMemo,
+      options,
     });
     const errors = releaseMetadataErrors({
       entry,
@@ -5733,7 +5907,7 @@ export async function validateCoordinationEntry(filePath, options) {
         );
       }
     }
-    const currentDependencyReceipt = await requireDependencyReceipt(entry, state, options, {
+    const currentDependencyReceipt = await requireDependencyReceipt(completionScopeExtensionReceiptEntry(entry), state, options, {
       mainSha: finalRelease.mainSha,
       allowLegacyRefresh: true,
       allowCompletionRead: true,
@@ -5741,6 +5915,12 @@ export async function validateCoordinationEntry(filePath, options) {
       ...(preparation.postLandingRepair
         ? { landedMainBinding: preparation.postLandingRepair.landedMainBinding }
         : {}),
+    });
+    await assertStoredCompletionScopeExtension(entry, state, {
+      branchSha: finalRelease.branchSha,
+      cwd: process.cwd(),
+      memo: validationMemo,
+      options,
     });
     const completedDuringValidation = currentDependencyReceipt?.policy === 'completion-refreshed' &&
       preparation.dependencyReceipt?.policy !== 'completion-refreshed' &&
@@ -5878,7 +6058,7 @@ export async function finishCoordinationEntry(filePath, options) {
       throw new Error(`Cannot complete coordination entry ${entry.id}: task history was rewritten after coordination began.`);
     }
     if (entry.dependencyReceipt?.policy === 'completion-refreshed') {
-      await requireDependencyReceipt(entry, state, options, {
+      await requireDependencyReceipt(completionScopeExtensionReceiptEntry(entry), state, options, {
         mainSha: release.mainSha,
         allowLegacyRefresh: true,
         allowCompletionRead: true,
@@ -5891,6 +6071,12 @@ export async function finishCoordinationEntry(filePath, options) {
               ),
             }
           : {}),
+      });
+      await assertStoredCompletionScopeExtension(entry, state, {
+        branchSha: release.branchSha,
+        cwd: process.cwd(),
+        memo: { git: new Map() },
+        options,
       });
     }
     if (entry.implementationRegistrationRequired === true &&

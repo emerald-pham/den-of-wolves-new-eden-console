@@ -779,11 +779,10 @@ async function writeCompletionReceipt(packet) {
   }
 }
 
-function matchingAnchorCommit(cwd, entry, receipt) {
-  const authority = receipt?.fingerprintInputs?.authority;
+function matchingAuthorityCommit(cwd, entry, authority, label) {
   if (!authority || Object.values(authority).some((value) =>
     typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value))) {
-    throw new Error('Completion receipt prior authority fingerprint is malformed');
+    throw new Error(`Completion receipt ${label} authority fingerprint is malformed`);
   }
   requireAncestor(cwd, entry.startBranchSha);
   const commits = [...new Set([
@@ -792,8 +791,16 @@ function matchingAnchorCommit(cwd, entry, receipt) {
   ])];
   const anchor = commits.find((commit) =>
     stableJson(authorityIdentity(authoritySourcesAtCommit(cwd, commit))) === stableJson(authority));
-  if (!anchor) throw new Error('Completion receipt prior authority has no derivable active-branch anchor');
+  if (!anchor) throw new Error(`Completion receipt ${label} authority has no derivable active-branch anchor`);
   return anchor;
+}
+
+function matchingAnchorCommit(cwd, entry, receipt) {
+  return matchingAuthorityCommit(cwd, entry, receipt?.fingerprintInputs?.authority, 'prior');
+}
+
+function matchingCompletionAuthorityCommit(cwd, entry, receipt) {
+  return matchingAuthorityCommit(cwd, entry, receipt?.fingerprintInputs?.authority, 'completion');
 }
 
 function strictPriorPolicy(policy, prompt, exactLegacyMigration = false) {
@@ -849,6 +856,20 @@ function completionReceiptContext(context, receipt, landedMainBinding) {
   };
 }
 
+function assertPermittedCompletionEvidenceCorrection(completionSources, currentSources, prompt) {
+  const normalizedPrompt = normalizeImplementationPrompt(prompt);
+  if (completionSources.plan !== currentSources.plan ||
+    completionSources.dependency !== currentSources.dependency ||
+    completionSources.milestones !== currentSources.milestones ||
+    progressAggregateMetadata(completionSources.progress) !== progressAggregateMetadata(currentSources.progress) ||
+    normalizeCompletionProgressMetadata(completionSources.progress, normalizedPrompt) !==
+      normalizeCompletionProgressMetadata(currentSources.progress, normalizedPrompt)) {
+    throw new Error(
+      `Completion receipt permits only Prompt ${normalizedPrompt}'s normalized completion-evidence correction after consumption`,
+    );
+  }
+}
+
 function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration, {
   pendingMetadata,
   landedMainBinding,
@@ -887,21 +908,24 @@ function validateCompletionReceipt(context, entry, receipt, exactLegacyMigration
   if (stableJson(completion.anchor.authority) !== stableJson(authorityIdentity(anchorSources))) {
     throw new Error('Completion receipt anchor authority drifted');
   }
+  const completionAuthority = matchingCompletionAuthorityCommit(context.binding.worktree, entry, receipt);
+  const completionSources = authoritySourcesAtCommit(context.binding.worktree, completionAuthority);
   const priorPacket = createDependencyPacket({ ...receiptContext, sources: anchorSources });
   if (completion.prior.fingerprint !== priorPacket.fingerprint) {
     throw new Error('Completion receipt consumed predecessor does not match the active binding');
   }
-  const transition = canonicalCompletionTransition(anchorSources, context.sources, context.binding.prompt);
+  const transition = canonicalCompletionTransition(anchorSources, completionSources, context.binding.prompt);
   if (stableJson(completion.transition) !== stableJson(transition)) {
     throw new Error('Completion receipt canonical transition drifted');
   }
   const expected = completionReceiptRecord(completionPacket(
-    receiptContext,
+    { ...receiptContext, sources: completionSources },
     completion,
   ));
   if (stableJson(receipt) !== stableJson(expected)) {
     throw new Error('Completion receipt binding, authority, main, scope, claim, or transition mismatch');
   }
+  assertPermittedCompletionEvidenceCorrection(completionSources, context.sources, context.binding.prompt);
   return receipt;
 }
 
