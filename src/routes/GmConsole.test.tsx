@@ -15,6 +15,8 @@ import GmConsole from './GmConsole';
 vi.mock('@/lib/sessionService', () => ({
   kickGmInstance: vi.fn(),
   kickPlayer: vi.fn(),
+  assignRole: vi.fn(),
+  releaseRole: vi.fn(),
   setCapybaraEnabled: vi.fn(),
   setDioneEnabled: vi.fn(),
   setPressEnabled: vi.fn(),
@@ -38,7 +40,7 @@ vi.mock('@/lib/firestore', () => ({
   subscribeDamageDraws: vi.fn(),
 }));
 
-const { kickGmInstance, kickPlayer, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
+const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
@@ -335,6 +337,45 @@ it('groups connected players by command role in the GM console', async () => {
 
   unmount();
   expect(stopPlayers).toHaveBeenCalledOnce();
+});
+
+it('gives the facilitator an authoritative release and reassignment path during casting', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'casting',
+    currentTurn: 0,
+    activeRoleIds: recommendedRoleIds(8),
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(assignRole).mockResolvedValue('applied');
+  vi.mocked(releaseRole).mockResolvedValue('applied');
+  vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
+    onPlayers([
+      {
+        uid: 'u2', sessionId: 's1', displayName: 'Ari', role: 'player', seatId: 'admiral',
+        assignedRoleId: 'admiral', activeConsoleRoleId: null, joinedAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        uid: 'u3', sessionId: 's1', displayName: 'Bea', role: 'player', seatId: null,
+        assignedRoleId: null, activeConsoleRoleId: null, joinedAt: '2026-01-01T00:01:00.000Z',
+      },
+    ]);
+    return vi.fn();
+  });
+  renderConsole();
+
+  const casting = await screen.findByRole('region', { name: /facilitator casting/i });
+  await user.click(within(casting).getByRole('button', { name: /release role from ari/i }));
+  expect(releaseRole).toHaveBeenCalledWith('u2');
+
+  const roleSelect = within(casting).getByRole('combobox', { name: /role for bea/i });
+  await user.selectOptions(roleSelect, 'wing-commander');
+  await user.click(within(casting).getByRole('button', { name: /assign role to bea/i }));
+  expect(assignRole).toHaveBeenCalledWith('u3', 'wing-commander');
 });
 
 it('shows fleet DRADIS and jumps between ship perspectives', async () => {

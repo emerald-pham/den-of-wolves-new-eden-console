@@ -308,6 +308,14 @@ async function composeProductionSession(
       readonly activeRoleIds: readonly string[];
       readonly coreUids: readonly string[];
     }) => Promise<void>;
+    readonly afterAssignments?: (context: {
+      readonly sessionId: string;
+      readonly ownerUid: string;
+      readonly instanceId: string;
+      readonly activeRoleIds: readonly string[];
+      readonly coreUids: readonly string[];
+      readonly setupRevision: number;
+    }) => Promise<number | void>;
   } = {},
 ) {
   const ownerUid = `gm-${playerCount}`;
@@ -410,6 +418,16 @@ async function composeProductionSession(
     setupRevision = (seat as { setupRevision: number }).setupRevision;
   }
 
+  const revisedSetupRevision = await options.afterAssignments?.({
+    sessionId,
+    ownerUid,
+    instanceId: `bridge-${playerCount}`,
+    activeRoleIds,
+    coreUids,
+    setupRevision,
+  });
+  if (typeof revisedSetupRevision === 'number') setupRevision = revisedSetupRevision;
+
   let iaRaceResults: PromiseSettledResult<unknown>[] = [];
   let iaRaceRequests: Array<Record<string, unknown>> = [];
   let iaRaceWinner: { request: Record<string, unknown>; result: Record<string, unknown> } | null = null;
@@ -495,9 +513,10 @@ async function composeProductionSession(
 
     await disconnectFromSession.run(request({ sessionId }, coreUids[1]!));
     const resumedBeforeStart = await resumeSession.run(request({ sessionId }, coreUids[1]!));
+    const resumedRoleId = (read(`sessions/${sessionId}/players/${coreUids[1]}`) as StoredDocument).assignedRoleId;
     expect(resumedBeforeStart).toMatchObject({
       session: { id: sessionId, phase: 'casting', setupRevision },
-      player: { uid: coreUids[1], assignedRoleId: activeRoleIds[1] },
+      player: { uid: coreUids[1], assignedRoleId: resumedRoleId },
     });
     expect(JSON.stringify(resumedBeforeStart)).not.toMatch(/wolf-agent|intelligence-agent|selectedWolfRoleIds/);
   }
@@ -893,6 +912,64 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     });
     expect(JSON.stringify(resumed)).not.toMatch(/wolf-agent|selectedWolfRoleIds|fleet-loyalist/);
     expect(resumed).not.toHaveProperty('secrets');
+  });
+});
+
+describe('Prompt 062 release and reassignment composition', () => {
+  beforeEach(() => mock.reset());
+
+  it('releases reciprocal seats before reassignment and reaches start readiness after normal claims', async () => {
+    const composition = await composeProductionSession(8, {
+      afterAssignments: async ({ sessionId, ownerUid, instanceId, activeRoleIds, coreUids, setupRevision }) => {
+        let revision = setupRevision;
+        const releaseFirst = await releaseRole.run(request({
+          sessionId, instanceId, requestId: 'release-reassign-first', targetUid: coreUids[0]!,
+        }, ownerUid)) as { setupRevision: number };
+        revision = releaseFirst.setupRevision;
+        const releaseSecond = await releaseRole.run(request({
+          sessionId, instanceId, requestId: 'release-reassign-second', targetUid: coreUids[1]!,
+        }, ownerUid)) as { setupRevision: number };
+        revision = releaseSecond.setupRevision;
+
+        const assignFirst = await assignRole.run(request({
+          sessionId, instanceId, requestId: 'assign-reassign-first',
+          targetUid: coreUids[0]!, roleId: activeRoleIds[1]!,
+        }, ownerUid)) as { setupRevision: number };
+        revision = assignFirst.setupRevision;
+        const claimFirst = await claimSeat.run(request({
+          sessionId, seatId: activeRoleIds[1]!, requestId: 'claim-reassign-first',
+          expectedSetupRevision: revision,
+        }, coreUids[0]!)) as { setupRevision: number };
+        revision = claimFirst.setupRevision;
+
+        const assignSecond = await assignRole.run(request({
+          sessionId, instanceId, requestId: 'assign-reassign-second',
+          targetUid: coreUids[1]!, roleId: activeRoleIds[0]!,
+        }, ownerUid)) as { setupRevision: number };
+        revision = assignSecond.setupRevision;
+        const claimSecond = await claimSeat.run(request({
+          sessionId, seatId: activeRoleIds[0]!, requestId: 'claim-reassign-second',
+          expectedSetupRevision: revision,
+        }, coreUids[1]!)) as { setupRevision: number };
+        return claimSecond.setupRevision;
+      },
+    });
+
+    expect(composition.started).toMatchObject({ status: 'committed', currentTurn: 1 });
+    expect(read(`sessions/${composition.sessionId}/players/${composition.coreUids[0]}`)).toMatchObject({
+      assignedRoleId: composition.activeRoleIds[1],
+      seatId: composition.activeRoleIds[1],
+    });
+    expect(read(`sessions/${composition.sessionId}/players/${composition.coreUids[1]}`)).toMatchObject({
+      assignedRoleId: composition.activeRoleIds[0],
+      seatId: composition.activeRoleIds[0],
+    });
+    expect(read(`sessions/${composition.sessionId}/seats/${composition.activeRoleIds[0]}`)).toMatchObject({
+      status: 'claimed', holderUid: composition.coreUids[1],
+    });
+    expect(read(`sessions/${composition.sessionId}/seats/${composition.activeRoleIds[1]}`)).toMatchObject({
+      status: 'claimed', holderUid: composition.coreUids[0],
+    });
   });
 });
 

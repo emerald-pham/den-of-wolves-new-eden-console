@@ -209,6 +209,29 @@ export type PendingCommand = (
     }
   | {
       readonly id: string;
+      readonly kind: 'assignRole';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly targetUid: string;
+        readonly roleId: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'releaseRole';
+      readonly payload: {
+        readonly sessionId: string;
+        readonly instanceId: string;
+        readonly requestId: string;
+        readonly targetUid: string;
+      };
+      readonly createdAt: string;
+    }
+  | {
+      readonly id: string;
       readonly kind: 'popShipConfetti';
       readonly payload: {
         readonly sessionId: string;

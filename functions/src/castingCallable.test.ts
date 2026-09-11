@@ -210,6 +210,15 @@ it('assigns one active role through a facilitator instance and rejects duplicate
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('rejects role release from a non-facilitator actor before reading private state', async () => {
+  mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-wrong-actor', targetUid: 'u2',
+  }, 'u2'))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
 it('releases a role and replays a completed release request', async () => {
   mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
   mock.releasedSecret = {
@@ -221,7 +230,7 @@ it('releases a role and replays a completed release request', async () => {
   }))).resolves.toEqual({ sessionId: 's1', setupRevision: 1 });
   expect(mock.update).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/players/u2' }),
-    { assignedRoleId: null, activeConsoleRoleId: null },
+    { assignedRoleId: null, activeConsoleRoleId: null, seatId: null },
   );
   expect(mock.delete).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
@@ -249,6 +258,99 @@ it('releases a role and replays a completed release request', async () => {
     sessionId: 's1', instanceId: 'bridge', requestId: 'release-2', targetUid: 'u2',
   }))).resolves.toEqual({ sessionId: 's1', setupRevision: 4 });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('opens the target player\'s canonical seat and clears the seat pointer atomically', async () => {
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: 'icebreaker-miner',
+    activeConsoleRoleId: 'icebreaker-miner',
+    seatId: 'icebreaker-miner',
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/seats/icebreaker-miner') {
+      return snapshot({
+        roleId: 'icebreaker-miner', status: 'claimed', holderUid: 'u2', claimedAt: 'claimed',
+      }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-seat', targetUid: 'u2',
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 1 });
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u2' }),
+    { assignedRoleId: null, activeConsoleRoleId: null, seatId: null },
+  );
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/seats/icebreaker-miner' }),
+    { status: 'open', holderUid: null, claimedAt: null },
+  );
+});
+
+it('refuses to release a role when its claimed seat belongs to another player', async () => {
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: 'icebreaker-miner',
+    seatId: 'icebreaker-miner',
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/seats/icebreaker-miner') {
+      return snapshot({ roleId: 'icebreaker-miner', status: 'claimed', holderUid: 'u3' }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-nonstealing', targetUid: 'u2',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
+});
+
+it('refuses to release when the assigned role and claimed seat pointer disagree', async () => {
+  mock.target = {
+    connected: true,
+    role: 'player',
+    assignedRoleId: 'icebreaker-miner',
+    seatId: 'admiral',
+  };
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/seats/admiral') {
+      return snapshot({ roleId: 'admiral', status: 'claimed', holderUid: 'u2' }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(releaseRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'release-role-seat-mismatch', targetUid: 'u2',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.delete).not.toHaveBeenCalled();
 });
 
 it('removes both private Friend records when releasing one paired role', async () => {

@@ -373,6 +373,16 @@ function applyCommandResult(
     }
   }
   if (
+    (command.kind === 'assignRole' || command.kind === 'releaseRole') &&
+    store.session?.id === command.payload.sessionId &&
+    typeof result === 'object' && result !== null
+  ) {
+    const nextRevision = (result as Record<string, unknown>).setupRevision;
+    if (typeof nextRevision === 'number' && Number.isSafeInteger(nextRevision) && nextRevision >= 0) {
+      store.setSession({ ...store.session, setupRevision: nextRevision });
+    }
+  }
+  if (
     command.kind === 'setFacilitatorResponsibility' &&
     store.session?.id === command.payload.sessionId &&
     typeof result === 'object' && result !== null
@@ -943,6 +953,45 @@ export async function releaseSeat(seatId: string, reason?: string): Promise<Comm
       expectedSetupRevision: expectedSetupRevision(store.session),
       ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
       ...(reason?.trim() ? { reason: reason.trim() } : {}),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Assign an eligible player to one open printed role during casting. */
+export async function assignRole(targetUid: string, roleId: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before assigning a role.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'assignRole',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      targetUid,
+      roleId,
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
+/** Release a player’s role and its canonical station before start. */
+export async function releaseRole(targetUid: string): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before releasing a role.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'releaseRole',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      targetUid,
     },
     createdAt: new Date().toISOString(),
   });
