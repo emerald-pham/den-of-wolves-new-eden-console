@@ -849,7 +849,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
-| 666 | EXTEND | partial | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
+| 666 | EXTEND | done | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
 | 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Rebaseline runtime threats for hostile session-code clients and DDoS. |
 
 ## Explicit sequence rules

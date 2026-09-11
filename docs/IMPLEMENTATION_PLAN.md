@@ -2889,7 +2889,7 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 663
 - [x] Prompt 664
 - [x] Prompt 665
-- [ ] Prompt 666
+- [x] Prompt 666
 - [ ] Prompt 667
 
 #### Foundation, session, casting, and start (Prompts 001–090)

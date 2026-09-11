@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**93 / 734 prompts complete (12.67%)**
+**94 / 734 prompts complete (12.81%)**
 
-Status breakdown: **93 done · 26 partial · 0 active · 615 missing**.
+Status breakdown: **94 done · 25 partial · 0 active · 615 missing**.
 
 Active prompt: **none**
 
@@ -40,10 +40,16 @@ Prompt 665 is complete as non-feature coordination governance: session goals
 have a durable ignored artifact, exact wrap-up comparison, fail-closed cleanup,
 legacy migration policy, and phase-specific delegation floors, with reconciled
 exact-SHA release evidence recorded by the coordination gate.
-Prompt 666 is partial as a non-feature compact
-dependency-packet/receipt follow-on to Prompt 665. Its focused red/green proof
-covers compact/full/JSON parity, relevant-only coordination fingerprints,
-atomic receipt integrity, and begin/amend/validate enforcement. Prompt 667
+Prompt 666 is done as a non-feature compact dependency-packet/receipt follow-on
+to Prompt 665. Its focused red/green proof covers compact/full/JSON parity,
+relevant-only coordination fingerprints, atomic receipt integrity, and
+begin/amend/validate enforcement. A strict receipt now keeps a random 256-bit
+nonce only in the ignored worktree file while its active ledger entry stores
+the nonce commitment and exact receipt digest. Authoritative validation can
+consume that issuance once for the canonical partial-to-done transition;
+deletion, post-done recreation, replay, mismatch, half-write, or a second
+refresh fails closed, and finish revalidates the consumed lineage read-only.
+Prompt 667
 remains missing as a non-feature security-governance rebaseline that maps hostile
 runtime clients and resource exhaustion to existing controls under mandatory
 independent review; any runtime gap becomes a separately registered feature.
@@ -1167,7 +1173,7 @@ release classification and evidence.
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 | 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
 | 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
-| 666 | partial | non-feature | — | Candidate [EXTEND] tooling provides the shared compact/full/JSON dispatcher, full parity/cycle/typed-evidence/readiness validation, authority/main/milestone/evidence and relevant-coordination fingerprints, atomic ignored receipt integrity, begin/amend/validate gates, exact P012/P014 legacy refresh, CI/guidance drift checks, and a repeatable `npm run coordination:dependencies:measure -- --entry <id>` fixture. Current measured content is 24 lines / 2,541 bytes versus 670 lines / 51,297 bytes for the complete view; a representative 25-iteration run took 0.159 ms compact versus 3.498 ms full wall time. It remains partial until independent review, reconciliation, merge, push, and coordination closeout. |
+| 666 | done | non-feature | — | Completed [EXTEND] tooling provides the shared compact/full/JSON dispatcher, full parity/cycle/typed-evidence/readiness validation, authority/main/milestone/evidence and relevant-coordination fingerprints, atomic ignored receipt integrity, begin/amend/validate gates, exact P012/P014 legacy refresh, CI/guidance drift checks, and a repeatable `npm run coordination:dependencies:measure -- --entry <id>` fixture. Strict issuance uses a worktree-only random nonce with a ledger commitment and exact digest; authoritative validation consumes it once for the canonical partial-to-done transition, preserves the predecessor lineage without the nonce, and rejects deletion, post-done recreation, replay, mismatch, half-write, or repeat consumption. Current measured content is 24 lines / 2,541 bytes versus 670 lines / 51,297 bytes for the complete view; a representative 25-iteration run took 0.159 ms compact versus 3.498 ms full wall time. |
 | 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
 
 ## Working notes
