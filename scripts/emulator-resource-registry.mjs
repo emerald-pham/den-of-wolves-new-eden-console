@@ -3557,7 +3557,7 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory,
       text(reconciliation.coordinationWorktree));
     const currentHead = await runGit(['rev-parse', 'HEAD'], repositoryDirectory);
     const historicalBranchRelation = text(reconciliation.historicalBranchRelation);
-    const currentMainSha = await runGit(['rev-parse', 'main'], repositoryDirectory);
+    const { sha: currentMainSha } = await readMainRef(repositoryDirectory);
     const historicalBranchSha = text(fragment.coordinationBranchSha);
     const expectedHistoricalBranchRelation = await gitIsAncestor(
       currentMainSha,

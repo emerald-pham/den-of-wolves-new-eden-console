@@ -50,6 +50,28 @@ async function runFixtureGit(cwd: string, args: string[]) {
   return stdout.trim();
 }
 
+async function readFixtureMainSha(cwd: string) {
+  let lastError: unknown;
+  for (const ref of ['main', 'origin/main']) {
+    try {
+      return await runFixtureGit(cwd, ['rev-parse', '--verify', `${ref}^{commit}`]);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function fixtureGitIsAncestor(cwd: string, ancestor: string, descendant: string) {
+  try {
+    await runFixtureGit(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);
+    return true;
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === 1) return false;
+    throw error;
+  }
+}
+
 type CoordinationConflict = {
   entry: Record<string, unknown>;
   type: 'scope' | 'claim';
@@ -3386,8 +3408,15 @@ describe('local emulator coordination', () => {
     const lanePath = `${filePath}.release-lane.json`;
     const applicationVersion = JSON.parse(await readFile(resolve(process.cwd(), 'package.json'), 'utf8')).version;
     const exactHead = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
-    const mainSha = await runFixtureGit(process.cwd(), ['rev-parse', 'main']);
+    const mainSha = await readFixtureMainSha(process.cwd());
     const historicalBranchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD~1']);
+    const historicalBranchRelation = await fixtureGitIsAncestor(
+      process.cwd(),
+      mainSha,
+      historicalBranchSha,
+    )
+      ? 'based-on-current-main'
+      : 'merged-into-exact-head';
     const branchName = await runFixtureGit(process.cwd(), ['branch', '--show-current']);
     const entry = {
       ...releaseEntry,
@@ -3435,7 +3464,7 @@ describe('local emulator coordination', () => {
           version: applicationVersion,
           reconciliation: {
             historicalCoordinationBranchSha: historicalBranchSha,
-            historicalBranchRelation: 'based-on-current-main',
+            historicalBranchRelation,
             finalBranchSha: exactHead,
             validationReceiptCommitSha: exactHead,
             coordinationEntryId: entry.id,
