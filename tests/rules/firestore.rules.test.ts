@@ -308,6 +308,20 @@ describe('events', () => {
       type: 'ship-confetti', shipId: 'aegis',
     }));
   });
+
+  it('denies event audit reads to strangers and disconnected members', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/events/decision-1`), {
+        type: 'role-assignment', targetUid: 'alice', roleId: 'admiral',
+      });
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/alice`), { connected: false });
+    });
+
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/events/decision-1`)));
+    await assertFails(getDoc(doc(as('stranger'), `${SESSION}/events/decision-1`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/events/decision-1`)));
+    await assertFails(getDocs(collection(as('stranger'), `${SESSION}/events`)));
+  });
 });
 
 describe('ship confetti signals', () => {

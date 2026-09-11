@@ -170,6 +170,7 @@ import {
   EventVisibility,
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
+import { buildPrivacySafeEventRecord } from './eventRedaction';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -206,8 +207,9 @@ function writeAirspaceOpenedEvent(
   // 2*turn-1 and Coordination is 2*turn. They are envelope ordinals, not a
   // stored TurnPhase revision; the logical transition ID remains per-turn.
   const eventId = `airspace-opened-${phase.turn}`;
-  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), {
-    ...buildAuthoritativeEventEnvelope({
+  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+    type: 'airspace-opened',
+    envelope: buildAuthoritativeEventEnvelope({
       sessionId,
       actorUid: 'system',
       actorRoleId: null,
@@ -219,9 +221,9 @@ function writeAirspaceOpenedEvent(
       serverTime: transitionServerTime,
       visibility: EventVisibility.Member,
     }),
-    transition: 'restricted-to-lifted',
+    payload: { transition: 'restricted-to-lifted' },
     createdAt: FieldValue.serverTimestamp(),
-  });
+  }));
 }
 
 function writeTurnAdvancedEvent(
@@ -232,8 +234,9 @@ function writeTurnAdvancedEvent(
   transition: TurnAdvanceEvent,
 ): void {
   const eventId = `turn-advanced-${fromTurn}`;
-  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), {
-    ...buildAuthoritativeEventEnvelope({
+  tx.set(db.doc(`sessions/${sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+    type: 'turn-advanced',
+    envelope: buildAuthoritativeEventEnvelope({
       sessionId,
       actorUid: transition.actorUid,
       actorRoleId: null,
@@ -245,12 +248,14 @@ function writeTurnAdvancedEvent(
       serverTime: transition.transitionServerTime,
       visibility: EventVisibility.Member,
     }),
-    transition: 'coordination-to-next-turn',
-    fromTurn,
-    toTurn,
-    reason: transition.reason,
+    payload: {
+      transition: 'coordination-to-next-turn',
+      fromTurn,
+      toTurn,
+      reason: transition.reason,
+    },
     createdAt: FieldValue.serverTimestamp(),
-  });
+  }));
 }
 
 const INITIAL_SHIP_GALACTIC_COORDINATES = {
@@ -1025,8 +1030,9 @@ export const createSession = onCall<{
           reply,
           createdAt: FieldValue.serverTimestamp(),
         });
-        tx.set(eventRef, {
-          ...buildAuthoritativeEventEnvelope({
+        tx.set(eventRef, buildPrivacySafeEventRecord({
+          type: 'session.created',
+          envelope: buildAuthoritativeEventEnvelope({
             sessionId: sessionRef.id,
             actorUid: uid,
             actorRoleId: null,
@@ -1039,7 +1045,7 @@ export const createSession = onCall<{
             visibility: EventVisibility.Member,
           }),
           createdAt: FieldValue.serverTimestamp(),
-        });
+        }));
         return reply;
       });
 
@@ -1474,11 +1480,15 @@ export const confirmSetup = onCall<{
       setupRevision: reply.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, {
-      type: 'setup-confirm', action: 'confirm-setup', requestId: command.requestId,
-      actorUid: uid, instanceId: command.instanceId, revision: reply.setupRevision,
-      activeRoleIds: [...setup.activeRoleIds], createdAt: FieldValue.serverTimestamp(),
-    });
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'setup-confirm',
+      payload: {
+        action: 'confirm-setup', requestId: command.requestId,
+        actorUid: uid, instanceId: command.instanceId, revision: reply.setupRevision,
+        activeRoleIds: [...setup.activeRoleIds],
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(requestRef, {
       action: 'confirm-setup', requestId: command.requestId,
       sessionId: command.sessionId, actorUid: uid, instanceId: command.instanceId,
@@ -1705,15 +1715,17 @@ export const setFacilitatorResponsibility = onCall<{
       setupRevision: nextRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'gm-responsibility',
-      action: 'set-facilitator-responsibility',
-      actorUid: uid,
-      requestId: responsibility.requestId,
-      expectedSetupRevision: responsibility.expectedSetupRevision,
-      revision: nextRevision,
+      payload: {
+        action: 'set-facilitator-responsibility',
+        actorUid: uid,
+        requestId: responsibility.requestId,
+        expectedSetupRevision: responsibility.expectedSetupRevision,
+        revision: nextRevision,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(requestRef, {
       ...fingerprint,
       requestId: responsibility.requestId,
@@ -2081,16 +2093,18 @@ export const startGame = onCall<{
       createdAt: FieldValue.serverTimestamp(),
     });
     tx.set(markerRef, { fingerprint: markerFingerprint, result, createdAt: FieldValue.serverTimestamp() });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'game-started',
-      actorUid: uid,
-      requestId: start.requestId,
-      turn: 1,
-      phase: 'active',
-      revision: result.setupRevision,
-      expectedSetupRevision: start.expectedSetupRevision,
+      payload: {
+        actorUid: uid,
+        requestId: start.requestId,
+        turn: 1,
+        phase: 'active',
+        revision: result.setupRevision,
+        expectedSetupRevision: start.expectedSetupRevision,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     return result;
   });
 });
@@ -2151,13 +2165,15 @@ export const setShipPreference = onCall<{
       setupRevision: result.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'casting-preference',
-      actorUid: uid,
-      shipId: preference.shipId,
-      requestId: preference.requestId,
+      payload: {
+        actorUid: uid,
+        shipId: preference.shipId,
+        requestId: preference.requestId,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -2234,14 +2250,16 @@ export const assignRole = onCall<{
       setupRevision: result.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'role-assignment',
-      actorUid: uid,
-      targetUid: assignment.targetUid,
-      roleId: assignment.roleId,
-      requestId: assignment.requestId,
+      payload: {
+        actorUid: uid,
+        targetUid: assignment.targetUid,
+        roleId: assignment.roleId,
+        requestId: assignment.requestId,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -2313,13 +2331,15 @@ export const releaseRole = onCall<{
       if (reciprocal) tx.delete(partnerSecretRef);
     }
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'role-release',
-      actorUid: uid,
-      targetUid: release.targetUid,
-      requestId: release.requestId,
+      payload: {
+        actorUid: uid,
+        targetUid: release.targetUid,
+        requestId: release.requestId,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -2718,12 +2738,14 @@ export const assignLoyalty = onCall<{
       setupRevision: result.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'loyalty-assignment',
-      actorUid: uid,
-      requestId: assignment.requestId,
+      payload: {
+        actorUid: uid,
+        requestId: assignment.requestId,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(receiptRef, {
       action: fingerprint.action,
       sessionId: fingerprint.sessionId,
@@ -2784,12 +2806,14 @@ export const revealAndroidProof = onCall<{
     if (replay) return { disclosed: true as const };
     if (legacyEvent.exists) rejectLegacyEventReplay('Android disclosure');
     tx.update(secretRef, { payload: { ...payload as Record<string, unknown>, proofRevealed: true } });
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'android-proof-disclosed',
-      actorUid: uid,
-      requestId: disclosure.requestId,
+      payload: {
+        actorUid: uid,
+        requestId: disclosure.requestId,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     const result = { disclosed: true as const };
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
@@ -3589,15 +3613,17 @@ export const setPressEnabled = onCall<{
         });
       removePressWolfRole(tx, wolfSecretRef, wolfSecret);
     }
-    tx.set(eventRef, {
+    tx.set(eventRef, buildPrivacySafeEventRecord({
       type: 'press-availability',
-      actorUid: uid,
-      requestId: setting.requestId,
-      expectedRevision: setting.expectedRevision,
-      previousPressEnabled: currentEnabled,
-      pressEnabled: setting.pressEnabled,
+      payload: {
+        actorUid: uid,
+        requestId: setting.requestId,
+        expectedRevision: setting.expectedRevision,
+        previousPressEnabled: currentEnabled,
+        pressEnabled: setting.pressEnabled,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
     return result;
   });
@@ -4252,15 +4278,17 @@ export const setEmergencyTimerPaused = onCall<{
       turnPhase,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(db.doc(`sessions/${requestData.sessionId}/events/${eventId}`), {
+    tx.set(db.doc(`sessions/${requestData.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
       type: 'timer-pause',
-      action: requestData.paused ? 'paused' : 'resumed',
-      turn: currentTurn,
-      window,
-      actorName: cleanName(player.get('displayName'), 'GM', 40),
-      byUid: uid,
+      payload: {
+        action: requestData.paused ? 'paused' : 'resumed',
+        turn: currentTurn,
+        window,
+        actorName: cleanName(player.get('displayName'), 'GM', 40),
+        byUid: uid,
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     return { turnPhase };
   });
 });
@@ -4498,7 +4526,13 @@ export const popShipConfetti = onCall<{
     if (reusable) signalRefs.forEach((signalRef) => tx.set(signalRef, event));
     else tx.create(signalRefs[0]!, event);
     tx.delete(approvalRef);
-    if (shouldLogShipConfettiEvent(shipId)) tx.create(eventRef, event);
+    if (shouldLogShipConfettiEvent(shipId)) {
+      tx.create(eventRef, buildPrivacySafeEventRecord({
+        type: 'ship-confetti',
+        payload: event,
+        createdAt: event.createdAt,
+      }));
+    }
     return 'fired';
   });
 
@@ -4995,11 +5029,14 @@ export const claimSeat = onCall<{
         });
         tx.update(playerRef, { seatId });
         tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
-        tx.set(eventRef, {
-          type: 'seat-claim', seatId, actorUid: uid, revision: nextRevision,
-          requestId: revisioned.requestId, expectedSetupRevision: revisioned.expectedSetupRevision,
+        tx.set(eventRef, buildPrivacySafeEventRecord({
+          type: 'seat-claim',
+          payload: {
+            seatId, actorUid: uid, revision: nextRevision,
+            requestId: revisioned.requestId, expectedSetupRevision: revisioned.expectedSetupRevision,
+          },
           createdAt: FieldValue.serverTimestamp(),
-        });
+        }));
         tx.set(requestRef, {
           requestId: revisioned.requestId, action: 'claim', sessionId, seatId, actorUid: uid,
           fingerprint, reply, createdAt: FieldValue.serverTimestamp(),
@@ -5150,12 +5187,15 @@ export const releaseSeat = onCall<{
           tx.update(holderRef, { seatId: null });
         }
         tx.update(sessionRef, { setupRevision: nextRevision, updatedAt: FieldValue.serverTimestamp() });
-        tx.set(eventRef, {
-          type: 'seat-release', seatId, actorUid: uid, revision: nextRevision,
-          requestId: revisioned.requestId, reason: revisioned.reason ?? null,
-          expectedSetupRevision: revisioned.expectedSetupRevision,
+        tx.set(eventRef, buildPrivacySafeEventRecord({
+          type: 'seat-release',
+          payload: {
+            seatId, actorUid: uid, revision: nextRevision,
+            requestId: revisioned.requestId, reason: revisioned.reason ?? null,
+            expectedSetupRevision: revisioned.expectedSetupRevision,
+          },
           createdAt: FieldValue.serverTimestamp(),
-        });
+        }));
         tx.set(requestRef, {
           requestId: revisioned.requestId, action: 'release', sessionId, seatId, actorUid: uid,
           reason: revisioned.reason ?? null,
@@ -5492,15 +5532,17 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
     const id = randomUUID();
-    await db.doc(`sessions/${sessionId}/events/${id}`).set({
+    await db.doc(`sessions/${sessionId}/events/${id}`).set(buildPrivacySafeEventRecord({
       type: 'roll',
-      byUid: uid,
-      sides,
-      count,
-      rolls,
-      total: rolls.reduce((a, b) => a + b, 0),
+      payload: {
+        byUid: uid,
+        sides,
+        count,
+        rolls,
+        total: rolls.reduce((a, b) => a + b, 0),
+      },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
 
     return { id, rolls };
   },
@@ -6010,20 +6052,21 @@ export const runMaintenance = onCall<{
     };
     tx.set(undoRef, { turn: currentTurn, entries });
     tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
-    tx.set(eventRef, {
-      ...buildAuthoritativeEventEnvelope({
+    tx.set(eventRef, buildPrivacySafeEventRecord({
+      type: 'maintenance',
+      envelope: buildAuthoritativeEventEnvelope({
         sessionId: data.sessionId, actorUid: uid, actorRoleId, turn: currentTurn,
         phase: 'active', type: 'maintenance', requestId: data.requestId,
         revision: result.cycle.revision, serverTime, visibility: EventVisibility.Member,
       }),
-      ...projectMaintenanceEvent({
+      payload: projectMaintenanceEvent({
         shipId: data.shipId,
         shipName: (FLEET_SHIP_NAMES as Readonly<Record<string, string>>)[data.shipId] ?? data.shipId,
         action: data.action,
         results: result.cycle.results,
       }),
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     if (result.damageDraw) {
       const draw = result.damageDraw;
       tx.set(db.doc(`sessions/${data.sessionId}/damageDraws/${eventId}`), {
@@ -6252,10 +6295,11 @@ export const repairAllShipDamage = onCall<{
       [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), {
-      type: 'ship-repaired', shipId: change.shipId, actorUid: uid,
+    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+      type: 'ship-repaired',
+      payload: { shipId: change.shipId, actorUid: uid },
       createdAt: FieldValue.serverTimestamp(),
-    });
+    }));
     return { repaired: true };
   });
 });
@@ -6373,11 +6417,15 @@ export const rollbackMaintenance = onCall<{
     };
     tx.update(ref, { ...Object.fromEntries(Object.entries(patch).map(([field, value]) => [field, value === undefined ? FieldValue.delete() : value])), updatedAt: FieldValue.serverTimestamp() });
     tx.set(undoRef, { turn: undo.get('turn'), entries: entries.slice(0, -1) });
-    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), {
-      type: 'maintenance-rollback', requestId: change.requestId, eventId,
-      sessionId: change.sessionId, shipId: change.shipId, actorUid: uid,
-      revision: change.expectedRevision + 1, createdAt: FieldValue.serverTimestamp(),
-    });
+    tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+      type: 'maintenance-rollback',
+      payload: {
+        requestId: change.requestId, eventId,
+        sessionId: change.sessionId, shipId: change.shipId, actorUid: uid,
+        revision: change.expectedRevision + 1,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
     tx.set(requestRef, {
       requestId: change.requestId,
       sessionId: change.sessionId,
