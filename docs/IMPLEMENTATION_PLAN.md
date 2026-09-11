@@ -192,39 +192,19 @@ Bind every roadmap slice and review to these explicit product goals:
 9. The Capybara printed v1.1 source and provenance are routed into every
    affected prompt. The Scrap Refinery visual authority is `7♠`; hidden `5♦`
    extraction text is provenance-only, not a gameplay ambiguity.
-10. Carry the full roadmap through failing-first and composed acceptance,
-    security, visual/accessibility, focused, and full release gates. Each
-    completed slice is committed, reconciled with current `main`, merged,
-    pushed, closed in coordination, and reported with verified local and remote
-    SHAs; no local or partial result counts as roadmap completion.
-11. For this active completion campaign, the root coordinator remains
-    read-only for product code and owns orchestration/documentation. All
-    application, Functions, rules, configuration, script, and test changes are
-    delegated to authorized implementation subagents under the plan's
-    role-scoped model-escalation contract below; integration conflicts that
-    touch those files are delegated too. If a Luna attempt fails, reassign
-    that same agent role to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`; if a
-    Terra attempt then fails, GPT-5.6 Sol (`gpt-5.6-sol`) is authorized for that
-    same agent role only. The escalation tier belongs to the role and must
-    never reset or downgrade when an agent, task, or worktree is replaced;
-    detect and stop any Luna/Terra loop. Before dispatching Sol, explain in
-    user-visible chat why that role needs Sol and that Sol is 10 times as
-    expensive as Luna. The mandatory process for the blocking agent merge
-    handoff is canonical in
-    [`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
+10. Roadmap work follows the current one-owner, proportional validation and
+    release policy in `CLAUDE.md`. Evidence and status claims stay accurate to
+    the declared slice; partial work is not described as complete.
+11. This completion campaign adds no model sequence, delegation requirement,
+    phase floor, or mandatory coordination closeout beyond `CLAUDE.md`.
 
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
 claim completion of the remaining 734-prompt roadmap.
 
-Durable phase floors are role-specific: the implementation phase uses
-GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
-(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
-uses GPT-5.6 Luna at `max`. A failed Luna role escalates to Terra and a failed
-Terra role to Sol for that same role only; never reset or downgrade a role tier,
-and detect and stop Luna/Terra loops. Explain the failures and Sol's 10-times
-Luna cost in user-visible chat before any Sol dispatch.
+Agent roles, review, and escalation follow the current `CLAUDE.md` policy;
+this plan sets no durable phase floors or workflow override.
 
 ## Scope and baseline
 
