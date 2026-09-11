@@ -1,5 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -14,7 +14,9 @@ import {
   forecastCoordinationConflicts,
   parseChangelogSnapshot,
   parseCoordinationState,
+  prepareValidationEmulator,
   readReleaseState,
+  cleanupValidationEmulator,
   releaseConfiguredEmulatorSlot,
   reserveConfiguredEmulatorSlot,
   validationPlanForFiles,
@@ -48,7 +50,7 @@ function releaseSnapshot(changedFiles: readonly string[], branchSha = 'validated
   };
 }
 
-async function releaseGitFixture() {
+async function releaseGitFixture({ largeDiff = false }: { largeDiff?: boolean } = {}) {
   const root = await mkdtemp(resolve(tmpdir(), `emulator-release-${randomUUID()}-`));
   const remote = resolve(root, 'remote.git');
   const directory = resolve(root, 'checkout');
@@ -67,11 +69,33 @@ async function releaseGitFixture() {
   await execFileAsync('git', ['push', '-u', 'origin', 'main'], { cwd: directory });
   await execFileAsync('git', ['switch', '-c', 'tooling/late-registration'], { cwd: directory });
   await writeFile(resolve(directory, 'scripts/task.mjs'), 'export const task = true;\n');
-  await execFileAsync('git', ['add', 'scripts/task.mjs'], { cwd: directory });
+  if (largeDiff) {
+    await writeFile(
+      resolve(directory, 'scripts/catalog-sized-change.mjs'),
+      `export const catalog = ${JSON.stringify('x'.repeat(1_100_000))};\n`,
+    );
+  }
+  await execFileAsync('git', ['add', 'scripts'], { cwd: directory });
   await execFileAsync('git', ['commit', '-m', 'candidate change'], { cwd: directory });
   const branchSha = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: directory })).stdout.trim();
   const mainSha = (await execFileAsync('git', ['rev-parse', 'main'], { cwd: directory })).stdout.trim();
   return { root, directory, branchSha, mainSha };
+}
+
+async function waitForFile(path: string, timeoutMs = 1_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      return await readFile(path, 'utf8');
+    } catch (error: unknown) {
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: unknown }).code
+        : undefined;
+      if (code !== 'ENOENT') throw error;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 5));
+  }
+  throw new Error(`Timed out waiting for ${path}.`);
 }
 
 describe('simplified coordination registry', () => {
@@ -147,6 +171,108 @@ describe('simplified coordination registry', () => {
     });
   });
 
+  it('serializes stale-lock recovery and preserves concurrent configuration writes', async () => {
+    const { directory, filePath } = await fixture();
+    const lockPath = `${filePath}.lock`;
+    const recoveryPath = `${lockPath}.recovery`;
+    try {
+      await writeFile(lockPath, `${JSON.stringify({ pid: 999_999_999, token: 'stale-owner' })}\n`);
+      const first = reserveConfiguredEmulatorSlot({
+        filePath,
+        slot: 0,
+        worktree: '/worktrees/first',
+        ports: [5600],
+        portCheck: async () => true,
+      });
+      await expect(waitForFile(recoveryPath)).resolves.toContain('pid');
+      const second = reserveConfiguredEmulatorSlot({
+        filePath,
+        slot: 1,
+        worktree: '/worktrees/second',
+        ports: [5610],
+        portCheck: async () => true,
+      });
+      const [firstConfiguration, secondConfiguration] = await Promise.all([first, second]);
+      const state = JSON.parse(await readFile(filePath, 'utf8'));
+      expect(state.configurations.map((configuration: { id: string }) => configuration.id).sort())
+        .toEqual([firstConfiguration.id, secondConfiguration.id].sort());
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('serializes same-worktree validation setup before reserving an emulator row', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), `validation-setup-${randomUUID()}-`));
+    const filePath = resolve(root, 'coordination.json');
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const activeConfigurations: Array<{ id: string; slot: number; worktree: string }> = [];
+    let reserveCalls = 0;
+    const reserve = async () => {
+      const configuration = { id: `configuration-${++reserveCalls}`, slot: reserveCalls - 1, worktree: root };
+      activeConfigurations.splice(0, activeConfigurations.length, configuration);
+      return configuration;
+    };
+    const release = async (configuration: { id: string }) => {
+      const index = activeConfigurations.findIndex((candidate) => candidate.id === configuration.id);
+      if (index >= 0) activeConfigurations.splice(index, 1);
+    };
+    try {
+      const [first, second] = await Promise.all([
+        prepareValidationEmulator({
+          environment: {}, repositoryDirectory: root, coordinationPath: filePath,
+          localFirebaseConfigPath: configurationPath, localEnvironmentPath: environmentPath,
+          reserve, release, baseConfig: { emulators: {} },
+        }),
+        prepareValidationEmulator({
+          environment: {}, repositoryDirectory: root, coordinationPath: filePath,
+          localFirebaseConfigPath: configurationPath, localEnvironmentPath: environmentPath,
+          reserve, release, baseConfig: { emulators: {} },
+        }),
+      ]);
+
+      expect(reserveCalls).toBe(1);
+      expect(first.created).toBe(true);
+      expect(second.created).toBe(false);
+      expect(activeConfigurations).toEqual([{ id: first.configurationId!, slot: first.slot!, worktree: root }]);
+      expect(await readFile(configurationPath, 'utf8')).toContain('firestore');
+      await cleanupValidationEmulator(first, { release });
+      expect(activeConfigurations).toEqual([]);
+      await expect(readFile(configurationPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(readFile(environmentPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('releases its configuration when cleanup cannot unlink an owned file', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), `validation-cleanup-${randomUUID()}-`));
+    const configurationPath = resolve(root, 'firebase.local.json');
+    const environmentPath = resolve(root, '.env.emulators.local');
+    const configuration = { id: 'configuration-owned', slot: 0, worktree: root };
+    const released: string[] = [];
+    try {
+      const prepared = await prepareValidationEmulator({
+        environment: {}, repositoryDirectory: root, coordinationPath: resolve(root, 'coordination.json'),
+        localFirebaseConfigPath: configurationPath, localEnvironmentPath: environmentPath,
+        reserve: async () => configuration,
+        release: async (owned: { id: string }) => { released.push(owned.id); },
+        baseConfig: { emulators: {} },
+      });
+      await writeFile(configurationPath, 'replacement-owned-by-another-process\n');
+      await chmod(root, 0o500);
+      await expect(cleanupValidationEmulator(prepared, {
+        release: async (owned: { id: string }) => { released.push(owned.id); },
+      })).rejects.toMatchObject({ code: 'EACCES' });
+      expect(released).toEqual(['configuration-owned']);
+      await chmod(root, 0o700);
+      expect(await readFile(configurationPath, 'utf8')).toBe('replacement-owned-by-another-process\n');
+    } finally {
+      await chmod(root, 0o700).catch(() => undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('supports begin, amend, park, and resume without a session artifact', async () => {
     const { directory, filePath } = await fixture();
     try {
@@ -220,6 +346,26 @@ describe('simplified coordination registry', () => {
       expect(completed.validation?.outcomes.length).toBeGreaterThan(0);
     } finally {
       releaseRunner();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('runs a diff check for an unchanged candidate instead of recording an empty pass', async () => {
+    const { directory, filePath } = await fixture();
+    try {
+      const started = await beginCoordinationEntry(filePath, {
+        intent: 'unchanged validation',
+        'work-type': 'tooling',
+      });
+      const commands: string[] = [];
+      const completed = await validateCoordinationEntry(filePath, {
+        id: started.id,
+        release: releaseSnapshot([]),
+        commandRunner: async (command) => { commands.push(command); },
+      });
+      expect(completed.validation?.profile.kind).toBe('no-changes');
+      expect(commands).toEqual(['git diff --check']);
+    } finally {
       await rm(directory, { recursive: true, force: true });
     }
   });
@@ -302,12 +448,12 @@ describe('simplified coordination registry', () => {
       const validation = {
         passed: true,
         commitSha: fixtureState.branchSha,
-        profile: beforeLanding.validationProfile,
+        profile: beforeLanding.validationProfile!,
         files: beforeLanding.changedFiles,
         commands: [],
         outcomes: [],
-        baseSha: beforeLanding.validationProfile?.evidence?.baseSha,
-        diffIdentity: beforeLanding.validationProfile?.evidence?.diffIdentity,
+        baseSha: beforeLanding.validationProfile?.evidence?.baseSha as string,
+        diffIdentity: beforeLanding.validationProfile?.evidence?.diffIdentity as string,
         validatedAt: '2026-09-11T00:00:00.000Z',
       };
       await execFileAsync('git', ['switch', 'main'], { cwd: fixtureState.directory });
@@ -322,6 +468,20 @@ describe('simplified coordination registry', () => {
       expect(afterLanding.mainContainsBranch).toBe(true);
       expect(afterLanding.changedFiles).toContain('scripts/task.mjs');
       expect(afterLanding.validationProfile?.evidence?.baseSha).toBe(beforeLanding.validationProfile?.evidence?.baseSha);
+    } finally {
+      await rm(fixtureState.root, { recursive: true, force: true });
+    }
+  });
+
+  it('reads an actual release state whose diff exceeds git\'s default output buffer', async () => {
+    const fixtureState = await releaseGitFixture({ largeDiff: true });
+    try {
+      const release = await readReleaseState({
+        cwd: fixtureState.directory,
+        startBranchSha: fixtureState.branchSha,
+      });
+      expect(release.changedFiles).toContain('scripts/catalog-sized-change.mjs');
+      expect(release.validationProfile?.evidence?.diffIdentity).toMatch(/^[0-9a-f]{64}$/);
     } finally {
       await rm(fixtureState.root, { recursive: true, force: true });
     }

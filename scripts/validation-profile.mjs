@@ -150,7 +150,12 @@ export function deriveValidationProfile({
 } = {}) {
   const files = normalizedFiles(changedFiles);
   if (files.length === 0) {
-    return fullProfile('no changed files');
+    return {
+      kind: 'no-changes',
+      reason: 'no changed files require only a clean diff check',
+      commands: ['git diff --check'],
+      requiresReview: false,
+    };
   }
   if (files.every((file) => /(?:^|\/)(?:README(?:\..*)?|.*\.md)$/i.test(file))) {
     return {

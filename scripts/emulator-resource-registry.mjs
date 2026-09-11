@@ -70,6 +70,7 @@ const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
 const VALIDATION_PROCESS_TIMEOUT_MS = 60 * 60 * 1000;
 const VALIDATION_PROCESS_ESCALATION_MS = 1_000;
+const GIT_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
 
 function objectRecord(value) {
@@ -159,6 +160,10 @@ function processIsAlive(pid) {
   }
 }
 
+function delay(milliseconds) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
+}
+
 export function normalizeGitHubOriginToSsh(originUrl) {
   const origin = typeof originUrl === 'string' ? originUrl.trim() : '';
   const match = origin.match(/^https:\/\/github\.com\/(.+)$/i);
@@ -166,7 +171,11 @@ export function normalizeGitHubOriginToSsh(originUrl) {
 }
 
 async function runGit(args, cwd = process.cwd()) {
-  const result = await execFileAsync('git', args, { cwd, encoding: 'utf8' });
+  const result = await execFileAsync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
+  });
   return result.stdout.trim();
 }
 
@@ -374,13 +383,22 @@ export function validateReleaseCompletion({ entry, release }) {
 }
 
 function lockOwner(content) {
+  const trimmed = String(content).trim();
   try {
-    const parsed = JSON.parse(String(content).trim());
-    return validPid(parsed?.pid) ? parsed : undefined;
+    const parsed = JSON.parse(trimmed);
+    if (validPid(parsed?.pid)) {
+      return {
+        pid: parsed.pid,
+        token: typeof parsed.token === 'string' ? parsed.token : undefined,
+      };
+    }
   } catch {
-    const pid = Number.parseInt(String(content).trim(), 10);
-    return validPid(pid) ? { pid } : undefined;
+    // Legacy lock files stored only the PID. They remain recoverable, while
+    // new locks carry a token so release cannot remove a replacement lock.
   }
+
+  const pid = Number.parseInt(trimmed, 10);
+  return validPid(pid) ? { pid, token: undefined } : undefined;
 }
 
 async function lockIsStale(lockPath) {
@@ -394,28 +412,91 @@ async function lockIsStale(lockPath) {
   }
 }
 
+async function releaseOwnedLock(lockPath, token) {
+  try {
+    const owner = lockOwner(await readFile(lockPath, 'utf8'));
+    if (owner?.token !== token) return;
+    await unlink(lockPath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
+async function reclaimStaleRecoveryLock(recoveryPath) {
+  if (!(await lockIsStale(recoveryPath))) return false;
+  await delay(LOCK_RETRY_MS);
+  if (!(await lockIsStale(recoveryPath))) return false;
+  await unlink(recoveryPath).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+  return true;
+}
+
+/** Serialize stale-lock removal so a waiter cannot delete a replacement lock. */
+async function reclaimStaleLock(lockPath) {
+  const recoveryPath = `${lockPath}.recovery`;
+  const recoveryToken = randomUUID();
+  let recoveryHandle;
+
+  try {
+    recoveryHandle = await open(recoveryPath, 'wx', 0o600);
+    await recoveryHandle.writeFile(
+      `${JSON.stringify({ pid: process.pid, token: recoveryToken })}\n`,
+      'utf8',
+    );
+  } catch (error) {
+    if (recoveryHandle) await recoveryHandle.close().catch(() => undefined);
+    if (error?.code === 'EEXIST') {
+      await reclaimStaleRecoveryLock(recoveryPath);
+      return false;
+    }
+    throw error;
+  }
+
+  try {
+    if (!(await lockIsStale(lockPath))) return false;
+    await delay(LOCK_RETRY_MS);
+    if (!(await lockIsStale(lockPath))) return false;
+    await unlink(lockPath).catch((error) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
+    return true;
+  } finally {
+    await recoveryHandle.close();
+    await releaseOwnedLock(recoveryPath, recoveryToken);
+  }
+}
+
 async function withCoordinationLock(filePath, operation) {
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   const lockPath = `${filePath}.lock`;
-  let handle;
-  const token = randomUUID();
+  const lockToken = randomUUID();
+  let lockHandle;
   for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
+    let candidateHandle;
     try {
-      handle = await open(lockPath, 'wx', 0o600);
-      await handle.writeFile(`${JSON.stringify({ pid: process.pid, token })}\n`, 'utf8');
+      candidateHandle = await open(lockPath, 'wx', 0o600);
+      await candidateHandle.writeFile(`${JSON.stringify({ pid: process.pid, token: lockToken })}\n`, 'utf8');
+      lockHandle = candidateHandle;
       break;
     } catch (error) {
+      if (candidateHandle) {
+        await candidateHandle.close().catch(() => undefined);
+        await releaseOwnedLock(lockPath, lockToken).catch(() => undefined);
+      }
       if (error?.code !== 'EEXIST') throw error;
-      if (await lockIsStale(lockPath)) await unlink(lockPath).catch(() => undefined);
-      else await new Promise((resolvePromise) => setTimeout(resolvePromise, LOCK_RETRY_MS));
+      if (await lockIsStale(lockPath)) await reclaimStaleLock(lockPath);
+      else await delay(LOCK_RETRY_MS);
     }
   }
-  if (!handle) throw new Error(`Timed out waiting for coordination lock at ${lockPath}.`);
+  if (!lockHandle) throw new Error(`Timed out waiting for coordination lock at ${lockPath}.`);
   try {
     return await operation();
   } finally {
-    await handle.close();
-    await unlink(lockPath).catch(() => undefined);
+    await lockHandle.close();
+    await releaseOwnedLock(lockPath, lockToken);
   }
 }
 
@@ -722,36 +803,52 @@ async function writeNoClobber(path, content) {
 }
 
 export async function prepareValidationEmulator({ environment = process.env, repositoryDirectory = process.cwd(), coordinationPath = coordinationFilePath(), localFirebaseConfigPath = resolve(repositoryDirectory, 'firebase.local.json'), localEnvironmentPath = resolve(repositoryDirectory, '.env.emulators.local'), reserve = reserveAvailableConfiguredEmulatorSlot, release = releaseConfiguredEmulatorSlot, baseConfig, configForSlot = firebaseConfigForSlot, environmentForSlot = emulatorEnvironmentForSlot } = {}) {
-  const preexistingConfig = await fileIdentity(localFirebaseConfigPath);
-  const preexistingEnvironment = await fileIdentity(localEnvironmentPath);
-  if (preexistingConfig || environment.CI) return { created: false, configurationId: undefined, slot: undefined, preexistingConfigIdentity: preexistingConfig?.contentHash ?? 'ci-configured', preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash, files: [] };
-  const configuration = await reserve({ filePath: coordinationPath, worktree: repositoryDirectory, availableSlots: Array.from({ length: EMULATOR_SLOT_COUNT }, (_, slot) => slot), portsForSlot: (slot) => [...Object.values(emulatorPortsForSlot(slot)), vitePortForSlot(slot)] });
-  const prepared = { created: true, configurationId: configuration.id, slot: configuration.slot, preexistingConfigIdentity: 'absent', preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash, files: [], configuration, coordinationPath };
-  try {
-    const source = baseConfig ?? JSON.parse(await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'));
-    const localConfig = `${JSON.stringify(configForSlot(source, configuration.slot), null, 2)}\n`;
-    const environmentText = `${Object.entries(environmentForSlot(configuration.slot)).map(([name, value]) => `${name}=${value}`).join('\n')}\n`;
-    for (const [path, content, preexisting] of [[localFirebaseConfigPath, localConfig, preexistingConfig], [localEnvironmentPath, environmentText, preexistingEnvironment]]) {
-      if (preexisting) continue;
-      await writeNoClobber(path, content);
-      const identity = await fileIdentity(path);
-      if (!identity) throw new Error(`Emulator setup could not verify ${path}.`);
-      prepared.files.push({ path, content, identity });
+  const setupLockPath = `${localFirebaseConfigPath}.validation.lock`;
+  return withCoordinationLock(setupLockPath, async () => {
+    const preexistingConfig = await fileIdentity(localFirebaseConfigPath);
+    const preexistingEnvironment = await fileIdentity(localEnvironmentPath);
+    if (preexistingConfig || environment.CI) return { created: false, configurationId: undefined, slot: undefined, preexistingConfigIdentity: preexistingConfig?.contentHash ?? 'ci-configured', preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash, files: [] };
+    const configuration = await reserve({ filePath: coordinationPath, worktree: repositoryDirectory, availableSlots: Array.from({ length: EMULATOR_SLOT_COUNT }, (_, slot) => slot), portsForSlot: (slot) => [...Object.values(emulatorPortsForSlot(slot)), vitePortForSlot(slot)] });
+    const prepared = { created: true, configurationId: configuration.id, slot: configuration.slot, preexistingConfigIdentity: 'absent', preexistingEnvironmentIdentity: preexistingEnvironment?.contentHash, files: [], configuration, coordinationPath };
+    try {
+      const source = baseConfig ?? JSON.parse(await readFile(resolve(repositoryDirectory, 'firebase.json'), 'utf8'));
+      const localConfig = `${JSON.stringify(configForSlot(source, configuration.slot), null, 2)}\n`;
+      const environmentText = `${Object.entries(environmentForSlot(configuration.slot)).map(([name, value]) => `${name}=${value}`).join('\n')}\n`;
+      for (const [path, content, preexisting] of [[localFirebaseConfigPath, localConfig, preexistingConfig], [localEnvironmentPath, environmentText, preexistingEnvironment]]) {
+        if (preexisting) continue;
+        if (await fileIdentity(path)) throw new Error(`Emulator setup raced with another owner at ${path}; retry validation after preserving that config.`);
+        await writeNoClobber(path, content);
+        const identity = await fileIdentity(path);
+        if (!identity) throw new Error(`Emulator setup could not verify ${path}.`);
+        prepared.files.push({ path, content, identity });
+      }
+      return prepared;
+    } catch (error) {
+      await cleanupValidationEmulator(prepared, { release });
+      throw error;
     }
-    return prepared;
-  } catch (error) { await cleanupValidationEmulator(prepared, { release }); throw error; }
+  });
 }
 
 export async function cleanupValidationEmulator(prepared, { release = releaseConfiguredEmulatorSlot } = {}) {
   if (!prepared?.created) return { released: false, removedFiles: [], outcome: 'preserved' };
   const removedFiles = [];
-  for (const file of prepared.files ?? []) {
-    if (sameFileIdentity(await fileIdentity(file.path), file.identity)) {
-      await unlink(file.path).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
-      removedFiles.push(file.path);
+  const cleanupErrors = [];
+  try {
+    for (const file of prepared.files ?? []) {
+      try {
+        if (sameFileIdentity(await fileIdentity(file.path), file.identity)) {
+          await unlink(file.path).catch((error) => { if (error?.code !== 'ENOENT') throw error; });
+          removedFiles.push(file.path);
+        }
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
     }
+  } finally {
+    if (prepared.configuration) await release(prepared.configuration, prepared.coordinationPath);
   }
-  if (prepared.configuration) await release(prepared.configuration, prepared.coordinationPath);
+  if (cleanupErrors.length > 0) throw cleanupErrors[0];
   return { released: Boolean(prepared.configuration?.id), removedFiles, outcome: 'cleaned' };
 }
 

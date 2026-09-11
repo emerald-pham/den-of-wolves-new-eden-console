@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { deriveValidationProfile } from '../../scripts/validation-profile.mjs';
 
 describe('validation profiles', () => {
+  it('uses a truthful diff check when there are no changed files', () => {
+    expect(deriveValidationProfile({ changedFiles: [] })).toEqual({
+      kind: 'no-changes',
+      reason: 'no changed files require only a clean diff check',
+      commands: ['git diff --check'],
+      requiresReview: false,
+    });
+  });
+
   it('keeps documentation-only work to diff validation', () => {
     expect(deriveValidationProfile({ changedFiles: ['docs/workflow.md', 'README.md'] })).toEqual({
       kind: 'docs',

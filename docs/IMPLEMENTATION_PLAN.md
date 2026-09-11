@@ -6,9 +6,10 @@ work and records which foundation is implemented versus still incomplete.
 This plan describes how to take the Companion Console from its current
 server-authoritative session and console foundation to a complete,
 rules-faithful game loop. It does not authorize a broad rewrite or the
-creation of speculative controls. Each future change must select a bounded
-slice of this plan, write its failing test first, and implement only the
-smallest rules-complete increment needed for that slice.
+creation of speculative controls. Numbered gameplay prompts select a bounded
+slice of this plan and implement the smallest rules-complete increment needed
+for that slice. `CLAUDE.md` governs proportional tests and workflow; ordinary
+tooling and maintenance work does not require a prompt or a red-first ritual.
 
 The plan is projected from the single machine-readable
 [prompt catalog](./implementation-prompts.json). Before selecting, assigning,
@@ -2130,28 +2131,28 @@ default and primary-agent implementation/integration ownership in `CLAUDE.md`;
 it does not change the repository-wide default for unrelated work. GPT-5.3
 Codex Spark remains prohibited.
 
-Each modifying delegate must receive one bounded prompt or an inseparable,
-dependency-safe prompt slice with explicit Given/When/Then acceptance criteria,
-use its own worktree and short-lived branch, and follow the test-first contract
-above, including observing the failing test before implementation. Each slice
-must satisfy the applicable reference, authority, denial, retry, audit,
+Delegates working on a numbered prompt receive one bounded prompt or an
+inseparable, dependency-safe prompt slice with explicit Given/When/Then
+acceptance criteria and use their own worktree and short-lived branch. Each
+slice satisfies the applicable reference, authority, denial, retry, audit,
 accessibility, responsive-review, version, and standalone changelog contracts.
-Before a delegate selects, starts, or edits a prompt, it must run `npm run
-coordination:dependencies -- --prompt NNN`, read the compact packet, and
-reconcile the exact row, prerequisites, evidence, current `main`, and
-coordination ownership. The delegate must refresh that packet and receipt after
-a rebase or material movement of current `main`; no prompt may
-be marked complete or merged while a hard prerequisite remains unmet.
+The JSON prompt catalog is the current authority. A delegate may run `npm run
+coordination:dependencies -- --prompt NNN` as a read-only aid, then reconciles
+applicable prerequisites, evidence, current `main`, and optional coordination
+ownership. Rerun that read-only query after a rebase or material movement when
+the dependency context is needed; it creates no receipt. No prompt may be
+marked complete or merged while a hard prerequisite remains unmet.
 Use an independent Terra review for security/authorization, hidden information,
 randomness, destructive migrations, endgame, capacity, or complex conflict
 resolution, and when ordinary risk judgment calls for one. Do not create a
 review-only agent for every low-risk prompt. If review or release work changes
 code, rules, configuration, scripts, or tests, the agent must use `max`. A
 prompt may move to `done` only after its proof is current on the reconciled
-branch, every applicable executable gate passes, the slice is merged to `main`,
-`origin/main` is verified at that merge, and the slice's coordination entry is
-closed. No partial implementation, local-only result, unmerged green branch,
-or unchecked release obligation counts toward the campaign finish.
+branch, every applicable executable gate passes, and the slice is merged to
+`main` with `origin/main` verified at that merge. If the task opened optional
+coordination, close that record when the task is terminal. No partial
+implementation, local-only result, unmerged green branch, or unchecked release
+obligation counts toward the campaign finish.
 
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
