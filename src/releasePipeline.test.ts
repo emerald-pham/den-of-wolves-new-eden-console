@@ -374,6 +374,14 @@ it('verifies one exact SHA and reuses its build artifacts for deployment', () =>
   expect(deploy).toContain('needs: [determine-targets, verify]');
 });
 
+it('forces full exact-SHA verification when a merge diff appears documentation-only', () => {
+  // A deployment merge can have a docs-only first-parent diff while its tree
+  // still contains pending product changes since the deployed baseline.
+  expect(ci).toMatch(/if \[ "\$EXACT_HEAD_COMMIT" = "true" \]; then[\s\S]+?documentation_only=false[\s\S]+?roadmap_changed=true/);
+  expect(ci).toContain('echo "exact_head_commit=$EXACT_HEAD_COMMIT" >> "$GITHUB_OUTPUT"');
+  expect(ci).toContain("if: steps.change_scope.outputs.documentation_only == 'true' || steps.change_scope.outputs.exact_head_commit == 'true'");
+});
+
 it('keeps CI dependency caches, timeouts, and single-pass bundle checking explicit', () => {
   expect(ci).toContain('cache-dependency-path:');
   expect(ci).toContain('package-lock.json');
