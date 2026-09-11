@@ -1,317 +1,119 @@
 # Agent campaign playbook
 
-Use this operational companion to [CLAUDE.md](../CLAUDE.md) when a coordinator
-runs a multi-agent implementation campaign. `CLAUDE.md` remains the canonical
-repository policy. Before selecting, assigning, starting, or editing any
-numbered prompt, run `npm run coordination:dependencies -- --prompt NNN` and
-read its compact packet generated from the mandatory
-[implementation prompt dependency authority](IMPLEMENTATION_PROMPT_DEPENDENCIES.md),
-then reconcile the exact row, hard gates,
-current `main`, and active coordination. This playbook does not replace that
-authority.
+Use this page when a coordinator is managing several independent tasks. It is
+an economical coordination aid for a 20-player Firebase game, not a mandatory
+multi-agent ceremony. [`CLAUDE.md`](../CLAUDE.md) remains canonical for product,
+security, testing, emulator, release, and deployment rules.
 
-## Why this exists
+## Start with current facts
 
-The previous campaign overran because coordination controls were applied late
-and repeatedly rather than once at the boundary. A stopping request opened new
-release slices; incomplete briefs caused correction cycles; an ambiguity about
-whether `NEXT` was serial delayed work; expensive matrices repeated before the
-candidate was independently reviewed; a Luna task was steered after it had
-lost execution state; and shared documentation/release metadata were reconciled
-after work had started. Those were orchestration failures, not proof that a
-passing local test, rendered review, deployed behavior, or capacity result was
-interchangeable with another kind of evidence.
+Read the current JSON prompt catalog at
+[`implementation-prompts.json`](implementation-prompts.json) and its generated
+Markdown views. Use the catalog's readiness/dependency check before selecting a
+prompt; `npm run coordination:dependencies -- --prompt NNN` is a read-only
+report and creates no nonce or local receipt. `NEXT` is an advisory ready-work
+hint. Do not copy old counts, SHAs, versions, or statuses into a new task.
+When catalog facts change, run `node scripts/generate-prompt-views.mjs` and use
+`--check` to verify the generated Markdown views.
 
-## Required campaign controls
+Use one owner per task. Give the owner a complete brief with the accepted
+scope, affected surfaces, relevant tests, and any shared session/callable/rules,
+deploy/auth, release, or emulator hotspot. The owner implements, obtains any
+risk review, repairs findings, reconciles, validates, merges, pushes, verifies
+deployment, and closes the task. A separate sidecar or reviewer is optional;
+there is no minimum-agent count.
 
-### Explicit ownership and a complete brief
+## Model and review choices
 
-The coordinator makes decisions, dispatches agents, resolves scope conflicts,
-and tracks the campaign; it does not edit repository files. An implementation
-agent owns edits, focused tests, and commit in its assigned worktree. An
-independent reviewer reviews the exact `HEAD`. A separately assigned release
-agent owns reconciliation, the one final full coordination validation, merge,
-push, `coordination:finish`, and cleanup. Do not leave these handoffs implicit.
-This campaign-specific allocation supersedes the routine primary-agent
-integration default, but not any security, validation, or merge requirement.
+Luna at `max` or `xhigh` is the economical default. Terra is an independent
+review option for risky changes touching shared session state, callable
+authorization, Firestore rules, deployment, or authentication infrastructure.
+Ask the reviewer for all findings in one pass. Escalate only after actual lack
+of progress or a material failed attempt; a typo, copy change, or test-count
+correction does not require a handoff. Do not force a Luna → Terra → Luna loop.
+Sol is not a default child and may be used only after a permitted escalation is
+actually reached, with the reason recorded in the task discussion.
 
-Every initial brief must state the dispatcher result and exact dependency row;
-hard prerequisites, milestone, contract, and decision-owner gates; exact
-exclusive leaf-file scopes and claims; product versus proof boundary; live
-version, changelog, and progress contract; focused red/green checks; review
-and release owner; and stopping behavior. Resolve an ambiguity before
-launching work that depends on it.
+## Scope and concurrency
 
-### Parent-task message boundaries
+Freeze the accepted prompt scope. Queue unrelated improvements for later; add
+work only for a directly blocking defect and record that reason.
+Independent ready prompts may run concurrently when they do not overlap a
+shared hotspot. Use `coordination:status` to inspect the current owner,
+worktree, process, and emulator reservations. Coordination is optional and
+should cover actual shared resources—not every file in a leaf directory.
 
-Each delegated campaign role must send an explicit collaboration message to the
-canonical parent task path named by its dispatch for every requested checkpoint,
-blocker, approval need, or material scope/status change. Ordinary task
-commentary is not guaranteed coordination delivery to the parent. For parent
-communication, boundary messages replace periodic heartbeat or status chatter;
-parked agents remain silent until an owner-only resume. This does not change the
-existing model floors, coordination lease heartbeat rules, or parked-entry `no
-heartbeat required` behavior. The role's final result still goes through the
-normal final response, in addition to any required boundary message.
+Never stop or take over another task because its timestamp looks old, its
+process is temporarily quiet, or its live reservation is empty. A parked task
+keeps its reservation and records a clear next action; no heartbeat/status
+polling loop is needed. Optional goals can remain in chat or the normal session
+record. There is no immutable goal artifact, digest comparison, one-shot
+completion chain, or ancestry-only merge requirement.
 
-### Durable session-goal evidence
+## Normal execution
 
-At `coordination:begin`, pass every session goal as a repeated
-`--session-goal "- [ ] ..."` argument, including the exact immediate release
-objective: As soon as required validation is green: commit, reconcile with
-current main, merge to main, push to origin, and close coordination. The
-registry creates a deterministic ignored working artifact with an immutable
-original representation. At wrap-up, `coordination:goals` records
-checked/unchecked outcomes and explanations; exact goal identity, order, and text are
-validated against that original. `coordination:finish` fails when the artifact
-is absent, malformed, or un-compared, and removes it only after other gates
-succeed while verifying its absence. Cleanup verifies artifact absence. Status
-exposes lifecycle state and path, not unrelated goal text. The explicit
-`legacy-exempt` policy covers pre-feature P012/P014/P664 entries without an
-artifact and records a durable comparison; new entries remain required.
+1. Select a ready prompt from the catalog and accept its bounded scope.
+2. Implement the smallest useful change with focused, meaningful checks. Use
+   red-before-green tests for new security, authority, callable, rules, and
+   complex gameplay behavior; reversible copy/CSS work can use a focused or
+   rendered check instead.
+3. If the change is in the risk-review set, run one independent review and
+   collect all findings. The owner performs a bounded repair and reviews the
+   resulting diff.
+4. Reconcile the owner branch with current `main` and commit the reviewed
+   candidate. Run one appropriate final validation on that commit. Rerun only
+   after a meaningful input changed, a check failed, or a concern remains.
+5. Merge to `main`, push `origin/main`, and verify the actual deployment or
+   workflow result after deployment. A pushed workflow, local green test, or rendered screenshot
+   is not a substitute for the other kinds of evidence.
 
-Keep production-authority entries as `work-type product` and require an
-immutable `change-class feature|non-feature` that matches the canonical
-progress row. Only `non-feature` gets the no-version/no-fragment/no-player-
-facing-changelog path; a free-text version plan cannot bypass feature gates.
-Owners may amend an already-active P012/P014 entry once with
-`npm run coordination:amend -- --id "<coordination id>" --change-class non-feature`
-after verifying the canonical row. The amendment records old/new values and
-fails closed on mismatch or repetition.
+For a UI change, the owner checks narrow phone, wide desktop, and short
+landscape rendering, fonts, contrast, overflow, reduced motion, and visible
+return navigation. For server work, preserve client-write denials, callable
+authorization and transactions, App Check as a complement to authorization, and
+the private-source/secrets boundary.
 
-### Parking dormant work
+Product releases increment metadata and add one player-facing changelog entry;
+tooling and documentation do neither. Include the catalog snapshot's
+completed/total prompt percentage in release notes. Only the product owner may
+authorize `0.9.x` or `1.0.0`; `1.0.0` needs the full 20-player end-to-end game,
+not a role-count or placeholder-screen claim.
 
-If an owner is blocked and idle, the top-level coordinator must checkpoint its
-clean branch and run `npm run coordination:park -- --id <id> --checkpoint-sha <exact SHA>` with blocker
-entry/claim evidence, and a concrete next action. A parked entry retains its
-scopes and claims fail-closed and requires no heartbeat; the parked entry status
-says `parked` and `no heartbeat required`, while heartbeat, amend, claim,
-validate, and finish reject. Interrupt the parked agent after the registry
-write. Once the blocker and recorded overlap clear, owner-only
-`npm run coordination:resume -- --id <id>` verifies worktree, branch, and checkpoint SHA continuity
-and refuses while the recorded blocker or overlap remains; when clear it
-refreshes the lease. Do not run a status/heartbeat polling loop. The registry
-gate is machine-checked; the Codex process pause/wake boundary cannot be
-machine-enforced by repository code.
+## Communication and stopping
 
-### Model selection and role-scoped monotonic failure escalation
+At a requested checkpoint, tell the parent task the current state, changed paths,
+commands/results, and any blocker. Do not send repetitive heartbeat chatter.
+If another task owns a genuinely overlapping file or resource, message that
+owner with the exact overlap and wait or choose a non-overlapping slice; do not
+edit through it. A CI visibility gap, ordinary test failure, external
+dependency, or pending user decision is not automatically an agent blocker.
 
-Use `gpt-5.6-luna` at `xhigh` for repository changes and reviews by default.
-For numbered-plan code, configuration, scripts, or tests, retain the stricter
-repository-required Luna `max` baseline until the failover condition below
-occurs.
+When the coordinator reaches a stopping point, open no new lanes. Finish active
+owners through their agreed commit/validation/merge path, or record a clear
+preserve/discard outcome, release only this campaign's resources, and report
+what remains. Do not claim campaign completion from a local branch or copied
+roadmap status.
 
-Durable phase floors are role-specific: the implementation phase uses
-GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
-(`gpt-5.6-terra`) at `xhigh`, and reconciliation/validation/merge/push/deployment
-uses GPT-5.6 Luna at `max`.
-
-The escalation tier belongs to the role and must never reset or downgrade when
-an agent, task, or worktree is replaced. If a Luna attempt fails, reassign that
-same agent role to `gpt-5.6-terra` at `xhigh`. If a Terra attempt then fails,
-`gpt-5.6-sol` is authorized for that same agent role only. Detect and stop any
-Luna/Terra loop: do not retry Luna after that role reaches Terra, alternate
-between Luna and Terra, or treat a new child ID or worktree as a fresh tier.
-Sol authorization for one role does not upgrade its reviewer, release owner,
-sibling role, or the rest of the campaign.
-
-Before dispatching Sol, explain in user-visible chat why that exact role needs
-Sol, the observed Luna and Terra failures (or the recorded reason the role
-began at Terra), why a cheaper tier is no longer viable, and that Sol is 10
-times as expensive as Luna. This notice records the authorized escalation and
-its cost; it is not a new permission request.
-
-An attempt fails only after evidence: a terminal agent error; an abandoned or
-lost execution state with no relevant running process and no usable result; or
-a materially unusable result after one bounded recovery or correction repeats
-no-progress. Immediately report the exact status, changed paths, commands and
-results, and blocker, then preserve or discard the attempt truthfully before
-reassigning the role. A quiet live process, wrapper timeout, external blocker,
-or pending user input is not by itself a model failure; inspect the process,
-output, and blocker before advancing the role's tier.
-
-Terra is also justified when it is reasonably cheaper than five Luna attempts
-or repeated steering is predictably required. Record the reason for every
-Terra exception. A role that legitimately begins at Terra may advance to Sol
-after its evidenced Terra failure without manufacturing a Luna attempt.
-
-### Dependency, ownership, and current-state gate
-
-`NEXT` (the first `READY_QUEUE` item) is the primary resume/default lane, but
-it is advisory for concurrency, not a serial execution lock. A worktree may
-claim a later `READY_QUEUE` item concurrently only after hard prompt prerequisites
-are done; every hard milestone, hard contract, and decision-owner gate is
-satisfied or explicitly confirmed; and the coordination forecast shows
-conflict-free ownership with no active claim overlap. Never bypass a
-dependency, active claim, or unresolved decision-owner gate because a prompt
-appears independent. A prompt with hard prerequisites that remain unmet cannot
-be marked complete or merge.
-
-Start by fetching `origin/main` and recording the observed base SHA, package
-version, changelog/progress metadata, dispatcher packet, and coordination
-state. Forecast exact exclusive leaf-file claims before editing; no broad
-`docs/*` scope and no edit to another owner's document. Amend ownership before
-scope expands.
-
-After any rebase or material main movement, stop. Fetch, rebase or selectively
-reapply only reviewed commits/files, refresh the compact dependency packet and
-receipt, reforecast and reacquire ownership, and
-inspect the resulting diff. Re-review if reconciliation changes semantics.
-Never wholesale-merge a stale branch.
-
-### Evidence, release, and stopping gates
-
-Use focused red-before-green checks and risk review during implementation and
-review. An independent exact-HEAD review must precede one final full
-coordination validation on the exact reconciled approved candidate. Do not
-repeat an unchanged full matrix; repeat it only if reconciliation changes the
-committed inputs, semantics, or exact candidate SHA.
-
-Before a product completion is recorded, preflight the live changelog, version,
-progress, feature/non-feature classification, and release-fragment ownership.
-The release agent uses the canonical per-task release fragment and shared-file
-release lane. Documentation/tooling work records no player-facing change and
-does not change a version, player changelog, or prompt count. Preserve server
-authority, privacy, accessibility, reduced-motion behavior, and the boundary
-between local checks, rendered review, deployment evidence, and capacity proof.
-
-A blocking agent is the identifiable Codex task that owns an active overlapping
-coordination claim or required same-file work. CI visibility, an external
-dependency, pending user input, and an ordinary test failure are not agent
-blockers. When that blocking agent prevents merge, commit and push the exact
-task branch before sending the handoff. Send a direct user-visible message to
-the blocking agent with the destination task ID, remote branch, exact commit
-SHA, blocker reason, and overlapping files or claims, plus any still-needed
-same-file delta.
-
-Keep the exact blocker entry active. Blocked-agent preservation must pass
-`--preservation-kind blocked-agent`, `--blocked-by-entry`, `--handoff-to-task`,
-`--handoff-reason`, `--handoff-overlap`, `--handoff-delta`, and
-`--handoff-delivery` to `coordination:finish`. The registry first verifies the
-exact pushed ref SHA, same-repository identity, and every named overlap, then
-creates a structured pending handoff on that blocker entry. Keep the named
-overlapping scopes and claims held by that entry through integration.
-
-`coordination:status` exposes each pending record under `MERGE OTHER BRANCHES
-hard gate`. Instruct the blocking agent: after its original blocker work is
-finished, fetch the branch, reconcile it with current main, merge the exact
-source commit into that same task branch, apply the named delta, rerun required
-validation on the exact reconciled SHA, merge to main, push origin/main, and run
-`coordination:finish` for that same blocker entry. `coordination:finish` refuses
-`landed`, `preserved`, and `discarded` outcomes while the blocker entry has an
-assigned pending branch. It clears the gate only when the validated task branch
-contains every assigned source commit and pushed origin/main contains that
-branch. `--result` prose and `--handoff-delivery` text cannot waive the `MERGE
-OTHER BRANCHES hard gate`.
-
-Verify direct-message delivery and request an acknowledgement when supported
-before closing the source entry as preserved; a coordination note is not proof
-of delivery. If direct delivery cannot be verified, keep the source entry active
-and report the undelivered handoff.
-
-“Reach a stopping point” means open no new lanes. Finish, commit, land,
-preserve, or explicitly discard only already-active bounded slices; release
-this task's claims and resources; immediately report the exact state; and
-stop. Do not leave an active entry for an idle or terminal agent. Never call a
-campaign complete until every required implementation and proof boundary is
-verified.
-
-## Campaign goal template
-
-Copy this goal for a new top-level coordinator. Replace every bracketed value
-by observing the live repository; do not reuse a reported SHA, version, count,
-or NEXT prompt without live verification.
+## Campaign checklist
 
 ```text
-Campaign objective: Coordinate the Den of Wolves implementation campaign to
-truthful, independently reviewed, validated, merged, pushed, and closed
-completion. Use the player-facing changelog and implementation progress ledger
-to assess live progress. Do not claim campaign completion until every required
-implementation and proof boundary is verified.
+Campaign objective: deliver the accepted Den of Wolves tasks with focused
+checks, appropriate risk review, truthful deployment evidence, and one owner
+from implementation through merge.
 
-Starting state: Read CLAUDE.md and docs/AGENT_CAMPAIGN_PLAYBOOK.md. Fetch
-origin/main and record [observed base SHA], [observed package version],
-[validator-derived prompt totals], [observed changelog metadata], and [active
-coordination entries]. Use only these newly observed values. Do not reuse a
-reported SHA, version, count, or NEXT prompt without live verification.
+Starting state: read CLAUDE.md, this playbook, the JSON prompt catalog, current
+main, active coordination, and the current package/changelog when product work
+is in scope. Record only newly observed facts.
 
-Dependency contract: Before selecting, assigning, starting, or editing a
-numbered prompt, run `npm run coordination:dependencies -- --prompt NNN` and
-read the compact deterministic dispatcher packet. Reconcile the exact selected row, evidence, hard
-prompt prerequisites, hard milestone, hard contract, decision-owner gate,
-current main, and coordination. Treat NEXT as the advisory primary resume lane.
-Claim later READY_QUEUE work only when all hard gates are satisfied or
-confirmed and a coordination forecast is conflict-free.
+Execution: choose ready prompts, freeze each accepted scope, use one owner per
+task, and coordinate only actual shared session/callable/rules, deploy/auth,
+release, and emulator hotspots.
 
-Roles: The coordinator makes decisions and dispatches only. The implementation
-agent owns edits, focused tests, and commit in its own worktree. An independent
-reviewer reviews the exact HEAD. The separately assigned release agent owns
-reconcile, one final full coordination validation, merge, push,
-coordination:finish, and cleanup. Do not leave a handoff implicit.
+Review: collect all risk-review findings together, repair in a bounded follow-up,
+commit the reconciled reviewed candidate, and run one appropriate final
+validation. Rerun only for meaningful changes, failures, or unresolved concerns.
 
-Delegation: Use gpt-5.6-luna at xhigh by default, retaining any stricter
-numbered-plan Luna max baseline until failover. The escalation tier belongs to
-the role and must never reset or downgrade when an agent, task, or worktree is
-replaced. If a Luna attempt fails, reassign that same agent role to
-gpt-5.6-terra at xhigh. If a Terra attempt then fails, gpt-5.6-sol is authorized
-for that same agent role only. Detect and stop any Luna/Terra loop; never return
-an escalated role to Luna or spread one role's escalation to another role.
-Before dispatching Sol, explain in user-visible chat why that role needs Sol,
-the observed lower-tier failures or recorded Terra-start exception, why a
-cheaper tier is no longer viable, and that Sol is 10 times as expensive as
-Luna. This is an authorization notice, not a permission request. Immediately
-report status, changed paths, commands/results, and blocker for each evidenced
-failure; preserve or discard truthfully before reassignment. A terminal error,
-lost execution state with no relevant process or usable result, or one bounded
-recovery/correction that repeats no-progress is a failure. A quiet live process,
-wrapper timeout, external blocker, or pending user input alone is not. Terra is
-also allowed when it is cheaper than five Luna attempts or repeated steering is
-predictably required; record that exception, and allow a role that begins at
-Terra to advance to Sol after an evidenced Terra failure.
-
-Execution: Send one complete initial brief with the dependency packet, exact
-leaf-file scopes/claims, product/proof boundary, live release metadata,
-focused tests, reviewer, release owner, and stopping behavior. Run focused
-red-before-green checks and risk review. Require independent exact-HEAD review
-before one final full coordination validation on the exact reconciled approved
-candidate; do not repeat an unchanged full matrix.
-
-Movement and ownership: Before edits, forecast and claim exact leaf files; do
-not claim broad docs/* or another owner's files. After any rebase or material
-main movement, stop, fetch/rebase or selectively reapply only reviewed
-commits/files, refresh the compact dependency packet and receipt,
-reforecast/reacquire ownership, inspect the diff, and re-review changed
-semantics. Never wholesale-merge a stale branch.
-
-Blocked merge handoff: A blocking agent is the identifiable Codex task that
-owns an active overlapping coordination claim or required same-file work. CI
-visibility, an external dependency, pending user input, and an ordinary test
-failure are not agent blockers. When that blocking agent prevents merge, commit
-and push the exact task branch before sending the handoff. Send a direct
-user-visible message to the blocking agent with the destination task ID, remote
-branch, exact commit SHA, blocker reason, and overlapping files or claims.
-Keep the exact blocker entry active. Blocked-agent preservation must pass
---preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task,
---handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to
-coordination:finish. coordination:status exposes every pending assignment under
-MERGE OTHER BRANCHES hard gate. Instruct the blocking agent: after its original
-blocker work is finished, fetch the branch, reconcile it with current main,
-merge the exact source commit into that same task branch, apply any named
-same-file delta, rerun required validation on the exact reconciled SHA, merge to
-main, push origin/main, and run coordination:finish for that same blocker entry.
-coordination:finish refuses landed, preserved, and discarded outcomes while the
-blocker entry has an assigned pending branch. It clears the gate only when the
-validated task branch contains every assigned source commit and pushed
-origin/main contains that branch. --result prose and --handoff-delivery text
-cannot waive the MERGE OTHER BRANCHES hard gate. Verify direct-message delivery
-and request an acknowledgement when supported before closing the source entry
-as preserved; a coordination note is not proof of delivery. If direct delivery
-cannot be verified, keep the source entry active and report the undelivered
-handoff.
-
-Stopping: “Reach a stopping point” means open no new lanes. Finish, commit,
-land, preserve, or explicitly discard only already-active slices; release
-claims/resources; immediately report the exact status; then stop. Report
-observed final SHA, package version, and validator-derived counts rather than
-copied snapshots.
+Closeout: merge and push every landed task, verify the real deployment, keep
+version/changelog and security claims truthful, and preserve or discard
+unfinished work explicitly. Never infer stale ownership from age alone.
 ```

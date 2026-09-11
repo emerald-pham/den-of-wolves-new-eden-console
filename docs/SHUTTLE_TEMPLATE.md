@@ -146,5 +146,5 @@ Implementation must demonstrate:
 - Content and controls remain accessible on narrow, wide and short screens.
 - Reduced-motion preferences apply to optional animated capabilities.
 
-Use the repository's [test-first policy](../CLAUDE.md#1-test-first-for-code) when
+Use the repository's [risk-based testing guidance](../CLAUDE.md#testing-and-review) when
 implementing these behaviors.

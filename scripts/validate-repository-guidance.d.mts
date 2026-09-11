@@ -32,6 +32,10 @@ export function validateBlockedMergeAgentHandoff(
   input: PromptDependencyGuidanceInput,
 ): void;
 
+export function validateRiskBasedGuidance(
+  input: PromptDependencyGuidanceInput,
+): void;
+
 export interface CampaignPlaybookInput {
   source?: string;
   errors: string[];
@@ -40,3 +44,12 @@ export interface CampaignPlaybookInput {
 export function validateCampaignPlaybook(
   input: CampaignPlaybookInput,
 ): void;
+
+export interface DocumentationValidationInput {
+  cwd?: string;
+  files?: string[];
+}
+
+export function validateDocumentation(
+  input?: DocumentationValidationInput,
+): string[];

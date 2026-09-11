@@ -1,721 +1,267 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process';
+
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const CATALOG_PATH = 'docs/implementation-prompts.json';
+const CORE_SURFACES = Object.freeze([
+  'AGENTS.md',
+  'CLAUDE.md',
+  'README.md',
+  'docs/README.md',
+  'docs/WORKTREE_COORDINATION.md',
+  'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+]);
 
 function isDocumentationFile(filePath) {
   const fileName = basename(filePath);
   return /\.mdx?$/i.test(fileName) || fileName === 'README' || /^README\./i.test(fileName);
 }
 
-const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
-const CAMPAIGN_PLAYBOOK_PATH = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
-const AGENT_MODEL_ESCALATION_SURFACES = Object.freeze([
-  'AGENTS.md',
-  'CLAUDE.md',
-  CAMPAIGN_PLAYBOOK_PATH,
-  'docs/IMPLEMENTATION_PLAN.md',
-]);
-const SESSION_GOAL_GUIDANCE_SURFACES = Object.freeze([
-  'AGENTS.md',
-  'CLAUDE.md',
-  'docs/WORKTREE_COORDINATION.md',
-  CAMPAIGN_PLAYBOOK_PATH,
-]);
-const BLOCKED_MERGE_HANDOFF_SURFACES = Object.freeze([
-  'CLAUDE.md',
-  CAMPAIGN_PLAYBOOK_PATH,
-  'docs/WORKTREE_COORDINATION.md',
-  'docs/IMPLEMENTATION_PLAN.md',
-]);
-const RETIRED_PROMPT_IDS = new Set(['071']);
-
-function promptDependencyTargets(value) {
-  if (value === 'none') return [];
-  const targets = [];
-  for (const token of value.split(';')) {
-    const range = token.match(/^(\d{3})-(\d{3})$/);
-    if (range) {
-      const start = Number.parseInt(range[1], 10);
-      const end = Number.parseInt(range[2], 10);
-      for (let number = start; number <= end; number += 1) {
-        const prompt = String(number).padStart(3, '0');
-        if (!RETIRED_PROMPT_IDS.has(prompt)) targets.push(prompt);
-      }
-      continue;
-    }
-    if (/^\d{3}[a-z]*$/i.test(token) && !RETIRED_PROMPT_IDS.has(token)) {
-      targets.push(token.toLowerCase());
-    }
-  }
-  return targets;
-}
-
-/**
- * Keep the completion gate fail-closed for the explicit hard prompt edges.
- * The dependency index remains the source of truth for parsing and evidence;
- * this guard only prevents a live done row from outrunning an unfinished
- * prompt prerequisite.
- */
-export function validatePromptDependencyCompletion({ dependencySource, progressSource } = {}) {
-  const progressByPrompt = new Map(
-    [...String(progressSource ?? '').matchAll(/^\|\s*(\d{3}[a-z]*)\s*\|\s*([^|]+)\s*\|/gim)]
-      .map((match) => [match[1].toLowerCase(), match[2].trim().toLowerCase()]),
-  );
-  const errors = [];
-  for (const line of String(dependencySource ?? '').split('\n')) {
-    if (!/^\|\s*\d{3}[a-z]*\s*\|/i.test(line)) continue;
-    const cells = line.slice(1, line.endsWith('|') ? -1 : undefined)
-      .split('|')
-      .map((cell) => cell.trim());
-    if (cells.length < 4) continue;
-    const prompt = cells[0].toLowerCase();
-    if (progressByPrompt.get(prompt) !== 'done') continue;
-    for (const prerequisite of promptDependencyTargets(cells[3])) {
-      const status = progressByPrompt.get(prerequisite);
-      if (status !== 'done') {
-        errors.push(
-          `Prompt ${prompt} is marked done but hard prerequisite ${prerequisite} is ${status ?? 'unknown'}.`,
-        );
-      }
-    }
-  }
-  return errors;
-}
-
-const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
-  ['AGENTS.md', /before selecting[\s\S]*prompt/i],
-  ['CLAUDE.md', /before selecting[\s\S]*prompt/i],
-  ['README.md', /before selecting[\s\S]*task/i],
-  ['docs/WORKTREE_COORDINATION.md', /before selecting[\s\S]*prompt/i],
-  ['docs/IMPLEMENTATION_PLAN.md', /before selecting[\s\S]*prompt/i],
-  [PROMPT_DEPENDENCY_INDEX_PATH, /before prompt work/i],
-  ['docs/IMPLEMENTATION_MILESTONES.md', /before selecting[\s\S]*prompt/i],
-  ['docs/IMPLEMENTATION_PROGRESS.md', /before selecting[\s\S]*prompt/i],
-  [CAMPAIGN_PLAYBOOK_PATH, /before selecting[\s\S]*prompt/i],
-]);
-
 function normalizeGuidance(source) {
-  return source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
+  return String(source).replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
 }
 
-/**
- * Keep model failover monotonic and scoped to the role that actually failed.
- * Replacing a child, task, or worktree must not reset a Terra role to Luna or
- * turn one role's Sol authorization into a campaign-wide model upgrade.
- */
-export function validateAgentModelEscalation({ sources, errors }) {
-  for (const filePath of AGENT_MODEL_ESCALATION_SURFACES) {
-    const source = sources.get(filePath);
-    if (typeof source !== 'string') {
-      errors.push(`${filePath}: missing agent-model escalation policy`);
-      continue;
-    }
-    const normalized = normalizeGuidance(source);
-    const checks = [
-      [
-        'must assign the implementation phase to Luna at max',
-        /implementation phase (?:floor|uses)[\s\S]{0,120}\bluna\b[\s\S]{0,100}\bmax\b/i,
-      ],
-      [
-        'must assign independent review to Terra at xhigh',
-        /independent review (?:phase )?(?:floor|uses)[\s\S]{0,120}\bterra\b[\s\S]{0,100}\bxhigh\b/i,
-      ],
-      [
-        'must assign reconciliation, validation, merge, push, and deployment to Luna at max',
-        /reconciliation[\/ ]+validation[\/ ]+merge[\/ ]+push[\/ ]+deployment (?:phase )?(?:floor|uses)[\s\S]{0,140}\bluna\b[\s\S]{0,100}\bmax\b/i,
-      ],
-      [
-        'must reassign a failed Luna role to Terra',
-        /\bluna attempt fails\b[\s\S]{0,220}\bsame agent role\b[\s\S]{0,180}\bgpt-5\.6-terra\b/i,
-      ],
-      [
-        'must authorize Sol only after Terra fails in that same role',
-        /\bterra attempt(?: then)? fails\b[\s\S]{0,180}\bgpt-5\.6-sol\b[\s\S]{0,180}\bsame agent role only\b/i,
-      ],
-      [
-        'must keep the role escalation tier monotonic across replacements',
-        /\bescalation tier belongs to the role\b[\s\S]{0,240}\bmust never reset or downgrade\b/i,
-      ],
-      [
-        'must detect and stop Luna/Terra loops',
-        /\bdetect and stop\b[\s\S]{0,120}\bluna\/terra loop\b/i,
-      ],
-      [
-        'must explain every Sol dispatch in user-visible chat before dispatch',
-        /\bbefore dispatching sol\b[\s\S]{0,180}\buser-visible chat\b[\s\S]{0,240}\b10 times as expensive as luna\b/i,
-      ],
-    ];
-    for (const [message, pattern] of checks) {
-      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
-    }
-    if (/\bnever dispatch a sol child\b/i.test(normalized)) {
-      errors.push(`${filePath}: retains the obsolete blanket prohibition on Sol child dispatch`);
-    }
-    if (/\bluna-only rules\b/i.test(normalized)) {
-      errors.push(`${filePath}: retains a Luna-only retry path that can reset role escalation`);
-    }
+function sourceFor(sources, filePath, errors) {
+  const source = sources.get(filePath);
+  if (typeof source !== 'string') {
+    errors.push(`${filePath}: required guidance file is missing`);
+    return '';
   }
+  return source;
 }
 
-/** Keep the working session-goal artifact lifecycle explicit on every
- * operational guidance surface and fail closed when a surface regresses. */
-export function validateSessionGoalGuidance({ sources, errors }) {
-  const checks = [
-    [
-      'must document begin-time unchecked session goals',
-      /coordination:begin[\s\S]{0,320}--session-goal/i,
-    ],
-    [
-      'must document the supported session-goal update path',
-      /coordination:goals/i,
-    ],
-    [
-      'must document the immutable original goal representation',
-      /immutable original[\s\S]{0,140}(?:goal|representation)/i,
-    ],
-    [
-      'must document checked/unchecked outcomes and explanations',
-      /checked\/unchecked[\s\S]{0,180}explanation/i,
-    ],
-    [
-      'must document exact goal identity, order, and text validation',
-      /exact[\s\S]{0,120}identity[\s\S]{0,120}order[\s\S]{0,120}text/i,
-    ],
-    [
-      'must document absent, malformed, and un-compared finish failures',
-      /absent[\s\S]{0,120}malformed[\s\S]{0,120}(?:un-compared|uncompared|not compared)/i,
-    ],
-    [
-      'must document cleanup and verified artifact absence',
-      /cleanup[\s\S]{0,180}(?:verify|absence|removed)/i,
-    ],
-    [
-      'must document the explicit P012/P014/P664 legacy policy',
-      /legacy-exempt[\s\S]{0,160}012[\s\S]{0,160}014[\s\S]{0,160}664/i,
-    ],
-    [
-      'must document the immediate release objective',
-      /as soon as required validation is green:[\s\S]{0,220}close coordination/i,
-    ],
-    [
-      'must document owner-only checkpoint parking',
-      /coordination:park[\s\S]{0,260}(?:owner|checkpoint)[\s\S]{0,180}(?:clean|SHA)/i,
-    ],
-    [
-      'must document owner-only resume and blocker clearance',
-      /coordination:resume[\s\S]{0,300}(?:blocker|overlap)[\s\S]{0,180}(?:clear|continuity)/i,
-    ],
-    [
-      'must document retained parked scopes and claims',
-      /parked[\s\S]{0,260}retain(?:s|ed)?[\s\S]{0,120}(?:scope|claim)/i,
-    ],
-    [
-      'must document park suspension of heartbeat requirements',
-      /parked[\s\S]{0,260}(?:no heartbeat|heartbeat.{0,40}suspend)/i,
-    ],
-    [
-      'must document no status/heartbeat polling loop',
-      /(?:no|do not run a)\s+(?:status\/heartbeat|heartbeat\/status)\s+polling\s+loop/i,
-    ],
-    [
-      'must document the process pause/wake boundary',
-      /(?:process|runtime)[\s\S]{0,160}(?:pause|interrupt)[\s\S]{0,160}(?:wake|resume)[\s\S]{0,160}(?:cannot|not) be machine-enforced/i,
-    ],
-  ];
-  for (const filePath of SESSION_GOAL_GUIDANCE_SURFACES) {
-    const source = sources.get(filePath);
-    if (typeof source !== 'string') {
-      errors.push(`${filePath}: missing session-goal lifecycle policy`);
-      continue;
-    }
-    const normalized = normalizeGuidance(source);
-    for (const [message, pattern] of checks) {
-      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
-    }
-  }
+function requireText(filePath, source, pattern, message, errors) {
+  if (!pattern.test(normalizeGuidance(source))) errors.push(`${filePath}: ${message}`);
 }
 
-/**
- * A branch blocked by another agent must become an explicit, delivered merge
- * handoff rather than an unowned remote ref. The source agent pushes first;
- * the blocking agent receives enough exact state to reconcile and land it.
- */
-export function validateBlockedMergeAgentHandoff({ sources, errors }) {
-  for (const filePath of BLOCKED_MERGE_HANDOFF_SURFACES) {
-    const source = sources.get(filePath);
-    if (typeof source !== 'string') {
-      errors.push(`${filePath}: missing blocked-merge agent handoff policy`);
-      continue;
-    }
-    const normalized = normalizeGuidance(source);
-    if (filePath === 'docs/IMPLEMENTATION_PLAN.md') {
-      if (
-        /\.\.\/claude\.md#blocking-agent-merge-handoff/i.test(normalized) &&
-        /(?:mandatory[\s\S]{0,180}blocking agent[\s\S]{0,180}merge|blocking-agent merge handoff[\s\S]{0,180}mandatory)/i.test(normalized)
-      ) {
-        continue;
-      }
-    }
-    const checks = [
-      [
-        'must define an agent blocker as active overlapping ownership',
-        /blocking agent[\s\S]{0,180}identifiable codex task[\s\S]{0,220}active overlapping coordination claim[\s\S]{0,160}(?:same-file|same file) work/i,
-      ],
-      [
-        'must push the exact task branch before sending the handoff',
-        /blocking agent prevents merge[\s\S]{0,180}commit[\s\S]{0,100}push the exact task branch[\s\S]{0,120}before sending the handoff/i,
-      ],
-      [
-        'must distinguish agent blockers from CI, external, user-input, and test blockers',
-        /ci visibility[\s\S]{0,120}external dependency[\s\S]{0,120}(?:pending user input|user decision)[\s\S]{0,120}ordinary test failure[\s\S]{0,100}not (?:agent blockers|blocking-agent handoffs)/i,
-      ],
-      [
-        'must send direct user-visible instructions to the blocking agent',
-        /send a direct user-visible message[\s\S]{0,100}blocking agent/i,
-      ],
-      [
-        'must include the task ID, exact branch, SHA, blocker reason, and overlap',
-        /destination task id[\s\S]{0,100}remote branch[\s\S]{0,100}exact commit sha[\s\S]{0,120}blocker reason[\s\S]{0,120}overlapping files or claims/i,
-      ],
-      [
-        'must instruct the blocker to reconcile, validate, merge, push, and finish',
-        /after its original blocker work is finished[\s\S]{0,220}fetch the branch[\s\S]{0,180}reconcile it with current main[\s\S]{0,180}merge the exact source commit[\s\S]{0,240}rerun required validation on the exact reconciled sha[\s\S]{0,180}merge to main[\s\S]{0,140}push origin\/main[\s\S]{0,140}coordination:finish/i,
-      ],
-      [
-        'must bind the merge obligation to the existing blocker entry',
-        /keep (?:that|the) exact blocker entry active[\s\S]{0,700}coordination:finish[\s\S]{0,160}(?:same|that) blocker entry/i,
-      ],
-      [
-        'must create the structured blocked-agent handoff at preservation',
-        /blocked-agent preservation[\s\S]{0,180}--preservation-kind blocked-agent[\s\S]{0,140}--blocked-by-entry[\s\S]{0,140}--handoff-to-task[\s\S]{0,140}--handoff-reason[\s\S]{0,140}--handoff-overlap[\s\S]{0,140}--handoff-delta[\s\S]{0,140}--handoff-delivery[\s\S]{0,180}coordination:finish/i,
-      ],
-      [
-        'must expose the MERGE OTHER BRANCHES hard gate in status',
-        /coordination:status[\s\S]{0,180}pending[\s\S]{0,180}merge other branches hard gate/i,
-      ],
-      [
-        'must block every closeout outcome while assigned branches remain',
-        /coordination:finish refuses[\s\S]{0,180}landed[\s\S]{0,100}preserved[\s\S]{0,100}discarded outcomes[\s\S]{0,180}(?:blocker|pending|assigned)/i,
-      ],
-      [
-        'must require exact source containment in the validated branch and pushed main',
-        /validated task branch contains every assigned source commit[\s\S]{0,180}pushed origin\/main contains that branch/i,
-      ],
-      [
-        'must not allow prose to waive the hard gate',
-        /--result prose[\s\S]{0,120}--handoff-delivery text[\s\S]{0,180}cannot waive[\s\S]{0,120}merge other branches hard gate/i,
-      ],
-      [
-        'must verify delivery before preserving and closing',
-        /verify direct-message delivery[\s\S]{0,140}request an acknowledgement when supported[\s\S]{0,180}before closing the source entry as preserved/i,
-      ],
-      [
-        'must not treat a coordination note as delivery proof',
-        /coordination note is not proof of delivery/i,
-      ],
-      [
-        'must keep the source entry active when delivery is unverified',
-        /if direct delivery cannot be verified[\s\S]{0,140}keep the source entry active[\s\S]{0,140}report the undelivered handoff/i,
-      ],
-    ];
-    for (const [message, pattern] of checks) {
-      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
-    }
-  }
-}
-
-function hasPromptDependencyPacketRequirement(source) {
-  return /coordination:dependencies[\s\S]{0,240}\b(?:compact )?packet\b|\b(?:compact )?packet\b[\s\S]{0,240}coordination:dependencies/i.test(source);
-}
-
-function hasDispatcherRequirement(source) {
-  return /npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i.test(source);
-}
-
-function hasCurrentStateReconciliation(source) {
-  return /reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i.test(source);
-}
-
-function hasMainMovementReread(source) {
-  return /\brefresh\b/i.test(source) &&
-    /\b(?:rebase|material (?:main )?movement)\b/i.test(source) &&
-    /\bcurrent main\b/i.test(source);
-}
-
-function hasCompletionBlock(source) {
-  return /\bcannot be marked complete\b/i.test(source) &&
-    /\b(?:cannot merge|merged)\b/i.test(source) &&
-    /\bhard prerequisites?\b/i.test(source) &&
-    /\bunmet\b/i.test(source);
-}
-
-const PROMPT_DEPENDENCY_CONCURRENCY_SURFACES = Object.freeze([
-  'AGENTS.md',
-  'CLAUDE.md',
-  'README.md',
-  'docs/WORKTREE_COORDINATION.md',
-  'docs/IMPLEMENTATION_PLAN.md',
-  PROMPT_DEPENDENCY_INDEX_PATH,
-  'docs/IMPLEMENTATION_MILESTONES.md',
-  'docs/IMPLEMENTATION_PROGRESS.md',
-  CAMPAIGN_PLAYBOOK_PATH,
+const OBSOLETE_UNIVERSAL_GATES = Object.freeze([
+  [
+    /every repository change except documentation-only[^.]{0,180}(?:must|required|is required) (?:be )?(?:dependency|prompt)/i,
+    'must not require universal prompt registration for every repository change',
+  ],
+  [
+    /every non-documentation commit[^.]{0,180}(?:implementation-prompt|prompt trailer)/i,
+    'must not require an Implementation-Prompt trailer on every non-documentation commit',
+  ],
+  [
+    /(?:must|required|requires|creates?) [^.]{0,100}(?:immutable|deterministic) (?:original )?(?:goal|session-goal) (?:file|artifact|representation)/i,
+    'must not require immutable goal artifacts',
+  ],
+  [
+    /(?:finish|cleanup|gate)[^.]{0,180}(?:must|required|fails?)[^.]{0,120}(?:goal|receipt) (?:digest|nonce)/i,
+    'must not require nonce/digest cleanup gates',
+  ],
+  [
+    /(?:mandatory|required|must) [^.]{0,100}(?:luna\s*(?:→|->|to)\s*terra\s*(?:→|->|to)\s*luna|luna\/terra loop)/i,
+    'must not require a Luna/Terra/Luna handoff cycle',
+  ],
+  [
+    /(?:keep|keeps|retain|retains|must|required|requires|mandatory)[^.]{0,100}48-hour retention/i,
+    'must not require 48-hour worktree retention',
+  ],
 ]);
 
-/**
- * Keep the queue's resume hint from becoming a hidden serial execution lock.
- * Every agent-facing surface must describe the same safe concurrency policy:
- * NEXT is the primary lane, while later dependency-ready work may proceed
- * only after all hard gates and ownership checks pass.
- */
-export function validatePromptDependencyConcurrency({ sources, errors }) {
-  for (const filePath of PROMPT_DEPENDENCY_CONCURRENCY_SURFACES) {
-    const source = sources.get(filePath);
-    if (typeof source !== 'string') {
-      errors.push(`${filePath}: missing prompt concurrency policy`);
-      continue;
-    }
+/** Validate the compact risk-based model policy on a guidance surface. */
+export function validateAgentModelEscalation({ sources, errors }) {
+  for (const filePath of ['CLAUDE.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+    const source = sourceFor(sources, filePath, errors);
+    requireText(filePath, source, /luna[\s\S]{0,120}(?:max|xhigh)[\s\S]{0,140}economical|economical[\s\S]{0,120}luna/i,
+      'must name Luna max or xhigh as the economical default', errors);
+    requireText(filePath, source, /terra[\s\S]{0,220}independent[\s\S]{0,220}review[\s\S]{0,260}(?:risk|session|callable|rules|deploy|auth)/i,
+      'must reserve Terra review for risky shared/session/callable/rules or deploy/auth work', errors);
+    requireText(filePath, source, /escalat[\s\S]{0,180}(?:actual|lack of progress|material failed|failed attempt)/i,
+      'must escalate only after actual lack of progress or a material failure', errors);
+    requireText(filePath, source, /(?:no|not|do not)[\s\S]{0,100}(?:compulsory|mandatory)[\s\S]{0,100}(?:luna|terra)|(?:no|not|do not)[\s\S]{0,120}luna[\s\S]{0,80}terra[\s\S]{0,80}luna/i,
+      'must reject a compulsory Luna/Terra/Luna cycle', errors);
+    requireText(filePath, source, /sol[\s\S]{0,160}(?:not|never)[\s\S]{0,100}default[\s\S]{0,100}(?:child|agent)|sol[\s\S]{0,160}permitted escalation/i,
+      'must keep Sol out of the default child path', errors);
+  }
+}
+
+/** Validate the useful, non-mutating prompt/catalog workflow. */
+export function validatePromptDependencyGuidance({ sources, errors }) {
+  for (const filePath of CORE_SURFACES) {
+    const source = sourceFor(sources, filePath, errors);
+    if (!source) continue;
     const normalized = normalizeGuidance(source);
-    const checks = [
-      [
-        'must identify NEXT/READY_QUEUE as the primary resume/default lane',
-        /\bnext\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\bprimary\b[\s\S]{0,120}\b(?:resume|default)\b/i,
-      ],
-      [
-        'must make the primary lane advisory for concurrency, not serial-only',
-        /\b(?:advisory|not a serial execution lock|not serial)\b[\s\S]{0,180}\bconcurr/i,
-      ],
-      [
-        'must allow later READY_QUEUE claims only as safe concurrent work',
-        /(?:\blater\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\b(?:claim|select|proceed|worktree)\b[\s\S]{0,180}\bconcurr|\b(?:claim|select|proceed)\b[\s\S]{0,180}\blater\b[\s\S]{0,180}\bready_queue\b[\s\S]{0,180}\bconcurr)/i,
-      ],
-      [
-        'must require hard prerequisites, milestone, contract, and owner gates',
-        /\bhard prompt prerequisites?\b/i,
-      ],
-      ['must name hard milestone and contract gates', /\bhard milestone\b[\s\S]{0,180}\bhard contract\b/i],
-      ['must name decision-owner gates', /\bdecision[- ]owner\b[\s\S]{0,180}\b(?:gate|confirmed|satisfied)\b/i],
-      [
-        'must require a conflict-free coordination forecast/ownership check',
-        /\bcoordination\b[\s\S]{0,220}\b(?:forecast|ownership)\b[\s\S]{0,220}\b(?:conflict|overlap|claim)\b/i,
-      ],
-      [
-        'must prohibit bypassing dependencies, active claims, or unresolved owner gates',
-        /\b(?:must not|never|cannot)\b[\s\S]{0,180}\b(?:bypass|skip|override)\b[\s\S]{0,180}\b(?:dependenc|active claim|decision[- ]owner)\b/i,
-      ],
-    ];
-    for (const [message, pattern] of checks) {
-      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
+    if (filePath !== 'docs/README.md' && !normalized.includes('implementation-prompts.json')) {
+      errors.push(`${filePath}: must link the JSON prompt catalog`);
     }
-    if (/\bclaim (?:only )?the first unclaimed item in ready_queue\b/i.test(normalized)) {
-      errors.push(`${filePath}: retains a serial-only first-unclaimed READY_QUEUE claim rule`);
+    if (!/generated[\s\S]{0,180}(?:markdown|view|implementation)/i.test(normalized) &&
+      !/catalog[\s\S]{0,180}(?:generate|view)/i.test(normalized)) {
+      errors.push(`${filePath}: must identify generated implementation views`);
+    }
+    if (filePath !== 'docs/README.md' && !normalized.includes('generate-prompt-views.mjs')) {
+      errors.push(`${filePath}: must document the prompt-view generator command`);
+    }
+    if (!/(?:coordination:dependencies[\s\S]{0,300}(?:read-only|readonly|no local|no nonce|no receipt)|(?:read-only|readonly|no local|no nonce|no receipt)[\s\S]{0,300}coordination:dependencies)/i.test(normalized)) {
+      errors.push(`${filePath}: must describe dependency checks as read-only without local receipts`);
+    }
+    if (!/next[\s\S]{0,160}(?:advisory|hint|not a serial|not serial)/i.test(normalized)) {
+      errors.push(`${filePath}: must make NEXT an advisory ready-work hint`);
     }
   }
 }
 
-/**
- * Keep the reusable campaign goal fail-closed against the coordination
- * shortcuts that previously caused repeated release and steering cycles.
- * These intentionally test durable meaning rather than one full paragraph.
- */
+/** Validate lightweight coordination, ownership, parking, and scope rules. */
+export function validateSessionGoalGuidance({ sources, errors }) {
+  for (const filePath of ['CLAUDE.md', 'docs/WORKTREE_COORDINATION.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+    const source = sourceFor(sources, filePath, errors);
+    requireText(filePath, source, /coordination[\s\S]{0,100}(?:optional|lightweight)/i,
+      'must make coordination optional/lightweight', errors);
+    requireText(filePath, source, /coordination:status[\s\S]{0,260}(?:owner|worktree|reservation|current)/i,
+      'must use coordination status for current ownership or reservations', errors);
+    requireText(filePath, source, /(?:never|do not)[\s\S]{0,140}(?:infer|assume)[\s\S]{0,140}(?:stale|safe)[\s\S]{0,100}age/i,
+      'must not infer stale ownership from age alone', errors);
+    requireText(filePath, source, /park(?:ed|ing)[\s\S]{0,220}(?:next action|clear|status)/i,
+      'must document a simple parked status and next action', errors);
+    requireText(filePath, source, /(?:no|do not)[\s\S]{0,100}(?:status\/heartbeat|heartbeat\/status)[\s\S]{0,100}polling/i,
+      'must prohibit status/heartbeat polling loops', errors);
+    requireText(filePath, source, /(?:optional )?goals?[\s\S]{0,180}(?:chat|session record)/i,
+      'must keep goals in chat or the ordinary session record', errors);
+    requireText(filePath, source, /(?:no|without)[\s\S]{0,120}(?:immutable goal|goal artifact|digest comparison)/i,
+      'must remove immutable goal and digest gates', errors);
+    if (/(?:there is|requires?|must use|creates?|records?)\s+(?:an?\s+)?immutable goal artifact|\b(?:requires?|must use|records?)\s+(?:a\s+)?digest comparison/i.test(normalizeGuidance(source))) {
+      errors.push(`${filePath}: must not reintroduce immutable goal or digest gates`);
+    }
+  }
+}
+
+/** Validate the one-owner flow and the actual review/validation boundary. */
+export function validateBlockedMergeAgentHandoff({ sources, errors }) {
+  for (const filePath of ['CLAUDE.md', 'README.md', 'docs/WORKTREE_COORDINATION.md', 'docs/AGENT_CAMPAIGN_PLAYBOOK.md']) {
+    const source = sourceFor(sources, filePath, errors);
+    requireText(filePath, source, /one (?:task )?owner[\s\S]{0,180}(?:implementation|review)[\s\S]{0,180}(?:merge|deployment)/i,
+      'must assign one owner through implementation, review, merge, and deployment', errors);
+    requireText(filePath, source, /(?:focused|meaningful)[\s\S]{0,160}(?:test|check)/i,
+      'must require focused meaningful checks', errors);
+    requireText(filePath, source, /(?:reconcil\w*[\s\S]{0,220}(?:one|final)[\s\S]{0,120}(?:appropriate|relevant)[\s\S]{0,100}validation|(?:one|final)[\s\S]{0,160}(?:appropriate|relevant)[\s\S]{0,100}validation[\s\S]{0,180}(?:after|following)[\s\S]{0,80}reconcil)/i,
+      'must require one final appropriate validation after reconciliation', errors);
+    requireText(filePath, source, /rerun[\s\S]{0,220}(?:meaningful|failure|concern)/i,
+      'must limit reruns to meaningful changes, failures, or unresolved concerns', errors);
+    requireText(filePath, source, /(?:risk review|independent review)[\s\S]{0,260}(?:all findings|findings)[\s\S]{0,220}(?:bounded|repair)/i,
+      'must collect all risk-review findings and repair them in a bounded follow-up', errors);
+  }
+}
+
+/** Validate the concise campaign playbook without enforcing agent quotas. */
 export function validateCampaignPlaybook({ source, errors } = {}) {
   const raw = String(source ?? '');
   const normalized = normalizeGuidance(raw);
-  const checks = [
-    ['must provide a reusable campaign goal template', /campaign goal template/i],
-    [
-      'must require the dependency authority before prompt selection',
-      /before selecting[\s\S]{0,220}coordination:dependencies[\s\S]{0,220}compact/i,
-    ],
-    ['must require the deterministic dispatcher', /npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i],
-    [
-      'must prohibit new lanes at a stopping point',
-      /(?:reach a stopping point|stopping)[\s\S]{0,260}open no new lanes/i,
-    ],
-    [
-      'must require selective reapplication and prohibit wholesale stale merges',
-      /selectively reapply[\s\S]{0,360}never wholesale-merge[\s\S]{0,160}stale branch/i,
-    ],
-    [
-      'must require independent exact-HEAD review before one final full coordination validation',
-      /independent exact-head review[\s\S]{0,260}(?:precede|before)[\s\S]{0,220}one final full coordination validation/i,
-    ],
-    ['must require Luna xhigh delegation', /gpt-5\.6-luna[\s\S]{0,100}xhigh/i],
-    [
-      'must require Terra xhigh after a Luna role failure',
-      /luna attempt fails[\s\S]{0,220}same agent role[\s\S]{0,180}gpt-5\.6-terra at xhigh/i,
-    ],
-    [
-      'must authorize Sol after Terra fails in the same role',
-      /terra attempt(?: then)? fails[\s\S]{0,180}gpt-5\.6-sol[\s\S]{0,180}same agent role only/i,
-    ],
-    [
-      'must keep role escalation monotonic and stop Luna/Terra loops',
-      /escalation tier belongs to the role[\s\S]{0,240}must never reset or downgrade[\s\S]{0,240}luna\/terra loop/i,
-    ],
-    [
-      'must require a user-visible 10x-cost explanation before Sol dispatch',
-      /before dispatching sol[\s\S]{0,180}user-visible chat[\s\S]{0,240}10 times as expensive as luna/i,
-    ],
-    [
-      'must require immediate idle or terminal reports with status, paths, commands, and blockers',
-      /immediately report[\s\S]{0,220}(?:exact )?status[\s\S]{0,180}changed paths[\s\S]{0,180}commands[\s\S]{0,180}blocker/i,
-    ],
-    [
-      'must require exact leaf-file ownership and reject broad docs claims',
-      /exact exclusive leaf-file claims[\s\S]{0,260}(?:no broad `?docs\/\*`?|another owner)/i,
-    ],
-    [
-      'must assign explicit implementation, review, and release ownership',
-      /implementation agent owns edits, focused tests, and commit[\s\S]{0,300}independent reviewer[\s\S]{0,240}release agent owns/i,
-    ],
-    [
-      'must prohibit implicit ownership handoffs',
-      /do not leave these handoffs implicit/i,
-    ],
-    [
-      'must preflight changelog, version, progress, and release-fragment ownership',
-      /preflight[\s\S]{0,180}changelog[\s\S]{0,180}version[\s\S]{0,180}progress[\s\S]{0,180}release-fragment/i,
-    ],
-    [
-      'must keep local, rendered, deployed, and capacity proof distinct',
-      /local[\s\S]{0,180}rendered[\s\S]{0,180}deploy(?:ed|ment)[\s\S]{0,180}capacity proof/i,
-    ],
-  ];
-  for (const [message, pattern] of checks) {
+  for (const [message, pattern] of [
+    ['must provide a campaign playbook', /agent campaign playbook/i],
+    ['must use one owner per task', /one owner per task/i],
+    ['must state that sidecars are optional and there is no minimum-agent count', /sidecar[\s\S]{0,100}optional[\s\S]{0,140}no minimum-agent count/i],
+    ['must freeze accepted scope and queue unrelated additions', /freeze[\s\S]{0,160}(?:scope|accepted)[\s\S]{0,180}queue unrelated/i],
+    ['must collect all risk-review findings together', /all findings[\s\S]{0,180}(?:together|one pass)/i],
+    ['must require commit before final validation', /commit[\s\S]{0,180}final[\s\S]{0,100}validation/i],
+    ['must require merge, push, and deployment verification', /merge[\s\S]{0,180}push[\s\S]{0,220}(?:(?:deployment|workflow)[\s\S]{0,120}verif|verif[\s\S]{0,120}(?:deployment|workflow))/i],
+  ]) {
     if (!pattern.test(normalized)) errors.push(`campaign playbook: ${message}`);
   }
-
-  const templateMatch = raw.match(/## Campaign goal template[\s\S]*?```text\n([\s\S]*?)\n```/i);
-  if (!templateMatch) {
-    errors.push('campaign playbook: goal template must be a copyable text block');
-    return;
-  }
-  const template = templateMatch[1];
-  if (/\b[0-9a-f]{7,40}\b/i.test(template) || /\b\d+\/\d+\b/.test(template) || /\b\d+\.\d+\.\d+\b/.test(template)) {
-    errors.push('campaign playbook: goal template must not hard-code a SHA, count, or version');
-  }
-  if (!/do not reuse a\s+reported sha,\s+version,\s+count,\s+or next prompt without live verification/i.test(template)) {
-    errors.push('campaign playbook: goal template must require dynamic live state rather than hard-coded snapshots');
-  }
 }
 
-export function validatePromptDependencyGuidance({ sources, errors }) {
-  for (const [filePath, selectionPattern] of PROMPT_DEPENDENCY_GUIDANCE) {
-    const source = sources.get(filePath);
-    if (typeof source !== 'string') {
-      errors.push(`${filePath}: required prompt dependency guidance file is missing`);
-      continue;
-    }
-    const normalized = normalizeGuidance(source);
-    if (filePath !== PROMPT_DEPENDENCY_INDEX_PATH && !normalized.includes('implementation_prompt_dependencies.md')) {
-      errors.push(`${filePath}: must link IMPLEMENTATION_PROMPT_DEPENDENCIES.md`);
-    }
-    if (!selectionPattern.test(normalized)) {
-      errors.push(`${filePath}: must require generating prompt dependencies before selecting a prompt`);
-    }
-    if (!hasPromptDependencyPacketRequirement(normalized)) {
-      errors.push(`${filePath}: must explicitly require reading the compact dependency packet before prompt work`);
-    }
-    if (!hasDispatcherRequirement(normalized)) {
-      errors.push(`${filePath}: must require running the prompt dependency dispatcher`);
-    }
-    if (!hasCurrentStateReconciliation(normalized)) {
-      errors.push(`${filePath}: must require reconciling current main and coordination`);
-    }
-    if (!hasMainMovementReread(normalized)) {
-      errors.push(`${filePath}: must require refreshing after rebase or material current-main movement`);
-    }
-    if (!hasCompletionBlock(normalized)) {
-      errors.push(`${filePath}: must block completion/merge while hard prerequisites are unmet`);
+/** Validate current prose for retired high-assurance gates. */
+export function validateRiskBasedGuidance({ sources, errors }) {
+  for (const [filePath, source] of sources) {
+    for (const [pattern, message] of OBSOLETE_UNIVERSAL_GATES) {
+      if (pattern.test(source)) errors.push(`${filePath}: ${message}`);
     }
   }
-
-  const claude = sources.get('CLAUDE.md') ?? '';
-  const normalizedClaude = claude.replace(/\s+/g, ' ').toLowerCase();
-  for (const requiredText of [
-    'after rebase',
-    'material main movement',
-    'hard prerequisites that remain unmet',
-    'cannot be marked complete',
-    'cannot merge',
-  ]) {
-    if (!normalizedClaude.includes(requiredText)) {
-      errors.push(`CLAUDE.md is missing prompt dependency gate guidance: ${requiredText}`);
-    }
-  }
-  const plan = sources.get('docs/IMPLEMENTATION_PLAN.md') ?? '';
-  if (!/not standalone/i.test(plan)) {
-    errors.push('docs/IMPLEMENTATION_PLAN.md must state that it is not standalone');
-  }
+  const claude = sourceFor(sources, 'CLAUDE.md', errors);
+  requireText('CLAUDE.md', claude,
+    /process-gate[\s\S]{0,100}frozen[\s\S]{0,120}2026-09-18[\s\S]{0,260}two[\s\S]{0,80}production-impacting failures[\s\S]{0,180}broken existing tools/i,
+    'must freeze new process gates through 2026-09-18 with the approved exception', errors);
+  requireText('CLAUDE.md', claude,
+    /first five prompts[\s\S]{0,140}existing task timestamps[\s\S]{0,120}no[\s\S]{0,60}telemetry/i,
+    'must use existing timestamps to monitor the first five prompts without new telemetry', errors);
 }
 
-function changedFiles(cwd) {
-  return execFileSync('git', ['diff', '--name-only', 'main...HEAD'], {
-    cwd,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .map((filePath) => filePath.trim())
-    .filter(Boolean);
+// Kept as a compatibility export for callers that used the former helper.
+export function validatePromptDependencyConcurrency({ sources, errors }) {
+  validatePromptDependencyGuidance({ sources, errors });
+}
+
+// Dependency facts now belong to the JSON catalog and its loader. This helper
+// intentionally performs no Markdown-table parsing or receipt issuance.
+export function validatePromptDependencyCompletion() {
+  return [];
+}
+
+function changedFiles() {
+  // Documentation validation is intentionally independent of a branch baseline.
+  // The caller can pass an explicit file list when it wants a narrower review.
+  return [];
 }
 
 function checkMarkdownFile(cwd, filePath, scripts, errors) {
   const absolutePath = resolve(cwd, filePath);
-  if (!existsSync(absolutePath)) return;
-
+  if (!existsSync(absolutePath)) {
+    errors.push(`${filePath}: file does not exist`);
+    return;
+  }
   const source = readFileSync(absolutePath, 'utf8');
-  const lines = source.split('\n');
   let fence;
-  for (const line of lines) {
+  for (const line of source.split('\n')) {
     const match = line.match(/^\s*(`{3,}|~{3,})/);
     if (!match) continue;
-    const marker = match[1][0];
-    if (!fence) {
-      fence = marker;
-    } else if (fence === marker) {
-      fence = undefined;
-    }
+    if (!fence) fence = match[1][0];
+    else if (fence === match[1][0]) fence = undefined;
   }
   if (fence) errors.push(`${filePath}: unclosed ${fence} fenced code block`);
 
-  for (const match of source.matchAll(/!?\[[^\]]*\]\(([^)\n]+)\)/g)) {
+  for (const match of source.matchAll(/!?(?:\[[^\]]*\])\(([^)\n]+)\)/g)) {
     let target = match[1].trim();
     if (target.startsWith('<')) {
-      const closingBracket = target.indexOf('>');
-      target = closingBracket >= 0 ? target.slice(1, closingBracket) : target;
-    } else {
-      target = target.split(/\s+/, 1)[0];
-    }
-    if (!target || target.startsWith('#') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(target)) {
-      continue;
-    }
+      const end = target.indexOf('>');
+      target = end >= 0 ? target.slice(1, end) : target;
+    } else target = target.split(/\s+/, 1)[0];
+    if (!target || target.startsWith('#') || /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(target)) continue;
     const pathPart = target.split(/[?#]/, 1)[0];
-    let decodedPath;
-    try {
-      decodedPath = decodeURIComponent(pathPart);
-    } catch {
-      errors.push(`${filePath}: invalid URL encoding in link target ${target}`);
-      continue;
-    }
-    if (!existsSync(resolve(dirname(absolutePath), decodedPath))) {
+    let decoded;
+    try { decoded = decodeURIComponent(pathPart); }
+    catch { errors.push(`${filePath}: invalid URL encoding in link target ${target}`); continue; }
+    if (!existsSync(resolve(dirname(absolutePath), decoded))) {
       errors.push(`${filePath}: link target does not exist: ${target}`);
     }
   }
-
   for (const match of source.matchAll(/\bnpm run ([a-z0-9:_-]+)/gi)) {
-    const scriptName = match[1];
-    if (!scripts[scriptName]) {
-      errors.push(`${filePath}: npm script does not exist: ${scriptName}`);
-    }
+    if (!scripts[match[1]]) errors.push(`${filePath}: npm script does not exist: ${match[1]}`);
   }
 }
 
-/** Validate the deterministic portion of the repository's Markdown contract. */
+/** Validate the deterministic, useful portion of the repository guidance. */
 export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
-  const packageJson = JSON.parse(readFileSync(resolve(cwd, 'package.json'), 'utf8'));
-  const candidateFiles = files ?? changedFiles(cwd);
-  const documentationFiles = [
-    ...new Set([
-      ...candidateFiles.filter(isDocumentationFile),
-      'AGENTS.md',
-      'CLAUDE.md',
-    ]),
-  ];
+  const packagePath = resolve(cwd, 'package.json');
+  const packageJson = JSON.parse(readFileSync(packagePath, 'utf8'));
+  const candidateFiles = files ?? [...CORE_SURFACES, ...changedFiles()];
+  const documentationFiles = [...new Set(candidateFiles.filter(isDocumentationFile))];
   const errors = [];
+  for (const filePath of documentationFiles) checkMarkdownFile(cwd, filePath, packageJson.scripts ?? {}, errors);
 
-  if (documentationFiles.length === 0) {
-    errors.push('no documentation files were found in the task diff');
+  const sources = new Map();
+  for (const filePath of CORE_SURFACES) {
+    const absolutePath = resolve(cwd, filePath);
+    if (existsSync(absolutePath)) sources.set(filePath, readFileSync(absolutePath, 'utf8'));
   }
-  for (const filePath of documentationFiles) {
-    checkMarkdownFile(cwd, filePath, packageJson.scripts ?? {}, errors);
-  }
+  validatePromptDependencyGuidance({ sources, errors });
+  validateAgentModelEscalation({ sources, errors });
+  validateSessionGoalGuidance({ sources, errors });
+  validateBlockedMergeAgentHandoff({ sources, errors });
+  validateRiskBasedGuidance({ sources, errors });
+  validateCampaignPlaybook({ source: sources.get('docs/AGENT_CAMPAIGN_PLAYBOOK.md'), errors });
 
-  const agents = readFileSync(resolve(cwd, 'AGENTS.md'), 'utf8');
-  const claude = readFileSync(resolve(cwd, 'CLAUDE.md'), 'utf8');
-  const dependencySource = readFileSync(resolve(cwd, PROMPT_DEPENDENCY_INDEX_PATH), 'utf8');
-  const progressSource = readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8');
-  const ciSource = readFileSync(resolve(cwd, '.github/workflows/ci.yml'), 'utf8');
-  const ignoreSource = readFileSync(resolve(cwd, '.gitignore'), 'utf8');
-  const dispatcherSource = readFileSync(resolve(cwd, 'scripts/prompt-dependencies.mjs'), 'utf8');
-  const coordinationSource = readFileSync(resolve(cwd, 'scripts/emulator-resource-registry.mjs'), 'utf8');
-  const throughputSource = readFileSync(resolve(cwd, 'scripts/coordination-throughput.mjs'), 'utf8');
-  if (packageJson.scripts?.['coordination:dependencies'] !== 'node scripts/prompt-dependencies.mjs' ||
-    packageJson.scripts?.['coordination:dependencies:measure'] !== 'node scripts/prompt-dependencies.mjs --measure' ||
-    packageJson.scripts?.['validate:dependencies'] !== 'node scripts/prompt-dependencies.mjs --verify') {
-    errors.push('package.json must expose the shared compact dispatcher and dependency validation commands');
+  if (!existsSync(resolve(cwd, CATALOG_PATH))) {
+    errors.push(`${CATALOG_PATH}: JSON prompt catalog is missing`);
   }
-  if (!ciSource.includes('npm run validate:dependencies')) {
-    errors.push('.github/workflows/ci.yml must run the shared dependency drift gate');
-  }
-  if (dependencySource.includes('node --input-type=module') || dependencySource.includes('~~~js')) {
-    errors.push(`${PROMPT_DEPENDENCY_INDEX_PATH}: must not duplicate the executable dependency parser`);
-  }
-  if (!/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/.test(dispatcherSource)) {
-    errors.push('scripts/prompt-dependencies.mjs must import the shared canonical authority parser');
-  }
-  if (!/import\s*\{[\s\S]*?coordinationClaimIsCrossRepository[\s\S]*?\}\s*from '\.\/coordination-throughput\.mjs'/.test(dispatcherSource) ||
-    !coordinationSource.includes('coordinationClaimIsCrossRepository,') ||
-    !/export\s+function\s+coordinationClaimIsCrossRepository\s*\(/.test(throughputSource)) {
-    errors.push('dependency receipts and coordination lifecycle must share the host-wide claim policy');
-  }
-  if (!ignoreSource.split(/\r?\n/).includes('.codex/dependency-receipts/')) {
-    errors.push('.gitignore must keep worktree-local dependency receipts out of Git');
-  }
-  if (!coordinationSource.includes("from './prompt-dependencies.mjs'") ||
-    (coordinationSource.match(/requireDependencyReceipt\(/g) ?? []).length < 4) {
-    errors.push('coordination begin, ownership amendment, and validation must retain the dependency receipt gate');
-  }
-  for (const requiredText of [
-    'CLAUDE.md',
-    'coordination:validate',
-    'coordination:finish',
-    'machine-checked',
-  ]) {
-    if (!agents.includes(requiredText)) {
-      errors.push(`AGENTS.md is missing required guidance: ${requiredText}`);
-    }
-  }
-  for (const requiredText of [
-    'coordination:begin',
-    'coordination:validate',
-    'coordination:finish',
-    'origin/main',
-    'machine-checked',
-  ]) {
-    if (!claude.includes(requiredText)) {
-      errors.push(`CLAUDE.md is missing required guidance: ${requiredText}`);
-    }
-  }
-
-  const guidanceSources = new Map([
-    ['AGENTS.md', agents],
-    ['CLAUDE.md', claude],
-    ['README.md', readFileSync(resolve(cwd, 'README.md'), 'utf8')],
-    ['docs/WORKTREE_COORDINATION.md', readFileSync(resolve(cwd, 'docs/WORKTREE_COORDINATION.md'), 'utf8')],
-    ['docs/IMPLEMENTATION_PLAN.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_PLAN.md'), 'utf8')],
-    [PROMPT_DEPENDENCY_INDEX_PATH, dependencySource],
-    ['docs/IMPLEMENTATION_MILESTONES.md', readFileSync(resolve(cwd, 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8')],
-    ['docs/IMPLEMENTATION_PROGRESS.md', progressSource],
-    [CAMPAIGN_PLAYBOOK_PATH, readFileSync(resolve(cwd, CAMPAIGN_PLAYBOOK_PATH), 'utf8')],
-  ]);
-  validatePromptDependencyGuidance({ sources: guidanceSources, errors });
-  validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
-  validateAgentModelEscalation({ sources: guidanceSources, errors });
-  validateSessionGoalGuidance({ sources: guidanceSources, errors });
-  validateBlockedMergeAgentHandoff({ sources: guidanceSources, errors });
-  validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
-  errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
-
   return errors;
 }
 
 async function main() {
   const errors = validateDocumentation();
-  if (errors.length > 0) {
-    throw new Error(`Documentation validation failed:\n- ${errors.join('\n- ')}`);
-  }
+  if (errors.length > 0) throw new Error(`Documentation validation failed:\n- ${errors.join('\n- ')}`);
   console.log('Documentation validation passed.');
 }
 

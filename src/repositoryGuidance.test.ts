@@ -4,647 +4,178 @@ import {
   validateAgentModelEscalation,
   validateBlockedMergeAgentHandoff,
   validateCampaignPlaybook,
-  validatePromptDependencyCompletion,
-  validatePromptDependencyConcurrency,
   validatePromptDependencyGuidance,
+  validateRiskBasedGuidance,
   validateSessionGoalGuidance,
 } from '../scripts/validate-repository-guidance.mjs';
 
-describe('repository guidance', () => {
-  it('requires agents to install locked dependencies in fresh worktrees', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
+const root = process.cwd();
+const guidanceSurfaces = [
+  'AGENTS.md',
+  'CLAUDE.md',
+  'README.md',
+  'docs/README.md',
+  'docs/WORKTREE_COORDINATION.md',
+  'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
+] as const;
 
-    expect(guidance).toContain('Worktree dependency bootstrap');
+function readGuidance(surface: string) {
+  return readFileSync(resolve(root, surface), 'utf8');
+}
+
+function readSources() {
+  return new Map(guidanceSurfaces.map((surface) => [surface, readGuidance(surface)]));
+}
+
+describe('repository guidance', () => {
+  it('keeps CLAUDE concise and preserves the high-value game contracts', () => {
+    const guidance = readGuidance('CLAUDE.md');
+    const normalized = guidance.replace(/\s+/g, ' ');
+    expect(guidance.split(/\r?\n/).length).toBeLessThanOrEqual(451);
+    for (const required of [
+      'server authority',
+      'focused, meaningful tests',
+      'coordination:status',
+      'docs/implementation-prompts.json',
+      'npm run emulators:configure -- auto',
+      'npm run coordination:docs',
+      'current `main`',
+      'player-facing changelog',
+      'App Check is complementary to authorization',
+      'readable fonts',
+      'visible, keyboard-accessible',
+      'CONSOLE_ARCHITECTURE.md',
+      'Process-gate changes are frozen through 2026-09-18',
+      'first five prompts',
+      'existing task timestamps',
+      'new telemetry system',
+    ]) {
+      expect(normalized, `CLAUDE.md must retain ${required}`).toContain(required);
+    }
+  });
+
+  it('keeps locked dependency setup, worktree identity, and emulator safety concrete', () => {
+    const guidance = readGuidance('CLAUDE.md');
+    const normalized = guidance.replace(/\s+/g, ' ');
     expect(guidance).toContain('npm ci');
     expect(guidance).toContain('npm ci --prefix functions');
-    expect(guidance).toContain('package-lock.json');
-    expect(guidance).toContain('functions/package-lock.json');
-  });
-
-  it('requires agents to leave detached HEAD before editing', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('Worktree branch bootstrap');
-    expect(guidance).toContain('git branch --show-current');
-    expect(guidance).toContain('Before editing');
-    expect(guidance).toContain('branch must be attached');
-  });
-
-  it('requires collision-free emulator ports in concurrent worktrees', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('Concurrent worktrees and emulator ports');
-    expect(guidance).toContain('firebase emulators:start');
-    expect(guidance).toContain('firebase emulators:exec');
-    expect(guidance).toContain('lsof');
-    expect(guidance).toContain('npm run emulators:configure -- auto');
-    expect(guidance).toContain('| 14 |');
-    expect(guidance).toMatch(
-      /auth,\s+Functions, Firestore, Firestore WebSocket, Hosting, Emulator UI, Hub, and Logging/,
-    );
-  });
-
-  it('requires every product release to update the player-facing changelog', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('Player-facing changelog');
-    expect(guidance).toContain('every completed product edit');
-    expect(guidance).toContain('user perspective');
-    expect(guidance).toContain('developer perspective');
-  });
-
-  it('requires a shared preemptive work entry before agents edit a worktree', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('preemptive changelog');
-    expect(guidance).toContain('coordination:begin');
-    expect(guidance).toContain('version agreement');
-    expect(guidance).toContain('coordination:status');
-  });
-
-  it('requires delegates to assert their own worktree and branch before setup or edits', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8').replace(/\s+/g, ' ');
-
-    expect(guidance).toContain('absolute own-worktree path');
-    expect(guidance).toContain('pwd -P');
     expect(guidance).toContain('git rev-parse --show-toplevel');
-    expect(guidance).toContain('before installing dependencies, registering coordination, or editing');
-    expect(guidance).toContain('never edit the parent checkout');
-    expect(guidance).toContain('run npm ci from the assigned worktree before repository scripts');
+    expect(guidance).toContain('git rev-parse --git-common-dir');
+    expect(normalized).toContain('never mix its ports with another row');
+    expect(guidance).toContain('do not stop a live process based on age');
+    expect(readGuidance('docs/WORKTREE_COORDINATION.md')).toContain('| 14 |');
   });
 
-  it('requires implementation-plan features to carry real changelog coverage', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('--implementation-prompt NNN');
-    expect(guidance).toContain('implementationPrompts');
-    expect(guidance).toContain('concrete player-facing change');
-    expect(guidance).toMatch(/preemptive changelog\s+field is only a draft/i);
+  it('describes the JSON catalog as the roadmap authority and views as generated', () => {
+    const errors: string[] = [];
+    validatePromptDependencyGuidance({ sources: readSources(), errors });
+    expect(errors, errors.join('\n')).toEqual([]);
+    for (const surface of guidanceSurfaces) {
+      const source = readGuidance(surface);
+      const normalized = source.replace(/\s+/g, ' ').toLowerCase();
+      expect(source, surface).toContain('implementation-prompts.json');
+      expect(normalized, surface).toMatch(/generated[\s\S]{0,180}(?:markdown|view|implementation)/i);
+      expect(normalized, surface).toMatch(/(?:coordination:dependencies[\s\S]{0,240}(?:read-only|readonly|no local|no nonce|no receipt)|(?:read-only|readonly|no local|no nonce|no receipt)[\s\S]{0,240}coordination:dependencies)/i);
+      expect(normalized, surface).toMatch(/next[\s\S]{0,160}(?:advisory|hint|not a serial|not serial)/i);
+    }
   });
 
-  it('requires the executable coordination validation and completion gate', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('coordination:validate');
-    expect(guidance).toContain('coordination:docs');
-    expect(guidance).toContain('documentation-review');
-    expect(guidance).toContain('visual-review');
-    expect(guidance).toContain('final branch SHA');
-    expect(guidance).toContain('origin/main');
-    expect(guidance).toContain('machine-checked');
-  });
-
-  it('keeps AGENTS.md as a pointer to the canonical executable gate', () => {
-    const agentsPath = resolve(process.cwd(), 'AGENTS.md');
-    const agents = readFileSync(agentsPath, 'utf8');
-
-    expect(agents).toContain('CLAUDE.md');
-    expect(agents).toContain('coordination:validate');
-    expect(agents).toContain('coordination:finish');
-    expect(agents).toContain('machine-checked');
-  });
-
-  it('makes startup recovery authoritative when end cleanup was skipped', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('Start cleanup is authoritative');
-    expect(guidance).toMatch(/no\s+live reservation does not mean a configured row is free/);
-    expect(guidance).toContain('End cleanup remains required');
-    expect(guidance).toMatch(/worktree is\s+missing/);
-  });
-
-  it('requires every task to track immediate post-test merge as an objective', () => {
-    const guidancePath = resolve(process.cwd(), 'CLAUDE.md');
-    const guidance = readFileSync(guidancePath, 'utf8');
-
-    expect(guidance).toContain('Every `Session goals` checklist must include this release objective');
-    expect(guidance.replace(/\s+/g, ' ')).toContain(
-      'As soon as required validation is green: commit, reconcile with current main, merge to main, push to origin, and close coordination.',
+  it('rejects guidance that reintroduces universal registration, nonce, or retention gates', () => {
+    const sources = readSources();
+    const mutated = new Map(sources);
+    mutated.set(
+      'CLAUDE.md',
+      `${sources.get('CLAUDE.md')} Every repository change except documentation-only must be dependency-gated. Every non-documentation commit must carry an Implementation-Prompt trailer. The finish gate requires an immutable goal artifact and keeps 48-hour retention.`,
     );
-    expect(guidance).toContain('Immediate post-test merge objective is checked off');
-  });
-
-  it('uses one release-fragment path for product metadata instead of concurrent shared-file edits', () => {
-    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
-
-    expect(guidance).toContain('validated per-task release fragment');
-    expect(guidance).toContain('Do not edit `package.json`, the root lockfile, or `src/changelog.ts` during feature implementation');
-    expect(guidance).not.toContain('reserve one unused release version for this task');
-    expect(guidance).not.toContain('update `package.json` and the root lockfile to it');
-  });
-
-  it('keeps Definition of done on the release-fragment path', () => {
-    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8');
-    const definitionOfDone = (guidance.match(/## Definition of done([\s\S]*?)(?=\n## |$)/)?.[1] ?? '')
-      .replace(/\s+/g, ' ');
-
-    expect(definitionOfDone).toMatch(/Product work began with one validated per-task release fragment[\s\S]{0,180}before the first implementation test/i);
-    expect(definitionOfDone).toMatch(/`release-land`[\s\S]{0,180}next permitted version[\s\S]{0,180}package metadata, root lockfile, and player-facing changelog/i);
-    expect(definitionOfDone).toMatch(/no-player-facing-change[\s\S]{0,180}does not add a release fragment/i);
-    expect(definitionOfDone).not.toMatch(/preemptive, standalone changelog entry/i);
-  });
-
-  it('keeps Luna xhigh and campaign role precedence unambiguous', () => {
-    const guidance = readFileSync(resolve(process.cwd(), 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
-
-    expect(guidance).toContain('Luna is the default at `xhigh`');
-    expect(guidance).toMatch(/Use GPT-5\.6 Luna \(`gpt-5\.6-luna`\) at `xhigh` reasoning/i);
-    expect(guidance).not.toMatch(/Use GPT-5\.6 Luna \(`gpt-5\.6-luna`\) at `high` reasoning/i);
-    expect(guidance).toMatch(/numbered-plan Luna `max`[\s\S]{0,360}gpt-5\.6-terra` at `xhigh`/i);
-    expect(guidance).toMatch(/overrides all routine primary-agent ownership\s+clauses below/i);
-    expect(guidance).toMatch(/separately\s+assigned implementation, exact-HEAD review, and release agents[\s\S]{0,240}reconciliation, versioning, merge, push, and `coordination:finish`/i);
-    expect(guidance).toMatch(/For routine \(non-campaign\) tasks,[\s\S]{0,420}The primary agent also owns all review, integration, versioning, merge, and push/i);
-  });
-
-  it('requires role-scoped Luna to Terra to Sol escalation on every agent-model authority', () => {
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(process.cwd(), surface), 'utf8'),
-    ]));
     const errors: string[] = [];
-
-    validateAgentModelEscalation({ sources, errors });
-
-    expect(errors, errors.join('\n')).toEqual([]);
-  });
-
-  it('rejects role-tier resets, Luna/Terra loops, and Sol dispatch without its cost explanation', () => {
-    const compliant = [
-      'If a Luna attempt fails, reassign that same agent role to gpt-5.6-terra.',
-      'If a Terra attempt then fails, gpt-5.6-sol is authorized for that same agent role only.',
-      'The escalation tier belongs to the role and must never reset or downgrade when an agent, task, or worktree is replaced; detect and stop any Luna/Terra loop.',
-      'Before dispatching Sol, explain in user-visible chat why that role needs Sol and that Sol is 10 times as expensive as Luna.',
-    ].join(' ');
-    const mutations = [
-      {
-        source: compliant.replace('must never reset or downgrade', 'may reset or downgrade'),
-        expected: 'must keep the role escalation tier monotonic across replacements',
-      },
-      {
-        source: compliant.replace('detect and stop any Luna/Terra loop', 'allow another Luna retry'),
-        expected: 'must detect and stop Luna/Terra loops',
-      },
-      {
-        source: compliant.replace('10 times as expensive as Luna', 'more expensive than Luna'),
-        expected: 'must explain every Sol dispatch in user-visible chat before dispatch',
-      },
-      {
-        source: `${compliant} Never dispatch a Sol child.`,
-        expected: 'retains the obsolete blanket prohibition on Sol child dispatch',
-      },
-      {
-        source: `${compliant} Delegate it under Luna-only rules.`,
-        expected: 'retains a Luna-only retry path that can reset role escalation',
-      },
-    ];
-
-    for (const mutation of mutations) {
-      const errors: string[] = [];
-      validateAgentModelEscalation({
-        sources: new Map([
-          ['AGENTS.md', mutation.source],
-          ['CLAUDE.md', mutation.source],
-          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
-          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
-        ]),
-        errors,
-      });
-
-      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
-        expect.stringContaining(mutation.expected),
-      ]));
-    }
-  });
-
-  it('requires phase-specific model floors and the durable session-goal lifecycle', () => {
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(process.cwd(), surface), 'utf8'),
-    ]));
-    const modelErrors: string[] = [];
-    validateAgentModelEscalation({ sources, errors: modelErrors });
-    expect(modelErrors, modelErrors.join('\n')).toEqual([]);
-
-    const goalErrors: string[] = [];
-    validateSessionGoalGuidance({ sources, errors: goalErrors });
-    expect(goalErrors, goalErrors.join('\n')).toEqual([]);
-  });
-
-  it('rejects session-goal guidance that drops the machine-checked lifecycle', () => {
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(process.cwd(), surface), 'utf8'),
-    ]));
-    const mutation = (sources.get('CLAUDE.md') ?? '').replaceAll('coordination:goals', 'coordination:status');
-    const errors: string[] = [];
-    validateSessionGoalGuidance({
-      sources: new Map([...sources, ['CLAUDE.md', mutation]]),
-      errors,
-    });
-    expect(errors, errors.join('\n')).toEqual(expect.arrayContaining([
-      expect.stringContaining('CLAUDE.md: must document the supported session-goal update path'),
-    ]));
-  });
-
-  it('requires park/resume guidance to checkpoint, retain ownership, and avoid polling loops', () => {
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(process.cwd(), surface), 'utf8'),
-    ]));
-    const errors: string[] = [];
-    validateSessionGoalGuidance({ sources, errors });
-    expect(errors, errors.join('\n')).toEqual([]);
-    for (const [surface, source] of sources) {
-      expect(source, `${surface} must document parking`).toContain('coordination:park');
-      expect(source, `${surface} must document resuming`).toContain('coordination:resume');
-      expect(source, `${surface} must document checkpoint continuity`).toMatch(/checkpoint.{0,120}(?:SHA|continuity)/i);
-      expect(source, `${surface} must document retained ownership`).toMatch(/retain[\s\S]{0,120}(?:scope|claim)/i);
-      expect(source, `${surface} must document no polling loops`).toMatch(/(?:no|do not run a)\s+(?:status\/heartbeat|heartbeat\/status)\s+polling\s+loop/i);
-    }
-  });
-
-  it('requires an exact pushed-branch handoff on every blocked-merge authority', () => {
-    const surfaces = [
-      'CLAUDE.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(process.cwd(), surface), 'utf8'),
-    ]));
-    const errors: string[] = [];
-
-    validateBlockedMergeAgentHandoff({ sources, errors });
-
-    expect(errors, errors.join('\n')).toEqual([]);
-  });
-
-  it('rejects a blocked-merge handoff without ordering, merge instructions, or delivery proof', () => {
-    const compliant = [
-      'A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.',
-      'CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.',
-      'When that blocking agent prevents merge, commit and push the exact task branch before sending the handoff.',
-      'Send a direct user-visible message to the blocking agent with the destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims.',
-      'Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.',
-      'The registry creates a structured pending merge handoff on the active blocker entry only after verifying the exact pushed --preserve-ref SHA, same-repository ownership, and the named overlap.',
-      'coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.',
-      'Instruct the blocking agent: after its original blocker work is finished, keep that exact blocker entry active, fetch the branch, reconcile it with current main, merge the exact source commit into that same entry task branch, apply any named delta, rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish for that same blocker entry.',
-      'coordination:finish refuses landed, preserved, and discarded outcomes for the blocker until its validated task branch contains every assigned source commit and pushed origin/main contains that branch.',
-      '--result prose and --handoff-delivery text cannot waive the MERGE OTHER BRANCHES hard gate.',
-      'Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved; a coordination note is not proof of delivery.',
-      'If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.',
-    ].join(' ');
-    const mutations = [
-      {
-        source: compliant.replace('A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.', 'Anything can be an agent blocker.'),
-        expected: 'must define an agent blocker as active overlapping ownership',
-      },
-      {
-        source: compliant.replace('before sending the handoff', 'after closing the task'),
-        expected: 'must push the exact task branch before sending the handoff',
-      },
-      {
-        source: compliant.replace('CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.', 'Any blocker qualifies.'),
-        expected: 'must distinguish agent blockers from CI, external, user-input, and test blockers',
-      },
-      {
-        source: compliant.replace('Send a direct user-visible message', 'Leave a note'),
-        expected: 'must send direct user-visible instructions to the blocking agent',
-      },
-      {
-        source: compliant.replace('destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims', 'branch name'),
-        expected: 'must include the task ID, exact branch, SHA, blocker reason, and overlap',
-      },
-      {
-        source: compliant.replace('rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish', 'merge when convenient'),
-        expected: 'must instruct the blocker to reconcile, validate, merge, push, and finish',
-      },
-      {
-        source: compliant.replace('keep that exact blocker entry active', 'close the blocker entry first'),
-        expected: 'must bind the merge obligation to the existing blocker entry',
-      },
-      {
-        source: compliant.replace('Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.', 'Record the handoff in the result summary.'),
-        expected: 'must create the structured blocked-agent handoff at preservation',
-      },
-      {
-        source: compliant.replace('coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.', 'coordination:status hides the queue.'),
-        expected: 'must expose the MERGE OTHER BRANCHES hard gate in status',
-      },
-      {
-        source: compliant.replace('refuses landed, preserved, and discarded outcomes', 'allows any closeout outcome'),
-        expected: 'must block every closeout outcome while assigned branches remain',
-      },
-      {
-        source: compliant.replace('validated task branch contains every assigned source commit and pushed origin/main contains that branch', 'agent says the work was considered'),
-        expected: 'must require exact source containment in the validated branch and pushed main',
-      },
-      {
-        source: compliant.replace('--result prose and --handoff-delivery text cannot waive', '--result prose may waive'),
-        expected: 'must not allow prose to waive the hard gate',
-      },
-      {
-        source: compliant.replace('Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved', 'Assume delivery'),
-        expected: 'must verify delivery before preserving and closing',
-      },
-      {
-        source: compliant.replace('a coordination note is not proof of delivery', 'a coordination note proves delivery'),
-        expected: 'must not treat a coordination note as delivery proof',
-      },
-      {
-        source: compliant.replace('If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.', 'Close the source entry even if delivery fails.'),
-        expected: 'must keep the source entry active when delivery is unverified',
-      },
-    ];
-
-    for (const mutation of mutations) {
-      const errors: string[] = [];
-      validateBlockedMergeAgentHandoff({
-        sources: new Map([
-          ['CLAUDE.md', mutation.source],
-          ['docs/AGENT_CAMPAIGN_PLAYBOOK.md', mutation.source],
-          ['docs/WORKTREE_COORDINATION.md', mutation.source],
-          ['docs/IMPLEMENTATION_PLAN.md', mutation.source],
-        ]),
-        errors,
-      });
-
-      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
-        expect.stringContaining(mutation.expected),
-      ]));
-    }
-  });
-
-  it('requires every agent-facing workflow surface to route through prompt dependencies', () => {
-    const repositoryRoot = process.cwd();
-    const dependencyDoc = 'IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'README.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-      `docs/${dependencyDoc}`,
-      'docs/IMPLEMENTATION_MILESTONES.md',
-      'docs/IMPLEMENTATION_PROGRESS.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-    ];
-
-    for (const surface of surfaces) {
-      const source = readFileSync(resolve(repositoryRoot, surface), 'utf8');
-      if (surface !== `docs/${dependencyDoc}`) expect(source, surface).toContain(dependencyDoc);
-      const normalized = source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
-      expect(normalized, surface).toMatch(
-        /coordination:dependencies[\s\S]{0,240}\b(?:compact )?packet\b|\b(?:compact )?packet\b[\s\S]{0,240}coordination:dependencies/i,
-      );
-      expect(normalized, surface).toMatch(/npm run coordination:dependencies\s+--\s+--prompt\s+nnn/i);
-      expect(normalized, surface).toMatch(/reconcil\w*[\s\S]{0,300}(?:current main[\s\S]{0,300}coordination|coordination[\s\S]{0,300}current main)/i);
-      expect(normalized, surface).toMatch(/\brefresh\b/i);
-      expect(normalized, surface).toMatch(/\b(?:rebase|material (?:main )?movement)\b/i);
-      expect(normalized, surface).toContain('current main');
-      expect(normalized, surface).toMatch(/cannot be marked complete/i);
-      expect(normalized, surface).toMatch(/\b(?:cannot merge|merged)\b/i);
-      expect(normalized, surface).toMatch(/hard prerequisites?[\s\S]{0,120}unmet/i);
-    }
-  });
-
-  it('keeps the shared dependency parser, ignored receipt, lifecycle gates, and CI drift check wired', () => {
-    const repositoryRoot = process.cwd();
-    const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
-    const dispatcher = readFileSync(resolve(repositoryRoot, 'scripts/prompt-dependencies.mjs'), 'utf8');
-    const coordination = readFileSync(resolve(repositoryRoot, 'scripts/emulator-resource-registry.mjs'), 'utf8');
-    const ci = readFileSync(resolve(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
-    const ignore = readFileSync(resolve(repositoryRoot, '.gitignore'), 'utf8');
-
-    expect(packageJson.scripts['coordination:dependencies']).toBe('node scripts/prompt-dependencies.mjs');
-    expect(packageJson.scripts['coordination:dependencies:measure']).toBe('node scripts/prompt-dependencies.mjs --measure');
-    expect(packageJson.scripts['validate:dependencies']).toBe('node scripts/prompt-dependencies.mjs --verify');
-    expect(dispatcher).toMatch(/import\s*\{[\s\S]*?parseCatalog[\s\S]*?\}\s*from '\.\/validate-work-registration\.mjs'/);
-    expect(dispatcher).toContain("coordinationClaimIsCrossRepository } from './coordination-throughput.mjs'");
-    expect(coordination).toContain("from './prompt-dependencies.mjs'");
-    expect(coordination).toContain('coordinationClaimIsCrossRepository,');
-    expect(coordination.match(/requireDependencyReceipt\(/g)?.length).toBeGreaterThanOrEqual(4);
-    expect(ci).toContain('npm run validate:dependencies');
-    expect(ignore.split(/\r?\n/)).toContain('.codex/dependency-receipts/');
-  });
-
-  it('rejects a dependency surface that only links the index without the mandatory operational gate', () => {
-    const repositoryRoot = process.cwd();
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'README.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
-      'docs/IMPLEMENTATION_MILESTONES.md',
-      'docs/IMPLEMENTATION_PROGRESS.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(repositoryRoot, surface), 'utf8'),
-    ]));
-    for (const weakSurface of [
-      'docs/IMPLEMENTATION_MILESTONES.md',
-      'docs/IMPLEMENTATION_PROGRESS.md',
-    ]) {
-      const weakSources = new Map(sources);
-      weakSources.set(
-        weakSurface,
-        'See IMPLEMENTATION_PROMPT_DEPENDENCIES.md before selecting a prompt.',
-      );
-      const errors: string[] = [];
-
-      validatePromptDependencyGuidance({ sources: weakSources, errors });
-
-      expect(errors).toEqual(expect.arrayContaining([
-        `${weakSurface}: must explicitly require reading the compact dependency packet before prompt work`,
-        `${weakSurface}: must require running the prompt dependency dispatcher`,
-        `${weakSurface}: must require reconciling current main and coordination`,
-        `${weakSurface}: must require refreshing after rebase or material current-main movement`,
-        `${weakSurface}: must block completion/merge while hard prerequisites are unmet`,
-      ]));
-    }
-  });
-
-  it('rejects a completed prompt whose hard prerequisite is unresolved', () => {
-    const dependencySource = [
-      '| prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |',
-      '| 001 | NEW | missing | none | none | none | none | none | none | none | none | none | M1 | Prerequisite |',
-      '| 002 | NEW | done | 001 | none | none | none | none | none | none | none | E-001 | M1 | Dependent |',
-    ].join('\n');
-    const progressSource = [
-      '| 001 | missing | non-feature | — |',
-      '| 002 | done | non-feature | — |',
-    ].join('\n');
-
-    expect(validatePromptDependencyCompletion({ dependencySource, progressSource })).toEqual([
-      'Prompt 002 is marked done but hard prerequisite 001 is missing.',
-    ]);
-  });
-
-  it('requires an advisory NEXT lane while preserving safe concurrent dependency-ready claims', () => {
-    const repositoryRoot = process.cwd();
-    const surfaces = [
-      'AGENTS.md',
-      'CLAUDE.md',
-      'README.md',
-      'docs/WORKTREE_COORDINATION.md',
-      'docs/IMPLEMENTATION_PLAN.md',
-      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
-      'docs/IMPLEMENTATION_MILESTONES.md',
-      'docs/IMPLEMENTATION_PROGRESS.md',
-      'docs/AGENT_CAMPAIGN_PLAYBOOK.md',
-    ];
-    const sources = new Map(surfaces.map((surface) => [
-      surface,
-      readFileSync(resolve(repositoryRoot, surface), 'utf8'),
-    ]));
-    const errors: string[] = [];
-
-    validatePromptDependencyConcurrency({ sources, errors });
-
-    expect(errors, errors.join('\n')).toEqual([]);
-  });
-
-  it('rejects serial-only or unsafe concurrent prompt-claim guidance', () => {
-    const errors: string[] = [];
-    const sources = new Map([
-      [
-        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
-        'NEXT is the first READY_QUEUE item. Claim the first unclaimed item only.',
-      ],
-      ['CLAUDE.md', 'Prompt work may proceed concurrently.'],
-      ['docs/IMPLEMENTATION_PLAN.md', 'The lowest unresolved ID is a pointer.'],
-      ['docs/IMPLEMENTATION_PROGRESS.md', 'Dependency-ready prompts may proceed concurrently.'],
-      ['docs/IMPLEMENTATION_MILESTONES.md', 'Use the dependency route.'],
-      ['docs/WORKTREE_COORDINATION.md', 'Coordinate ownership before editing.'],
-      ['README.md', 'Read the dependency index.'],
-      ['AGENTS.md', 'Read CLAUDE.md.'],
-    ]);
-
-    validatePromptDependencyConcurrency({ sources, errors });
-
+    validateRiskBasedGuidance({ sources: mutated, errors });
     expect(errors).toEqual(expect.arrayContaining([
-      expect.stringContaining('docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'),
-      expect.stringContaining('CLAUDE.md'),
-      expect.stringContaining('docs/IMPLEMENTATION_PLAN.md'),
-      expect.stringContaining('docs/IMPLEMENTATION_PROGRESS.md'),
-      expect.stringContaining('docs/IMPLEMENTATION_MILESTONES.md'),
-      expect.stringContaining('docs/WORKTREE_COORDINATION.md'),
-      expect.stringContaining('README.md'),
-      expect.stringContaining('AGENTS.md'),
+      expect.stringContaining('universal prompt registration'),
+      expect.stringContaining('Implementation-Prompt trailer'),
+      expect.stringContaining('immutable goal'),
+      expect.stringContaining('48-hour'),
     ]));
   });
 
-  it('requires the campaign playbook to retain the learned orchestration controls', () => {
-    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
+  it('keeps the process-gate freeze and lightweight first-five monitoring policy', () => {
     const errors: string[] = [];
-
-    validateCampaignPlaybook({ source, errors });
-
-    expect(errors, errors.join('\n')).toEqual([]);
+    validateRiskBasedGuidance({ sources: readSources(), errors });
+    expect(errors, errors.join('\\n')).toEqual([]);
   });
 
-  it('fails closed if role escalation or another critical campaign control is weakened', () => {
-    const source = readFileSync(resolve(process.cwd(), 'docs/AGENT_CAMPAIGN_PLAYBOOK.md'), 'utf8');
-    const mutations = [
-      {
-        source: source.replace(/open no new lanes/gi, 'open a new lane'),
-        expected: 'must prohibit new lanes at a stopping point',
-      },
-      {
-        source: source.replace(/npm run coordination:dependencies\s+--\s+--prompt NNN/gi, 'consult dependencies'),
-        expected: 'must require the dependency authority before prompt selection',
-      },
-      {
-        source: source
-          .replace(/selectively reapply/gi, 'reuse')
-          .replace(/never wholesale-merge/gi, 'may merge'),
-        expected: 'must require selective reapplication and prohibit wholesale stale merges',
-      },
-      {
-        source: source
-          .replace(/independent exact-HEAD review/gi, 'review')
-          .replace(/one final full coordination validation/gi, 'validation'),
-        expected: 'must require independent exact-HEAD review before one final full coordination validation',
-      },
-      {
-        source: source.replace(/Luna attempt fails/gi, 'Luna attempt succeeds'),
-        expected: 'must require Terra xhigh after a Luna role failure',
-      },
-      {
-        source: source.replace(/`?gpt-5\.6-sol`? is authorized\s+for that same agent role only/gi, 'retry Terra'),
-        expected: 'must authorize Sol after Terra fails in the same role',
-      },
-      {
-        source: source.replace(/must never reset or downgrade/gi, 'may reset or downgrade'),
-        expected: 'must keep role escalation monotonic and stop Luna/Terra loops',
-      },
-      {
-        source: source.replace(/10\s+times as expensive as\s+Luna/gi, 'more expensive than Luna'),
-        expected: 'must require a user-visible 10x-cost explanation before Sol dispatch',
-      },
-      {
-        source: source.replace(/immediately\s+report/gi, 'report later'),
-        expected: 'must require immediate idle or terminal reports with status, paths, commands, and blockers',
-      },
-      {
-        source: source.replace(/exact exclusive leaf-file claims/gi, 'broad docs ownership'),
-        expected: 'must require exact leaf-file ownership and reject broad docs claims',
-      },
-      {
-        source: source.replace(/do not reuse a\s+reported SHA,\s+version,\s+count,\s+or NEXT prompt without live verification/gi, 'reuse the old status'),
-        expected: 'goal template must require dynamic live state rather than hard-coded snapshots',
-      },
-      {
-        source: source.replace(/implementation\s+agent owns edits, focused tests, and commit/gi, 'implementation agent may edit'),
-        expected: 'must assign explicit implementation, review, and release ownership',
-      },
-    ];
+  it('requires the risk-based model policy without a compulsory handoff cycle', () => {
+    const sources = readSources();
+    const errors: string[] = [];
+    validateAgentModelEscalation({ sources, errors });
+    expect(errors, errors.join('\n')).toEqual([]);
 
-    for (const mutation of mutations) {
-      const errors: string[] = [];
-      validateCampaignPlaybook({ source: mutation.source, errors });
-      expect(errors, mutation.expected).toEqual(expect.arrayContaining([
-        expect.stringContaining(mutation.expected),
-      ]));
-    }
+    const weak = new Map(sources);
+    weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('Terra', 'Reviewer'));
+    const weakErrors: string[] = [];
+    validateAgentModelEscalation({ sources: weak, errors: weakErrors });
+    expect(weakErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('risky shared/session/callable/rules or deploy/auth'),
+    ]));
+  });
+
+  it('requires lightweight ownership, parking, optional goals, and no polling loop', () => {
+    const errors: string[] = [];
+    validateSessionGoalGuidance({ sources: readSources(), errors });
+    expect(errors, errors.join('\n')).toEqual([]);
+
+    const weak = new Map(readSources());
+    weak.set('docs/WORKTREE_COORDINATION.md', readGuidance('docs/WORKTREE_COORDINATION.md')
+      .replaceAll('optional', 'mandatory')
+      .replace(/Do not run a status\/heartbeat[\s\S]{0,40}?polling loop\./, 'Run a status/heartbeat polling loop.')
+      .replace(/no\s+immutable goal artifact, digest comparison, one-shot provenance chain, or/, 'requires an immutable goal artifact and digest comparison, one-shot provenance chain, or'));
+    const weakErrors: string[] = [];
+    validateSessionGoalGuidance({ sources: weak, errors: weakErrors });
+    expect(weakErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('optional/lightweight'),
+      expect.stringContaining('status/heartbeat polling loops'),
+      expect.stringContaining('immutable goal or digest gates'),
+    ]));
+  });
+
+  it('requires one owner, all risk-review findings, and one final validation after reconciliation', () => {
+    const errors: string[] = [];
+    validateBlockedMergeAgentHandoff({ sources: readSources(), errors });
+    expect(errors, errors.join('\n')).toEqual([]);
+
+    const weak = new Map(readSources());
+    weak.set('README.md', readGuidance('README.md').replace(
+      /One owner[\s\S]{0,160}?truthful deployment verification\./,
+      'Tasks may be handed between agents whenever convenient.',
+    ));
+    const weakErrors: string[] = [];
+    validateBlockedMergeAgentHandoff({ sources: weak, errors: weakErrors });
+    expect(weakErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('one owner through implementation, review, merge, and deployment'),
+    ]));
+  });
+
+  it('keeps the campaign playbook economical and bounded', () => {
+    const source = readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md');
+    const errors: string[] = [];
+    validateCampaignPlaybook({ source, errors });
+    expect(errors, errors.join('\n')).toEqual([]);
+
+    const weak = source.replace('no minimum-agent count', 'a minimum-agent count');
+    const weakErrors: string[] = [];
+    validateCampaignPlaybook({ source: weak, errors: weakErrors });
+    expect(weakErrors).toEqual(expect.arrayContaining([
+      expect.stringContaining('no minimum-agent count'),
+    ]));
+  });
+
+  it('preserves truthful product metadata and deployment distinctions', () => {
+    const guidance = readGuidance('CLAUDE.md');
+    const normalized = guidance.replace(/\s+/g, ' ');
+    expect(normalized).toMatch(/Player-facing work increments the application version/);
+    expect(normalized).toMatch(/Tooling, tests, and documentation-only changes do not bump/);
+    expect(normalized).toMatch(/A pushed workflow is not proof that production finished/);
+    expect(normalized).toMatch(/completed\/total prompt percentage from the\s+catalog snapshot/i);
+    expect(normalized).toMatch(/Only the product owner authorizes `0\.9\.x` and `1\.0\.0`/);
+    expect(normalized).toMatch(/complete 20-player set[\s\S]{0,180}end-to-end gameplay loop/i);
   });
 });
