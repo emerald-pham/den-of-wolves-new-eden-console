@@ -798,6 +798,7 @@ describe('local emulator coordination', () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-class-${randomUUID()}.json`);
     const investigationFilePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-investigation-${randomUUID()}.json`);
     const documentationFilePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-documentation-${randomUUID()}.json`);
+    const artifactPaths: string[] = [];
     try {
       const toolingEntry = await beginCoordinationEntry(filePath, {
         ...sessionGoalBeginOptions(),
@@ -806,6 +807,7 @@ describe('local emulator coordination', () => {
         'change-class': undefined,
         'version-plan': 'Tooling-only free text must not change the canonical release class.',
       });
+      artifactPaths.push(resolve(process.cwd(), toolingEntry.sessionGoals!.artifactPath!));
       expect(toolingEntry.changeClass).toBe('feature');
       await expect(beginCoordinationEntry(investigationFilePath, {
         ...sessionGoalBeginOptions(),
@@ -821,14 +823,88 @@ describe('local emulator coordination', () => {
         'change-class': undefined,
         'version-plan': 'Documentation wording with a canonical feature prompt must keep that class.',
       });
-      expect(documentationEntry.changeClass).toBe('feature');
+      artifactPaths.push(resolve(process.cwd(), documentationEntry.sessionGoals!.artifactPath!));
+      expect(documentationEntry).toMatchObject({
+        changeClass: 'feature',
+        implementationPrompt: '141',
+        implementationRegistrationRequired: true,
+      });
+      const persisted = await readCoordinationState(documentationFilePath);
+      expect(persisted.entries[0]).toMatchObject({
+        changeClass: 'feature',
+        implementationPrompt: '141',
+        implementationRegistrationRequired: true,
+      });
     } finally {
+      for (const artifactPath of artifactPaths) {
+        await unlink(artifactPath).catch(() => undefined);
+      }
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
       await unlink(investigationFilePath).catch(() => undefined);
       await unlink(`${investigationFilePath}.lock`).catch(() => undefined);
       await unlink(documentationFilePath).catch(() => undefined);
       await unlink(`${documentationFilePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps duplicate prompt protection for documentation entries that name a canonical prompt', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-documentation-owner-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    try {
+      const entry = await beginCoordinationEntry(filePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'documentation',
+        'implementation-prompt': '141',
+        'change-class': undefined,
+      });
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+
+      expect(() => validateImplementationPromptClaims([
+        entry,
+        {
+          ...entry,
+          id: 'second-documentation-owner',
+          worktree: resolve(tmpdir(), 'second-documentation-owner'),
+        },
+      ])).toThrow(/Prompt 141 is already claimed/i);
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps canonical feature release and progress gates for documentation entries that name a prompt', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-canonical-feature-documentation-gates-${randomUUID()}.json`);
+    let artifactPath: string | undefined;
+    try {
+      const entry = await beginCoordinationEntry(filePath, {
+        ...sessionGoalBeginOptions(),
+        'work-type': 'documentation',
+        'implementation-prompt': '141',
+        'change-class': undefined,
+        'version-plan': 'Reserve application patch version 0.3.3.',
+      });
+      artifactPath = resolve(process.cwd(), entry.sessionGoals!.artifactPath!);
+      await claimCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'docs/canonical-feature.md',
+      });
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({
+          branchName: entry.branchName,
+          changedFiles: ['docs/canonical-feature.md'],
+        }),
+        'documentation-review': 'Reviewed the canonical feature documentation fixture.',
+        commandRunner: async () => undefined,
+      })).rejects.toThrow(/canonical feature work must update.*IMPLEMENTATION_PROGRESS|implementation progress gate/i);
+    } finally {
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
     }
   });
 

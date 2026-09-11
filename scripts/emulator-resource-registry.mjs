@@ -3148,7 +3148,7 @@ export async function beginCoordinationEntry(filePath, options) {
       workType,
       changeClass,
       implementationRegistrationRequired: true,
-      ...(workType !== 'documentation'
+      ...(implementationPrompt
         ? { implementationPrompt }
         : {}),
       // Begin records intent only. File and shared-claim ownership is acquired
