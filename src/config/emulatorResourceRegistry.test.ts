@@ -4089,6 +4089,141 @@ describe('local emulator coordination', () => {
     }
   });
 
+  it('finishes a registered entry from its exact validated range after main fast-forwards', async () => {
+    const rootPath = resolve(tmpdir(), `den-of-wolves-finish-landed-range-${randomUUID()}`);
+    const originPath = `${rootPath}.origin.git`;
+    const filePath = resolve(tmpdir(), `den-of-wolves-finish-landed-range-${randomUUID()}.json`);
+    const previousCwd = process.cwd();
+    const fixtureFiles = [
+      'package.json',
+      'package-lock.json',
+      'src/changelog.ts',
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+    ];
+
+    try {
+      await mkdir(resolve(rootPath, 'src'), { recursive: true });
+      await mkdir(resolve(rootPath, 'docs'), { recursive: true });
+      await mkdir(resolve(rootPath, 'scripts'), { recursive: true });
+      await Promise.all(fixtureFiles.map(async (path) => {
+        await writeFile(resolve(rootPath, path), await readFile(resolve(previousCwd, path), 'utf8'));
+      }));
+      await writeFile(resolve(rootPath, '.gitignore'), '.codex/\nfirebase.local.json\n.env.emulators.local\n');
+      await writeFile(resolve(rootPath, 'firebase.local.json'), '{}\n');
+      await runFixtureGit(rootPath, ['init', '-b', 'main']);
+      await runFixtureGit(rootPath, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(rootPath, ['config', 'user.name', 'Fixture']);
+      await runFixtureGit(rootPath, ['add', '.']);
+      await runFixtureGit(rootPath, ['commit', '-m', 'fixture baseline']);
+      const baseSha = await runFixtureGit(rootPath, ['rev-parse', 'HEAD']);
+      await runFixtureGit(rootPath, ['init', '--bare', originPath]);
+      await runFixtureGit(rootPath, ['remote', 'add', 'origin', originPath]);
+      await runFixtureGit(rootPath, ['push', '-u', 'origin', 'main']);
+      await runFixtureGit(rootPath, ['switch', '-c', 'tooling/finish-landed-range']);
+      process.chdir(rootPath);
+
+      const entry = await beginCoordinationEntry(filePath, sessionGoalBeginOptions({
+        intent: 'prove landed work-registration receipt continuity',
+        scope: 'scripts/example.mjs',
+      }));
+      await claimCoordinationEntry(filePath, {
+        id: entry.id,
+        scope: 'scripts/example.mjs',
+        claims: 'fixture-landed-registration-range',
+      });
+      await writeFile(resolve(rootPath, 'scripts/example.mjs'), 'export const fixture = true;\n');
+      await runFixtureGit(rootPath, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(rootPath, [
+        'commit',
+        '-m', 'fixture registered task',
+        '-m', 'Implementation-Prompt: 665',
+      ]);
+      const taskTipSha = await runFixtureGit(rootPath, ['rev-parse', 'HEAD']);
+
+      await validateCoordinationEntry(filePath, {
+        id: entry.id,
+        commandRunner: async () => undefined,
+      });
+      await updateSessionGoals(filePath, {
+        id: entry.id,
+        outcomes: [
+          { id: 'goal-001', checked: true, explanation: 'The registered fixture was validated.' },
+          { id: 'goal-002', checked: true, explanation: 'The fixture was merged and pushed.' },
+        ],
+      });
+      const validatedState = JSON.parse(await readFile(filePath, 'utf8'));
+
+      await runFixtureGit(rootPath, ['switch', 'main']);
+      await runFixtureGit(rootPath, ['merge', '--ff-only', 'tooling/finish-landed-range']);
+      await runFixtureGit(rootPath, ['push', 'origin', 'main']);
+      await runFixtureGit(rootPath, ['switch', 'tooling/finish-landed-range']);
+
+      const staleReceiptState = structuredClone(validatedState);
+      staleReceiptState.entries[0].validation.workRegistration.commitSha = baseSha;
+      await writeFile(filePath, JSON.stringify(staleReceiptState), 'utf8');
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+      })).rejects.toThrow(/work-registration receipt commit .* does not match current entry commit/i);
+      expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+
+      const foreignBindingState = structuredClone(validatedState);
+      foreignBindingState.entries[0].validation.workRegistration = {
+        ...foreignBindingState.entries[0].validation.workRegistration,
+        coordinationPrompt: '664',
+      };
+      await writeFile(filePath, JSON.stringify(foreignBindingState), 'utf8');
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+      })).rejects.toThrow(/work-registration receipt prompt binding does not match/i);
+      expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+
+      await writeFile(filePath, JSON.stringify(validatedState), 'utf8');
+      let landedRegistrationRange: string | undefined;
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        result: 'Validated registered work landed and pushed.',
+        workRegistrationValidator: (options) => {
+          landedRegistrationRange = options.range as string;
+          return validateCommitRange(options as Parameters<typeof validateCommitRange>[0]);
+        },
+      })).resolves.toMatchObject({
+        status: 'complete',
+        finalBranchSha: taskTipSha,
+        mainSha: taskTipSha,
+        originMainSha: taskTipSha,
+        pushed: true,
+      });
+      expect(landedRegistrationRange).toBe(`${baseSha}..${taskTipSha}`);
+
+      const completed = (await readCoordinationState(filePath)).entries[0];
+      expect(completed?.validation).toMatchObject({
+        commitSha: taskTipSha,
+        passed: true,
+        profile: {
+          kind: 'full',
+          evidence: { baseSha, branchSha: taskTipSha },
+        },
+        workRegistration: {
+          baseSha,
+          commitSha: taskTipSha,
+          coordinationPrompt: '665',
+          coordinationPromptBefore: null,
+          coordinationPromptBindings: [],
+          inputIdentity: expect.stringMatching(/^[0-9a-f]{64}$/),
+          validationInputIdentity: expect.stringMatching(/^[0-9a-f]{64}$/),
+        },
+      });
+    } finally {
+      process.chdir(previousCwd);
+      await rm(rootPath, { recursive: true, force: true });
+      await rm(originPath, { recursive: true, force: true });
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  }, 30_000);
+
   it('refreshes receipt provenance when revalidation covers corrected task files', async () => {
     const rootPath = resolve(tmpdir(), `den-of-wolves-revalidation-refresh-${randomUUID()}`);
     const originPath = `${rootPath}.origin.git`;

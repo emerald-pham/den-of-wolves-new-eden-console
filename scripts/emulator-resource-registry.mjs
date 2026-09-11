@@ -96,6 +96,7 @@ const LOCK_RETRY_MS = 50;
 const LOCK_ATTEMPTS = 600;
 const EMPTY_LOCK_GRACE_MS = 1_000;
 const VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION = 2;
+const WORK_REGISTRATION_RECEIPT_SCHEMA_VERSION = 1;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const MAX_APPLICATION_PATCH_VERSION = 99;
 const IMPLEMENTATION_PROMPT_CLAIM_PATTERN = /^\d{3}[a-z]*$/i;
@@ -1037,6 +1038,116 @@ function workRegistrationCoordinationOptions(state, entry, changedFiles = []) {
     ...(hasPromptTransfer ? { coordinationPromptBefore: '664' } : {}),
     ...(coordinationPromptBindings.length > 0 ? { coordinationPromptBindings } : {}),
   };
+}
+
+function workRegistrationReceipt({
+  entry,
+  changedFiles,
+  options,
+  baseSha,
+  commitSha,
+  validationInputIdentity,
+}) {
+  const coordinationPromptBindings = Array.isArray(options.coordinationPromptBindings)
+    ? options.coordinationPromptBindings.map((binding) => ({
+        prompt: binding.prompt,
+        commit: binding.commit,
+      })).sort((left, right) =>
+        left.prompt.localeCompare(right.prompt) || left.commit.localeCompare(right.commit))
+    : [];
+  const effectiveInputs = {
+    schemaVersion: WORK_REGISTRATION_RECEIPT_SCHEMA_VERSION,
+    entry: {
+      id: entry.id,
+      worktree: entry.worktree,
+      startedAt: entry.startedAt,
+      branchName: entry.branchName ?? null,
+      workType: entry.workType ?? null,
+      changeClass: entry.changeClass ?? null,
+      implementationPrompt: entry.implementationPrompt ?? null,
+      implementationRegistrationRequired: entry.implementationRegistrationRequired === true,
+    },
+    changedFiles: sortedStrings(changedFiles),
+    coordinationPrompt: options.coordinationPrompt ?? null,
+    coordinationPromptBefore: options.coordinationPromptBefore ?? null,
+    coordinationPromptBindings,
+  };
+  return {
+    schemaVersion: WORK_REGISTRATION_RECEIPT_SCHEMA_VERSION,
+    baseSha,
+    commitSha,
+    coordinationPrompt: effectiveInputs.coordinationPrompt,
+    coordinationPromptBefore: effectiveInputs.coordinationPromptBefore,
+    coordinationPromptBindings,
+    inputIdentity: contentIdentity(JSON.stringify(effectiveInputs)),
+    validationInputIdentity,
+  };
+}
+
+function workRegistrationReceiptErrors(entry, release, options) {
+  const errors = [];
+  const validation = entry.validation;
+  const receipt = validation?.workRegistration;
+  if (!validation || validation.passed !== true) {
+    return ['landed work-registration requires a passing validation receipt'];
+  }
+  if (validation.profile?.kind !== 'full') {
+    errors.push('landed work-registration requires a full validation profile');
+  }
+  if (!receipt || typeof receipt !== 'object') {
+    errors.push('validation receipt does not record the work-registration range');
+    return errors;
+  }
+  if (receipt.schemaVersion !== WORK_REGISTRATION_RECEIPT_SCHEMA_VERSION) {
+    errors.push('work-registration receipt schema is missing or unsupported');
+  }
+  if (validation.commitSha !== release.branchSha || receipt.commitSha !== release.branchSha) {
+    errors.push(
+      `work-registration receipt commit ${receipt.commitSha ?? '(missing)'} does not match current entry commit ${release.branchSha}`,
+    );
+  }
+  if (validation.profile?.evidence?.branchSha !== validation.commitSha ||
+    receipt.commitSha !== validation.profile?.evidence?.branchSha) {
+    errors.push('work-registration receipt commit does not match the validated profile tip');
+  }
+  if (!receipt.baseSha || receipt.baseSha === receipt.commitSha ||
+    receipt.baseSha !== validation.profile?.evidence?.baseSha) {
+    errors.push('work-registration receipt base does not match the validated profile base');
+  }
+  if (release.validationTaskTipSha !== receipt.commitSha ||
+    release.validationReceiptCommitSha !== receipt.commitSha ||
+    release.validatedBaseSha !== receipt.baseSha ||
+    release.validatedBaseIsAncestorOfMain !== true) {
+    errors.push('work-registration receipt range lacks trusted landed Git provenance');
+  }
+  if (release.mainContainsBranch !== true || release.originMainSha !== release.mainSha) {
+    errors.push('work-registration receipt commit is not contained by synchronized local and remote main');
+  }
+  const expected = workRegistrationReceipt({
+    entry,
+    changedFiles: release.changedFiles,
+    options,
+    baseSha: receipt.baseSha,
+    commitSha: receipt.commitSha,
+    validationInputIdentity: validation.inputFingerprint?.identity,
+  });
+  if (JSON.stringify(receipt.coordinationPrompt ?? null) !==
+      JSON.stringify(expected.coordinationPrompt) ||
+    JSON.stringify(receipt.coordinationPromptBefore ?? null) !==
+      JSON.stringify(expected.coordinationPromptBefore) ||
+    JSON.stringify(receipt.coordinationPromptBindings) !==
+      JSON.stringify(expected.coordinationPromptBindings)) {
+    errors.push('work-registration receipt prompt binding does not match the current coordination entry');
+  }
+  if (typeof receipt.inputIdentity !== 'string' || receipt.inputIdentity !== expected.inputIdentity) {
+    errors.push('work-registration receipt input identity does not match current effective inputs');
+  }
+  if (validation.inputFingerprint?.schemaVersion !== VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION ||
+    typeof validation.inputFingerprint?.identity !== 'string' ||
+    receipt.validationInputIdentity !== validation.inputFingerprint.identity) {
+    errors.push('work-registration receipt validation input identity does not match the full receipt');
+  }
+  return errors;
 }
 
 function changeClassErrors(entry, changeClass = entry.changeClass) {
@@ -4813,19 +4924,33 @@ export async function validateCoordinationEntry(filePath, options) {
       requireReconciled: true,
       releaseFragment,
     });
+    let registrationReceipt;
     if ((!options.release || options.workRegistrationValidator) &&
       entry.implementationRegistrationRequired === true &&
       release.mainSha && release.branchSha) {
       try {
         const validator = options.workRegistrationValidator ?? validateCommitRange;
+        const registrationOptions = workRegistrationCoordinationOptions(
+          state,
+          entry,
+          release.changedFiles,
+        );
         const registration = validator({
           cwd: validationDirectory,
           range: `${release.mainSha}..${release.branchSha}`,
-          ...workRegistrationCoordinationOptions(state, entry, release.changedFiles),
+          ...registrationOptions,
         });
         errors.push(...registration.errors.map(
           (error) => `implementation work registration gate: ${error}`,
         ));
+        registrationReceipt = workRegistrationReceipt({
+          entry,
+          changedFiles: release.changedFiles,
+          options: registrationOptions,
+          baseSha: release.mainSha,
+          commitSha: release.branchSha,
+          validationInputIdentity: null,
+        });
       } catch (error) {
         errors.push(
           `implementation work registration gate could not validate the task commit range: ` +
@@ -4920,6 +5045,11 @@ export async function validateCoordinationEntry(filePath, options) {
     const receiptMatchesCurrentInputs = previousValidation && !provenanceRefresh &&
       previousValidation.inputFingerprint?.schemaVersion === inputFingerprint.schemaVersion &&
       previousValidation.inputFingerprint?.identity === inputFingerprint.identity &&
+      (!registrationReceipt || JSON.stringify(previousValidation.workRegistration) ===
+        JSON.stringify({
+          ...registrationReceipt,
+          validationInputIdentity: inputFingerprint.identity,
+        })) &&
       validationReceiptErrors(entry, {
         ...release,
         validationProfile: profile,
@@ -4962,6 +5092,7 @@ export async function validateCoordinationEntry(filePath, options) {
       testGrowthJustification,
       testGrowthReview,
       releaseFragment,
+      registrationReceipt,
     };
     };
   });
@@ -5166,6 +5297,22 @@ export async function validateCoordinationEntry(filePath, options) {
         `Cannot record validation for ${entry.id}: its validation receipt changed while checks ran; rerun validation.`,
       );
     }
+    if (preparation.registrationReceipt) {
+      const currentRegistrationReceipt = workRegistrationReceipt({
+        entry,
+        changedFiles: finalRelease.changedFiles,
+        options: workRegistrationCoordinationOptions(state, entry, finalRelease.changedFiles),
+        baseSha: finalRelease.mainSha,
+        commitSha: finalRelease.branchSha,
+        validationInputIdentity: null,
+      });
+      if (JSON.stringify(currentRegistrationReceipt) !==
+        JSON.stringify(preparation.registrationReceipt)) {
+        throw new Error(
+          `Cannot record validation for ${entry.id}: work-registration inputs changed while checks ran; rerun validation.`,
+        );
+      }
+    }
 
     entry.startBranchSha = preparation.startBranchSha;
     entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
@@ -5184,6 +5331,14 @@ export async function validateCoordinationEntry(filePath, options) {
       docsOnly: finalPlan.documentationOnly,
       profile: finalPlan.profile,
       inputFingerprint: finalInputFingerprint,
+      ...(preparation.registrationReceipt
+        ? {
+            workRegistration: {
+              ...preparation.registrationReceipt,
+              validationInputIdentity: finalInputFingerprint.identity,
+            },
+          }
+        : {}),
       ...(preparation.releaseFragment
         ? {
             releaseFragment: {
@@ -5289,12 +5444,31 @@ export async function finishCoordinationEntry(filePath, options) {
         );
       }
       const validator = options.workRegistrationValidator ?? validateCommitRange;
+      const registrationOptions = workRegistrationCoordinationOptions(
+        state,
+        entry,
+        release.changedFiles,
+      );
+      const useLandedReceiptRange = outcome === 'landed' && release.mainContainsBranch === true &&
+        (release.mainSha === release.branchSha || release.validationTaskTipSha !== undefined);
+      if (useLandedReceiptRange) {
+        const receiptErrors = workRegistrationReceiptErrors(entry, release, registrationOptions);
+        if (receiptErrors.length > 0) {
+          throw new Error(
+            `Cannot complete coordination entry ${entry.id}: implementation work registration receipt failed: ` +
+              receiptErrors.join('; '),
+          );
+        }
+      }
+      const registrationRange = useLandedReceiptRange
+        ? `${entry.validation.workRegistration.baseSha}..${entry.validation.workRegistration.commitSha}`
+        : `${release.mainSha}..${release.branchSha}`;
       let registration;
       try {
         registration = validator({
           cwd: process.cwd(),
-          range: `${release.mainSha}..${release.branchSha}`,
-          ...workRegistrationCoordinationOptions(state, entry, release.changedFiles),
+          range: registrationRange,
+          ...registrationOptions,
         });
       } catch (error) {
         throw new Error(

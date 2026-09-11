@@ -206,6 +206,19 @@ export interface ValidationReceipt {
     readonly schemaVersion: number;
     readonly identity: string;
   };
+  readonly workRegistration?: {
+    readonly schemaVersion: number;
+    readonly baseSha: string;
+    readonly commitSha: string;
+    readonly coordinationPrompt: string | null;
+    readonly coordinationPromptBefore: string | null;
+    readonly coordinationPromptBindings: readonly {
+      readonly prompt: string;
+      readonly commit: string;
+    }[];
+    readonly inputIdentity: string;
+    readonly validationInputIdentity: string;
+  };
   readonly profile?: {
     readonly kind: 'full' | 'copy-only';
     readonly reason: string;
