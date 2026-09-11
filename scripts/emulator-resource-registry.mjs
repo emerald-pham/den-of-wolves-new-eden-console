@@ -86,6 +86,11 @@ const SESSION_GOALS_DIRECTORY = '.codex/session-goals';
 // an explicit, auditable exemption. New begin entries always carry the
 // required artifact regardless of their prompt.
 const LEGACY_SESSION_GOAL_PROMPTS = new Set(['012', '014', '664']);
+const LEGACY_SESSION_GOAL_BOOTSTRAP_ENTRY_PROMPTS = new Map([
+  ['1789089073940-29496-766886f1', '665'],
+]);
+const LEGACY_SESSION_GOAL_BOOTSTRAP_REASON =
+  'Exact historical Prompt 665 self-bootstrap entry began without a session-goal artifact.';
 const LEGACY_CHANGE_CLASS_MIGRATIONS = new Map([
   ['1789087354152-96620-2cf1ba3e', '012'],
   ['1789086651641-63909-707fa4ab', '014'],
@@ -317,6 +322,52 @@ function sessionGoalLegacyPolicy(entry) {
     LEGACY_SESSION_GOAL_PROMPTS.has(prompt) ||
     (entry.implementationPrompt === undefined && entry.implementationRegistrationRequired !== true)
   );
+}
+
+function sessionGoalBootstrapMigration(entry) {
+  return LEGACY_SESSION_GOAL_BOOTSTRAP_ENTRY_PROMPTS.get(text(entry.id)) ===
+    normalizePromptId(entry.implementationPrompt);
+}
+
+function sessionGoalBootstrapPending(entry) {
+  return sessionGoalBootstrapMigration(entry) &&
+    (entry.sessionGoals === null || entry.sessionGoals === undefined);
+}
+
+function sessionGoalBootstrapComparison(entry) {
+  if (!sessionGoalBootstrapMigration(entry)) return null;
+  const metadata = objectRecord(entry.sessionGoals);
+  if (metadata.policy !== 'legacy-exempt') return null;
+  if (metadata.schemaVersion !== SESSION_GOALS_SCHEMA_VERSION || metadata.status !== 'compared' ||
+    metadata.artifactPath !== undefined || metadata.reason !== LEGACY_SESSION_GOAL_BOOTSTRAP_REASON) {
+    throw sessionGoalError(entry, 'bootstrap comparison metadata is malformed');
+  }
+  const comparison = objectRecord(metadata.lastComparison);
+  if (comparison.status !== 'legacy-exempt' || !text(comparison.comparedAt) ||
+    !/^[0-9a-f]{64}$/.test(text(comparison.currentDigest)) ||
+    !Number.isInteger(comparison.goalCount) || comparison.goalCount < 1 ||
+    !Number.isInteger(comparison.checkedCount) || comparison.checkedCount < 0 ||
+    !Number.isInteger(comparison.uncheckedCount) || comparison.uncheckedCount < 0 ||
+    comparison.checkedCount + comparison.uncheckedCount !== comparison.goalCount ||
+    comparison.reason !== LEGACY_SESSION_GOAL_BOOTSTRAP_REASON) {
+    throw sessionGoalError(entry, 'bootstrap comparison evidence is malformed');
+  }
+  try {
+    if (sessionGoalNow(comparison.comparedAt) !== comparison.comparedAt) {
+      throw new Error('comparison timestamp is not canonical');
+    }
+  } catch {
+    throw sessionGoalError(entry, 'bootstrap comparison timestamp is malformed');
+  }
+  return {
+    status: 'legacy-exempt',
+    comparedAt: comparison.comparedAt,
+    currentDigest: comparison.currentDigest,
+    goalCount: comparison.goalCount,
+    checkedCount: comparison.checkedCount,
+    uncheckedCount: comparison.uncheckedCount,
+    reason: comparison.reason,
+  };
 }
 
 function sessionGoalError(entry, message) {
@@ -3276,6 +3327,39 @@ export async function updateSessionGoals(filePath, options = {}) {
         `Cannot update session goals for ${entry.id} from ${process.cwd()}; it belongs to ${entry.worktree}.`,
       );
     }
+    const bootstrapMetadata = objectRecord(entry.sessionGoals);
+    if (sessionGoalBootstrapPending(entry) ||
+      (sessionGoalBootstrapMigration(entry) && bootstrapMetadata.policy === 'legacy-exempt')) {
+      if (bootstrapMetadata.policy === 'legacy-exempt') {
+        sessionGoalBootstrapComparison(entry);
+      }
+      if (outcomes.some((outcome, index) =>
+        outcome.id !== `goal-${String(index + 1).padStart(3, '0')}`)) {
+        throw new Error(
+          `Cannot update session goals for ${entry.id}: bootstrap outcomes must use sequential goal identities.`,
+        );
+      }
+      const now = sessionGoalNow(options.now);
+      const comparison = {
+        status: 'legacy-exempt',
+        comparedAt: now,
+        currentDigest: contentIdentity(JSON.stringify(outcomes)),
+        goalCount: outcomes.length,
+        checkedCount: outcomes.filter((goal) => goal.checked).length,
+        uncheckedCount: outcomes.filter((goal) => !goal.checked).length,
+        reason: LEGACY_SESSION_GOAL_BOOTSTRAP_REASON,
+      };
+      entry.sessionGoals = {
+        schemaVersion: SESSION_GOALS_SCHEMA_VERSION,
+        policy: 'legacy-exempt',
+        status: 'compared',
+        reason: LEGACY_SESSION_GOAL_BOOTSTRAP_REASON,
+        lastUpdatedAt: now,
+        lastComparison: comparison,
+      };
+      await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));
+      return entry;
+    }
     if (sessionGoalLegacyPolicy(entry)) {
       throw new Error(`Cannot update session goals for legacy entry ${entry.id}; no artifact is required.`);
     }
@@ -5251,7 +5335,11 @@ export async function finishCoordinationEntry(filePath, options) {
       }
     }
     const legacySessionGoals = sessionGoalLegacyPolicy(entry);
-    const sessionGoalReceipt = legacySessionGoals
+    if (sessionGoalBootstrapPending(entry)) {
+      throw sessionGoalError(entry, 'bootstrap comparison has not been recorded at wrap-up');
+    }
+    const bootstrapSessionGoalComparison = sessionGoalBootstrapComparison(entry);
+    const sessionGoalReceipt = legacySessionGoals || bootstrapSessionGoalComparison
       ? null
       : await readSessionGoalArtifactForEntry(entry);
     let pushed = false;
@@ -5377,6 +5465,12 @@ export async function finishCoordinationEntry(filePath, options) {
           comparedAt,
           reason: 'No working artifact was created under the pre-feature coordination policy.',
         },
+      };
+    } else if (bootstrapSessionGoalComparison) {
+      finalSessionGoals = {
+        ...objectRecord(entry.sessionGoals),
+        status: 'compared',
+        finalComparison: bootstrapSessionGoalComparison,
       };
     } else {
       const cleanup = options.sessionGoalsCleanup ?? (async (path) => {

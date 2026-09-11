@@ -72,7 +72,12 @@ outcomes and explanations. Status exposes only the artifact path and lifecycle
 state, not unrelated goal text.
 The explicit `legacy-exempt` policy covers existing pre-feature P012/P014/P664
 entries without an artifact and records a durable comparison; all new entries
-require the artifact.
+require the artifact. The one self-bootstrap exception is coordination entry
+`1789089073940-29496-766886f1` bound to Prompt 665: because that exact entry
+predates its own artifact gate with absent/null `sessionGoals`, `coordination:goals`
+records a ledger-only digest/count comparison before finish. No other Prompt 665
+entry is exempt, and any entry that carries required-artifact metadata remains
+subject to artifact validation, cleanup, and verified absence.
 
 For a blocked idle owner, the top-level coordinator must first checkpoint the
 clean branch and use the owner-only `npm run coordination:park -- --id <id>

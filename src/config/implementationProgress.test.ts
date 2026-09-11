@@ -179,19 +179,26 @@ describe('implementation progress integrity gate', () => {
   });
 
   it('rejects release metadata whose percentage or raw status counts drift', () => {
+    const baseline = validateImplementationProgress(validationInputs);
+    if (!baseline.summary || !baseline.releaseProgress) {
+      throw new Error('Expected current implementation progress metadata.');
+    }
+    const recordedPartial = baseline.summary.partial;
+    const driftedPartial = recordedPartial + 1;
     const badPercentage = validateImplementationProgress({
       ...validationInputs,
       changelogSource: changelogSource.replace(
         /percentage:\s*['"][^'"]+['"]/, "percentage: '9.7%'",
       )
-        .replace('partial: 26', 'partial: 27'),
+        .replace(`partial: ${recordedPartial}`, `partial: ${driftedPartial}`),
     });
 
     expect(badPercentage.errors.join('\n')).toContain(
       `changelog ${applicationVersion} implementation progress percentage must use two decimals`,
     );
     expect(badPercentage.errors.join('\n')).toContain(
-      `changelog ${applicationVersion} implementation progress partial count is 27, but the ledger has 26`,
+      `changelog ${applicationVersion} implementation progress partial count is ${driftedPartial}, ` +
+        `but the ledger has ${recordedPartial}`,
     );
   });
 

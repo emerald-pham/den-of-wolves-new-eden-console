@@ -574,27 +574,215 @@ describe('local emulator coordination', () => {
     }
   });
 
-  it('migrates only pre-feature entries without a working goal artifact through an explicit legacy policy', async () => {
-    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-legacy-${randomUUID()}.json`);
-    const legacyEntry = { ...releaseEntry, implementationPrompt: '664' };
+  it.each(['012', '014', '664'])(
+    'keeps the existing Prompt %s pre-feature session-goal migration unchanged',
+    async (implementationPrompt) => {
+      const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-legacy-${randomUUID()}.json`);
+      const legacyEntry = { ...releaseEntry, implementationPrompt };
+      try {
+        await writeFile(filePath, JSON.stringify({
+          version: 1,
+          entries: [legacyEntry],
+          reservations: [],
+          configurations: [],
+        }), 'utf8');
+        await finishCoordinationEntry(filePath, {
+          id: legacyEntry.id,
+          release: releaseState(),
+        });
+        expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+          status: 'complete',
+          sessionGoals: {
+            policy: 'legacy-exempt',
+            finalComparison: { status: 'legacy-exempt' },
+          },
+        });
+      } finally {
+        await unlink(filePath).catch(() => undefined);
+        await unlink(`${filePath}.lock`).catch(() => undefined);
+      }
+    },
+  );
+
+  it('bootstraps only the exact historical Prompt 665 entry through a durable ledger comparison', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-bootstrap-${randomUUID()}.json`);
+    const bootstrapEntryId = '1789089073940-29496-766886f1';
+    const artifactPath = resolve(
+      process.cwd(),
+      `.codex/session-goals/${bootstrapEntryId}.json`,
+    );
+    const sentinelPath = resolve(tmpdir(), `den-of-wolves-session-goals-sentinel-${randomUUID()}.md`);
+    const entry = {
+      ...releaseEntry,
+      id: bootstrapEntryId,
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationPrompt: '665',
+      implementationRegistrationRequired: true,
+    };
+    const outcomes = [
+      {
+        id: 'goal-001',
+        checked: true,
+        explanation: 'The Prompt 665 bootstrap fix and focused regression are committed.',
+      },
+      {
+        id: 'goal-002',
+        checked: false,
+        explanation: 'Release remains intentionally assigned to the existing release lane.',
+      },
+    ];
     try {
+      await unlink(artifactPath).catch(() => undefined);
+      await writeFile(sentinelPath, 'preserve this file\n');
       await writeFile(filePath, JSON.stringify({
         version: 1,
-        entries: [legacyEntry],
+        entries: [entry],
         reservations: [],
         configurations: [],
       }), 'utf8');
-      await finishCoordinationEntry(filePath, {
-        id: legacyEntry.id,
+
+      await expect(validateCoordinationEntry(filePath, {
+        id: entry.id,
         release: releaseState(),
+        commandRunner: async () => undefined,
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      })).resolves.toMatchObject({ validation: { passed: true, commitSha: 'branch-sha' } });
+
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState(),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      })).rejects.toThrow(/session goal.*bootstrap.*comparison/i);
+
+      await expect(updateSessionGoals(filePath, {
+        id: entry.id,
+        now: '2099-01-01T00:01:00.000Z',
+        outcomes,
+      })).resolves.toMatchObject({
+        sessionGoals: {
+          policy: 'legacy-exempt',
+          status: 'compared',
+          lastComparison: {
+            status: 'legacy-exempt',
+            comparedAt: '2099-01-01T00:01:00.000Z',
+            goalCount: 2,
+            checkedCount: 1,
+            uncheckedCount: 1,
+          },
+        },
       });
+
+      const compared = (await readCoordinationState(filePath)).entries[0];
+      if (!compared) throw new Error('Expected the bootstrap entry to remain durable.');
+      expect(compared.sessionGoals).toMatchObject({
+        policy: 'legacy-exempt',
+        status: 'compared',
+        lastComparison: {
+          currentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+          goalCount: 2,
+          checkedCount: 1,
+          uncheckedCount: 1,
+        },
+      });
+      const comparisonDigest = compared.sessionGoals?.lastComparison?.currentDigest;
+      if (!comparisonDigest) throw new Error('Expected a durable bootstrap comparison digest.');
+      await expect(readFile(artifactPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({ worktreeClean: false }),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      })).rejects.toThrow(/uncommitted changes/i);
+
+      let cleanupCalls = 0;
+      await finishCoordinationEntry(filePath, {
+        id: entry.id,
+        result: 'Prompt 665 bootstrap goals compared for release closeout.',
+        release: releaseState(),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+        sessionGoalsCleanup: async () => {
+          cleanupCalls += 1;
+        },
+      });
+      expect(cleanupCalls).toBe(0);
       expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
         status: 'complete',
         sessionGoals: {
           policy: 'legacy-exempt',
-          finalComparison: { status: 'legacy-exempt' },
+          status: 'compared',
+          finalComparison: {
+            status: 'legacy-exempt',
+            currentDigest: comparisonDigest,
+            goalCount: 2,
+            checkedCount: 1,
+            uncheckedCount: 1,
+          },
         },
       });
+      await expect(readFile(artifactPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(readFile(sentinelPath, 'utf8')).resolves.toBe('preserve this file\n');
+    } finally {
+      await unlink(artifactPath).catch(() => undefined);
+      await unlink(sentinelPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+    }
+  });
+
+  it('keeps every other Prompt 665 entry and every required-artifact entry fail-closed', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-bootstrap-reject-${randomUUID()}.json`);
+    const otherEntry = {
+      ...releaseEntry,
+      id: 'another-prompt-665-entry',
+      implementationPrompt: '665',
+      implementationRegistrationRequired: true,
+      sessionGoals: null,
+    };
+    const requiredEntry = {
+      ...otherEntry,
+      id: '1789089073940-29496-766886f1',
+      sessionGoals: {
+        schemaVersion: 1,
+        policy: 'required',
+        status: 'compared',
+        artifactPath: '.codex/session-goals/1789089073940-29496-766886f1.json',
+        original: [{ id: 'goal-001', text: 'An original artifact-backed goal.' }],
+        originalDigest: 'not-a-valid-digest',
+      },
+    };
+    const outcomes = [{
+      id: 'goal-001',
+      checked: true,
+      explanation: 'This must not bypass the artifact hard gate.',
+    }];
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [otherEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await expect(updateSessionGoals(filePath, {
+        id: otherEntry.id,
+        outcomes,
+      })).rejects.toThrow(/artifact is missing/i);
+
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [requiredEntry],
+        reservations: [],
+        configurations: [],
+      }), 'utf8');
+      await expect(updateSessionGoals(filePath, {
+        id: requiredEntry.id,
+        outcomes,
+      })).rejects.toThrow(/artifact is missing/i);
+      await expect(finishCoordinationEntry(filePath, {
+        id: requiredEntry.id,
+        release: releaseState(),
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      })).rejects.toThrow(/session goal artifact is missing/i);
     } finally {
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);

@@ -53,7 +53,12 @@ only after every other finish gate succeeds and verifies artifact absence.
 Status exposes the path and lifecycle state without unrelated goal text.
 The explicit `legacy-exempt` policy covers entries created before this gate
 that lack an artifact—P012, P014, and P664—and records a durable comparison;
-new entries remain required.
+new entries remain required. The only self-bootstrap exception is exact entry
+`1789089073940-29496-766886f1` while bound to Prompt 665 with its historical
+absent/null `sessionGoals`: its supported goals update writes a ledger-only
+digest/count comparison that finish requires. No other Prompt 665 entry is
+exempt, and required-artifact metadata always preserves artifact validation,
+cleanup, and verified absence.
 
 ### Parking a blocked idle owner
 

@@ -33,7 +33,12 @@ wrap-up to record checked/unchecked outcomes and explanations; the immutable
 original goal identity, order, and text is compared before finish. Missing,
 malformed, or un-compared artifacts fail `coordination:finish`, which cleans
 only after all other gates and verifies absence. P012/P014/P664 entries created
-before this lifecycle use an explicit `legacy-exempt` migration policy.
+before this lifecycle use an explicit `legacy-exempt` migration policy. The
+self-bootstrap migration for Prompt 665 is restricted to exact coordination
+entry `1789089073940-29496-766886f1` with its historical absent/null `sessionGoals`;
+it requires a supported ledger-only goals comparison before finish. No other
+Prompt 665 entry is exempt, and an entry with required-artifact metadata always
+retains the artifact validation, cleanup, and absence gates.
 
 ## Fast path: choose the next prompt
 
