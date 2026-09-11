@@ -5652,6 +5652,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entryScopes: Array.isArray(entry.scopes) ? [...entry.scopes] : [],
       entryClaims: Array.isArray(entry.claims) ? [...entry.claims] : [],
       entryDependencyReceipt: entry.dependencyReceipt ?? null,
+      entryCompletionScopeExtension: entry.completionScopeExtension ?? null,
       entrySnapshot: entry,
       entryInputIdentity: contentIdentity(JSON.stringify(validationEntryInputs(entry))),
       previousValidation,
@@ -5840,6 +5841,7 @@ export async function validateCoordinationEntry(filePath, options) {
       scopes: preparation.entryScopes,
       claims: preparation.entryClaims,
       dependencyReceipt: preparation.entryDependencyReceipt,
+      completionScopeExtension: preparation.entryCompletionScopeExtension,
       ...(finalPostLandingRepair
         ? { postLandingRepair: finalPostLandingRepair.metadata }
         : {}),
