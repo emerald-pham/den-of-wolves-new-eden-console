@@ -45,6 +45,8 @@ it('denies forging a captain console while the full crew is connected', async ()
 it('permits captain console relief while short staffed but never from another ship', async () => {
   mock.full = false;
   await expect(popShipConfetti.run({ data, auth: { uid: 'u1' } } as CallableRequest<typeof data>)).resolves.toBeDefined();
+  const eventWrite = mock.set.mock.calls.find(([path]) => String(path).includes('/events/'));
+  expect(eventWrite?.[1]).toMatchObject({ type: 'ship-confetti', actorUid: 'u1' });
   mock.post = 'capybara-captain'; mock.set.mockClear();
   await expect(popShipConfetti.run({ data, auth: { uid: 'u1' } } as CallableRequest<typeof data>)).rejects.toMatchObject({ code: 'permission-denied' });
   expect(mock.set).not.toHaveBeenCalled();

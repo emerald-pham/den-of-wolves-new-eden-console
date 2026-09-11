@@ -1,3 +1,5 @@
+import { EventVisibility } from './eventEnvelope';
+
 /**
  * Member-readable events are an audit read model.  Every field in this map is
  * deliberately allow-listed per event type; callers cannot accidentally make
@@ -19,9 +21,9 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'seat-release': ['actorUid', 'seatId', 'revision', 'requestId', 'reason'],
   'airspace-opened': ['transition'],
   'turn-advanced': ['transition', 'fromTurn', 'toTurn', 'reason'],
-  'timer-pause': ['action', 'turn', 'window', 'actorName'],
-  'ship-confetti': ['shipId', 'shipName', 'actorName', 'actorRoleName'],
-  'roll': ['sides', 'count', 'rolls', 'total'],
+  'timer-pause': ['action', 'turn', 'window', 'actorName', 'byUid'],
+  'ship-confetti': ['shipId', 'shipName', 'actorUid', 'actorName', 'actorRoleName'],
+  'roll': ['byUid', 'sides', 'count', 'rolls', 'total'],
   'maintenance': ['shipId', 'shipName', 'action', 'results'],
   'ship-repaired': ['actorUid', 'shipId'],
   'maintenance-rollback': ['actorUid', 'requestId', 'eventId', 'shipId', 'revision'],
@@ -69,6 +71,11 @@ function pick(record: EventRecord, fields: readonly string[]): Record<string, un
  * event requires an explicit privacy decision in this module.
  */
 export function buildPrivacySafeEventRecord(input: PrivacySafeEventInput): Record<string, unknown> {
+  const suppliedVisibility = input.envelope &&
+    (input.envelope as Record<string, unknown>).visibility;
+  if (suppliedVisibility !== undefined && suppliedVisibility !== EventVisibility.Member) {
+    throw new Error('Member-readable events must use member visibility');
+  }
   const envelope = {
     ...(input.envelope ?? {}),
     type: input.type,

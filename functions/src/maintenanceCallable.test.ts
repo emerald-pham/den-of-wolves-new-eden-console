@@ -1336,7 +1336,7 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/pause-event', expect.objectContaining({
     type: 'timer-pause', action: 'paused', turn: 2, window: 'restricted',
-    actorName: 'GM', createdAt: 'server-time',
+    actorName: 'GM', byUid: 'u1', createdAt: 'server-time',
   }));
 
   mock.turnPhase = {

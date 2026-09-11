@@ -59,6 +59,42 @@ describe('buildPrivacySafeEventRecord', () => {
     expect(memberEventFieldsFor('future-secret-event')).toEqual([]);
   });
 
+  it('preserves stable actor attribution for existing audit payloads', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'timer-pause',
+      payload: { action: 'paused', turn: 2, window: 'restricted', actorName: 'GM', byUid: 'gm-1' },
+      createdAt: 'server-time',
+    })).toMatchObject({ byUid: 'gm-1' });
+    expect(buildPrivacySafeEventRecord({
+      type: 'roll',
+      payload: { byUid: 'player-1', sides: 6, count: 1, rolls: [4], total: 4 },
+      createdAt: 'server-time',
+    })).toMatchObject({ byUid: 'player-1' });
+    expect(buildPrivacySafeEventRecord({
+      type: 'ship-confetti',
+      payload: {
+        actorUid: 'player-2', shipId: 'aegis', shipName: 'AEGIS',
+        actorName: 'Alice', actorRoleName: 'Captain',
+      },
+      createdAt: 'server-time',
+    })).toMatchObject({ actorUid: 'player-2' });
+  });
+
+  it.each([
+    EventVisibility.Public,
+    EventVisibility.Crew,
+    EventVisibility.RolePrivate,
+    EventVisibility.LoyaltyPrivate,
+    EventVisibility.Facilitator,
+  ])('rejects %s visibility for member-readable events', (visibility) => {
+    expect(() => buildPrivacySafeEventRecord({
+      type: 'maintenance',
+      envelope: { visibility },
+      payload: {},
+      createdAt: 'server-time',
+    })).toThrow('Member-readable events must use member visibility');
+  });
+
   it('never exposes command and hidden-state fields from role or loyalty decisions', () => {
     const event = buildPrivacySafeEventRecord({
       type: 'loyalty-assignment',
