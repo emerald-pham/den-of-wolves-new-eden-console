@@ -42,6 +42,18 @@ version, changelog, and progress contract; focused red/green checks; review
 and release owner; and stopping behavior. Resolve an ambiguity before
 launching work that depends on it.
 
+### Parent-task message boundaries
+
+Each delegated campaign role must send an explicit collaboration message to the
+canonical parent task path named by its dispatch for every requested checkpoint,
+blocker, approval need, or material scope/status change. Ordinary task
+commentary is not guaranteed coordination delivery to the parent. For parent
+communication, boundary messages replace periodic heartbeat or status chatter;
+parked agents remain silent until an owner-only resume. This does not change the
+existing model floors, coordination lease heartbeat rules, or parked-entry `no
+heartbeat required` behavior. The role's final result still goes through the
+normal final response, in addition to any required boundary message.
+
 ### Durable session-goal evidence
 
 At `coordination:begin`, pass every session goal as a repeated

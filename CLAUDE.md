@@ -145,6 +145,19 @@ commands and results, and blocker. The playbook also defines the stopping-point,
 rebase, exact-HEAD review, single-full-gate, shared-ownership, and immediate-
 report requirements.
 
+### Parent-task message boundaries
+
+Delegated agents must send an explicit collaboration message to the canonical
+parent task path named by the dispatch for every requested checkpoint, blocker,
+approval need, or material scope/status change. Ordinary task commentary is not
+guaranteed coordination delivery to the parent. For parent communication,
+boundary messages replace periodic heartbeat or status chatter; parked agents
+remain silent until an owner-only resume. This communication rule does not
+change the repository's model floors, coordination lease heartbeats, or the
+parked-entry `no heartbeat required` behavior. The final result still goes
+through the normal final response, in addition to any required boundary
+message.
+
 ### Implementation-plan reading route
 
 For numbered implementation-plan work, do not read the 729-prompt

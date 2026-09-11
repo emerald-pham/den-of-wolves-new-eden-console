@@ -18,6 +18,18 @@ Terra role to Sol for that same role only; never reset or downgrade a role tier,
 and detect and stop Luna/Terra loops. Explain the failures and Sol's 10-times
 Luna cost in user-visible chat before any Sol dispatch.
 
+## Parent-task message boundaries
+
+Delegated agents must send an explicit collaboration message to the canonical
+parent task path named by the dispatch for every requested checkpoint, blocker,
+approval need, or material scope/status change. Ordinary task commentary is not
+guaranteed coordination delivery to the parent. Boundary messages replace
+periodic heartbeat or status chatter for parent communication; parked agents
+remain silent until an owner-only resume. The existing coordination lease
+heartbeat and parked-entry `no heartbeat required` rules still apply. Final
+results still use the normal final response, in addition to any required
+boundary message.
+
 ## Start and inspect
 
 From the exact non-`main` checkout that will do the work:
