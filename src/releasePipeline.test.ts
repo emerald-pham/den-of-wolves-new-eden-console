@@ -968,11 +968,14 @@ it('expires server-only join-attempt limiter records without indexing their time
   });
 });
 
-it('skips CI and deployment for documentation-only changes', () => {
-  for (const workflow of [ci, deploy]) {
-    expect(workflow).toContain('paths-ignore:');
-    expect(workflow).toContain("'**/*.md'");
-    expect(workflow).toContain("'**/README'");
-    expect(workflow).toContain("'**/README.*'");
-  }
+it('validates canonical authority docs while skipping application jobs and documentation deployment', () => {
+  expect(ci).not.toContain('paths-ignore:');
+  expect(ci).toContain("'!**/*.md'");
+  expect(ci).toContain("'docs/IMPLEMENTATION_PROGRESS.md'");
+  expect(ci).toContain('npm run coordination:docs');
+  expect(ci).toContain("if: steps.work_registration.outputs.documentation_only != 'true'");
+  expect(deploy).toContain('paths-ignore:');
+  expect(deploy).toContain("'**/*.md'");
+  expect(deploy).toContain("'**/README'");
+  expect(deploy).toContain("'**/README.*'");
 });

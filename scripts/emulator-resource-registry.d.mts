@@ -607,6 +607,11 @@ export function finishCoordinationEntry(
       readonly cwd: string;
       readonly range: string;
       readonly coordinationPrompt: number | string | null;
+      readonly coordinationPromptBefore?: number | string | null;
+      readonly coordinationPromptBindings?: readonly {
+        readonly prompt: number | string;
+        readonly commit: string;
+      }[];
     }) => {
       readonly commits: readonly string[];
       readonly results: readonly unknown[];

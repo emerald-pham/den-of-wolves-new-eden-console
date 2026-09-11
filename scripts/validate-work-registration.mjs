@@ -11,6 +11,7 @@ const REQUIRED_NEW_PROMPT_FILES = Object.freeze([
   'docs/IMPLEMENTATION_PROGRESS.md',
   'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
 ]);
+const CANONICAL_AUTHORITY_PATHS = new Set(REQUIRED_NEW_PROMPT_FILES);
 
 export function normalizeImplementationPrompt(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -69,10 +70,12 @@ function parsePlan(source, errors) {
 function parseProgress(source, errors) {
   return uniqueMap(
     [...String(source ?? '').matchAll(
-      /^\|\s*(\d{3}[a-z]*)\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|/gim,
+      /^\|\s*(\d{3}[a-z]*)\s*\|\s*(done|partial|missing|blocked|in-progress)\s*\|\s*(feature|non-feature)\s*\|\s*([^|]+)\|/gim,
     )].map((match) => ({
       prompt: normalizeImplementationPrompt(match[1]),
       status: match[2].toLowerCase(),
+      changeClass: match[3].toLowerCase(),
+      releaseMapping: match[4].split(',').map((value) => value.trim()).join(','),
     })).filter((record) => record.prompt),
     'progress ledger',
     errors,
@@ -104,6 +107,8 @@ function parseDependencyIndex(source, errors) {
         releaseBoundaries: cells[9],
         relatedConsumes: cells[10],
         evidenceIds: cells[11],
+        milestoneHints: cells[12],
+        title: cells[13],
         line,
       });
       continue;
@@ -254,10 +259,164 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
   for (const prompt of graph.keys()) visit(prompt);
 }
 
+function parseCatalog({ planSource, progressSource, dependencySource }, errors) {
+  const plan = parsePlan(planSource, errors);
+  const progress = parseProgress(progressSource, errors);
+  const dependency = parseDependencyIndex(dependencySource, errors);
+  validateCatalogIntegrity({ plan, progress, dependency, errors });
+  return { plan, progress, dependency };
+}
+
+function validateNewPromptRegistration({
+  prompt,
+  files,
+  plan,
+  progress,
+  dependency,
+  parentProgressSource,
+  parentDependencySource,
+  errors,
+}) {
+  const planRecord = plan.definitions.get(prompt);
+  const dependencyRecord = dependency.rows.get(prompt);
+  for (const requiredPath of REQUIRED_NEW_PROMPT_FILES) {
+    if (!files.includes(requiredPath)) {
+      errors.push(`new Prompt ${prompt} must add ${requiredPath} in the same commit`);
+    }
+  }
+  if (!/\bDependencies:\s*\S+/i.test(planRecord?.definition ?? '')) {
+    errors.push(`new Prompt ${prompt} must include an explicit Dependencies: assessment in its plan definition`);
+  }
+  const evidenceIds = dependencyRecord?.evidenceIds === 'none'
+    ? []
+    : dependencyRecord?.evidenceIds.split(';').map((value) => value.trim().toUpperCase()).filter(Boolean) ?? [];
+  const sourceBacked = evidenceIds.length > 0 && evidenceIds.every((id) => {
+    const record = dependency.evidence.get(id);
+    return record && new RegExp(
+      `^IMPLEMENTATION_PLAN\\.md\\s+-\\s+Prompt\\s+${prompt}\\b`,
+      'i',
+    ).test(record.source) &&
+      new RegExp(`^${prompt}\\s*->`, 'i').test(record.direction) &&
+      /\bDependencies:\s*\S+/i.test(record.language);
+  });
+  if (!sourceBacked) {
+    errors.push(`new Prompt ${prompt} must carry source-backed dependency evidence in the dependency index`);
+  }
+  if (typeof parentProgressSource === 'string' && progress.get(prompt) &&
+    parseProgress(parentProgressSource, []).has(prompt)) {
+    errors.push(`new Prompt ${prompt} already existed in the parent progress ledger without a plan definition`);
+  }
+  if (typeof parentDependencySource === 'string' && dependency.rows.has(prompt) &&
+    parseDependencyIndex(parentDependencySource, []).rows.has(prompt)) {
+    errors.push(`new Prompt ${prompt} already existed in the parent dependency index without a plan definition`);
+  }
+}
+
+function comparableDependencyMapping(row, dependency) {
+  if (!row) return null;
+  const evidence = row.evidenceIds === 'none'
+    ? 'none'
+    : row.evidenceIds.split(';').map((value) => value.trim().toUpperCase()).map((id) => {
+      const record = dependency.evidence.get(id);
+      return [id, record?.type, record?.direction, record?.source, record?.language].join(':');
+    }).join(';');
+  return [
+    row.hardPromptPrerequisites,
+    row.hardMilestone,
+    row.hardContract,
+    row.decisionOwner,
+    row.closureEvidenceGates,
+    row.sequenceRules,
+    row.releaseBoundaries,
+    row.relatedConsumes,
+    row.evidenceIds,
+    evidence,
+  ].join('|');
+}
+
+function validateDocumentationAuthorityChange({
+  files,
+  current,
+  parentPlanSource,
+  parentProgressSource,
+  parentDependencySource,
+  errors,
+}) {
+  if ([parentPlanSource, parentProgressSource, parentDependencySource]
+    .some((source) => typeof source !== 'string')) {
+    errors.push('documentation-only canonical authority validation requires all parent authority sources');
+    return;
+  }
+  const parentErrors = [];
+  const parent = parseCatalog({
+    planSource: parentPlanSource,
+    progressSource: parentProgressSource,
+    dependencySource: parentDependencySource,
+  }, parentErrors);
+  errors.push(...parentErrors.map((error) => `parent canonical authority: ${error}`));
+
+  const parentPrompts = new Set([
+    ...parent.plan.definitions.keys(),
+    ...parent.plan.checklist.keys(),
+    ...parent.progress.keys(),
+    ...parent.dependency.rows.keys(),
+  ]);
+  const currentPrompts = new Set([
+    ...current.plan.definitions.keys(),
+    ...current.plan.checklist.keys(),
+    ...current.progress.keys(),
+    ...current.dependency.rows.keys(),
+  ]);
+  const compare = (prompt, label, before, after) => {
+    if (before !== after) {
+      errors.push(
+        `documentation-only commits cannot change canonical Prompt ${prompt} ${label} ` +
+          `from ${String(before)} to ${String(after)}`,
+      );
+    }
+  };
+  for (const prompt of parentPrompts) {
+    const currentPlan = current.plan.definitions.get(prompt);
+    const currentChecklist = current.plan.checklist.get(prompt);
+    const currentProgress = current.progress.get(prompt);
+    const currentDependency = current.dependency.rows.get(prompt);
+    if (!currentPlan || !currentChecklist || !currentProgress || !currentDependency) {
+      errors.push(`documentation-only commits cannot remove canonical Prompt ${prompt} authority mappings`);
+      continue;
+    }
+    const parentPlan = parent.plan.definitions.get(prompt);
+    const parentChecklist = parent.plan.checklist.get(prompt);
+    const parentProgress = parent.progress.get(prompt);
+    const parentDependency = parent.dependency.rows.get(prompt);
+    compare(prompt, 'plan tag', parentPlan?.tag, currentPlan.tag);
+    compare(prompt, 'status', parentProgress?.status, currentProgress.status);
+    compare(prompt, 'completion mapping', parentChecklist?.checked, currentChecklist.checked);
+    compare(prompt, 'change class', parentProgress?.changeClass, currentProgress.changeClass);
+    compare(prompt, 'release mapping', parentProgress?.releaseMapping, currentProgress.releaseMapping);
+    compare(
+      prompt,
+      'dependency mapping',
+      comparableDependencyMapping(parentDependency, parent.dependency),
+      comparableDependencyMapping(currentDependency, current.dependency),
+    );
+  }
+  for (const prompt of currentPrompts) {
+    if (parentPrompts.has(prompt)) continue;
+    validateNewPromptRegistration({
+      prompt,
+      files,
+      ...current,
+      parentProgressSource,
+      parentDependencySource,
+      errors,
+    });
+  }
+}
+
 /**
  * Validate the durable mapping from one candidate commit to the canonical
- * implementation plan and dependency authority. Documentation-only commits
- * are the sole exemption.
+ * implementation plan and dependency authority. Unrelated documentation-only
+ * commits are exempt; canonical authority Markdown remains fail-closed.
  */
 export function validateWorkRegistration({
   changedFiles = [],
@@ -276,11 +435,32 @@ export function validateWorkRegistration({
       .filter(Boolean),
   )];
   const documentationOnly = files.length > 0 && files.every(isDocumentationPath);
-  if (documentationOnly) {
+  const changesCanonicalAuthority = files.some((filePath) => CANONICAL_AUTHORITY_PATHS.has(filePath));
+  if (documentationOnly && !changesCanonicalAuthority) {
     return { documentationOnly: true, prompt: null, newPrompt: false, errors: [] };
   }
 
   const errors = [];
+  const catalog = parseCatalog({ planSource, progressSource, dependencySource }, errors);
+  const { plan, progress, dependency } = catalog;
+  if (documentationOnly) {
+    validateDocumentationAuthorityChange({
+      files,
+      current: catalog,
+      parentPlanSource,
+      parentProgressSource,
+      parentDependencySource,
+      errors,
+    });
+    return {
+      documentationOnly: true,
+      authorityValidated: true,
+      prompt: null,
+      newPrompt: false,
+      errors,
+    };
+  }
+
   const trailers = promptTrailers(message);
   if (trailers.length !== 1) {
     errors.push(
@@ -299,10 +479,6 @@ export function validateWorkRegistration({
     errors.push('Implementation-Prompt trailer must be the final nonblank line of the commit message');
   }
 
-  const plan = parsePlan(planSource, errors);
-  const progress = parseProgress(progressSource, errors);
-  const dependency = parseDependencyIndex(dependencySource, errors);
-  validateCatalogIntegrity({ plan, progress, dependency, errors });
   if (!prompt) {
     return { documentationOnly: false, prompt: null, newPrompt: false, errors };
   }
@@ -374,37 +550,16 @@ export function validateWorkRegistration({
     .some((source) => typeof source === 'string');
   const newPrompt = hasParentSources && !sourceContainsPrompt(parentPlanSource, prompt);
   if (newPrompt) {
-    for (const requiredPath of REQUIRED_NEW_PROMPT_FILES) {
-      if (!files.includes(requiredPath)) {
-        errors.push(`new Prompt ${prompt} must add ${requiredPath} in the same commit`);
-      }
-    }
-    if (!/\bDependencies:\s*\S+/i.test(planRecord?.definition ?? '')) {
-      errors.push(`new Prompt ${prompt} must include an explicit Dependencies: assessment in its plan definition`);
-    }
-    const evidenceIds = dependencyRecord?.evidenceIds === 'none'
-      ? []
-      : dependencyRecord?.evidenceIds.split(';').map((value) => value.trim().toUpperCase()).filter(Boolean) ?? [];
-    const sourceBacked = evidenceIds.length > 0 && evidenceIds.every((id) => {
-      const record = dependency.evidence.get(id);
-      return record && new RegExp(
-        `^IMPLEMENTATION_PLAN\\.md\\s+-\\s+Prompt\\s+${prompt}\\b`,
-        'i',
-      ).test(record.source) &&
-        new RegExp(`^${prompt}\\s*->`, 'i').test(record.direction) &&
-        /\bDependencies:\s*\S+/i.test(record.language);
+    validateNewPromptRegistration({
+      prompt,
+      files,
+      plan,
+      progress,
+      dependency,
+      parentProgressSource,
+      parentDependencySource,
+      errors,
     });
-    if (!sourceBacked) {
-      errors.push(`new Prompt ${prompt} must carry source-backed dependency evidence in the dependency index`);
-    }
-    if (typeof parentProgressSource === 'string' && progress.get(prompt) &&
-      parseProgress(parentProgressSource, []).has(prompt)) {
-      errors.push(`new Prompt ${prompt} already existed in the parent progress ledger without a plan definition`);
-    }
-    if (typeof parentDependencySource === 'string' && dependency.rows.has(prompt) &&
-      parseDependencyIndex(parentDependencySource, []).rows.has(prompt)) {
-      errors.push(`new Prompt ${prompt} already existed in the parent dependency index without a plan definition`);
-    }
   }
 
   return { documentationOnly: false, prompt, newPrompt, errors };
@@ -470,7 +625,86 @@ export function validateCommitRegistration({ cwd = process.cwd(), commit = 'HEAD
   };
 }
 
-export function validateCommitRange({ cwd = process.cwd(), range, coordinationPrompt = null } = {}) {
+function commitIsAncestor(cwd, ancestor, descendant) {
+  try {
+    git(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function validateCoordinationRangeBindings({
+  cwd,
+  results,
+  coordinationPrompt,
+  coordinationPromptBefore,
+  coordinationPromptBindings,
+  errors,
+}) {
+  if (coordinationPrompt === null || coordinationPrompt === undefined) return;
+  const currentPrompt = normalizeImplementationPrompt(coordinationPrompt);
+  if (!currentPrompt) {
+    errors.push(`coordination prompt has invalid ID ${String(coordinationPrompt)}`);
+    return;
+  }
+  const previousPrompt = coordinationPromptBefore === null || coordinationPromptBefore === undefined
+    ? null
+    : normalizeImplementationPrompt(coordinationPromptBefore);
+  if (coordinationPromptBefore !== null && coordinationPromptBefore !== undefined && !previousPrompt) {
+    errors.push(`previous coordination prompt has invalid ID ${String(coordinationPromptBefore)}`);
+  } else if (previousPrompt && !(previousPrompt === '664' && currentPrompt === '665')) {
+    errors.push(
+      `coordination prompt transition ${previousPrompt} to ${currentPrompt} is not an allowed repository migration`,
+    );
+  }
+
+  const bindings = [];
+  if (!Array.isArray(coordinationPromptBindings)) {
+    errors.push('coordination prompt bindings must be an array');
+  } else {
+    for (const binding of coordinationPromptBindings) {
+      const prompt = normalizeImplementationPrompt(binding?.prompt);
+      const commit = typeof binding?.commit === 'string' ? binding.commit.trim() : '';
+      if (!prompt || !commit || !git(cwd, ['rev-parse', '--verify', `${commit}^{commit}`], { allowFailure: true })) {
+        errors.push('coordination prompt binding requires a valid prompt and commit');
+        continue;
+      }
+      bindings.push({ prompt, commit });
+    }
+  }
+
+  let reachedCurrentPrompt = false;
+  for (const result of results) {
+    if (result.documentationOnly || !result.prompt) continue;
+    if (result.prompt === currentPrompt) {
+      reachedCurrentPrompt = true;
+      continue;
+    }
+    if (previousPrompt && result.prompt === previousPrompt && !reachedCurrentPrompt) continue;
+    if (bindings.some((binding) =>
+      binding.prompt === result.prompt && commitIsAncestor(cwd, result.commit, binding.commit))) {
+      continue;
+    }
+    errors.push(
+      `${result.commit.slice(0, 12)}: commit trailer Prompt ${result.prompt} does not match ` +
+        `coordination Prompt ${currentPrompt}`,
+    );
+  }
+  if (!results.some((result) => result.prompt === currentPrompt)) {
+    errors.push(
+      `commit range does not contain a non-documentation commit for coordination Prompt ${currentPrompt}`,
+    );
+  }
+}
+
+export function validateCommitRange({
+  cwd = process.cwd(),
+  range,
+  coordinationPrompt = null,
+  coordinationPromptBefore = null,
+  coordinationPromptBindings = [],
+} = {}) {
   if (!range) throw new Error('work registration range validation requires --range <base>..<head>');
   const commits = git(cwd, ['rev-list', '--reverse', '--topo-order', range]).split('\n').filter(Boolean);
   const results = commits.map((commit) => {
@@ -517,17 +751,14 @@ export function validateCommitRange({ cwd = process.cwd(), range, coordinationPr
       );
     }
   }
-  if (coordinationPrompt !== null && coordinationPrompt !== undefined) {
-    const normalizedCoordinationPrompt = normalizeImplementationPrompt(coordinationPrompt);
-    if (!normalizedCoordinationPrompt) {
-      errors.push(`coordination prompt has invalid ID ${String(coordinationPrompt)}`);
-    } else if (!results.some((result) => result.prompt === normalizedCoordinationPrompt)) {
-      errors.push(
-        `commit range does not contain a non-documentation commit for coordination Prompt ` +
-          normalizedCoordinationPrompt,
-      );
-    }
-  }
+  validateCoordinationRangeBindings({
+    cwd,
+    results,
+    coordinationPrompt,
+    coordinationPromptBefore,
+    coordinationPromptBindings,
+    errors,
+  });
   return {
     commits,
     results,
@@ -593,7 +824,9 @@ function printResult(result) {
   if (result.errors.length > 0) {
     throw new Error(`Implementation work registration failed:\n- ${result.errors.join('\n- ')}`);
   }
-  if (result.documentationOnly) {
+  if (result.authorityValidated) {
+    console.log('Implementation work registration: documentation authority verified.');
+  } else if (result.documentationOnly) {
     console.log('Implementation work registration: documentation-only commit exempt.');
   } else if (Array.isArray(result.commits)) {
     console.log(`Implementation work registration: ${result.commits.length} commit(s) verified.`);

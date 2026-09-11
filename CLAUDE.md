@@ -238,6 +238,22 @@ baseline, later implementation commits may bind to it normally. `npm ci`
 installs the hooks through the package `prepare` script; use
 `npm run validate:work-registration -- --commit HEAD` for a direct check.
 
+The documentation-only exemption does not make the three canonical authority
+files mutable without review. A Markdown-only change to the implementation
+plan, progress ledger, or dependency index runs the same validator at commit,
+push, and CI boundaries. It may edit explanatory prose or completely register
+a future prompt, but it cannot remove or rewrite an existing prompt's status,
+change class, tag, dependency fields, or release mapping. Those mapping changes
+must remain in the non-documentation implementation commit that owns the
+prompt. Unrelated Markdown and README changes retain the fast exemption.
+
+Within one coordination entry, every non-documentation commit in its release
+range must bind to that entry's prompt. The only local transition exception is
+the recorded, monotonic Prompt 664 to Prompt 665 handoff on the original tooling
+entry. A pending blocked-agent merge may carry another prompt only when its
+source commit is the exact validated SHA of the completed preserved source
+entry; the source entry remains responsible for that prompt's release gates.
+
 ### Start
 
 1. Read this file and `AGENTS.md`, then inspect the checkout you will actually
@@ -392,7 +408,11 @@ when every changed tracked file is Markdown (`*.md`) or a README file
   for validation;
 - review the rendered text, links, examples, and diff instead;
 - do not increment the application version; and
-- GitHub Actions CI and deployment workflows must skip the push or pull request.
+- GitHub Actions CI and deployment workflows skip the push or pull request for
+  ordinary documentation-only changes. The three canonical implementation
+  authority files still trigger work-registration and `coordination:docs`,
+  while application tests and builds remain skipped when the resulting diff is
+  documentation-only.
 
 If any changed file falls outside that definition—including workflow YAML,
 configuration, scripts, application code, rules, or lockfiles—the exemption

@@ -4220,6 +4220,115 @@ describe('local emulator coordination', () => {
     },
   );
 
+  it('carries the exact Prompt 664 to 665 transition into closeout range validation', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registration-transition-${randomUUID()}.json`);
+    let receivedOptions: Record<string, unknown> | undefined;
+    const entry = {
+      ...releaseEntry,
+      workType: 'tooling',
+      implementationPrompt: '665',
+      implementationRegistrationRequired: true,
+      amendments: [{
+        amendedAt: '2026-09-11T03:33:30.495Z',
+        worktree: process.cwd(),
+        branchName: 'fix/release-task',
+        scopes: [],
+        claims: [],
+        implementationPromptBefore: '664',
+        implementationPromptAfter: '665',
+      }],
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        outcome: 'discarded',
+        reason: 'Exercise exact transition validation.',
+        release: releaseState({ mainContainsBranch: false }),
+        workRegistrationValidator: (options) => {
+          receivedOptions = options;
+          return { commits: ['branch-sha'], results: [], errors: [] };
+        },
+      })).rejects.toThrow(/session goal artifact is missing/i);
+
+      expect(receivedOptions).toMatchObject({
+        coordinationPrompt: '665',
+        coordinationPromptBefore: '664',
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+    }
+  });
+
+  it('binds an integrated cross-prompt handoff only to its validated preserved source commit', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registration-handoff-${randomUUID()}.json`);
+    let receivedOptions: Record<string, unknown> | undefined;
+    const sourceEntry = {
+      ...releaseEntry,
+      id: 'source-entry',
+      status: 'complete',
+      outcome: 'preserved',
+      implementationPrompt: '141',
+      implementationRegistrationRequired: true,
+      validation: { ...codeValidation, commitSha: 'source-branch-sha' },
+      preservation: {
+        kind: 'remote-ref',
+        destination: 'origin/feature/source-entry',
+        commitSha: 'source-branch-sha',
+        verifiedAt: '2026-09-11T03:30:00.000Z',
+      },
+    };
+    const blockerEntry = {
+      ...releaseEntry,
+      id: 'blocker-entry',
+      implementationPrompt: '665',
+      implementationRegistrationRequired: true,
+      mergeHandoffs: [{
+        id: 'merge-handoff-1',
+        status: 'pending',
+        sourceEntryId: sourceEntry.id,
+        blockerEntryId: 'blocker-entry',
+        destinationTaskId: '01a-blocking-task',
+        remoteRef: 'origin/feature/source-entry',
+        sourceCommitSha: 'source-branch-sha',
+        blockerReason: 'The source owns Prompt 141 release validation.',
+        overlappingScopes: ['docs/IMPLEMENTATION_PLAN.md'],
+        remainingDelta: 'none',
+        deliveryEvidence: 'Direct task message accepted.',
+        createdAt: '2026-09-11T03:31:00.000Z',
+      }],
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [sourceEntry, blockerEntry],
+        reservations: [],
+        configurations: [],
+      }));
+      await expect(finishCoordinationEntry(filePath, {
+        id: blockerEntry.id,
+        release: releaseState(),
+        handoffCommitIsAncestor: async () => true,
+        workRegistrationValidator: (options) => {
+          receivedOptions = options;
+          return { commits: ['branch-sha'], results: [], errors: [] };
+        },
+      })).rejects.toThrow(/session goal artifact is missing/i);
+
+      expect(receivedOptions).toMatchObject({
+        coordinationPrompt: '665',
+        coordinationPromptBindings: [{ prompt: '141', commit: 'source-branch-sha' }],
+      });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+    }
+  });
+
   it('rejects discard when the checkout is dirty or no reason is supplied', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-discard-${randomUUID()}.json`);
     try {

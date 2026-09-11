@@ -12,6 +12,7 @@ export interface WorkRegistrationValidationInput {
 
 export interface WorkRegistrationValidationResult {
   readonly documentationOnly: boolean;
+  readonly authorityValidated?: boolean;
   readonly prompt: string | null;
   readonly newPrompt: boolean;
   readonly errors: readonly string[];
@@ -31,6 +32,11 @@ export function validateCommitRange(options?: {
   readonly cwd?: string;
   readonly range?: string;
   readonly coordinationPrompt?: number | string | null;
+  readonly coordinationPromptBefore?: number | string | null;
+  readonly coordinationPromptBindings?: readonly {
+    readonly prompt: number | string;
+    readonly commit: string;
+  }[];
 }): {
   readonly commits: readonly string[];
   readonly results: readonly (WorkRegistrationValidationResult & { readonly commit: string })[];

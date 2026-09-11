@@ -2,16 +2,24 @@ name: CI
 
 on:
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - '**/README'
-      - '**/README.*'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/README'
+      - '!**/README.*'
+      - 'docs/IMPLEMENTATION_PLAN.md'
+      - 'docs/IMPLEMENTATION_PROGRESS.md'
+      - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
   push:
     branches-ignore: [main]
-    paths-ignore:
-      - '**/*.md'
-      - '**/README'
-      - '**/README.*'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!**/README'
+      - '!**/README.*'
+      - 'docs/IMPLEMENTATION_PLAN.md'
+      - 'docs/IMPLEMENTATION_PROGRESS.md'
+      - 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'
   workflow_call:
     inputs:
       ref:
@@ -47,15 +55,8 @@ jobs:
             package-lock.json
             functions/package-lock.json
 
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - run: npm ci --prefer-offline --no-audit
-      - run: npm ci --prefix functions --prefer-offline --no-audit
-
       - name: Validate implementation work registration
+        id: work_registration
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -76,26 +77,57 @@ jobs:
             exit 1
           fi
           npm run validate:work-registration -- --range "$base_sha..$head_sha"
+          documentation_only=true
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              *.md|README|*/README|README.*|*/README.*) ;;
+              *) documentation_only=false ;;
+            esac
+          done <<EOF
+          $(git diff --name-only "$base_sha" "$head_sha")
+          EOF
+          if [ "$documentation_only" = true ]; then
+            npm run coordination:docs
+          fi
+          echo "documentation_only=$documentation_only" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v5
+        if: steps.work_registration.outputs.documentation_only != 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - if: steps.work_registration.outputs.documentation_only != 'true'
+        run: npm ci --prefer-offline --no-audit
+      - if: steps.work_registration.outputs.documentation_only != 'true'
+        run: npm ci --prefix functions --prefer-offline --no-audit
 
       - name: Lint
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: npm run lint
 
       - name: Unit tests
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: npm test
 
       - name: Firestore security-rule tests
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: npm run test:rules
 
       - name: Build web
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: npm run build
 
       - name: Check web bundle size
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: node scripts/check-bundle-size.mjs
 
       - name: Build functions
+        if: steps.work_registration.outputs.documentation_only != 'true'
         run: npm run build --prefix functions
 
       - name: Upload web build artifact
+        if: steps.work_registration.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: web-dist
@@ -104,6 +136,7 @@ jobs:
           retention-days: 1
 
       - name: Upload Functions build artifact
+        if: steps.work_registration.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: functions-lib

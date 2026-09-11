@@ -206,6 +206,21 @@ checks the pushed commit range, and CI repeats the range check independently.
 Run `npm run validate:work-registration -- --commit HEAD` to inspect a committed
 tip directly.
 
+Documentation-only edits outside the canonical implementation plan, progress
+ledger, and dependency index keep the fast exemption. Changes to any of those
+three authority files still run the work-registration validator in the tracked
+hooks and run both work-registration and `coordination:docs` in CI. They may
+change prose or add one complete future-prompt registration, but cannot mutate
+or remove an existing prompt's status, class, tag, dependency, or release
+mappings without the owning non-documentation implementation commit.
+
+A coordination release range binds every non-documentation commit to the
+entry's prompt. The exact recorded Prompt 664 to Prompt 665 transition is the
+sole local prompt-transition exception. A blocked-agent integration may also
+contain a foreign prompt only when the registry ties it to the exact validated
+commit of a completed preserved source entry; arbitrary mixed-prompt commits
+remain invalid for landed, preserved, and discarded closeout.
+
 ## Merge, push, and finish
 
 When the reconciled validation is green, merge into local `main`, push it, and

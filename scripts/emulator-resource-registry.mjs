@@ -947,6 +947,38 @@ function effectiveChangeClass(entry) {
   return isToolingOnlyVersionPlan(entry.versionPlan) ? 'non-feature' : 'feature';
 }
 
+function workRegistrationCoordinationOptions(state, entry) {
+  const currentPrompt = normalizePromptId(entry.implementationPrompt);
+  const hasPromptTransfer = currentPrompt === '665' && entry.workType === 'tooling' &&
+    entry.implementationRegistrationRequired === true &&
+    (Array.isArray(entry.amendments) ? entry.amendments : []).some((amendment) =>
+      normalizePromptId(amendment?.implementationPromptBefore) === '664' &&
+      normalizePromptId(amendment?.implementationPromptAfter) === '665');
+  const coordinationPromptBindings = [];
+  for (const handoff of Array.isArray(entry.mergeHandoffs) ? entry.mergeHandoffs : []) {
+    if (text(handoff?.status, 'pending') !== 'pending') continue;
+    const sourceEntry = state.entries.find((candidate) => candidate.id === handoff.sourceEntryId);
+    const sourcePrompt = normalizePromptId(sourceEntry?.implementationPrompt);
+    const sourceCommit = text(handoff.sourceCommitSha);
+    if (!sourcePrompt || sourcePrompt === currentPrompt ||
+      sourceEntry?.status !== 'complete' || sourceEntry?.outcome !== 'preserved' ||
+      sourceEntry?.implementationRegistrationRequired !== true ||
+      sourceEntry?.validation?.passed !== true || sourceEntry.validation.commitSha !== sourceCommit ||
+      sourceEntry?.preservation?.commitSha !== sourceCommit) {
+      continue;
+    }
+    if (!coordinationPromptBindings.some((binding) =>
+      binding.prompt === sourcePrompt && binding.commit === sourceCommit)) {
+      coordinationPromptBindings.push({ prompt: sourcePrompt, commit: sourceCommit });
+    }
+  }
+  return {
+    coordinationPrompt: currentPrompt ?? entry.implementationPrompt ?? '(missing)',
+    ...(hasPromptTransfer ? { coordinationPromptBefore: '664' } : {}),
+    ...(coordinationPromptBindings.length > 0 ? { coordinationPromptBindings } : {}),
+  };
+}
+
 function changeClassErrors(entry, changeClass = entry.changeClass) {
   if (!entry.workType && entry.changeClass === undefined) return [];
   if (entry.changeClass !== undefined && !normalizeChangeClass(entry.changeClass)) {
@@ -4642,6 +4674,7 @@ export async function validateCoordinationEntry(filePath, options) {
           `it belongs to ${entry.worktree}.`,
       );
     }
+    const registrationCoordination = workRegistrationCoordinationOptions(state, entry);
 
     return async () => {
     const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory, filePath);
@@ -4686,7 +4719,7 @@ export async function validateCoordinationEntry(filePath, options) {
         const registration = validateCommitRange({
           cwd: validationDirectory,
           range: `${release.mainSha}..${release.branchSha}`,
-          coordinationPrompt: entry.implementationPrompt ?? null,
+          ...registrationCoordination,
         });
         errors.push(...registration.errors.map(
           (error) => `implementation work registration gate: ${error}`,
@@ -5159,7 +5192,7 @@ export async function finishCoordinationEntry(filePath, options) {
         registration = validator({
           cwd: process.cwd(),
           range: `${release.mainSha}..${release.branchSha}`,
-          coordinationPrompt: entry.implementationPrompt ?? null,
+          ...workRegistrationCoordinationOptions(state, entry),
         });
       } catch (error) {
         throw new Error(

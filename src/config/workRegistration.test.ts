@@ -82,6 +82,18 @@ describe('universal implementation work registration', () => {
     expect(ciSource).not.toContain('git rev-parse "$head_sha^"');
     expect(ciSource).toContain('Unable to derive a trusted implementation-registration base');
     expect(ciSource).toContain('[ "$base_sha" = "$head_sha" ]');
+    expect(ciSource).not.toContain('paths-ignore:');
+    expect(ciSource).toContain("- '!**/*.md'");
+    expect(ciSource).toContain('if [ "$documentation_only" = true ]');
+    expect(ciSource).toContain('npm run coordination:docs');
+    expect(ciSource).toContain("if: steps.work_registration.outputs.documentation_only != 'true'");
+    for (const authorityPath of [
+      'docs/IMPLEMENTATION_PLAN.md',
+      'docs/IMPLEMENTATION_PROGRESS.md',
+      'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+    ]) {
+      expect(ciSource).toContain(`- '${authorityPath}'`);
+    }
   });
 
   it('validates staged sources and rejects pre-registration in a separate docs-only commit', async () => {
@@ -116,14 +128,47 @@ describe('universal implementation work registration', () => {
       await writeFile(messageFile, 'tooling: extend the registered gate\n\nImplementation-Prompt: 664\n');
       expect(validateStagedRegistration({ cwd: root, messageFile }).errors).toEqual([]);
       await git(root, 'commit', '-F', messageFile);
-      await writeFile(resolve(root, 'scripts/another-validation.mjs'), 'export const another = true;\n');
-      await git(root, 'add', 'scripts/another-validation.mjs');
-      await git(root, 'commit', '-m', 'tooling: extend exact validation', '-m', 'Implementation-Prompt: 660');
+      await writeFile(resolve(root, 'scripts/preserved-source.mjs'), 'export const preserved = true;\n');
+      await git(root, 'add', 'scripts/preserved-source.mjs');
+      await git(root, 'commit', '-m', 'tooling: preserve a validated source', '-m', 'Implementation-Prompt: 660');
+      const preservedSourceCommit = await git(root, 'rev-parse', 'HEAD');
+      const planWith665 = `${planSource}\n- [x] Prompt 665\n- **Prompt 665 — [REPAIR] Bind every commit in a coordination range.** Acceptance: done. Dependencies: Prompt 664.`;
+      const progressWith665 = `${progressSource}\n| 665 | done | non-feature | — | Exact coordination prompt binding. |`;
+      const dependencyWith665 = `${dependencySource}\n| 665 | REPAIR | done | 664 | none | none | none | none | PROMPT-RANGE-BINDING | none | none | E-665 | none | Bind every coordination-range commit. |\n| E-665 | hard_prompt / sequence / registration | 665 -> 664 | IMPLEMENTATION_PLAN.md - Prompt 665 definition | Dependencies: Prompt 664; preserve the exact transition. |`;
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), planWith665);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), progressWith665);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), dependencyWith665);
+      await writeFile(resolve(root, 'scripts/prompt-binding.mjs'), 'export const binding = true;\n');
+      await git(root, 'add', 'docs', 'scripts/prompt-binding.mjs');
+      await git(root, 'commit', '-m', 'tooling: bind the coordination range', '-m', 'Implementation-Prompt: 665');
       expect(validateCommitRange({
         cwd: root,
         range: `${base}..HEAD`,
         coordinationPrompt: '664',
+      }).errors.join('\n')).toContain('does not match coordination Prompt 664');
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+        coordinationPromptBefore: '664',
+      }).errors.join('\n')).toContain('commit trailer Prompt 660 does not match coordination Prompt 665');
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+        coordinationPromptBefore: '664',
+        coordinationPromptBindings: [{ prompt: '660', commit: preservedSourceCommit }],
       }).errors).toEqual([]);
+      await writeFile(resolve(root, 'scripts/unowned-source.mjs'), 'export const unowned = true;\n');
+      await git(root, 'add', 'scripts/unowned-source.mjs');
+      await git(root, 'commit', '-m', 'tooling: add an unowned commit', '-m', 'Implementation-Prompt: 660');
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+        coordinationPromptBefore: '664',
+        coordinationPromptBindings: [{ prompt: '660', commit: preservedSourceCommit }],
+      }).errors.join('\n')).toContain('commit trailer Prompt 660 does not match coordination Prompt 665');
 
       await git(root, 'switch', '-c', 'split-registration', base);
       await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), planSource);
@@ -222,6 +267,158 @@ describe('universal implementation work registration', () => {
     expect(result).toMatchObject({ documentationOnly: true, errors: [] });
     expect(mdx.documentationOnly).toBe(false);
     expect(mdx.errors.join('\n')).toContain('exactly one Implementation-Prompt trailer');
+  });
+
+  it.each([
+    {
+      authority: 'status',
+      sources: {
+        ...currentSources,
+        planSource: planSource.replace('- [x] Prompt 664', '- [ ] Prompt 664'),
+        progressSource: progressSource.replace('| 664 | done |', '| 664 | partial |'),
+        dependencySource: dependencySource.replace('| 664 | REPAIR | done |', '| 664 | REPAIR | partial |'),
+      },
+    },
+    {
+      authority: 'change class',
+      sources: {
+        ...currentSources,
+        progressSource: progressSource.replace(
+          '| 660 | done | non-feature | — |',
+          '| 660 | done | feature | 0.3.0 |',
+        ),
+      },
+    },
+    {
+      authority: 'plan tag',
+      sources: {
+        ...currentSources,
+        planSource: planSource.replace('Prompt 661 — [POLISH]', 'Prompt 661 — [REPAIR]'),
+        dependencySource: dependencySource.replace('| 661 | POLISH |', '| 661 | REPAIR |'),
+      },
+    },
+    {
+      authority: 'dependency mapping',
+      sources: {
+        ...currentSources,
+        dependencySource: dependencySource.replace('| 664 | REPAIR | done | 660;661 |', '| 664 | REPAIR | done | 660 |'),
+      },
+    },
+    {
+      authority: 'release mapping',
+      sources: {
+        ...currentSources,
+        progressSource: progressSource.replace(
+          '| 660 | done | non-feature | — |',
+          '| 660 | done | non-feature | 0.3.0 |',
+        ),
+      },
+    },
+  ])('rejects documentation-only mutation of an existing prompt $authority', ({ authority, sources }) => {
+    const result = validateWorkRegistration({
+      changedFiles: [
+        'docs/IMPLEMENTATION_PLAN.md',
+        'docs/IMPLEMENTATION_PROGRESS.md',
+        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      ],
+      message: 'docs: rewrite canonical authority',
+      ...sources,
+      parentPlanSource: planSource,
+      parentProgressSource: progressSource,
+      parentDependencySource: dependencySource,
+    });
+
+    expect(result.documentationOnly).toBe(true);
+    expect(result.errors.join('\n')).toContain(`cannot change canonical Prompt`);
+    expect(result.errors.join('\n')).toContain(authority);
+  });
+
+  it('blocks a staged and committed documentation-only class rewrite at the tracked hook boundaries', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'work-registration-authority-rewrite-'));
+    const messageFile = resolve(root, '.git', 'WORK_REGISTRATION_MESSAGE');
+    try {
+      await git(root, 'init', '-b', 'main');
+      await git(root, 'config', 'user.email', 'fixture@example.test');
+      await git(root, 'config', 'user.name', 'Fixture');
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), planSource);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), progressSource);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), dependencySource);
+      await git(root, 'add', 'docs');
+      await git(root, 'commit', '-m', 'docs: seed canonical authority');
+      const base = await git(root, 'rev-parse', 'HEAD');
+      await writeFile(
+        resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'),
+        progressSource.replace('| 660 | done | non-feature | — |', '| 660 | done | feature | 0.3.0 |'),
+      );
+      await git(root, 'add', 'docs/IMPLEMENTATION_PROGRESS.md');
+      await writeFile(messageFile, 'docs: rewrite canonical class\n');
+
+      expect(validateStagedRegistration({ cwd: root, messageFile }).errors.join('\n'))
+        .toContain('cannot change canonical Prompt 660 change class');
+      await git(root, 'commit', '--no-verify', '-F', messageFile);
+      expect(validateCommitRange({ cwd: root, range: `${base}..HEAD` }).errors.join('\n'))
+        .toContain('cannot change canonical Prompt 660 change class');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('allows unrelated documentation and complete future-prompt registration through the docs-only path', () => {
+    const unrelated = validateWorkRegistration({
+      changedFiles: ['docs/example.md'],
+      message: 'docs: clarify an example',
+    });
+    const futurePrompt = validateWorkRegistration({
+      changedFiles: [
+        'docs/IMPLEMENTATION_PLAN.md',
+        'docs/IMPLEMENTATION_PROGRESS.md',
+        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      ],
+      message: 'docs: register future Prompt 664',
+      ...currentSources,
+      parentPlanSource,
+      parentProgressSource,
+      parentDependencySource,
+    });
+
+    expect(unrelated).toMatchObject({ documentationOnly: true, errors: [] });
+    expect(futurePrompt).toMatchObject({ documentationOnly: true, errors: [] });
+  });
+
+  it('rejects a Prompt 141 feature commit from a Prompt 665 coordination range', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'work-registration-foreign-feature-'));
+    try {
+      await git(root, 'init', '-b', 'main');
+      await git(root, 'config', 'user.email', 'fixture@example.test');
+      await git(root, 'config', 'user.name', 'Fixture');
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), [
+        '- [x] Prompt 141',
+        '- **Prompt 141 — [PROMPT] Ship a player-facing feature.** Acceptance: done.',
+      ].join('\n'));
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'),
+        '| 141 | done | feature | 0.3.2 | Feature release. |');
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), [
+        '| prompt_id | plan_tag | progress | hard_prompt_prerequisites | hard_milestone | hard_contract | decision_owner | closure_evidence_gates | sequence_rules | release_boundaries | related_consumes | evidence_ids | milestone_hints | title |',
+        '| 141 | PROMPT | done | none | none | none | none | none | none | none | none | none | none | Ship a player-facing feature. |',
+      ].join('\n'));
+      await git(root, 'add', 'docs');
+      await git(root, 'commit', '-m', 'docs: seed Prompt 141');
+      const base = await git(root, 'rev-parse', 'HEAD');
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      await writeFile(resolve(root, 'src/feature.ts'), 'export const feature = true;\n');
+      await git(root, 'add', 'src/feature.ts');
+      await git(root, 'commit', '-m', 'feat: ship Prompt 141', '-m', 'Implementation-Prompt: 141');
+
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+      }).errors.join('\n')).toContain('does not match coordination Prompt 665');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('rejects non-documentation work without one durable prompt trailer', () => {
