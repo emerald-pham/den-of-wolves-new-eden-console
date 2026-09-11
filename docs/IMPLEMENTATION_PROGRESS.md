@@ -426,7 +426,7 @@ release classification and evidence.
 | 014 | done | feature | 0.3.29 | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale or late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. |
 | 015 | done | feature | 0.3.31 | Client and callable paths share explicit command-error categories with safe player guidance and no private detail leakage. |
 | 016 | done | non-feature | — | Resume/lifecycle tests and rules identity boundary. |
-| 017 | partial | non-feature | — | Stable string IDs exist; unified typed IDs for all entities remain open. |
+| 017 | done | non-feature | — | Wire-safe branded ID aliases preserve session, player, seat, role, vessel, shuttle, and event identity at catalogs and snapshot boundaries; console, group, mission, and attack have identity-only contracts until persisted models exist. |
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
 | 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
 | 020 | done | non-feature | — | `functions/src/sessionComposition.test.ts` composes production create→join→GM authority→setup tuple→role/seat casting→private setup→Turn 1 for 8, 19, and 20 (claimed Press) without direct Firestore gameplay writes; focused callable evidence covers replay, stale, unauthorized, reconnect redaction, roster/loyalty/GM-instance invariants, and the existing 57-test `tests/rules/firestore.rules.test.ts` matrix covers member reads plus client-write denials. |

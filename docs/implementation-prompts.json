@@ -601,7 +601,7 @@
         "acceptance": "sessions, players, seats, roles, vessels, consoles, shuttles, groups, missions, attacks, and events retain one typed ID across snapshots.",
         "title": "Stabilize entity identifiers."
       },
-      "description": "Stable string IDs exist; unified typed IDs for all entities remain open.",
+      "description": "Wire-safe branded ID aliases preserve session, player, seat, role, vessel, shuttle, and event identity at catalogs and snapshot boundaries; console, group, mission, and attack have identity-only contracts until persisted models exist.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -613,7 +613,7 @@
       "releases": [],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

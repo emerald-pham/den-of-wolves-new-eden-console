@@ -1,14 +1,21 @@
 import type { LifecyclePhase } from './lifecycle';
 import type { SessionConfiguration } from './gameSetup';
+import type {
+  PlayerId,
+  RoleId,
+  SeatId,
+  ShuttleId,
+  VesselId,
+} from './identifiers';
 
 export interface MemberFixture {
-  readonly uid: string;
+  readonly uid: PlayerId;
   readonly deviceId: string;
   readonly displayName: string;
   readonly connected: boolean;
   readonly role: 'player' | 'gm' | 'observer';
-  readonly seatId: string | null;
-  readonly assignedRoleId: string | null;
+  readonly seatId: SeatId | null;
+  readonly assignedRoleId: RoleId | null;
 }
 
 export function memberFixture(
@@ -27,10 +34,10 @@ export function memberFixture(
 }
 
 export interface RoleFixture {
-  readonly roleId: string;
-  readonly vesselId: string | null;
+  readonly roleId: RoleId;
+  readonly vesselId: VesselId | null;
   readonly active: boolean;
-  readonly unionRoleId: string | null;
+  readonly unionRoleId: RoleId | null;
 }
 
 export function roleFixture(
@@ -46,7 +53,7 @@ export function roleFixture(
 }
 
 export interface VesselFixture {
-  readonly vesselId: string;
+  readonly vesselId: VesselId;
   readonly variant: 'base' | 'capybara' | 'none';
   readonly population: number;
   readonly resources: Readonly<Record<string, number>>;
@@ -69,10 +76,10 @@ export function vesselFixture(
 }
 
 export interface ShuttleFixture {
-  readonly shuttleId: string;
+  readonly shuttleId: ShuttleId;
   readonly sheetName: string;
-  readonly holderUid: string | null;
-  readonly hostVesselId: string | null;
+  readonly holderUid: PlayerId | null;
+  readonly hostVesselId: VesselId | null;
   readonly capabilities: readonly string[];
 }
 
@@ -145,10 +152,10 @@ export function snapshotFixture(
 }
 
 export interface PrivateReaderFixture {
-  readonly uid: string;
-  readonly roleId: string | null;
+  readonly uid: PlayerId;
+  readonly roleId: RoleId | null;
   readonly facilitator: boolean;
-  readonly vesselId: string | null;
+  readonly vesselId: VesselId | null;
 }
 
 export function privateReaderFixture(
@@ -164,7 +171,7 @@ export function privateReaderFixture(
 }
 
 export interface CallableFixture {
-  readonly uid: string;
+  readonly uid: PlayerId;
   readonly requestId: string;
   readonly expectedRevision: number;
 }

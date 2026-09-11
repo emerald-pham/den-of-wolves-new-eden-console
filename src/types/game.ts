@@ -6,8 +6,50 @@
  * own modules under `src/types/` without reshaping the session model.
  */
 
-/** Firestore document id. */
+import type {
+  EntityId,
+  EntityKind,
+  EventId,
+  PlayerId,
+  RoleId,
+  SeatId,
+  SessionId,
+  ShuttleId,
+  VesselId,
+} from './identifiers';
+
+export type {
+  AnyEntityId,
+  AttackId,
+  ConsoleId,
+  EntityId,
+  EntityKind,
+  EntityIdByKind,
+  EventId,
+  GroupId,
+  MissionId,
+  PlayerId,
+  RoleId,
+  SeatId,
+  SessionId,
+  ShuttleId,
+  VesselId,
+} from './identifiers';
+
+/** Legacy unqualified ID for data that predates the typed identity boundary. */
 export type Id = string;
+
+/** Identity-only contracts for tables that do not yet have persisted models. */
+export interface EntityIdentitySnapshot<K extends EntityKind> {
+  readonly id: EntityId<K>;
+}
+
+export type Group = EntityIdentitySnapshot<'group'>;
+export type Mission = EntityIdentitySnapshot<'mission'>;
+export type Attack = EntityIdentitySnapshot<'attack'>;
+export type Console = EntityIdentitySnapshot<'console'>;
+
+export type AnyEntityIdentitySnapshot = EntityIdentitySnapshot<EntityKind>;
 
 /** ISO-8601 instant, as written by the server. */
 export type Timestamp = string;
@@ -32,14 +74,14 @@ export type ShipGalacticCoordinates = Readonly<Record<string, GalacticCoordinate
 export type ShipNavigationEventType = 'self-jump' | 'ship-jump-away' | 'ship-jump-arrival';
 
 export interface ShipNavigationLogEntry {
-  readonly id: Id;
+  readonly id: EventId;
   /** The ship whose bridge receives this entry. */
-  readonly shipId: Id;
+  readonly shipId: VesselId;
   readonly type: ShipNavigationEventType;
   readonly origin: GalacticCoordinate;
   readonly destination: GalacticCoordinate;
   /** Present for a notification about another ship's jump. */
-  readonly subjectShipId?: Id;
+  readonly subjectShipId?: VesselId;
   readonly subjectShipName?: string;
   /** A GM relocation is deliberately visible as an error on the moved ship. */
   readonly navigationalError?: boolean;
@@ -61,8 +103,8 @@ export interface ShipJumpState {
 export type ShipJumpStates = Readonly<Record<string, ShipJumpState>>;
 
 export interface ShipJumpTransition {
-  readonly id: Id;
-  readonly shipId: Id;
+  readonly id: EventId;
+  readonly shipId: VesselId;
   readonly origin: GalacticCoordinate;
   readonly destination: GalacticCoordinate;
   readonly occurredAt: Timestamp;
@@ -159,7 +201,7 @@ export interface TurnStartAnnouncement {
 
 /** A browser-local GM replay; it is intentionally never persisted or shared. */
 export interface TurnStartReplay {
-  readonly sessionId: Id;
+  readonly sessionId: SessionId;
   readonly turn: number;
   readonly survivorPopulation: number;
   readonly token: number;
@@ -173,8 +215,8 @@ export interface SessionSetup {
   readonly turnLimit: 6 | 7 | 8;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
-  readonly activeRoleIds: readonly string[];
-  readonly activeVesselIds: readonly string[];
+  readonly activeRoleIds: readonly RoleId[];
+  readonly activeVesselIds: readonly VesselId[];
 }
 
 export interface GameSession {
@@ -203,7 +245,7 @@ export interface GameSession {
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
   readonly shipSurvivors?: Readonly<Record<string, number>>;
   readonly populationAlerts?: Readonly<Record<string, PopulationAlert>>;
-  readonly id: Id;
+  readonly id: SessionId;
   readonly name: string;
   /** Short human-shareable code players type to join. */
   readonly joinCode: string;
@@ -218,7 +260,7 @@ export interface GameSession {
   /** One canonical server-validated configuration tuple. */
   readonly setup?: SessionSetup;
   /** Derived counted vessels for the canonical active core roster. */
-  readonly activeVesselIds?: readonly string[];
+  readonly activeVesselIds?: readonly VesselId[];
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
@@ -249,15 +291,15 @@ export interface GameSession {
   /** Locks subsequent GM claims while at least one GM remains present. */
   readonly gmControlsLocked?: boolean;
   /** Playable role ids currently offered by role selection. */
-  readonly activeRoleIds?: readonly string[];
+  readonly activeRoleIds?: readonly RoleId[];
   readonly shuttleDockings?: readonly ShuttleDocking[];
   readonly shuttleVisitLog?: readonly ShuttleVisit[];
   /** Fleet ships whose one-shot bridge dispenser has already been fired. */
-  readonly confettiUsedShipIds?: readonly string[];
+  readonly confettiUsedShipIds?: readonly VesselId[];
   /** Latest server-authorized manual DRADIS contact; automatic traffic derives from createdAt. */
   readonly dradisContactTriggeredAt?: Timestamp;
   /** uid of the facilitator who may elevate others. */
-  readonly ownerUid: Id;
+  readonly ownerUid: PlayerId;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }
@@ -267,13 +309,13 @@ export interface SetupReceipt {
   readonly source: string;
   readonly playerCount: number;
   readonly mode: string;
-  readonly rosterIds: readonly string[];
+  readonly rosterIds: readonly RoleId[];
   readonly pressEligibility: Readonly<Record<string, unknown>>;
   readonly excludedGmCount: number;
   readonly wolfCount: 1 | 2;
   readonly wolfRule: string;
-  readonly selectedWolfRoleIds: readonly string[];
-  readonly eligibleRoleIds: readonly string[];
+  readonly selectedWolfRoleIds: readonly RoleId[];
+  readonly eligibleRoleIds: readonly RoleId[];
   readonly orderedModifiers: readonly unknown[];
   readonly resultCount: number;
   readonly loyaltySource: 'automatic-default' | 'explicit-preserved';
@@ -292,15 +334,15 @@ export interface PrivateLoyalty {
 }
 
 export interface ShuttleDocking {
-  readonly shuttleId: Id;
-  readonly shipId: Id;
+  readonly shuttleId: ShuttleId;
+  readonly shipId: VesselId;
   readonly dockedAt: Timestamp;
 }
 
 export interface ShuttleVisit {
-  readonly id: Id;
-  readonly shuttleId: Id;
-  readonly shipId: Id;
+  readonly id: EventId;
+  readonly shuttleId: ShuttleId;
+  readonly shipId: VesselId;
   readonly action: 'docked' | 'departed';
   readonly occurredAt: Timestamp;
 }
@@ -308,40 +350,40 @@ export interface ShuttleVisit {
 export type SeatStatus = 'open' | 'claimed' | 'locked';
 
 export interface Seat {
-  readonly id: Id;
-  readonly sessionId: Id;
+  readonly id: SeatId;
+  readonly sessionId: SessionId;
   /** Stable canonical role id; absent only on pre-0.3.12 legacy documents. */
-  readonly roleId?: Id;
+  readonly roleId?: RoleId;
   readonly label: string;
-  readonly factionId: Id | null;
+  readonly factionId: VesselId | null;
   readonly status: SeatStatus;
   /** Set only by the server after a successful claim. */
-  readonly holderUid: Id | null;
+  readonly holderUid: PlayerId | null;
   readonly claimedAt: Timestamp | null;
 }
 
 export type PlayerRole = 'player' | 'gm' | 'observer';
 
 export interface Player {
-  readonly uid: Id;
-  readonly sessionId: Id;
+  readonly uid: PlayerId;
+  readonly sessionId: SessionId;
   readonly displayName: string;
   readonly role: PlayerRole;
-  readonly seatId: Id | null;
+  readonly seatId: SeatId | null;
   /** Server-assigned printed role, separate from local device authority. */
-  readonly assignedRoleId?: string | null;
+  readonly assignedRoleId?: RoleId | null;
   /** Nonbinding casting preference; it never grants a role or vessel. */
-  readonly shipPreferenceId?: string | null;
+  readonly shipPreferenceId?: VesselId | null;
   /** Server-authoritative command post held by this device until explicitly released. */
-  readonly activeConsoleRoleId?: string | null;
+  readonly activeConsoleRoleId?: RoleId | null;
   readonly joinedAt: Timestamp;
 }
 
 /** One browser/device that has independently claimed GM authority. */
 export interface GmInstance {
   readonly id: Id;
-  readonly sessionId: Id;
-  readonly uid: Id;
+  readonly sessionId: SessionId;
+  readonly uid: PlayerId;
   readonly name: string;
   readonly deviceLabel: string;
   readonly responsibility?: 'main' | 'assistant';
@@ -351,10 +393,10 @@ export interface GmInstance {
 }
 
 export interface ShipConfettiEvent {
-  readonly id: Id;
-  readonly sessionId: Id;
+  readonly id: EventId;
+  readonly sessionId: SessionId;
   readonly type: 'ship-confetti';
-  readonly shipId: Id;
+  readonly shipId: VesselId;
   readonly shipName: string;
   readonly actorName: string;
   readonly actorRoleName: string;
@@ -362,8 +404,8 @@ export interface ShipConfettiEvent {
 }
 
 export interface FullscreenAlertEvent {
-  readonly id: Id;
-  readonly sessionId: Id;
+  readonly id: EventId;
+  readonly sessionId: SessionId;
   readonly type: 'fullscreen-alert';
   readonly sourceRoleName: string;
   readonly message: string;
@@ -379,10 +421,10 @@ export type MaintenanceEventResultStep = typeof MAINTENANCE_EVENT_RESULT_STEPS[n
 export type MaintenanceEventResults = Partial<Record<MaintenanceEventResultStep, string>>;
 
 export interface MaintenanceEvent {
-  readonly id: Id;
-  readonly sessionId: Id;
+  readonly id: EventId;
+  readonly sessionId: SessionId;
   readonly type: 'maintenance';
-  readonly shipId: Id;
+  readonly shipId: VesselId;
   readonly shipName: string;
   readonly action: MaintenanceEventAction;
   readonly results: MaintenanceEventResults;
@@ -390,8 +432,8 @@ export interface MaintenanceEvent {
 }
 
 export interface TimerPauseEvent {
-  readonly id: Id;
-  readonly sessionId: Id;
+  readonly id: EventId;
+  readonly sessionId: SessionId;
   readonly type: 'timer-pause';
   readonly action: 'paused' | 'resumed';
   readonly turn: number;
@@ -407,9 +449,9 @@ export type SessionEvent =
   | TimerPauseEvent;
 
 export type DamageDraw = {
-  readonly id: Id;
-  readonly sessionId: Id;
-  readonly shipId: Id;
+  readonly id: EventId;
+  readonly sessionId: SessionId;
+  readonly shipId: VesselId;
   readonly createdAt: Timestamp;
 } & (
   | {
@@ -425,8 +467,8 @@ export type DamageDraw = {
 /** Anything the server generated and only some players may read. */
 export interface SecretRecord {
   readonly id: Id;
-  readonly sessionId: Id;
-  readonly visibleToUids: readonly Id[];
+  readonly sessionId: SessionId;
+  readonly visibleToUids: readonly PlayerId[];
   readonly payload: Readonly<Record<string, unknown>>;
   readonly createdAt: Timestamp;
 }

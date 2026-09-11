@@ -1,4 +1,5 @@
 import type { LifecyclePhase } from './lifecycle';
+import { entityId, type EntityId, type PlayerId, type RoleId, type SessionId } from './identifiers';
 
 /** Visibility scopes are intentionally allow-listed to prevent ad hoc leaks. */
 export enum EventVisibility {
@@ -11,9 +12,9 @@ export enum EventVisibility {
 }
 
 export interface AuthoritativeEventEnvelope {
-  readonly sessionId: string;
-  readonly actorUid: string;
-  readonly actorRoleId: string | null;
+  readonly sessionId: SessionId;
+  readonly actorUid: PlayerId;
+  readonly actorRoleId: RoleId | null;
   readonly turn: number;
   readonly phase: LifecyclePhase;
   readonly type: string;
@@ -24,9 +25,9 @@ export interface AuthoritativeEventEnvelope {
 }
 
 export interface BuildAuthoritativeEventEnvelopeInput {
-  readonly sessionId: string;
-  readonly actorUid: string;
-  readonly actorRoleId: string | null;
+  readonly sessionId: SessionId;
+  readonly actorUid: PlayerId;
+  readonly actorRoleId: RoleId | null;
   readonly turn: number;
   readonly phase: LifecyclePhase;
   readonly type: string;
@@ -39,6 +40,14 @@ export interface BuildAuthoritativeEventEnvelopeInput {
 function requireNonEmpty(value: string, field: string): string {
   if (value.trim().length === 0) throw new Error(`${field} must not be empty`);
   return value;
+}
+
+function requireEntityId<K extends 'session' | 'player' | 'role'>(
+  kind: K,
+  value: string,
+  field: string,
+): EntityId<K> {
+  return entityId(kind, requireNonEmpty(value, field));
 }
 
 function requireCounter(value: number, field: string): number {
@@ -59,11 +68,11 @@ export function buildAuthoritativeEventEnvelope(
   input: BuildAuthoritativeEventEnvelopeInput,
 ): AuthoritativeEventEnvelope {
   return {
-    sessionId: requireNonEmpty(input.sessionId, 'sessionId'),
-    actorUid: requireNonEmpty(input.actorUid, 'actorUid'),
+    sessionId: requireEntityId('session', input.sessionId, 'sessionId'),
+    actorUid: requireEntityId('player', input.actorUid, 'actorUid'),
     actorRoleId: input.actorRoleId === null
       ? null
-      : requireNonEmpty(input.actorRoleId, 'actorRoleId'),
+      : requireEntityId('role', input.actorRoleId, 'actorRoleId'),
     turn: requireCounter(input.turn, 'turn'),
     phase: input.phase,
     type: requireNonEmpty(input.type, 'type'),

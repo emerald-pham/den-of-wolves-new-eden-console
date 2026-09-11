@@ -2,11 +2,12 @@ import type { ConsoleRole, ConsoleShipId } from '@/data/roles';
 import type { ShipResourceInventory } from '@/data/resources';
 import type { ShipPopulationTrack } from '@/data/shipPopulation';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
+import type { RoleId, ShuttleId, VesselId } from '@/types/identifiers';
 
 export type ShipOrigin = 'earth' | 'colonies';
 
 export interface ShipIdentity {
-  readonly id: string;
+  readonly id: VesselId;
   readonly name: string;
   readonly vesselType: string;
   readonly nation: string;
@@ -75,7 +76,7 @@ export interface ShuttleOperation {
 }
 
 export interface Shuttlecraft {
-  readonly id: string;
+  readonly id: ShuttleId;
   readonly name: string;
   readonly shortName: string;
   readonly consoleName: string;
@@ -83,7 +84,7 @@ export interface Shuttlecraft {
   readonly operatorShort: string;
   readonly vesselType: string;
   readonly description: string;
-  readonly captainRoleId: string;
+  readonly captainRoleId: RoleId;
   readonly availability: ShuttleAvailability;
   readonly consoleClass?: string;
   readonly mark?: string;

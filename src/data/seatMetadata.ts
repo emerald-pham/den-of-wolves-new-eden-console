@@ -1,13 +1,14 @@
 import { CONSOLE_ROLES } from './roles';
 import { findShip } from './ships';
+import type { RoleId, VesselId } from '@/types/identifiers';
 
 export interface SeatMetadata {
   readonly label: string;
-  readonly factionId: string | null;
+  readonly factionId: VesselId | null;
 }
 
 /** Client-side mirror of the server's canonical role-keyed seat catalog. */
-export const ROLE_SEAT_METADATA: Readonly<Record<string, SeatMetadata>> = Object.fromEntries(
+export const ROLE_SEAT_METADATA: Readonly<Record<RoleId, SeatMetadata>> = Object.fromEntries(
   CONSOLE_ROLES.map((role) => {
     const factionId = role.shipId === 'press' ? 'press' : role.shipId;
     const factionLabel = role.shipId === 'press'

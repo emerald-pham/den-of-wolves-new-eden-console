@@ -63,6 +63,44 @@ it.each([
   ]));
 });
 
+it('keeps typed entity IDs stable at the session snapshot boundary', () => {
+  const session = sessionFrom('typed-session', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis', 'icebreaker'],
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'TURN 1' }],
+    shuttleVisitLog: [{
+      id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 1',
+    }],
+  });
+
+  expect(session.id).toBe('typed-session');
+  expect(session.activeRoleIds?.[0]).toBe('admiral');
+  expect(session.activeVesselIds).toEqual(['aegis', 'icebreaker']);
+  expect(session.shuttleDockings?.[0]).toMatchObject({ shuttleId: 'starlight', shipId: 'aegis' });
+  expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
+});
+
+it('does not carry malformed IDs from an untrusted session snapshot', () => {
+  const session = sessionFrom('safe-session', {
+    ...sessionData(8),
+    activeRoleIds: ['admiral', 'roles/admiral'],
+    activeVesselIds: ['aegis', 'vessels/aegis'],
+    shuttleDockings: [{ shuttleId: 'shuttles/starlight', shipId: 'aegis', dockedAt: 'TURN 1' }],
+    shuttleVisitLog: [{
+      id: 'events/visit-1', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 1',
+    }],
+  });
+
+  expect(session.activeRoleIds).toEqual([]);
+  expect(session.activeVesselIds).toBeUndefined();
+  expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'shuttles/starlight' }),
+  ]));
+  expect(session.shuttleVisitLog).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'events/visit-1' }),
+  ]));
+});
+
 it('adds missing legacy SNN state without replacing stored docking or visit history', () => {
   const oldDocking = {
     shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START',

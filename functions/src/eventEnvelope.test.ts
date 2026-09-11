@@ -86,4 +86,22 @@ describe('buildAuthoritativeEventEnvelope', () => {
     expect(() => buildAuthoritativeEventEnvelope({ ...base, revision: -1 })).toThrow();
     expect(() => buildAuthoritativeEventEnvelope({ ...base, revision: 1.5 })).toThrow();
   });
+
+  it('rejects path-shaped identities instead of putting them in an event envelope', () => {
+    const base = {
+      sessionId: 'session-1',
+      actorUid: 'uid-1',
+      actorRoleId: 'role-aegis',
+      turn: 1,
+      phase: 'active' as const,
+      type: 'turn.started',
+      requestId: 'request-1',
+      revision: 1,
+      serverTime: '2026-09-07T16:00:00.000Z',
+      visibility: EventVisibility.Public,
+    };
+
+    expect(() => buildAuthoritativeEventEnvelope({ ...base, sessionId: 'sessions/s1' })).toThrow(/identifier/i);
+    expect(() => buildAuthoritativeEventEnvelope({ ...base, actorRoleId: 'roles/admiral' })).toThrow(/identifier/i);
+  });
 });

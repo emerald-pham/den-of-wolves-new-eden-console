@@ -4,6 +4,13 @@ import {
   recommendedRoleIds,
 } from './roleConfiguration';
 import { PRESENCE_LEASE_MS } from './sessionLifecycle';
+import { entityId } from './identifiers';
+import type {
+  PlayerId,
+  RoleId,
+  SeatId,
+  VesselId,
+} from './identifiers';
 
 export const SUPPORTED_PLAYER_COUNTS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 export const SUPPORTED_CHART_IDS = ['A', 'B', 'C'] as const;
@@ -25,17 +32,17 @@ export interface SessionConfiguration {
 
 /** The immutable setup tuple persisted alongside the legacy session fields. */
 export interface CanonicalSessionSetup extends SessionConfiguration {
-  readonly activeRoleIds: readonly string[];
-  readonly activeVesselIds: readonly string[];
+  readonly activeRoleIds: readonly RoleId[];
+  readonly activeVesselIds: readonly VesselId[];
 }
 
 export interface StableSeatRecord {
-  readonly id: string;
-  readonly roleId: string;
+  readonly id: SeatId;
+  readonly roleId: RoleId;
   readonly label: string;
-  readonly factionId: string | null;
+  readonly factionId: VesselId | null;
   readonly status: 'open';
-  readonly holderUid: null;
+  readonly holderUid: PlayerId | null;
   readonly claimedAt: null;
 }
 
@@ -186,14 +193,14 @@ export function defaultSuspicionForLoyalty(kind: LoyaltyKind): readonly number[]
 }
 
 export interface SetupHolder {
-  readonly uid: string;
-  readonly roleId: string;
+  readonly uid: PlayerId;
+  readonly roleId: RoleId;
 }
 
 export interface ExplicitLoyaltyRecord extends SetupHolder {
   readonly kind: string;
   readonly suspicion: number | null;
-  readonly partnerUid?: string | null;
+  readonly partnerUid?: PlayerId | null;
 }
 
 export type ExplicitLoyaltyValidation =
@@ -296,8 +303,8 @@ export function loyaltyAssignmentDecision(
 }
 
 export interface RoleAssignment {
-  readonly uid: string;
-  readonly roleId: string;
+  readonly uid: PlayerId;
+  readonly roleId: RoleId;
 }
 
 export type RoleAssignmentReason =
@@ -326,7 +333,7 @@ export function roleAssignmentDecision(
 }
 
 export interface SetupBrief {
-  readonly roleId: string;
+  readonly roleId: RoleId;
   readonly text: string;
 }
 
@@ -396,25 +403,25 @@ export type SetupReadinessReason =
 
 /** The server-facing shape of a provisioned, role-keyed seat document. */
 export interface SetupSeatDocument {
-  readonly id: string;
-  readonly roleId: string;
+  readonly id: SeatId;
+  readonly roleId: RoleId;
   readonly label: string;
-  readonly factionId: string;
+  readonly factionId: VesselId;
   readonly status: 'open' | 'claimed' | 'locked';
-  readonly holderUid: string | null;
+  readonly holderUid: PlayerId | null;
   readonly claimedAt?: string | number | Date | null;
 }
 
 /** A player pointer read beside its seat document during start readiness. */
 export interface SetupPlayerSeatPointer {
-  readonly uid: string;
-  readonly seatId: string | null;
+  readonly uid: PlayerId;
+  readonly seatId: SeatId | null;
 }
 
 /** Minimal normalized GM instance input used by the pure readiness policy. */
 export interface SetupGmInstance {
   readonly id: string;
-  readonly uid: string;
+  readonly uid: PlayerId;
   readonly connected: boolean;
   readonly lastSeenAt?: string | number | Date | null;
   readonly responsibilities?: readonly ('main' | 'assistant')[];
@@ -424,20 +431,20 @@ export interface SetupGmInstance {
 export interface SetupReadinessInput {
   readonly phase: string;
   readonly playerCount: number;
-  readonly connectedPlayers: readonly string[];
+  readonly connectedPlayers: readonly PlayerId[];
   readonly assignments: readonly RoleAssignment[];
-  readonly loyaltyUids: readonly string[];
+  readonly loyaltyUids: readonly PlayerId[];
   readonly facilitatorResponsibilities: { readonly main: boolean; readonly assistant: boolean };
-  readonly activeRoleIds: readonly string[];
-  readonly activeVesselIds: readonly string[];
+  readonly activeRoleIds: readonly RoleId[];
+  readonly activeVesselIds: readonly VesselId[];
   /** Optional Press holders are live station occupancy, never core roster members. */
-  readonly pressPlayerUids?: readonly string[];
+  readonly pressPlayerUids?: readonly PlayerId[];
   /** Press is an optional station; disabled/stale occupancy is excluded from core math. */
   readonly pressEnabled?: boolean;
   /** Stored station owner used to reject a stale or mismatched Press claim. */
-  readonly pressHolderUid?: string | null;
+  readonly pressHolderUid?: PlayerId | null;
   /** Connected GM-only observers do not consume a player or Press station. */
-  readonly facilitatorPlayerUids?: readonly string[];
+  readonly facilitatorPlayerUids?: readonly PlayerId[];
   /** Canonical role-keyed seat documents provisioned by the server. */
   readonly seatDocuments?: readonly SetupSeatDocument[];
   /** Exact reciprocal player -> seat pointers from the same read. */
@@ -448,7 +455,7 @@ export interface SetupReadinessInput {
   readonly nowMs?: number;
 }
 
-function vesselIdsForRole(roleId: string): readonly string[] {
+function vesselIdsForRole(roleId: string): readonly VesselId[] {
   if (roleId === 'admiral' || roleId === 'executive-officer' || roleId === 'wing-commander') return ['aegis'];
   if (roleId === 'joint-engineering-quellon-refinery') return ['quellon', 'refinery-124'];
   if (roleId === 'joint-engineering-shepherd-icebreaker') return ['shepherd', 'icebreaker'];
@@ -599,13 +606,13 @@ export function readinessForSetup(input: SetupReadinessInput): {
 }
 
 /** Keep the imported preset helper reachable from the setup module's public contract. */
-export function printedRosterForPlayerCount(playerCount: number): readonly string[] {
+export function printedRosterForPlayerCount(playerCount: number): readonly RoleId[] {
   return recommendedRoleIds(playerCount);
 }
 
 /** Resolve the vessels that a setup roster actually puts into play. */
-export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly string[] {
-  const vessels = new Set<string>();
+export function activeVesselIdsForRoles(roleIds: readonly string[]): readonly VesselId[] {
+  const vessels = new Set<VesselId>();
   for (const roleId of roleIds) {
     if (roleId === 'admiral' || roleId === 'executive-officer' || roleId === 'wing-commander') {
       vessels.add('aegis');
@@ -637,11 +644,11 @@ export function canonicalSessionSetup(
 
 export interface RoleSeatMetadata {
   readonly label: string;
-  readonly factionId: string;
+  readonly factionId: VesselId;
 }
 
 /** Shared printed role/vessel names used by seat records and the CIC. */
-export const ROLE_SEAT_METADATA: Readonly<Record<string, RoleSeatMetadata>> = {
+export const ROLE_SEAT_METADATA: Readonly<Record<RoleId, RoleSeatMetadata>> = {
   admiral: { label: 'AEGIS // Admiral', factionId: 'aegis' },
   'executive-officer': { label: 'AEGIS // Executive Officer', factionId: 'aegis' },
   'wing-commander': { label: 'AEGIS // Wing Commander', factionId: 'aegis' },
@@ -673,12 +680,12 @@ export const ROLE_SEAT_METADATA: Readonly<Record<string, RoleSeatMetadata>> = {
 };
 
 /** Stable role-keyed seats are created once and reconciled by role id. */
-export function stableSeatsForRoles(roleIds: readonly string[]): readonly StableSeatRecord[] {
+export function stableSeatsForRoles(roleIds: readonly RoleId[]): readonly StableSeatRecord[] {
   return roleIds.map((roleId) => {
     const metadata = ROLE_SEAT_METADATA[roleId];
     if (!metadata) throw new Error(`No canonical seat metadata for role ${roleId}.`);
     return {
-      id: roleId,
+      id: entityId('seat', roleId),
       roleId,
       label: metadata.label,
       factionId: metadata.factionId,

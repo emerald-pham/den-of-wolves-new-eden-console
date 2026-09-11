@@ -1,4 +1,5 @@
 import { SHIPS } from './ships';
+import type { RoleId, VesselId } from '@/types/identifiers';
 
 export type ConsoleShipId =
   | 'press'
@@ -12,9 +13,9 @@ export type ConsoleShipId =
   | 'refinery-124';
 
 export interface ConsoleRole {
-  readonly id: string;
+  readonly id: RoleId;
   readonly name: string;
-  readonly shipId: ConsoleShipId;
+  readonly shipId: VesselId;
   readonly commandAuthority?: 'captain' | 'officer';
 }
 

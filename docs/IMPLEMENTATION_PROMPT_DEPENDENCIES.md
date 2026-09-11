@@ -111,7 +111,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 014 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define stale-snapshot semantics. |
 | 015 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Define the command error taxonomy. |
 | 016 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define member and device identity. |
-| 017 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Stabilize entity identifiers. |
+| 017 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Stabilize entity identifiers. |
 | 018 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Define phase-eligible action metadata. |
 | 019 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Define privacy-safe audit records. |
 | 020 | PROVE | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Build the lobby-to-Team-Phase contract fixture. |

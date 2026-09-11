@@ -25,6 +25,8 @@ import type {
   SessionChartId,
   SessionExpansionMode,
   SessionEvent,
+  ShuttleDocking,
+  ShuttleVisit,
   ShipJumpStates,
   ShipJumpTransitions,
   ShipNavigationLogs,
@@ -48,6 +50,7 @@ import { normalizeDisplayName } from './displayName';
 import { turnPhaseState } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
 import { useSessionStore } from '@/store/useSessionStore';
+import { entityId, parseEntityId } from '@/types/identifiers';
 import {
   acceptServerSessionAuthority,
   createSessionSnapshotAuthority,
@@ -119,17 +122,34 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
 function setupReceipt(value: unknown): SetupReceipt | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
+  const rosterIds = Array.isArray(raw.rosterIds)
+    ? raw.rosterIds.map((id) => parseEntityId('role', id))
+    : [];
+  const selectedWolfRoleIds = Array.isArray(raw.selectedWolfRoleIds)
+    ? raw.selectedWolfRoleIds.map((id) => parseEntityId('role', id))
+    : [];
+  const eligibleRoleIds = Array.isArray(raw.eligibleRoleIds)
+    ? raw.eligibleRoleIds.map((id) => parseEntityId('role', id))
+    : [];
   if (
     typeof raw.source !== 'string' ||
     typeof raw.playerCount !== 'number' || !Array.isArray(raw.rosterIds) ||
     typeof raw.wolfCount !== 'number' || (raw.wolfCount !== 1 && raw.wolfCount !== 2) ||
     !Array.isArray(raw.selectedWolfRoleIds) || !Array.isArray(raw.eligibleRoleIds) ||
+    rosterIds.some((id) => id === undefined) ||
+    selectedWolfRoleIds.some((id) => id === undefined) ||
+    eligibleRoleIds.some((id) => id === undefined) ||
     typeof raw.resultCount !== 'number' ||
     (raw.loyaltySource !== 'automatic-default' && raw.loyaltySource !== 'explicit-preserved') ||
     typeof raw.expectedSetupRevision !== 'number' || typeof raw.committedSetupRevision !== 'number' ||
     typeof raw.actorUid !== 'string' || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string'
   ) return null;
-  return raw as unknown as SetupReceipt;
+  return {
+    ...raw,
+    rosterIds: rosterIds as SetupReceipt['rosterIds'],
+    selectedWolfRoleIds: selectedWolfRoleIds as SetupReceipt['selectedWolfRoleIds'],
+    eligibleRoleIds: eligibleRoleIds as SetupReceipt['eligibleRoleIds'],
+  } as unknown as SetupReceipt;
 }
 
 function turnStartAnnouncement(value: unknown): GameSession['turnStartAnnouncement'] {
@@ -210,21 +230,23 @@ function shipJumpTransitions(value: unknown): ShipJumpTransitions {
   const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
-  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_TRANSITIONS).flatMap((shipId) => {
-    const transition = stored[shipId];
+  return Object.fromEntries(Object.keys(INITIAL_SHIP_JUMP_TRANSITIONS).flatMap((shipIdKey) => {
+    const transition = stored[shipIdKey];
     if (typeof transition !== 'object' || transition === null || Array.isArray(transition)) return [];
     const raw = transition as Record<string, unknown>;
     const occurredAtValue = raw.occurredAt;
     const occurredAt = occurredAtValue && typeof (occurredAtValue as { toDate?: unknown }).toDate === 'function'
       ? iso(occurredAtValue)
       : typeof occurredAtValue === 'string' ? occurredAtValue : undefined;
+    const id = parseEntityId('event', raw.id);
+    const shipId = parseEntityId('vessel', raw.shipId);
     if (
-      typeof raw.id !== 'string' || typeof raw.shipId !== 'string' ||
+      !id || !shipId ||
       typeof raw.origin !== 'string' || typeof raw.destination !== 'string' || !occurredAt
     ) return [];
-    return [[shipId, {
-      id: raw.id,
-      shipId: raw.shipId,
+    return [[shipIdKey, {
+      id,
+      shipId,
       origin: raw.origin,
       destination: raw.destination,
       occurredAt,
@@ -252,14 +274,20 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
   const turnLimit = raw.turnLimit;
   const activeRoleIds = raw.activeRoleIds;
   const activeVesselIds = raw.activeVesselIds;
+  const parsedRoleIds = Array.isArray(activeRoleIds)
+    ? activeRoleIds.map((roleId) => parseEntityId('role', roleId))
+    : [];
+  const parsedVesselIds = Array.isArray(activeVesselIds)
+    ? activeVesselIds.map((vesselId) => parseEntityId('vessel', vesselId))
+    : [];
   if (
     typeof playerCount !== 'number' || !Number.isSafeInteger(playerCount) || playerCount < 8 || playerCount > 20 ||
     !(['A', 'B', 'C'] as readonly string[]).includes(String(chartId)) ||
     !(['base', 'capybara', 'none'] as readonly string[]).includes(String(expansion)) ||
     !([6, 7, 8] as readonly number[]).includes(Number(turnLimit)) ||
     typeof raw.dioneEnabled !== 'boolean' || typeof raw.capybaraEnabled !== 'boolean' ||
-    !Array.isArray(activeRoleIds) || activeRoleIds.some((roleId) => typeof roleId !== 'string') ||
-    !Array.isArray(activeVesselIds) || activeVesselIds.some((vesselId) => typeof vesselId !== 'string')
+    !Array.isArray(activeRoleIds) || parsedRoleIds.some((roleId) => roleId === undefined) ||
+    !Array.isArray(activeVesselIds) || parsedVesselIds.some((vesselId) => vesselId === undefined)
   ) return undefined;
   return {
     playerCount,
@@ -268,12 +296,35 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
     turnLimit: turnLimit as SessionSetup['turnLimit'],
     dioneEnabled: raw.dioneEnabled,
     capybaraEnabled: raw.capybaraEnabled,
-    activeRoleIds: [...activeRoleIds] as string[],
-    activeVesselIds: [...activeVesselIds] as string[],
+    activeRoleIds: parsedRoleIds as SessionSetup['activeRoleIds'],
+    activeVesselIds: parsedVesselIds as SessionSetup['activeVesselIds'],
   };
 }
 
+function shuttleDocking(value: unknown): ShuttleDocking | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const shuttleId = parseEntityId('shuttle', raw.shuttleId);
+  const shipId = parseEntityId('vessel', raw.shipId);
+  if (!shuttleId || !shipId || typeof raw.dockedAt !== 'string') return undefined;
+  return { shuttleId, shipId, dockedAt: raw.dockedAt };
+}
+
+function shuttleVisit(value: unknown): ShuttleVisit | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const id = parseEntityId('event', raw.id);
+  const shuttleId = parseEntityId('shuttle', raw.shuttleId);
+  const shipId = parseEntityId('vessel', raw.shipId);
+  if (!id || !shuttleId || !shipId ||
+      (raw.action !== 'docked' && raw.action !== 'departed') || typeof raw.occurredAt !== 'string') {
+    return undefined;
+  }
+  return { id, shuttleId, shipId, action: raw.action, occurredAt: raw.occurredAt };
+}
+
 export function sessionFrom(id: string, data: DocumentData): GameSession {
+  const sessionId = entityId('session', id);
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
@@ -281,18 +332,37 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? data.playerCount as number
     : undefined;
   const setup = sessionSetup(data.setup);
+  const storedRoleIds = Array.isArray(data.activeRoleIds)
+    ? data.activeRoleIds.map((roleId: unknown) => parseEntityId('role', roleId))
+    : [];
+  const storedVesselIds = Array.isArray(data.activeVesselIds)
+    ? data.activeVesselIds.map((vesselId: unknown) => parseEntityId('vessel', vesselId))
+    : [];
   const hasActiveRoleIds = Array.isArray(data.activeRoleIds) || Boolean(setup);
-  const activeRoleIds = hasActiveRoleIds
-    ? (Array.isArray(data.activeRoleIds) ? data.activeRoleIds : setup?.activeRoleIds) as string[]
-    : DEFAULT_ACTIVE_ROLE_IDS;
+  const activeRoleIds = Array.isArray(data.activeRoleIds) && storedRoleIds.every(Boolean)
+    ? storedRoleIds as SessionSetup['activeRoleIds']
+    : Array.isArray(data.activeRoleIds)
+      ? []
+      : setup?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const activeVesselIds = setup?.activeVesselIds ?? (
+    Array.isArray(data.activeVesselIds) && storedVesselIds.every(Boolean)
+      ? storedVesselIds as SessionSetup['activeVesselIds']
+      : undefined
+  );
+  const storedDockings = Array.isArray(data.shuttleDockings)
+    ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
+    : undefined;
+  const storedVisits = Array.isArray(data.shuttleVisitLog)
+    ? data.shuttleVisitLog.map(shuttleVisit).filter((visit): visit is ShuttleVisit => visit !== undefined)
+    : undefined;
   const shuttleManifest = normalizeShuttleManifest(
-    Array.isArray(data.shuttleDockings) ? data.shuttleDockings : undefined,
-    Array.isArray(data.shuttleVisitLog) ? data.shuttleVisitLog : undefined,
+    storedDockings,
+    storedVisits,
     hasActiveRoleIds ? activeRoleIds : undefined,
     playerCount,
   );
   return {
-    id,
+    id: sessionId,
     name: data.name as string,
     joinCode: data.joinCode as string,
     phase: data.phase as GameSession['phase'],
@@ -309,9 +379,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(Number.isSafeInteger(data.setupRevision) && data.setupRevision >= 0
       ? { setupRevision: data.setupRevision as number } : {}),
     ...(setup ? { setup, activeVesselIds: [...setup.activeVesselIds] } :
-      Array.isArray(data.activeVesselIds)
-        ? { activeVesselIds: data.activeVesselIds.filter((vesselId): vesselId is string => typeof vesselId === 'string') }
-        : {}),
+      activeVesselIds ? { activeVesselIds: [...activeVesselIds] } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
@@ -356,46 +424,66 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shuttleDockings: shuttleManifest.dockings,
     shuttleVisitLog: shuttleManifest.visits,
     confettiUsedShipIds: Array.isArray(data.confettiUsedShipIds)
-      ? data.confettiUsedShipIds as string[]
+      ? data.confettiUsedShipIds
+        .map((shipId: unknown) => parseEntityId('vessel', shipId))
+        .filter((shipId): shipId is NonNullable<typeof shipId> => shipId !== undefined)
       : [],
     ...(dradisContactTriggeredAt && typeof dradisContactTriggeredAt.toDate === 'function'
       ? { dradisContactTriggeredAt: iso(dradisContactTriggeredAt) }
       : {}),
-    ownerUid: data.ownerUid as string,
+    // Older session fixtures and retained empty sessions can omit ownerUid;
+    // preserve that legacy projection while typed player documents use the
+    // parsed PlayerId boundary above.
+    ownerUid: data.ownerUid as GameSession['ownerUid'],
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
   };
 }
 
 function playerFrom(sessionId: string, uid: string, data: DocumentData): Player {
+  const parsedSeatId = data.seatId === null || data.seatId === undefined
+    ? null
+    : parseEntityId('seat', data.seatId) ?? null;
+  const parsedRoleId = data.assignedRoleId === null || data.assignedRoleId === undefined
+    ? null
+    : parseEntityId('role', data.assignedRoleId);
+  const parsedVesselId = data.shipPreferenceId === null || data.shipPreferenceId === undefined
+    ? null
+    : parseEntityId('vessel', data.shipPreferenceId);
+  const parsedConsoleId = data.activeConsoleRoleId === null || data.activeConsoleRoleId === undefined
+    ? null
+    : parseEntityId('role', data.activeConsoleRoleId);
   return {
-    uid,
-    sessionId,
+    uid: entityId('player', uid),
+    sessionId: entityId('session', sessionId),
     displayName: normalizeDisplayName(data.displayName),
     role: data.role as Player['role'],
-    seatId: (data.seatId as string | null) ?? null,
-    ...(typeof data.assignedRoleId === 'string' || data.assignedRoleId === null
-      ? { assignedRoleId: data.assignedRoleId as string | null } : {}),
-    ...(typeof data.shipPreferenceId === 'string' || data.shipPreferenceId === null
-      ? { shipPreferenceId: data.shipPreferenceId as string | null } : {}),
-    activeConsoleRoleId: (data.activeConsoleRoleId as string | null) ?? null,
+    seatId: parsedSeatId,
+    ...(parsedRoleId !== undefined ? { assignedRoleId: parsedRoleId } : {}),
+    ...(parsedVesselId !== undefined ? { shipPreferenceId: parsedVesselId } : {}),
+    ...(parsedConsoleId !== undefined ? { activeConsoleRoleId: parsedConsoleId } : {}),
     joinedAt: iso(data.joinedAt),
   };
 }
 
 function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
-  const roleId = typeof data.roleId === 'string' ? data.roleId : id;
+  const roleId = parseEntityId('role', data.roleId) ?? entityId('role', id);
+  const seatId = entityId('seat', id);
+  const parsedFactionId = data.factionId === null || data.factionId === undefined
+    ? null
+    : parseEntityId('vessel', data.factionId);
+  const parsedHolderUid = data.holderUid === null || data.holderUid === undefined
+    ? null
+    : parseEntityId('player', data.holderUid) ?? null;
   const metadata = ROLE_SEAT_METADATA[roleId];
   return {
-    id,
-    sessionId,
+    id: seatId,
+    sessionId: entityId('session', sessionId),
     roleId,
     label: typeof data.label === 'string' ? data.label : metadata?.label ?? roleId,
-    factionId: typeof data.factionId === 'string' || data.factionId === null
-      ? data.factionId as string | null
-      : metadata?.factionId ?? null,
+    factionId: parsedFactionId ?? (metadata?.factionId ? entityId('vessel', metadata.factionId) : null),
     status: data.status as Seat['status'],
-    holderUid: (data.holderUid as string | null) ?? null,
+    holderUid: parsedHolderUid,
     claimedAt: data.claimedAt ? iso(data.claimedAt) : null,
   };
 }
@@ -419,8 +507,8 @@ function gmInstanceFrom(
     : storedResponsibilities;
   return {
     id,
-    sessionId,
-    uid: data.uid as string,
+    sessionId: entityId('session', sessionId),
+    uid: entityId('player', data.uid),
     name: data.name as string,
     deviceLabel: data.deviceLabel as string,
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
@@ -668,16 +756,19 @@ export function subscribeSessionEvents(
       if (!fromCache) hasServerSnapshot = true;
       onEvents(snapshot.docs.flatMap<SessionEvent>((event) => {
         const data = event.data();
+        const eventId = parseEntityId('event', event.id);
+        const eventSessionId = parseEntityId('session', sessionId);
+        if (!eventId || !eventSessionId) return [];
         if (data.type === 'fullscreen-alert') return [{
-          id: event.id,
-          sessionId,
+          id: eventId,
+          sessionId: eventSessionId,
           type: 'fullscreen-alert' as const,
           sourceRoleName: data.sourceRoleName as string,
           message: data.message as string,
           createdAt: iso(data.createdAt),
         }];
         if (data.type === 'maintenance') {
-          const maintenance = parseMaintenanceEvent(event.id, sessionId, data, iso(data.createdAt));
+          const maintenance = parseMaintenanceEvent(eventId, eventSessionId, data, iso(data.createdAt));
           return maintenance ? [maintenance] : [];
         }
         if (
@@ -686,8 +777,8 @@ export function subscribeSessionEvents(
           (data.window === 'restricted' || data.window === 'open') &&
           typeof data.turn === 'number' && Number.isSafeInteger(data.turn) && data.turn >= 1
         ) return [{
-          id: event.id,
-          sessionId,
+          id: eventId,
+          sessionId: eventSessionId,
           type: 'timer-pause' as const,
           action: data.action,
           turn: data.turn,
@@ -696,11 +787,13 @@ export function subscribeSessionEvents(
           createdAt: iso(data.createdAt),
         }];
         if (data.type !== 'ship-confetti') return [];
+        const shipId = parseEntityId('vessel', data.shipId);
+        if (!shipId) return [];
         return [{
-          id: event.id,
-          sessionId,
+          id: eventId,
+          sessionId: eventSessionId,
           type: 'ship-confetti' as const,
-          shipId: data.shipId as string,
+          shipId,
           shipName: data.shipName as string,
           actorName: data.actorName as string,
           actorRoleName: data.actorRoleName as string,
@@ -740,19 +833,23 @@ export function subscribeDamageDraws(
       if (!fromCache) hasServerSnapshot = true;
       onDraws(snapshot.docs.flatMap<DamageDraw>((draw) => {
         const data = draw.data();
+        const drawId = parseEntityId('event', draw.id);
+        const drawSessionId = parseEntityId('session', sessionId);
+        const drawShipId = parseEntityId('vessel', data.shipId);
+        if (!drawId || !drawSessionId || !drawShipId) return [];
         if (data.type === 'ship-destroyed') return [{
-          id: draw.id,
-          sessionId,
+          id: drawId,
+          sessionId: drawSessionId,
           type: 'ship-destroyed' as const,
-          shipId: data.shipId as string,
+          shipId: drawShipId,
           createdAt: iso(data.createdAt),
         }];
         if (data.type !== 'ship-damage') return [];
         return [{
-          id: draw.id,
-          sessionId,
+          id: drawId,
+          sessionId: drawSessionId,
           type: 'ship-damage' as const,
-          shipId: data.shipId as string,
+          shipId: drawShipId,
           card: data.card as string,
           systemId: data.systemId as string,
           systemName: data.systemName as string,

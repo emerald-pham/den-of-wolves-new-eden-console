@@ -14,6 +14,7 @@ import {
   type ConsoleMode,
 } from '@/store/useSessionStore';
 import { consoleRoleRoute } from '@/lib/consoleRole';
+import { entityId } from '@/types/identifiers';
 
 const MODES: readonly {
   mode: ConsoleMode;
@@ -163,7 +164,7 @@ export default function RoleSelect() {
   );
   const coreSeats = seats
     .filter((seat) => {
-      const roleId = seat.roleId ?? seat.id;
+      const roleId = seat.roleId ?? entityId('role', seat.id);
       return roleId !== 'press-officer' &&
         (activeCoreRoleIds.size === 0 || activeCoreRoleIds.has(roleId));
     })
