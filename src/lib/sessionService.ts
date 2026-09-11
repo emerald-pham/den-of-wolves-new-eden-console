@@ -552,14 +552,13 @@ async function flushPendingCommands(): Promise<boolean> {
   return true;
 }
 
-function applySession(reply: SessionReply, expectedSessionId?: string): boolean {
+function applySession(reply: SessionReply, expectedDisplayedSessionId: string | null): boolean {
   const store = useSessionStore.getState();
+  const displayedSessionId = store.session?.id ?? null;
   if (
     reply.player.sessionId !== reply.session.id ||
-    (expectedSessionId !== undefined && (
-      store.session?.id !== expectedSessionId ||
-      reply.session.id !== expectedSessionId
-    ))
+    displayedSessionId !== expectedDisplayedSessionId ||
+    (expectedDisplayedSessionId !== null && reply.session.id !== expectedDisplayedSessionId)
   ) return false;
   const shuttleManifest = normalizeShuttleManifest(
     reply.session.shuttleDockings,
@@ -665,7 +664,8 @@ export async function connect(): Promise<void> {
 }
 
 export async function createSession(name?: string, options: CreateSessionOptions = {}): Promise<void> {
-  if (useSessionStore.getState().session) {
+  const expectedDisplayedSessionId = useSessionStore.getState().session?.id ?? null;
+  if (expectedDisplayedSessionId !== null) {
     throw new Error('Disconnect from the current session first.');
   }
   await ensureSignedIn();
@@ -683,7 +683,7 @@ export async function createSession(name?: string, options: CreateSessionOptions
     requestId: commandId(),
     ...options,
   });
-  applySession(reply.data);
+  applySession(reply.data, expectedDisplayedSessionId);
 }
 
 async function sendCounterChange(
@@ -836,13 +836,14 @@ export async function dismissPopulationAlert(shipId: string): Promise<void> {
 }
 
 export async function joinSession(joinCode: string): Promise<void> {
+  const expectedDisplayedSessionId = useSessionStore.getState().session?.id ?? null;
   await ensureSignedIn();
   const call = httpsCallable<{ joinCode: string }, SessionReply>(
     functions(),
     'joinSession',
   );
   const reply = await call({ joinCode });
-  applySession(reply.data);
+  applySession(reply.data, expectedDisplayedSessionId);
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {

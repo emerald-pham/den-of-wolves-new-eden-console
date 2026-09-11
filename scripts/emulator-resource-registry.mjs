@@ -2032,8 +2032,19 @@ function completionScopeExtensionRecord({ entry, validation, addedScopes, author
   return { ...record, fingerprint: semanticIdentity(record) };
 }
 
+function assertCompletionScopeExtensionBinding(entry) {
+  const prompt = normalizePromptId(entry.implementationPrompt);
+  const receipt = objectRecord(entry.dependencyReceipt);
+  const predecessor = objectRecord(receipt.predecessor);
+  if (prompt !== '014' || normalizePromptId(receipt.prompt) !== prompt ||
+    normalizePromptId(predecessor.prompt) !== prompt) {
+    throw new Error('A completion scope extension requires the exact Prompt 014 consumed receipt lineage.');
+  }
+}
+
 function assertCompletionScopeExtensionRequest(entry, scopes, claims) {
   if (entry.dependencyReceipt?.policy !== 'completion-refreshed') return;
+  assertCompletionScopeExtensionBinding(entry);
   if (entry.completionScopeExtension) {
     throw new Error('A consumed completion receipt already has an immutable scope extension.');
   }
@@ -2105,6 +2116,7 @@ async function assertStoredCompletionScopeExtension(entry, state, {
 } = {}) {
   const extension = objectRecord(entry.completionScopeExtension);
   if (Object.keys(extension).length === 0) return null;
+  assertCompletionScopeExtensionBinding(entry);
   const { fingerprint, ...record } = extension;
   const priorScopes = Array.isArray(extension.priorScopes) ? extension.priorScopes : [];
   const priorClaims = Array.isArray(extension.priorClaims) ? extension.priorClaims : [];

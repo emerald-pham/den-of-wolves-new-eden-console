@@ -342,6 +342,91 @@ describe('joinSession', () => {
     expect(sessionSnapshotAuthorityFor(callableSession.id, callablePlayer.uid))
       .toMatchObject({ hasServerSessionAuthority: true });
   });
+
+  it('does not let a late same-uid join hydrate over the newer displayed session', async () => {
+    const sessionA = { ...session, id: 'join-a', joinCode: '111111', updatedAt: '2026-09-11T12:00:00.000Z' };
+    const sessionB = { ...session, id: 'join-b', joinCode: '222222', updatedAt: '2026-09-11T12:01:00.000Z' };
+    const playerA = { ...player, sessionId: sessionA.id };
+    const playerB = { ...player, sessionId: sessionB.id };
+    let resolveA!: (value: { data: { session: typeof sessionA; player: typeof playerA } }) => void;
+    let resolveB!: (value: { data: { session: typeof sessionB; player: typeof playerB } }) => void;
+    const joinA = Object.assign(vi.fn(() => new Promise<{ data: { session: typeof sessionA; player: typeof playerA } }>((resolve) => {
+      resolveA = resolve;
+    })), { stream: vi.fn() });
+    const joinB = Object.assign(vi.fn(() => new Promise<{ data: { session: typeof sessionB; player: typeof playerB } }>((resolve) => {
+      resolveB = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable)
+      .mockReturnValueOnce(joinA as never)
+      .mockReturnValueOnce(joinB as never);
+
+    const joiningA = joinSession(sessionA.joinCode);
+    await vi.waitFor(() => expect(joinA).toHaveBeenCalled());
+    const joiningB = joinSession(sessionB.joinCode);
+    await vi.waitFor(() => expect(joinB).toHaveBeenCalled());
+    resolveB({ data: { session: sessionB, player: playerB } });
+    await joiningB;
+    useSessionStore.getState().setMode('gm');
+    useSessionStore.getState().setLastRoute('/gm/join-b');
+    expect(useSessionStore.getState()).toMatchObject({
+      session: sessionB,
+      me: playerB,
+      sessionSnapshotFreshness: 'server',
+      mode: 'gm',
+      lastRoute: '/gm/join-b',
+    });
+
+    resolveA({ data: { session: sessionA, player: playerA } });
+    await joiningA;
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: sessionB,
+      me: playerB,
+      sessionSnapshotFreshness: 'server',
+      mode: 'gm',
+      lastRoute: '/gm/join-b',
+    });
+  });
+
+  it('does not let a late create hydrate over a newer join session', async () => {
+    const createdSession = { ...session, id: 'created-a', joinCode: '333333', updatedAt: '2026-09-11T12:00:00.000Z' };
+    const joinedSession = { ...session, id: 'joined-b', joinCode: '444444', updatedAt: '2026-09-11T12:01:00.000Z' };
+    const createdPlayer = { ...player, sessionId: createdSession.id };
+    const joinedPlayer = { ...player, sessionId: joinedSession.id };
+    let resolveCreate!: (value: { data: { session: typeof createdSession; player: typeof createdPlayer } }) => void;
+    let resolveJoin!: (value: { data: { session: typeof joinedSession; player: typeof joinedPlayer } }) => void;
+    const create = Object.assign(vi.fn(() => new Promise<{ data: { session: typeof createdSession; player: typeof createdPlayer } }>((resolve) => {
+      resolveCreate = resolve;
+    })), { stream: vi.fn() });
+    const join = Object.assign(vi.fn(() => new Promise<{ data: { session: typeof joinedSession; player: typeof joinedPlayer } }>((resolve) => {
+      resolveJoin = resolve;
+    })), { stream: vi.fn() });
+    vi.mocked(httpsCallable).mockImplementation((_functions, name) => {
+      if (name === 'createSession') return create as never;
+      if (name === 'joinSession') return join as never;
+      return callableRejecting(new Error(`Unexpected callable ${name}`)) as never;
+    });
+
+    const creating = createSession('A');
+    await vi.waitFor(() => expect(create).toHaveBeenCalled());
+    const joining = joinSession(joinedSession.joinCode);
+    await vi.waitFor(() => expect(join).toHaveBeenCalled());
+    resolveJoin({ data: { session: joinedSession, player: joinedPlayer } });
+    await joining;
+    useSessionStore.getState().setMode('gm');
+    useSessionStore.getState().setLastRoute('/gm/joined-b');
+
+    resolveCreate({ data: { session: createdSession, player: createdPlayer } });
+    await creating;
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session: joinedSession,
+      me: joinedPlayer,
+      sessionSnapshotFreshness: 'server',
+      mode: 'gm',
+      lastRoute: '/gm/joined-b',
+    });
+  });
 });
 
 describe('authoritative session replies', () => {
@@ -362,6 +447,20 @@ describe('authoritative session replies', () => {
 
     expect(useSessionStore.getState().session).toEqual(session);
     expect(useSessionStore.getState().me).toEqual(player);
+  });
+
+  it('continues to accept a resume reply for the displayed session identity', async () => {
+    vi.mocked(httpsCallable).mockReturnValue(
+      callableReturning({ data: { session, player } }),
+    );
+
+    await expect(resumeSession(session.id)).resolves.toBe(true);
+
+    expect(useSessionStore.getState()).toMatchObject({
+      session,
+      me: player,
+      sessionSnapshotFreshness: 'server',
+    });
   });
 
   it('does not call a rejected resume payload a live connection', async () => {

@@ -431,6 +431,29 @@ describe('local emulator coordination', () => {
       validation: priorValidation,
       validationHistory: [priorValidation],
     };
+    const p668Context = await dependencyReceiptTestOptions.dependencyReceiptContextFactory({
+      ...entry,
+      implementationPrompt: '668',
+      claims: ['prompt-668'],
+    }, {}, {});
+    const p668StrictReceipt = await acceptedDependencyReceipt(p668Context);
+    const p668CompletionReceipt = {
+      ...p668StrictReceipt,
+      issuance: undefined,
+      policy: 'completion-refreshed',
+      completion: {
+        prior: dependencyReceiptMetadata(p668StrictReceipt, 'required'),
+        consumedAt: '2026-09-11T00:01:00.000Z',
+        anchor: { commitSha: mainSha },
+      },
+    };
+    const p668Entry = {
+      ...entry,
+      id: 'completion-scope-extension-p668',
+      implementationPrompt: '668',
+      claims: ['prompt-668'],
+      dependencyReceipt: dependencyReceiptMetadata(p668CompletionReceipt, 'completion-refreshed'),
+    };
     const doneRejected = async () => { throw new Error('Prompt 014 is not mechanically ready: progress=done'); };
     const completionValidator = vi.fn(async (options: Record<string, unknown>) => {
       const { context } = options as { context: DependencyReceiptContext };
@@ -445,6 +468,23 @@ describe('local emulator coordination', () => {
       'scripts/prompt-dependencies.mjs',
     ];
     try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [p668Entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await heartbeatCoordinationEntry(filePath, { id: p668Entry.id });
+      await expect(amendCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: p668Entry.id,
+        scope: extensionScopes.join(','),
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: async () => p668CompletionReceipt,
+        completionScopeExtensionValidationAnchor: extensionAnchor,
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        completionScopeExtensionValidationAnchor: () => Promise<typeof priorValidation>;
+      })).rejects.toThrow(/requires.*Prompt 014/i);
       await writeFile(filePath, JSON.stringify({
         version: 1,
         entries: [entry],
