@@ -422,7 +422,7 @@ it('disables offline commands and reports server failures', async () => {
   render(<FleetAlertControl />);
   fireEvent.click(screen.getByRole('button', { name: 'OPEN RED ALERT COMMAND COVER' }));
   fireEvent.click(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('COMMAND REJECTED');
+  expect(await screen.findByRole('alert')).toHaveTextContent('FLEET SERVICE IS TEMPORARILY UNAVAILABLE');
   act(() => useSessionStore.getState().setConnection('offline'));
   expect(screen.getByRole('button', { name: 'RAISE FLEETWIDE RED ALERT' })).toBeDisabled();
 });

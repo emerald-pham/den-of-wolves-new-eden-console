@@ -796,6 +796,7 @@ it('announces Press availability while pending and after a stale CAS rejection',
   vi.mocked(setPressEnabled).mockRejectedValueOnce({
     code: 'functions/failed-precondition',
     message: 'Press availability changed. Wait for the live update and try again.',
+    details: { commandError: 'stale-revision' },
   });
   await user.click(screen.getByRole('button', { name: /turn press off/i }));
   await user.click(screen.getByRole('button', { name: /are you sure.*disable press/i }));
