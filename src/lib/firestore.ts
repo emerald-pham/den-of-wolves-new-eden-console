@@ -35,6 +35,7 @@ import type {
   SetupReceipt,
   UnrestAlert,
 } from '@/types/game';
+import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
@@ -110,6 +111,12 @@ function iso(value: unknown): string {
   return new Date().toISOString();
 }
 
+function parseEntityIdArray<K extends EntityKind>(kind: K, value: unknown): readonly EntityId<K>[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const parsed = value.map((id) => parseEntityId(kind, id));
+  return parsed.every((id): id is EntityId<K> => id !== undefined) ? parsed : undefined;
+}
+
 function privateLoyalty(value: unknown): PrivateLoyalty | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const payload = value as Record<string, unknown>;
@@ -129,24 +136,15 @@ function privateLoyalty(value: unknown): PrivateLoyalty | null {
 function setupReceipt(value: unknown): SetupReceipt | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const raw = value as Record<string, unknown>;
-  const rosterIds = Array.isArray(raw.rosterIds)
-    ? raw.rosterIds.map((id) => parseEntityId('role', id))
-    : [];
-  const selectedWolfRoleIds = Array.isArray(raw.selectedWolfRoleIds)
-    ? raw.selectedWolfRoleIds.map((id) => parseEntityId('role', id))
-    : [];
-  const eligibleRoleIds = Array.isArray(raw.eligibleRoleIds)
-    ? raw.eligibleRoleIds.map((id) => parseEntityId('role', id))
-    : [];
+  const rosterIds = parseEntityIdArray('role', raw.rosterIds);
+  const selectedWolfRoleIds = parseEntityIdArray('role', raw.selectedWolfRoleIds);
+  const eligibleRoleIds = parseEntityIdArray('role', raw.eligibleRoleIds);
   const actorUid = parseEntityId('player', raw.actorUid);
   if (
     typeof raw.source !== 'string' ||
-    typeof raw.playerCount !== 'number' || !Array.isArray(raw.rosterIds) ||
+    typeof raw.playerCount !== 'number' || !rosterIds ||
     typeof raw.wolfCount !== 'number' || (raw.wolfCount !== 1 && raw.wolfCount !== 2) ||
-    !Array.isArray(raw.selectedWolfRoleIds) || !Array.isArray(raw.eligibleRoleIds) ||
-    rosterIds.some((id) => id === undefined) ||
-    selectedWolfRoleIds.some((id) => id === undefined) ||
-    eligibleRoleIds.some((id) => id === undefined) ||
+    !selectedWolfRoleIds || !eligibleRoleIds ||
     typeof raw.resultCount !== 'number' ||
     (raw.loyaltySource !== 'automatic-default' && raw.loyaltySource !== 'explicit-preserved') ||
     typeof raw.expectedSetupRevision !== 'number' || typeof raw.committedSetupRevision !== 'number' ||
@@ -154,9 +152,9 @@ function setupReceipt(value: unknown): SetupReceipt | null {
   ) return null;
   return {
     ...raw,
-    rosterIds: rosterIds as SetupReceipt['rosterIds'],
-    selectedWolfRoleIds: selectedWolfRoleIds as SetupReceipt['selectedWolfRoleIds'],
-    eligibleRoleIds: eligibleRoleIds as SetupReceipt['eligibleRoleIds'],
+    rosterIds,
+    selectedWolfRoleIds,
+    eligibleRoleIds,
     actorUid,
   } as unknown as SetupReceipt;
 }
@@ -331,20 +329,15 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
   const turnLimit = raw.turnLimit;
   const activeRoleIds = raw.activeRoleIds;
   const activeVesselIds = raw.activeVesselIds;
-  const parsedRoleIds = Array.isArray(activeRoleIds)
-    ? activeRoleIds.map((roleId) => parseEntityId('role', roleId))
-    : [];
-  const parsedVesselIds = Array.isArray(activeVesselIds)
-    ? activeVesselIds.map((vesselId) => parseEntityId('vessel', vesselId))
-    : [];
+  const parsedRoleIds = parseEntityIdArray('role', activeRoleIds);
+  const parsedVesselIds = parseEntityIdArray('vessel', activeVesselIds);
   if (
     typeof playerCount !== 'number' || !Number.isSafeInteger(playerCount) || playerCount < 8 || playerCount > 20 ||
     !(['A', 'B', 'C'] as readonly string[]).includes(String(chartId)) ||
     !(['base', 'capybara', 'none'] as readonly string[]).includes(String(expansion)) ||
     !([6, 7, 8] as readonly number[]).includes(Number(turnLimit)) ||
     typeof raw.dioneEnabled !== 'boolean' || typeof raw.capybaraEnabled !== 'boolean' ||
-    !Array.isArray(activeRoleIds) || parsedRoleIds.some((roleId) => roleId === undefined) ||
-    !Array.isArray(activeVesselIds) || parsedVesselIds.some((vesselId) => vesselId === undefined)
+    !parsedRoleIds || !parsedVesselIds
   ) return undefined;
   return {
     playerCount,
@@ -353,8 +346,8 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
     turnLimit: turnLimit as SessionSetup['turnLimit'],
     dioneEnabled: raw.dioneEnabled,
     capybaraEnabled: raw.capybaraEnabled,
-    activeRoleIds: parsedRoleIds as SessionSetup['activeRoleIds'],
-    activeVesselIds: parsedVesselIds as SessionSetup['activeVesselIds'],
+    activeRoleIds: parsedRoleIds,
+    activeVesselIds: parsedVesselIds,
   };
 }
 
@@ -389,22 +382,16 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ? data.playerCount as number
     : undefined;
   const setup = sessionSetup(data.setup);
-  const storedRoleIds = Array.isArray(data.activeRoleIds)
-    ? data.activeRoleIds.map((roleId: unknown) => parseEntityId('role', roleId))
-    : [];
-  const storedVesselIds = Array.isArray(data.activeVesselIds)
-    ? data.activeVesselIds.map((vesselId: unknown) => parseEntityId('vessel', vesselId))
-    : [];
-  const hasActiveRoleIds = Array.isArray(data.activeRoleIds) || Boolean(setup);
-  const activeRoleIds = Array.isArray(data.activeRoleIds) && storedRoleIds.every(Boolean)
-    ? storedRoleIds as SessionSetup['activeRoleIds']
-    : Array.isArray(data.activeRoleIds)
-      ? []
-      : setup?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
+  const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
+  const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
+  const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
+  const hasStoredVesselIds = Array.isArray(data.activeVesselIds);
+  const hasActiveRoleIds = hasStoredRoleIds || Boolean(setup);
+  const activeRoleIds = hasStoredRoleIds
+    ? storedRoleIds ?? []
+    : setup?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeVesselIds = setup?.activeVesselIds ?? (
-    Array.isArray(data.activeVesselIds) && storedVesselIds.every(Boolean)
-      ? storedVesselIds as SessionSetup['activeVesselIds']
-      : undefined
+    hasStoredVesselIds ? storedVesselIds : undefined
   );
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)

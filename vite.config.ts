@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
             'firebase-auth': ['firebase/auth'],
             'firebase-functions': ['firebase/functions'],
             'firebase-app-check': ['firebase/app-check'],
+            'firebase-firestore': ['firebase/firestore'],
           },
         },
       },
