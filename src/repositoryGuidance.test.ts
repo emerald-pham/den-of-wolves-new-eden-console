@@ -190,6 +190,10 @@ describe('repository guidance', () => {
     ].join(' ');
     const mutations = [
       {
+        source: compliant.replace('A blocking agent is the identifiable Codex task that owns an active overlapping coordination claim or required same-file work.', 'Anything can be an agent blocker.'),
+        expected: 'must define an agent blocker as active overlapping ownership',
+      },
+      {
         source: compliant.replace('must never reset or downgrade', 'may reset or downgrade'),
         expected: 'must keep the role escalation tier monotonic across replacements',
       },
@@ -309,6 +313,10 @@ describe('repository guidance', () => {
       {
         source: compliant.replace('Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved', 'Assume delivery'),
         expected: 'must verify delivery before preserving and closing',
+      },
+      {
+        source: compliant.replace('a coordination note is not proof of delivery', 'a coordination note proves delivery'),
+        expected: 'must not treat a coordination note as delivery proof',
       },
       {
         source: compliant.replace('If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.', 'Close the source entry even if delivery fails.'),
