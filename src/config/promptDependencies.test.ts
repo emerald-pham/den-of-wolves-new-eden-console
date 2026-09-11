@@ -143,6 +143,7 @@ describe('compact prompt dependency packets', () => {
       sources.plan.replace('432/432a', '432 → 432a'),
       sources.plan.replace('432/432a', '432a/432'),
       sources.plan.replace('432/432a', '432/432a/432'),
+      sources.plan.replace('432/432a', '432//432a'),
       sources.plan.replace('432/432a', '432'),
     ];
     for (const plan of mutations) {
@@ -159,6 +160,33 @@ describe('compact prompt dependency packets', () => {
         ),
       },
     })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    const emptyEvidenceSeparatorMutations = [
+      sources.dependency.replace('| E-WOLF | sequence | 425', '| E-WOLF | sequence | -> 425'),
+      sources.dependency.replace(
+        '-> 621 -> 645 | IMPLEMENTATION_PLAN.md',
+        '-> 621 -> 645 -> | IMPLEMENTATION_PLAN.md',
+      ),
+      sources.dependency.replace('| E-WOLF | sequence | 425 -> 426', '| E-WOLF | sequence | 425 -> -> 426'),
+      sources.dependency.replace('| E-WOLF | sequence | 425', '| E-WOLF | sequence | /425'),
+      sources.dependency.replace(
+        '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a',
+        '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a/',
+      ),
+    ];
+    for (const dependency of emptyEvidenceSeparatorMutations) {
+      expect(() => createDependencyPacket({ ...options, sources: { ...sources, dependency } }))
+        .toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    }
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a',
+          '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432//432a',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
     expect(() => createDependencyPacket({
       ...options,
       sources: {
@@ -166,6 +194,16 @@ describe('compact prompt dependency packets', () => {
         dependency: sources.dependency.replace(
           '| E-WOLF | sequence | 425 -> 426 -> 428',
           '| E-WOLF | sequence | 425/426 -> 428',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a',
+          '| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432//432a',
         ),
       },
     })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);

@@ -195,10 +195,18 @@ function parseOrderedPromptSequence(value, knownPrompts, errors, label) {
   }
   const groups = [];
   const seen = new Set();
-  const sourceGroups = value.replaceAll('→', '->').split(/\s*->\s*/).filter(Boolean);
+  const sourceGroups = value.replaceAll('→', '->').split(/\s*->\s*/);
   for (const sourceGroup of sourceGroups) {
-    const members = sourceGroup.split('/').map((token) => token.trim()).filter(Boolean);
-    if (members.length === 0) errors.push(`${label} contains an empty group`);
+    if (!sourceGroup.trim()) {
+      errors.push(`${label} contains an empty ordered group`);
+      continue;
+    }
+    const members = [];
+    for (const token of sourceGroup.split('/')) {
+      const member = token.trim();
+      if (!member) errors.push(`${label} contains an empty group member`);
+      else members.push(member);
+    }
     const group = [];
     for (const member of members) {
       const expanded = expandPromptTargets(
