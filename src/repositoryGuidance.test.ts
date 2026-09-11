@@ -252,7 +252,12 @@ describe('repository guidance', () => {
       'CI visibility, an external dependency, pending user input, and an ordinary test failure are not agent blockers.',
       'When that blocking agent prevents merge, commit and push the exact task branch before sending the handoff.',
       'Send a direct user-visible message to the blocking agent with the destination task ID, remote branch, exact commit SHA, blocker reason, and overlapping files or claims.',
-      'Instruct the blocking agent: after its blocker work is finished and its claims are released, start a handoff integration coordination entry and record its entry ID, fetch the branch, reconcile it with current main, rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish for that same handoff integration entry.',
+      'Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.',
+      'The registry creates a structured pending merge handoff on the active blocker entry only after verifying the exact pushed --preserve-ref SHA, same-repository ownership, and the named overlap.',
+      'coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.',
+      'Instruct the blocking agent: after its original blocker work is finished, keep that exact blocker entry active, fetch the branch, reconcile it with current main, merge the exact source commit into that same entry task branch, apply any named delta, rerun required validation on the exact reconciled SHA, merge to main, push origin/main, and run coordination:finish for that same blocker entry.',
+      'coordination:finish refuses landed, preserved, and discarded outcomes for the blocker until its validated task branch contains every assigned source commit and pushed origin/main contains that branch.',
+      '--result prose and --handoff-delivery text cannot waive the MERGE OTHER BRANCHES hard gate.',
       'Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved; a coordination note is not proof of delivery.',
       'If direct delivery cannot be verified, keep the source entry active and report the undelivered handoff.',
     ].join(' ');
@@ -278,8 +283,28 @@ describe('repository guidance', () => {
         expected: 'must instruct the blocker to reconcile, validate, merge, push, and finish',
       },
       {
-        source: compliant.replace('start a handoff integration coordination entry and record its entry ID', 'continue without coordination'),
-        expected: 'must require one identified handoff integration entry',
+        source: compliant.replace('keep that exact blocker entry active', 'close the blocker entry first'),
+        expected: 'must bind the merge obligation to the existing blocker entry',
+      },
+      {
+        source: compliant.replace('Blocked-agent preservation must pass --preservation-kind blocked-agent, --blocked-by-entry, --handoff-to-task, --handoff-reason, --handoff-overlap, --handoff-delta, and --handoff-delivery to coordination:finish.', 'Record the handoff in the result summary.'),
+        expected: 'must create the structured blocked-agent handoff at preservation',
+      },
+      {
+        source: compliant.replace('coordination:status exposes every pending record under the MERGE OTHER BRANCHES hard gate.', 'coordination:status hides the queue.'),
+        expected: 'must expose the MERGE OTHER BRANCHES hard gate in status',
+      },
+      {
+        source: compliant.replace('refuses landed, preserved, and discarded outcomes', 'allows any closeout outcome'),
+        expected: 'must block every closeout outcome while assigned branches remain',
+      },
+      {
+        source: compliant.replace('validated task branch contains every assigned source commit and pushed origin/main contains that branch', 'agent says the work was considered'),
+        expected: 'must require exact source containment in the validated branch and pushed main',
+      },
+      {
+        source: compliant.replace('--result prose and --handoff-delivery text cannot waive', '--result prose may waive'),
+        expected: 'must not allow prose to waive the hard gate',
       },
       {
         source: compliant.replace('Verify direct-message delivery and request an acknowledgement when supported before closing the source entry as preserved', 'Assume delivery'),

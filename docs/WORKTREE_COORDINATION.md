@@ -160,16 +160,29 @@ the blocking agent with the destination task ID, remote branch, exact commit
 SHA, blocker reason, and overlapping files or claims. Include any still-needed
 same-file delta.
 
-Instruct the blocking agent: after its blocker work is finished and its claims
-are released, start a handoff integration coordination entry and record its
-entry ID, fetch the branch, reconcile it with current main, apply the named
-delta, rerun required validation on the exact reconciled SHA, merge to main,
-push origin/main, and run `coordination:finish` for that same handoff integration
-entry. Verify direct-message delivery and request an acknowledgement when
-supported before closing the source entry as preserved; a coordination note is
-not proof of delivery. Record the destination task ID, branch, SHA, delivery
-result, blocker, overlap, and merge sequence. If direct delivery cannot be
-verified, keep the source entry active and report the undelivered handoff.
+Keep the exact blocker entry active. Blocked-agent preservation must pass
+`--preservation-kind blocked-agent`, `--blocked-by-entry`, `--handoff-to-task`,
+`--handoff-reason`, `--handoff-overlap`, `--handoff-delta`, and
+`--handoff-delivery` to `coordination:finish`. The registry first verifies the
+exact pushed ref SHA, same-repository identity, and every named overlap, then
+creates a structured pending handoff on that blocker entry.
+
+`coordination:status` exposes each pending record under `MERGE OTHER BRANCHES
+hard gate`. Instruct the blocking agent: after its original blocker work is
+finished, fetch the branch, reconcile it with current main, merge the exact
+source commit into that same task branch, apply the named delta, rerun required
+validation on the exact reconciled SHA, merge to main, push origin/main, and run
+`coordination:finish` for that same blocker entry. `coordination:finish` refuses
+`landed`, `preserved`, and `discarded` outcomes while the blocker entry has an
+assigned pending branch. It clears the gate only when the validated task branch
+contains every assigned source commit and pushed origin/main contains that
+branch. `--result` prose and `--handoff-delivery` text cannot waive the `MERGE
+OTHER BRANCHES hard gate`.
+
+Verify direct-message delivery and request an acknowledgement when supported
+before closing the source entry as preserved; a coordination note is not proof
+of delivery. If direct delivery cannot be verified, keep the source entry active
+and report the undelivered handoff.
 
 Use `preserved` only for clean committed work whose exact final SHA is verified
 at one remote preservation ref:

@@ -1604,10 +1604,66 @@ export function emptyCoordinationState() {
   };
 }
 
+function normalizeMergeHandoffs(value, blockerEntryId) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new Error('The shared coordination file contains malformed merge handoffs: expected an array.');
+  }
+  const requiredTextFields = [
+    'id',
+    'status',
+    'sourceEntryId',
+    'blockerEntryId',
+    'destinationTaskId',
+    'remoteRef',
+    'sourceCommitSha',
+    'blockerReason',
+    'remainingDelta',
+    'deliveryEvidence',
+    'createdAt',
+  ];
+  return value.map((handoff, index) => {
+    const record = objectRecord(handoff);
+    const missing = requiredTextFields.filter((field) => !text(record[field]));
+    if (missing.length > 0 || !Array.isArray(record.overlappingScopes) ||
+      record.overlappingScopes.length === 0 ||
+      record.overlappingScopes.some((scope) => !text(scope))) {
+      throw new Error(
+        `The shared coordination file contains a malformed merge handoff at index ${index}; ` +
+          `missing or invalid ${missing[0] ?? 'overlappingScopes'}.`,
+      );
+    }
+    if (!['pending', 'landed'].includes(record.status)) {
+      throw new Error(
+        `The shared coordination file contains a malformed merge handoff ${record.id}; ` +
+          `invalid status ${record.status}.`,
+      );
+    }
+    if (record.blockerEntryId !== blockerEntryId) {
+      throw new Error(
+        `The shared coordination file contains a malformed merge handoff ${record.id}; ` +
+          `blocker entry ${record.blockerEntryId} does not match owning entry ${blockerEntryId}.`,
+      );
+    }
+    return record;
+  });
+}
+
 function normalizeState(value) {
   const record = objectRecord(value);
   const entries = Array.isArray(record.entries)
-    ? record.entries.filter((entry) => objectRecord(entry).id)
+    ? record.entries
+        .filter((entry) => objectRecord(entry).id)
+        .map((entry) => {
+          const normalizedEntry = { ...objectRecord(entry) };
+          if (normalizedEntry.mergeHandoffs !== undefined) {
+            normalizedEntry.mergeHandoffs = normalizeMergeHandoffs(
+              normalizedEntry.mergeHandoffs,
+              normalizedEntry.id,
+            );
+          }
+          return normalizedEntry;
+        })
     : [];
   const reservations = Array.isArray(record.reservations)
     ? record.reservations.filter(
@@ -1640,7 +1696,8 @@ export function parseCoordinationState(content) {
   try {
     return normalizeState(JSON.parse(content));
   } catch (error) {
-    throw new Error('The shared emulator coordination file is corrupted.', {
+    const detail = error instanceof Error ? ` ${error.message}` : '';
+    throw new Error(`The shared emulator coordination file is corrupted.${detail}`, {
       cause: error,
     });
   }
@@ -2487,6 +2544,20 @@ function formatReservation(reservation) {
   return `- slot ${reservation.slot} — ${reservation.kind} — ${reservation.worktree} — pid ${reservation.pid}${child} — ports ${ports}`;
 }
 
+function formatMergeHandoff(handoff) {
+  const overlap = Array.isArray(handoff.overlappingScopes) && handoff.overlappingScopes.length > 0
+    ? handoff.overlappingScopes.join(', ')
+    : 'not recorded';
+  return [
+    `- [${text(handoff.status, 'pending')}] ${text(handoff.id, 'unknown')} — ${text(handoff.remoteRef, 'unknown ref')} @ ${text(handoff.sourceCommitSha, 'unknown SHA')}`,
+    `  blocker entry: ${text(handoff.blockerEntryId, 'unknown')} | destination task: ${text(handoff.destinationTaskId, 'unknown')}`,
+    `  overlap: ${overlap}`,
+    `  reason: ${text(handoff.blockerReason, 'not recorded')}`,
+    `  remaining delta: ${text(handoff.remainingDelta, 'not recorded')}`,
+    `  delivery: ${text(handoff.deliveryEvidence, 'not recorded')}`,
+  ].join('\n');
+}
+
 /** Render the coordination file as a compact, agent-readable status pane. */
 export function formatCoordinationState(state, { includeHistory = false } = {}) {
   const allEntries = Array.isArray(state.entries) ? state.entries : [];
@@ -2497,6 +2568,12 @@ export function formatCoordinationState(state, { includeHistory = false } = {}) 
     ? 0
     : allEntries.filter((entry) => text(entry.status, 'active') === 'complete').length;
   const reservations = Array.isArray(state.reservations) ? state.reservations : [];
+  const allMergeHandoffs = allEntries.flatMap((entry) =>
+    Array.isArray(entry.mergeHandoffs) ? entry.mergeHandoffs : [],
+  );
+  const mergeHandoffs = includeHistory
+    ? allMergeHandoffs
+    : allMergeHandoffs.filter((handoff) => text(handoff.status, 'pending') !== 'landed');
   const configurations = Array.isArray(state.configurations) ? state.configurations : [];
   const occupiedSlots = new Set(
     [...reservations, ...configurations]
@@ -2527,6 +2604,10 @@ export function formatCoordinationState(state, { includeHistory = false } = {}) 
       `- ${hiddenCompletedEntries} completed ${hiddenCompletedEntries === 1 ? 'entry' : 'entries'} hidden; run \`npm run coordination:status -- --history\` to show full history.`,
     );
   }
+
+  lines.push('', '## MERGE OTHER BRANCHES hard gate');
+  if (mergeHandoffs.length === 0) lines.push('- none');
+  else lines.push(...mergeHandoffs.map(formatMergeHandoff));
 
   lines.push(
     '',
@@ -4124,6 +4205,30 @@ export async function finishCoordinationEntry(filePath, options) {
     if (release.branchBaselineIsAncestor === false) {
       throw new Error(`Cannot complete coordination entry ${entry.id}: task history was rewritten after coordination began.`);
     }
+    const pendingMergeHandoffs = (Array.isArray(entry.mergeHandoffs) ? entry.mergeHandoffs : [])
+      .filter((handoff) =>
+        text(handoff.status, 'pending') === 'pending' && handoff.blockerEntryId === entry.id,
+      );
+    if (pendingMergeHandoffs.length > 0 && outcome !== 'landed') {
+      throw new Error(
+        `MERGE OTHER BRANCHES hard gate: coordination entry ${entry.id} has ` +
+          `${pendingMergeHandoffs.length} pending handoff(s) and may finish only with a landed outcome.`,
+      );
+    }
+    const handoffCommitIsAncestor = options.handoffCommitIsAncestor ??
+      ((ancestor, descendant) => gitIsAncestor(ancestor, descendant, process.cwd()));
+    for (const handoff of pendingMergeHandoffs) {
+      const sourceCommitSha = text(handoff.sourceCommitSha);
+      const remoteRef = text(handoff.remoteRef);
+      if (!sourceCommitSha || !remoteRef ||
+        !(await handoffCommitIsAncestor(sourceCommitSha, release.branchSha))) {
+        throw new Error(
+          `MERGE OTHER BRANCHES hard gate: coordination entry ${entry.id} cannot finish; ` +
+            `merge source commit ${sourceCommitSha || 'unknown'} from ${remoteRef || 'unknown ref'} ` +
+            `into this task branch, reconcile, validate, merge to main, push origin/main, and retry.`,
+        );
+      }
+    }
     let pushed = false;
     if (outcome === 'landed') {
       pushed = validateReleaseCompletion({ entry, release }).pushed;
@@ -4149,7 +4254,82 @@ export async function finishCoordinationEntry(filePath, options) {
       entry.preservation = {
         kind: 'remote-ref', destination: preserveRef, commitSha: release.branchSha,
         verifiedAt: new Date().toISOString(),
+        ...(text(options['preservation-kind'])
+          ? { classification: text(options['preservation-kind']) }
+          : {}),
       };
+      const preservationKind = text(options['preservation-kind']);
+      const handoffOptionNames = [
+        'blocked-by-entry',
+        'handoff-to-task',
+        'handoff-reason',
+        'handoff-overlap',
+        'handoff-delta',
+        'handoff-delivery',
+      ];
+      const hasHandoffOptions = handoffOptionNames.some((name) => text(options[name]));
+      if (hasHandoffOptions && preservationKind !== 'blocked-agent') {
+        throw new Error(
+          `Cannot preserve coordination entry ${entry.id}: handoff fields require --preservation-kind blocked-agent.`,
+        );
+      }
+      if (preservationKind === 'blocked-agent') {
+        const missing = handoffOptionNames.filter((name) => !text(options[name]));
+        if (missing.length > 0) {
+          throw new Error(
+            `Cannot preserve coordination entry ${entry.id}: blocked-agent preservation requires ` +
+              missing.map((name) => `--${name}`).join(', '),
+          );
+        }
+        const blockerEntry = state.entries.find(
+          (candidate) => candidate.id === options['blocked-by-entry'],
+        );
+        if (!blockerEntry || blockerEntry.status !== 'active') {
+          throw new Error(
+            `Cannot preserve coordination entry ${entry.id}: blocking entry ` +
+              `${text(options['blocked-by-entry'], 'unknown')} must be active.`,
+          );
+        }
+        if (blockerEntry.id === entry.id) {
+          throw new Error(`Cannot preserve coordination entry ${entry.id}: a task cannot block itself.`);
+        }
+        if (!sameRepository(blockerEntry, entry)) {
+          throw new Error(
+            `Cannot preserve coordination entry ${entry.id}: blocking entry ${blockerEntry.id} ` +
+              'must belong to the same repository.',
+          );
+        }
+        const overlappingScopes = normalizedList(options['handoff-overlap']);
+        const blockerScopes = Array.isArray(blockerEntry.scopes) ? blockerEntry.scopes : [];
+        const blockerClaims = Array.isArray(blockerEntry.claims) ? blockerEntry.claims : [];
+        const unownedOverlap = overlappingScopes.filter((overlap) =>
+          !blockerScopes.some((scope) => scopesOverlap(normalizeScope(overlap), scope)) &&
+          !blockerClaims.includes(overlap.toLowerCase()),
+        );
+        if (unownedOverlap.length > 0) {
+          throw new Error(
+            `Cannot preserve coordination entry ${entry.id}: blocking entry ${blockerEntry.id} ` +
+              `does not own handoff overlap ${unownedOverlap.join(', ')}.`,
+          );
+        }
+        blockerEntry.mergeHandoffs = Array.isArray(blockerEntry.mergeHandoffs)
+          ? blockerEntry.mergeHandoffs
+          : [];
+        blockerEntry.mergeHandoffs.push({
+          id: `merge-${Date.now()}-${randomUUID().slice(0, 8)}`,
+          status: 'pending',
+          sourceEntryId: entry.id,
+          blockerEntryId: blockerEntry.id,
+          destinationTaskId: text(options['handoff-to-task']),
+          remoteRef: preserveRef,
+          sourceCommitSha: release.branchSha,
+          blockerReason: text(options['handoff-reason']),
+          overlappingScopes,
+          remainingDelta: text(options['handoff-delta']),
+          deliveryEvidence: text(options['handoff-delivery']),
+          createdAt: new Date().toISOString(),
+        });
+      }
     } else {
       const reason = text(options.reason);
       if (!reason) throw new Error(`Cannot discard coordination entry ${entry.id}: --reason is required.`);
@@ -4169,6 +4349,13 @@ export async function finishCoordinationEntry(filePath, options) {
       entry.mainSha = release.mainSha;
       entry.originMainSha = release.originMainSha;
       entry.mainContainsBranch = release.mainContainsBranch;
+      for (const handoff of pendingMergeHandoffs) {
+        handoff.status = 'landed';
+        handoff.integrationEntryId = entry.id;
+        handoff.integrationBranchSha = release.branchSha;
+        handoff.mainSha = release.mainSha;
+        handoff.resolvedAt = new Date().toISOString();
+      }
     }
     entry.pushed = pushed;
     await writeStateUnlocked(filePath, pruneOrphanedConfigurations(state));

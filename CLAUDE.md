@@ -789,21 +789,52 @@ branch, exact commit SHA, blocker reason, and overlapping files or claims.
 Include any still-needed same-file delta rather than implying that an incomplete
 branch is already merge-ready.
 
-Instruct the blocking agent: after its blocker work is finished and its claims
-are released, start a handoff integration coordination entry and record its
-entry ID, fetch the branch, reconcile it with current main, apply any named
-same-file delta, rerun required validation on the exact reconciled SHA, merge to
-main, push origin/main, and run `coordination:finish` for that same handoff
-integration entry. The blocking agent owns that queued integration unless the
-user changes priority; it must not merge before its original blocker work is
-complete.
+Keep the exact blocker entry active. Blocked-agent preservation must pass
+`--preservation-kind blocked-agent`, `--blocked-by-entry`, `--handoff-to-task`,
+`--handoff-reason`, `--handoff-overlap`, `--handoff-delta`, and
+`--handoff-delivery` to `coordination:finish` after the exact branch is pushed
+and direct-message delivery is verified:
+
+```bash
+npm run coordination:finish -- \
+  --id "<source entry id>" \
+  --outcome preserved \
+  --preserve-ref "origin/<task branch>" \
+  --preservation-kind blocked-agent \
+  --blocked-by-entry "<active blocker entry id>" \
+  --handoff-to-task "<destination Codex task id>" \
+  --handoff-reason "<why this agent blocks merge>" \
+  --handoff-overlap "<owned files or claims>" \
+  --handoff-delta "<remaining same-file work, or none>" \
+  --handoff-delivery "<verified direct-message receipt>"
+```
+
+The registry creates a structured pending handoff on the active blocker entry
+only after verifying the exact pushed ref SHA, same-repository identity, and the
+blocker's ownership of every named overlap. `coordination:status` exposes each
+pending record under `MERGE OTHER BRANCHES hard gate`.
+
+Instruct the blocking agent: after its original blocker work is finished, fetch
+the branch, reconcile it with current main, merge the exact source commit into
+that same task branch, apply any named same-file delta, rerun required
+validation on the exact reconciled SHA, merge to main, push origin/main, and run
+`coordination:finish` for that same blocker entry. The blocking agent owns that
+queued integration unless the user changes priority; it must not merge it before
+its original blocker work is complete.
+
+`coordination:finish` refuses `landed`, `preserved`, and `discarded` outcomes
+while the blocker entry has an assigned pending branch. It clears the gate only
+when the validated task branch contains every assigned source commit and pushed
+origin/main contains that branch. `--result` prose and `--handoff-delivery` text
+cannot waive the `MERGE OTHER BRANCHES hard gate`.
+
+Keep that exact blocker entry active through `coordination:finish` for that same
+blocker entry.
 
 Verify direct-message delivery and request an acknowledgement when supported
 before closing the source entry as preserved; a coordination note is not proof
-of delivery. Record the destination task ID, remote branch, exact SHA, delivery
-result, blocker, and required merge sequence in the preservation result. If
-direct delivery cannot be verified, keep the source entry active and report the
-undelivered handoff instead of claiming preservation is complete.
+of delivery. If direct delivery cannot be verified, keep the source entry active
+and report the undelivered handoff instead of claiming preservation is complete.
 
 ### Truthful closeout outcomes
 

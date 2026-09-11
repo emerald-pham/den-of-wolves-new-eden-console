@@ -184,11 +184,31 @@ export function validateBlockedMergeAgentHandoff({ sources, errors }) {
       ],
       [
         'must instruct the blocker to reconcile, validate, merge, push, and finish',
-        /after its blocker work is finished[\s\S]{0,180}claims are released[\s\S]{0,180}fetch the branch[\s\S]{0,180}reconcile it with current main[\s\S]{0,240}rerun required validation on the exact reconciled sha[\s\S]{0,180}merge to main[\s\S]{0,140}push origin\/main[\s\S]{0,140}coordination:finish/i,
+        /after its original blocker work is finished[\s\S]{0,220}fetch the branch[\s\S]{0,180}reconcile it with current main[\s\S]{0,180}merge the exact source commit[\s\S]{0,240}rerun required validation on the exact reconciled sha[\s\S]{0,180}merge to main[\s\S]{0,140}push origin\/main[\s\S]{0,140}coordination:finish/i,
       ],
       [
-        'must require one identified handoff integration entry',
-        /start a handoff integration coordination entry[\s\S]{0,120}record its entry id[\s\S]{0,700}coordination:finish[\s\S]{0,160}(?:same|that) handoff integration entry/i,
+        'must bind the merge obligation to the existing blocker entry',
+        /keep (?:that|the) exact blocker entry active[\s\S]{0,700}coordination:finish[\s\S]{0,160}(?:same|that) blocker entry/i,
+      ],
+      [
+        'must create the structured blocked-agent handoff at preservation',
+        /blocked-agent preservation[\s\S]{0,180}--preservation-kind blocked-agent[\s\S]{0,140}--blocked-by-entry[\s\S]{0,140}--handoff-to-task[\s\S]{0,140}--handoff-reason[\s\S]{0,140}--handoff-overlap[\s\S]{0,140}--handoff-delta[\s\S]{0,140}--handoff-delivery[\s\S]{0,180}coordination:finish/i,
+      ],
+      [
+        'must expose the MERGE OTHER BRANCHES hard gate in status',
+        /coordination:status[\s\S]{0,180}pending[\s\S]{0,180}merge other branches hard gate/i,
+      ],
+      [
+        'must block every closeout outcome while assigned branches remain',
+        /coordination:finish refuses[\s\S]{0,180}landed[\s\S]{0,100}preserved[\s\S]{0,100}discarded outcomes[\s\S]{0,180}(?:blocker|pending|assigned)/i,
+      ],
+      [
+        'must require exact source containment in the validated branch and pushed main',
+        /validated task branch contains every assigned source commit[\s\S]{0,180}pushed origin\/main contains that branch/i,
+      ],
+      [
+        'must not allow prose to waive the hard gate',
+        /--result prose[\s\S]{0,120}--handoff-delivery text[\s\S]{0,180}cannot waive[\s\S]{0,120}merge other branches hard gate/i,
       ],
       [
         'must verify delivery before preserving and closing',
