@@ -77,13 +77,26 @@ focused tests, and commit; independent review; and reconciliation, versioning,
 merge, push, and `coordination:finish`, respectively.
 
 Luna is the default at `xhigh` (or the stricter numbered-plan Luna `max`
-baseline). Never dispatch a Sol child. If a Luna attempt is idle or loses
-execution state with a dirty worktree, no relevant process, and no commit or
-result—or one bounded recovery repeats no-progress—stop steering it, preserve
-or discard it truthfully, and switch that task to `gpt-5.6-terra` at `xhigh`.
-This is the mandatory failover for that observed abandonment mode. The playbook
-also defines the stopping-point, rebase, exact-HEAD review, single-full-gate,
-shared-ownership, and immediate-report requirements.
+baseline). The escalation tier belongs to the role and must never reset or
+downgrade when an agent, task, or worktree is replaced. If a Luna attempt fails,
+reassign that same agent role to `gpt-5.6-terra` at `xhigh`; if a Terra attempt
+then fails, `gpt-5.6-sol` is authorized for that same agent role only. Detect
+and stop any Luna/Terra loop instead of retrying a lower tier or oscillating
+between tiers. Before dispatching Sol, explain in user-visible chat why that
+role needs Sol, the observed Luna and Terra failures (or the recorded reason
+the role began at Terra), and that Sol is 10 times as expensive as Luna. This
+notice records the authorization; it is not a new permission request.
+
+An attempt fails only after evidence: a terminal agent error; an abandoned or
+lost execution state with no relevant running process and no usable result; or
+a materially unusable result after one bounded recovery or correction repeats
+no-progress. A quiet live process, wrapper timeout, external blocker, or pending
+user input is not by itself a model failure; inspect the process, output, and
+blocker before advancing the role's tier. Preserve or discard every failed
+attempt truthfully and immediately report its exact status, changed paths,
+commands and results, and blocker. The playbook also defines the stopping-point,
+rebase, exact-HEAD review, single-full-gate, shared-ownership, and immediate-
+report requirements.
 
 ### Implementation-plan reading route
 
@@ -536,6 +549,13 @@ Keep delegation economical:
   work when delegation saves total effort and tokens after setup, context
   transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
   UI, and routine implementation with clear expected results.
+- Apply the same monotonic role-scoped failover to routine delegation. If a Luna
+  attempt fails, reassign that same agent role to GPT-5.6 Terra
+  (`gpt-5.6-terra`) at `xhigh`. If a Terra attempt then fails, GPT-5.6 Sol
+  (`gpt-5.6-sol`) is authorized for that same agent role only. A replacement
+  agent, task, or worktree inherits the role's highest reached tier; it never
+  restarts at Luna. Before every Sol dispatch, give the required user-visible
+  chat explanation and state that Sol is 10 times as expensive as Luna.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
   scope and acceptance criteria. Every delegated agent that changes files must
    use its own worktree and short-lived branch; never have a delegated agent
@@ -559,8 +579,8 @@ Keep delegation economical:
   reservations, and entry; it must not sweep unrelated live work.
 - Immediately after closing an agent, reassess whether the next step exposes
   another useful, independent, bounded sidecar. If it would materially advance
-  the work, delegate it under the same Luna-only rules; otherwise continue
-  locally without forcing an artificial split.
+  the work, delegate it under the same role-scoped escalation rules; otherwise
+  continue locally without forcing an artificial split.
 - For routine (non-campaign) tasks, keep security, authentication,
   authorization, authoritative state mutations, complex gameplay,
   architectural decisions, and other high-risk security or product decisions

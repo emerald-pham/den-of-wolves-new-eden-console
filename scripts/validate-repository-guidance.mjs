@@ -11,6 +11,11 @@ function isDocumentationFile(filePath) {
 
 const PROMPT_DEPENDENCY_INDEX_PATH = 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md';
 const CAMPAIGN_PLAYBOOK_PATH = 'docs/AGENT_CAMPAIGN_PLAYBOOK.md';
+const AGENT_MODEL_ESCALATION_SURFACES = Object.freeze([
+  'CLAUDE.md',
+  CAMPAIGN_PLAYBOOK_PATH,
+  'docs/IMPLEMENTATION_PLAN.md',
+]);
 const RETIRED_PROMPT_IDS = new Set(['071']);
 
 function promptDependencyTargets(value) {
@@ -80,6 +85,53 @@ const PROMPT_DEPENDENCY_GUIDANCE = Object.freeze([
 
 function normalizeGuidance(source) {
   return source.replace(/[`*]/g, '').replace(/\s+/g, ' ').toLowerCase();
+}
+
+/**
+ * Keep model failover monotonic and scoped to the role that actually failed.
+ * Replacing a child, task, or worktree must not reset a Terra role to Luna or
+ * turn one role's Sol authorization into a campaign-wide model upgrade.
+ */
+export function validateAgentModelEscalation({ sources, errors }) {
+  for (const filePath of AGENT_MODEL_ESCALATION_SURFACES) {
+    const source = sources.get(filePath);
+    if (typeof source !== 'string') {
+      errors.push(`${filePath}: missing agent-model escalation policy`);
+      continue;
+    }
+    const normalized = normalizeGuidance(source);
+    const checks = [
+      [
+        'must reassign a failed Luna role to Terra',
+        /\bluna attempt fails\b[\s\S]{0,220}\bsame agent role\b[\s\S]{0,180}\bgpt-5\.6-terra\b/i,
+      ],
+      [
+        'must authorize Sol only after Terra fails in that same role',
+        /\bterra attempt(?: then)? fails\b[\s\S]{0,180}\bgpt-5\.6-sol\b[\s\S]{0,180}\bsame agent role only\b/i,
+      ],
+      [
+        'must keep the role escalation tier monotonic across replacements',
+        /\bescalation tier belongs to the role\b[\s\S]{0,240}\bmust never reset or downgrade\b/i,
+      ],
+      [
+        'must detect and stop Luna/Terra loops',
+        /\bdetect and stop\b[\s\S]{0,120}\bluna\/terra loop\b/i,
+      ],
+      [
+        'must explain every Sol dispatch in user-visible chat before dispatch',
+        /\bbefore dispatching sol\b[\s\S]{0,180}\buser-visible chat\b[\s\S]{0,240}\b10 times as expensive as luna\b/i,
+      ],
+    ];
+    for (const [message, pattern] of checks) {
+      if (!pattern.test(normalized)) errors.push(`${filePath}: ${message}`);
+    }
+    if (/\bnever dispatch a sol child\b/i.test(normalized)) {
+      errors.push(`${filePath}: retains the obsolete blanket prohibition on Sol child dispatch`);
+    }
+    if (/\bluna-only rules\b/i.test(normalized)) {
+      errors.push(`${filePath}: retains a Luna-only retry path that can reset role escalation`);
+    }
+  }
 }
 
 function hasPromptDependencyReadRequirement(source) {
@@ -199,10 +251,21 @@ export function validateCampaignPlaybook({ source, errors } = {}) {
     ],
     ['must require Luna xhigh delegation', /gpt-5\.6-luna[\s\S]{0,100}xhigh/i],
     [
-      'must require Terra xhigh after the observed Luna abandonment failure',
-      /(?:dirty worktree[\s\S]{0,180}no relevant (?:running )?process[\s\S]{0,180}no commit or result|repeats no-progress)[\s\S]{0,440}switch that task to `?gpt-5\.6-terra`? at `?xhigh`?/i,
+      'must require Terra xhigh after a Luna role failure',
+      /luna attempt fails[\s\S]{0,220}same agent role[\s\S]{0,180}gpt-5\.6-terra at xhigh/i,
     ],
-    ['must prohibit Sol child dispatch', /never dispatch a sol child/i],
+    [
+      'must authorize Sol after Terra fails in the same role',
+      /terra attempt(?: then)? fails[\s\S]{0,180}gpt-5\.6-sol[\s\S]{0,180}same agent role only/i,
+    ],
+    [
+      'must keep role escalation monotonic and stop Luna/Terra loops',
+      /escalation tier belongs to the role[\s\S]{0,240}must never reset or downgrade[\s\S]{0,240}luna\/terra loop/i,
+    ],
+    [
+      'must require a user-visible 10x-cost explanation before Sol dispatch',
+      /before dispatching sol[\s\S]{0,180}user-visible chat[\s\S]{0,240}10 times as expensive as luna/i,
+    ],
     [
       'must require immediate idle or terminal reports with status, paths, commands, and blockers',
       /immediately report[\s\S]{0,220}(?:exact )?status[\s\S]{0,180}changed paths[\s\S]{0,180}commands[\s\S]{0,180}blocker/i,
@@ -416,6 +479,7 @@ export function validateDocumentation({ cwd = process.cwd(), files } = {}) {
   ]);
   validatePromptDependencyGuidance({ sources: guidanceSources, errors });
   validatePromptDependencyConcurrency({ sources: guidanceSources, errors });
+  validateAgentModelEscalation({ sources: guidanceSources, errors });
   validateCampaignPlaybook({ source: guidanceSources.get(CAMPAIGN_PLAYBOOK_PATH), errors });
   errors.push(...validatePromptDependencyCompletion({ dependencySource, progressSource }));
 
