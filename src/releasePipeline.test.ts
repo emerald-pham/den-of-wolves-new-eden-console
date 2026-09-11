@@ -730,11 +730,11 @@ it('reconciles an already-landed fragment to an exact validation receipt without
   const changes = [
     'Players can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
     'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
-  ];
+  ] as const;
   const correctedChanges = [
     'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
     changes[1],
-  ];
+  ] as const;
   try {
     await mkdir(resolve(root, 'src'), { recursive: true });
     await mkdir(resolve(root, 'docs'), { recursive: true });
