@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['058'],
+    implementationProgress: {
+      completed: 102,
+      total: 734,
+      percentage: '13.90%',
+      done: 102,
+      partial: 18,
+      active: 0,
+      missing: 614,
+    },
+    changes: [
+      'Expansion sessions now start with Capybara crew, Scrap, Macaw, and Boa exactly once, while base and no-Capybara sessions keep their vessel data isolated. 102 of 734 implementation prompts are complete (13.90%).',
+    ],
+  },
+  {
+    version: '0.3.34',
     implementationPrompts: ['057'],
     implementationProgress: {
       completed: 101,

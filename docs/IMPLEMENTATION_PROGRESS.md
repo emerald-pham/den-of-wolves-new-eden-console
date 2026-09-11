@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**101 / 734 prompts complete (13.76%)**
+**102 / 734 prompts complete (13.90%)**
 
-Status breakdown: **101 done · 19 partial · 614 missing**.
+Status breakdown: **102 done · 18 partial · 614 missing**.
 
 Active prompt: **none**
 
@@ -469,7 +469,7 @@ release classification and evidence.
 | 055 | done | feature | 0.3.28 | Intelligence Agent setup now requires authoritative canonical holders, replacement-aware Wolf/IA counts, atomic stale-secret cleanup, actor/payload-bound replay, and production/rules/concurrency evidence. |
 | 056 | done | feature | 0.3.33 | Universal Arbour and Wolf Cult are explicit facilitator choices in the canonical setup tuple, with authoritative two-Wolf replacement validation, replay-safe confirmation, and private loyalty assignment. |
 | 057 | done | feature | 0.3.34 | Canonical server setup resolves base Capybara, expansion Capybara, or neither; complete Capybara role composition is validated and mode changes are rejected after casting begins across confirm, casting, resume, and start. |
-| 058 | partial | feature | 0.3.5 | Capybara catalogs and mode persistence exist; expansion start initialization remains open. |
+| 058 | done | feature | 0.3.35 | Creation and lobby setup compose only the locked vessels, resources, populations, geometry, and shuttle craft; expansion adds Capybara Scrap, Macaw, Boa, and full-ship state exactly once with replay-safe authoritative joins and resumes. |
 | 059 | done | feature | 0.3.5 | `setShipPreference` and `castingCallable.test.ts`. |
 | 060 | done | feature | 0.3.5 | `assignRole` facilitator callable and tests. |
 | 061 | done | feature | 0.3.5 | Role exclusivity policy plus callable denial tests. |

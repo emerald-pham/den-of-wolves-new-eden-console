@@ -228,6 +228,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 import {
   assignRole,
   assignLoyalty,
+  adjustShipResource,
   claimGmInstance,
   claimSeat,
   confirmSetup,
@@ -242,6 +243,7 @@ import {
   setShipPreference,
   startGame,
 } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 type CompositionCount = 8 | 19 | 20;
 
@@ -558,6 +560,163 @@ async function composeProductionSession(
 
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
+
+  it('projects create, join, and resume composition maps to the locked vessel set', async () => {
+    const composition = await composeProductionSession(8);
+    const storedSession = read(`sessions/${composition.sessionId}`) as StoredDocument;
+    const joined = await joinSession.run(request({
+      joinCode: storedSession.joinCode as string,
+      displayName: 'Late member',
+    }, 'late-member-8')) as { session: Record<string, unknown> };
+    const resumed = await resumeSession.run(request({
+      sessionId: composition.sessionId,
+    }, composition.coreUids[0]!)) as { session: Record<string, unknown> };
+    const expectedVessels = ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'];
+    for (const session of [joined.session, resumed.session]) {
+      expect(session.activeVesselIds).toEqual(expectedVessels);
+      for (const field of [
+        'shipResources', 'shipUnrest', 'shipSurvivors', 'shipGalacticCoordinates',
+        'shipNavigationLogs', 'shipConsoleLocks', 'shipJumpStates',
+      ]) {
+        expect(Object.keys(session[field] as Record<string, unknown>)).toEqual(expectedVessels);
+      }
+      expect(session.shipResources).not.toHaveProperty('capybara');
+      expect(session.shipSurvivors).not.toHaveProperty('capybara');
+      expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ shuttleId: 'macaw' }),
+        expect.objectContaining({ shuttleId: 'boa' }),
+      ]));
+    }
+  });
+
+  it('reconciles lobby vessel maps atomically in both directions and replays read-only', async () => {
+    const ownerUid = 'setup-owner';
+    const created = await createSession.run(request({
+      requestId: 'setup-create', playerCount: 8, expansion: 'base', capybaraEnabled: true,
+    }, ownerUid));
+    const sessionId = (created.session as Record<string, unknown>).id as string;
+    const joinCode = (created.session as Record<string, unknown>).joinCode as string;
+    await joinSession.run(request({ joinCode, displayName: 'Setup owner' }, ownerUid));
+    await elevateToGm.run(request({ sessionId, targetUid: ownerUid }, ownerUid));
+    await loginGmAccess.run(request({ password: 'bananasplit' }, ownerUid));
+    await claimGmInstance.run(request({
+      sessionId, instanceId: 'setup-bridge', name: 'Setup bridge', deviceLabel: 'Composition test',
+    }, ownerUid));
+
+    const sessionPath = `sessions/${sessionId}`;
+    const before = read(sessionPath) as StoredDocument;
+    before.shipResources = {
+      ...(before.shipResources as Record<string, unknown>),
+      aegis: { ...(before.shipResources as Record<string, Record<string, unknown>>).aegis, fuel: 1 },
+    };
+    before.shipGalacticCoordinates = {
+      ...(before.shipGalacticCoordinates as Record<string, unknown>), aegis: '5143',
+    };
+    mock.documents.set(sessionPath, before);
+
+    const expansionRoles = recommendedRoleIds(19);
+    const expanded = await confirmSetup.run(request({
+      sessionId,
+      instanceId: 'setup-bridge',
+      requestId: 'setup-expand',
+      expectedSetupRevision: 0,
+      playerCount: 19,
+      chartId: 'A',
+      expansion: 'capybara',
+      turnLimit: 8,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds: expansionRoles,
+    }, ownerUid)) as Record<string, unknown>;
+    expect(expanded.status).toBe('committed');
+    const expandedSession = read(sessionPath) as StoredDocument;
+    expect(expandedSession.activeVesselIds).toEqual([
+      'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara',
+    ]);
+    expect((expandedSession.shipResources as Record<string, Record<string, number>>).aegis?.fuel).toBe(1);
+    expect((expandedSession.shipGalacticCoordinates as Record<string, string>).aegis).toBe('5143');
+    expect((expandedSession.shipResources as Record<string, Record<string, number>>).capybara).toMatchObject({ scrap: 3 });
+    expect((expandedSession.shipSurvivors as Record<string, number>).capybara).toBe(20_000);
+    expect(expandedSession.shuttleDockings).toEqual(expect.arrayContaining([
+      { shuttleId: 'snn-press-shuttle', shipId: 'dione', dockedAt: 'SESSION START' },
+    ]));
+    expect(expandedSession.shuttleVisitLog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'dione', occurredAt: 'SESSION START' }),
+    ]));
+    expect(expandedSession.shuttleDockings).toEqual(expect.arrayContaining([
+      { shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' },
+      { shuttleId: 'boa', shipId: 'capybara', dockedAt: 'SESSION START' },
+    ]));
+
+    const baseRoles = recommendedRoleIds(8);
+    const narrowed = await confirmSetup.run(request({
+      sessionId,
+      instanceId: 'setup-bridge',
+      requestId: 'setup-narrow',
+      expectedSetupRevision: 1,
+      playerCount: 8,
+      chartId: 'A',
+      expansion: 'base',
+      turnLimit: 8,
+      dioneEnabled: false,
+      capybaraEnabled: true,
+      activeRoleIds: baseRoles,
+    }, ownerUid)) as Record<string, unknown>;
+    expect(narrowed.status).toBe('committed');
+    const narrowedSession = read(sessionPath) as StoredDocument;
+    expect(narrowedSession.activeVesselIds).toEqual([
+      'aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+    ]);
+    expect((narrowedSession.shipResources as Record<string, Record<string, number>>).aegis?.fuel).toBe(1);
+    expect(narrowedSession.shipResources).not.toHaveProperty('capybara');
+    expect(narrowedSession.shipSurvivors).not.toHaveProperty('capybara');
+    expect(narrowedSession.shuttleDockings).toEqual(expect.arrayContaining([
+      { shuttleId: 'snn-press-shuttle', shipId: 'aegis', dockedAt: 'SESSION START' },
+    ]));
+    expect(narrowedSession.shuttleVisitLog).toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'snn-press-shuttle', shipId: 'aegis', occurredAt: 'SESSION START' }),
+    ]));
+    expect(narrowedSession.shuttleDockings).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ shuttleId: 'macaw' }),
+      expect.objectContaining({ shuttleId: 'boa' }),
+    ]));
+    const stateAfterCommit = stateSnapshot();
+    await expect(confirmSetup.run(request({
+      sessionId,
+      instanceId: 'setup-bridge',
+      requestId: 'setup-expand',
+      expectedSetupRevision: 0,
+      playerCount: 19,
+      chartId: 'A',
+      expansion: 'capybara',
+      turnLimit: 8,
+      dioneEnabled: true,
+      capybaraEnabled: true,
+      activeRoleIds: expansionRoles,
+    }, ownerUid))).resolves.toMatchObject({ status: 'replayed' });
+    expect(stateSnapshot()).toBe(stateAfterCommit);
+  });
+
+  it('denies inactive ship counters to a GM while allowing active expansion counters', async () => {
+    const base = await composeProductionSession(8);
+    await expect(adjustShipResource.run(request({
+      sessionId: base.sessionId,
+      instanceId: 'bridge-8',
+      shipId: 'capybara',
+      resourceId: 'scrap',
+      delta: 1,
+    }, base.ownerUid))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    mock.reset();
+    const expansion = await composeProductionSession(19);
+    await expect(adjustShipResource.run(request({
+      sessionId: expansion.sessionId,
+      instanceId: 'bridge-19',
+      shipId: 'capybara',
+      resourceId: 'scrap',
+      delta: 1,
+    }, expansion.ownerUid))).resolves.toMatchObject({ amount: 4 });
+  });
 
   it('denies a role command that reuses the completed setup request id', async () => {
     await expect(composeProductionSession(8, {

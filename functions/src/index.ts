@@ -106,6 +106,7 @@ import {
   canonicalSessionSetup,
   composeDefaultLoyaltyAssignments,
   defaultSuspicionForLoyalty,
+  activeVesselIdsForRoles,
   isLiveSetupGm,
   loyaltyAssignmentDecision,
   normalizeSessionConfiguration,
@@ -120,7 +121,6 @@ import {
 } from './gameSetup';
 import {
   INITIAL_SHIP_RESOURCES,
-  INITIAL_SHIP_UNREST,
   canAdjustShipCounter,
   isResourceShipId,
   nextResourceAmount,
@@ -128,6 +128,7 @@ import {
   shipUnrest,
   unrestChange,
 } from './resources';
+import { activeVesselRecord, initialSessionComposition } from './sessionComposition';
 import {
   PRESENCE_LEASE_MS,
   activeSessionConflicts,
@@ -143,6 +144,8 @@ import {
 import { pressDispatchState } from './pressDispatchState';
 import {
   INITIAL_SHUTTLE_DOCKINGS,
+  activeShuttleDockingsForVessels,
+  activeShuttleVisitsForDockings,
   initialShuttleDockingsForRoles,
   initialShuttleVisitsForDockings,
 } from './shuttlecraft';
@@ -281,6 +284,43 @@ const INITIAL_SHIP_JUMP_STATES = Object.fromEntries(
 const INITIAL_SHIP_JUMP_TRANSITIONS = Object.fromEntries(
   Object.keys(INITIAL_SHIP_GALACTIC_COORDINATES).map((shipId) => [shipId, undefined]),
 );
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function activeVesselIdsForSession(session: DocumentSnapshot): readonly string[] {
+  const stored = session.get('activeVesselIds');
+  if (Array.isArray(stored)) {
+    return [...new Set(stored.filter((value): value is string => typeof value === 'string'))];
+  }
+  return activeVesselIdsForRoles(configuredRoleIds(session));
+}
+
+function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[]): Record<string, number> {
+  const stored: Record<string, number> = {};
+  if (isRecord(value)) {
+    for (const [shipId, amount] of Object.entries(value)) {
+      if (typeof amount === 'number') stored[shipId] = amount;
+    }
+  }
+  return activeVesselRecord({ ...INITIAL_SHIP_SURVIVORS, ...stored }, activeVesselIds);
+}
+
+function reconcileActiveVesselMap<T>(
+  stored: unknown,
+  currentActiveVesselIds: readonly string[],
+  nextActiveVesselIds: readonly string[],
+  normalize: (value: unknown) => Readonly<Record<string, T>>,
+  defaults: Readonly<Record<string, T>>,
+): Record<string, T> {
+  const current = activeVesselRecord(normalize(stored), currentActiveVesselIds);
+  const seeded = activeVesselRecord(defaults, nextActiveVesselIds);
+  return Object.fromEntries(nextActiveVesselIds.map((shipId) => [
+    shipId,
+    Object.prototype.hasOwnProperty.call(current, shipId) ? current[shipId]! : seeded[shipId]!,
+  ]));
+}
 
 function shipGalacticCoordinates(value: unknown): Record<string, string> {
   if (typeof value !== 'object' || value === null) {
@@ -864,8 +904,14 @@ export const createSession = onCall<{
       const activeRoleIds = [...recommendedRoleIds(creation.configuration.playerCount)];
       const setup = canonicalSessionSetup(creation.configuration, activeRoleIds);
       const stableSeats = stableSeatsForRoles(activeRoleIds);
-      const initialShuttleDockings = initialShuttleDockingsForRoles(activeRoleIds);
-      const initialShuttleVisits = initialShuttleVisitsForDockings(initialShuttleDockings);
+      const composition = initialSessionComposition(setup);
+      const shipGalacticCoordinates = activeVesselRecord(
+        INITIAL_SHIP_GALACTIC_COORDINATES,
+        setup.activeVesselIds,
+      );
+      const shipNavigationLogs = activeVesselRecord(INITIAL_SHIP_NAVIGATION_LOGS, setup.activeVesselIds);
+      const shipConsoleLocks = activeVesselRecord(INITIAL_SHIP_CONSOLE_LOCKS, setup.activeVesselIds);
+      const shipJumpStates = activeVesselRecord(INITIAL_SHIP_JUMP_STATES, setup.activeVesselIds);
       const reply = {
         session: {
           id: sessionRef.id,
@@ -886,23 +932,23 @@ export const createSession = onCall<{
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
-          shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
-          shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
-          shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
-          shipJumpStates: INITIAL_SHIP_JUMP_STATES,
+          shipGalacticCoordinates,
+          shipNavigationLogs,
+          shipConsoleLocks,
+          shipJumpStates,
           shipJumpTransitions: {},
-          shipResources: INITIAL_SHIP_RESOURCES,
+          shipResources: composition.shipResources,
           shipDamage: {},
-          shipUnrest: INITIAL_SHIP_UNREST,
+          shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
-          shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
+          shipSurvivors: composition.shipSurvivors,
           fleetSurvivorPopulationAdjustment: 0,
           populationAlerts: {},
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: initialShuttleDockings,
-          shuttleVisitLog: initialShuttleVisits,
+          shuttleDockings: composition.shuttleDockings,
+          shuttleVisitLog: composition.shuttleVisitLog,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: now,
@@ -988,23 +1034,23 @@ export const createSession = onCall<{
           pressEnabled: true,
           pressAvailabilityRevision: 0,
           pressHolderUid: null,
-          shipGalacticCoordinates: INITIAL_SHIP_GALACTIC_COORDINATES,
-          shipNavigationLogs: INITIAL_SHIP_NAVIGATION_LOGS,
-          shipConsoleLocks: INITIAL_SHIP_CONSOLE_LOCKS,
-          shipJumpStates: INITIAL_SHIP_JUMP_STATES,
+          shipGalacticCoordinates,
+          shipNavigationLogs,
+          shipConsoleLocks,
+          shipJumpStates,
           shipJumpTransitions: {},
-          shipResources: INITIAL_SHIP_RESOURCES,
+          shipResources: composition.shipResources,
           shipDamage: {},
-          shipUnrest: INITIAL_SHIP_UNREST,
+          shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
-          shipSurvivors: { ...INITIAL_SHIP_SURVIVORS },
+          shipSurvivors: composition.shipSurvivors,
           fleetSurvivorPopulationAdjustment: 0,
           populationAlerts: {},
           gmControlsLocked: false,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
-          shuttleDockings: initialShuttleDockings,
-          shuttleVisitLog: initialShuttleVisits,
+          shuttleDockings: composition.shuttleDockings,
+          shuttleVisitLog: composition.shuttleVisitLog,
           confettiUsedShipIds: [],
           ownerUid: uid,
           createdAt: FieldValue.serverTimestamp(),
@@ -1525,6 +1571,83 @@ export const confirmSetup = onCall<{
     const currentRoleIds = sessionActiveRoleIds(authority.session);
     await reconcileStableSeats(tx, command.sessionId, currentRoleIds, command.activeRoleIds);
     const setup = canonicalSessionSetup(command.configuration, command.activeRoleIds);
+    const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
+    const nextActiveVesselIds = setup.activeVesselIds;
+    const nextShipResources = reconcileActiveVesselMap(
+      authority.session.get('shipResources'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipResources,
+      INITIAL_SHIP_RESOURCES,
+    );
+    const nextShipUnrest = reconcileActiveVesselMap(
+      authority.session.get('shipUnrest'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipUnrest,
+      Object.fromEntries(nextActiveVesselIds.map((shipId) => [shipId, 0])),
+    );
+    const nextShipSurvivors = reconcileActiveVesselMap(
+      authority.session.get('shipSurvivors'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      (value) => activeShipSurvivors(value, Object.keys(INITIAL_SHIP_SURVIVORS)),
+      INITIAL_SHIP_SURVIVORS,
+    );
+    const nextShipGalacticCoordinates = reconcileActiveVesselMap(
+      authority.session.get('shipGalacticCoordinates'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipGalacticCoordinates,
+      INITIAL_SHIP_GALACTIC_COORDINATES,
+    );
+    const nextShipNavigationLogs = reconcileActiveVesselMap(
+      authority.session.get('shipNavigationLogs'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipNavigationLogs,
+      INITIAL_SHIP_NAVIGATION_LOGS,
+    );
+    const nextShipConsoleLocks = reconcileActiveVesselMap(
+      authority.session.get('shipConsoleLocks'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipConsoleLocks,
+      INITIAL_SHIP_CONSOLE_LOCKS,
+    );
+    const nextShipJumpStates = reconcileActiveVesselMap(
+      authority.session.get('shipJumpStates'),
+      currentActiveVesselIds,
+      nextActiveVesselIds,
+      shipJumpStates,
+      INITIAL_SHIP_JUMP_STATES,
+    );
+    const currentDockings = activeShuttleDockingsForVessels(
+      (authority.session.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
+        initialShuttleDockingsForRoles(currentRoleIds),
+      currentActiveVesselIds,
+    );
+    const retainedDockings = activeShuttleDockingsForVessels(currentDockings, nextActiveVesselIds);
+    const seededDockings = initialShuttleDockingsForRoles(setup.activeRoleIds);
+    const retainedByShuttleId = new Map(retainedDockings.map((docking) => [docking.shuttleId, docking]));
+    const seededShuttleIds = new Set(seededDockings.map((docking) => docking.shuttleId));
+    const nextDockings = [
+      ...seededDockings.map((docking) => docking.shuttleId === 'snn-press-shuttle'
+        ? docking
+        : retainedByShuttleId.get(docking.shuttleId) ?? docking),
+      ...retainedDockings.filter((docking) => !seededShuttleIds.has(docking.shuttleId)),
+    ];
+    const storedVisits = authority.session.get('shuttleVisitLog') as Array<{ shuttleId: string }> | undefined;
+    const nextVisits = storedVisits
+      ? [...activeShuttleVisitsForDockings(
+        storedVisits,
+        nextDockings.filter((docking) => docking.shuttleId !== 'snn-press-shuttle'),
+      )]
+      : [];
+    const existingVisitShuttles = new Set(nextVisits.map((visit) => visit.shuttleId));
+    for (const visit of initialShuttleVisitsForDockings(nextDockings)) {
+      if (!existingVisitShuttles.has(visit.shuttleId)) nextVisits.push(visit);
+    }
     const reply = {
       status: 'committed' as const,
       requestId: command.requestId,
@@ -1535,6 +1658,15 @@ export const confirmSetup = onCall<{
     };
     tx.update(sessionRef, {
       ...setupWriteFields(setup),
+      shipResources: nextShipResources,
+      shipUnrest: nextShipUnrest,
+      shipSurvivors: nextShipSurvivors,
+      shipGalacticCoordinates: nextShipGalacticCoordinates,
+      shipNavigationLogs: nextShipNavigationLogs,
+      shipConsoleLocks: nextShipConsoleLocks,
+      shipJumpStates: nextShipJumpStates,
+      shuttleDockings: nextDockings,
+      shuttleVisitLog: nextVisits,
       setupRevision: reply.setupRevision,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -3005,10 +3137,14 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
-    const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+    const activeVesselIds = setup.activeVesselIds;
+    const storedDockings = (sessionSnap.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
       initialShuttleDockingsForRoles(activeRoleIds);
-    const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
-      initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
+    const shuttleDockings = activeShuttleDockingsForVessels(storedDockings, activeVesselIds);
+    const storedVisits = sessionSnap.get('shuttleVisitLog') as Array<{ shuttleId: string }> | undefined;
+    const shuttleVisitLog = storedVisits
+      ? activeShuttleVisitsForDockings(storedVisits, shuttleDockings)
+      : initialShuttleVisitsForDockings(shuttleDockings);
     return {
       session: {
         id: sessionId,
@@ -3035,20 +3171,30 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         pressEnabled: sessionSnap.get('pressEnabled') !== false,
         pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-        shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
-        shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
-        shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
-        shipJumpStates: shipJumpStates(sessionSnap.get('shipJumpStates')),
-        shipJumpTransitions: shipJumpTransitions(sessionSnap.get('shipJumpTransitions')),
-        shipResources: shipResources(sessionSnap.get('shipResources')),
-        shipDamage: shipDamage(sessionSnap.get('shipDamage')),
-        shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
+        shipGalacticCoordinates: activeVesselRecord(
+          shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')), activeVesselIds,
+        ),
+        shipNavigationLogs: activeVesselRecord(
+          shipNavigationLogs(sessionSnap.get('shipNavigationLogs')), activeVesselIds,
+        ),
+        shipConsoleLocks: activeVesselRecord(
+          shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
+        ),
+        shipJumpStates: activeVesselRecord(
+          shipJumpStates(sessionSnap.get('shipJumpStates')), activeVesselIds,
+        ),
+        shipJumpTransitions: activeVesselRecord(
+          shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
+        ),
+        shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
+        shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
+        shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
         unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
         maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
         shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
         shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
         shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
-        shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
+        shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
         populationAlerts: sessionSnap.get('populationAlerts') ?? {},
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
@@ -3177,10 +3323,14 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
-  const shuttleDockings = (sessionSnap.get('shuttleDockings') as unknown[] | undefined) ??
+  const activeVesselIds = setup.activeVesselIds;
+  const storedDockings = (sessionSnap.get('shuttleDockings') as typeof INITIAL_SHUTTLE_DOCKINGS | undefined) ??
     initialShuttleDockingsForRoles(activeRoleIds);
-  const shuttleVisitLog = (sessionSnap.get('shuttleVisitLog') as unknown[] | undefined) ??
-    initialShuttleVisitsForDockings(shuttleDockings as typeof INITIAL_SHUTTLE_DOCKINGS);
+  const shuttleDockings = activeShuttleDockingsForVessels(storedDockings, activeVesselIds);
+  const storedVisits = sessionSnap.get('shuttleVisitLog') as Array<{ shuttleId: string }> | undefined;
+  const shuttleVisitLog = storedVisits
+    ? activeShuttleVisitsForDockings(storedVisits, shuttleDockings)
+    : initialShuttleVisitsForDockings(shuttleDockings);
   return {
     session: {
       id: sessionId,
@@ -3207,20 +3357,30 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       pressEnabled: sessionSnap.get('pressEnabled') !== false,
       pressAvailabilityRevision: pressAvailabilityRevision(sessionSnap.get('pressAvailabilityRevision')),
-      shipGalacticCoordinates: shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')),
-      shipNavigationLogs: shipNavigationLogs(sessionSnap.get('shipNavigationLogs')),
-      shipConsoleLocks: shipConsoleLocks(sessionSnap.get('shipConsoleLocks')),
-      shipJumpStates: shipJumpStates(sessionSnap.get('shipJumpStates')),
-      shipJumpTransitions: shipJumpTransitions(sessionSnap.get('shipJumpTransitions')),
-      shipResources: shipResources(sessionSnap.get('shipResources')),
-      shipDamage: shipDamage(sessionSnap.get('shipDamage')),
-      shipUnrest: shipUnrest(sessionSnap.get('shipUnrest')),
+      shipGalacticCoordinates: activeVesselRecord(
+        shipGalacticCoordinates(sessionSnap.get('shipGalacticCoordinates')), activeVesselIds,
+      ),
+      shipNavigationLogs: activeVesselRecord(
+        shipNavigationLogs(sessionSnap.get('shipNavigationLogs')), activeVesselIds,
+      ),
+      shipConsoleLocks: activeVesselRecord(
+        shipConsoleLocks(sessionSnap.get('shipConsoleLocks')), activeVesselIds,
+      ),
+      shipJumpStates: activeVesselRecord(
+        shipJumpStates(sessionSnap.get('shipJumpStates')), activeVesselIds,
+      ),
+      shipJumpTransitions: activeVesselRecord(
+        shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
+      ),
+      shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
+      shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
+      shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
       unrestAlerts: sessionSnap.get('unrestAlerts') ?? {},
       maintenanceCycles: sessionSnap.get('maintenanceCycles') ?? {},
       shuttleCargo: sessionSnap.get('shuttleCargo') ?? {},
       shuttleFuelled: sessionSnap.get('shuttleFuelled') ?? {},
       shipUpgrades: sessionSnap.get('shipUpgrades') ?? {},
-      shipSurvivors: sessionSnap.get('shipSurvivors') ?? { ...INITIAL_SHIP_SURVIVORS },
+      shipSurvivors: activeShipSurvivors(sessionSnap.get('shipSurvivors'), activeVesselIds),
       populationAlerts: sessionSnap.get('populationAlerts') ?? {},
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
@@ -3750,6 +3910,7 @@ export const moveShipToLocation = onCall<{
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
+    const activeVesselIds = activeVesselIdsForSession(session);
     let move;
     try {
       move = applyShipNavigationMove({
@@ -3757,8 +3918,12 @@ export const moveShipToLocation = onCall<{
         destination: change.destination,
         now,
         eventIdPrefix,
-        coordinates: shipGalacticCoordinates(session.get('shipGalacticCoordinates')),
-        logs: shipNavigationLogs(session.get('shipNavigationLogs')),
+        coordinates: activeVesselRecord(
+          shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
+        ),
+        logs: activeVesselRecord(
+          shipNavigationLogs(session.get('shipNavigationLogs')), activeVesselIds,
+        ),
         shipNames: FLEET_SHIP_NAMES,
       });
     } catch (cause) {
@@ -3815,9 +3980,12 @@ export const jumpShip = onCall<{
     if (change.shipId === 'dione' && session.get('dioneEnabled') === false) {
       throw commandError('failed-precondition', 'Dione is not in this session.', 'conflict');
     }
+    const activeVesselIds = activeVesselIdsForSession(session);
 
     const currentTurn = sessionTurn(session.get('currentTurn'));
-    const currentCoordinate = shipGalacticCoordinates(session.get('shipGalacticCoordinates'))[change.shipId] ?? '0000';
+    const currentCoordinate = activeVesselRecord(
+      shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
+    )[change.shipId] ?? '0000';
     const currentCycles = typeof session.get('maintenanceCycles') === 'object' && session.get('maintenanceCycles') !== null
       ? session.get('maintenanceCycles') as Record<string, unknown>
       : {};
@@ -3904,8 +4072,12 @@ export const jumpShip = onCall<{
       now,
       eventIdPrefix: transitionId,
       navigationalError: false,
-      coordinates: shipGalacticCoordinates(session.get('shipGalacticCoordinates')),
-      logs: shipNavigationLogs(session.get('shipNavigationLogs')),
+      coordinates: activeVesselRecord(
+        shipGalacticCoordinates(session.get('shipGalacticCoordinates')), activeVesselIds,
+      ),
+      logs: activeVesselRecord(
+        shipNavigationLogs(session.get('shipNavigationLogs')), activeVesselIds,
+      ),
       shipNames: FLEET_SHIP_NAMES,
     });
     const nextCycle = {
@@ -3957,8 +4129,12 @@ export const setShipConsoleLock = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireTurnOneForPlayer(session, player);
+    const activeVesselIds = activeVesselIdsForSession(session);
     tx.update(sessionRef, {
-      shipConsoleLocks: { ...shipConsoleLocks(session.get('shipConsoleLocks')), [change.shipId]: change.locked },
+      shipConsoleLocks: {
+        ...activeVesselRecord(shipConsoleLocks(session.get('shipConsoleLocks')), activeVesselIds),
+        [change.shipId]: change.locked,
+      },
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
@@ -4483,6 +4659,9 @@ export const popShipConfetti = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     requireTurnOneForPlayer(session, player);
+    if (shipId !== 'snn-press-shuttle' && !activeVesselIdsForSession(session).includes(shipId)) {
+      throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
+    }
     if (shipId === 'snn-press-shuttle' && session.get('pressEnabled') === false) {
       throw new HttpsError('permission-denied', 'Press is disabled.');
     }
@@ -5366,8 +5545,15 @@ async function requireShipCounterAuthority(
   gmOnly = false,
 ): Promise<void> {
   if (!isResourceShipId(shipId)) throw new HttpsError('invalid-argument', 'Unknown fleet ship.');
-  const player = await tx.get(db.doc(`sessions/${sessionId}/players/${uid}`));
+  const [player, session] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(db.doc(`sessions/${sessionId}`)),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+  if (!activeVesselIdsForSession(session).includes(shipId)) {
+    throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
+  }
   const role = player.get('role');
   if (gmOnly && !canAdjustShipCounter(role, Boolean(instanceId))) {
     throw new HttpsError('permission-denied', 'Active GM instance required.');
@@ -5380,8 +5566,6 @@ async function requireShipCounterAuthority(
     }
     return;
   }
-  const session = await tx.get(db.doc(`sessions/${sessionId}`));
-  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   const ownRole = player.get('activeConsoleRoleId');
   const activeRoleIds = configuredRoleIds(session);
   if (typeof ownRole !== 'string' || !activeRoleIds.includes(ownRole) ||

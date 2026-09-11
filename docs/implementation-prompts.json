@@ -1615,7 +1615,7 @@
         "acceptance": "expansion mode adds Capybara Captain, Recycler, Scrap, Macaw, Boa, and full-ship rules only once.",
         "title": "Load expansion roster data."
       },
-      "description": "Capybara catalogs and mode persistence exist; expansion start initialization remains open.",
+      "description": "Creation and lobby setup compose only the locked vessels, resources, populations, geometry, and shuttle craft; expansion adds Capybara Scrap, Macaw, Boa, and full-ship state exactly once with replay-safe authoritative joins and resumes.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1625,11 +1625,11 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.5"
+        "0.3.35"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

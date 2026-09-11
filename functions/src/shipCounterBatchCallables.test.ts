@@ -35,6 +35,7 @@ beforeEach(() => {
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/') ? { uid: mock.owner }
       : {
+        activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         shipResources: { dione: { fuel: mock.fuel } },
         shipUnrest: { dione: mock.unrest },
         shipSurvivors: { capybara: mock.population },

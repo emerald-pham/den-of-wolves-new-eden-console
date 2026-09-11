@@ -108,6 +108,66 @@ it.each([
   });
 });
 
+it.each([
+  [8, 'base', true],
+  [8, 'none', false],
+] as const)('initializes only the locked base/none vessel set for the %s-player %s mode', async (
+  playerCount,
+  expansion,
+  capybaraEnabled,
+) => {
+  const reply = await createSession.run(request({
+    requestId: `composition-${playerCount}-${expansion}`,
+    playerCount,
+    expansion,
+    capybaraEnabled,
+  }));
+  const session = reply.session as Record<string, unknown>;
+  expect(session.activeVesselIds).toEqual([
+    'aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124',
+  ]);
+  expect(Object.keys(session.shipResources as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipUnrest as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipSurvivors as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipGalacticCoordinates as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipNavigationLogs as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipConsoleLocks as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(Object.keys(session.shipJumpStates as Record<string, unknown>)).toEqual(session.activeVesselIds);
+  expect(session.shipResources).not.toHaveProperty('capybara');
+  expect(session.shipSurvivors).not.toHaveProperty('capybara');
+  expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ shuttleId: 'macaw' }),
+    expect.objectContaining({ shuttleId: 'boa' }),
+  ]));
+});
+
+it('initializes the expansion Capybara ship and both expansion shuttles exactly once', async () => {
+  const reply = await createSession.run(request({
+    requestId: 'composition-expansion',
+    playerCount: 19,
+    expansion: 'capybara',
+  }));
+  const session = reply.session as Record<string, unknown>;
+  expect(session.activeVesselIds).toEqual([
+    'aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara',
+  ]);
+  expect(session.shipResources).toMatchObject({
+    capybara: {
+      ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3,
+    },
+  });
+  expect(session.shipSurvivors).toMatchObject({ capybara: 20_000 });
+  expect((session.shuttleDockings as Array<Record<string, unknown>>).filter(({ shuttleId }) =>
+    shuttleId === 'macaw' || shuttleId === 'boa',
+  )).toEqual([
+    { shuttleId: 'macaw', shipId: 'capybara', dockedAt: 'SESSION START' },
+    { shuttleId: 'boa', shipId: 'capybara', dockedAt: 'SESSION START' },
+  ]);
+  expect((session.shuttleVisitLog as Array<Record<string, unknown>>).filter(({ shuttleId }) =>
+    shuttleId === 'macaw' || shuttleId === 'boa',
+  )).toHaveLength(2);
+});
+
 it('creates one configured lobby and persists a replayable creation result atomically', async () => {
   await expect(createSession.run(request({
     requestId: 'create-1',
@@ -526,19 +586,23 @@ it('replays the same session and join code for a retried request', async () => {
     if (ref.path === requestPath) storedRequest = data;
   });
 
-  const firstReply = await createSession.run(request({ requestId: 'retry-1' }));
+  const firstReply = await createSession.run(request({
+    requestId: 'retry-1', playerCount: 19, expansion: 'capybara',
+  }));
   expect(storedRequest).toEqual(expect.objectContaining({
     sessionId: 'generated-session', requestId: 'retry-1',
     fingerprint: expect.objectContaining({
       action: 'create-session', sessionId: null, requestId: 'retry-1', actorUid: 'u1',
-      payload: expect.objectContaining({ name: 'New session', displayName: 'GM', playerCount: 18 }),
+      payload: expect.objectContaining({ name: 'New session', displayName: 'GM', playerCount: 19, expansion: 'capybara' }),
     }),
     reply: firstReply,
   }));
   const writesAfterCreate = mock.set.mock.calls.length;
   const randomDrawsAfterCreate = mock.randomInt.mock.calls.length;
 
-  await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(firstReply);
+  await expect(createSession.run(request({
+    requestId: 'retry-1', playerCount: 19, expansion: 'capybara',
+  }))).resolves.toEqual(firstReply);
   expect(mock.set).toHaveBeenCalledTimes(writesAfterCreate);
   expect(mock.randomInt).toHaveBeenCalledTimes(randomDrawsAfterCreate);
   expect(mock.set.mock.calls.filter(([ref]) =>

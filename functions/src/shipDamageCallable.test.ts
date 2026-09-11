@@ -47,7 +47,10 @@ beforeEach(() => {
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner }
-        : { shipDamage: mock.damage };
+        : {
+          activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+          shipDamage: mock.damage,
+        };
     return { exists: true, get: (key: string) => fields[key] };
   });
 });
