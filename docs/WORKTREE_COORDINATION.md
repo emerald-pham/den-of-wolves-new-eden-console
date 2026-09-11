@@ -56,7 +56,8 @@ npm run coordination:begin -- \
   --intent "Describe the bounded change." \
   --work-type "product|tooling|documentation|investigation" \
   --implementation-prompt "NNN" \
-  --scope "the shared paths or resource that may overlap"
+  --scope "advisory paths or file context" \
+  --resources "central-release-or-emulator-slot"
 npm run coordination:status
 ```
 
@@ -68,6 +69,10 @@ every leaf file or a whole directory by default. Preserve other tasks' claims,
 processes, and port reservations. An old timestamp, missing live process, or
 empty reservation does not prove that another task is safe to stop. Never infer
 stale ownership or safety from age alone.
+
+`--scope` is advisory context. Use `--resources` (or the supported singular
+`--resource` form) for an exclusive shared-resource reservation; central claims
+remain separate from the descriptive scope.
 
 If an owner must pause, record a simple parked status and a concrete next action
 with the supported `coordination:park` command. Retain the owner's resource
