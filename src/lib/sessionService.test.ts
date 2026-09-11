@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { SetupReceipt } from '@/types/game';
 
 vi.mock('firebase/auth', () => ({
   signInAnonymously: vi.fn().mockResolvedValue(undefined),
@@ -1567,6 +1568,208 @@ it('does not let a delayed direct callable patch overwrite newer session authori
 
   expect(useSessionStore.getState().session).toEqual(newerSession);
   expect(useSessionStore.getState().session?.shipGalacticCoordinates?.aegis).not.toBe('A-1');
+});
+
+describe('same-uid cross-session delayed callable matrix', () => {
+  function sessionFor(sessionId: string) {
+    return {
+      ...session,
+      id: sessionId,
+      phase: 'casting' as const,
+      currentTurn: 0,
+      setupRevision: 4,
+      updatedAt: `2026-09-11T12:00:${sessionId === 'session-a' ? '00' : '01'}.000Z`,
+    };
+  }
+
+  function playerFor(sessionId: string, activeConsoleRoleId?: string) {
+    return {
+      ...player,
+      sessionId,
+      role: 'gm' as const,
+      ...(activeConsoleRoleId === undefined ? {} : { activeConsoleRoleId }),
+    };
+  }
+
+  function gmFor(sessionId: string, id = `gm-${sessionId}`) {
+    return {
+      id,
+      sessionId,
+      uid: 'u1',
+      name: `Bridge ${sessionId}`,
+      deviceLabel: 'Test browser',
+      claimedAt: '2026-09-11T12:00:00.000Z',
+    };
+  }
+
+  function setupReceiptFor(source: string): SetupReceipt {
+    return {
+      source,
+      playerCount: 8,
+      mode: 'base',
+      rosterIds: ['admiral'],
+      pressEligibility: {},
+      excludedGmCount: 1,
+      wolfCount: 1,
+      wolfRule: 'one-wolf-at-8-13',
+      selectedWolfRoleIds: ['admiral'],
+      eligibleRoleIds: ['admiral'],
+      orderedModifiers: [],
+      resultCount: 8,
+      loyaltySource: 'automatic-default',
+      request: {},
+      expectedSetupRevision: 4,
+      committedSetupRevision: 5,
+      actorUid: 'u1',
+      serverTime: '2026-09-11T12:00:00.000Z',
+      event: 'game-started',
+    };
+  }
+
+  function enterSessionA() {
+    const sessionA = sessionFor('session-a');
+    useSessionStore.getState().reset();
+    useSessionStore.getState().setIdentity(sessionA, playerFor(sessionA.id));
+    useSessionStore.getState().setGmInstance(gmFor(sessionA.id));
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    return sessionA;
+  }
+
+  function replaceDisplayedIdentityWithSessionB() {
+    const sessionB = {
+      ...sessionFor('session-b'),
+      currentTurn: 7,
+      dradisContactTriggeredAt: 'B-contact',
+    };
+    const playerB = playerFor(sessionB.id, 'b-console-role');
+    const gmB = gmFor(sessionB.id);
+    const receiptB = setupReceiptFor('session-b-receipt');
+    const store = useSessionStore.getState();
+    store.setIdentity(sessionB, playerB);
+    store.setGmInstance(gmB);
+    store.setGmSetupReceipt(receiptB);
+    store.setMode('gm');
+    store.setLastRoute('/gm/session-b');
+    return { sessionB, playerB, gmB, receiptB };
+  }
+
+  function pendingCallable() {
+    let resolve!: (value: { data: unknown }) => void;
+    const callable = Object.assign(
+      vi.fn(() => new Promise<{ data: unknown }>((next) => { resolve = next; })),
+      { stream: vi.fn() },
+    );
+    return {
+      callable,
+      resolve: (data: unknown) => resolve({ data }),
+    };
+  }
+
+  beforeEach(() => {
+    vi.mocked(httpsCallable).mockReset();
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('does not let a late GM-claim result replace Session B GM identity', async () => {
+    enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const claiming = claimGmInstance('Session A bridge');
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { gmB, playerB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({ instance: gmFor('session-a', 'gm-a-late') });
+    await claiming;
+
+    expect(useSessionStore.getState().gmInstance).toEqual(gmB);
+    expect(useSessionStore.getState().me).toEqual(playerB);
+  });
+
+  it('does not let a late console-role claim replace Session B identity', async () => {
+    enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const selecting = selectConsoleRole('admiral');
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { playerB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({ sessionId: 'session-a' });
+    await selecting;
+
+    expect(useSessionStore.getState().me).toEqual(playerB);
+  });
+
+  it('does not let a late console-role release replace Session B mode or route', async () => {
+    enterSessionA();
+    useSessionStore.getState().setMode('console');
+    useSessionStore.getState().setLastRoute('/console/session-a');
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const releasing = releaseConsoleRole();
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { playerB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({ sessionId: 'session-a' });
+    await releasing;
+
+    expect(useSessionStore.getState().me).toEqual(playerB);
+    expect(useSessionStore.getState().mode).toBe('gm');
+    expect(useSessionStore.getState().lastRoute).toBe('/gm/session-b');
+  });
+
+  it('does not let a late GM reconciliation clear Session B GM identity or route', async () => {
+    enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const reconciling = reconcileGmAuthority();
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { gmB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({ instances: [] });
+    await reconciling;
+
+    expect(useSessionStore.getState().gmInstance).toEqual(gmB);
+    expect(useSessionStore.getState().mode).toBe('gm');
+    expect(useSessionStore.getState().lastRoute).toBe('/gm/session-b');
+  });
+
+  it('does not let a late start receipt overwrite Session B setup projection', async () => {
+    enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const starting = startGame({ requestId: 'session-a-start' });
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { sessionB, receiptB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({
+      status: 'committed',
+      sessionId: 'session-a',
+      requestId: 'session-a-start',
+      currentTurn: 1,
+      setupRevision: 5,
+      setupReceipt: setupReceiptFor('session-a-receipt'),
+    });
+    await starting;
+
+    expect(useSessionStore.getState().session).toEqual(sessionB);
+    expect(useSessionStore.getState().gmSetupReceipt).toEqual(receiptB);
+  });
+
+  it('does not let a late DRADIS result overwrite Session B event projection', async () => {
+    enterSessionA();
+    const pending = pendingCallable();
+    vi.mocked(httpsCallable).mockReturnValue(pending.callable as never);
+
+    const triggering = triggerDradisContact();
+    await vi.waitFor(() => expect(pending.callable).toHaveBeenCalled());
+    const { sessionB } = replaceDisplayedIdentityWithSessionB();
+    pending.resolve({ triggeredAt: 'A-contact' });
+    await triggering;
+
+    expect(useSessionStore.getState().session).toEqual(sessionB);
+  });
 });
 
 it('sends population changes and acknowledgement with the GM instance', async () => {

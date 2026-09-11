@@ -53,6 +53,12 @@ export function isCurrentSessionAuthority(
   const connectionIsFresh = store.connection === 'live' ||
     (allowConnecting && store.connection === 'connecting');
   return checkpoint !== undefined &&
+    // The cursor is keyed by session and uid. A same-uid rejoin can leave the
+    // old cursor intact, so the displayed identity must still be the one that
+    // started the callable before any delayed result may patch local state.
+    store.session?.id === checkpoint.sessionId &&
+    store.me?.sessionId === checkpoint.sessionId &&
+    store.me?.uid === checkpoint.uid &&
     sessionSnapshotAuthorityFor(checkpoint.sessionId, checkpoint.uid) === checkpoint.authority &&
     sessionSnapshotAuthorityVersion(checkpoint.authority) === checkpoint.version &&
     window.navigator.onLine &&
