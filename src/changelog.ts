@@ -32,8 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 615,
     },
     changes: [
-      'Cached session state stays visibly stale until live server authority returns, so reconnection status reflects what the game can trust.',
-      'Gameplay controls wait for a current server snapshot before sending changes, preventing delayed session state from authorizing a mutation.',
+      'Offline session details remain visible, while controls wait for a live connection so delayed updates cannot undo newer changes.',
     ],
   },
   {
