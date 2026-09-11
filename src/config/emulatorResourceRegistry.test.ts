@@ -184,6 +184,48 @@ describe('local emulator coordination', () => {
     expect(coordinationStateChanged(state, { ...state, entries: [{}] })).toBe(true);
   });
 
+  it('fails closed on a malformed persisted merge handoff instead of dropping the gate', () => {
+    const validHandoff = {
+      id: 'merge-handoff-1',
+      status: 'pending',
+      sourceEntryId: 'source-entry',
+      blockerEntryId: 'blocking-entry',
+      destinationTaskId: '01a-blocking-task',
+      remoteRef: 'origin/tooling/merge-handoff',
+      sourceCommitSha: 'source-branch-sha',
+      blockerReason: 'The blocker owns the remaining plan authority.',
+      overlappingScopes: ['docs/IMPLEMENTATION_PLAN.md'],
+      remainingDelta: 'Apply the mandatory plan pointer.',
+      deliveryEvidence: 'Direct task message accepted.',
+      createdAt: '2026-09-11T00:00:00.000Z',
+    };
+    const cases = [
+      {
+        handoff: { blockerEntryId: 'blocking-entry' },
+        expected: /malformed merge handoff.*id/i,
+      },
+      {
+        handoff: { ...validHandoff, overlappingScopes: [] },
+        expected: /malformed merge handoff.*overlappingScopes/i,
+      },
+      {
+        handoff: { ...validHandoff, blockerEntryId: 'different-entry' },
+        expected: /blocker entry different-entry does not match owning entry blocking-entry/i,
+      },
+    ];
+    for (const fixture of cases) {
+      expect(() => parseCoordinationState(JSON.stringify({
+        version: 1,
+        entries: [{
+          id: 'blocking-entry',
+          mergeHandoffs: [fixture.handoff],
+        }],
+        reservations: [],
+        configurations: [],
+      }))).toThrow(fixture.expected);
+    }
+  });
+
   async function currentGitIdentity() {
     return {
       branchName: await runFixtureGit(process.cwd(), ['branch', '--show-current']),
@@ -3139,6 +3181,216 @@ describe('local emulator coordination', () => {
         preservation: { kind: 'remote-ref', destination: 'origin/fix/release-task', commitSha: 'branch-sha' },
       });
     } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('records a merge-other-branches obligation against the active blocker when preserving', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-merge-handoff-${randomUUID()}.json`);
+    const sourceEntry = { ...releaseEntry, repositoryIdentity: '/repositories/den-of-wolves.git' };
+    const blockerEntry = {
+      ...releaseEntry,
+      id: 'blocking-entry',
+      worktree: '/worktrees/blocking-entry',
+      repositoryIdentity: sourceEntry.repositoryIdentity,
+      scopes: ['docs/IMPLEMENTATION_PLAN.md'],
+      claims: ['prompt-012'],
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [sourceEntry, blockerEntry],
+        reservations: [],
+        configurations: [],
+      }));
+
+      await finishCoordinationEntry(filePath, {
+        id: sourceEntry.id,
+        outcome: 'preserved',
+        'preserve-ref': 'origin/tooling/merge-handoff',
+        'preservation-kind': 'blocked-agent',
+        'blocked-by-entry': blockerEntry.id,
+        'handoff-to-task': '01a-blocking-task',
+        'handoff-reason': 'The blocker owns the remaining plan authority.',
+        'handoff-overlap': 'docs/IMPLEMENTATION_PLAN.md,prompt-012',
+        'handoff-delta': 'Apply the mandatory plan pointer after Prompt 012.',
+        'handoff-delivery': 'Direct task message accepted by the collaboration runtime.',
+        release: releaseState({ mainContainsBranch: false }),
+        preservedRefSha: 'branch-sha',
+      });
+
+      const state = await readCoordinationState(filePath);
+      expect(state.entries.find((entry) => entry.id === sourceEntry.id)).toMatchObject({
+        status: 'complete',
+        outcome: 'preserved',
+      });
+      expect(state.entries.find((entry) => entry.id === blockerEntry.id)?.mergeHandoffs).toEqual([
+        expect.objectContaining({
+          status: 'pending',
+          sourceEntryId: sourceEntry.id,
+          blockerEntryId: blockerEntry.id,
+          destinationTaskId: '01a-blocking-task',
+          remoteRef: 'origin/tooling/merge-handoff',
+          sourceCommitSha: 'branch-sha',
+          blockerReason: 'The blocker owns the remaining plan authority.',
+          overlappingScopes: ['docs/IMPLEMENTATION_PLAN.md', 'prompt-012'],
+          remainingDelta: 'Apply the mandatory plan pointer after Prompt 012.',
+          deliveryEvidence: 'Direct task message accepted by the collaboration runtime.',
+        }),
+      ]);
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('rejects a blocked-agent preservation unless the active same-repository blocker owns the overlap', async () => {
+    const cases = [
+      {
+        name: 'inactive blocker',
+        blocker: { status: 'complete' },
+        expected: /blocking entry.*active/i,
+      },
+      {
+        name: 'different repository',
+        blocker: { repositoryIdentity: '/repositories/other.git' },
+        expected: /same repository/i,
+      },
+      {
+        name: 'unowned overlap',
+        blocker: { scopes: ['docs/OTHER.md'], claims: [] },
+        expected: /does not own.*IMPLEMENTATION_PLAN/i,
+      },
+    ];
+
+    for (const fixture of cases) {
+      const filePath = resolve(tmpdir(), `den-of-wolves-invalid-merge-handoff-${randomUUID()}.json`);
+      const sourceEntry = { ...releaseEntry, repositoryIdentity: '/repositories/den-of-wolves.git' };
+      const blockerEntry = {
+        ...releaseEntry,
+        id: 'blocking-entry',
+        worktree: '/worktrees/blocking-entry',
+        repositoryIdentity: sourceEntry.repositoryIdentity,
+        scopes: ['docs/IMPLEMENTATION_PLAN.md'],
+        claims: ['prompt-012'],
+        ...fixture.blocker,
+      };
+      try {
+        await writeFile(filePath, JSON.stringify({
+          version: 1,
+          entries: [sourceEntry, blockerEntry],
+          reservations: [],
+          configurations: [],
+        }));
+        await expect(finishCoordinationEntry(filePath, {
+          id: sourceEntry.id,
+          outcome: 'preserved',
+          'preserve-ref': 'origin/tooling/merge-handoff',
+          'preservation-kind': 'blocked-agent',
+          'blocked-by-entry': blockerEntry.id,
+          'handoff-to-task': '01a-blocking-task',
+          'handoff-reason': 'The blocker owns the remaining plan authority.',
+          'handoff-overlap': 'docs/IMPLEMENTATION_PLAN.md',
+          'handoff-delta': 'Apply the mandatory plan pointer after Prompt 012.',
+          'handoff-delivery': 'Direct task message accepted by the collaboration runtime.',
+          release: releaseState({ mainContainsBranch: false }),
+          preservedRefSha: 'branch-sha',
+        }), fixture.name).rejects.toThrow(fixture.expected);
+        expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+      } finally { await unlink(filePath).catch(() => undefined); }
+    }
+  });
+
+  it('blocks every blocker closeout until its branch contains and lands every pending handoff', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-pending-merge-gate-${randomUUID()}.json`);
+    const blockerEntry = { ...releaseEntry, id: 'blocking-entry' };
+    const pendingHandoff = {
+      id: 'merge-handoff-1',
+      status: 'pending',
+      sourceEntryId: 'source-entry',
+      blockerEntryId: blockerEntry.id,
+      destinationTaskId: '01a-blocking-task',
+      remoteRef: 'origin/tooling/merge-handoff',
+      sourceCommitSha: 'source-branch-sha',
+      blockerReason: 'The blocker owns the remaining plan authority.',
+      overlappingScopes: ['docs/IMPLEMENTATION_PLAN.md'],
+      remainingDelta: 'Apply the mandatory plan pointer.',
+      deliveryEvidence: 'Direct task message accepted.',
+      createdAt: '2026-09-11T00:00:00.000Z',
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [{ ...blockerEntry, mergeHandoffs: [pendingHandoff] }],
+        reservations: [],
+        configurations: [],
+      }));
+
+      await expect(finishCoordinationEntry(filePath, {
+        id: blockerEntry.id,
+        release: releaseState(),
+        handoffCommitIsAncestor: async () => false,
+      })).rejects.toThrow(/MERGE OTHER BRANCHES hard gate.*source-branch-sha.*origin\/tooling\/merge-handoff/i);
+      await expect(finishCoordinationEntry(filePath, {
+        id: blockerEntry.id,
+        outcome: 'discarded',
+        reason: 'Try to evade the pending handoff.',
+        release: releaseState(),
+        handoffCommitIsAncestor: async () => true,
+      })).rejects.toThrow(/MERGE OTHER BRANCHES hard gate.*landed outcome/i);
+      expect((await readCoordinationState(filePath)).entries[0]?.status).toBe('active');
+
+      await finishCoordinationEntry(filePath, {
+        id: blockerEntry.id,
+        release: releaseState(),
+        handoffCommitIsAncestor: async (ancestor, descendant) => {
+          expect([ancestor, descendant]).toEqual(['source-branch-sha', 'branch-sha']);
+          return true;
+        },
+      });
+
+      const state = await readCoordinationState(filePath);
+      expect(state.entries[0]).toMatchObject({ status: 'complete', outcome: 'landed' });
+      expect(state.entries[0]?.mergeHandoffs?.[0]).toMatchObject({
+        status: 'landed',
+        integrationEntryId: blockerEntry.id,
+        integrationBranchSha: 'branch-sha',
+        mainSha: 'main-sha',
+      });
+    } finally { await unlink(filePath).catch(() => undefined); }
+  });
+
+  it('shows pending cross-agent branches as a merge-other-branches hard gate', () => {
+    const output = formatCoordinationState({
+      version: 1,
+      entries: [{
+        id: 'blocking-entry',
+        worktree: '/worktrees/blocking-entry',
+        startedAt: '2026-09-11T00:00:00.000Z',
+        status: 'active',
+        intent: 'Own the overlapping plan file.',
+        versionPlan: 'Tooling-only.',
+        preemptiveChangelog: 'No player-facing change.',
+        mergeHandoffs: [{
+          id: 'merge-handoff-1',
+          status: 'pending',
+          sourceEntryId: 'source-entry',
+          blockerEntryId: 'blocking-entry',
+          destinationTaskId: '01a-blocking-task',
+          remoteRef: 'origin/tooling/merge-handoff',
+          sourceCommitSha: 'source-branch-sha',
+          blockerReason: 'The blocker owns the remaining plan authority.',
+          overlappingScopes: ['docs/IMPLEMENTATION_PLAN.md'],
+          remainingDelta: 'Apply the mandatory plan pointer.',
+          deliveryEvidence: 'Direct task message accepted.',
+          createdAt: '2026-09-11T00:00:00.000Z',
+        }],
+      }],
+      reservations: [],
+      configurations: [],
+    });
+
+    expect(output).toContain('MERGE OTHER BRANCHES hard gate');
+    expect(output).toContain('source-entry');
+    expect(output).toContain('blocking-entry');
+    expect(output).toContain('01a-blocking-task');
+    expect(output).toContain('origin/tooling/merge-handoff @ source-branch-sha');
+    expect(output).toContain('docs/IMPLEMENTATION_PLAN.md');
   });
 
   it('rejects an unverified preservation destination without closing the entry', async () => {

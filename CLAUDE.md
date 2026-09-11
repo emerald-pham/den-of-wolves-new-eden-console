@@ -77,13 +77,26 @@ focused tests, and commit; independent review; and reconciliation, versioning,
 merge, push, and `coordination:finish`, respectively.
 
 Luna is the default at `xhigh` (or the stricter numbered-plan Luna `max`
-baseline). Never dispatch a Sol child. If a Luna attempt is idle or loses
-execution state with a dirty worktree, no relevant process, and no commit or
-result—or one bounded recovery repeats no-progress—stop steering it, preserve
-or discard it truthfully, and switch that task to `gpt-5.6-terra` at `xhigh`.
-This is the mandatory failover for that observed abandonment mode. The playbook
-also defines the stopping-point, rebase, exact-HEAD review, single-full-gate,
-shared-ownership, and immediate-report requirements.
+baseline). The escalation tier belongs to the role and must never reset or
+downgrade when an agent, task, or worktree is replaced. If a Luna attempt fails,
+reassign that same agent role to `gpt-5.6-terra` at `xhigh`; if a Terra attempt
+then fails, `gpt-5.6-sol` is authorized for that same agent role only. Detect
+and stop any Luna/Terra loop instead of retrying a lower tier or oscillating
+between tiers. Before dispatching Sol, explain in user-visible chat why that
+role needs Sol, the observed Luna and Terra failures (or the recorded reason
+the role began at Terra), and that Sol is 10 times as expensive as Luna. This
+notice records the authorization; it is not a new permission request.
+
+An attempt fails only after evidence: a terminal agent error; an abandoned or
+lost execution state with no relevant running process and no usable result; or
+a materially unusable result after one bounded recovery or correction repeats
+no-progress. A quiet live process, wrapper timeout, external blocker, or pending
+user input is not by itself a model failure; inspect the process, output, and
+blocker before advancing the role's tier. Preserve or discard every failed
+attempt truthfully and immediately report its exact status, changed paths,
+commands and results, and blocker. The playbook also defines the stopping-point,
+rebase, exact-HEAD review, single-full-gate, shared-ownership, and immediate-
+report requirements.
 
 ### Implementation-plan reading route
 
@@ -536,6 +549,13 @@ Keep delegation economical:
   work when delegation saves total effort and tokens after setup, context
   transfer, and review. Luna may edit code, tests, Markdown docs, refactors,
   UI, and routine implementation with clear expected results.
+- Apply the same monotonic role-scoped failover to routine delegation. If a Luna
+  attempt fails, reassign that same agent role to GPT-5.6 Terra
+  (`gpt-5.6-terra`) at `xhigh`. If a Terra attempt then fails, GPT-5.6 Sol
+  (`gpt-5.6-sol`) is authorized for that same agent role only. A replacement
+  agent, task, or worktree inherits the role's highest reached tier; it never
+  restarts at Luna. Before every Sol dispatch, give the required user-visible
+  chat explanation and state that Sol is 10 times as expensive as Luna.
 - Keep assignments narrow, low risk, and easy to verify, with explicit file
   scope and acceptance criteria. Every delegated agent that changes files must
    use its own worktree and short-lived branch; never have a delegated agent
@@ -559,8 +579,8 @@ Keep delegation economical:
   reservations, and entry; it must not sweep unrelated live work.
 - Immediately after closing an agent, reassess whether the next step exposes
   another useful, independent, bounded sidecar. If it would materially advance
-  the work, delegate it under the same Luna-only rules; otherwise continue
-  locally without forcing an artificial split.
+  the work, delegate it under the same role-scoped escalation rules; otherwise
+  continue locally without forcing an artificial split.
 - For routine (non-campaign) tasks, keep security, authentication,
   authorization, authoritative state mutations, complex gameplay,
   architectural decisions, and other high-risk security or product decisions
@@ -753,6 +773,71 @@ version, with only that task's notes. If the diff instead adds bullets to an
 existing version entry, stop, allocate a separate version, and preserve every
 task as its own entry before merging.
 
+### Blocking-agent merge handoff
+
+A blocking agent is the identifiable Codex task that owns an active overlapping
+coordination claim or required same-file work. CI visibility, an external
+dependency, pending user input, and an ordinary test failure are not agent
+blockers. A task that cannot be identified and messaged directly is not an
+eligible blocking-agent handoff destination.
+
+When that blocking agent prevents merge, commit and push the exact task branch
+before sending the handoff. Do not edit through the blocker, leave only a
+coordination note, or ask the user to remember the branch. Send a direct
+user-visible message to the blocking agent with the destination task ID, remote
+branch, exact commit SHA, blocker reason, and overlapping files or claims.
+Include any still-needed same-file delta rather than implying that an incomplete
+branch is already merge-ready.
+
+Keep the exact blocker entry active. Blocked-agent preservation must pass
+`--preservation-kind blocked-agent`, `--blocked-by-entry`, `--handoff-to-task`,
+`--handoff-reason`, `--handoff-overlap`, `--handoff-delta`, and
+`--handoff-delivery` to `coordination:finish` after the exact branch is pushed
+and direct-message delivery is verified:
+
+```bash
+npm run coordination:finish -- \
+  --id "<source entry id>" \
+  --outcome preserved \
+  --preserve-ref "origin/<task branch>" \
+  --preservation-kind blocked-agent \
+  --blocked-by-entry "<active blocker entry id>" \
+  --handoff-to-task "<destination Codex task id>" \
+  --handoff-reason "<why this agent blocks merge>" \
+  --handoff-overlap "<owned files or claims>" \
+  --handoff-delta "<remaining same-file work, or none>" \
+  --handoff-delivery "<verified direct-message receipt>"
+```
+
+The registry creates a structured pending handoff on the active blocker entry
+only after verifying the exact pushed ref SHA, same-repository identity, and the
+blocker's ownership of every named overlap. `coordination:status` exposes each
+pending record under `MERGE OTHER BRANCHES hard gate`. Keep the named overlapping
+scopes and claims held by that entry through integration so a third agent cannot
+claim the same work between the original blocker and the queued merge.
+
+Instruct the blocking agent: after its original blocker work is finished, fetch
+the branch, reconcile it with current main, merge the exact source commit into
+that same task branch, apply any named same-file delta, rerun required
+validation on the exact reconciled SHA, merge to main, push origin/main, and run
+`coordination:finish` for that same blocker entry. The blocking agent owns that
+queued integration unless the user changes priority; it must not merge it before
+its original blocker work is complete.
+
+`coordination:finish` refuses `landed`, `preserved`, and `discarded` outcomes
+while the blocker entry has an assigned pending branch. It clears the gate only
+when the validated task branch contains every assigned source commit and pushed
+origin/main contains that branch. `--result` prose and `--handoff-delivery` text
+cannot waive the `MERGE OTHER BRANCHES hard gate`.
+
+Keep that exact blocker entry active through `coordination:finish` for that same
+blocker entry.
+
+Verify direct-message delivery and request an acknowledgement when supported
+before closing the source entry as preserved; a coordination note is not proof
+of delivery. If direct delivery cannot be verified, keep the source entry active
+and report the undelivered handoff instead of claiming preservation is complete.
+
 ### Truthful closeout outcomes
 
 `coordination:finish` closes only the entry named by the exact `--id` from
@@ -781,6 +866,12 @@ start SHA and a clean worktree. It does not require merge, a release validation
 receipt, or a push to `main`; record `outcome: preserved`, destination
 kind/value, verified commit SHA, and verification time. `pushed` is false (or
 absent) for the `main` release even if the preservation ref itself was pushed.
+
+When preservation is caused by a blocking agent, the
+[blocking-agent merge handoff](#blocking-agent-merge-handoff) is mandatory
+before this closeout: the exact branch must already be pushed, the direct merge
+instructions must be delivered to that blocker, and the preservation result
+must record the verified handoff evidence.
 
 If work is reviewed and no longer needed, close it as discarded:
 
@@ -1054,6 +1145,12 @@ tests/rules/      assertions against the emulator
   (pushing deploys the affected Firebase surfaces, including Hosting for
   visible product edits); for preserved or discarded work, the decision and
   preservation destination or discard evidence are recorded.
+- [ ] If another active agent blocked merge, the exact branch was pushed and a
+  direct, delivery-verified merge handoff was sent to that blocking task with
+  the branch, SHA, overlap, and complete post-blocker landing sequence; the
+  structured pending handoff is registered on that blocker entry, whose `MERGE
+  OTHER BRANCHES` gate cannot close until the source commit is validated,
+  merged, and present on pushed `origin/main`.
 - [ ] Record completion time and retain the completed worktree and attached
   branch for 48 hours before cleanup; landed commits are pushed immediately,
   while discarded work does not require a push.
