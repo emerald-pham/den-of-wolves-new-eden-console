@@ -75,7 +75,7 @@ describe('read-only dependency lookup', () => {
 
   it('returns deterministic compact, full, and JSON packets without artifact binding', () => {
     const packet = createDependencyPacket({ prompt: '012', catalog });
-    expect(packet.readiness).toBe('ready');
+    expect(packet.readiness).toBe('done');
     expect(packet).not.toHaveProperty('binding');
     expect(packet).not.toHaveProperty('fingerprint');
     expect(packet).not.toHaveProperty('artifact');
@@ -97,6 +97,6 @@ describe('read-only dependency lookup', () => {
     expect(packet.selected.status).toBe('missing');
     const prerequisites = packet.selected.prerequisites as Array<{ id: string; status: string }>;
     expect(prerequisites.some(({ id, status }) => id === '075' && status === 'partial')).toBe(true);
-    expect(packet.next).toBe('012');
+    expect(packet.next).toBe('015');
   });
 });
