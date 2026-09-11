@@ -3358,6 +3358,7 @@ describe('local emulator coordination', () => {
   it('shows pending cross-agent branches as a merge-other-branches hard gate', () => {
     const output = formatCoordinationState({
       version: 1,
+      versionAgreement: 'agreement',
       entries: [{
         id: 'blocking-entry',
         worktree: '/worktrees/blocking-entry',
