@@ -4,6 +4,7 @@ import { dismissPressDispatch, publishPressDispatch } from '@/lib/pressDispatchS
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 const MAX_DISPATCH_LENGTH = 220;
 
@@ -35,7 +36,7 @@ export default function PressDispatch({ shuttle }: {
       setText('');
       setNotice('Dispatch transmitted');
     } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : 'Dispatch transmission failed');
+      setNotice(normalizeCommandError(cause).message);
     } finally {
       setSending(false);
     }
@@ -49,7 +50,7 @@ export default function PressDispatch({ shuttle }: {
       await dismissPressDispatch(dispatchId);
       setNotice('Dispatch dismissed');
     } catch (cause) {
-      setNotice(cause instanceof Error ? cause.message : 'Dispatch dismissal failed');
+      setNotice(normalizeCommandError(cause).message);
     } finally {
       setDismissing(null);
     }

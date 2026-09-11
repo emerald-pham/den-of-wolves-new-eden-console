@@ -4,6 +4,7 @@ import { useConsoleAccess } from '@/lib/consoleAccess';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { setFleetRedAlert } from '@/lib/fleetAlertService';
 import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 const FLEET_ALERT_COOLDOWN_MINUTES = 10;
 const FLEET_ALERT_COOLDOWN_MS = FLEET_ALERT_COOLDOWN_MINUTES * 60 * 1000;
@@ -48,9 +49,7 @@ export default function FleetAlertControl() {
       setCoverOpen(false);
     }
     catch (cause) {
-      setError((cause instanceof Error
-        ? cause.message
-        : 'FLEET ALERT COMMAND FAILED. TRY AGAIN.').toUpperCase());
+      setError(normalizeCommandError(cause).message.toUpperCase());
     }
     finally { busy.current = false; setPending(false); }
   };

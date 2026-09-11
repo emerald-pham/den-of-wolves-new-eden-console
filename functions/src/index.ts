@@ -22,6 +22,7 @@ import {
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { commandError } from './commandErrors';
 import { canClaimSeat, shouldClearSeatPointer } from './seatPolicy';
 import { canSelectConsoleRole, disconnectedRoleState } from './consoleRolePolicy';
 import { mayClaimGmInstance } from './gmControlsLock';
@@ -547,27 +548,30 @@ function fleetSurvivorPopulation(session: DocumentSnapshot): number {
 
 function requireTurnOneForPlayer(session: DocumentSnapshot, player: DocumentSnapshot): void {
   if (isPlayerGameplayLockedAtTurnZero(session.get('currentTurn'), player.get('role'))) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       'Turn 0 is for GM setup. Wait for the GM to advance to Turn 1.',
+      'invalid-phase',
     );
   }
 }
 
 function requireTurnOneForGameplay(session: DocumentSnapshot): void {
   if (sessionTurn(session.get('currentTurn')) === 0) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       'Turn 0 is for setup. Wait for the GM to advance to Turn 1.',
+      'invalid-phase',
     );
   }
 }
 
 function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
   if (phase.airspace.state === 'restricted' && Date.now() >= Date.parse(phase.openAirspaceEndsAt)) {
-    throw new HttpsError(
+    throw commandError(
       'failed-precondition',
       'The airspace window has closed. Wait for the next turn.',
+      'invalid-phase',
     );
   }
 }
@@ -590,12 +594,13 @@ function requireActionPhase(
   });
   if (decision.allowed) return;
   if (decision.reason === 'unknown-phase') {
-    throw new HttpsError('failed-precondition', 'No current server phase is available.');
+    throw commandError('failed-precondition', 'No current server phase is available.', 'invalid-phase');
   }
   const label = ACTION_METADATA[action].requiredPhase === 'team' ? 'Team' : 'Coordination';
-  throw new HttpsError(
+  throw commandError(
     'failed-precondition',
     `${action} is only available during ${label} Phase.`,
+    'invalid-phase',
   );
 }
 
@@ -817,9 +822,10 @@ export const createSession = onCall<{
         throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
       }
       if (disposition.kind === 'collision') {
-        throw new HttpsError(
+        throw commandError(
           'failed-precondition',
           `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+          'conflict',
         );
       }
       const reply = priorRequest.get('reply');
@@ -913,9 +919,10 @@ export const createSession = onCall<{
             throw new HttpsError('permission-denied', 'This creation request belongs to a different actor.');
           }
           if (disposition.kind === 'collision') {
-            throw new HttpsError(
+            throw commandError(
               'failed-precondition',
               `This creation request id is bound to a different command. ${REQUEST_RECOVERY_GUIDANCE}`,
+              'conflict',
             );
           }
           const replay = priorRequest.get('reply');
@@ -1120,11 +1127,11 @@ function replayBoundCommand<T>(
     throw new HttpsError('permission-denied', `This ${label} request belongs to a different actor.`);
   }
   if (disposition.kind === 'collision') {
-    throw new HttpsError('failed-precondition', `This ${label} request id is bound to a different command.`);
+    throw commandError('failed-precondition', `This ${label} request id is bound to a different command.`, 'conflict');
   }
   const result = receipt.get('result');
   if (isResult(result)) return result;
-  throw new HttpsError('failed-precondition', `This ${label} request has no replayable result.`);
+  throw commandError('failed-precondition', `This ${label} request has no replayable result.`, 'conflict');
 }
 
 /**
@@ -1144,7 +1151,7 @@ function hasCompatibleCommandMarker(
     throw new HttpsError('permission-denied', `This ${label} request belongs to a different actor.`);
   }
   if (disposition.kind === 'collision') {
-    throw new HttpsError('failed-precondition', `This ${label} request id is bound to a different command.`);
+    throw commandError('failed-precondition', `This ${label} request id is bound to a different command.`, 'conflict');
   }
   return true;
 }
@@ -1399,7 +1406,7 @@ export const confirmSetup = onCall<{
       tx, command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
     );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'setup') && !prior.exists) {
-      throw new HttpsError('failed-precondition', 'This setup request has a marker without a replayable receipt.');
+      throw commandError('failed-precondition', 'This setup request has a marker without a replayable receipt.', 'conflict');
     }
     if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('setup');
     if (prior.exists) {
@@ -1417,11 +1424,11 @@ export const confirmSetup = onCall<{
         command.expectedSetupRevision,
       );
       if (!sameSetupCommandFingerprint(prior.get('fingerprint'), expectedFingerprint)) {
-        throw new HttpsError('failed-precondition', 'This request id was already used for a different setup tuple.');
+        throw commandError('failed-precondition', 'This request id was already used for a different setup tuple.', 'conflict');
       }
       const reply = prior.get('reply');
       if (typeof reply !== 'object' || reply === null) {
-        throw new HttpsError('failed-precondition', 'This setup request has no replayable result.');
+        throw commandError('failed-precondition', 'This setup request has no replayable result.', 'conflict');
       }
       if (reply.status === 'stale') return reply;
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
@@ -1582,7 +1589,7 @@ export const setFacilitatorResponsibility = onCall<{
       [requestRef.path, eventRef.path],
     );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'responsibility') && !prior.exists) {
-      throw new HttpsError('failed-precondition', 'This responsibility request has a marker without a replayable receipt.');
+      throw commandError('failed-precondition', 'This responsibility request has a marker without a replayable receipt.', 'conflict');
     }
     if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('responsibility');
     if (prior.exists) {
@@ -1591,11 +1598,11 @@ export const setFacilitatorResponsibility = onCall<{
         Object.entries(fingerprint).every(([key, value]) =>
           (stored as Record<string, unknown>)[key] === value);
       if (!same) {
-        throw new HttpsError('failed-precondition', 'This request id was already used for a different responsibility command.');
+        throw commandError('failed-precondition', 'This request id was already used for a different responsibility command.', 'conflict');
       }
       const reply = prior.get('reply');
       if (typeof reply !== 'object' || reply === null) {
-        throw new HttpsError('failed-precondition', 'This responsibility request has no replayable result.');
+        throw commandError('failed-precondition', 'This responsibility request has no replayable result.', 'conflict');
       }
       if (reply.status === 'stale') return reply;
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
@@ -1803,12 +1810,12 @@ export const startGame = onCall<{
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
     );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'start') && !prior.exists) {
-      throw new HttpsError('failed-precondition', 'This start request has a marker without a replayable receipt.');
+      throw commandError('failed-precondition', 'This start request has a marker without a replayable receipt.', 'conflict');
     }
     if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('start');
     if (prior.exists) {
       if (!sameStartRequestFingerprint(prior.get('fingerprint'), fingerprint)) {
-        throw new HttpsError('failed-precondition', 'This request id was already used for a different start payload or actor.');
+        throw commandError('failed-precondition', 'This request id was already used for a different start payload or actor.', 'conflict');
       }
       const result = prior.get('reply');
       if (typeof result === 'object' && result !== null) {
@@ -1817,7 +1824,7 @@ export const startGame = onCall<{
         // Never recompute private identities, clocks, or setup writes here.
         return { ...(result as Record<string, unknown>), status: 'replayed' };
       }
-      throw new HttpsError('failed-precondition', 'This start request has no replayable result.');
+      throw commandError('failed-precondition', 'This start request has no replayable result.', 'conflict');
     }
     if (setupRevision(authority.session) !== start.expectedSetupRevision) {
       const reply = {
@@ -2567,7 +2574,7 @@ export const assignLoyalty = onCall<{
         throw new HttpsError('failed-precondition', 'This loyalty request has a malformed receipt binding.');
       }
       if (!sameLoyaltyAssignmentFingerprint(storedFingerprint, fingerprint)) {
-        throw new HttpsError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.');
+        throw commandError('failed-precondition', 'This loyalty request id has a fingerprint collision with a different command or actor.', 'conflict');
       }
       const result = prior.get('result');
       if (isBoundLoyaltyAssignmentResult(result, storedFingerprint)) {
@@ -2808,7 +2815,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       ]);
       if (!sessionDoc.exists) throw new HttpsError('not-found', 'No session with that code.');
       if (sessionDoc.get('phase') === 'closed') {
-        throw new HttpsError('failed-precondition', 'That session has closed.');
+        throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
       }
       if (sessionDoc.get('deletingAt')) {
         throw new HttpsError('not-found', 'That session is being retired.');
@@ -2981,7 +2988,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
     );
   }
   if (sessionSnap.get('phase') === 'closed') {
-    throw new HttpsError('failed-precondition', 'That session has closed.');
+    throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
   }
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
@@ -2995,7 +3002,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       throw new HttpsError('not-found', 'That session no longer exists.');
     }
     if (currentSession.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'That session has closed.');
+      throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
     }
     if (!currentPlayer.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -3532,9 +3539,10 @@ export const setPressEnabled = onCall<{
         tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
         return result;
       }
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'Press availability changed. Wait for the live update and try again.',
+        'stale-revision',
       );
     }
     if (setting.pressEnabled === currentEnabled) {
@@ -3614,7 +3622,7 @@ export const moveShipToLocation = onCall<{
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActionPhase(session, 'movement', 'facilitator');
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
@@ -3677,7 +3685,7 @@ export const jumpShip = onCall<{
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireTurnOneForPlayer(session, player);
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
@@ -3825,7 +3833,7 @@ export const setShipConsoleLock = onCall<{
     const player = await tx.get(playerRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireTurnOneForPlayer(session, player);
     tx.update(sessionRef, {
@@ -3901,7 +3909,7 @@ export const setDebriefMode = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const current = debriefModeState(session.get('debriefMode'));
     if (current.active === setting.active) return current;
@@ -3941,7 +3949,7 @@ export const advanceTurn = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== advance.expectedTurn) {
@@ -4009,7 +4017,7 @@ export const startSinglePlayerDemo = onCall<{
       throw new HttpsError('permission-denied', 'Join the session first.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== 0) {
       throw new HttpsError('failed-precondition', 'The single-player demo is only available from Turn 0.');
@@ -4047,7 +4055,7 @@ export const replayTurnStartAnnouncement = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     const current = turnStartAnnouncement(session.get('turnStartAnnouncement'));
@@ -4085,7 +4093,7 @@ export const beginOpenAirspacePhase = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     if (sessionTurn(session.get('currentTurn')) !== requestData.expectedTurn) {
       throw new HttpsError('failed-precondition', 'The turn changed. Wait for the live update and try again.');
@@ -4140,7 +4148,7 @@ export const extendAirspaceWindow = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== requestData.expectedTurn) {
@@ -4186,7 +4194,7 @@ export const setEmergencyTimerPaused = onCall<{
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn < 1) {
@@ -4888,7 +4896,7 @@ export const claimSeat = onCall<{
           tx, sessionId, revisioned.requestId, 'seat claim', [requestRef.path, eventRef.path],
         );
         if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
-          throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
+          throw commandError('failed-precondition', 'This seat request has a marker without a replayable receipt.', 'conflict');
         }
         if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat claim');
         if (prior.exists) {
@@ -4903,7 +4911,7 @@ export const claimSeat = onCall<{
           }
           const reply = prior.get('reply');
           if (typeof reply !== 'object' || reply === null) {
-            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          throw commandError('failed-precondition', 'This seat request has no replayable result.', 'conflict');
           }
           if (reply.status === 'stale') return reply as SeatMutationReceipt;
           const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
@@ -5027,7 +5035,7 @@ export const releaseSeat = onCall<{
           tx, sessionId, revisioned.requestId, 'seat release', [requestRef.path, eventRef.path],
         );
         if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
-          throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
+          throw commandError('failed-precondition', 'This seat request has a marker without a replayable receipt.', 'conflict');
         }
         if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat release');
         if (prior.exists) {
@@ -5042,7 +5050,7 @@ export const releaseSeat = onCall<{
           }
           const reply = prior.get('reply');
           if (typeof reply !== 'object' || reply === null) {
-            throw new HttpsError('failed-precondition', 'This seat request has no replayable result.');
+          throw commandError('failed-precondition', 'This seat request has no replayable result.', 'conflict');
           }
           if (reply.status === 'stale') return reply as SeatMutationReceipt;
           const committedReply = reply as Omit<Extract<SeatMutationReceipt, { status: 'committed' | 'replayed' }>, 'status'>;
@@ -5382,7 +5390,7 @@ export const addShipDamage = onCall<{
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
+    if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     const storedDamage = shipDamage(session.get('shipDamage'));
     const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
     const result = drawShipDamage(
@@ -5778,11 +5786,11 @@ function maintenanceReceiptReply(
     prior.get('actorUid') !== uid ||
     !sameMaintenanceRequestFingerprint(prior.get('fingerprint'), fingerprint)
   ) {
-    throw new HttpsError('failed-precondition', 'This request id was already used for a different maintenance command or actor.');
+    throw commandError('failed-precondition', 'This request id was already used for a different maintenance command or actor.', 'conflict');
   }
   const storedReply = prior.get('reply');
   if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
-    throw new HttpsError('failed-precondition', 'This maintenance request has no replayable result.');
+    throw commandError('failed-precondition', 'This maintenance request has no replayable result.', 'conflict');
   }
   const reply = storedReply as Record<string, unknown>;
   return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
@@ -6048,11 +6056,11 @@ export const setFleetRedAlert = onCall<{
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireTurnOneForPlayer(session, player);
-    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
+    if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     const current = session.get('fleetRedAlert') as
       { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
     if ((current?.revision ?? 0) !== data.expectedRevision) {
-      throw new HttpsError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.');
+      throw commandError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.', 'stale-revision');
     }
     const lastRaisedAt = toTimestampMillis(current?.raisedAt);
     const now = Date.now();
@@ -6110,13 +6118,14 @@ export const publishPressDispatch = onCall<{
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'Press dispatch changed. Wait for the live update and try again.',
+        'stale-revision',
       );
     }
     const pressDispatch = {
@@ -6167,13 +6176,14 @@ export const dismissPressDispatch = onCall<{
     }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') {
-      throw new HttpsError('failed-precondition', 'This session is closed.');
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
-      throw new HttpsError(
+      throw commandError(
         'failed-precondition',
         'Press dispatches changed. Wait for the live update and try again.',
+        'stale-revision',
       );
     }
     if (!current.dispatches.some(dispatch => dispatch.id === data.dispatchId)) {
@@ -6201,7 +6211,7 @@ export const repairAllShipDamage = onCall<{
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (session.get('phase') === 'closed') throw new HttpsError('failed-precondition', 'This session is closed.');
+    if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     tx.update(ref, {
       [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
       updatedAt: FieldValue.serverTimestamp(),
@@ -6244,11 +6254,11 @@ function maintenanceRollbackReceiptReply(
 ): Record<string, unknown> | undefined {
   if (!prior.exists) return undefined;
   if (!sameMaintenanceRollbackFingerprint(prior.get('fingerprint'), fingerprint)) {
-    throw new HttpsError('failed-precondition', 'This rollback request id was already used for a different payload or actor.');
+    throw commandError('failed-precondition', 'This rollback request id was already used for a different payload or actor.', 'conflict');
   }
   const storedReply = prior.get('reply');
   if (typeof storedReply !== 'object' || storedReply === null || Array.isArray(storedReply)) {
-    throw new HttpsError('failed-precondition', 'This rollback request has no replayable result.');
+    throw commandError('failed-precondition', 'This rollback request has no replayable result.', 'conflict');
   }
   const reply = storedReply as Record<string, unknown>;
   return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
@@ -6283,8 +6293,10 @@ export const rollbackMaintenance = onCall<{
     const entries = (undo.get('entries') ?? []) as Array<{ fields: MaintenanceUndoField[] }>;
     const last = entries.at(-1);
     const currentTurn = sessionTurn(authority.session.get('currentTurn'));
-    if (authority.session.get('phase') === 'closed' || !last || cycle?.revision !== change.expectedRevision ||
-        undo.get('turn') !== currentTurn) {
+    if (authority.session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    if (!last || cycle?.revision !== change.expectedRevision || undo.get('turn') !== currentTurn) {
       const reply = {
         status: 'stale' as const,
         requestId: change.requestId,

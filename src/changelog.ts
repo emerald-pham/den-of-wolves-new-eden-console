@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['015'],
+    implementationProgress: {
+      completed: 97,
+      total: 734,
+      percentage: '13.22%',
+      done: 97,
+      partial: 22,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Command failures now explain whether you need to sign in, wait for the right phase, refresh newer table state, reconnect, or leave a closed session, without exposing private server details.',
+    ],
+  },
+  {
+    version: '0.3.30',
     implementationPrompts: ['012'],
     implementationProgress: {
       completed: 96,

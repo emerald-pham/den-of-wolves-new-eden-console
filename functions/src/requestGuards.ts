@@ -8,10 +8,11 @@ import {
   SUPPORTED_PLAYER_COUNTS,
   type SessionConfiguration,
 } from './gameSetup';
+import { commandError } from './commandErrors';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
-    throw new HttpsError('unauthenticated', 'Sign in before joining a table.');
+    throw commandError('unauthenticated', 'Sign in before joining a table.', 'unauthenticated');
   }
   return auth.uid;
 }

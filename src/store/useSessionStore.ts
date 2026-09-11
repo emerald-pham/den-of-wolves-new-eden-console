@@ -11,6 +11,7 @@ import type {
   TurnStartReplay,
 } from '@/types/game';
 import { normalizeShuttleManifest } from '@/data/shuttles';
+import type { CommandErrorKind } from '@/lib/commandErrors';
 
 export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
@@ -220,6 +221,7 @@ export type PendingCommand = (
 };
 
 export interface CommunicationError {
+  readonly kind?: CommandErrorKind;
   readonly code: string;
   readonly message: string;
 }

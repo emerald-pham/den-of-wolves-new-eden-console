@@ -17,13 +17,13 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**96 / 734 prompts complete (13.08%)**
+**97 / 734 prompts complete (13.22%)**
 
-Status breakdown: **96 done · 23 partial · 615 missing**.
+Status breakdown: **97 done · 22 partial · 615 missing**.
 
 Active prompt: **none**
 
-Resume pointer: Prompt 015 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
+Resume pointer: Prompt 017 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
 <!-- END GENERATED PROMPT CATALOG: progress -->
 
 ### Version 0.3.28 progress evidence
@@ -424,7 +424,7 @@ release classification and evidence.
 | 012 | done | non-feature | 0.3.30 | M1 production callables use server-only actor/action/payload/revision-bound receipts and exact replay before any mutation, cost, randomness, or audit write. Fully bound legacy domain receipts retain authorized exact replay; unbound event-only records fail closed with refresh/reconcile guidance. Focused Functions coverage includes cross-action legacy namespace collisions, old-event recovery wording, duplicate Android-disclosure prevention, and the 57-test rules denial matrix. |
 | 013 | done | non-feature | — | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
 | 014 | done | feature | 0.3.29 | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale or late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. |
-| 015 | partial | feature | 0.3.5 | Callable error codes are tested, but no centralized taxonomy yet. |
+| 015 | done | feature | 0.3.31 | Client and callable paths share explicit command-error categories with safe player guidance and no private detail leakage. |
 | 016 | done | non-feature | — | Resume/lifecycle tests and rules identity boundary. |
 | 017 | partial | non-feature | — | Stable string IDs exist; unified typed IDs for all entities remain open. |
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |

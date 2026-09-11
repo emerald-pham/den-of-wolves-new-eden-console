@@ -46,6 +46,7 @@ import {
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
+import { normalizeCommandError } from '@/lib/commandErrors';
 import {
   resetSessionWaiver,
   SESSION_WAIVER_RESET_EVENT,
@@ -753,11 +754,10 @@ export default function GmConsole() {
           : 'Press availability committed by the server.',
       );
     } catch (cause) {
-      const code = typeof cause === 'object' && cause !== null && 'code' in cause &&
-        typeof cause.code === 'string' ? cause.code : '';
-      setPressMutationState(code.includes('failed-precondition') ? 'stale' : 'rejected');
+      const error = normalizeCommandError(cause);
+      setPressMutationState(error.kind === 'stale-revision' ? 'stale' : 'rejected');
       setPressMutationMessage(
-        code.includes('failed-precondition')
+        error.kind === 'stale-revision'
           ? 'Press availability stale // a newer GM revision committed; review the live state and retry.'
           : 'Press availability rejected // the server did not commit this change.',
       );
@@ -885,11 +885,11 @@ export default function GmConsole() {
         );
       }
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : 'The server rejected the production start.';
-      const stale = /setup changed|stale|revision|refresh/i.test(message);
+      const error = normalizeCommandError(cause);
+      const stale = error.kind === 'stale-revision';
       setStartMutationState(stale ? 'stale' : 'blocked');
       setStartMutationMessage(
-        `${stale ? 'Start stale' : 'Start blocked'} // ${message.replace(/^Start blocked:\s*/i, '')}`,
+        `${stale ? 'Start stale' : 'Start blocked'} // ${error.message}`,
       );
     } finally {
       setStartingGame(false);

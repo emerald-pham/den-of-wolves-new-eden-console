@@ -19,7 +19,9 @@ it('shows a dismissible Wolf Communications Interception Code and expires', () =
   expect(screen.getByRole('alert')).toHaveTextContent(
     'Error — Wolf Communications Interception Code: failed-precondition',
   );
-  expect(screen.getByRole('alert')).toHaveTextContent('That GM instance is already gone.');
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'The command could not be completed. Refresh the live state and try again.',
+  );
 
   fireEvent.click(screen.getByRole('button', { name: /dismiss error/i }));
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();

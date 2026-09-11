@@ -27,6 +27,10 @@ import {
 } from './sessionMutationAuthority';
 import { turnPhaseState } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
+import {
+  commandErrorCode,
+  normalizeCommandError,
+} from './commandErrors';
 
 /**
  * The client's whole conversation with Firebase about sessions.
@@ -118,17 +122,11 @@ function isCanonicalSessionSetup(value: unknown): value is NonNullable<GameSessi
 
 function errorCode(cause: unknown): string | undefined {
   if (typeof cause !== 'object' || cause === null || !('code' in cause)) return undefined;
-  return typeof cause.code === 'string' ? cause.code : undefined;
+  return typeof cause.code === 'string' ? cause.code : commandErrorCode(cause);
 }
 
-function interception(cause: unknown): { code: string; message: string } {
-  const rawCode = errorCode(cause) ?? 'unknown';
-  const message =
-    typeof cause === 'object' && cause !== null && 'message' in cause &&
-    typeof cause.message === 'string'
-      ? cause.message
-      : 'The server rejected the queued command.';
-  return { code: rawCode.replace(/^functions\//, ''), message };
+function interception(cause: unknown) {
+  return normalizeCommandError(cause);
 }
 
 function deviceLabel(): string {
@@ -249,6 +247,7 @@ function isStaleAuthorityReply(command: PendingCommand, result: unknown): result
 
 function recordStaleAuthorityReply(): void {
   useSessionStore.getState().setCommunicationError({
+    kind: 'stale-revision',
     code: 'stale',
     message: SAFE_STALE_COMMAND_MESSAGE,
   });

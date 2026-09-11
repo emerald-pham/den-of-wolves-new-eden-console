@@ -9,6 +9,7 @@ import { EXECUTIVE_SYSTEMS } from '@/data/roleProcedures';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
+import { normalizeCommandError } from '@/lib/commandErrors';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -61,7 +62,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
     if (blocked || busy.current) return;
     busy.current = true; setPending(true); setError('');
     try { await runMaintenance(shipId, action, revision, choices, access.roleId); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Maintenance failed. Try again.'); }
+    catch (cause) { setError(normalizeCommandError(cause).message); }
     finally { busy.current = false; setPending(false); }
   };
   const ship = SHIPS.find(candidate => candidate.id === shipId);
@@ -170,7 +171,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 ? repairAllShipDamage(shipId)
                 : rollbackMaintenance(shipId, revision);
             void command
-              .catch(cause => setError(cause instanceof Error ? cause.message : 'Damage command failed.'))
+              .catch(cause => setError(normalizeCommandError(cause).message))
               .finally(() => { busy.current = false; setPending(false); });
           }}>{label}</button>)}
         {damageNotices.map((notice, index) => <p key={`${index}-${notice}`} role="status">{notice}</p>)}

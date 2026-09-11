@@ -822,6 +822,7 @@ describe('GM instance commands', () => {
     expect(httpsCallable).not.toHaveBeenCalledWith(expect.anything(), 'kickGmInstance');
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
     expect(useSessionStore.getState().communicationError).toEqual({
+      kind: 'stale-revision',
       code: 'stale',
       message: 'The live session changed before this command committed. Refresh the live state and retry.',
     });
@@ -843,7 +844,9 @@ describe('GM instance commands', () => {
 
     expect(useSessionStore.getState().pendingCommands).toEqual([]);
     expect(useSessionStore.getState().communicationError).toEqual({
-      code: 'failed-precondition', message: 'Already released.',
+      kind: 'unknown',
+      code: 'failed-precondition',
+      message: 'The command could not be completed. Refresh the live state and try again.',
     });
   });
 
@@ -1406,8 +1409,9 @@ describe('command role presence', () => {
 
     expect(useSessionStore.getState().me?.activeConsoleRoleId).toBeUndefined();
     expect(useSessionStore.getState().communicationError).toEqual({
+      kind: 'conflict',
       code: 'already-exists',
-      message: 'That console role is already taken.',
+      message: 'Another command won this update. Refresh the live state and retry.',
     });
   });
 });
@@ -1587,8 +1591,9 @@ describe('session lifecycle commands', () => {
 
     expect(useSessionStore.getState().session).toBeNull();
     expect(useSessionStore.getState().communicationError).toEqual({
+      kind: 'unauthorized',
       code: 'permission-denied',
-      message: 'You are no longer in that session.',
+      message: 'This command is not available to the current station.',
     });
   });
 });
@@ -2113,6 +2118,7 @@ describe('authoritative setup and seating wrappers', () => {
     vi.mocked(httpsCallable).mockReturnValue(callableReturning({ data: stale }));
     await expect(authorityService.confirmSetup(setup)).resolves.toBe('stale');
     expect(useSessionStore.getState().communicationError).toEqual({
+      kind: 'stale-revision',
       code: 'stale',
       message: 'The live session changed before this command committed. Refresh the live state and retry.',
     });

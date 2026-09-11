@@ -178,11 +178,11 @@ it('denies every Press action while the authoritative toggle is disabled, includ
 it('rejects closed sessions and stale revisions without writing', async () => {
   mock.phase = 'closed';
   await expect(publishPressDispatch.run(request())).rejects
-    .toMatchObject({ code: 'failed-precondition' });
+    .toMatchObject({ code: 'failed-precondition', details: { commandError: 'terminal-session' } });
   mock.phase = 'active';
   mock.pressDispatch = { text: 'Old news', revision: 2 };
   await expect(publishPressDispatch.run(request())).rejects
-    .toMatchObject({ code: 'failed-precondition' });
+    .toMatchObject({ code: 'failed-precondition', details: { commandError: 'stale-revision' } });
   expect(mock.update).not.toHaveBeenCalled();
 });
 
@@ -198,6 +198,6 @@ it('rejects dismissal by another role, of missing copy, or at a stale revision',
   await expect(dismissPressDispatch.run(request({ ...dismissal, dispatchId: 'missing' }))).rejects
     .toMatchObject({ code: 'failed-precondition' });
   await expect(dismissPressDispatch.run(request({ ...dismissal, expectedRevision: 1 }))).rejects
-    .toMatchObject({ code: 'failed-precondition' });
+    .toMatchObject({ code: 'failed-precondition', details: { commandError: 'stale-revision' } });
   expect(mock.update).not.toHaveBeenCalled();
 });

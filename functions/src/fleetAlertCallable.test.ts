@@ -78,9 +78,13 @@ it('denies disconnected, missing, observer and unsigned callers', async () => {
 it('rejects malformed, closed and stale commands without writes', async () => {
   await expect(setFleetRedAlert.run(request({ ...data, sessionId: '../bad' }))).rejects.toMatchObject({ code: 'invalid-argument' });
   mock.phase = 'closed';
-  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'terminal-session' },
+  });
   mock.phase = 'active'; mock.revision = 2;
-  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(setFleetRedAlert.run(request())).rejects.toMatchObject({
+    code: 'failed-precondition', details: { commandError: 'stale-revision' },
+  });
   expect(mock.update).not.toHaveBeenCalled();
 });
 it('does not create a cancellation for an inactive alert', async () => {
