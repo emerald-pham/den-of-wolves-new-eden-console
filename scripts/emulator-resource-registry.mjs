@@ -97,6 +97,11 @@ const VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION = 2;
 const APPLICATION_VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 const MAX_APPLICATION_PATCH_VERSION = 99;
 const IMPLEMENTATION_PROMPT_CLAIM_PATTERN = /^\d{3}[a-z]*$/i;
+const CANONICAL_IMPLEMENTATION_AUTHORITY_FILES = new Set([
+  'docs/IMPLEMENTATION_PLAN.md',
+  'docs/IMPLEMENTATION_PROGRESS.md',
+  'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+]);
 const execFileAsync = promisify(execFile);
 
 /**
@@ -947,8 +952,12 @@ function effectiveChangeClass(entry) {
   return isToolingOnlyVersionPlan(entry.versionPlan) ? 'non-feature' : 'feature';
 }
 
-function workRegistrationCoordinationOptions(state, entry) {
+function workRegistrationCoordinationOptions(state, entry, changedFiles = []) {
   const currentPrompt = normalizePromptId(entry.implementationPrompt);
+  const hasDeclaredPrompt = entry.implementationPrompt !== undefined &&
+    entry.implementationPrompt !== null && text(entry.implementationPrompt) !== '';
+  const promptlessDocumentation = entry.workType === 'documentation' && !hasDeclaredPrompt &&
+    Array.isArray(changedFiles) && changedFiles.length > 0 && changedFiles.every(isDocumentationFile);
   const hasPromptTransfer = currentPrompt === '665' && entry.workType === 'tooling' &&
     entry.implementationRegistrationRequired === true &&
     (Array.isArray(entry.amendments) ? entry.amendments : []).some((amendment) =>
@@ -974,7 +983,9 @@ function workRegistrationCoordinationOptions(state, entry) {
     }
   }
   return {
-    coordinationPrompt: currentPrompt ?? entry.implementationPrompt ?? '(missing)',
+    ...(promptlessDocumentation
+      ? {}
+      : { coordinationPrompt: currentPrompt ?? entry.implementationPrompt ?? '(missing)' }),
     ...(hasPromptTransfer ? { coordinationPromptBefore: '664' } : {}),
     ...(coordinationPromptBindings.length > 0 ? { coordinationPromptBindings } : {}),
   };
@@ -1102,6 +1113,12 @@ function workRegistrationGateErrors(entry, release) {
   // work type. New coordination entries always do, so preserve those records
   // without weakening the authoritative changed-file rule for current work.
   if (entry.implementationRegistrationRequired !== true) return [];
+  const changedFiles = Array.isArray(release.changedFiles) ? release.changedFiles : [];
+  if (changedFiles.some((filePath) => CANONICAL_IMPLEMENTATION_AUTHORITY_FILES.has(filePath))) {
+    // The exact commit-range gate owns canonical authority comparisons. This
+    // aggregate diff has neither per-commit owners nor their parent sources.
+    return [];
+  }
   try {
     const sources = readImplementationProgress({ cwd: process.cwd() });
     const result = validateWorkRegistration({
@@ -4645,6 +4662,7 @@ async function loadValidatedReleaseFragment(options, entry, repositoryDirectory,
  *   ['test-growth-justification']?: string,
  *   release?: any,
  *   commandRunner?: (command: string, cwd: string, options?: Record<string, unknown>) => Promise<void>,
+ *   workRegistrationValidator?: (options: Record<string, unknown>) => Record<string, unknown>,
  *   repositoryDirectory?: string,
  *   signalSource?: NodeJS.Process,
  * }} options
@@ -4675,8 +4693,6 @@ export async function validateCoordinationEntry(filePath, options) {
           `it belongs to ${entry.worktree}.`,
       );
     }
-    const registrationCoordination = workRegistrationCoordinationOptions(state, entry);
-
     return async () => {
     const releaseFragment = await loadValidatedReleaseFragment(options, entry, validationDirectory, filePath);
 
@@ -4714,13 +4730,15 @@ export async function validateCoordinationEntry(filePath, options) {
       requireReconciled: true,
       releaseFragment,
     });
-    if (!options.release && entry.implementationRegistrationRequired === true &&
+    if ((!options.release || options.workRegistrationValidator) &&
+      entry.implementationRegistrationRequired === true &&
       release.mainSha && release.branchSha) {
       try {
-        const registration = validateCommitRange({
+        const validator = options.workRegistrationValidator ?? validateCommitRange;
+        const registration = validator({
           cwd: validationDirectory,
           range: `${release.mainSha}..${release.branchSha}`,
-          ...registrationCoordination,
+          ...workRegistrationCoordinationOptions(state, entry, release.changedFiles),
         });
         errors.push(...registration.errors.map(
           (error) => `implementation work registration gate: ${error}`,
@@ -5193,7 +5211,7 @@ export async function finishCoordinationEntry(filePath, options) {
         registration = validator({
           cwd: process.cwd(),
           range: `${release.mainSha}..${release.branchSha}`,
-          ...workRegistrationCoordinationOptions(state, entry),
+          ...workRegistrationCoordinationOptions(state, entry, release.changedFiles),
         });
       } catch (error) {
         throw new Error(

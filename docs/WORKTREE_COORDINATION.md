@@ -213,6 +213,9 @@ hooks and run both work-registration and `coordination:docs` in CI. They may
 change prose or add one complete future-prompt registration, but cannot mutate
 or remove an existing prompt's status, class, tag, dependency, or release
 mappings without the owning non-documentation implementation commit.
+For a mixed code-and-authority commit, ownership is the final
+`Implementation-Prompt` trailer: the commit may update only that prompt's
+canonical mappings, subject to the ordinary readiness and release gates.
 
 A coordination release range binds every non-documentation commit to the
 entry's prompt. The exact recorded Prompt 664 to Prompt 665 transition is the
@@ -222,6 +225,10 @@ commit of a completed preserved source entry. The binding covers only that SHA,
 not its ancestors, and is limited to canonical non-feature work; feature work
 keeps its own prompt-specific release entry. Arbitrary mixed-prompt commits
 remain invalid for landed, preserved, and discarded closeout.
+
+A promptless documentation entry validates its exact documentation-only range
+without inventing a prompt binding. If a documentation entry names a canonical
+prompt, it remains bound to that prompt and its canonical release class.
 
 ## Merge, push, and finish
 

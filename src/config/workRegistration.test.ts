@@ -376,6 +376,66 @@ describe('universal implementation work registration', () => {
     }
   });
 
+  it('rejects mixed code that rewrites a foreign prompt authority at every commit boundary', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'work-registration-foreign-authority-'));
+    const messageFile = resolve(root, '.git', 'WORK_REGISTRATION_MESSAGE');
+    try {
+      await git(root, 'init', '-b', 'main');
+      await git(root, 'config', 'user.email', 'fixture@example.test');
+      await git(root, 'config', 'user.name', 'Fixture');
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await mkdir(resolve(root, 'scripts'), { recursive: true });
+      const [canonicalPlan, canonicalProgress, canonicalDependency] = await Promise.all([
+        readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PLAN.md'), 'utf8'),
+        readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PROGRESS.md'), 'utf8'),
+        readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), 'utf8'),
+      ]);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PLAN.md'), canonicalPlan);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), canonicalProgress);
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md'), canonicalDependency);
+      await git(root, 'add', 'docs');
+      await git(root, 'commit', '-m', 'docs: seed canonical authority');
+      const base = await git(root, 'rev-parse', 'HEAD');
+
+      const rewrittenProgress = canonicalProgress.replace(
+        '| 012 | partial | non-feature | — |',
+        '| 012 | partial | feature | 0.3.28 |',
+      );
+      await writeFile(resolve(root, 'docs/IMPLEMENTATION_PROGRESS.md'), rewrittenProgress);
+      await writeFile(resolve(root, 'scripts/prompt-665.mjs'), 'export const gate = true;\n');
+      await writeFile(messageFile, 'fix: change the Prompt 665 gate\n\nImplementation-Prompt: 665\n');
+      await git(root, 'add', 'docs/IMPLEMENTATION_PROGRESS.md', 'scripts/prompt-665.mjs');
+
+      expect(validateWorkRegistration({
+        changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md', 'scripts/prompt-665.mjs'],
+        message: await readFile(messageFile, 'utf8'),
+        planSource: canonicalPlan,
+        progressSource: rewrittenProgress,
+        dependencySource: canonicalDependency,
+        parentPlanSource: canonicalPlan,
+        parentProgressSource: canonicalProgress,
+        parentDependencySource: canonicalDependency,
+        coordinationPrompt: '665',
+      }).errors.join('\n')).toContain('Prompt 665 commits cannot change canonical Prompt 012 change class');
+      expect(validateStagedRegistration({
+        cwd: root,
+        messageFile,
+        coordinationPrompt: '665',
+      }).errors.join('\n')).toContain('Prompt 665 commits cannot change canonical Prompt 012 change class');
+
+      await git(root, 'commit', '--no-verify', '-F', messageFile);
+      expect(validateCommitRange({ cwd: root, range: `${base}..HEAD` }).errors.join('\n'))
+        .toContain('Prompt 665 commits cannot change canonical Prompt 012 change class');
+      expect(validateCommitRange({
+        cwd: root,
+        range: `${base}..HEAD`,
+        coordinationPrompt: '665',
+      }).errors.join('\n')).toContain('Prompt 665 commits cannot change canonical Prompt 012 change class');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 15_000);
+
   it('allows unrelated documentation and complete future-prompt registration through the docs-only path', () => {
     const unrelated = validateWorkRegistration({
       changedFiles: ['docs/example.md'],

@@ -534,6 +534,20 @@ export function validateCoordinationEntry(
     releaseFragmentId?: string;
     'release-fragment-id'?: string;
     commandRunner?: (command: string, cwd: string) => Promise<void>;
+    workRegistrationValidator?: (options: {
+      readonly cwd: string;
+      readonly range: string;
+      readonly coordinationPrompt?: number | string | null;
+      readonly coordinationPromptBefore?: number | string | null;
+      readonly coordinationPromptBindings?: readonly {
+        readonly prompt: number | string;
+        readonly commit: string;
+      }[];
+    }) => {
+      readonly commits: readonly string[];
+      readonly results: readonly unknown[];
+      readonly errors: readonly string[];
+    };
     repositoryDirectory?: string;
     environment?: Readonly<Record<string, string | undefined>>;
   },
@@ -606,7 +620,7 @@ export function finishCoordinationEntry(
     workRegistrationValidator?: (options: {
       readonly cwd: string;
       readonly range: string;
-      readonly coordinationPrompt: number | string | null;
+      readonly coordinationPrompt?: number | string | null;
       readonly coordinationPromptBefore?: number | string | null;
       readonly coordinationPromptBindings?: readonly {
         readonly prompt: number | string;

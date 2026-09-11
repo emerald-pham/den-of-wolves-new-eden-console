@@ -978,6 +978,9 @@ it('validates canonical authority docs while skipping application jobs and docum
   expect(ci).toContain("'docs/IMPLEMENTATION_PROGRESS.md'");
   expect(ci).toContain('npm run coordination:docs');
   expect(ci).toContain("if: steps.work_registration.outputs.documentation_only != 'true'");
+  expect(ci.indexOf('npm run validate:work-registration')).toBeLessThan(
+    ci.indexOf('documentation_only=true'),
+  );
   expect(deploy).toContain('paths-ignore:');
   expect(deploy).toContain("'**/*.md'");
   expect(deploy).toContain("'**/README'");

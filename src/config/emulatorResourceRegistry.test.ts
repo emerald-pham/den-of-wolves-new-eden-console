@@ -48,6 +48,7 @@ import {
   resumeCoordinationEntry,
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
+import { validateCommitRange } from '../../scripts/validate-work-registration.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -309,6 +310,115 @@ describe('local emulator coordination', () => {
       await unlink(`${filePath}.lock`).catch(() => undefined);
     }
   });
+
+  it('completes a promptless README-only lifecycle without weakening named-prompt binding', async () => {
+    const root = resolve(tmpdir(), `den-of-wolves-promptless-docs-${randomUUID()}`);
+    const filePath = resolve(root, 'coordination.json');
+    const previousCwd = process.cwd();
+    let artifactPath: string | undefined;
+    const registrationOptions: Record<string, unknown>[] = [];
+    try {
+      await mkdir(root, { recursive: true });
+      await mkdir(resolve(root, 'docs'), { recursive: true });
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      const fixtureFiles = [
+        'package.json',
+        'package-lock.json',
+        'src/changelog.ts',
+        'docs/IMPLEMENTATION_PLAN.md',
+        'docs/IMPLEMENTATION_PROGRESS.md',
+        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+      ];
+      await Promise.all(fixtureFiles.map(async (path) => {
+        await writeFile(resolve(root, path), await readFile(resolve(previousCwd, path), 'utf8'));
+      }));
+      await writeFile(resolve(root, 'README.md'), '# Initial\n');
+      await runFixtureGit(root, ['init', '-b', 'main']);
+      await runFixtureGit(root, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+      await runFixtureGit(root, ['add', '.']);
+      await runFixtureGit(root, ['commit', '-m', 'docs: seed README']);
+      const baseSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      await runFixtureGit(root, ['switch', '-c', 'docs/readme-lifecycle']);
+      process.chdir(root);
+
+      const entry = await beginCoordinationEntry(filePath, {
+        intent: 'clarify the README',
+        'version-plan': 'Documentation-only; no application version change.',
+        'preemptive-changelog': 'No player-facing change.',
+        'work-type': 'documentation',
+        scope: 'README.md',
+        'session-goal': [
+          '- [ ] Clarify the README.',
+          `- [ ] ${immediateReleaseObjective}`,
+        ],
+      });
+      artifactPath = resolve(root, entry.sessionGoals!.artifactPath!);
+      await claimCoordinationEntry(filePath, { id: entry.id, scope: 'README.md' });
+      await writeFile(resolve(root, 'README.md'), '# Clarified\n');
+      await runFixtureGit(root, ['add', 'README.md']);
+      await runFixtureGit(root, ['commit', '-m', 'docs: clarify README']);
+      const branchSha = await runFixtureGit(root, ['rev-parse', 'HEAD']);
+      const release = releaseState({
+        branchName: 'docs/readme-lifecycle',
+        branchSha,
+        startBranchSha: baseSha,
+        mainSha: baseSha,
+        originMainSha: baseSha,
+        branchVersion: '0.3.28',
+        mainVersion: '0.3.28',
+        branchLockVersion: '0.3.28',
+        mainLockVersion: '0.3.28',
+        branchChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        mainChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        changedFiles: ['README.md'],
+      });
+      const workRegistrationValidator = (options: Record<string, unknown>) => {
+        registrationOptions.push(options);
+        return validateCommitRange({
+          cwd: root,
+          range: options.range as string,
+          ...(options.coordinationPrompt === undefined
+            ? {}
+            : { coordinationPrompt: options.coordinationPrompt as string }),
+        });
+      };
+      await updateSessionGoals(filePath, {
+        id: entry.id,
+        outcomes: [
+          { id: 'goal-001', checked: true, explanation: 'README clarification committed.' },
+          { id: 'goal-002', checked: true, explanation: 'Validation and closeout are complete.' },
+        ],
+      });
+      await validateCoordinationEntry(filePath, {
+        id: entry.id,
+        release,
+        'documentation-review': 'README rendering and links reviewed.',
+        commandRunner: async () => undefined,
+        workRegistrationValidator,
+      });
+      await finishCoordinationEntry(filePath, {
+        id: entry.id,
+        result: 'README documentation complete.',
+        release,
+        workRegistrationValidator,
+      });
+
+      expect(registrationOptions).toHaveLength(2);
+      expect(registrationOptions.every((options) => options.coordinationPrompt === undefined)).toBe(true);
+      const completed = (await readCoordinationState(filePath)).entries[0];
+      expect(completed).toMatchObject({
+        status: 'complete',
+        validation: { docsOnly: true, commitSha: branchSha },
+      });
+      expect(completed).not.toHaveProperty('implementationPrompt');
+      await expect(readFile(artifactPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      process.chdir(previousCwd);
+      if (artifactPath) await unlink(artifactPath).catch(() => undefined);
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 15_000);
 
   it('creates an ignored immutable session-goal artifact with the required release objective', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-session-goals-${randomUUID()}.json`);
@@ -4260,6 +4370,90 @@ describe('local emulator coordination', () => {
         coordinationPrompt: '665',
         coordinationPromptBefore: '664',
       });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+    }
+  });
+
+  it('keeps a documentation entry that names a canonical prompt bound to that prompt', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registration-named-docs-${randomUUID()}.json`);
+    let receivedOptions: Record<string, unknown> | undefined;
+    const entry = {
+      ...releaseEntry,
+      workType: 'documentation',
+      implementationPrompt: '660',
+      implementationRegistrationRequired: true,
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      await expect(finishCoordinationEntry(filePath, {
+        id: entry.id,
+        outcome: 'discarded',
+        reason: 'Exercise named documentation prompt binding.',
+        release: releaseState({ mainContainsBranch: false, changedFiles: ['README.md'] }),
+        workRegistrationValidator: (options) => {
+          receivedOptions = options;
+          return { commits: ['branch-sha'], results: [], errors: [] };
+        },
+      })).rejects.toThrow(/session goal artifact is missing/i);
+
+      expect(receivedOptions).toMatchObject({ coordinationPrompt: '660' });
+    } finally {
+      await unlink(filePath).catch(() => undefined);
+    }
+  });
+
+  it('leaves mixed canonical authority comparison to the exact coordination range gate', async () => {
+    const filePath = resolve(tmpdir(), `den-of-wolves-registration-mixed-authority-${randomUUID()}.json`);
+    let receivedOptions: Record<string, unknown> | undefined;
+    const entry = {
+      ...releaseEntry,
+      validation: undefined,
+      workType: 'tooling',
+      changeClass: 'non-feature',
+      implementationPrompt: '665',
+      implementationRegistrationRequired: true,
+      versionPlan: 'No application version change: repository tooling only.',
+      preemptiveChangelog: 'No player-facing change.',
+      scopes: ['docs/IMPLEMENTATION_PROGRESS.md', 'scripts/example.mjs'],
+    };
+    try {
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      const error = await validateCoordinationEntry(filePath, {
+        id: entry.id,
+        release: releaseState({
+          branchVersion: '0.3.28',
+          mainVersion: '0.3.28',
+          branchLockVersion: '0.3.28',
+          mainLockVersion: '0.3.28',
+          branchChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+          mainChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+          changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md', 'scripts/example.mjs'],
+        }),
+        commandRunner: async () => undefined,
+        workRegistrationValidator: (options) => {
+          receivedOptions = options;
+          return {
+            commits: ['branch-sha'],
+            results: [],
+            errors: ['branch-sha: Prompt 665 cannot change canonical Prompt 012 change class'],
+          };
+        },
+      }).then(() => undefined, (caught) => caught as Error);
+
+      expect(receivedOptions).toMatchObject({ coordinationPrompt: '665' });
+      expect(error?.message).toContain('Prompt 665 cannot change canonical Prompt 012 change class');
+      expect(error?.message).not.toContain('all parent authority sources');
     } finally {
       await unlink(filePath).catch(() => undefined);
     }

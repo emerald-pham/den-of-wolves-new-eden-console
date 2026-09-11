@@ -245,7 +245,10 @@ push, and CI boundaries. It may edit explanatory prose or completely register
 a future prompt, but it cannot remove or rewrite an existing prompt's status,
 change class, tag, dependency fields, or release mapping. Those mapping changes
 must remain in the non-documentation implementation commit that owns the
-prompt. Unrelated Markdown and README changes retain the fast exemption.
+prompt: a mixed code-and-authority commit may change only the canonical row
+named by its own final `Implementation-Prompt` trailer, and the normal catalog,
+readiness, and release gates still apply. Unrelated Markdown and README changes
+retain the fast exemption.
 
 Within one coordination entry, every non-documentation commit in its release
 range must bind to that entry's prompt. The only local transition exception is
@@ -255,6 +258,10 @@ source commit is the exact validated SHA of the completed preserved source
 entry. That exception is exact-commit-only, never ancestor-wide, and applies
 only to canonically non-feature prompts. Feature work must retain its own
 prompt entry and release gates instead of inheriting a non-feature closeout.
+An entirely documentation-only coordination entry may omit a prompt; its exact
+commit range still receives documentation-authority validation without a
+coordination-prompt equality requirement. A documentation entry that names a
+canonical prompt remains bound to that prompt and its canonical release class.
 
 ### Start
 

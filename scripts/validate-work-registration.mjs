@@ -334,17 +334,24 @@ function comparableDependencyMapping(row, dependency) {
   ].join('|');
 }
 
-function validateDocumentationAuthorityChange({
+function validateAuthorityMappingOwnership({
   files,
   current,
+  ownerPrompt,
+  documentationOnly,
   parentPlanSource,
   parentProgressSource,
   parentDependencySource,
   errors,
 }) {
+  const ownerLabel = documentationOnly
+    ? 'documentation-only commits'
+    : ownerPrompt
+      ? `Prompt ${ownerPrompt} commits`
+      : 'non-documentation commits without a valid prompt';
   if ([parentPlanSource, parentProgressSource, parentDependencySource]
     .some((source) => typeof source !== 'string')) {
-    errors.push('documentation-only canonical authority validation requires all parent authority sources');
+    errors.push(`${ownerLabel} must have all parent authority sources when changing canonical authority`);
     return;
   }
   const parentErrors = [];
@@ -368,9 +375,9 @@ function validateDocumentationAuthorityChange({
     ...current.dependency.rows.keys(),
   ]);
   const compare = (prompt, label, before, after) => {
-    if (before !== after) {
+    if (before !== after && ownerPrompt !== prompt) {
       errors.push(
-        `documentation-only commits cannot change canonical Prompt ${prompt} ${label} ` +
+        `${ownerLabel} cannot change canonical Prompt ${prompt} ${label} ` +
           `from ${String(before)} to ${String(after)}`,
       );
     }
@@ -381,7 +388,7 @@ function validateDocumentationAuthorityChange({
     const currentProgress = current.progress.get(prompt);
     const currentDependency = current.dependency.rows.get(prompt);
     if (!currentPlan || !currentChecklist || !currentProgress || !currentDependency) {
-      errors.push(`documentation-only commits cannot remove canonical Prompt ${prompt} authority mappings`);
+      errors.push(`${ownerLabel} cannot remove canonical Prompt ${prompt} authority mappings`);
       continue;
     }
     const parentPlan = parent.plan.definitions.get(prompt);
@@ -402,6 +409,11 @@ function validateDocumentationAuthorityChange({
   }
   for (const prompt of currentPrompts) {
     if (parentPrompts.has(prompt)) continue;
+    if (!documentationOnly && ownerPrompt !== prompt) {
+      errors.push(`${ownerLabel} cannot add canonical Prompt ${prompt} authority mappings`);
+      continue;
+    }
+    if (!documentationOnly) continue;
     validateNewPromptRegistration({
       prompt,
       files,
@@ -444,9 +456,11 @@ export function validateWorkRegistration({
   const catalog = parseCatalog({ planSource, progressSource, dependencySource }, errors);
   const { plan, progress, dependency } = catalog;
   if (documentationOnly) {
-    validateDocumentationAuthorityChange({
+    validateAuthorityMappingOwnership({
       files,
       current: catalog,
+      ownerPrompt: null,
+      documentationOnly: true,
       parentPlanSource,
       parentProgressSource,
       parentDependencySource,
@@ -477,6 +491,19 @@ export function validateWorkRegistration({
     .at(-1) ?? '';
   if (trailers.length === 1 && !/^Implementation-Prompt:\s*\S+\s*$/i.test(lastNonblankLine)) {
     errors.push('Implementation-Prompt trailer must be the final nonblank line of the commit message');
+  }
+
+  if (changesCanonicalAuthority) {
+    validateAuthorityMappingOwnership({
+      files,
+      current: catalog,
+      ownerPrompt: prompt,
+      documentationOnly: false,
+      parentPlanSource,
+      parentProgressSource,
+      parentDependencySource,
+      errors,
+    });
   }
 
   if (!prompt) {
