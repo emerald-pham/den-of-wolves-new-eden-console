@@ -53,6 +53,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { resumeSession } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function request(sessionId: string) {
   return {
@@ -150,6 +151,26 @@ it('defaults a legacy resume reply with no Press toggle to enabled', async () =>
   };
 
   expect(response.session.pressEnabled).toBe(true);
+});
+
+it('returns a typed setup error before seat writes for a malformed persisted mode', async () => {
+  prepareResume(
+    { status: 'open', holderUid: null },
+    {},
+    {
+      playerCount: 19,
+      expansion: 'base',
+      capybaraEnabled: true,
+      activeRoleIds: recommendedRoleIds(19),
+    },
+  );
+
+  await expect(resumeSession.run(request('s1'))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('clears stale Press authority on disabled resume while preserving dispatch history', async () => {

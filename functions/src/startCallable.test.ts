@@ -261,6 +261,32 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
   );
 });
 
+it('reports a typed setup error for a malformed persisted high-count mode before writes', async () => {
+  provisionProductionRoster(19);
+  mock.session = { ...mock.session, expansion: 'base' };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-malformed-mode', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/Stored setup configuration is invalid/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('records the same effective none mode used by the lock for a legacy base tuple', async () => {
+  provisionProductionRoster(8);
+  mock.session = { ...mock.session, capybaraEnabled: false };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-legacy-none', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    status: 'committed',
+    setupReceipt: expect.objectContaining({ mode: 'none' }),
+  });
+});
+
 it('durably upgrades a sole legacy singular GM lane while committing the start', async () => {
   mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } }];
 

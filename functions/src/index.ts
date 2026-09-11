@@ -1215,10 +1215,18 @@ function canonicalSetupForSession(
     universalArbourEnabled: session.get('universalArbourEnabled') === true,
     wolfCultEnabled: session.get('wolfCultEnabled') === true,
   };
-  const configuration = playerCountOverride === undefined
-    ? normalizePersistedSessionConfiguration(configurationInput)
-    : normalizeSessionConfiguration(configurationInput);
-  return canonicalSessionSetup(configuration, activeRoleIds);
+  try {
+    const configuration = playerCountOverride === undefined
+      ? normalizePersistedSessionConfiguration(configurationInput)
+      : normalizeSessionConfiguration(configurationInput);
+    return canonicalSessionSetup(configuration, activeRoleIds);
+  } catch {
+    throw commandError(
+      'failed-precondition',
+      'Stored setup configuration is invalid; refresh the session before retrying.',
+      'malformed-input',
+    );
+  }
 }
 
 /** Keep the selected vessel definition immutable as soon as casting begins. */
@@ -1314,8 +1322,8 @@ async function hydrateCanonicalSessionSetup(
   session: DocumentSnapshot,
 ): Promise<ReturnType<typeof canonicalSetupForSession>> {
   const activeRoleIds = sessionActiveRoleIds(session);
-  await reconcileStableSeats(tx, sessionId, activeRoleIds, activeRoleIds);
   const setup = canonicalSetupForSession(session, activeRoleIds);
+  await reconcileStableSeats(tx, sessionId, activeRoleIds, activeRoleIds);
   const storedSetup = session.get('setup');
   const hasSetup = typeof storedSetup === 'object' && storedSetup !== null &&
     Array.isArray(session.get('activeVesselIds'));
@@ -2081,10 +2089,7 @@ export const startGame = onCall<{
       playerCount,
       universalArbourEnabled: lockedSetup.universalArbourEnabled,
       wolfCultEnabled: lockedSetup.wolfCultEnabled,
-      mode: authority.session.get('expansion') === 'capybara' ||
-        authority.session.get('expansion') === 'none'
-        ? authority.session.get('expansion') as 'capybara' | 'none'
-        : 'base',
+      mode: vesselModeForConfiguration(lockedSetup),
       rosterIds: canonicalRosterIds,
       pressEligibility: {
         enabled: authority.session.get('pressEnabled') !== false,
@@ -2211,9 +2216,8 @@ export const setShipPreference = onCall<{
     if (replay) return replay;
     if (legacyEvent.exists) rejectLegacyEventReplay('preference');
     requireCastingWindow(session);
-    const activeVessels = configuredRoleIds(session)
-      .map((roleId) => roleShipId(roleId))
-      .filter((shipId): shipId is string => typeof shipId === 'string');
+    const lockedSetup = canonicalSetupForSession(session, configuredRoleIds(session));
+    const activeVessels = lockedSetup.activeVesselIds;
     if (!activeVessels.includes(preference.shipId)) {
       throw commandError('failed-precondition', 'That vessel is not active in this roster.', 'conflict');
     }
@@ -2289,6 +2293,7 @@ export const assignRole = onCall<{
       throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     }
     const activeRoleIds = configuredRoleIds(authority.session);
+    canonicalSetupForSession(authority.session, activeRoleIds);
     const assignments = players.docs.flatMap((member) => {
       const roleId = member.get('assignedRoleId');
       return typeof roleId === 'string' ? [{ uid: member.id, roleId }] : [];
@@ -2378,6 +2383,7 @@ export const releaseRole = onCall<{
     }
     const partnerSecret = partnerSecretRef ? await tx.get(partnerSecretRef) : undefined;
     requireCastingWindow(authority.session);
+    canonicalSetupForSession(authority.session, configuredRoleIds(authority.session));
     if (!isActivePlayer(target)) throw commandError('failed-precondition', 'That player is not eligible for casting.', 'conflict');
     const result = {
       sessionId: release.sessionId,
@@ -5327,9 +5333,14 @@ function roleShipId(roleId: unknown): string | undefined {
 
 function configuredRoleIds(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeRoleIds');
+  const storedPlayerCount = session.get('playerCount');
+  const fallbackPlayerCount = Number.isSafeInteger(storedPlayerCount) &&
+    (storedPlayerCount as number) >= 8 && (storedPlayerCount as number) <= 20
+    ? storedPlayerCount as number
+    : 18;
   const configured = Array.isArray(stored)
     ? ROLE_IDS.filter((roleId) => stored.includes(roleId))
-    : DEFAULT_ACTIVE_ROLE_IDS;
+    : recommendedRoleIds(fallbackPlayerCount);
   // Press is a separate product-extension station. It is never part of the
   // counted/core roster, even when a legacy session persisted the old role.
   return configured.filter((roleId) => roleId !== 'press-officer');
@@ -5343,7 +5354,7 @@ function sessionActiveRoleIds(session: DocumentSnapshot): readonly string[] {
   const playerCount = session.get('playerCount');
   return Number.isSafeInteger(playerCount) && playerCount >= 8 && playerCount <= 20
     ? recommendedRoleIds(playerCount)
-    : DEFAULT_ACTIVE_ROLE_IDS;
+    : recommendedRoleIds(18);
 }
 
 async function requireShipCounterAuthority(

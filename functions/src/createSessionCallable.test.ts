@@ -351,6 +351,33 @@ it('locks the effective vessel mode after casting begins without mutating setup'
   expect(mock.set).not.toHaveBeenCalled();
 });
 
+it('returns a typed setup error for a malformed persisted high-count mode', async () => {
+  const activeRoleIds = recommendedRoleIds(19);
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') {
+      return snapshot({
+        phase: 'casting', configurationLocked: false, setupRevision: 0,
+        playerCount: 19, chartId: 'A', expansion: 'base', turnLimit: 6,
+        dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
+      });
+    }
+    if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    return snapshot({}, false);
+  });
+
+  await expect(confirmSetup.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'malformed-persisted-mode',
+    expectedSetupRevision: 0, playerCount: 19, chartId: 'A', expansion: 'capybara', turnLimit: 6,
+    dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('replays a same-mode setup retry after casting without applying another write', async () => {
   const activeRoleIds = recommendedRoleIds(8);
   let storedReceipt: Record<string, unknown> | undefined;

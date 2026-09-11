@@ -32,6 +32,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import { assignRole, releaseRole, setShipPreference } from './index';
+import { recommendedRoleIds } from './roleConfiguration';
 
 function snapshot(
   fields: Record<string, unknown>,
@@ -115,6 +116,33 @@ it('rejects preferences for inactive vessels and after casting is locked', async
     sessionId: 's1', requestId: 'preference-2', shipId: 'aegis',
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('rejects a persisted mixed mode before casting mutations can write', async () => {
+  mock.session = {
+    ...mock.session,
+    phase: 'casting',
+    playerCount: 19,
+    expansion: 'base',
+    capybaraEnabled: true,
+    activeRoleIds: recommendedRoleIds(19),
+  };
+
+  await expect(setShipPreference.run(request({
+    sessionId: 's1', requestId: 'mixed-preference', shipId: 'dione',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  await expect(assignRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'mixed-assignment',
+    targetUid: 'u2', roleId: 'admiral',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    details: { commandError: 'malformed-input' },
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('rejects changed-payload and cross-action reuse of a casting receipt without mutating', async () => {
