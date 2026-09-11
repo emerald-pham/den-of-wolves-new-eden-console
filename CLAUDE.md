@@ -44,6 +44,10 @@ system. Keep the workflow proportionate to the risk of the change.
    a blocking defect in the accepted change. Record the reason for any such
    amendment in the task discussion.
 
+Keep unrelated agent-policy and workflow edits out of an in-flight feature
+release. Queue them for the next safe checkpoint unless the user explicitly
+requests them now or they directly unblock that release.
+
 Coordination is lightweight and optional. Use `npm run coordination:begin` and
 `npm run coordination:status` when a task needs an owner record, its branch and
 worktree, a prompt reference, or a shared resource reservation. Coordinate the
@@ -69,6 +73,14 @@ blockers, and intervenes at meaningful boundaries rather than requesting
 repeated status, duplicating investigation, or reviewing every tool result. Do
 not create expensive child coordinators or a mandatory Sol stage; do not create
 Sol children absent explicit user instruction. Sol is not a default child.
+
+Workers own task-specific documentation reading and code investigation. Beyond
+required agent instructions, the coordinator relies on concise worker findings,
+decisions needed, and evidence pointers; it does not duplicate their document
+reading. Inspect source material only to resolve a concrete decision or blocker.
+Do not interrupt an active owner or request a rebase solely for routine guidance
+updates; let the owner encounter them at its next normal update unless they
+materially affect the current work.
 
 One task owner carries a change through implementation, repairs, appropriate
 self-review and validation, merge, push, and deployment verification when
@@ -112,6 +124,11 @@ The normal path is:
    task. Rerun validation only when
    meaningful inputs changed, a check failed, or an unresolved concern remains.
 
+When dependencies permit, tasks may implement and run focused tests in parallel
+while an upstream release settles. Reconcile onto its settled result before
+finalizing release metadata and running final validation. Do not repeatedly run
+a full gate on a candidate already known to need another rebase.
+
 ## Testing and review
 
 Use the smallest test that proves the behavior. Security and authority changes
@@ -140,6 +157,14 @@ rendered Markdown, links, examples, and `git diff --check`; it does not need
 the application suite. `npm run coordination:docs` is the documentation
 validator when it is available. There is one final appropriate validation after
 review and reconciliation, not a ceremonial rerun of every matrix.
+
+Use existing cheap checks for affected contracts before pushing. After the
+planned web build, run `node scripts/check-bundle-size.mjs` when startup or lazy
+imports, web dependencies, or bundle configuration changed; reuse that build's
+output. When agent guidance changes, run
+`npx vitest run --project unit src/repositoryGuidance.test.ts`. These are targeted
+checks, not a reason to add another build, reviewer, enforcement mechanism, or
+full application-suite run for an instructions-only change.
 
 For every UI change, inspect the rendered result at narrow phone, wide desktop,
 and short landscape sizes. Check contrast, readable font sizes, spacing,
