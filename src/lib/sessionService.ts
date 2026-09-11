@@ -17,7 +17,7 @@ import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
 import {
   acceptCallableSessionAuthority,
-} from './firestore';
+} from './sessionSnapshotAuthority';
 import {
   captureSessionAuthority,
   hasFreshSessionAuthority,

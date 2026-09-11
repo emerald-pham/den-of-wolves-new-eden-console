@@ -3,7 +3,7 @@ import {
   sessionSnapshotAuthorityFor,
   sessionSnapshotAuthorityVersion,
   type SessionSnapshotAuthority,
-} from './firestore';
+} from './sessionSnapshotAuthority';
 
 export const FRESH_SERVER_AUTHORITY_MESSAGE =
   'Reconnect until the live session state returns before changing gameplay.';
