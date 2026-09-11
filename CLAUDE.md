@@ -1147,7 +1147,10 @@ tests/rules/      assertions against the emulator
   preservation destination or discard evidence are recorded.
 - [ ] If another active agent blocked merge, the exact branch was pushed and a
   direct, delivery-verified merge handoff was sent to that blocking task with
-  the branch, SHA, overlap, and complete post-blocker landing sequence.
+  the branch, SHA, overlap, and complete post-blocker landing sequence; the
+  structured pending handoff is registered on that blocker entry, whose `MERGE
+  OTHER BRANCHES` gate cannot close until the source commit is validated,
+  merged, and present on pushed `origin/main`.
 - [ ] Record completion time and retain the completed worktree and attached
   branch for 48 hours before cleanup; landed commits are pushed immediately,
   while discarded work does not require a push.
