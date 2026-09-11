@@ -2550,7 +2550,7 @@ function formatMergeHandoff(handoff) {
     : 'not recorded';
   return [
     `- [${text(handoff.status, 'pending')}] ${text(handoff.id, 'unknown')} — ${text(handoff.remoteRef, 'unknown ref')} @ ${text(handoff.sourceCommitSha, 'unknown SHA')}`,
-    `  blocker entry: ${text(handoff.blockerEntryId, 'unknown')} | destination task: ${text(handoff.destinationTaskId, 'unknown')}`,
+    `  source entry: ${text(handoff.sourceEntryId, 'unknown')} | blocker entry: ${text(handoff.blockerEntryId, 'unknown')} | destination task: ${text(handoff.destinationTaskId, 'unknown')}`,
     `  overlap: ${overlap}`,
     `  reason: ${text(handoff.blockerReason, 'not recorded')}`,
     `  remaining delta: ${text(handoff.remainingDelta, 'not recorded')}`,

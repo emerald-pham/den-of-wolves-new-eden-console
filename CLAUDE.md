@@ -812,7 +812,9 @@ npm run coordination:finish -- \
 The registry creates a structured pending handoff on the active blocker entry
 only after verifying the exact pushed ref SHA, same-repository identity, and the
 blocker's ownership of every named overlap. `coordination:status` exposes each
-pending record under `MERGE OTHER BRANCHES hard gate`.
+pending record under `MERGE OTHER BRANCHES hard gate`. Keep the named overlapping
+scopes and claims held by that entry through integration so a third agent cannot
+claim the same work between the original blocker and the queued merge.
 
 Instruct the blocking agent: after its original blocker work is finished, fetch
 the branch, reconcile it with current main, merge the exact source commit into

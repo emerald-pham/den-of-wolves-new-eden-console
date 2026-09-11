@@ -3386,6 +3386,7 @@ describe('local emulator coordination', () => {
     });
 
     expect(output).toContain('MERGE OTHER BRANCHES hard gate');
+    expect(output).toContain('source-entry');
     expect(output).toContain('blocking-entry');
     expect(output).toContain('01a-blocking-task');
     expect(output).toContain('origin/tooling/merge-handoff @ source-branch-sha');

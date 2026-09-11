@@ -131,7 +131,8 @@ Keep the exact blocker entry active. Blocked-agent preservation must pass
 `--handoff-reason`, `--handoff-overlap`, `--handoff-delta`, and
 `--handoff-delivery` to `coordination:finish`. The registry first verifies the
 exact pushed ref SHA, same-repository identity, and every named overlap, then
-creates a structured pending handoff on that blocker entry.
+creates a structured pending handoff on that blocker entry. Keep the named
+overlapping scopes and claims held by that entry through integration.
 
 `coordination:status` exposes each pending record under `MERGE OTHER BRANCHES
 hard gate`. Instruct the blocking agent: after its original blocker work is
