@@ -9,7 +9,8 @@ rules-faithful game loop. It does not authorize a broad rewrite or the
 creation of speculative controls. Numbered gameplay prompts select a bounded
 slice of this plan and implement the smallest rules-complete increment needed
 for that slice. `CLAUDE.md` governs proportional tests and workflow; ordinary
-tooling and maintenance work does not require a prompt or a red-first ritual.
+tooling and maintenance work does not require prompt registration and follows
+the proportional testing policy in `CLAUDE.md`.
 
 The plan is projected from the single machine-readable
 [prompt catalog](./implementation-prompts.json). Before selecting, assigning,
@@ -2105,54 +2106,14 @@ the coordination forecast shows conflict-free ownership. No worktree may
 bypass dependencies, active claims, or unresolved decision-owner gates merely
 because the prompt is independent.
 
-#### Implementation-plan agent authorization
+#### Implementation-plan agent policy
 
-When working on numbered prompts from this implementation plan, the product
-owner specifically authorizes the coordinator to assign implementation and
-tests to GPT-5.6 Luna (`gpt-5.6-luna`) agents at `max` reasoning, independent
-exact-HEAD review to GPT-5.6 Terra (`gpt-5.6-terra`) at `xhigh`, and
-reconciliation, validation, release, merge, push, deployment, and coordination
-closeout to GPT-5.6 Luna at `max`. Non-coding work, including reconnaissance,
-planning, documentation review, evidence collation, and read-only verification,
-may use the phase floor for its assigned role. If
-a Luna attempt fails, reassign that same agent role to GPT-5.6 Terra
-(`gpt-5.6-terra`) at `xhigh`; if a Terra attempt then fails, GPT-5.6 Sol
-(`gpt-5.6-sol`) is authorized for that same agent role only. The escalation tier
-belongs to the role and must never reset or downgrade when an agent, task, or
-worktree is replaced. Detect and stop any Luna/Terra loop rather than retrying
-at a lower tier or oscillating between tiers. Before dispatching Sol, explain
-in user-visible chat why that role needs Sol and that Sol is 10 times as
-expensive as Luna. The mandatory process for the blocking agent merge
-handoff is canonical in
-[`../CLAUDE.md#blocking-agent-merge-handoff`](../CLAUDE.md#blocking-agent-merge-handoff).
-
-This is an implementation-plan-scoped override of the routine `high`-reasoning
-default and primary-agent implementation/integration ownership in `CLAUDE.md`;
-it does not change the repository-wide default for unrelated work. GPT-5.3
-Codex Spark remains prohibited.
-
-Delegates working on a numbered prompt receive one bounded prompt or an
-inseparable, dependency-safe prompt slice with explicit Given/When/Then
-acceptance criteria and use their own worktree and short-lived branch. Each
-slice satisfies the applicable reference, authority, denial, retry, audit,
-accessibility, responsive-review, version, and standalone changelog contracts.
-The JSON prompt catalog is the current authority. A delegate may run `npm run
-coordination:dependencies -- --prompt NNN` as a read-only aid, then reconciles
-applicable prerequisites, evidence, current `main`, and optional coordination
-ownership. Rerun that read-only query after a rebase or material movement when
-the dependency context is needed; it creates no receipt. No prompt may be
-marked complete or merged while a hard prerequisite remains unmet.
-Use an independent Terra review for security/authorization, hidden information,
-randomness, destructive migrations, endgame, capacity, or complex conflict
-resolution, and when ordinary risk judgment calls for one. Do not create a
-review-only agent for every low-risk prompt. If review or release work changes
-code, rules, configuration, scripts, or tests, the agent must use `max`. A
-prompt may move to `done` only after its proof is current on the reconciled
-branch, every applicable executable gate passes, and the slice is merged to
-`main` with `origin/main` verified at that merge. If the task opened optional
-coordination, close that record when the task is terminal. No partial
-implementation, local-only result, unmerged green branch, or unchecked release
-obligation counts toward the campaign finish.
+For numbered prompts, [`CLAUDE.md`](../CLAUDE.md) is the sole authority for
+one-owner execution, proportional testing, risk-based independent review,
+model selection, reconciliation, and release. This plan adds no campaign-wide
+agent sequence, model floor, delegation count, or coordination-closeout rule.
+The JSON prompt catalog remains the current prompt authority; the optional
+read-only dependency query may inform a numbered task but creates no receipt.
 
 <!-- BEGIN GENERATED PROMPT CATALOG: plan -->
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
