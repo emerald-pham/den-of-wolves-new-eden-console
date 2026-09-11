@@ -942,6 +942,28 @@ it('stages one explicit optional loyalty mode and blocks Wolf Cult below two-Wol
   expect(screen.getByRole('button', { name: /turn wolf cult on/i })).toBeDisabled();
 });
 
+it('lets the facilitator clear Wolf Cult after a custom roster drops below two-Wolf rows', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
+  await user.selectOptions(playerCount, '14');
+  const cult = screen.getByRole('button', { name: /turn wolf cult on/i });
+  await user.click(cult);
+  const firstRoleSwitch = screen.getAllByRole('switch', { name: /role availability/i })[0];
+  if (!firstRoleSwitch) throw new Error('Expected an active role switch.');
+  await user.click(firstRoleSwitch);
+
+  const stagedCult = screen.getByRole('button', { name: /turn wolf cult off/i });
+  expect(stagedCult).toBeEnabled();
+  await user.click(stagedCult);
+  expect(stagedCult).toHaveAttribute('aria-pressed', 'false');
+});
+
 it('stages a correction when an older roster has an invalid Union replacement', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

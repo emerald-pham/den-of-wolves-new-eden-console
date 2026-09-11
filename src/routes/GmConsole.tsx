@@ -1387,7 +1387,7 @@ export default function GmConsole() {
                   type="button"
                   aria-label={`Turn Wolf Cult ${wolfCultEnabled ? 'off' : 'on'}`}
                   aria-pressed={wolfCultEnabled}
-                  disabled={confirmingRoster || rosterQueued || draftPlayerCount < 14}
+                  disabled={confirmingRoster || rosterQueued || (draftPlayerCount < 14 && !wolfCultEnabled)}
                   onClick={() => changeWolfCult(!wolfCultEnabled)}
                 >
                   Wolf Cult // {wolfCultEnabled ? 'Configured' : 'Off'}

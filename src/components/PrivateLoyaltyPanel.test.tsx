@@ -33,6 +33,17 @@ it('shows a Press holder card with its private partner pointer when present', ()
   expect(panel).toHaveTextContent('Partner assignment // press-partner-uid');
 });
 
+it.each([
+  ['universal-arbour', 'Universal Arbour'],
+  ['wolf-cult', 'Wolf Cult'],
+] as const)('uses the source name for the private %s card', (kind, label) => {
+  useSessionStore.getState().setPrivateLoyalty({ kind, suspicion: kind === 'wolf-cult' ? 15 : 10 });
+
+  render(<PrivateLoyaltyPanel />);
+
+  expect(screen.getByRole('region', { name: /private loyalty card/i })).toHaveTextContent(label);
+});
+
 it('renders no panel before the entitled secret hydrates', () => {
   render(<PrivateLoyaltyPanel />);
   expect(screen.queryByRole('region', { name: /private loyalty card/i })).not.toBeInTheDocument();

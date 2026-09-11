@@ -4,6 +4,8 @@ import type { PrivateLoyalty } from '@/types/game';
 const LOYALTY_LABELS: Readonly<Record<string, string>> = {
   'fleet-loyalist': 'Fleet Loyalist',
   'wolf-agent': 'Wolf Agent',
+  'universal-arbour': 'Universal Arbour',
+  'wolf-cult': 'Wolf Cult',
   friend: 'Friend',
   intelligence: 'Intelligence',
   arbour: 'Arbour',
