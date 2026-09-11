@@ -31,7 +31,8 @@ export type EntityId<K extends EntityKind> = string & {
 export type SessionId = EntityId<'session'>;
 export type PlayerId = EntityId<'player'>;
 export type SeatId = EntityId<'seat'>;
-export type RoleId = EntityId<'role'>;
+/** Role-keyed legacy seat documents are compared to roles during hydration. */
+export type RoleId = EntityId<'role'> | SeatId;
 export type VesselId = EntityId<'vessel'>;
 export type ConsoleId = EntityId<'console'>;
 export type ShuttleId = EntityId<'shuttle'>;
