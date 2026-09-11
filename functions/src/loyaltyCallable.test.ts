@@ -596,6 +596,40 @@ it('allows only the Android holder to disclose proof and makes the disclosure au
     expect.objectContaining({ path: 'sessions/s1/events/android-1' }),
     expect.objectContaining({ type: 'android-proof-disclosed', actorUid: 'u2' }),
   );
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/commandReceipts/android-1' }),
+    expect.objectContaining({
+      fingerprint: {
+        action: 'reveal-android-proof', sessionId: 's1', requestId: 'android-1', actorUid: 'u2',
+        instanceId: null, expectedRevision: null, payload: {},
+      },
+      result: { disclosed: true },
+    }),
+  );
+});
+
+it('does not replay Android proof after the holder secret is missing or stale', async () => {
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1/commandReceipts/android-stale') {
+      return snapshot({
+        fingerprint: {
+          action: 'reveal-android-proof', sessionId: 's1', requestId: 'android-stale', actorUid: 'u2',
+          instanceId: null, expectedRevision: null, payload: {},
+        },
+        result: { disclosed: true, privateDetail: 'prior secret result' },
+      }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(revealAndroidProof.run(request({
+    sessionId: 's1', requestId: 'android-stale',
+  }, 'u2'))).rejects.toMatchObject({
+    code: 'permission-denied',
+    message: expect.not.stringContaining('prior secret result'),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('denies proof disclosure when the private card is not Android', async () => {

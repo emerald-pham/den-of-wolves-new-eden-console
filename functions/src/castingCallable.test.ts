@@ -117,6 +117,49 @@ it('rejects preferences for inactive vessels and after casting is locked', async
   expect(mock.update).not.toHaveBeenCalled();
 });
 
+it('rejects changed-payload and cross-action reuse of a casting receipt without mutating', async () => {
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
+    if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);
+    if (ref.path === 'sessions/s1/players/u2') return snapshot(mock.target, ref.path);
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot(mock.instance, ref.path);
+    if (ref.path === 'sessions/s1/players') {
+      return { exists: true, docs: mock.players.map(({ id, fields }) => snapshot(fields, `sessions/s1/players/${id}`)) };
+    }
+    if (ref.path === 'sessions/s1/commandReceipts/preference-collision') {
+      return snapshot({
+        fingerprint: {
+          action: 'set-ship-preference', sessionId: 's1', requestId: 'preference-collision',
+          actorUid: 'u1', instanceId: null, expectedRevision: null,
+          payload: { shipId: 'icebreaker' },
+        },
+        result: { sessionId: 's1', setupRevision: 1 },
+      }, ref.path);
+    }
+    if (ref.path === 'sessions/s1/commandReceipts/cross-action') {
+      return snapshot({
+        fingerprint: {
+          action: 'set-ship-preference', sessionId: 's1', requestId: 'cross-action',
+          actorUid: 'u1', instanceId: null, expectedRevision: null,
+          payload: { shipId: 'icebreaker' },
+        },
+        result: { sessionId: 's1', setupRevision: 1 },
+      }, ref.path);
+    }
+    return snapshot({}, ref.path, false);
+  });
+
+  await expect(setShipPreference.run(request({
+    sessionId: 's1', requestId: 'preference-collision', shipId: 'aegis',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  await expect(assignRole.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'cross-action',
+    targetUid: 'u2', roleId: 'icebreaker-miner',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('assigns one active role through a facilitator instance and rejects duplicates', async () => {
   await expect(assignRole.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'assign-1',
@@ -158,8 +201,15 @@ it('releases a role and replays a completed release request', async () => {
 
   mock.update.mockClear();
   mock.get.mockImplementation(async (ref: { path: string }) => {
-    if (ref.path === 'sessions/s1/events/release-2') {
-      return snapshot({ result: { sessionId: 's1', setupRevision: 4 } }, ref.path);
+    if (ref.path === 'sessions/s1/commandReceipts/release-2') {
+      return snapshot({
+        fingerprint: {
+          action: 'release-role', sessionId: 's1', requestId: 'release-2',
+          actorUid: 'u1', instanceId: 'bridge', expectedRevision: null,
+          payload: { targetUid: 'u2' },
+        },
+        result: { sessionId: 's1', setupRevision: 4 },
+      }, ref.path);
     }
     if (ref.path === 'sessions/s1') return snapshot(mock.session, ref.path);
     if (ref.path === 'sessions/s1/players/u1') return snapshot(mock.actor, ref.path);

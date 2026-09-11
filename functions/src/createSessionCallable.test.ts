@@ -333,7 +333,7 @@ it('returns a safe stale receipt when setup revision changed before confirmation
   currentSetupRevision = 4;
   await expect(confirmSetup.run(command)).resolves.toEqual(staleReply);
   expect(mock.update).not.toHaveBeenCalled();
-  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledTimes(2);
   expect(mock.set.mock.calls.map(([ref]) => (ref as { path: string }).path))
     .not.toContain('sessions/s1/events/setup-confirm-setup-stale-receipt');
 });
@@ -401,15 +401,50 @@ it('replays the same session and join code for a retried request', async () => {
   const firstReply = await createSession.run(request({ requestId: 'retry-1' }));
   expect(storedRequest).toEqual(expect.objectContaining({
     sessionId: 'generated-session', requestId: 'retry-1',
+    fingerprint: expect.objectContaining({
+      action: 'create-session', sessionId: null, requestId: 'retry-1', actorUid: 'u1',
+      payload: expect.objectContaining({ name: 'New session', displayName: 'GM', playerCount: 18 }),
+    }),
     reply: firstReply,
   }));
   const writesAfterCreate = mock.set.mock.calls.length;
+  const randomDrawsAfterCreate = mock.randomInt.mock.calls.length;
 
   await expect(createSession.run(request({ requestId: 'retry-1' }))).resolves.toEqual(firstReply);
   expect(mock.set).toHaveBeenCalledTimes(writesAfterCreate);
+  expect(mock.randomInt).toHaveBeenCalledTimes(randomDrawsAfterCreate);
   expect(mock.set.mock.calls.filter(([ref]) =>
     (ref as { path: string }).path === 'sessions/generated-session/events/create-retry-1',
   )).toHaveLength(1);
+});
+
+it('rejects a changed creation payload under the same request id before another random draw', async () => {
+  const requestPath = 'sessionCreationRequests/u1_create-collision';
+  mock.get.mockImplementation(async (ref: { path: string }) => {
+    if (ref.path === requestPath) {
+      return snapshot({
+        fingerprint: {
+          action: 'create-session', sessionId: null, requestId: 'create-collision', actorUid: 'u1',
+          instanceId: null, expectedRevision: null,
+          payload: {
+            name: 'New session', displayName: 'GM', joinCodeLength: 4, playerCount: 8,
+            chartId: 'A', expansion: 'base', turnLimit: 8, dioneEnabled: false, capybaraEnabled: true,
+          },
+        },
+        reply: {
+          session: { id: 's1', joinCode: '1234' },
+          player: { uid: 'u1', sessionId: 's1' },
+        },
+      });
+    }
+    return snapshot({}, false);
+  });
+
+  await expect(createSession.run(request({
+    requestId: 'create-collision', playerCount: 9,
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('rejects a setup replay when the tuple payload changes under the same request id', async () => {

@@ -319,6 +319,8 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
       responsibilities: ['main', 'assistant'],
     });
+    expect(read('sessions/s1/events/gm-responsibility-responsibility-1')).not.toHaveProperty('fingerprint');
+    expect(read('sessions/s1/events/gm-responsibility-responsibility-1')).not.toHaveProperty('reply');
 
     await expect(setFacilitatorResponsibility.run(request({
       sessionId: 's1', instanceId: 'bridge', responsibility: 'main',

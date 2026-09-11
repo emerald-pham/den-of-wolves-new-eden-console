@@ -296,7 +296,18 @@ function stateSnapshot(excludedPaths: readonly string[] = []) {
     .map(([path, fields]) => [path, canonicalStateValue(fields)]));
 }
 
-async function composeProductionSession(playerCount: CompositionCount) {
+async function composeProductionSession(
+  playerCount: CompositionCount,
+  options: {
+    readonly afterSetup?: (context: {
+      readonly sessionId: string;
+      readonly ownerUid: string;
+      readonly instanceId: string;
+      readonly activeRoleIds: readonly string[];
+      readonly coreUids: readonly string[];
+    }) => Promise<void>;
+  } = {},
+) {
   const ownerUid = `gm-${playerCount}`;
   const created = await createSession.run(request({
     requestId: `create-${playerCount}`,
@@ -371,6 +382,13 @@ async function composeProductionSession(playerCount: CompositionCount) {
     setupRevision: number;
   };
   let setupRevision = confirmed.setupRevision;
+  await options.afterSetup?.({
+    sessionId,
+    ownerUid,
+    instanceId: `bridge-${playerCount}`,
+    activeRoleIds,
+    coreUids,
+  });
   for (const [index, roleId] of activeRoleIds.entries()) {
     const uid = coreUids[index]!;
     const assignment = await assignRole.run(request({
@@ -541,6 +559,20 @@ async function composeProductionSession(playerCount: CompositionCount) {
 describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
   beforeEach(() => mock.reset());
 
+  it('denies a role command that reuses the completed setup request id', async () => {
+    await expect(composeProductionSession(8, {
+      afterSetup: async ({ sessionId, ownerUid, instanceId, activeRoleIds, coreUids }) => {
+        await expect(assignRole.run(request({
+          sessionId,
+          instanceId,
+          requestId: 'confirm-8',
+          targetUid: coreUids[0]!,
+          roleId: activeRoleIds[0]!,
+        }, ownerUid))).rejects.toMatchObject({ code: 'failed-precondition' });
+      },
+    })).resolves.toMatchObject({ sessionId: expect.any(String) });
+  });
+
   it.each([
     [8, 1, 8, false],
     [19, 2, 19, false],
@@ -655,13 +687,18 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       expectedSetupRevision: 0,
     };
     const staleReceiptPath = `sessionStartRequests/${sessionId}_${staleRequest.requestId}`;
-    const beforeStale = stateSnapshot([staleReceiptPath]);
+    const staleMarkerPath = `sessions/${sessionId}/commandReceipts/${staleRequest.requestId}`;
+    const beforeStale = stateSnapshot([staleReceiptPath, staleMarkerPath]);
     const stale = await startGame.run(request(staleRequest, ownerUid));
     expect(stale).toMatchObject({ status: 'stale', currentSetupRevision: started.setupRevision });
-    expect(stateSnapshot([staleReceiptPath])).toBe(beforeStale);
+    expect(stateSnapshot([staleReceiptPath, staleMarkerPath])).toBe(beforeStale);
     expect(read(staleReceiptPath)).toMatchObject({
       requestId: staleRequest.requestId,
       reply: { status: 'stale', currentSetupRevision: started.setupRevision },
+    });
+    expect(read(staleMarkerPath)).toMatchObject({
+      fingerprint: expect.objectContaining({ action: 'start-game', requestId: staleRequest.requestId }),
+      result: { status: 'stale', currentSetupRevision: started.setupRevision },
     });
     expect(read(`sessions/${sessionId}`)).toMatchObject({ phase: 'active', currentTurn: 1 });
 

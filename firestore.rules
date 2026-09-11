@@ -96,6 +96,13 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Canonical command receipts bind retries to the action, actor, current
+      // authority instance, revision, and complete mutation payload. They can
+      // contain prior results and must never enter the member event stream.
+      match /commandReceipts/{requestId} {
+        allow read, write: if false;
+      }
+
       // Maintenance receipts are server-owned replay state and may contain
       // authoritative command details that are not part of the read model.
       match /maintenanceRequests/{requestId} {
