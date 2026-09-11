@@ -21,7 +21,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ["055"],
+    implementationPrompts: ['014'],
     implementationProgress: {
       completed: 95,
       total: 734,
@@ -32,8 +32,25 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 615,
     },
     changes: [
-      "Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
-      "Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.",
+      'Cached session state stays visibly stale until live server authority returns, so reconnection status reflects what the game can trust.',
+      'Gameplay controls wait for a current server snapshot before sending changes, preventing delayed session state from authorizing a mutation.',
+    ],
+  },
+  {
+    version: '0.3.28',
+    implementationPrompts: ['055'],
+    implementationProgress: {
+      completed: 94,
+      total: 734,
+      percentage: '12.81%',
+      done: 94,
+      partial: 25,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
+      'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
     ],
   },
   {

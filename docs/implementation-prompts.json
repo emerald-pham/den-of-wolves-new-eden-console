@@ -519,7 +519,7 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
@@ -535,7 +535,9 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.29"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
       "status": "done",
