@@ -201,6 +201,8 @@ export function configurationFixture(
     turnLimit: 8,
     dioneEnabled: false,
     capybaraEnabled: true,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
     setupRevision: 0,
     ...overrides,
   };

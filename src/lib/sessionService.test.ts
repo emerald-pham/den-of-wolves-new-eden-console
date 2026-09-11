@@ -68,6 +68,8 @@ const authorityService = await import('./sessionService') as unknown as {
     turnLimit: 6 | 7 | 8;
     dioneEnabled: boolean;
     capybaraEnabled: boolean;
+    universalArbourEnabled: boolean;
+    wolfCultEnabled: boolean;
     activeRoleIds: readonly string[];
   }) => Promise<unknown>;
   claimSeat: (seatId: string) => Promise<unknown>;
@@ -1987,6 +1989,8 @@ describe('authoritative setup and seating wrappers', () => {
     turnLimit: 6 as const,
     dioneEnabled: true,
     capybaraEnabled: false,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
     activeRoleIds: [
       'admiral', 'wing-commander', 'icebreaker-miner', 'shepherd-scientist',
       'quellon-explorer', 'refinery-124-pdf-colonel',
@@ -2044,6 +2048,8 @@ describe('authoritative setup and seating wrappers', () => {
       turnLimit: 7 as const,
       dioneEnabled: true,
       capybaraEnabled: true,
+      universalArbourEnabled: false,
+      wolfCultEnabled: false,
       activeRoleIds,
       activeVesselIds,
     };
@@ -2057,6 +2063,7 @@ describe('authoritative setup and seating wrappers', () => {
     await expect(authorityService.confirmSetup({
       playerCount: 19, chartId: 'B', expansion: 'capybara', turnLimit: 7,
       dioneEnabled: true, capybaraEnabled: true, activeRoleIds,
+      universalArbourEnabled: false, wolfCultEnabled: false,
     })).resolves.toBe('applied');
 
     expect(useSessionStore.getState().session).toMatchObject({

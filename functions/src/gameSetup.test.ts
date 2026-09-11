@@ -15,6 +15,7 @@ import {
   stableSeatsForRoles,
   ROLE_SEAT_METADATA,
   composeDefaultLoyaltyAssignments,
+  optionalLoyaltyAssignmentDecision,
   validateExplicitLoyaltySetup,
 } from './gameSetup';
 import { recommendedRoleIds, ROLE_IDS } from './roleConfiguration';
@@ -35,6 +36,8 @@ describe('authoritative setup configuration', () => {
       turnLimit: 7,
       dioneEnabled: true,
       capybaraEnabled: true,
+      universalArbourEnabled: false,
+      wolfCultEnabled: false,
     });
   });
 
@@ -82,6 +85,8 @@ describe('authoritative setup configuration', () => {
       turnLimit: 8,
       dioneEnabled: true,
       capybaraEnabled: true,
+      universalArbourEnabled: false,
+      wolfCultEnabled: false,
     });
   });
 
@@ -165,6 +170,31 @@ describe('casting and private setup policy', () => {
     expect(defaultSuspicionForLoyalty('android')).toEqual([]);
   });
 
+  it('keeps optional Arbour configurations explicit and mutually exclusive', () => {
+    expect(normalizeSessionConfiguration({ playerCount: 14 })).toMatchObject({
+      universalArbourEnabled: false,
+      wolfCultEnabled: false,
+    });
+    expect(normalizeSessionConfiguration({ playerCount: 14, universalArbourEnabled: true }))
+      .toMatchObject({ universalArbourEnabled: true, wolfCultEnabled: false });
+    expect(() => normalizeSessionConfiguration({ playerCount: 14, universalArbourEnabled: true, wolfCultEnabled: true }))
+      .toThrow(/alternative/i);
+    expect(() => normalizeSessionConfiguration({ playerCount: 13, wolfCultEnabled: true }))
+      .toThrow(/two-Wolf/i);
+  });
+
+  it('gates optional cards to the locked configuration', () => {
+    expect(optionalLoyaltyAssignmentDecision('universal-arbour', {
+      playerCount: 14, universalArbourEnabled: false, wolfCultEnabled: false,
+    })).toEqual({ allowed: false, reason: 'optional-disabled' });
+    expect(optionalLoyaltyAssignmentDecision('universal-arbour', {
+      playerCount: 14, universalArbourEnabled: true, wolfCultEnabled: false,
+    })).toEqual({ allowed: true });
+    expect(optionalLoyaltyAssignmentDecision('wolf-cult', {
+      playerCount: 13, universalArbourEnabled: false, wolfCultEnabled: true,
+    })).toEqual({ allowed: false, reason: 'wolf-cult-requires-two-wolves' });
+  });
+
   it('accepts only the printed suspicion value for each private loyalty kind', () => {
     expect(loyaltyAssignmentDecision('wolf-agent', 0)).toEqual({ allowed: true, suspicion: 0 });
     expect(loyaltyAssignmentDecision('intelligence-agent', 6)).toEqual({ allowed: true, suspicion: 6 });
@@ -227,6 +257,45 @@ describe('casting and private setup policy', () => {
       { ...holders[1]!, kind: 'intelligence-agent', suspicion: 6 },
       { ...holders[2]!, kind: 'intelligence-agent', suspicion: 6 },
     ])).toEqual({ valid: false, reason: 'conflicting' });
+  });
+
+  it('requires Universal Arbour or Wolf Cult assignments to match the enabled mode', () => {
+    const holders = [
+      { uid: 'u1', roleId: 'admiral' },
+      { uid: 'u2', roleId: 'wing-commander' },
+      { uid: 'u3', roleId: 'icebreaker-miner' },
+    ];
+    const universal = validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'universal-arbour', suspicion: 10 },
+      { ...holders[2]!, kind: 'fleet-loyalist', suspicion: 0 },
+    ], { playerCount: 13, universalArbourEnabled: true, wolfCultEnabled: false });
+    expect(universal).toMatchObject({ valid: true });
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'universal-arbour', suspicion: 10 },
+      { ...holders[2]!, kind: 'fleet-loyalist', suspicion: 0 },
+    ], { playerCount: 13, universalArbourEnabled: false, wolfCultEnabled: false }))
+      .toEqual({ valid: false, reason: 'optional-disabled' });
+  });
+
+  it('requires Wolf Cult to replace exactly the second Wolf Agent', () => {
+    const holders = [
+      { uid: 'u1', roleId: 'admiral' },
+      { uid: 'u2', roleId: 'wing-commander' },
+      { uid: 'u3', roleId: 'icebreaker-miner' },
+    ];
+    const configuration = { playerCount: 14, universalArbourEnabled: false, wolfCultEnabled: true } as const;
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'wolf-cult', suspicion: 15 },
+      { ...holders[2]!, kind: 'fleet-loyalist', suspicion: 0 },
+    ], configuration)).toMatchObject({ valid: true });
+    expect(validateExplicitLoyaltySetup(holders, [
+      { ...holders[0]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[1]!, kind: 'wolf-agent', suspicion: 0 },
+      { ...holders[2]!, kind: 'wolf-cult', suspicion: 15 },
+    ], configuration)).toEqual({ valid: false, reason: 'optional-conflicting' });
   });
 
   it('projects only a player\'s own brief and loyalty while facilitators receive the census', () => {

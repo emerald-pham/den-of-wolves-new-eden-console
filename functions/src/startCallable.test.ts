@@ -510,6 +510,78 @@ it('preserves a complete explicit loyalty setup without silently rerolling it', 
   expect(mock.set.mock.calls.some(([ref]) => ref.path.includes('/secrets/loyalty-'))).toBe(false);
 });
 
+it('requires explicit assignments when an optional loyalty mode is enabled', async () => {
+  provisionProductionRoster(19);
+  mock.session.universalArbourEnabled = true;
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-universal-missing', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/optional-conflicting/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('preserves Universal Arbour beside the printed two Wolf Agents', async () => {
+  provisionProductionRoster(19);
+  mock.session.universalArbourEnabled = true;
+  const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');
+  mock.secretDocs = corePlayers.map((player) => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(corePlayers.map((player, index) => [
+    `loyalty-${player.id}`,
+    {
+      type: 'loyalty',
+      kind: index < 2 ? 'wolf-agent' : index === 2 ? 'universal-arbour' : 'fleet-loyalist',
+      suspicion: index === 2 ? 10 : 0,
+    },
+  ]));
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-universal', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    setupReceipt: expect.objectContaining({
+      universalArbourEnabled: true,
+      wolfCultEnabled: false,
+      wolfCount: 2,
+      selectedWolfRoleIds: [...recommendedRoleIds(19).slice(0, 2)],
+      loyaltySource: 'explicit-preserved',
+    }),
+  });
+});
+
+it('uses Wolf Cult as the second Wolf without creating a third Wolf', async () => {
+  provisionProductionRoster(19);
+  mock.session.wolfCultEnabled = true;
+  const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');
+  mock.secretDocs = corePlayers.map((player) => `loyalty-${player.id}`);
+  mock.secretPayloads = Object.fromEntries(corePlayers.map((player, index) => [
+    `loyalty-${player.id}`,
+    {
+      type: 'loyalty',
+      kind: index === 0 ? 'wolf-agent' : index === 1 ? 'wolf-cult' : 'fleet-loyalist',
+      suspicion: index === 1 ? 15 : 0,
+    },
+  ]));
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-wolf-cult', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({
+    setupReceipt: expect.objectContaining({
+      universalArbourEnabled: false,
+      wolfCultEnabled: true,
+      wolfCount: 2,
+      selectedWolfRoleIds: [...recommendedRoleIds(19).slice(0, 2)],
+      loyaltySource: 'explicit-preserved',
+    }),
+  });
+  const wolfAssignment = mock.set.mock.calls.find(([ref]) => ref.path.endsWith('/secrets/wolf-assignment'))?.[1];
+  expect(wolfAssignment).toEqual(expect.objectContaining({
+    payload: { type: 'wolf-assignment', roleIds: [...recommendedRoleIds(19).slice(0, 2)] },
+  }));
+});
+
 it('rejects complete-looking loyalty records with a public audience or non-loyalty payload', async () => {
   provisionProductionRoster(8);
   const corePlayers = mock.playerDocs.filter((player) => player.fields.role === 'player');

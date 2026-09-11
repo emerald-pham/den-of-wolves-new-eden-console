@@ -54,6 +54,8 @@ export interface SetupConfirmationInput {
   readonly turnLimit: 6 | 7 | 8;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
+  readonly universalArbourEnabled: boolean;
+  readonly wolfCultEnabled: boolean;
   readonly activeRoleIds: readonly string[];
 }
 
@@ -70,6 +72,8 @@ export interface CreateSessionOptions {
   readonly turnLimit?: 6 | 7 | 8;
   readonly dioneEnabled?: boolean;
   readonly capybaraEnabled?: boolean;
+  readonly universalArbourEnabled?: boolean;
+  readonly wolfCultEnabled?: boolean;
 }
 
 const TERMINAL_RESUME_ERRORS = new Set([
@@ -115,6 +119,8 @@ function isCanonicalSessionSetup(value: unknown): value is NonNullable<GameSessi
     (setup.turnLimit === 6 || setup.turnLimit === 7 || setup.turnLimit === 8) &&
     typeof setup.dioneEnabled === 'boolean' &&
     typeof setup.capybaraEnabled === 'boolean' &&
+    (setup.universalArbourEnabled === undefined || typeof setup.universalArbourEnabled === 'boolean') &&
+    (setup.wolfCultEnabled === undefined || typeof setup.wolfCultEnabled === 'boolean') &&
     Array.isArray(setup.activeRoleIds) && setup.activeRoleIds.every((roleId) => typeof roleId === 'string') &&
     Array.isArray(setup.activeVesselIds) && setup.activeVesselIds.every((vesselId) => typeof vesselId === 'string')
   );
@@ -300,7 +306,13 @@ function applyCommandResult(
     typeof result === 'object' && result !== null
   ) {
     const reply = result as Record<string, unknown>;
-    const canonicalSetup = isCanonicalSessionSetup(reply.setup) ? reply.setup : null;
+    const canonicalSetup = isCanonicalSessionSetup(reply.setup)
+      ? {
+        ...reply.setup,
+        universalArbourEnabled: reply.setup.universalArbourEnabled === true,
+        wolfCultEnabled: reply.setup.wolfCultEnabled === true,
+      }
+      : null;
     const canonicalRoleIds = canonicalSetup?.activeRoleIds ?? (
       Array.isArray(reply.activeRoleIds)
         ? reply.activeRoleIds.filter((roleId): roleId is string => typeof roleId === 'string')
@@ -323,6 +335,8 @@ function applyCommandResult(
         turnLimit: canonicalSetup.turnLimit,
         dioneEnabled: canonicalSetup.dioneEnabled,
         capybaraEnabled: canonicalSetup.capybaraEnabled,
+        universalArbourEnabled: canonicalSetup.universalArbourEnabled === true,
+        wolfCultEnabled: canonicalSetup.wolfCultEnabled === true,
       } : {}),
       ...(canonicalRoleIds ? { activeRoleIds: canonicalRoleIds } : {}),
       ...(canonicalVesselIds ? { activeVesselIds: canonicalVesselIds } : {}),

@@ -59,6 +59,8 @@ export function requireSessionCreationRequest(data: {
   turnLimit?: unknown;
   dioneEnabled?: unknown;
   capybaraEnabled?: unknown;
+  universalArbourEnabled?: unknown;
+  wolfCultEnabled?: unknown;
   options?: unknown;
 }): { requestId: string; configuration: SessionConfiguration } {
   let configuration: SessionConfiguration;
@@ -854,6 +856,8 @@ export function requireSetupConfirmationRequest(data: {
   turnLimit?: unknown;
   dioneEnabled?: unknown;
   capybaraEnabled?: unknown;
+  universalArbourEnabled?: unknown;
+  wolfCultEnabled?: unknown;
   activeRoleIds?: unknown;
 }): {
   sessionId: string;

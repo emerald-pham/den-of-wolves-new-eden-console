@@ -162,6 +162,8 @@ export type PendingCommand = (
           readonly turnLimit: 6 | 7 | 8;
           readonly dioneEnabled: boolean;
           readonly capybaraEnabled: boolean;
+          readonly universalArbourEnabled: boolean;
+          readonly wolfCultEnabled: boolean;
           readonly activeRoleIds: readonly string[];
         };
       };

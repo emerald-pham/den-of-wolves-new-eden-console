@@ -215,6 +215,8 @@ export interface SessionSetup {
   readonly turnLimit: 6 | 7 | 8;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
+  readonly universalArbourEnabled: boolean;
+  readonly wolfCultEnabled: boolean;
   readonly activeRoleIds: readonly RoleId[];
   readonly activeVesselIds: readonly VesselId[];
 }
@@ -264,6 +266,9 @@ export interface GameSession {
   /** Configurable ship availability; absent legacy values are treated as enabled. */
   readonly capybaraEnabled?: boolean;
   readonly dioneEnabled?: boolean;
+  /** Public setup switches; loyalty assignments remain private. */
+  readonly universalArbourEnabled?: boolean;
+  readonly wolfCultEnabled?: boolean;
   /** Optional New Eden Console extension; absent legacy values are treated as enabled. */
   readonly pressEnabled?: boolean;
   /** Server-owned CAS revision for Press availability changes. */

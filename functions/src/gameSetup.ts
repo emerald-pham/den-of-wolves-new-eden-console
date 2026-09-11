@@ -28,6 +28,9 @@ export interface SessionConfiguration {
   readonly turnLimit: SessionTurnLimit;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
+  /** Optional loyalty variants are explicit setup choices and default off. */
+  readonly universalArbourEnabled: boolean;
+  readonly wolfCultEnabled: boolean;
 }
 
 /** The immutable setup tuple persisted alongside the legacy session fields. */
@@ -54,6 +57,8 @@ export const DEFAULT_SESSION_CONFIGURATION: SessionConfiguration = {
   turnLimit: 8,
   dioneEnabled: true,
   capybaraEnabled: true,
+  universalArbourEnabled: false,
+  wolfCultEnabled: false,
 };
 
 function isOneOf<T extends string | number>(value: unknown, values: readonly T[]): value is T {
@@ -124,6 +129,15 @@ export function normalizeSessionConfiguration(
     throw new Error('The Capybara expansion is available only for 19 or 20 players.');
   }
 
+  const universalArbourEnabled = booleanOption(input, 'universalArbourEnabled', false);
+  const wolfCultEnabled = booleanOption(input, 'wolfCultEnabled', false);
+  if (universalArbourEnabled && wolfCultEnabled) {
+    throw new Error('Universal Arbour and Wolf Cult are alternative loyalty configurations.');
+  }
+  if (wolfCultEnabled && wolfCountForPlayerCount(playerCount) !== 2) {
+    throw new Error('Wolf Cult requires the printed two-Wolf player count.');
+  }
+
   const options = input.options;
   if (options !== undefined) {
     if (!Array.isArray(options) || options.some((option) => typeof option !== 'string')) {
@@ -139,6 +153,8 @@ export function normalizeSessionConfiguration(
     turnLimit,
     dioneEnabled,
     capybaraEnabled,
+    universalArbourEnabled,
+    wolfCultEnabled,
   };
 }
 
@@ -205,13 +221,55 @@ export interface ExplicitLoyaltyRecord extends SetupHolder {
 
 export type ExplicitLoyaltyValidation =
   | { readonly valid: true; readonly assignments: Readonly<Record<string, SetupLoyalty>> }
-  | { readonly valid: false; readonly reason: 'partial' | 'conflicting' | 'malformed' | 'stale' };
+  | {
+    readonly valid: false;
+    readonly reason:
+      | 'partial'
+      | 'conflicting'
+      | 'malformed'
+      | 'stale'
+      | 'optional-disabled'
+      | 'optional-conflicting';
+  };
+
+export interface ExplicitLoyaltyConfiguration {
+  readonly playerCount: number;
+  readonly universalArbourEnabled?: boolean;
+  readonly wolfCultEnabled?: boolean;
+}
+
+/** Gate optional loyalty cards against the locked public setup tuple. */
+export function optionalLoyaltyAssignmentDecision(
+  kind: string,
+  configuration: ExplicitLoyaltyConfiguration,
+): { readonly allowed: true } | { readonly allowed: false; readonly reason: 'optional-disabled' | 'wolf-cult-requires-two-wolves' } {
+  if (kind === 'universal-arbour') {
+    return configuration.universalArbourEnabled === true
+      ? { allowed: true }
+      : { allowed: false, reason: 'optional-disabled' };
+  }
+  if (kind === 'wolf-cult') {
+    if (configuration.wolfCultEnabled !== true) {
+      return { allowed: false, reason: 'optional-disabled' };
+    }
+    return wolfCountForPlayerCount(configuration.playerCount) === 2
+      ? { allowed: true }
+      : { allowed: false, reason: 'wolf-cult-requires-two-wolves' };
+  }
+  return { allowed: true };
+}
 
 /** Validate a fully authored pre-start loyalty setup without exposing secrets. */
 export function validateExplicitLoyaltySetup(
   holders: readonly SetupHolder[],
   records: readonly ExplicitLoyaltyRecord[],
+  configuration?: ExplicitLoyaltyConfiguration,
 ): ExplicitLoyaltyValidation {
+  const setupConfiguration = configuration ?? {
+    playerCount: DEFAULT_SESSION_CONFIGURATION.playerCount,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
+  };
   const holderUids = new Set(holders.map((holder) => holder.uid));
   const holderByUid = new Map(holders.map((holder) => [holder.uid, holder]));
   if (records.length !== holders.length) return { valid: false, reason: 'partial' };
@@ -226,6 +284,8 @@ export function validateExplicitLoyaltySetup(
     if (!holder || holder.roleId !== record.roleId) return { valid: false, reason: 'stale' };
     const decision = loyaltyAssignmentDecision(record.kind, record.suspicion);
     if (!decision.allowed) return { valid: false, reason: 'malformed' };
+    const optionalDecision = optionalLoyaltyAssignmentDecision(record.kind, setupConfiguration);
+    if (!optionalDecision.allowed) return { valid: false, reason: optionalDecision.reason === 'optional-disabled' ? 'optional-disabled' : 'optional-conflicting' };
     if (record.kind === 'friend' &&
       (typeof record.partnerUid !== 'string' || record.partnerUid === record.uid || !holderUids.has(record.partnerUid))) {
       return { valid: false, reason: 'malformed' };
@@ -243,8 +303,18 @@ export function validateExplicitLoyaltySetup(
     }
   }
   const intelligenceAgentCount = records.filter((record) => record.kind === 'intelligence-agent').length;
-  const wolfCount = records.filter((record) => record.kind === 'wolf-agent').length;
-  if (intelligenceAgentCount > 1 || (intelligenceAgentCount === 1 && wolfCount < 1)) {
+  const universalArbourCount = records.filter((record) => record.kind === 'universal-arbour').length;
+  const wolfCultCount = records.filter((record) => record.kind === 'wolf-cult').length;
+  const wolfAgentCount = records.filter((record) => record.kind === 'wolf-agent').length;
+  const expectedWolfCount = wolfCountForPlayerCount(setupConfiguration.playerCount);
+  if (setupConfiguration.universalArbourEnabled === true && universalArbourCount !== 1) {
+    return { valid: false, reason: 'optional-conflicting' };
+  }
+  if (setupConfiguration.wolfCultEnabled === true &&
+    (wolfCultCount !== 1 || expectedWolfCount !== 2 || wolfAgentCount !== 1)) {
+    return { valid: false, reason: 'optional-conflicting' };
+  }
+  if (intelligenceAgentCount > 1 || (intelligenceAgentCount === 1 && wolfAgentCount + wolfCultCount < 1)) {
     return { valid: false, reason: 'conflicting' };
   }
   return { valid: true, assignments };

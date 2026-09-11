@@ -484,6 +484,42 @@ it('writes Android loyalty only to the target secret and leaves the assignment e
   expect(JSON.stringify(eventWrite)).not.toMatch(/u2|android|suspicion|partnerUid/);
 });
 
+it('denies optional loyalties when their public setup mode is disabled', async () => {
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'universal-disabled',
+    targetUid: 'u2', kind: 'universal-arbour', suspicion: 10,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/optional-disabled/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('allows Wolf Cult only in the explicit two-Wolf setup and keeps its card private', async () => {
+  mock.session = {
+    ...mock.session,
+    playerCount: 14,
+    universalArbourEnabled: false,
+    wolfCultEnabled: true,
+  };
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'wolf-cult-enabled',
+    targetUid: 'u2', kind: 'wolf-cult', suspicion: 15,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u2'] });
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/secrets/loyalty-u2' }),
+    expect.objectContaining({
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'wolf-cult', suspicion: 15 },
+    }),
+  );
+  const eventWrite = mock.set.mock.calls.find(([ref]) => ref.path === 'sessions/s1/events/wolf-cult-enabled')?.[1];
+  expect(eventWrite).not.toHaveProperty('assignedUids');
+  expect(eventWrite).not.toHaveProperty('result');
+  expect(JSON.stringify(eventWrite)).not.toMatch(/u2|suspicion/);
+});
+
 it('pairs Friends by writing reciprocal private records and rejects malformed suspicion', async () => {
   await expect(assignLoyalty.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'loyalty-2',

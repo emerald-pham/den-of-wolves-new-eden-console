@@ -265,6 +265,12 @@ export default function GmConsole() {
   const [draftDioneEnabled, setDraftDioneEnabled] = useState(
     () => session?.dioneEnabled !== false,
   );
+  const [draftUniversalArbourEnabled, setDraftUniversalArbourEnabled] = useState(
+    () => session?.universalArbourEnabled === true,
+  );
+  const [draftWolfCultEnabled, setDraftWolfCultEnabled] = useState(
+    () => session?.wolfCultEnabled === true,
+  );
   const [changingPress, setChangingPress] = useState(false);
   const [pendingPressEnabled, setPendingPressEnabled] = useState<boolean | null>(null);
   const [pressMutationState, setPressMutationState] = useState<
@@ -301,8 +307,12 @@ export default function GmConsole() {
   const previousServerRoleIds = useRef<readonly string[]>(serverRoleIds);
   const serverCapybaraEnabled = session?.capybaraEnabled !== false;
   const serverDioneEnabled = session?.dioneEnabled !== false;
+  const serverUniversalArbourEnabled = session?.universalArbourEnabled === true;
+  const serverWolfCultEnabled = session?.wolfCultEnabled === true;
   const capybaraEnabled = draftCapybaraEnabled;
   const dioneEnabled = draftDioneEnabled;
+  const universalArbourEnabled = draftUniversalArbourEnabled;
+  const wolfCultEnabled = draftWolfCultEnabled;
   const setupQueued = pendingCommands.some(
     (command) => command.kind === 'confirmSetup',
   );
@@ -340,6 +350,7 @@ export default function GmConsole() {
     (command) => command.kind === 'setDebriefMode',
   );
   const draftRecommendedPlayerCount = recommendedPlayerCountForRoleIds(draftRoleIds);
+  const draftPlayerCount = draftRecommendedPlayerCount ?? draftRoleIds.length;
   const hasUnconfirmedRosterChanges = !sameRoleConfiguration(draftRoleIds, serverRoleIds);
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
   const rosterQueued = setupQueued;
@@ -490,6 +501,14 @@ export default function GmConsole() {
   useEffect(() => {
     setDraftDioneEnabled(serverDioneEnabled);
   }, [serverDioneEnabled]);
+
+  useEffect(() => {
+    setDraftUniversalArbourEnabled(serverUniversalArbourEnabled);
+  }, [serverUniversalArbourEnabled]);
+
+  useEffect(() => {
+    setDraftWolfCultEnabled(serverWolfCultEnabled);
+  }, [serverWolfCultEnabled]);
 
   useEffect(() => {
     if (pendingPressEnabled === null) {
@@ -740,6 +759,16 @@ export default function GmConsole() {
     }
   }
 
+  function changeUniversalArbour(enabled: boolean): void {
+    setDraftUniversalArbourEnabled(enabled);
+    if (enabled) setDraftWolfCultEnabled(false);
+  }
+
+  function changeWolfCult(enabled: boolean): void {
+    setDraftWolfCultEnabled(enabled);
+    if (enabled) setDraftUniversalArbourEnabled(false);
+  }
+
   async function changePress(enabled: boolean): Promise<void> {
     setChangingPress(true);
     setPressMutationState('pending');
@@ -944,6 +973,7 @@ export default function GmConsole() {
 
   function chooseRecommendedRoster(playerCount: number): void {
     setDraftRoleIds(normalizeRoleDraft(recommendedRoleIds(playerCount)));
+    if (playerCount < 14) setDraftWolfCultEnabled(false);
     setRosterMutationState('idle');
     setRosterMutationMessage(null);
   }
@@ -982,6 +1012,8 @@ export default function GmConsole() {
         turnLimit: activeSession.setup?.turnLimit ?? activeSession.turnLimit ?? 6,
         dioneEnabled: playerCount >= 12 && draftDioneEnabled,
         capybaraEnabled: expansion === 'capybara' ? true : draftCapybaraEnabled,
+        universalArbourEnabled: draftUniversalArbourEnabled,
+        wolfCultEnabled: draftWolfCultEnabled,
         activeRoleIds: draftRoleIds,
       });
       if (disposition === 'stale') {
@@ -1340,6 +1372,32 @@ export default function GmConsole() {
                 >
                   Dione // {dioneQueued ? 'Change queued' : dioneEnabled ? 'In convoy' : 'Offline'}
                 </button>
+                <button
+                  className="gm-dradis__availability"
+                  type="button"
+                  aria-label={`Turn Universal Arbour ${universalArbourEnabled ? 'off' : 'on'}`}
+                  aria-pressed={universalArbourEnabled}
+                  disabled={confirmingRoster || rosterQueued}
+                  onClick={() => changeUniversalArbour(!universalArbourEnabled)}
+                >
+                  Universal Arbour // {universalArbourEnabled ? 'Configured' : 'Off'}
+                </button>
+                <button
+                  className="gm-dradis__availability"
+                  type="button"
+                  aria-label={`Turn Wolf Cult ${wolfCultEnabled ? 'off' : 'on'}`}
+                  aria-pressed={wolfCultEnabled}
+                  disabled={confirmingRoster || rosterQueued || draftPlayerCount < 14}
+                  onClick={() => changeWolfCult(!wolfCultEnabled)}
+                >
+                  Wolf Cult // {wolfCultEnabled ? 'Configured' : 'Off'}
+                </button>
+                <p className="gm-role-setup__note" role="status" aria-label="Optional loyalty configuration">
+                  Optional loyalty // {universalArbourEnabled ? 'Universal Arbour leader' : wolfCultEnabled ? 'Wolf Cult replaces the second Wolf Agent' : 'none'}.
+                  {draftPlayerCount < 14
+                    ? ' Wolf Cult requires the printed two-Wolf player count.'
+                    : ' Confirm setup locks this public choice; individual loyalty cards remain private.'}
+                </p>
                 <button
                   className="gm-dradis__availability"
                   type="button"

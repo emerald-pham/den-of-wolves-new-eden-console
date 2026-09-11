@@ -110,6 +110,7 @@ import {
   loyaltyAssignmentDecision,
   normalizeSessionConfiguration,
   normalizePersistedSessionConfiguration,
+  optionalLoyaltyAssignmentDecision,
   readinessForSetup,
   roleAssignmentDecision,
   stableSeatsForRoles,
@@ -787,6 +788,8 @@ export const createSession = onCall<{
   turnLimit?: unknown;
   dioneEnabled?: unknown;
   capybaraEnabled?: unknown;
+  universalArbourEnabled?: unknown;
+  wolfCultEnabled?: unknown;
   options?: unknown;
 }>(
   async (request) => {
@@ -814,6 +817,8 @@ export const createSession = onCall<{
         turnLimit: creation.configuration.turnLimit,
         dioneEnabled: creation.configuration.dioneEnabled,
         capybaraEnabled: creation.configuration.capybaraEnabled,
+        universalArbourEnabled: creation.configuration.universalArbourEnabled,
+        wolfCultEnabled: creation.configuration.wolfCultEnabled,
       },
     };
 
@@ -873,6 +878,8 @@ export const createSession = onCall<{
           turnLimit: creation.configuration.turnLimit,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          universalArbourEnabled: creation.configuration.universalArbourEnabled,
+          wolfCultEnabled: creation.configuration.wolfCultEnabled,
           setup,
           activeVesselIds: setup.activeVesselIds,
           pressEnabled: true,
@@ -973,6 +980,8 @@ export const createSession = onCall<{
           setupRevision: 0,
           capybaraEnabled: creation.configuration.capybaraEnabled,
           dioneEnabled: creation.configuration.dioneEnabled,
+          universalArbourEnabled: creation.configuration.universalArbourEnabled,
+          wolfCultEnabled: creation.configuration.wolfCultEnabled,
           setup,
           activeVesselIds: setup.activeVesselIds,
           pressEnabled: true,
@@ -1199,6 +1208,8 @@ function canonicalSetupForSession(
     turnLimit: session.get('turnLimit'),
     dioneEnabled: session.get('dioneEnabled') !== false && playerCount >= 12,
     capybaraEnabled: expansion !== 'none' && (playerCount >= 19 || session.get('capybaraEnabled') !== false),
+    universalArbourEnabled: session.get('universalArbourEnabled') === true,
+    wolfCultEnabled: session.get('wolfCultEnabled') === true,
   };
   const configuration = playerCountOverride === undefined
     ? normalizePersistedSessionConfiguration(configurationInput)
@@ -1305,6 +1316,8 @@ function setupWriteFields(setup: ReturnType<typeof canonicalSetupForSession>) {
     turnLimit: setup.turnLimit,
     dioneEnabled: setup.dioneEnabled,
     capybaraEnabled: setup.capybaraEnabled,
+    universalArbourEnabled: setup.universalArbourEnabled,
+    wolfCultEnabled: setup.wolfCultEnabled,
     activeRoleIds: [...setup.activeRoleIds],
     activeVesselIds: [...setup.activeVesselIds],
   };
@@ -1317,6 +1330,8 @@ type SetupCommandFingerprint = {
   readonly turnLimit: number;
   readonly dioneEnabled: boolean;
   readonly capybaraEnabled: boolean;
+  readonly universalArbourEnabled: boolean;
+  readonly wolfCultEnabled: boolean;
   readonly activeRoleIds: readonly string[];
   readonly expectedSetupRevision: number;
 };
@@ -1333,6 +1348,8 @@ function setupCommandFingerprint(
     turnLimit: configuration.turnLimit,
     dioneEnabled: configuration.dioneEnabled,
     capybaraEnabled: configuration.capybaraEnabled,
+    universalArbourEnabled: configuration.universalArbourEnabled,
+    wolfCultEnabled: configuration.wolfCultEnabled,
     activeRoleIds: [...activeRoleIds],
     expectedSetupRevision,
   };
@@ -1350,6 +1367,12 @@ function sameSetupCommandFingerprint(
     candidate.turnLimit === expected.turnLimit &&
     candidate.dioneEnabled === expected.dioneEnabled &&
     candidate.capybaraEnabled === expected.capybaraEnabled &&
+    (candidate.universalArbourEnabled === undefined
+      ? false
+      : candidate.universalArbourEnabled) === expected.universalArbourEnabled &&
+    (candidate.wolfCultEnabled === undefined
+      ? false
+      : candidate.wolfCultEnabled) === expected.wolfCultEnabled &&
     candidate.expectedSetupRevision === expected.expectedSetupRevision &&
     Array.isArray(candidate.activeRoleIds) &&
     candidate.activeRoleIds.length === expected.activeRoleIds.length &&
@@ -1377,6 +1400,8 @@ export const confirmSetup = onCall<{
   turnLimit?: unknown;
   dioneEnabled?: unknown;
   capybaraEnabled?: unknown;
+  universalArbourEnabled?: unknown;
+  wolfCultEnabled?: unknown;
   activeRoleIds?: unknown;
 }>(async (request) => {
   const uid = requireUid(request.auth);
@@ -1399,6 +1424,8 @@ export const confirmSetup = onCall<{
       turnLimit: command.configuration.turnLimit,
       dioneEnabled: command.configuration.dioneEnabled,
       capybaraEnabled: command.configuration.capybaraEnabled,
+      universalArbourEnabled: command.configuration.universalArbourEnabled,
+      wolfCultEnabled: command.configuration.wolfCultEnabled,
       activeRoleIds: command.activeRoleIds,
     },
   };
@@ -1871,6 +1898,7 @@ export const startGame = onCall<{
     const activeRoleIds = Array.isArray(persistedActiveRoleIds)
       ? configuredRoleIds(authority.session)
       : [];
+    const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
     const connectedPlayerDocs = players.docs.filter(isActivePlayer);
     const connectedPlayers = connectedPlayerDocs.map((player) => player.id);
     const activePressHolders = connectedPlayerDocs.filter(isAuthoritativePressHolder);
@@ -1925,9 +1953,7 @@ export const startGame = onCall<{
         responsibilities: normalizedResponsibilities(instance),
       };
     });
-    const playerCount = typeof authority.session.get('playerCount') === 'number'
-      ? authority.session.get('playerCount') as number
-      : coreAssignments.length;
+    const playerCount = lockedSetup.playerCount;
     const canonicalRosterIds = [...recommendedRoleIds(playerCount)];
     const configuredVesselIds = authority.session.get('activeVesselIds');
     const activeVesselIds = Array.isArray(configuredVesselIds)
@@ -1990,16 +2016,27 @@ export const startGame = onCall<{
     let loyaltyAssignments: Readonly<Record<string, { kind: LoyaltyKind; suspicion: number | null }>>;
     let selectedWolfRoleIds = [...routineWolf.selectedRoleIds];
     let loyaltySource: 'automatic-default' | 'explicit-preserved';
+    if (explicitRecords.length === 0 &&
+      (lockedSetup.universalArbourEnabled || lockedSetup.wolfCultEnabled)) {
+      throw commandError(
+        'failed-precondition',
+        'Start blocked: loyalties-optional-conflicting.',
+        'conflict',
+      );
+    }
     if (explicitRecords.length === 0) {
       loyaltyAssignments = composeDefaultLoyaltyAssignments(holders, routineWolf.selectedRoleIds, randomInt);
       loyaltySource = 'automatic-default';
     } else {
-      const validation = validateExplicitLoyaltySetup(holders, explicitRecords);
+      const validation = validateExplicitLoyaltySetup(holders, explicitRecords, lockedSetup);
       if (!validation.valid) {
         throw commandError('failed-precondition', `Start blocked: loyalties-${validation.reason}.`, 'conflict');
       }
       const explicitWolfRoles = holders
-        .filter((holder) => validation.assignments[holder.uid]?.kind === 'wolf-agent')
+        .filter((holder) => {
+          const kind = validation.assignments[holder.uid]?.kind;
+          return kind === 'wolf-agent' || kind === 'wolf-cult';
+        })
         .map((holder) => holder.roleId);
       if (explicitWolfRoles.length !== routineWolf.wolfCount) {
         throw commandError('failed-precondition', 'Start blocked: loyalties-conflicting-wolf-count.', 'conflict');
@@ -2019,6 +2056,8 @@ export const startGame = onCall<{
     const setupReceipt = {
       source: 'routine-start',
       playerCount,
+      universalArbourEnabled: lockedSetup.universalArbourEnabled,
+      wolfCultEnabled: lockedSetup.wolfCultEnabled,
       mode: authority.session.get('expansion') === 'capybara' ||
         authority.session.get('expansion') === 'none'
         ? authority.session.get('expansion') as 'capybara' | 'none'
@@ -2640,6 +2679,15 @@ export const assignLoyalty = onCall<{
     if (!decision.allowed) {
       throw new HttpsError('invalid-argument', `Loyalty assignment rejected: ${decision.reason}.`);
     }
+    const lockedSetup = canonicalSetupForSession(authority.session, activeRoleIds);
+    const optionalDecision = optionalLoyaltyAssignmentDecision(kind, lockedSetup);
+    if (!optionalDecision.allowed) {
+      throw commandError(
+        'failed-precondition',
+        `Loyalty assignment rejected: ${optionalDecision.reason}.`,
+        'conflict',
+      );
+    }
     if (kind === 'friend' && !assignment.partnerUid) {
       throw new HttpsError('invalid-argument', 'Friend loyalty requires a private partner.');
     }
@@ -2692,7 +2740,8 @@ export const assignLoyalty = onCall<{
         .map((secret) => canonicalLoyaltySecret(secret, playerDocuments, activeRoleIds))
         .filter((record): record is CanonicalLoyaltySecret => record !== null)
         .filter((record) => !replacedUids.has(record.uid));
-      const wolfCount = validSecrets.filter((record) => record.kind === 'wolf-agent').length;
+      const wolfCount = validSecrets.filter((record) =>
+        record.kind === 'wolf-agent' || record.kind === 'wolf-cult').length;
       const intelligenceAgentCount = validSecrets
         .filter((record) => record.kind === 'intelligence-agent').length;
       if (wolfCount < 1) {

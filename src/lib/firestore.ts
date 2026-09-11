@@ -337,6 +337,8 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
     !(['base', 'capybara', 'none'] as readonly string[]).includes(String(expansion)) ||
     !([6, 7, 8] as readonly number[]).includes(Number(turnLimit)) ||
     typeof raw.dioneEnabled !== 'boolean' || typeof raw.capybaraEnabled !== 'boolean' ||
+    (raw.universalArbourEnabled !== undefined && typeof raw.universalArbourEnabled !== 'boolean') ||
+    (raw.wolfCultEnabled !== undefined && typeof raw.wolfCultEnabled !== 'boolean') ||
     !parsedRoleIds || !parsedVesselIds
   ) return undefined;
   return {
@@ -346,6 +348,8 @@ function sessionSetup(value: unknown): SessionSetup | undefined {
     turnLimit: turnLimit as SessionSetup['turnLimit'],
     dioneEnabled: raw.dioneEnabled,
     capybaraEnabled: raw.capybaraEnabled,
+    universalArbourEnabled: raw.universalArbourEnabled === true,
+    wolfCultEnabled: raw.wolfCultEnabled === true,
     activeRoleIds: parsedRoleIds,
     activeVesselIds: parsedVesselIds,
   };
@@ -429,6 +433,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
+    universalArbourEnabled: data.universalArbourEnabled === true,
+    wolfCultEnabled: data.wolfCultEnabled === true,
     pressEnabled: data.pressEnabled !== false,
     pressAvailabilityRevision:
       Number.isSafeInteger(data.pressAvailabilityRevision) && data.pressAvailabilityRevision >= 0

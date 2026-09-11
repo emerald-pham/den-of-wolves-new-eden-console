@@ -915,6 +915,33 @@ it('keeps roster edits local until the GM confirms one complete configuration', 
   await waitFor(() => expect(screen.getByText(/roster synchronized/i)).toBeInTheDocument());
 });
 
+it('stages one explicit optional loyalty mode and blocks Wolf Cult below two-Wolf rows', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(confirmSetup).mockResolvedValue('applied');
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  const playerCount = screen.getByRole('combobox', { name: /^recommended player count$/i });
+  await user.selectOptions(playerCount, '14');
+  const arbour = screen.getByRole('button', { name: /turn universal arbour on/i });
+  const cult = screen.getByRole('button', { name: /turn wolf cult on/i });
+  await user.click(arbour);
+  expect(arbour).toHaveAttribute('aria-pressed', 'true');
+  await user.click(cult);
+  expect(cult).toHaveAttribute('aria-pressed', 'true');
+  expect(arbour).toHaveAttribute('aria-pressed', 'false');
+  await user.click(screen.getByRole('button', { name: /confirm roster/i }));
+  expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({
+    universalArbourEnabled: false,
+    wolfCultEnabled: true,
+  }));
+
+  await user.selectOptions(playerCount, '13');
+  expect(screen.getByRole('button', { name: /turn wolf cult on/i })).toBeDisabled();
+});
+
 it('stages a correction when an older roster has an invalid Union replacement', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;
@@ -951,6 +978,8 @@ it('submits the staged player count and expansion for an already configured sess
     turnLimit: 7,
     dioneEnabled: false,
     capybaraEnabled: true,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
     activeRoleIds: currentRoleIds,
     setupRevision: 12,
     setup: {
@@ -960,6 +989,8 @@ it('submits the staged player count and expansion for an already configured sess
       turnLimit: 7,
       dioneEnabled: false,
       capybaraEnabled: true,
+      universalArbourEnabled: false,
+      wolfCultEnabled: false,
       activeRoleIds: currentRoleIds,
       activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
     },
@@ -983,6 +1014,8 @@ it('submits the staged player count and expansion for an already configured sess
     turnLimit: 7,
     dioneEnabled: false,
     capybaraEnabled: true,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
     activeRoleIds: recommendedRoleIds(19),
   });
 });
@@ -1598,6 +1631,8 @@ it('shows one-GM dual responsibility lanes and confirms the whole setup tuple', 
     turnLimit: 6 as const,
     dioneEnabled: false,
     capybaraEnabled: false,
+    universalArbourEnabled: false,
+    wolfCultEnabled: false,
     activeRoleIds,
     activeVesselIds: ['aegis', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
   };

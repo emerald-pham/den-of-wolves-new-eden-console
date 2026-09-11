@@ -85,6 +85,8 @@ describe('callable request guards', () => {
         turnLimit: 7,
         dioneEnabled: true,
         capybaraEnabled: true,
+        universalArbourEnabled: false,
+        wolfCultEnabled: false,
       },
     });
     expectHttpsError(() => requireSessionCreationRequest({
