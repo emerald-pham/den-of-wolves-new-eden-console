@@ -519,14 +519,14 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "cached state is visibly stale, may aid rendering, and cannot authorize a mutation or overwrite newer authority.",
         "title": "Define stale-snapshot semantics."
       },
-      "description": "Revision fields/parsing exist; universal stale-mutation semantics remain open.",
+      "description": "Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale or late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -535,10 +535,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.29"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

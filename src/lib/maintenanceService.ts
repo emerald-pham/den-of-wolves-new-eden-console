@@ -1,6 +1,7 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
+import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 
 export interface MaintenanceChoices {
   readonly foodLevel?: number;
@@ -86,8 +87,9 @@ export async function runMaintenance(
   consoleRoleId?: string,
   requestId?: string,
 ): Promise<unknown> {
-  const { session, gmInstance, connection } = useSessionStore.getState();
-  if (!session || connection !== 'live') throw new Error('Reconnect before running maintenance.');
+  const { session, gmInstance } = useSessionStore.getState();
+  if (!session) throw new Error('Reconnect before running maintenance.');
+  requireFreshSessionAuthority();
   const expectedAttempt = {
     sessionId: session.id,
     instanceId: gmInstance?.id ?? null,
@@ -125,10 +127,11 @@ export async function rollbackMaintenance(
   expectedRevision: number,
   requestId?: string,
 ): Promise<unknown> {
-  const { session, me, gmInstance, connection } = useSessionStore.getState();
-  if (!session || me?.role !== 'gm' || !gmInstance || connection !== 'live') {
+  const { session, me, gmInstance } = useSessionStore.getState();
+  if (!session || me?.role !== 'gm' || !gmInstance) {
     throw new Error('A connected GM instance is required to roll back maintenance.');
   }
+  requireFreshSessionAuthority();
   const expectedAttempt = {
     sessionId: session.id,
     instanceId: gmInstance.id,

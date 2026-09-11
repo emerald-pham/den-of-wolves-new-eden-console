@@ -15,6 +15,16 @@ import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
 import { normalizeShuttleManifest } from '@/data/shuttles';
 import { normalizePressDispatch } from './pressDispatchState';
+import {
+  acceptCallableSessionAuthority,
+} from './firestore';
+import {
+  captureSessionAuthority,
+  hasFreshSessionAuthority,
+  isCurrentSessionAuthority,
+  requireFreshSessionAuthority,
+  type SessionAuthorityCheckpoint,
+} from './sessionMutationAuthority';
 import { turnPhaseState } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
 
@@ -166,6 +176,52 @@ function queue(command: PendingCommand): void {
   useSessionStore.getState().enqueueCommand(command);
 }
 
+/** Keep session-service call sites explicit about their authority checkpoint. */
+function sessionAuthorityCheckpoint(
+  sessionId: string,
+  uid: string | undefined,
+): SessionAuthorityCheckpoint | undefined {
+  return captureSessionAuthority(sessionId, uid);
+}
+
+function sessionAuthorityUid(store: {
+  readonly me: Player | null;
+  readonly gmInstance: GmInstance | null;
+}): string | undefined {
+  return store.me?.uid ?? store.gmInstance?.uid ?? auth().currentUser?.uid;
+}
+
+function commandAuthorityCheckpoint(
+  command: PendingCommand,
+  store: { readonly me: Player | null; readonly gmInstance: GmInstance | null },
+): SessionAuthorityCheckpoint | undefined {
+  const sessionId = (command.payload as { readonly sessionId?: unknown }).sessionId;
+  return typeof sessionId === 'string'
+    ? sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store))
+    : undefined;
+}
+
+/** Partial callable replies must not patch over a newer accepted snapshot. */
+function authorityCheckpointIsCurrent(
+  checkpoint: SessionAuthorityCheckpoint | undefined,
+  allowConnecting = false,
+): boolean {
+  return isCurrentSessionAuthority(checkpoint, allowConnecting);
+}
+
+function isCleanupCommand(command: PendingCommand): boolean {
+  return command.kind === 'disconnectFromSession' || command.kind === 'logoutGmAccess';
+}
+
+/**
+ * Only a mutation that began from accepted server state may survive a transient
+ * transport failure. Older persisted commands intentionally have no marker and
+ * are discarded during reconnect rather than gaining authority from a cache.
+ */
+function queueFromServerAuthority(command: PendingCommand): void {
+  queue({ ...command, queuedWithServerAuthority: true });
+}
+
 function isRevisionedAuthorityCommand(command: PendingCommand): boolean {
   return command.kind === 'confirmSetup' ||
     command.kind === 'setFacilitatorResponsibility' ||
@@ -204,7 +260,13 @@ async function executeCommand(command: PendingCommand): Promise<unknown> {
   return reply.data;
 }
 
-function applyCommandResult(command: PendingCommand, result: unknown): void {
+function applyCommandResult(
+  command: PendingCommand,
+  result: unknown,
+  checkpoint?: SessionAuthorityCheckpoint,
+  allowConnecting = false,
+): void {
+  if (!isCleanupCommand(command) && !authorityCheckpointIsCurrent(checkpoint, allowConnecting)) return;
   const store = useSessionStore.getState();
   if (command.kind === 'logoutGmAccess') {
     store.clearGmAccess();
@@ -233,7 +295,6 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
     store.setMode(null);
     store.setLastRoute('/roles');
   }
-  if (command.kind === 'disconnectFromSession') store.disconnect();
   if (
     command.kind === 'confirmSetup' &&
     store.session?.id === command.payload.sessionId &&
@@ -417,19 +478,24 @@ function applyCommandResult(command: PendingCommand, result: unknown): void {
 
 async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition> {
   const store = useSessionStore.getState();
+  const cleanupCommand = isCleanupCommand(command);
+  if (!cleanupCommand) requireFreshSessionAuthority();
   if (!window.navigator.onLine || store.connection === 'offline') {
     queue(command);
     store.setConnection('offline');
     return 'queued';
   }
   try {
+    const checkpoint = cleanupCommand
+      ? undefined
+      : commandAuthorityCheckpoint(command, store);
     await ensureSignedIn();
     const result = await executeCommand(command);
     if (isStaleAuthorityReply(command, result)) {
       recordStaleAuthorityReply();
       return 'stale';
     }
-    applyCommandResult(command, result);
+    applyCommandResult(command, result, checkpoint);
     if (
       command.kind === 'popShipConfetti' && typeof result === 'object' && result !== null &&
       'status' in result && result.status === 'awaiting-officer'
@@ -437,7 +503,8 @@ async function sendOrQueue(command: PendingCommand): Promise<CommandDisposition>
     return 'applied';
   } catch (cause) {
     if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) {
-      queue(command);
+      if (cleanupCommand) queue(command);
+      else queueFromServerAuthority(command);
       store.setConnection('offline');
       return 'queued';
     }
@@ -460,10 +527,21 @@ async function flushPendingCommands(): Promise<boolean> {
       });
       continue;
     }
+    if (
+      !isCleanupCommand(command) &&
+      (command.queuedWithServerAuthority !== true || store.sessionSnapshotFreshness !== 'server')
+    ) {
+      store.removeCommand(command.id);
+      recordStaleAuthorityReply();
+      continue;
+    }
     try {
+      const checkpoint = isCleanupCommand(command)
+        ? undefined
+        : commandAuthorityCheckpoint(command, store);
       const result = await executeCommand(command);
       if (isStaleAuthorityReply(command, result)) recordStaleAuthorityReply();
-      else applyCommandResult(command, result);
+      else applyCommandResult(command, result, checkpoint, true);
       store.removeCommand(command.id);
     } catch (cause) {
       if (TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) return false;
@@ -474,14 +552,13 @@ async function flushPendingCommands(): Promise<boolean> {
   return true;
 }
 
-function applySession(reply: SessionReply, expectedSessionId?: string): boolean {
+function applySession(reply: SessionReply, expectedDisplayedSessionId: string | null): boolean {
   const store = useSessionStore.getState();
+  const displayedSessionId = store.session?.id ?? null;
   if (
     reply.player.sessionId !== reply.session.id ||
-    (expectedSessionId !== undefined && (
-      store.session?.id !== expectedSessionId ||
-      reply.session.id !== expectedSessionId
-    ))
+    displayedSessionId !== expectedDisplayedSessionId ||
+    (expectedDisplayedSessionId !== null && reply.session.id !== expectedDisplayedSessionId)
   ) return false;
   const shuttleManifest = normalizeShuttleManifest(
     reply.session.shuttleDockings,
@@ -489,7 +566,7 @@ function applySession(reply: SessionReply, expectedSessionId?: string): boolean 
     reply.session.activeRoleIds,
     reply.session.playerCount,
   );
-  store.setIdentity({
+  const acceptedSession: GameSession = {
     ...reply.session,
     shuttleDockings: shuttleManifest.dockings,
     shuttleVisitLog: shuttleManifest.visits,
@@ -502,7 +579,15 @@ function applySession(reply: SessionReply, expectedSessionId?: string): boolean 
     ...(reply.session.pressDispatch === undefined
       ? {}
       : { pressDispatch: normalizePressDispatch(reply.session.pressDispatch) }),
-  }, reply.player);
+  };
+  const acceptedByAuthority = acceptCallableSessionAuthority(acceptedSession, reply.player.uid);
+  if (acceptedByAuthority) {
+    store.setIdentity(acceptedSession, reply.player);
+    // A resume/join reply is server authority, unlike the persisted snapshot it
+    // replaces. A reply rejected by the shared authority cursor must not
+    // promote cached state or make an older queued mutation eligible.
+    store.setSessionSnapshotFreshness('server');
+  }
   return true;
 }
 
@@ -532,6 +617,11 @@ export async function connect(): Promise<void> {
     await ensureSignedIn();
     const rememberedSession = store.session;
     if (rememberedSession) {
+      // The persisted projection is useful for the first render, but every
+      // reconnect starts stale until this attempt accepts a server reply.
+      // Clearing the previous `server` marker prevents a rejected stale reply
+      // from inheriting authority from an earlier connection.
+      store.setSessionSnapshotFreshness('cache');
       try {
         const resumed = await resumeSession(rememberedSession.id);
         if (!resumed && useSessionStore.getState().session?.id === rememberedSession.id) {
@@ -553,14 +643,29 @@ export async function connect(): Promise<void> {
         if (!TRANSIENT_COMMAND_ERRORS.has(errorCode(cause) ?? '')) throw cause;
       }
     }
-    store.setConnection('live');
+    // A cached snapshot may have marked the local state offline while the
+    // resume request was in flight. Only the still-connecting path may be
+    // promoted here; an accepted server snapshot owns the live transition.
+    const latest = useSessionStore.getState();
+    if (latest.connection === 'connecting') {
+      // A remembered session may still be visible from cache when a callable
+      // reply is rejected by the shared authority cursor. Keep that state
+      // renderable, but never promote it to live authority on the way out of
+      // connect(). A session-less landing page has no snapshot to authorize.
+      if (latest.session && latest.sessionSnapshotFreshness !== 'server') {
+        latest.setConnection('offline');
+      } else {
+        latest.setConnection('live');
+      }
+    }
   } catch {
     store.setConnection('offline');
   }
 }
 
 export async function createSession(name?: string, options: CreateSessionOptions = {}): Promise<void> {
-  if (useSessionStore.getState().session) {
+  const expectedDisplayedSessionId = useSessionStore.getState().session?.id ?? null;
+  if (expectedDisplayedSessionId !== null) {
     throw new Error('Disconnect from the current session first.');
   }
   await ensureSignedIn();
@@ -578,13 +683,14 @@ export async function createSession(name?: string, options: CreateSessionOptions
     requestId: commandId(),
     ...options,
   });
-  applySession(reply.data);
+  applySession(reply.data, expectedDisplayedSessionId);
 }
 
 async function sendCounterChange(
   name: 'adjustShipResource' | 'adjustShipUnrest' | 'dismissUnrestAlert' | 'adjustShipPopulation' | 'dismissPopulationAlert',
   payload: Record<string, string | number | undefined>,
 ): Promise<void> {
+  requireFreshSessionAuthority();
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, unknown>(functions(), name);
@@ -624,7 +730,12 @@ export async function applyShipCounterSteps(
   if (!store.session || !store.gmInstance) {
     throw new Error('An active GM instance is required.');
   }
+  requireFreshSessionAuthority();
   const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(
+    sessionId,
+    sessionAuthorityUid(store),
+  );
   const payload = {
     sessionId,
     instanceId: store.gmInstance.id,
@@ -640,7 +751,7 @@ export async function applyShipCounterSteps(
     if (!reply) throw new Error('The server returned an invalid counter amount.');
 
     const current = useSessionStore.getState().session;
-    if (!current || current.id !== sessionId) return reply;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint)) return reply;
     if (target.counter === 'resource') {
       const inventory = current.shipResources?.[shipId];
       if (!inventory) return reply;
@@ -725,13 +836,14 @@ export async function dismissPopulationAlert(shipId: string): Promise<void> {
 }
 
 export async function joinSession(joinCode: string): Promise<void> {
+  const expectedDisplayedSessionId = useSessionStore.getState().session?.id ?? null;
   await ensureSignedIn();
   const call = httpsCallable<{ joinCode: string }, SessionReply>(
     functions(),
     'joinSession',
   );
   const reply = await call({ joinCode });
-  applySession(reply.data);
+  applySession(reply.data, expectedDisplayedSessionId);
 }
 
 export async function resumeSession(sessionId: string): Promise<boolean> {
@@ -911,7 +1023,15 @@ export async function getSessionPresence(): Promise<{ connectedPlayers: number }
 export async function refreshPresence(activeConsoleRoleId?: string | null): Promise<void> {
   const store = useSessionStore.getState();
   const session = store.session;
-  if (!session || !window.navigator.onLine || store.connection === 'offline') return;
+  if (!session) return;
+  // A periodic heartbeat may safely stop while authority is stale. Explicit
+  // console-role claims/releases must fail so callers cannot update local role
+  // state as though the server accepted a cache-authorized mutation.
+  if (activeConsoleRoleId === undefined) {
+    if (!hasFreshSessionAuthority()) return;
+  } else {
+    requireFreshSessionAuthority();
+  }
   await ensureSignedIn();
   const call = httpsCallable<{
     sessionId: string; activeConsoleRoleId?: string | null;
@@ -925,10 +1045,16 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
 }
 
 export async function selectConsoleRole(roleId: string): Promise<void> {
+  const before = useSessionStore.getState();
+  const checkpoint = before.session
+    ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
+    : undefined;
   try {
     await refreshPresence(roleId);
     const store = useSessionStore.getState();
-    if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: roleId });
+    if (store.me && authorityCheckpointIsCurrent(checkpoint)) {
+      store.setMe({ ...store.me, activeConsoleRoleId: roleId });
+    }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
@@ -936,17 +1062,27 @@ export async function selectConsoleRole(roleId: string): Promise<void> {
 }
 
 export async function releaseConsoleRole(): Promise<void> {
+  const before = useSessionStore.getState();
+  const checkpoint = before.session
+    ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
+    : undefined;
   await refreshPresence(null);
   const store = useSessionStore.getState();
+  if (!authorityCheckpointIsCurrent(checkpoint)) return;
   if (store.me) store.setMe({ ...store.me, activeConsoleRoleId: null });
   store.setMode('console');
   store.setLastRoute('/console');
 }
 
 export async function reconcileGmAuthority(): Promise<void> {
-  const remembered = useSessionStore.getState().gmInstance;
+  const before = useSessionStore.getState();
+  const remembered = before.gmInstance;
   if (!remembered) return;
+  const checkpoint = before.session
+    ? sessionAuthorityCheckpoint(before.session.id, sessionAuthorityUid(before))
+    : undefined;
   const instances = await listGmInstances();
+  if (!authorityCheckpointIsCurrent(checkpoint, true)) return;
   if (!instances.some((instance) => instance.id === remembered.id)) {
     useSessionStore.getState().setGmInstance(null);
     useSessionStore.getState().setMode(null);
@@ -1075,12 +1211,17 @@ export async function moveShipToLocation(
   if (!store.session || !store.gmInstance) {
     throw new Error('Claim GM before moving a ship.');
   }
+  requireFreshSessionAuthority();
   const payload = {
     sessionId: store.session.id,
     instanceId: store.gmInstance.id,
     shipId,
     destination,
   };
+  const checkpoint = sessionAuthorityCheckpoint(
+    payload.sessionId,
+    sessionAuthorityUid(store),
+  );
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, ShipNavigationMoveReply>(
@@ -1089,7 +1230,7 @@ export async function moveShipToLocation(
     );
     const reply = (await call(payload)).data;
     const current = useSessionStore.getState().session;
-    if (current?.id === payload.sessionId) {
+    if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({
         ...current,
         shipGalacticCoordinates: {
@@ -1114,12 +1255,14 @@ export async function setShipConsoleLock(
   if (!store.session || !store.me) {
     throw new Error('Join a session before changing the ICN console lock.');
   }
+  requireFreshSessionAuthority();
   const payload = {
     sessionId: store.session.id,
     shipId,
     locked,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
   };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, { shipId: string; locked: boolean }>(
@@ -1128,7 +1271,7 @@ export async function setShipConsoleLock(
     );
     const reply = (await call(payload)).data;
     const current = useSessionStore.getState().session;
-    if (current?.id === payload.sessionId) {
+    if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({
         ...current,
         shipConsoleLocks: {
@@ -1161,18 +1304,20 @@ export interface JumpShipReply {
 export async function jumpShip(shipId: string, destination: string): Promise<JumpShipReply> {
   const store = useSessionStore.getState();
   if (!store.session || !store.me) throw new Error('Join a session before jumping.');
+  requireFreshSessionAuthority();
   const payload = {
     sessionId: store.session.id,
     shipId,
     destination,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
   };
+  const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, JumpShipReply>(functions(), 'jumpShip');
     const reply = (await call(payload)).data;
     const current = useSessionStore.getState().session;
-    if (current?.id === payload.sessionId) {
+    if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       const nextSession: GameSession = {
         ...current,
         ...(reply.status === 'jumped' ? {
@@ -1272,10 +1417,11 @@ export interface StartGameOptions {
 export async function startGame(options: StartGameOptions = {}): Promise<StartGameReply> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before starting the game.');
-  if (store.connection !== 'live') throw new Error('Reconnect before starting the game.');
+  requireFreshSessionAuthority('Reconnect before starting the game.');
   await ensureSignedIn();
   const sessionId = store.session.id;
   const instanceId = store.gmInstance.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
   const revision = expectedSetupRevision(store.session);
   const requestId = options.requestId ?? (
     sameStartAttempt(pendingStartRequest, sessionId, instanceId, revision)
@@ -1307,9 +1453,10 @@ export async function startGame(options: StartGameOptions = {}): Promise<StartGa
       pendingStartRequest = null;
     }
     if (reply.status === 'stale') return reply;
-    applyTurnAdvanceReply(store.session.id, reply, false);
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    applyTurnAdvanceReply(store.session.id, reply, false, checkpoint);
     const current = useSessionStore.getState().session;
-    if (current?.id === store.session.id) {
+    if (current?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({
         ...current,
         phase: 'active',
@@ -1341,6 +1488,7 @@ function applyTurnAdvanceReply(
   sessionId: string,
   reply: TurnAdvanceReply,
   skipTurnStartAnnouncement: boolean,
+  checkpoint: SessionAuthorityCheckpoint | undefined,
 ): void {
   const activeSession = useSessionStore.getState().session;
   const announcement = reply.turnStartAnnouncement;
@@ -1351,7 +1499,7 @@ function applyTurnAdvanceReply(
   const phaseClock = turnPhaseState(reply.turnPhase);
   if (
     activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
-    reply.currentTurn < 0
+    reply.currentTurn < 0 || !authorityCheckpointIsCurrent(checkpoint)
   ) return;
   const nextSession = {
     ...activeSession,
@@ -1378,8 +1526,13 @@ export async function advanceTurn({
 } = {}): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
+  requireFreshSessionAuthority();
   await ensureSignedIn();
   const expectedTurn = store.session.currentTurn ?? 1;
+  const checkpoint = sessionAuthorityCheckpoint(
+    store.session.id,
+    sessionAuthorityUid(store),
+  );
   const call = httpsCallable<
     {
       sessionId: string;
@@ -1398,7 +1551,7 @@ export async function advanceTurn({
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
       ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),
     });
-    applyTurnAdvanceReply(store.session.id, reply.data, skipTurnStartAnnouncement);
+    applyTurnAdvanceReply(store.session.id, reply.data, skipTurnStartAnnouncement, checkpoint);
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
@@ -1409,10 +1562,11 @@ export async function advanceTurn({
 export async function startSinglePlayerDemo(): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session) throw new Error('Join a session before starting the demo.');
-  if (store.connection !== 'live') throw new Error('Reconnect before starting the demo.');
+  requireFreshSessionAuthority('Reconnect before starting the demo.');
   if (store.session.currentTurn !== 0) {
     throw new Error('The single-player demo is only available from Turn 0.');
   }
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<{ sessionId: string }, TurnAdvanceReply>(
     functions(),
@@ -1420,7 +1574,7 @@ export async function startSinglePlayerDemo(): Promise<void> {
   );
   try {
     const reply = await call({ sessionId: store.session.id });
-    applyTurnAdvanceReply(store.session.id, reply.data, false);
+    applyTurnAdvanceReply(store.session.id, reply.data, false, checkpoint);
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;
@@ -1447,6 +1601,8 @@ export async function replayTurnStartAnnouncement(audience: TurnStartReplayAudie
     return;
   }
 
+  requireFreshSessionAuthority();
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; instanceId: string },
@@ -1459,7 +1615,11 @@ export async function replayTurnStartAnnouncement(audience: TurnStartReplayAudie
     });
     const announcement = reply.data.turnStartAnnouncement;
     const activeSession = useSessionStore.getState().session;
-    if (activeSession?.id === store.session.id && isTurnStartAnnouncement(announcement)) {
+    if (
+      activeSession?.id === store.session.id &&
+      isTurnStartAnnouncement(announcement) &&
+      authorityCheckpointIsCurrent(checkpoint)
+    ) {
       useSessionStore.getState().setSession({
         ...activeSession,
         turnStartAnnouncement: announcement,
@@ -1474,8 +1634,9 @@ export async function replayTurnStartAnnouncement(audience: TurnStartReplayAudie
 /** Let any connected player synchronize the server-owned handoff into coordination. */
 export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void> {
   const store = useSessionStore.getState();
-  if (!store.session || store.connection !== 'live') return;
+  if (!store.session || !hasFreshSessionAuthority()) return;
   if (store.session.currentTurn !== expectedTurn) return;
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; expectedTurn: number },
@@ -1485,7 +1646,7 @@ export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void
     const reply = await call({ sessionId: store.session.id, expectedTurn });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
     const activeSession = useSessionStore.getState().session;
-    if (phaseClock && activeSession?.id === store.session.id) {
+    if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
     }
   } catch (cause) {
@@ -1510,9 +1671,11 @@ export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void
 /** Add one server-authorized five-minute increment to the active airspace window. */
 export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance || store.connection !== 'live') {
+  if (!store.session || !store.gmInstance) {
     throw new Error('Reconnect and claim GM before extending airspace time.');
   }
+  requireFreshSessionAuthority('Reconnect and claim GM before extending airspace time.');
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; instanceId: string; expectedTurn: number; window: AirspaceWindow },
@@ -1527,7 +1690,7 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
     });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
     const activeSession = useSessionStore.getState().session;
-    if (phaseClock && activeSession?.id === store.session.id) {
+    if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
     }
   } catch (cause) {
@@ -1539,9 +1702,11 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
 /** GM-only, live-only emergency interlock; a pause must never wait in an outbox. */
 export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
   const store = useSessionStore.getState();
-  if (!store.session || !store.gmInstance || store.connection !== 'live') {
+  if (!store.session || !store.gmInstance) {
     throw new Error('Reconnect and claim GM before changing the emergency timer.');
   }
+  requireFreshSessionAuthority('Reconnect and claim GM before changing the emergency timer.');
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const payload = {
     sessionId: store.session.id,
@@ -1557,7 +1722,7 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
     const reply = await call(payload);
     const phaseClock = turnPhaseState(reply.data.turnPhase);
     const activeSession = useSessionStore.getState().session;
-    if (phaseClock && activeSession?.id === payload.sessionId) {
+    if (phaseClock && activeSession?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
     }
   } catch (cause) {
@@ -1571,6 +1736,8 @@ export async function triggerDradisContact(): Promise<void> {
   if (!store.session || !store.gmInstance) {
     throw new Error('Claim GM before triggering a DRADIS contact.');
   }
+  requireFreshSessionAuthority();
+  const checkpoint = sessionAuthorityCheckpoint(store.session.id, sessionAuthorityUid(store));
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; instanceId: string },
@@ -1581,7 +1748,12 @@ export async function triggerDradisContact(): Promise<void> {
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
     });
-    store.setSession({ ...store.session, dradisContactTriggeredAt: reply.data.triggeredAt });
+    if (authorityCheckpointIsCurrent(checkpoint)) {
+      useSessionStore.getState().setSession({
+        ...useSessionStore.getState().session!,
+        dradisContactTriggeredAt: reply.data.triggeredAt,
+      });
+    }
   } catch (cause) {
     store.setCommunicationError(interception(cause));
     throw cause;

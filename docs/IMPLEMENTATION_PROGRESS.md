@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**94 / 734 prompts complete (12.81%)**
+**95 / 734 prompts complete (12.94%)**
 
-Status breakdown: **94 done · 25 partial · 615 missing**.
+Status breakdown: **95 done · 24 partial · 615 missing**.
 
 Active prompt: **none**
 
@@ -423,7 +423,7 @@ release classification and evidence.
 | 011 | done | non-feature | — | `functions/src/joinCodeSecurity.ts` exports immutable `JOIN_CODE_POLICY` for legacy/current lengths, digits-only format, session-until-retirement lifetime, non-enumerating lookup, and transactional `joinCodes` collision ownership. `joinCodeSecurity.test.ts`, `joinSessionCallable.test.ts`, `createSessionCallable.test.ts`, and `sessionLifecycleCallable.test.ts` prove the contract, malformed-input boundary, both code formats, duplicate-code skip, and retirement deletion; focused run: 4 files, 29 tests passed. |
 | 012 | partial | non-feature | — | Selected callables replay results; no universal command matrix yet. |
 | 013 | done | non-feature | — | `turnZero.ts`, `sessionLifecycle.ts`, and server timestamp paths. |
-| 014 | partial | non-feature | — | Revision fields/parsing exist; universal stale-mutation semantics remain open. |
+| 014 | done | feature | 0.3.29 | Shared session-authority cursors preserve visibly stale cached rendering while rejecting stale or late callable, listener, queued, and secondary-projection results from authorizing mutations or overwriting newer authority. |
 | 015 | partial | feature | 0.3.5 | Callable error codes are tested, but no centralized taxonomy yet. |
 | 016 | done | non-feature | — | Resume/lifecycle tests and rules identity boundary. |
 | 017 | partial | non-feature | — | Stable string IDs exist; unified typed IDs for all entities remain open. |

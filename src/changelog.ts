@@ -21,19 +21,35 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ["055"],
+    implementationPrompts: ['014'],
+    implementationProgress: {
+      completed: 95,
+      total: 734,
+      percentage: "12.94%",
+      done: 95,
+      partial: 24,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Offline session details remain visible, while controls wait for a live connection so delayed updates cannot undo newer changes.',
+    ],
+  },
+  {
+    version: '0.3.28',
+    implementationPrompts: ['055'],
     implementationProgress: {
       completed: 94,
       total: 734,
-      percentage: "12.81%",
+      percentage: '12.81%',
       done: 94,
       partial: 25,
       active: 0,
       missing: 615,
     },
     changes: [
-      "Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.",
-      "Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.",
+      'Facilitators can assign the optional Intelligence Agent only while a valid Wolf remains, with private setup preserved through release and retry.',
+      'Stale loyalty secrets no longer survive role release, and setup replay rejects actor or payload collisions without exposing hidden loyalties.',
     ],
   },
   {

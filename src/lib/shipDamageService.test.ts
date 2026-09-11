@@ -5,9 +5,10 @@ vi.mock('firebase/functions', () => ({ httpsCallable: mocks.callable }));
 vi.mock('./firebase', () => ({ functions: () => 'functions' }));
 import { assignShipDamage } from './shipDamageService';
 beforeEach(() => {
-  mocks.call.mockReset(); mocks.callable.mockReturnValue(mocks.call);
+  mocks.call.mockReset(); mocks.callable.mockReset(); mocks.callable.mockReturnValue(mocks.call);
   useSessionStore.getState().reset();
   useSessionStore.setState({ connection: 'live',
+    sessionSnapshotFreshness: 'server',
     session: { id: 's1', name: 'Fleet', joinCode: '1234', phase: 'active', ownerUid: 'u1', createdAt: '', updatedAt: '' },
     me: { uid: 'u1', sessionId: 's1', displayName: 'GM', role: 'gm', seatId: null, joinedAt: '' },
     gmInstance: { id: 'gm1', uid: 'u1', sessionId: 's1', name: 'GM', deviceLabel: '', claimedAt: '' },
@@ -34,6 +35,11 @@ it('rejects offline or non-GM assignments', async () => {
   useSessionStore.setState({ connection: 'live', gmInstance: null });
   await expect(assignShipDamage('aegis')).rejects.toThrow();
   expect(mocks.call).not.toHaveBeenCalled();
+});
+it('rejects damage commands authorized only by a cached session', async () => {
+  useSessionStore.getState().setSessionSnapshotFreshness('cache');
+  await expect(assignShipDamage('aegis')).rejects.toThrow(/live session state/i);
+  expect(mocks.callable).not.toHaveBeenCalled();
 });
 it('requests GM repair through its callable', async () => {
   const { repairAllShipDamage } = await import('./shipDamageService');

@@ -16,7 +16,7 @@ export const SESSION_STORAGE_KEY = 'dow-new-eden-session';
 export const GM_ACCESS_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export type ConsoleMode = 'gm' | 'console' | 'press';
 
-export type PendingCommand =
+export type PendingCommand = (
   | {
       readonly id: string;
       readonly kind: 'claimGmInstance';
@@ -213,7 +213,11 @@ export type PendingCommand =
         readonly roleId: string;
       };
       readonly createdAt: string;
-    };
+    }
+) & {
+  /** Present only when the original action had accepted server authority. */
+  readonly queuedWithServerAuthority?: true;
+};
 
 export interface CommunicationError {
   readonly code: string;
@@ -241,6 +245,7 @@ interface SessionState {
   mode: ConsoleMode | null;
   lastRoute: string | null;
   connection: 'idle' | 'connecting' | 'live' | 'offline';
+  sessionSnapshotFreshness: 'unknown' | 'cache' | 'server';
 
   setSession: (session: GameSession | null) => void;
   setIdentity: (session: GameSession, me: Player) => void;
@@ -258,6 +263,7 @@ interface SessionState {
   setMode: (mode: ConsoleMode | null) => void;
   setLastRoute: (lastRoute: string | null) => void;
   setConnection: (connection: SessionState['connection']) => void;
+  setSessionSnapshotFreshness: (freshness: SessionState['sessionSnapshotFreshness']) => void;
   disconnect: () => void;
   reset: () => void;
 }
@@ -276,10 +282,12 @@ const initial = {
   mode: null,
   lastRoute: null,
   connection: 'idle',
+  sessionSnapshotFreshness: 'unknown',
 } satisfies Pick<
   SessionState,
   'session' | 'seats' | 'me' | 'gmInstance' | 'gmAccessAuthenticatedAt' | 'turnStartReplay' | 'pendingCommands' |
-  'privateLoyalty' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection'
+  'privateLoyalty' | 'gmSetupReceipt' | 'communicationError' | 'mode' | 'lastRoute' | 'connection' |
+  'sessionSnapshotFreshness'
 >;
 
 function normalizePersistedSession(session: GameSession | null | undefined): GameSession | null {
@@ -323,6 +331,11 @@ export const useSessionStore = create<SessionState>()(
       setMode: (mode) => set({ mode }),
       setLastRoute: (lastRoute) => { if (get().lastRoute !== lastRoute) set({ lastRoute }); },
       setConnection: (connection) => { if (get().connection !== connection) set({ connection }); },
+      setSessionSnapshotFreshness: (sessionSnapshotFreshness) => {
+        if (get().sessionSnapshotFreshness !== sessionSnapshotFreshness) {
+          set({ sessionSnapshotFreshness });
+        }
+      },
       disconnect: () =>
         set((state) => ({
           session: null,
@@ -334,6 +347,7 @@ export const useSessionStore = create<SessionState>()(
           gmSetupReceipt: null,
           mode: null,
           lastRoute: null,
+          sessionSnapshotFreshness: 'unknown',
           // Queued disconnect and logout commands must survive local teardown
           // so the server can receive the user's explicit cleanup decision.
           pendingCommands: state.pendingCommands.filter(

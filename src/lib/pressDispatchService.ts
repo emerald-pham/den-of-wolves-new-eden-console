@@ -2,12 +2,14 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { normalizePressDispatch } from './pressDispatchState';
+import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 
 function activeSession(): { sessionId: string; revision: number } {
-  const { session, connection } = useSessionStore.getState();
-  if (!session || connection !== 'live') {
+  const { session } = useSessionStore.getState();
+  if (!session) {
     throw new Error('Reconnect before changing a press dispatch.');
   }
+  requireFreshSessionAuthority();
   return {
     sessionId: session.id,
     revision: normalizePressDispatch(session.pressDispatch).revision,

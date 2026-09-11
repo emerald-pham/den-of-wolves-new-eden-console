@@ -78,6 +78,7 @@ function useStartupConnectionStatusLie(
 function useConnectionStatusGrace(
   status: ReturnType<typeof selectConnectionStatus>,
   hasCachedSession: boolean,
+  hasCacheDerivedSnapshot: boolean,
 ): ReturnType<typeof selectConnectionStatus> {
   const [graceDeadline, setGraceDeadline] = useState<number | null>(null);
   const [offlineDisplayMode, setOfflineDisplayMode] = useState<'eligible' | 'hidden' | null>(() =>
@@ -187,6 +188,10 @@ function useConnectionStatusGrace(
     };
   }, []);
 
+  // A Firestore cache snapshot is useful for rendering but cannot be presented
+  // as a live connection. This narrow override leaves ordinary reconnect grace
+  // intact for restored identities and transient transport loss.
+  if (hasCacheDerivedSnapshot) return 'red';
   if (hasCachedSession && status === 'red') {
     if (offlineDisplayMode !== 'eligible' || graceDeadline !== null) {
       return lastConnectedStatus.current;
@@ -227,9 +232,16 @@ export default function AppHeader() {
   const dialog = useRef<HTMLElement>(null);
   const status = useSessionStore(selectConnectionStatus);
   const explicitlyOffline = useSessionStore((state) => state.connection === 'offline');
+  const hasCacheDerivedSnapshot = useSessionStore(
+    (state) => state.sessionSnapshotFreshness === 'cache',
+  );
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
-  const reconnectDisplayStatus = useConnectionStatusGrace(status, Boolean(sessionId && playerUid));
+  const reconnectDisplayStatus = useConnectionStatusGrace(
+    status,
+    Boolean(sessionId && playerUid),
+    hasCacheDerivedSnapshot,
+  );
   const displayStatus = useStartupConnectionStatusLie(
     reconnectDisplayStatus,
     Boolean(sessionId && playerUid),
