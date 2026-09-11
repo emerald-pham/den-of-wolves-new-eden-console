@@ -1558,15 +1558,15 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "each optional configuration is explicit, preserves the intended Wolf count, and exposes no hidden assignment.",
         "title": "Gate Universal Arbour and Wolf Cult setup."
       },
-      "description": "Universal Arbour/Wolf Cult setup is not yet explicit.",
-      "evidenceIds": "none",
+      "description": "Universal Arbour and Wolf Cult are explicit facilitator choices in the canonical setup tuple, with authoritative two-Wolf replacement validation, replay-safe confirmation, and private loyalty assignment.",
+      "evidenceIds": "E-M1-SETUP",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -1574,10 +1574,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.33"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

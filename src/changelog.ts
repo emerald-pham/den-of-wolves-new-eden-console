@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['056'],
+    implementationProgress: {
+      completed: 100,
+      total: 734,
+      percentage: '13.62%',
+      done: 100,
+      partial: 20,
+      active: 0,
+      missing: 614,
+    },
+    changes: [
+      'Facilitators can now enable Universal Arbour or Wolf Cult before setup, with the supported Wolf count preserved and private loyalties kept hidden from players.',
+    ],
+  },
+  {
+    version: '0.3.32',
     implementationPrompts: ['019'],
     implementationProgress: {
       completed: 99,
