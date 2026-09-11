@@ -111,6 +111,7 @@ describe('repository guidance', () => {
 
     const weak = new Map(sources);
     weak.set('CLAUDE.md', readGuidance('CLAUDE.md').replaceAll('Terra', 'Reviewer'));
+    weak.set('docs/AGENT_CAMPAIGN_PLAYBOOK.md', readGuidance('docs/AGENT_CAMPAIGN_PLAYBOOK.md').replaceAll('Terra', 'Reviewer'));
     const weakErrors: string[] = [];
     validateAgentModelEscalation({ sources: weak, errors: weakErrors });
     expect(weakErrors).toEqual(expect.arrayContaining([
