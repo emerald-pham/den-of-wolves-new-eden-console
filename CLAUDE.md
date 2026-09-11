@@ -120,6 +120,18 @@ new strict receipt, and deleting or recreating the prior file cannot recover the
 committed issuance. `coordination:finish` rechecks the consumed receipt
 read-only before cleanup.
 
+If an independently reviewed defect is found only after that exact validated
+completion candidate lands, keep the same active entry. A post-landing repair
+may validate only while local `main`, tracking `origin/main`, and live remote
+`main` still equal the receipt's previously validated candidate; every repair
+commit must retain the entry's prompt trailer and stay within its claimed
+scopes, and the repair range may not change implementation authority,
+milestone/evidence state, or release metadata. Validation records a deterministic
+repair-chain anchor bound to the consumed receipt, prior full validation, exact
+authority identity, and repair range without minting or rewriting a receipt.
+Finish succeeds only after the latest exact fully validated repair SHA lands on
+all three main refs; an extra or unrelated commit fails without cleanup.
+
 ## Campaign execution and stopping
 
 For an explicit multi-agent implementation campaign, read the

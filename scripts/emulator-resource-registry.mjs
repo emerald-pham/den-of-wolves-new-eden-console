@@ -73,6 +73,7 @@ import {
 } from './validate-work-registration.mjs';
 import {
   createDependencyPacket,
+  dependencyAuthorityIdentityAtCommit,
   dependencyReceiptContextForEntry,
   dependencyReceiptMetadata,
   validateDependencyReceipt,
@@ -115,6 +116,12 @@ const CANONICAL_IMPLEMENTATION_AUTHORITY_FILES = new Set([
   'docs/IMPLEMENTATION_PLAN.md',
   'docs/IMPLEMENTATION_PROGRESS.md',
   'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+]);
+const POST_LANDING_REPAIR_SCHEMA_VERSION = 1;
+const POST_LANDING_REPAIR_FORBIDDEN_FILES = new Set([
+  ...CANONICAL_IMPLEMENTATION_AUTHORITY_FILES,
+  'docs/IMPLEMENTATION_MILESTONES.md',
+  'src/changelog.ts',
 ]);
 const execFileAsync = promisify(execFile);
 
@@ -674,6 +681,7 @@ function validationEntryInputs(entry) {
     scopes: sortedStrings(entry.scopes),
     claims: sortedStrings(entry.claims),
     dependencyReceipt: entry.dependencyReceipt ?? null,
+    postLandingRepair: entry.postLandingRepair ?? null,
   };
 }
 
@@ -1998,23 +2006,215 @@ export async function readReleaseState({ cwd = process.cwd(), startBranchSha, va
   };
 }
 
-async function landedCompletionReceiptBinding(entry, release) {
+function semanticIdentity(value) {
+  return contentIdentity(JSON.stringify(canonicalJsonValue(value)));
+}
+
+async function fullValidationForCandidate(entry, candidateSha, cwd, memo, expectedIdentity) {
+  const candidates = [
+    entry.validation,
+    ...(Array.isArray(entry.validationHistory) ? entry.validationHistory : []),
+  ].filter((validation) => validation?.commitSha === candidateSha);
+  for (const validation of candidates) {
+    const profile = objectRecord(validation.profile);
+    const evidence = objectRecord(profile.evidence);
+    const baseSha = text(evidence.baseSha).toLowerCase();
+    const validationFingerprint = text(evidence.diffIdentity).toLowerCase();
+    const inputIdentity = text(validation.inputFingerprint?.identity).toLowerCase();
+    const workRegistration = objectRecord(validation.workRegistration);
+    const files = normalizedPathSet(validation.files);
+    if (validation.passed !== true || profile.kind !== 'full' ||
+      validation.inputFingerprint?.schemaVersion !== VALIDATION_INPUT_FINGERPRINT_SCHEMA_VERSION ||
+      !/^[0-9a-f]{40}$/.test(baseSha) || baseSha === candidateSha ||
+      evidence.branchSha !== candidateSha || !/^[0-9a-f]{64}$/.test(validationFingerprint) ||
+      !/^[0-9a-f]{64}$/.test(inputIdentity) || !files.valid || files.values.length === 0 ||
+      workRegistration.schemaVersion !== WORK_REGISTRATION_RECEIPT_SCHEMA_VERSION ||
+      workRegistration.baseSha !== baseSha || workRegistration.commitSha !== candidateSha ||
+      normalizePromptId(workRegistration.coordinationPrompt) !== normalizePromptId(entry.implementationPrompt) ||
+      workRegistration.validationInputIdentity !== inputIdentity ||
+      !/^[0-9a-f]{64}$/.test(text(workRegistration.inputIdentity).toLowerCase()) ||
+      !exactArrayMatch(
+        validation.commands,
+        validationPlanForFiles(files.values, { profile }).commands,
+      ) ||
+      (expectedIdentity && semanticIdentity(validation) !== expectedIdentity)) {
+      continue;
+    }
+    if (!(await gitIsAncestor(baseSha, candidateSha, cwd, memo))) continue;
+    const [changedFiles, diffText] = await Promise.all([
+      readTaskChangedFiles(baseSha, candidateSha, cwd, memo),
+      memoizedGit(['diff', '--unified=0', `${baseSha}...${candidateSha}`], cwd, memo),
+    ]);
+    if (!exactArrayMatch(files.sorted, normalizedPathSet(changedFiles).sorted) ||
+      validationFingerprint !== contentIdentity(diffText)) {
+      continue;
+    }
+    return validation;
+  }
+  return null;
+}
+
+function postLandingRepairRecord({ entry, validation, release, authority, commits, files, rangeIdentity }) {
+  const evidence = validation.profile.evidence;
+  const record = {
+    schemaVersion: POST_LANDING_REPAIR_SCHEMA_VERSION,
+    completionReceiptIdentity: semanticIdentity(entry.dependencyReceipt),
+    completionReceiptContentDigest: entry.dependencyReceipt.contentDigest,
+    completionCandidateSha: release.mainSha,
+    completionValidationIdentity: semanticIdentity(validation),
+    completionValidationBaseSha: evidence.baseSha,
+    completionValidationFingerprint: evidence.diffIdentity,
+    authority,
+    repairBaseSha: release.mainSha,
+    latestValidatedSha: release.branchSha,
+    commits,
+    files,
+    rangeIdentity,
+  };
+  return { ...record, fingerprint: semanticIdentity(record) };
+}
+
+function assertStoredRepairAnchor(entry, candidate) {
+  const stored = entry.postLandingRepair;
+  if (!stored) return;
+  const { fingerprint, ...record } = objectRecord(stored);
+  if (stored.schemaVersion !== POST_LANDING_REPAIR_SCHEMA_VERSION ||
+    !/^[0-9a-f]{64}$/.test(text(fingerprint).toLowerCase()) ||
+    fingerprint !== semanticIdentity(record) ||
+    stored.completionReceiptIdentity !== candidate.completionReceiptIdentity ||
+    stored.completionReceiptContentDigest !== candidate.completionReceiptContentDigest ||
+    stored.completionCandidateSha !== candidate.completionCandidateSha ||
+    stored.completionValidationIdentity !== candidate.completionValidationIdentity ||
+    stored.completionValidationBaseSha !== candidate.completionValidationBaseSha ||
+    stored.completionValidationFingerprint !== candidate.completionValidationFingerprint ||
+    !jsonSemanticallyEqual(stored.authority, candidate.authority) ||
+    stored.repairBaseSha !== candidate.repairBaseSha) {
+    throw new Error('Post-landing repair anchor is missing, malformed, or no longer matches its landed completion candidate');
+  }
+}
+
+async function derivePostLandingRepair(entry, release, cwd, memo) {
+  if (entry.dependencyReceipt?.policy !== 'completion-refreshed' ||
+    release.branchSha === release.mainSha) {
+    return null;
+  }
+  const candidateSha = text(release.mainSha).toLowerCase();
+  const expectedValidationIdentity = text(entry.postLandingRepair?.completionValidationIdentity);
+  const validation = await fullValidationForCandidate(
+    entry,
+    candidateSha,
+    cwd,
+    memo,
+    expectedValidationIdentity || undefined,
+  );
+  if (!validation) return null;
+  if (release.originTrackingMainSha !== candidateSha || release.originMainSha !== candidateSha ||
+    release.mainIsAncestorOfBranch !== true ||
+    !(await gitIsAncestor(candidateSha, release.branchSha, cwd, memo))) {
+    throw new Error(
+      'Post-landing repair requires the exact landed completion candidate on local main, tracking origin/main, and live remote main',
+    );
+  }
+  const actualFiles = await readTaskChangedFiles(candidateSha, release.branchSha, cwd, memo);
+  const files = normalizedPathSet(actualFiles).sorted;
+  if (files.length === 0 || !exactArrayMatch(files, normalizedPathSet(release.changedFiles).sorted)) {
+    throw new Error('Post-landing repair range must contain one exact committed changed-file set');
+  }
+  const forbidden = files.filter((filePath) => POST_LANDING_REPAIR_FORBIDDEN_FILES.has(filePath));
+  if (forbidden.length > 0) {
+    throw new Error(
+      `Post-landing repair may not change completion authority, milestone/evidence, or release metadata: ${forbidden.join(', ')}`,
+    );
+  }
+  const outsideScopes = filesOutsideScopes(files, entry.scopes);
+  if (outsideScopes.length > 0) {
+    throw new Error(`Post-landing repair changed files outside declared scope: ${outsideScopes.join(', ')}`);
+  }
+  const [candidateAuthority, repairAuthority, commitsText, rangeDiff] = await Promise.all([
+    dependencyAuthorityIdentityAtCommit(cwd, candidateSha),
+    dependencyAuthorityIdentityAtCommit(cwd, release.branchSha),
+    memoizedGit(['rev-list', '--reverse', `${candidateSha}..${release.branchSha}`], cwd, memo),
+    memoizedGit(['diff', '--binary', `${candidateSha}..${release.branchSha}`], cwd, memo),
+  ]);
+  if (!jsonSemanticallyEqual(candidateAuthority, repairAuthority)) {
+    throw new Error('Post-landing repair changed completion authority or milestone/evidence state');
+  }
+  const repair = postLandingRepairRecord({
+    entry,
+    validation,
+    release,
+    authority: candidateAuthority,
+    commits: commitsText.split('\n').filter(Boolean),
+    files,
+    rangeIdentity: contentIdentity(rangeDiff),
+  });
+  assertStoredRepairAnchor(entry, repair);
+  return {
+    metadata: repair,
+    landedMainBinding: {
+      baseSha: validation.profile.evidence.baseSha,
+      candidateSha,
+      validationFingerprint: validation.profile.evidence.diffIdentity,
+    },
+  };
+}
+
+async function landedCompletionReceiptBinding(entry, release, cwd = process.cwd(), memo) {
+  const repair = entry.postLandingRepair;
+  if (repair) {
+    const completionValidation = await fullValidationForCandidate(
+      entry,
+      repair.completionCandidateSha,
+      cwd,
+      memo,
+      repair.completionValidationIdentity,
+    );
+    const latestValidation = await fullValidationForCandidate(
+      entry,
+      repair.latestValidatedSha,
+      cwd,
+      memo,
+    );
+    if (!completionValidation || !latestValidation || entry.validation !== latestValidation ||
+      release.branchSha !== repair.latestValidatedSha || release.mainSha !== repair.latestValidatedSha ||
+      release.originTrackingMainSha !== repair.latestValidatedSha ||
+      release.originMainSha !== repair.latestValidatedSha || release.mainContainsBranch !== true ||
+      release.mainIsAncestorOfBranch !== true ||
+      release.validationTaskTipSha !== repair.latestValidatedSha ||
+      release.validationReceiptCommitSha !== repair.latestValidatedSha ||
+      release.validatedBaseSha !== repair.repairBaseSha ||
+      latestValidation.profile.evidence.baseSha !== repair.repairBaseSha ||
+      !(await gitIsAncestor(repair.completionCandidateSha, repair.latestValidatedSha, cwd, memo))) {
+      return undefined;
+    }
+    const reconstructed = await derivePostLandingRepair(entry, {
+      ...release,
+      mainSha: repair.completionCandidateSha,
+      originTrackingMainSha: repair.completionCandidateSha,
+      originMainSha: repair.completionCandidateSha,
+      mainContainsBranch: false,
+      mainIsAncestorOfBranch: true,
+    }, cwd, memo);
+    if (!reconstructed || !jsonSemanticallyEqual(reconstructed.metadata, repair)) return undefined;
+    return {
+      baseSha: completionValidation.profile.evidence.baseSha,
+      candidateSha: repair.latestValidatedSha,
+      validationFingerprint: completionValidation.profile.evidence.diffIdentity,
+    };
+  }
+
   const validation = entry.validation;
-  const candidateSha = text(validation?.commitSha).toLowerCase();
   const evidence = objectRecord(validation?.profile?.evidence);
+  const candidateSha = text(validation?.commitSha).toLowerCase();
   const baseSha = text(evidence.baseSha).toLowerCase();
   const validationCandidateSha = text(evidence.branchSha).toLowerCase();
   const validationFingerprint = text(evidence.diffIdentity).toLowerCase();
   if (![candidateSha, baseSha, validationCandidateSha].every((sha) => /^[0-9a-f]{40}$/.test(sha)) ||
-    !/^[0-9a-f]{64}$/.test(validationFingerprint) ||
-    validation?.passed !== true ||
-    candidateSha !== validationCandidateSha ||
-    release.branchSha !== candidateSha ||
+    !/^[0-9a-f]{64}$/.test(validationFingerprint) || validation?.passed !== true ||
+    candidateSha !== validationCandidateSha || release.branchSha !== candidateSha ||
     release.mainSha !== candidateSha ||
-    release.originTrackingMainSha !== candidateSha ||
-    release.originMainSha !== candidateSha ||
-    release.mainContainsBranch !== true ||
-    release.mainIsAncestorOfBranch !== true ||
+    release.originTrackingMainSha !== candidateSha || release.originMainSha !== candidateSha ||
+    release.mainContainsBranch !== true || release.mainIsAncestorOfBranch !== true ||
     (release.validationTaskTipSha !== undefined && release.validationTaskTipSha !== candidateSha) ||
     (release.validationReceiptCommitSha !== undefined && release.validationReceiptCommitSha !== candidateSha) ||
     (release.validatedBaseSha !== undefined && release.validatedBaseSha !== baseSha) ||
@@ -2022,10 +2222,14 @@ async function landedCompletionReceiptBinding(entry, release) {
       (release.validationProfile.evidence.baseSha !== baseSha ||
         release.validationProfile.evidence.branchSha !== candidateSha ||
         release.validationProfile.evidence.diffIdentity !== validationFingerprint)) ||
-    !(await gitIsAncestor(baseSha, candidateSha, process.cwd()))) {
+    !(await gitIsAncestor(baseSha, candidateSha, cwd, memo))) {
     return undefined;
   }
-  return { baseSha, candidateSha, validationFingerprint };
+  return {
+    baseSha,
+    candidateSha,
+    validationFingerprint,
+  };
 }
 
 const VALIDATION_COMMANDS = new Map([
@@ -5094,11 +5298,18 @@ export async function validateCoordinationEntry(filePath, options) {
         release = await readReleaseState({ startBranchSha, memo: validationMemo });
       }
     }
+    const postLandingRepair = await derivePostLandingRepair(
+      entry,
+      release,
+      validationDirectory,
+      validationMemo,
+    );
     const dependencyReceipt = await requireDependencyReceipt(entry, state, options, {
       mainSha: release.mainSha,
       allowLegacyRefresh: true,
       allowCompletionRead: true,
       allowCompletionPending: true,
+      ...(postLandingRepair ? { landedMainBinding: postLandingRepair.landedMainBinding } : {}),
     });
     const errors = releaseMetadataErrors({
       entry,
@@ -5187,7 +5398,9 @@ export async function validateCoordinationEntry(filePath, options) {
     }
 
     const profile = options.release
-      ? { kind: 'full', reason: 'release supplied by test harness', commands: [] }
+      ? options.release.validationProfile ?? {
+          kind: 'full', reason: 'release supplied by test harness', commands: [],
+        }
       : await deriveValidationProfile({
           release,
           startBranchSha,
@@ -5215,7 +5428,9 @@ export async function validateCoordinationEntry(filePath, options) {
     }
 
     const inputFingerprint = await validationInputFingerprint({
-      entry,
+      entry: postLandingRepair
+        ? { ...entry, postLandingRepair: postLandingRepair.metadata }
+        : entry,
       release,
       plan,
       releaseFragment,
@@ -5263,6 +5478,7 @@ export async function validateCoordinationEntry(filePath, options) {
       entryScopes: Array.isArray(entry.scopes) ? [...entry.scopes] : [],
       entryClaims: Array.isArray(entry.claims) ? [...entry.claims] : [],
       entryDependencyReceipt: entry.dependencyReceipt ?? null,
+      entrySnapshot: entry,
       entryInputIdentity: contentIdentity(JSON.stringify(validationEntryInputs(entry))),
       previousValidation,
       validation: provenanceRefresh ? undefined : previousValidation,
@@ -5278,6 +5494,7 @@ export async function validateCoordinationEntry(filePath, options) {
       releaseFragment,
       registrationReceipt,
       dependencyReceipt,
+      postLandingRepair,
     };
     };
   });
@@ -5379,7 +5596,7 @@ export async function validateCoordinationEntry(filePath, options) {
     );
   }
   const finalProfile = options.release
-    ? preparation.plan.profile
+    ? options.release.validationProfile ?? preparation.plan.profile
     : await deriveValidationProfile({
         release: finalRelease,
         startBranchSha: preparation.startBranchSha,
@@ -5421,6 +5638,20 @@ export async function validateCoordinationEntry(filePath, options) {
       `Cannot record validation for ${options.id}: ${finalErrors.join('; ')}.`,
     );
   }
+  const finalPostLandingRepair = await derivePostLandingRepair(
+    preparation.entrySnapshot,
+    finalRelease,
+    emulatorRepositoryDirectory,
+    validationMemo,
+  );
+  if (!jsonSemanticallyEqual(
+    finalPostLandingRepair?.metadata ?? null,
+    preparation.postLandingRepair?.metadata ?? null,
+  )) {
+    throw new Error(
+      `Cannot record validation for ${options.id}: post-landing repair inputs changed while checks ran; rerun validation.`,
+    );
+  }
   const finalInputFingerprint = await validationInputFingerprint({
     entry: {
       id: options.id,
@@ -5435,6 +5666,9 @@ export async function validateCoordinationEntry(filePath, options) {
       scopes: preparation.entryScopes,
       claims: preparation.entryClaims,
       dependencyReceipt: preparation.entryDependencyReceipt,
+      ...(finalPostLandingRepair
+        ? { postLandingRepair: finalPostLandingRepair.metadata }
+        : {}),
     },
     release: finalRelease,
     plan: finalPlan,
@@ -5504,6 +5738,9 @@ export async function validateCoordinationEntry(filePath, options) {
       allowLegacyRefresh: true,
       allowCompletionRead: true,
       allowCompletionRefresh: true,
+      ...(preparation.postLandingRepair
+        ? { landedMainBinding: preparation.postLandingRepair.landedMainBinding }
+        : {}),
     });
     const completedDuringValidation = currentDependencyReceipt?.policy === 'completion-refreshed' &&
       preparation.dependencyReceipt?.policy !== 'completion-refreshed' &&
@@ -5518,6 +5755,9 @@ export async function validateCoordinationEntry(filePath, options) {
     entry.startBranchSha = preparation.startBranchSha;
     entry.startMainSha = entry.startMainSha || finalRelease.mainSha;
     if (currentDependencyReceipt) entry.dependencyReceipt = currentDependencyReceipt;
+    if (preparation.postLandingRepair) {
+      entry.postLandingRepair = preparation.postLandingRepair.metadata;
+    }
     if (entry.validation) {
       entry.validationHistory = [
         ...(Array.isArray(entry.validationHistory) ? entry.validationHistory : []),
@@ -5643,7 +5883,13 @@ export async function finishCoordinationEntry(filePath, options) {
         allowLegacyRefresh: true,
         allowCompletionRead: true,
         ...(outcome === 'landed'
-          ? { landedMainBinding: await landedCompletionReceiptBinding(entry, release) }
+          ? {
+              landedMainBinding: await landedCompletionReceiptBinding(
+                entry,
+                release,
+                resolve(options.repositoryDirectory ?? process.cwd()),
+              ),
+            }
           : {}),
       });
     }

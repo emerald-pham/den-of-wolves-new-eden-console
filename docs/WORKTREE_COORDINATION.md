@@ -150,6 +150,18 @@ already-consumed issuance fails closed, and finish verifies the consumed
 receipt without refreshing it. The exact P012/P014 migration issues the same
 random commitment before either prompt can complete.
 
+When independent review finds a defect only after the exact validated completion
+candidate has landed, use the still-active entry for one claimed-scope repair
+chain. Validation first requires local `main`, tracking `origin/main`, and live
+remote `main` to equal that prior fully validated candidate. Every descendant
+repair commit keeps the same prompt trailer and claimed scopes; implementation
+authority, milestone/evidence state, and release metadata remain unchanged. The
+registry records a deterministic repair anchor tied to the consumed receipt,
+prior validation, authority identity, and exact repair range, but never rewrites
+the receipt or issues another nonce. Finish then requires the latest exact fully
+validated repair SHA on all three main refs and rejects any unvalidated or
+unrelated advance without cleanup.
+
 `NEXT` (the first item in `READY_QUEUE`) is the primary resume/default lane, but
 it is advisory for concurrency, not a serial execution lock. A separate
 worktree may claim a later `READY_QUEUE` item as concurrent work only when its

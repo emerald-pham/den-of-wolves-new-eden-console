@@ -557,6 +557,11 @@ function authoritySourcesAtCommit(cwd, commit) {
   }));
 }
 
+/** Derive the shared dependency-authority identity from one exact Git commit. */
+export function dependencyAuthorityIdentityAtCommit(cwd, commit) {
+  return authorityIdentity(authoritySourcesAtCommit(cwd, commit));
+}
+
 function requireAncestor(cwd, ancestor, descendant = 'HEAD') {
   try {
     git(cwd, ['merge-base', '--is-ancestor', ancestor, descendant]);

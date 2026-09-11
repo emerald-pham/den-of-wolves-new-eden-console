@@ -49,7 +49,7 @@ import {
 } from '../../scripts/emulator-resource-registry.mjs';
 import * as coordinationRegistry from '../../scripts/emulator-resource-registry.mjs';
 // @ts-expect-error The executable JavaScript module is exercised directly rather than through a generated declaration.
-import { dependencyReceiptMetadata } from '../../scripts/prompt-dependencies.mjs';
+import { dependencyReceiptContextForEntry, dependencyReceiptMetadata } from '../../scripts/prompt-dependencies.mjs';
 import { validateCommitRange } from '../../scripts/validate-work-registration.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -681,6 +681,391 @@ describe('local emulator coordination', () => {
       } finally {
         await cleanup(rejected.filePath, rejected.entry.id);
       }
+    }
+  });
+
+  it('validates one claimed-scope repair after a consumed candidate lands and finishes only its exact landing', async () => {
+    const repositoryDirectory = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-post-landing-repair-'));
+    const filePath = resolve(tmpdir(), `den-of-wolves-post-landing-repair-${randomUUID()}.json`);
+    let sessionGoalPath: string | undefined;
+    try {
+      for (const path of [
+        'docs/IMPLEMENTATION_PLAN.md',
+        'docs/IMPLEMENTATION_PROGRESS.md',
+        'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
+        'docs/IMPLEMENTATION_MILESTONES.md',
+        'scripts/example.mjs',
+      ]) {
+        await mkdir(resolve(repositoryDirectory, path, '..'), { recursive: true });
+        await writeFile(resolve(repositoryDirectory, path), `${path} baseline\n`);
+      }
+      await runFixtureGit(repositoryDirectory, ['init', '-b', 'main']);
+      await runFixtureGit(repositoryDirectory, ['config', 'user.email', 'fixture@example.test']);
+      await runFixtureGit(repositoryDirectory, ['config', 'user.name', 'Fixture']);
+      await runFixtureGit(repositoryDirectory, ['add', '.']);
+      await runFixtureGit(repositoryDirectory, ['commit', '-m', 'docs: seed authority']);
+      const receiptBaseSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await runFixtureGit(repositoryDirectory, ['switch', '-c', 'fix/release-task']);
+      await writeFile(resolve(repositoryDirectory, 'scripts/example.mjs'), 'export const value = 1;\n');
+      await runFixtureGit(repositoryDirectory, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(repositoryDirectory, [
+        'commit', '-m', 'fix(tooling): land completion candidate\n\nImplementation-Prompt: 666',
+      ]);
+      const landedCandidateSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await writeFile(resolve(repositoryDirectory, 'scripts/example.mjs'), 'export const value = 2;\n');
+      await runFixtureGit(repositoryDirectory, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(repositoryDirectory, [
+        'commit', '-m', 'fix(tooling): repair landed completion\n\nImplementation-Prompt: 666',
+      ]);
+      const repairSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await runFixtureGit(repositoryDirectory, ['switch', '-c', 'fix/authority-drift', landedCandidateSha]);
+      await writeFile(
+        resolve(repositoryDirectory, 'docs/IMPLEMENTATION_PROGRESS.md'),
+        'docs/IMPLEMENTATION_PROGRESS.md completed again\n',
+      );
+      await runFixtureGit(repositoryDirectory, ['add', 'docs/IMPLEMENTATION_PROGRESS.md']);
+      await runFixtureGit(repositoryDirectory, [
+        'commit', '-m', 'docs(tooling): alter completion authority\n\nImplementation-Prompt: 666',
+      ]);
+      const authorityDriftSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await runFixtureGit(repositoryDirectory, ['switch', '-c', 'fix/non-descendant', receiptBaseSha]);
+      await writeFile(resolve(repositoryDirectory, 'scripts/example.mjs'), 'export const value = 7;\n');
+      await runFixtureGit(repositoryDirectory, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(repositoryDirectory, [
+        'commit', '-m', 'fix(tooling): create unrelated repair\n\nImplementation-Prompt: 666',
+      ]);
+      const nonDescendantSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await runFixtureGit(repositoryDirectory, ['switch', '-c', 'fix/unvalidated-extra', repairSha]);
+      await writeFile(resolve(repositoryDirectory, 'scripts/example.mjs'), 'export const value = 3;\n');
+      await runFixtureGit(repositoryDirectory, ['add', 'scripts/example.mjs']);
+      await runFixtureGit(repositoryDirectory, [
+        'commit', '-m', 'fix(tooling): add unvalidated repair\n\nImplementation-Prompt: 666',
+      ]);
+      const unvalidatedExtraSha = await runFixtureGit(repositoryDirectory, ['rev-parse', 'HEAD']);
+      await runFixtureGit(repositoryDirectory, ['switch', 'fix/release-task']);
+      const diffIdentity = (baseSha: string, headSha: string) =>
+        execFileAsync('git', ['diff', '--unified=0', `${baseSha}...${headSha}`], {
+          cwd: repositoryDirectory,
+          encoding: 'utf8',
+        }).then(({ stdout }) => createHash('sha256').update(stdout.trim()).digest('hex'));
+      const priorProfile = {
+        kind: 'full' as const,
+        reason: 'fixture full validation',
+        commands: [],
+        evidence: {
+          baseSha: receiptBaseSha,
+          branchSha: landedCandidateSha,
+          diffIdentity: await diffIdentity(receiptBaseSha, landedCandidateSha),
+        },
+      };
+      const repairProfile = {
+        kind: 'full' as const,
+        reason: 'fixture full validation',
+        commands: [],
+        evidence: {
+          baseSha: landedCandidateSha,
+          branchSha: repairSha,
+          diffIdentity: await diffIdentity(landedCandidateSha, repairSha),
+        },
+      };
+      const priorInputIdentity = 'a'.repeat(64);
+      const priorValidation = {
+        ...codeValidation,
+        commitSha: landedCandidateSha,
+        commands: validationPlanForFiles(['scripts/example.mjs'], { profile: priorProfile }).commands,
+        files: ['scripts/example.mjs'],
+        profile: priorProfile,
+        inputFingerprint: { schemaVersion: 2, identity: priorInputIdentity },
+        workRegistration: {
+          schemaVersion: 1,
+          baseSha: receiptBaseSha,
+          commitSha: landedCandidateSha,
+          coordinationPrompt: '666',
+          coordinationPromptBefore: null,
+          coordinationPromptBindings: [],
+          inputIdentity: 'b'.repeat(64),
+          validationInputIdentity: priorInputIdentity,
+        },
+      };
+      const started = await beginCoordinationEntry(filePath, sessionGoalBeginOptions());
+      sessionGoalPath = resolve(process.cwd(), started.sessionGoals!.artifactPath!);
+      const entry = {
+        ...started,
+        branchName: 'fix/release-task',
+        startBranchSha: receiptBaseSha,
+        startMainSha: receiptBaseSha,
+        workType: 'tooling',
+        changeClass: 'non-feature',
+        implementationPrompt: '666',
+        implementationRegistrationRequired: true,
+        scopes: ['docs/IMPLEMENTATION_PROGRESS.md', 'scripts/example.mjs'],
+        claims: ['prompt-666'],
+        validation: priorValidation,
+        validationHistory: [priorValidation],
+      } as typeof started & { dependencyReceipt?: Record<string, unknown> };
+      const strictContext = await dependencyReceiptTestOptions.dependencyReceiptContextFactory(
+        entry as unknown as Record<string, unknown>,
+        { entries: [entry] },
+        { mainSha: receiptBaseSha },
+      );
+      const strictReceipt = await acceptedDependencyReceipt(strictContext);
+      const strictMetadata = dependencyReceiptMetadata(strictReceipt, 'required');
+      const completionReceipt = {
+        ...strictReceipt,
+        issuance: undefined,
+        policy: 'completion-refreshed',
+        completion: {
+          prior: strictMetadata,
+          consumedAt: '2026-09-11T00:01:00.000Z',
+          anchor: { commitSha: receiptBaseSha },
+        },
+      };
+      entry.dependencyReceipt = dependencyReceiptMetadata(completionReceipt, 'completion-refreshed');
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      const doneRejected = async () => { throw new Error('Prompt 666 is not mechanically ready: progress=done'); };
+      const completionValidator = vi.fn(async ({ allowRefresh, landedMainBinding }: Record<string, unknown>) => {
+        expect(allowRefresh).toBe(false);
+        expect(landedMainBinding).toMatchObject({
+          baseSha: receiptBaseSha,
+          candidateSha: landedCandidateSha,
+          validationFingerprint: priorProfile.evidence.diffIdentity,
+        });
+        return completionReceipt;
+      });
+      const repairRelease = releaseState({
+        branchName: entry.branchName,
+        branchSha: repairSha,
+        startBranchSha: receiptBaseSha,
+        branchBaselineIsAncestor: true,
+        mainSha: landedCandidateSha,
+        originTrackingMainSha: landedCandidateSha,
+        originMainSha: landedCandidateSha,
+        mainContainsBranch: false,
+        mainIsAncestorOfBranch: true,
+        worktreeClean: true,
+        branchVersion: '0.3.28',
+        mainVersion: '0.3.28',
+        branchLockVersion: '0.3.28',
+        mainLockVersion: '0.3.28',
+        branchChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        mainChangelog: [{ version: '0.3.28', source: 'Current release.' }],
+        changedFiles: ['scripts/example.mjs'],
+        validationProfile: repairProfile,
+      });
+      const validationOptions = {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release: repairRelease,
+        repositoryDirectory,
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: vi.fn(async ({ landedMainBinding }: Record<string, unknown>) => {
+          if (!landedMainBinding) throw new Error('Completion receipt does not match the active binding');
+          return completionReceipt;
+        }),
+        commandRunner: async () => undefined,
+        environment: { CI: 'true' },
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      };
+      const rejectedCases = [
+        {
+          name: 'different main',
+          stateEntry: entry,
+          release: { ...repairRelease, mainSha: receiptBaseSha },
+          error: /does not match local main|landed completion candidate|full passing validation|active binding/i,
+        },
+        {
+          name: 'different tracking main',
+          stateEntry: entry,
+          release: { ...repairRelease, originTrackingMainSha: receiptBaseSha },
+          error: /tracking|landed completion candidate|active binding/i,
+        },
+        {
+          name: 'different live remote main',
+          stateEntry: entry,
+          release: { ...repairRelease, originMainSha: receiptBaseSha },
+          error: /remote|landed completion candidate|active binding/i,
+        },
+        {
+          name: 'no prior full validation',
+          stateEntry: { ...entry, validation: undefined, validationHistory: [] },
+          release: repairRelease,
+          error: /full passing validation|active binding/i,
+        },
+        {
+          name: 'authority status change',
+          stateEntry: entry,
+          release: {
+            ...repairRelease,
+            branchSha: authorityDriftSha,
+            changedFiles: ['docs/IMPLEMENTATION_PROGRESS.md'],
+            validationProfile: {
+              ...repairProfile,
+              evidence: { ...repairProfile.evidence, branchSha: authorityDriftSha },
+            },
+          },
+          error: /authority|completion status|post-landing repair/i,
+        },
+        {
+          name: 'unclaimed scope',
+          stateEntry: entry,
+          release: { ...repairRelease, changedFiles: ['scripts/example.mjs', 'src/unclaimed.ts'] },
+          error: /outside declared scope|exact committed changed-file set/i,
+        },
+        {
+          name: 'other prompt commit',
+          stateEntry: entry,
+          release: repairRelease,
+          workRegistrationValidator: () => ({
+            commits: [], results: [], errors: ['repair commit binds Prompt 667 instead of Prompt 666'],
+          }),
+          error: /Prompt 667 instead of Prompt 666/i,
+        },
+        {
+          name: 'non-descendant repair',
+          stateEntry: entry,
+          release: {
+            ...repairRelease,
+            branchSha: nonDescendantSha,
+            mainIsAncestorOfBranch: false,
+            validationProfile: {
+              ...repairProfile,
+              evidence: { ...repairProfile.evidence, branchSha: nonDescendantSha },
+            },
+          },
+          error: /descendant|contain current main|reconcile main|exact landed completion candidate/i,
+        },
+      ];
+      for (const rejected of rejectedCases) {
+        await writeFile(filePath, JSON.stringify({
+          version: 1,
+          entries: [rejected.stateEntry],
+          reservations: [],
+          configurations: [],
+        }));
+        await expect(validateCoordinationEntry(filePath, {
+          ...validationOptions,
+          release: rejected.release,
+          ...(rejected.workRegistrationValidator
+            ? { workRegistrationValidator: rejected.workRegistrationValidator }
+            : {}),
+        } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions))
+          .rejects.toThrow(rejected.error);
+        expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({
+          id: entry.id,
+          status: 'active',
+        });
+      }
+      await writeFile(filePath, JSON.stringify({
+        version: 1,
+        entries: [entry],
+        reservations: [],
+        configurations: [],
+      }));
+      const validated = await validateCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        release: repairRelease,
+        repositoryDirectory,
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        commandRunner: async () => undefined,
+        environment: { CI: 'true' },
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions);
+      expect(validated).toMatchObject({
+        validation: { commitSha: repairSha, passed: true },
+        postLandingRepair: {
+          schemaVersion: 1,
+          completionCandidateSha: landedCandidateSha,
+          latestValidatedSha: repairSha,
+          fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/),
+        },
+      });
+      expect(validated.validationHistory).toContainEqual(priorValidation);
+      const reused = await validateCoordinationEntry(filePath, {
+        ...validationOptions,
+        completionDependencyReceiptValidator: completionValidator,
+      } as Parameters<typeof validateCoordinationEntry>[1] & DependencyReceiptTestOptions);
+      expect(reused).toMatchObject({
+        validationReused: true,
+        validation: { commitSha: repairSha, passed: true },
+        postLandingRepair: { latestValidatedSha: repairSha },
+      });
+
+      await expect(finishCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        repositoryDirectory,
+        release: {
+          ...repairRelease,
+          branchSha: unvalidatedExtraSha,
+          mainSha: unvalidatedExtraSha,
+          originTrackingMainSha: unvalidatedExtraSha,
+          originMainSha: unvalidatedExtraSha,
+          mainContainsBranch: true,
+          validationTaskTipSha: repairSha,
+          validationReceiptCommitSha: repairSha,
+          validatedBaseSha: landedCandidateSha,
+          validatedBaseIsAncestorOfMain: true,
+          changedFiles: ['scripts/example.mjs'],
+        },
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: async ({ landedMainBinding }: Record<string, unknown>) => {
+          if (!landedMainBinding) throw new Error('latest validated repair is required');
+          return completionReceipt;
+        },
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof finishCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        repositoryDirectory: string;
+      })).rejects.toThrow(/latest validated repair|advanced after validation|unvalidated/i);
+      expect((await readCoordinationState(filePath)).entries[0]).toMatchObject({ status: 'active' });
+
+      await updateSessionGoals(filePath, {
+        id: entry.id,
+        outcomes: [
+          { id: 'goal-001', checked: true, explanation: 'Repair validated.' },
+          { id: 'goal-002', checked: true, explanation: 'Repair landed.' },
+        ],
+      });
+      completionValidator.mockImplementation(async ({ landedMainBinding }: Record<string, unknown>) => {
+        expect(landedMainBinding).toMatchObject({
+          baseSha: receiptBaseSha,
+          candidateSha: repairSha,
+          validationFingerprint: priorProfile.evidence.diffIdentity,
+        });
+        return completionReceipt;
+      });
+      await expect(finishCoordinationEntry(filePath, {
+        ...dependencyReceiptTestOptions,
+        id: entry.id,
+        repositoryDirectory,
+        release: {
+          ...repairRelease,
+          mainSha: repairSha,
+          originTrackingMainSha: repairSha,
+          originMainSha: repairSha,
+          mainContainsBranch: true,
+          validationTaskTipSha: repairSha,
+          validationReceiptCommitSha: repairSha,
+          validatedBaseSha: landedCandidateSha,
+          validatedBaseIsAncestorOfMain: true,
+        },
+        dependencyReceiptValidator: doneRejected,
+        completionDependencyReceiptValidator: completionValidator,
+        workRegistrationValidator: () => ({ commits: [], results: [], errors: [] }),
+      } as Parameters<typeof finishCoordinationEntry>[1] & DependencyReceiptTestOptions & {
+        repositoryDirectory: string;
+      })).resolves.toMatchObject({ status: 'complete', mainSha: repairSha, pushed: true });
+    } finally {
+      if (sessionGoalPath) await unlink(sessionGoalPath).catch(() => undefined);
+      await unlink(filePath).catch(() => undefined);
+      await unlink(`${filePath}.lock`).catch(() => undefined);
+      await rm(repositoryDirectory, { recursive: true, force: true });
     }
   });
 
@@ -1903,10 +2288,12 @@ describe('local emulator coordination', () => {
     }
   });
 
-  it('auto-refreshes a missing dependency receipt only for the exact active P012/P014 migration entries', async () => {
+  it('auto-refreshes only exact P012/P014 entries in an isolated receipt root without touching a live P012 sentinel', async () => {
     const filePath = resolve(tmpdir(), `den-of-wolves-legacy-dependency-receipt-${randomUUID()}.json`);
-    const p014Receipt = resolve(process.cwd(), '.codex/dependency-receipts/014.json');
-    const ordinaryReceipt = resolve(process.cwd(), '.codex/dependency-receipts/012.json');
+    const receiptRoot = await mkdtemp(resolve(tmpdir(), 'den-of-wolves-legacy-receipts-'));
+    const p014Receipt = resolve(receiptRoot, '.codex/dependency-receipts/014.json');
+    const ordinaryReceipt = resolve(receiptRoot, '.codex/dependency-receipts/012.json');
+    const liveP012Sentinel = '{"owner":"live-p012-entry","sentinel":true}\n';
     const identity = await currentGitIdentity();
     const branchSha = await runFixtureGit(process.cwd(), ['rev-parse', 'HEAD']);
     const mainSha = await readFixtureMainSha(process.cwd());
@@ -1919,8 +2306,34 @@ describe('local emulator coordination', () => {
       startBranchSha: branchSha,
       startMainSha: mainSha,
     };
+    const isolatedDependencyReceiptContextFactory = async (
+      entry: Record<string, unknown>,
+      state: Record<string, unknown>,
+      overrides: Record<string, unknown>,
+    ) => {
+      const isolatedState = {
+        ...state,
+        entries: ((state.entries as Record<string, unknown>[] | undefined) ?? []).map((candidate) =>
+          candidate.id === entry.id ? { ...candidate, worktree: receiptRoot } : candidate),
+      };
+      const context = await dependencyReceiptContextForEntry(entry, isolatedState, {
+        cwd: process.cwd(),
+        requestedScopes: overrides.scopes ?? entry.scopes ?? entry.requestedScopes ?? [],
+        requestedClaims: overrides.claims ?? entry.claims ?? entry.requestedClaims ?? [],
+        mainSha: optionalString(overrides.mainSha, mainSha),
+      });
+      return {
+        ...context,
+        binding: {
+          ...context.binding,
+          worktree: receiptRoot,
+        },
+      };
+    };
     try {
       await unlink(p014Receipt).catch(() => undefined);
+      await mkdir(resolve(receiptRoot, '.codex/dependency-receipts'), { recursive: true });
+      await writeFile(ordinaryReceipt, liveP012Sentinel, 'utf8');
       await writeFile(filePath, JSON.stringify({
         version: 1,
         entries: [{ ...base, id: '1789086651641-63909-707fa4ab', implementationPrompt: '014' }],
@@ -1928,10 +2341,11 @@ describe('local emulator coordination', () => {
         configurations: [],
       }));
       const refreshed = await amendCoordinationEntry(filePath, {
+        dependencyReceiptContextFactory: isolatedDependencyReceiptContextFactory,
         id: '1789086651641-63909-707fa4ab',
         scope: 'src/config/legacyDependencyReceipt.test.ts',
         now: '2099-01-01T00:00:01.000Z',
-      });
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions);
       expect((refreshed as typeof refreshed & { dependencyReceipt?: Record<string, unknown> }).dependencyReceipt)
         .toMatchObject({
           policy: 'legacy-refreshed',
@@ -1950,7 +2364,6 @@ describe('local emulator coordination', () => {
       expect(JSON.stringify(stored.dependencyReceipt))
         .not.toContain(migratedReceipt.issuance.nonce);
 
-      await unlink(ordinaryReceipt).catch(() => undefined);
       await writeFile(filePath, JSON.stringify({
         version: 1,
         entries: [{ ...base, id: 'ordinary-entry', implementationPrompt: '012' }],
@@ -1958,16 +2371,19 @@ describe('local emulator coordination', () => {
         configurations: [],
       }));
       await expect(amendCoordinationEntry(filePath, {
+        dependencyReceiptContextFactory: isolatedDependencyReceiptContextFactory,
         id: 'ordinary-entry',
         scope: 'src/config/ordinaryDependencyReceipt.test.ts',
         now: '2099-01-01T00:00:01.000Z',
-      })).rejects.toThrow(/dependency receipt.*missing/i);
-      await expect(readFile(ordinaryReceipt, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+      } as Parameters<typeof amendCoordinationEntry>[1] & DependencyReceiptTestOptions))
+        .rejects.toThrow(/dependency receipt.*(?:missing|malformed)/i);
+      await expect(readFile(ordinaryReceipt, 'utf8')).resolves.toBe(liveP012Sentinel);
     } finally {
       await unlink(p014Receipt).catch(() => undefined);
       await unlink(ordinaryReceipt).catch(() => undefined);
       await unlink(filePath).catch(() => undefined);
       await unlink(`${filePath}.lock`).catch(() => undefined);
+      await rm(receiptRoot, { recursive: true, force: true });
     }
   });
 
