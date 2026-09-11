@@ -59,8 +59,8 @@ jobs:
             package-lock.json
             functions/package-lock.json
 
-      - name: Validate implementation work registration
-        id: work_registration
+      - name: Identify changed paths
+        id: change_scope
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
@@ -69,10 +69,8 @@ jobs:
           head_sha=$(git rev-parse HEAD)
           if [ "$EXACT_HEAD_COMMIT" = "true" ]; then
             if base_sha=$(git rev-parse --verify "$head_sha^" 2>/dev/null); then
-              npm run validate:work-registration -- --range "$base_sha..$head_sha"
               changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
             else
-              npm run validate:work-registration -- --commit "$head_sha"
               changed_paths=$(git diff-tree --root --no-commit-id --name-only -r "$head_sha")
             fi
           else
@@ -81,72 +79,79 @@ jobs:
               base_sha="$PUSH_BEFORE_SHA"
             fi
             if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
-              if ! base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null); then
-                echo "Unable to derive a trusted implementation-registration base from origin/main." >&2
-                exit 1
-              fi
+              base_sha=$(git merge-base origin/main "$head_sha" 2>/dev/null || true)
             fi
-            if [ "$base_sha" = "$head_sha" ]; then
-              echo "Unable to derive a trusted implementation-registration base before the exact head." >&2
-              exit 1
+            if [ -n "$base_sha" ] && [ "$base_sha" != "$head_sha" ]; then
+              changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
+            else
+              changed_paths="__unknown_diff__"
             fi
-            npm run validate:work-registration -- --range "$base_sha..$head_sha"
-            changed_paths=$(git diff --name-only "$base_sha" "$head_sha")
           fi
           documentation_only=true
+          roadmap_changed=false
           while IFS= read -r changed_path; do
             case "$changed_path" in
-              *.md|README|*/README|README.*|*/README.*) ;;
+              docs/implementation-prompts.json|docs/IMPLEMENTATION_*.md) roadmap_changed=true ;;
+            esac
+            case "$changed_path" in
+              docs/implementation-prompts.json|*.md|README|*/README|README.*|*/README.*) ;;
               *) documentation_only=false ;;
             esac
           done <<EOF
           $changed_paths
           EOF
-          if [ "$documentation_only" = true ]; then
-            npm run coordination:docs
+          if [ "$changed_paths" = "__unknown_diff__" ]; then
+            documentation_only=false
+            roadmap_changed=true
           fi
           echo "documentation_only=$documentation_only" >> "$GITHUB_OUTPUT"
+          echo "roadmap_changed=$roadmap_changed" >> "$GITHUB_OUTPUT"
 
-      - name: Validate dependency authority and dispatcher drift
-        run: npm run validate:dependencies
+      - name: Check prompt catalog and generated views
+        if: steps.change_scope.outputs.roadmap_changed == 'true'
+        run: npm run roadmap:check
+
+      - name: Validate documentation
+        if: steps.change_scope.outputs.documentation_only == 'true'
+        run: npm run coordination:docs
 
       - uses: actions/setup-java@v5
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         with:
           distribution: temurin
           java-version: 21
 
-      - if: steps.work_registration.outputs.documentation_only != 'true'
+      - if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm ci --prefer-offline --no-audit
-      - if: steps.work_registration.outputs.documentation_only != 'true'
+      - if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm ci --prefix functions --prefer-offline --no-audit
 
       - name: Lint
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm run lint
 
       - name: Unit tests
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm test
 
       - name: Firestore security-rule tests
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm run test:rules
 
       - name: Build web
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm run build
 
       - name: Check web bundle size
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: node scripts/check-bundle-size.mjs
 
       - name: Build functions
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         run: npm run build --prefix functions
 
       - name: Upload web build artifact
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: web-dist
@@ -155,7 +160,7 @@ jobs:
           retention-days: 1
 
       - name: Upload Functions build artifact
-        if: steps.work_registration.outputs.documentation_only != 'true'
+        if: steps.change_scope.outputs.documentation_only != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: functions-lib

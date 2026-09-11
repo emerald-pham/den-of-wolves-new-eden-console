@@ -17,6 +17,10 @@ const FIRESTORE_FILES = new Set([
   'firestore.indexes.json',
 ]);
 
+const TOOLING_ONLY_FILES = new Set([
+  'docs/implementation-prompts.json',
+]);
+
 function normalizeFile(file) {
   return String(file).trim().replaceAll('\\', '/').replace(/^\.\//, '');
 }
@@ -31,7 +35,9 @@ function isTestFile(file) {
 }
 
 function isToolingOnly(file) {
-  return file.startsWith('.github/') ||
+  return TOOLING_ONLY_FILES.has(file) ||
+    file.startsWith('.githooks/') ||
+    file.startsWith('.github/') ||
     file.startsWith('scripts/') ||
     /(?:^|\/)(?:eslint\.config\.|\.eslintrc|vitest\.config\.)/.test(file);
 }
