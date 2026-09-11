@@ -212,7 +212,7 @@ describe('implementation progress integrity gate', () => {
     const result = validateImplementationProgress(validationInputs);
 
     expect(result.errors).not.toContainEqual(expect.stringMatching(/Prompt 598/));
-    expect(result.summary).toMatchObject({ total: 732, resumePrompt: '012' });
+    expect(result.summary).toMatchObject({ total: 734, resumePrompt: '012' });
     expect(result.summary?.complete).toBe(result.releaseProgress?.completed);
     expect(progressSource).toContain('| 004 | done | feature | 0.3.9, 0.3.11 |');
     expect(progressSource).toContain('| 051 | done | feature | 0.3.9, 0.3.12, 0.3.13 |');
