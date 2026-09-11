@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**92 / 732 prompts complete (12.57%)**
+**93 / 732 prompts complete (12.70%)**
 
-Status breakdown: **92 done · 26 partial · 0 active · 614 missing**.
+Status breakdown: **93 done · 25 partial · 0 active · 614 missing**.
 
 Active prompt: **none**
 
@@ -36,19 +36,18 @@ implemented and does not count toward completed behavior.
 Prompt 664 is complete as tooling-only repository governance: every
 non-documentation commit is bound to a dependency-ready canonical item across
 all three roadmap authorities at commit, push, CI, validation, and closeout.
-Prompt 665 is partial as non-feature coordination governance: session goals now
+Prompt 665 is complete as non-feature coordination governance: session goals
 have a durable ignored artifact, exact wrap-up comparison, fail-closed cleanup,
-legacy migration policy, and phase-specific delegation floors; implementation
-and release evidence remain open until the reconciled release gate.
+legacy migration policy, and phase-specific delegation floors, with reconciled
+exact-SHA release evidence recorded by the coordination gate.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 
 ### Version 0.3.28 progress evidence
 
-The current release boundary records Prompt 055 plus the non-feature Prompt 664
-governance repair complete at **92 / 732 = 12.57%** with
-**92 done · 26 partial · 0 active · 614 missing**. Prompt 665 remains partial
-until its reconciled coordination lifecycle evidence is released. Intelligence Agent setup now
+The current release boundary records Prompt 055 plus the non-feature Prompts 664
+and 665 governance repairs complete at **93 / 732 = 12.70%** with
+**93 done · 25 partial · 0 active · 614 missing**. Intelligence Agent setup now
 requires canonical active non-GM holders, counts only valid current loyalty
 secrets, removes released loyalty records atomically, binds retries to a
 server-only actor/payload fingerprint, and keeps public events redacted.
@@ -1159,7 +1158,7 @@ release classification and evidence.
 
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 | 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
-| 665 | partial | non-feature | — | Durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, and role-specific model floors; implementation and reconciled release evidence remain open. |
+| 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
 
 ## Working notes
 

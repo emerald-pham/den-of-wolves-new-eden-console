@@ -848,7 +848,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 662 | DECISION | missing | none | none | none | OWNER-APPROVED-WOLF-DESIGNATION-POLICY | none | none | none | 054;075;496;586-588 | E-662 | none | Resolve ordinary-start Wolf designation policy. |
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
-| 665 | EXTEND | partial | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
+| 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
 
 ## Explicit sequence rules
 
