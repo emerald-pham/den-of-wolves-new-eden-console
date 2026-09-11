@@ -18,6 +18,7 @@ import type {
   DamageDraw,
   GameSession,
   GmInstance,
+  PopulationAlert,
   Player,
   PrivateLoyalty,
   Seat,
@@ -27,10 +28,12 @@ import type {
   SessionEvent,
   ShuttleDocking,
   ShuttleVisit,
+  ShipNavigationLogEntry,
   ShipJumpStates,
   ShipJumpTransitions,
   ShipNavigationLogs,
   SetupReceipt,
+  UnrestAlert,
 } from '@/types/game';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
@@ -110,12 +113,16 @@ function iso(value: unknown): string {
 function privateLoyalty(value: unknown): PrivateLoyalty | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const payload = value as Record<string, unknown>;
+  const partnerUid = payload.partnerUid === undefined || payload.partnerUid === null
+    ? undefined
+    : parseEntityId('player', payload.partnerUid);
   if (typeof payload.kind !== 'string' ||
-      (typeof payload.suspicion !== 'number' && payload.suspicion !== null)) return null;
+      (typeof payload.suspicion !== 'number' && payload.suspicion !== null) ||
+      (payload.partnerUid !== undefined && payload.partnerUid !== null && !partnerUid)) return null;
   return {
     kind: payload.kind,
     suspicion: payload.suspicion,
-    ...(typeof payload.partnerUid === 'string' ? { partnerUid: payload.partnerUid } : {}),
+    ...(partnerUid ? { partnerUid } : {}),
   };
 }
 
@@ -131,6 +138,7 @@ function setupReceipt(value: unknown): SetupReceipt | null {
   const eligibleRoleIds = Array.isArray(raw.eligibleRoleIds)
     ? raw.eligibleRoleIds.map((id) => parseEntityId('role', id))
     : [];
+  const actorUid = parseEntityId('player', raw.actorUid);
   if (
     typeof raw.source !== 'string' ||
     typeof raw.playerCount !== 'number' || !Array.isArray(raw.rosterIds) ||
@@ -142,13 +150,14 @@ function setupReceipt(value: unknown): SetupReceipt | null {
     typeof raw.resultCount !== 'number' ||
     (raw.loyaltySource !== 'automatic-default' && raw.loyaltySource !== 'explicit-preserved') ||
     typeof raw.expectedSetupRevision !== 'number' || typeof raw.committedSetupRevision !== 'number' ||
-    typeof raw.actorUid !== 'string' || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string'
+    !actorUid || typeof raw.serverTime !== 'string' || typeof raw.event !== 'string'
   ) return null;
   return {
     ...raw,
     rosterIds: rosterIds as SetupReceipt['rosterIds'],
     selectedWolfRoleIds: selectedWolfRoleIds as SetupReceipt['selectedWolfRoleIds'],
     eligibleRoleIds: eligibleRoleIds as SetupReceipt['eligibleRoleIds'],
+    actorUid,
   } as unknown as SetupReceipt;
 }
 
@@ -191,8 +200,56 @@ function shipNavigationLogs(value: unknown): ShipNavigationLogs {
     : {};
   return Object.fromEntries(Object.keys(INITIAL_SHIP_CONSOLE_LOCKS).map((shipId) => [
     shipId,
-    Array.isArray(stored[shipId]) ? stored[shipId] : [],
-  ]));
+    Array.isArray(stored[shipId])
+      ? stored[shipId].flatMap((entry) => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return [];
+        const raw = entry as Record<string, unknown>;
+        const id = parseEntityId('event', raw.id);
+        const entryShipId = parseEntityId('vessel', raw.shipId);
+        const subjectShipId = raw.subjectShipId === undefined
+          ? undefined
+          : parseEntityId('vessel', raw.subjectShipId);
+        const occurredAtValue = raw.occurredAt;
+        const occurredAt = occurredAtValue && typeof (occurredAtValue as { toDate?: unknown }).toDate === 'function'
+          ? iso(occurredAtValue)
+          : typeof occurredAtValue === 'string' ? occurredAtValue : undefined;
+        if (!id || !entryShipId || entryShipId !== shipId ||
+            (raw.subjectShipId !== undefined && !subjectShipId) ||
+            (raw.type !== 'self-jump' && raw.type !== 'ship-jump-away' && raw.type !== 'ship-jump-arrival') ||
+            typeof raw.origin !== 'string' || typeof raw.destination !== 'string' ||
+            !occurredAt || typeof raw.stardate !== 'string') return [];
+        return [{
+          id,
+          shipId: entryShipId,
+          type: raw.type,
+          origin: raw.origin,
+          destination: raw.destination,
+          ...(subjectShipId ? { subjectShipId } : {}),
+          ...(typeof raw.subjectShipName === 'string' ? { subjectShipName: raw.subjectShipName } : {}),
+          ...(typeof raw.navigationalError === 'boolean' ? { navigationalError: raw.navigationalError } : {}),
+          occurredAt,
+          stardate: raw.stardate,
+        } satisfies ShipNavigationLogEntry];
+      })
+      : [],
+  ])) as ShipNavigationLogs;
+}
+
+function alertMap<T extends UnrestAlert | PopulationAlert>(value: unknown, population: boolean): Readonly<Record<string, T>> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return Object.fromEntries(Object.entries(stored).flatMap(([key, value]) => {
+    const wireKey = parseEntityId('vessel', key);
+    if (!wireKey || typeof value !== 'object' || value === null || Array.isArray(value)) return [];
+    const raw = value as Record<string, unknown>;
+    const shipId = parseEntityId('vessel', raw.shipId);
+    if (!shipId || shipId !== wireKey || typeof raw.shipName !== 'string' ||
+        !Array.isArray(raw.targetGmInstanceIds) ||
+        raw.targetGmInstanceIds.some((id) => typeof id !== 'string') ||
+        (population && typeof raw.population !== 'number')) return [];
+    return [[key, { ...raw, shipId } as T]];
+  })) as Readonly<Record<string, T>>;
 }
 
 function shipConsoleLocks(value: unknown): NonNullable<GameSession['shipConsoleLocks']> {
@@ -355,6 +412,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const storedVisits = Array.isArray(data.shuttleVisitLog)
     ? data.shuttleVisitLog.map(shuttleVisit).filter((visit): visit is ShuttleVisit => visit !== undefined)
     : undefined;
+  const ownerUid = parseEntityId('player', data.ownerUid);
   const shuttleManifest = normalizeShuttleManifest(
     storedDockings,
     storedVisits,
@@ -413,12 +471,8 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipSurvivors: typeof data.shipSurvivors === 'object' && data.shipSurvivors !== null
       ? data.shipSurvivors as NonNullable<GameSession['shipSurvivors']>
       : INITIAL_SHIP_SURVIVORS,
-    populationAlerts: typeof data.populationAlerts === 'object' && data.populationAlerts !== null
-      ? data.populationAlerts as NonNullable<GameSession['populationAlerts']> : {},
-    unrestAlerts:
-      typeof data.unrestAlerts === 'object' && data.unrestAlerts !== null
-        ? data.unrestAlerts as NonNullable<GameSession['unrestAlerts']>
-        : {},
+    populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),
+    unrestAlerts: alertMap<UnrestAlert>(data.unrestAlerts, false),
     gmControlsLocked: data.gmControlsLocked === true,
     activeRoleIds,
     shuttleDockings: shuttleManifest.dockings,
@@ -431,10 +485,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(dradisContactTriggeredAt && typeof dradisContactTriggeredAt.toDate === 'function'
       ? { dradisContactTriggeredAt: iso(dradisContactTriggeredAt) }
       : {}),
-    // Older session fixtures and retained empty sessions can omit ownerUid;
-    // preserve that legacy projection while typed player documents use the
-    // parsed PlayerId boundary above.
-    ownerUid: data.ownerUid as GameSession['ownerUid'],
+    ...(ownerUid ? { ownerUid } : {}),
     createdAt: iso(data.createdAt),
     updatedAt: iso(data.updatedAt),
   };
@@ -493,7 +544,9 @@ function gmInstanceFrom(
   id: string,
   data: DocumentData,
   promoteSoleLegacyResponsibility = false,
-): GmInstance {
+): GmInstance | undefined {
+  const uid = parseEntityId('player', data.uid);
+  if (!uid) return undefined;
   const hasCanonicalResponsibilities = Array.isArray(data.responsibilities);
   const storedResponsibilities = hasCanonicalResponsibilities
     ? data.responsibilities.filter((responsibility: unknown): responsibility is 'main' | 'assistant' =>
@@ -508,7 +561,7 @@ function gmInstanceFrom(
   return {
     id,
     sessionId: entityId('session', sessionId),
-    uid: entityId('player', data.uid),
+    uid,
     name: data.name as string,
     deviceLabel: data.deviceLabel as string,
     ...(data.responsibility === 'main' || data.responsibility === 'assistant'
@@ -645,8 +698,10 @@ export function subscribeGmInstances(
         projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
       )) return;
       if (!fromCache) hasServerSnapshot = true;
-      onInstances(snapshot.docs.map((instance) =>
-        gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1)));
+      onInstances(snapshot.docs.flatMap((instance) => {
+        const gmInstance = gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1);
+        return gmInstance ? [gmInstance] : [];
+      }));
     },
     () => { if (subscribed) onError(); },
   );

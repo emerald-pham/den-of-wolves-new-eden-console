@@ -17,13 +17,13 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**97 / 734 prompts complete (13.22%)**
+**98 / 734 prompts complete (13.35%)**
 
-Status breakdown: **97 done · 22 partial · 615 missing**.
+Status breakdown: **98 done · 21 partial · 615 missing**.
 
 Active prompt: **none**
 
-Resume pointer: Prompt 017 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
+Resume pointer: Prompt 019 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
 <!-- END GENERATED PROMPT CATALOG: progress -->
 
 ### Version 0.3.28 progress evidence

@@ -140,7 +140,7 @@ export interface ShipDamageState {
 export type ShipDamage = Readonly<Record<string, ShipDamageState>>;
 
 export interface UnrestAlert {
-  readonly shipId: string;
+  readonly shipId: VesselId;
   readonly shipName: string;
   readonly targetGmInstanceIds: readonly string[];
   readonly createdAt: Timestamp;
@@ -299,7 +299,8 @@ export interface GameSession {
   /** Latest server-authorized manual DRADIS contact; automatic traffic derives from createdAt. */
   readonly dradisContactTriggeredAt?: Timestamp;
   /** uid of the facilitator who may elevate others. */
-  readonly ownerUid: PlayerId;
+  /** Legacy retained-empty sessions may omit the facilitator identity. */
+  readonly ownerUid?: PlayerId;
   readonly createdAt: Timestamp;
   readonly updatedAt: Timestamp;
 }
@@ -322,7 +323,7 @@ export interface SetupReceipt {
   readonly request: Readonly<Record<string, unknown>>;
   readonly expectedSetupRevision: number;
   readonly committedSetupRevision: number;
-  readonly actorUid: string;
+  readonly actorUid: PlayerId;
   readonly serverTime: string;
   readonly event: string;
 }
@@ -330,7 +331,7 @@ export interface SetupReceipt {
 export interface PrivateLoyalty {
   readonly kind: string;
   readonly suspicion: number | null;
-  readonly partnerUid?: string;
+  readonly partnerUid?: PlayerId;
 }
 
 export interface ShuttleDocking {

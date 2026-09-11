@@ -67,6 +67,12 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   const session = sessionFrom('typed-session', {
     ...sessionData(8),
     activeVesselIds: ['aegis', 'icebreaker'],
+    shipNavigationLogs: {
+      aegis: [{
+        id: 'jump-1', shipId: 'aegis', type: 'self-jump', origin: '0000', destination: '0001',
+        occurredAt: 'TURN 1', stardate: '2026.001.0000',
+      }],
+    },
     shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'TURN 1' }],
     shuttleVisitLog: [{
       id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 1',
@@ -76,6 +82,7 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.id).toBe('typed-session');
   expect(session.activeRoleIds?.[0]).toBe('admiral');
   expect(session.activeVesselIds).toEqual(['aegis', 'icebreaker']);
+  expect(session.shipNavigationLogs?.aegis?.[0]).toMatchObject({ id: 'jump-1', shipId: 'aegis' });
   expect(session.shuttleDockings?.[0]).toMatchObject({ shuttleId: 'starlight', shipId: 'aegis' });
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
 });
@@ -85,6 +92,22 @@ it('does not carry malformed IDs from an untrusted session snapshot', () => {
     ...sessionData(8),
     activeRoleIds: ['admiral', 'roles/admiral'],
     activeVesselIds: ['aegis', 'vessels/aegis'],
+    ownerUid: 'players/gm1',
+    shipNavigationLogs: {
+      aegis: [{
+        id: 'jump-1', shipId: 'aegis', type: 'self-jump', origin: '0000', destination: '0001',
+        occurredAt: 'TURN 1', stardate: '2026.001.0000',
+      }, {
+        id: 'events/jump-2', shipId: 'vessels/aegis', type: 'self-jump', origin: '0001', destination: '0002',
+        occurredAt: 'TURN 2', stardate: '2026.002.0000',
+      }],
+    },
+    unrestAlerts: {
+      aegis: { shipId: 'ships/aegis', shipName: 'AEGIS', targetGmInstanceIds: [], createdAt: 'TURN 1' },
+    },
+    populationAlerts: {
+      aegis: { shipId: 'ships/aegis', shipName: 'AEGIS', targetGmInstanceIds: [], population: 1, createdAt: 'TURN 1' },
+    },
     shuttleDockings: [{ shuttleId: 'shuttles/starlight', shipId: 'aegis', dockedAt: 'TURN 1' }],
     shuttleVisitLog: [{
       id: 'events/visit-1', shuttleId: 'starlight', shipId: 'aegis', action: 'docked', occurredAt: 'TURN 1',
@@ -93,6 +116,12 @@ it('does not carry malformed IDs from an untrusted session snapshot', () => {
 
   expect(session.activeRoleIds).toEqual([]);
   expect(session.activeVesselIds).toBeUndefined();
+  expect(session.ownerUid).toBeUndefined();
+  expect(session.shipNavigationLogs?.aegis).toEqual([
+    expect.objectContaining({ id: 'jump-1', shipId: 'aegis' }),
+  ]);
+  expect(session.unrestAlerts).toEqual({});
+  expect(session.populationAlerts).toEqual({});
   expect(session.shuttleDockings).not.toEqual(expect.arrayContaining([
     expect.objectContaining({ shuttleId: 'shuttles/starlight' }),
   ]));
@@ -232,6 +261,27 @@ it('projects a sole legacy GM responsibility into both canonical lanes on each d
   ]);
 });
 
+it('drops malformed GM identities without throwing or leaving a stale projection', () => {
+  const { callbacks } = captureSessionListener();
+  const onInstances = vi.fn();
+  const onError = vi.fn();
+  subscribeGmInstances('s1', onInstances, onError);
+
+  expect(() => callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{
+      id: 'bad',
+      data: () => ({ uid: 'players/gm1', name: 'Bad', deviceLabel: 'Chrome' }),
+    }, {
+      id: 'good',
+      data: () => ({ uid: 'gm2', name: 'Good', deviceLabel: 'Chrome' }),
+    }],
+  })).not.toThrow();
+
+  expect(onError).not.toHaveBeenCalled();
+  expect(onInstances).toHaveBeenCalledWith([expect.objectContaining({ id: 'good', uid: 'gm2' })]);
+});
+
 it('hydrates stable seat role ids without treating Press as a core seat', () => {
   const onSeats = vi.fn();
   let snapshotNumber = 0;
@@ -326,6 +376,35 @@ it('hydrates only the current player loyalty and a GM-visible setup receipt afte
   expect(onSetupReceipt).toHaveBeenCalledWith(expect.objectContaining({
     source: 'routine-start', committedSetupRevision: 1,
   }));
+});
+
+it('drops malformed player identities from private loyalty and setup receipt projections', () => {
+  const { callbacks } = captureSessionListener();
+  const onPrivateLoyalty = vi.fn();
+  const onSetupReceipt = vi.fn();
+  subscribeSessionState('s1', 'u1', {
+    onSession: vi.fn(), onPlayer: vi.fn(), onKicked: vi.fn(), onSeats: vi.fn(),
+    onPrivateLoyalty, onSetupReceipt, onError: vi.fn(),
+  });
+
+  callbacks[3]?.({
+    exists: () => true,
+    get: () => ({ kind: 'fleet-loyalist', suspicion: 5, partnerUid: 'players/u2' }),
+  });
+  callbacks[4]?.({
+    docs: [{
+      get: () => ({
+        source: 'routine-start', playerCount: 8, mode: 'base', rosterIds: ['admiral'],
+        pressEligibility: {}, excludedGmCount: 1, wolfCount: 1, wolfRule: 'one-wolf-at-8-13',
+        selectedWolfRoleIds: ['admiral'], eligibleRoleIds: ['admiral'], orderedModifiers: [],
+        resultCount: 8, loyaltySource: 'automatic-default', request: {}, expectedSetupRevision: 0,
+        committedSetupRevision: 1, actorUid: 'players/u1', serverTime: 'now', event: 'game-started',
+      }),
+    }],
+  });
+
+  expect(onPrivateLoyalty).toHaveBeenCalledWith(null);
+  expect(onSetupReceipt).toHaveBeenCalledWith(null);
 });
 
 it('parses only audience-safe maintenance result fields from member events', () => {

@@ -74,4 +74,3 @@ export function entityId<K extends EntityKind>(kind: K, value: unknown): EntityI
 export function wireEntityId<K extends EntityKind>(value: EntityId<K>): string {
   return value;
 }
-
