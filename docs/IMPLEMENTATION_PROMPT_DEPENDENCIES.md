@@ -84,7 +84,7 @@ rg -n "^\| $prompt_id \|" docs/IMPLEMENTATION_PROGRESS.md
 
 ## Coverage and integrity
 
-At this commit the plan contains 732 canonical IDs: 664 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
+At this commit the plan contains 734 canonical IDs: 666 numeric IDs plus 68 lettered IDs, with retired Prompt 071 excluded. The count is a source snapshot, not a second source of truth. Run this check after any catalog or progress edit:
 
 ~~~sh
 plan_count=$(rg -c '^- \*\*Prompt [0-9]{3}[a-z]* —' docs/IMPLEMENTATION_PLAN.md)
@@ -856,6 +856,8 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable across coordination begin, wrap-up, and finish. |
+| 666 | EXTEND | missing | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
+| 667 | PROVE | missing | 665 | none | none | none | none | none | none | none | E-667 | none | Rebaseline runtime threats for hostile session-code clients and DDoS. |
 
 ## Explicit sequence rules
 
@@ -907,6 +909,8 @@ The sequence table intentionally does not convert adjacency, domain ranges, or t
 | E-662 | related/consumes / decision_owner | 662 -> 054;075;496;586-588; OWNER-APPROVED-WOLF-DESIGNATION-POLICY | IMPLEMENTATION_PLAN.md - Prompt 662 definition | The decision notes overlaps/dependencies 054, 071, 075, 496, and 586-588 and remains missing until the owner-approved policy is recorded; retired 071 is excluded from the canonical related set. |
 | E-664 | hard_prompt | 664 -> 660;661 | IMPLEMENTATION_PLAN.md - Prompt 664 definition | Dependencies: Prompts 660 and 661 provide exact validation execution and the canonical documentation-only classification; every non-documentation commit must resolve to one dependency-ready canonical item before it can land. |
 | E-665 | hard_prompt | 665 -> 664 | IMPLEMENTATION_PLAN.md - Prompt 665 definition | Dependencies: Prompt 664 provides the universal roadmap-registration gate and typed source-backed authority; Prompt 665 extends its coordination lifecycle with durable session-goal evidence. |
+| E-666 | hard_prompt | 666 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 666 definition | Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the compact dependency receipt. |
+| E-667 | hard_prompt | 667 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 667 definition | Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 independently rebaselines hostile-client and resource-exhaustion controls without blocking P012/P014 or depending on Prompt 666. |
 
 ## Integrity checker
 

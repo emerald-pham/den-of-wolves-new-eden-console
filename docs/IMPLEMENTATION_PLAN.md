@@ -22,7 +22,7 @@ player-facing changelog entries are changed by this planning document.
 
 ## Reading map and table of contents
 
-Do **not** read this 732-prompt catalog from top to bottom for an ordinary
+Do **not** read this 734-prompt catalog from top to bottom for an ordinary
 implementation slice. Fixed numeric line ranges are intentionally not
 prescribed because checklist and evidence edits move them. Use the stable
 headings and targeted searches below.
@@ -90,7 +90,7 @@ Contents:
 - [Test-first plan delta](#test-first-execution-contract)
 - [Roadmap definition of done](#definition-of-done-for-the-roadmap)
 - [Prompt queue and tested-foundation snapshot](#prompt-by-prompt-atdd-build-sequence)
-- [Prompt checklist](#execution-checklist--all-732-prompts-001664-plus-lettered-ids-prompt-071-retired)
+- [Prompt checklist](#execution-checklist--all-734-prompts-001667-plus-lettered-ids-prompt-071-retired)
 - [Prompt definitions by domain](#foundation-session-casting-and-start-prompts-001090)
 
 ## Product objectives
@@ -211,7 +211,7 @@ Bind every roadmap slice and review to these explicit product goals:
 Validation must prove this list is still represented in the applicable plan,
 contract, progress, aesthetic, test, and acceptance records. A bounded release
 may implement only its declared slice, but it must not contradict or falsely
-claim completion of the remaining 732-prompt roadmap.
+claim completion of the remaining 734-prompt roadmap.
 
 Durable phase floors are role-specific: the implementation phase uses
 GPT-5.6 Luna (`gpt-5.6-luna`) at `max`, independent review uses GPT-5.6 Terra
@@ -2082,9 +2082,9 @@ then preserve the repaired old and new acceptances together.
 
 #### Execution state
 
-The complete 732-ID queue (Prompts 001–664 plus the lettered prompts, with the
+The complete 734-ID queue (Prompts 001–667 plus the lettered prompts, with the
 retired Prompt 071 removed) is in scope for the active completion campaign. All
-732 canonical prompt IDs (001–664 plus the lettered prompts, with the retired
+734 canonical prompt IDs (001–667 plus the lettered prompts, with the retired
 Prompt 071 removed) are tracked in the checklist below and in
 [`docs/IMPLEMENTATION_PROGRESS.md`](./IMPLEMENTATION_PROGRESS.md) before their
 implementation begins. A completed prompt is marked with a checked task box
@@ -2150,7 +2150,7 @@ branch, every applicable executable gate passes, the slice is merged to `main`,
 closed. No partial implementation, local-only result, unmerged green branch,
 or unchecked release obligation counts toward the campaign finish.
 
-#### Execution checklist — all 732 prompts (001–664 plus lettered IDs; Prompt 071 retired)
+#### Execution checklist — all 734 prompts (001–667 plus lettered IDs; Prompt 071 retired)
 
 Unchecked entries are partial or missing, never silently complete; the evidence
 and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
@@ -2887,6 +2887,8 @@ and resume point live in `docs/IMPLEMENTATION_PROGRESS.md`.
 - [ ] Prompt 663
 - [x] Prompt 664
 - [x] Prompt 665
+- [ ] Prompt 666
+- [ ] Prompt 667
 
 #### Foundation, session, casting, and start (Prompts 001–090)
 
@@ -3669,11 +3671,15 @@ a presentation/data primitive, not proof of a playable attack.
   required-artifact metadata retains artifact validation, cleanup, and
   verified-absence duties.
 
-The backlog contains **732 independently executable prompts** in this
-snapshot: 664 base IDs plus 68 lettered child IDs placed beside their closest
+- **Prompt 666 — [EXTEND] Generate a compact deterministic dependency packet and worktree receipt.** Acceptance: provide one executable shared `coordination:dependencies` dispatcher whose parser is shared with the full integrity/readiness gate. Its default prompt packet is at most 80 lines and 12 KiB, with explicit `--full` and machine-readable `--json` modes, while preserving exact plan/progress/dependency parity, cycle detection, typed evidence provenance, and readiness enforcement. Fingerprint the exact current `main`, all three authority inputs, applicable milestone/contract/evidence inputs, and only relevant active coordination ownership. Write an atomic ignored worktree-local receipt bound to owner, worktree, branch, and prompt; reject missing, stale, malformed, symlinked, or mismatched receipts. Relevant scope/claim overlap invalidates the receipt, while unrelated ledger noise does not. Require the receipt at coordination begin, ownership amendment, and validation, with only the exact legacy P012/P014 migrations needed for already-active work. Replace mandatory giant-context dependency reading with a small stable policy plus the generated packet, keep guidance and CI drift checks aligned, and record old/new line count, byte count, and execution time. This is non-feature tooling only: no application version, release fragment, or player-facing changelog item. Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the receipt.
+
+- **Prompt 667 — [PROVE] Runtime threat-model rebaseline: session-code compromise and DDoS.** Acceptance: check in one canonical machine-readable threat-model manifest and a CI drift/mapping gate. Contributors and the build pipeline are trusted, but every contributor or agent output remains untrusted until the mandatory independent review receipt and release gate accept it; machine gates protect against mistakes, stale work, missing review, and regressions, not deliberate contributor, commit, or history forgery. Explicitly place malicious-contributor/history attacks out of scope and audit away repository-governance complexity whose sole purpose is that discarded threat, without weakening independent review or ordinary correctness gates. Treat an external attacker who obtains or guesses a session code as a hostile client and keep DDoS/resource exhaustion in scope. Inventory and prove the existing authoritative platform baseline first: Firebase Hosting's global CDN, reCAPTCHA Enterprise-backed Firebase App Check initialized before Firebase services in `src/lib/firebase.ts`, production `enforceAppCheck: true` and `maxInstances: 10` in the shared `functions/src/runtimeOptions.ts` callable options, Cloud Firestore App Check enforcement, and the `functions/src/joinCodeSecurity.ts` six-digit/non-enumerating/transactional-collision policy plus six-attempt-per-authenticated-identity ten-minute limiter. Map every in-scope session-code/resource-exhaustion vector to existing control IDs, configuration, and tests; fail on an unmapped gap or drift, and preserve server authority, authorization, replay resistance, privacy, and input validation. Do not duplicate, replace, or redesign an equivalent platform control without a demonstrated gap and explicit owner decision, and do not add speculative security scope. Prompt 667 changes no runtime/player-facing behavior or platform limits: any demonstrated entropy, throttling, cost/concurrency, observability, overload, or other runtime gap must become a separately registered feature prompt with owner-visible thresholds and the normal version, release-fragment, and player-facing changelog gates. Keep docs/code from silently reintroducing the out-of-scope malicious-contributor assumption; minimize new governance code and return promptly to product work. Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 does not block P012 or P014 and has no dependency on Prompt 666.
+
+The backlog contains **734 independently executable prompts** in this
+snapshot: 666 base IDs plus 68 lettered child IDs placed beside their closest
 dependency; retired Prompt 071 is preserved only in historical release notes.
-The current evidence classification is **160 `[PRESERVE]`, 105 `[EXTEND]`,
-366 `[NEW]`, 49 `[PROVE]`, 24 `[DECISION]`, 25 `[REPAIR]`, 2 `[POLISH]`, and 1
+The current evidence classification is **160 `[PRESERVE]`, 106 `[EXTEND]`,
+366 `[NEW]`, 50 `[PROVE]`, 24 `[DECISION]`, 25 `[REPAIR]`, 2 `[POLISH]`, and 1
 `[DEFERRED-OWNER]`**. That distribution
 is the practical consequence of starting from the existing application rather
 than pretending it is empty. It is a reviewable snapshot, not a scope promise:

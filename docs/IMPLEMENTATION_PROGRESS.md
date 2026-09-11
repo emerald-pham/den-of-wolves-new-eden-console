@@ -1,6 +1,6 @@
-# Implementation Plan Progress — All 732 Prompts
+# Implementation Plan Progress — All 734 Prompts
 
-This tracker records all 732 canonical prompt IDs in
+This tracker records all 734 canonical prompt IDs in
 [`docs/IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md). A prompt counts as
 complete only after its `[PRESERVE]`, `[EXTEND]`, `[REPAIR]`, `[NEW]`,
 `[PROVE]`, or `[DECISION]` acceptance has been fully satisfied with named evidence. A
@@ -15,9 +15,9 @@ session can resume at the first unresolved acceptance.
 
 ## Progress
 
-**93 / 732 prompts complete (12.70%)**
+**93 / 734 prompts complete (12.67%)**
 
-Status breakdown: **93 done · 25 partial · 0 active · 614 missing**.
+Status breakdown: **93 done · 25 partial · 0 active · 616 missing**.
 
 Active prompt: **none**
 
@@ -40,14 +40,19 @@ Prompt 665 is complete as non-feature coordination governance: session goals
 have a durable ignored artifact, exact wrap-up comparison, fail-closed cleanup,
 legacy migration policy, and phase-specific delegation floors, with reconciled
 exact-SHA release evidence recorded by the coordination gate.
+Prompts 666 and 667 are registered and remain missing: Prompt 666 is a
+non-feature compact dependency-packet/receipt follow-on to Prompt 665, while
+Prompt 667 is a non-feature security-governance rebaseline that maps hostile
+runtime clients and resource exhaustion to existing controls under mandatory
+independent review; any runtime gap becomes a separately registered feature.
 P589b remains missing but is reclassified from preservation to a narrow copy
 repair; P611 remains missing with an explicit compact-DRADIS Red Alert boundary.
 
 ### Version 0.3.28 progress evidence
 
 The current release boundary records Prompt 055 plus the non-feature Prompts 664
-and 665 governance repairs complete at **93 / 732 = 12.70%** with
-**93 done · 25 partial · 0 active · 614 missing**. Intelligence Agent setup now
+and 665 governance repairs complete at **93 / 734 = 12.67%** with
+**93 done · 25 partial · 0 active · 616 missing**. Intelligence Agent setup now
 requires canonical active non-GM holders, counts only valid current loyalty
 secrets, removes released loyalty records atomically, binds retries to a
 server-only actor/payload fingerprint, and keeps public events redacted.
@@ -1159,6 +1164,8 @@ release classification and evidence.
 | 663 | missing | non-feature | — | Deferred [REPAIR] prompt: Fleetwide Red Alert currently has no clearly discoverable authorized trigger for the appropriate AEGIS Admiral role or does not appear and remain usable in a standard desktop browser window; separately repair whichever gap is present and add rendered browser proof while preserving server authority, direct-write denial, audience privacy, keyboard/screen-reader accessibility, contrast, responsive containment, and reduced motion. Remains missing until separately implemented. |
 | 664 | done | non-feature | — | Universal roadmap-registration enforcement binds every non-documentation commit to a canonical dependency-ready item across the plan, progress ledger, and dependency index; tracked hooks, CI, coordination validation, merge-resolution checks, and preserved/discarded closeout all fail closed through the same validator. |
 | 665 | done | non-feature | — | Completed as non-feature coordination governance: durable session-goal lifecycle for coordination begin, checked/unchecked wrap-up comparison, fail-closed artifact cleanup, explicit P012/P014/P664 migration, role-specific model floors, and reconciled exact-SHA release evidence recorded by the coordination gate. |
+| 666 | missing | non-feature | — | Planned [EXTEND] prompt: generate a compact deterministic dependency packet and atomic worktree receipt, with shared full-parity/readiness parsing, exact authority/main/milestone/relevant-coordination fingerprints, begin/amend/validate gates, narrow legacy P012/P014 migration, CI/guidance drift checks, and measured output/runtime improvement. |
+| 667 | missing | non-feature | — | Planned [PROVE] security-governance prompt: codify trusted contributors but untrusted-until-reviewed output, retain mandatory independent review, inventory and map the existing Firebase Hosting CDN, reCAPTCHA Enterprise App Check, Firestore enforcement, callable instance cap, and join-code/throttle controls, and route any demonstrated runtime gap to a separately registered feature rather than duplicate or speculative security expansion. |
 
 ## Working notes
 
