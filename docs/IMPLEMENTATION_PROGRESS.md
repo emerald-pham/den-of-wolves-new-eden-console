@@ -17,13 +17,13 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**98 / 734 prompts complete (13.35%)**
+**99 / 734 prompts complete (13.49%)**
 
-Status breakdown: **98 done · 21 partial · 615 missing**.
+Status breakdown: **99 done · 20 partial · 615 missing**.
 
 Active prompt: **none**
 
-Resume pointer: Prompt 019 is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
+Resume pointer: Prompt 020a is the lowest-numbered unchecked acceptance and remains advisory for concurrency.
 <!-- END GENERATED PROMPT CATALOG: progress -->
 
 ### Version 0.3.28 progress evidence
@@ -428,7 +428,7 @@ release classification and evidence.
 | 016 | done | non-feature | — | Resume/lifecycle tests and rules identity boundary. |
 | 017 | done | non-feature | — | Wire-safe branded ID aliases preserve session, player, seat, role, vessel, shuttle, and event identity at catalogs and snapshot boundaries; console, group, mission, and attack have identity-only contracts until persisted models exist. |
 | 018 | done | feature | 0.3.5, 0.3.7 | `actionMetadata.ts`, wrong-phase maintenance/jump tests, callable gates, and stale bridge-dispenser authority rejection. |
-| 019 | partial | non-feature | — | Event visibility exists; payload redaction is not centralized for every event. |
+| 019 | done | feature | 0.3.32 | Server-written member-readable events now use a per-event allowlist that preserves replay-safe attribution and public decision fields while excluding command fingerprints, hidden state, secrets, and server-only inputs; unknown event types fail closed, non-member visibility is rejected, and member-read/client-write rules are covered. |
 | 020 | done | non-feature | — | `functions/src/sessionComposition.test.ts` composes production create→join→GM authority→setup tuple→role/seat casting→private setup→Turn 1 for 8, 19, and 20 (claimed Press) without direct Firestore gameplay writes; focused callable evidence covers replay, stale, unauthorized, reconnect redaction, roster/loyalty/GM-instance invariants, and the existing 57-test `tests/rules/firestore.rules.test.ts` matrix covers member reads plus client-write denials. |
 | 020a | missing | non-feature | — | Planned [NEW] prompt: bound the existing single-player demo to setup and all supported actions through the end of Turn 1, deny jumps server-side with zero fuel/location/pursuit/event/turn mutation, and explain Demo mode in an accessible on-screen toast; no production-path evidence has been recorded. Depends on Prompt 020 plus Prompts 074–081, 177, and 287–304. |
 | 021 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the server-authoritative, revisioned, idempotent configuration tuple for the settled 8–20 core matrix. Full tuple validation, request replay/CAS, deterministic active-vessel derivation, and retired partial mutators are covered by the focused Functions suite; Press remains separate and GMs remain non-counted. |

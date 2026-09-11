@@ -643,14 +643,14 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "facilitators can inspect decisions while players receive only the public or private facts their roles permit.",
         "title": "Define privacy-safe audit records."
       },
-      "description": "Event visibility exists; payload redaction is not centralized for every event.",
+      "description": "Server-written member-readable events now use a per-event allowlist that preserves replay-safe attribution and public decision fields while excluding command fingerprints, hidden state, secrets, and server-only inputs; unknown event types fail closed, non-member visibility is rejected, and member-read/client-write rules are covered.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -659,10 +659,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.32"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

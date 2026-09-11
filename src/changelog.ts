@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['019'],
+    implementationProgress: {
+      completed: 99,
+      total: 734,
+      percentage: '13.49%',
+      done: 99,
+      partial: 20,
+      active: 0,
+      missing: 615,
+    },
+    changes: [
+      'Shared activity records keep the information players need without exposing private details.',
+    ],
+  },
+  {
+    version: '0.3.31',
     implementationPrompts: ['015'],
     implementationProgress: {
       completed: 97,

@@ -113,7 +113,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 016 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Define member and device identity. |
 | 017 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Stabilize entity identifiers. |
 | 018 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Define phase-eligible action metadata. |
-| 019 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Define privacy-safe audit records. |
+| 019 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Define privacy-safe audit records. |
 | 020 | PROVE | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Build the lobby-to-Team-Phase contract fixture. |
 | 020a | NEW | missing | 020;074-081;177;287-304 | none | none | none | none | none | none | none | E-020A | M1 | Bound the single-player demo to Turn 1 without jump authority. |
 | 021 | EXTEND | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Validate session creation input. |
