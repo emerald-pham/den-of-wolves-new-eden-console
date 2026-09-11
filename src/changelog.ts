@@ -21,18 +21,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
-    implementationPrompts: ['056'],
+    implementationPrompts: ['057'],
     implementationProgress: {
-      completed: 100,
+      completed: 101,
       total: 734,
-      percentage: '13.62%',
-      done: 100,
-      partial: 20,
+      percentage: '13.76%',
+      done: 101,
+      partial: 19,
       active: 0,
       missing: 614,
     },
     changes: [
-      'Facilitators can now enable Universal Arbour or Wolf Cult before setup, with the supported Wolf count preserved and private loyalties kept hidden from players.',
+      'Facilitators can now lock base Capybara, expansion Capybara, or neither before casting, keeping each session on one vessel definition from setup through start. 101 of 734 implementation prompts are complete (13.76%).',
     ],
   },
   {

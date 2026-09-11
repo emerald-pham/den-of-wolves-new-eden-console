@@ -1590,7 +1590,7 @@
         "acceptance": "base Capybara, expansion Capybara, or neither is locked before casting and the two definitions never mix.",
         "title": "Select base or expansion vessel mode."
       },
-      "description": "Base/expansion/none configuration validation exists; full lock/composition remains open.",
+      "description": "Canonical server setup resolves base Capybara, expansion Capybara, or neither; complete Capybara role composition is validated and mode changes are rejected after casting begins across confirm, casting, resume, and start.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1600,11 +1600,11 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.5"
+        "0.3.34"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

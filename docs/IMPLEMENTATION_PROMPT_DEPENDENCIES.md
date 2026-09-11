@@ -153,7 +153,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 054 | REPAIR | done | none | none | none | none | none | M1-SETUP | none | none | E-M1-SETUP | M1 | Derive Wolf-agent count authoritatively. |
 | 055 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Gate Intelligence Agent setup. |
 | 056 | EXTEND | done | none | none | none | none | none | none | none | none | E-M1-SETUP | M1 | Gate Universal Arbour and Wolf Cult setup. |
-| 057 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Select base or expansion vessel mode. |
+| 057 | EXTEND | done | none | none | none | none | none | none | none | none | none | M1 | Select base or expansion vessel mode. |
 | 058 | EXTEND | partial | none | none | none | none | none | none | none | none | none | M1 | Load expansion roster data. |
 | 059 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Capture nonbinding ship preferences. |
 | 060 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Assign casting authoritatively. |

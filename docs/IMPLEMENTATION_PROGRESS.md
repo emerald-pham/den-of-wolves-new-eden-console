@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**100 / 734 prompts complete (13.62%)**
+**101 / 734 prompts complete (13.76%)**
 
-Status breakdown: **100 done · 20 partial · 614 missing**.
+Status breakdown: **101 done · 19 partial · 614 missing**.
 
 Active prompt: **none**
 
@@ -468,7 +468,7 @@ release classification and evidence.
 | 054 | done | feature | 0.3.13 | The routine production start derives one hidden Wolf at 8–13 core players and two at 14–20 from locked authoritative setup, never accepts caller-selected routine cardinality, keeps Press outside the count while including one claimed holder in the eligible pool, and records private identities plus a redacted calculation receipt without a third Wolf. Same-request retry/replay cannot reroll; stale/conflicting authority rejects. Legacy manual Wolf mutation exports are retired. |
 | 055 | done | feature | 0.3.28 | Intelligence Agent setup now requires authoritative canonical holders, replacement-aware Wolf/IA counts, atomic stale-secret cleanup, actor/payload-bound replay, and production/rules/concurrency evidence. |
 | 056 | done | feature | 0.3.33 | Universal Arbour and Wolf Cult are explicit facilitator choices in the canonical setup tuple, with authoritative two-Wolf replacement validation, replay-safe confirmation, and private loyalty assignment. |
-| 057 | partial | feature | 0.3.5 | Base/expansion/none configuration validation exists; full lock/composition remains open. |
+| 057 | done | feature | 0.3.34 | Canonical server setup resolves base Capybara, expansion Capybara, or neither; complete Capybara role composition is validated and mode changes are rejected after casting begins across confirm, casting, resume, and start. |
 | 058 | partial | feature | 0.3.5 | Capybara catalogs and mode persistence exist; expansion start initialization remains open. |
 | 059 | done | feature | 0.3.5 | `setShipPreference` and `castingCallable.test.ts`. |
 | 060 | done | feature | 0.3.5 | `assignRole` facilitator callable and tests. |
