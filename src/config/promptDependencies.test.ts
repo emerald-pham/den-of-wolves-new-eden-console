@@ -140,6 +140,7 @@ describe('compact prompt dependency packets', () => {
       sources.plan.replace('425 → 426 → 428', '425 / 426 → 428'),
       sources.plan.replace('425 → 426 → 428', '425 → 425 → 426 → 428'),
       sources.plan.replace('425 → 426 → 428', '425 → 428'),
+      sources.plan.replace('432/432a', '432 → 432a'),
       sources.plan.replace('432/432a', '432a/432'),
       sources.plan.replace('432/432a', '432/432a/432'),
       sources.plan.replace('432/432a', '432'),
@@ -173,8 +174,28 @@ describe('compact prompt dependency packets', () => {
       sources: {
         ...sources,
         dependency: sources.dependency.replace(
+          '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a',
+          '| E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432 -> 432a',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
           '| WOLF-ATTACK | 425 -> 426 -> 428',
           '| WOLF-ATTACK | 425/426 -> 428',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432/432a',
+          '| WOLF-ATTACK | 425 -> 426 -> 428 -> 427 -> 432 -> 432a',
         ),
       },
     })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
