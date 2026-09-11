@@ -1037,6 +1037,55 @@ function commandReceiptRef(sessionId: string, requestId: string): DocumentRefere
   return db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`);
 }
 
+/**
+ * Before commandReceipts existed, M1 callables stored replay state in several
+ * action-specific collections (or only in a public event). A request ID is a
+ * single namespace across those actions, so a new callable must fail closed
+ * when any foreign legacy record already owns it. The caller may allow its own
+ * legacy receipt/event so the retained, fully bound domain replay can run.
+ */
+function legacyM1CommandRefs(sessionId: string, requestId: string): readonly DocumentReference[] {
+  return [
+    db.doc(`sessions/${sessionId}/setupMutationRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/gmResponsibilityRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/seatMutationRequests/${requestId}`),
+    db.doc(`sessions/${sessionId}/loyaltyAssignmentRequests/${requestId}`),
+    db.doc(`sessionStartRequests/${sessionId}_${requestId}`),
+    db.doc(`sessions/${sessionId}/events/setup-confirm-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/gm-responsibility-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/start-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/seat-claim-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/seat-release-${requestId}`),
+    db.doc(`sessions/${sessionId}/events/${requestId}`),
+    db.doc(`sessions/${sessionId}/events/press-availability-${requestId}`),
+  ];
+}
+
+async function rejectForeignLegacyM1Command(
+  tx: Transaction,
+  sessionId: string,
+  requestId: string,
+  label: string,
+  allowedPaths: readonly string[],
+): Promise<void> {
+  const allowed = new Set(allowedPaths);
+  const refs = legacyM1CommandRefs(sessionId, requestId);
+  const snapshots = await Promise.all(refs.map((ref) => tx.get(ref)));
+  if (snapshots.some((snapshot, index) => snapshot.exists && !allowed.has(refs[index]!.path))) {
+    throw new HttpsError(
+      'failed-precondition',
+      `This ${label} request id is already bound to a legacy command; retry with a fresh request id.`,
+    );
+  }
+}
+
+function rejectLegacyEventReplay(label: string): never {
+  throw new HttpsError(
+    'failed-precondition',
+    `This ${label} request has a legacy unbound receipt; retry with a fresh request id.`,
+  );
+}
+
 function isCastingMutationResult(value: unknown, sessionId: string): value is CastingMutationResult {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
@@ -1325,14 +1374,19 @@ export const confirmSetup = onCall<{
       command.activeRoleIds,
       command.expectedSetupRevision,
     );
-    const [prior, marker, authority] = await Promise.all([
+    const [prior, marker, authority, legacyEvent] = await Promise.all([
       tx.get(requestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
+    );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'setup') && !prior.exists) {
       throw new HttpsError('failed-precondition', 'This setup request has a marker without a replayable receipt.');
     }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('setup');
     if (prior.exists) {
       if (
         prior.get('action') !== 'confirm-setup' ||
@@ -1502,14 +1556,20 @@ export const setFacilitatorResponsibility = onCall<{
       targetInstanceId: responsibility.targetInstanceId ?? null,
       expectedSetupRevision: responsibility.expectedSetupRevision,
     } as const;
-    const [authority, prior, marker] = await Promise.all([
+    const [authority, prior, marker, legacyEvent] = await Promise.all([
       requireFacilitatorInstance(tx, responsibility.sessionId, uid, responsibility.instanceId),
       tx.get(requestRef),
       tx.get(markerRef),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, responsibility.sessionId, responsibility.requestId, 'responsibility',
+      [requestRef.path, eventRef.path],
+    );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'responsibility') && !prior.exists) {
       throw new HttpsError('failed-precondition', 'This responsibility request has a marker without a replayable receipt.');
     }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('responsibility');
     if (prior.exists) {
       const stored = prior.get('fingerprint');
       const same = typeof stored === 'object' && stored !== null &&
@@ -1714,7 +1774,7 @@ export const startGame = onCall<{
   };
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -1722,10 +1782,15 @@ export const startGame = onCall<{
       tx.get(instancesRef),
       tx.get(seatsRef),
       tx.get(secretsRef),
+      tx.get(eventRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
+    );
     if (hasCompatibleCommandMarker(marker, markerFingerprint, 'start') && !prior.exists) {
       throw new HttpsError('failed-precondition', 'This start request has a marker without a replayable receipt.');
     }
+    if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('start');
     if (prior.exists) {
       if (!sameStartRequestFingerprint(prior.get('fingerprint'), fingerprint)) {
         throw new HttpsError('failed-precondition', 'This request id was already used for a different start payload or actor.');
@@ -2028,6 +2093,9 @@ export const setShipPreference = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    await rejectForeignLegacyM1Command(
+      tx, preference.sessionId, preference.requestId, 'preference', [eventRef.path],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -2035,9 +2103,7 @@ export const setShipPreference = onCall<{
       'preference',
     );
     if (replay) return replay;
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This preference request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('preference');
     requireCastingWindow(session);
     const activeVessels = configuredRoleIds(session)
       .map((roleId) => roleShipId(roleId))
@@ -2099,6 +2165,9 @@ export const assignRole = onCall<{
       tx.get(db.doc(`sessions/${assignment.sessionId}/players/${assignment.targetUid}`)),
       tx.get(playersRef),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, assignment.sessionId, assignment.requestId, 'role assignment', [eventRef.path],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -2106,9 +2175,7 @@ export const assignRole = onCall<{
       'role assignment',
     );
     if (replay) return replay;
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This role assignment request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('role assignment');
     requireCastingWindow(authority.session);
     if (!isActivePlayer(target) || target.get('role') === 'observer') {
       throw new HttpsError('failed-precondition', 'That player is not eligible for casting.');
@@ -2179,6 +2246,9 @@ export const releaseRole = onCall<{
       tx.get(eventRef),
       requireFacilitatorInstance(tx, release.sessionId, uid, release.instanceId),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, release.sessionId, release.requestId, 'role release', [eventRef.path],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -2186,9 +2256,7 @@ export const releaseRole = onCall<{
       'role release',
     );
     if (replay) return { sessionId: replay.sessionId, setupRevision: replay.setupRevision };
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This role release request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('role release');
     const [target, targetSecret] = await Promise.all([
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
       tx.get(targetSecretRef),
@@ -2457,6 +2525,10 @@ export const assignLoyalty = onCall<{
       tx.get(eventRef),
       requireFacilitatorInstance(tx, assignment.sessionId, uid, assignment.instanceId),
     ]);
+    await rejectForeignLegacyM1Command(
+      tx, assignment.sessionId, assignment.requestId, 'loyalty assignment',
+      [receiptRef.path, eventRef.path],
+    );
     const sharedReplay = replayBoundCommand(
       sharedReceipt,
       sharedFingerprint,
@@ -2488,9 +2560,7 @@ export const assignLoyalty = onCall<{
       }
       throw new HttpsError('failed-precondition', 'This loyalty request has a malformed or non-replayable result.');
     }
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This loyalty request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('loyalty assignment');
 
     const [target, partner, players, secrets, targetSecret, partnerSecret] = await Promise.all([
       tx.get(targetRef),
@@ -2669,6 +2739,9 @@ export const revealAndroidProof = onCall<{
     if (typeof payload !== 'object' || payload === null || payload.kind !== 'android') {
       throw new HttpsError('permission-denied', 'Only the Android holder may disclose Android proof.');
     }
+    await rejectForeignLegacyM1Command(
+      tx, disclosure.sessionId, disclosure.requestId, 'Android disclosure', [eventRef.path],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -2678,9 +2751,7 @@ export const revealAndroidProof = onCall<{
       'Android disclosure',
     );
     if (replay) return { disclosed: true as const };
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This Android disclosure request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('Android disclosure');
     tx.update(secretRef, { payload: { ...payload as Record<string, unknown>, proofRevealed: true } });
     tx.set(eventRef, {
       type: 'android-proof-disclosed',
@@ -3418,6 +3489,9 @@ export const setPressEnabled = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    await rejectForeignLegacyM1Command(
+      tx, setting.sessionId, setting.requestId, 'Press availability', [eventRef.path],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -3430,9 +3504,7 @@ export const setPressEnabled = onCall<{
     if (replay) {
       return { pressEnabled: replay.pressEnabled, revision: replay.revision };
     }
-    if (legacyEvent.exists) {
-      throw new HttpsError('failed-precondition', 'This Press setting request has a legacy unbound receipt.');
-    }
+    if (legacyEvent.exists) rejectLegacyEventReplay('Press availability');
 
     const storedRevision = session.get('pressAvailabilityRevision');
     const currentRevision = Number.isSafeInteger(storedRevision) && storedRevision >= 0
@@ -4786,8 +4858,9 @@ export const claimSeat = onCall<{
       payload: { seatId },
     };
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
-        const [prior, marker, session, seat, player] = await Promise.all([
+        const [prior, marker, session, seat, player, legacyEvent] = await Promise.all([
           tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(playerRef),
+          tx.get(eventRef),
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(player)) {
@@ -4796,9 +4869,13 @@ export const claimSeat = onCall<{
         if (player.get('role') === 'gm') {
           throw new HttpsError('permission-denied', 'GMs cannot claim core seats.');
         }
+        await rejectForeignLegacyM1Command(
+          tx, sessionId, revisioned.requestId, 'seat claim', [requestRef.path, eventRef.path],
+        );
         if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
           throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
         }
+        if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat claim');
         if (prior.exists) {
           if (
             prior.get('action') !== 'claim' ||
@@ -4916,8 +4993,9 @@ export const releaseSeat = onCall<{
     };
     return db.runTransaction(async (tx): Promise<SeatMutationReceipt> => {
         const actorRef = db.doc(`sessions/${sessionId}/players/${uid}`);
-        const [prior, marker, session, seat, actor] = await Promise.all([
+        const [prior, marker, session, seat, actor, legacyEvent] = await Promise.all([
           tx.get(requestRef), tx.get(markerRef), tx.get(sessionRef), tx.get(seatRef), tx.get(actorRef),
+          tx.get(eventRef),
         ]);
         if (!session.exists) throw new HttpsError('not-found', 'No such session.');
         if (!isActivePlayer(actor)) throw new HttpsError('permission-denied', 'Join the session first.');
@@ -4930,9 +5008,13 @@ export const releaseSeat = onCall<{
             tx, sessionId, uid, revisioned.instanceId,
           )).instance;
         }
+        await rejectForeignLegacyM1Command(
+          tx, sessionId, revisioned.requestId, 'seat release', [requestRef.path, eventRef.path],
+        );
         if (hasCompatibleCommandMarker(marker, markerFingerprint, 'seat') && !prior.exists) {
           throw new HttpsError('failed-precondition', 'This seat request has a marker without a replayable receipt.');
         }
+        if (!prior.exists && legacyEvent.exists) rejectLegacyEventReplay('seat release');
         if (prior.exists) {
           if (
             prior.get('action') !== 'release' ||
