@@ -12,6 +12,7 @@ const REQUIRED_NEW_PROMPT_FILES = Object.freeze([
   'docs/IMPLEMENTATION_PROMPT_DEPENDENCIES.md',
 ]);
 const CANONICAL_AUTHORITY_PATHS = new Set(REQUIRED_NEW_PROMPT_FILES);
+const WOLF_SEQUENCE_EVIDENCE_ID = 'E-WOLF';
 
 export function normalizeImplementationPrompt(value) {
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -64,7 +65,15 @@ function parsePlan(source, errors) {
     'canonical plan checklist',
     errors,
   );
-  return { definitions, checklist };
+  const wolfAttackMatch = text.match(
+    /Implement this block in dependency order:\s*([\s\S]*?)\.\s*Prompts 351\b/i,
+  );
+  return {
+    definitions,
+    checklist,
+    wolfAttackSequenceSource: wolfAttackMatch?.[1] ?? null,
+    wolfAttackOrder: [],
+  };
 }
 
 function parseProgress(source, errors) {
@@ -86,6 +95,7 @@ function parseProgress(source, errors) {
 function parseDependencyIndex(source, errors) {
   const rows = [];
   const evidence = new Map();
+  const sequences = new Map();
   for (const line of String(source ?? '').split('\n')) {
     if (/^\|\s*\d{3}[a-z]*\s*\|/i.test(line)) {
       const cells = line.slice(1, line.endsWith('|') ? -1 : undefined)
@@ -114,6 +124,17 @@ function parseDependencyIndex(source, errors) {
       });
       continue;
     }
+    const sequenceMatch = line.match(/^\|\s*([A-Z][A-Z0-9-]+)\s*\|\s*([^|]+)\|\s*([^|]+)\|\s*(E-[^|]+)\|$/);
+    if (sequenceMatch) {
+      const sequenceId = sequenceMatch[1];
+      if (sequences.has(sequenceId)) errors.push(`dependency sequence repeats ${sequenceId}`);
+      else sequences.set(sequenceId, {
+        order: sequenceMatch[2].trim().replace(/\.$/, ''),
+        hardDependency: sequenceMatch[3].trim(),
+        evidenceIds: sequenceMatch[4].split(';').map((value) => value.trim().toUpperCase()).filter(Boolean),
+      });
+      continue;
+    }
     const match = line.match(/^\|\s*(E-[A-Z0-9-]+)\s*\|\s*([^|]+)\|\s*([^|]+)\|\s*([^|]+)\|\s*(.+)\|$/i);
     if (match) {
       const evidenceId = match[1].toUpperCase();
@@ -132,6 +153,7 @@ function parseDependencyIndex(source, errors) {
   return {
     rows: uniqueMap(rows.filter((row) => row.prompt), 'dependency index', errors),
     evidence,
+    sequences,
   };
 }
 
@@ -164,6 +186,34 @@ export function expandPromptTargets(value, knownPrompts, errors, label) {
     }
   }
   return output;
+}
+
+function expandOrderedPromptSequence(value, knownPrompts, errors, label) {
+  if (typeof value !== 'string' || !value.trim()) {
+    errors.push(`${label} is missing`);
+    return [];
+  }
+  const order = [];
+  const seen = new Set();
+  const groups = value.replaceAll('→', '->').split(/\s*->\s*/).filter(Boolean);
+  for (const group of groups) {
+    const members = group.split('/').map((token) => token.trim()).filter(Boolean);
+    if (members.length === 0) errors.push(`${label} contains an empty group`);
+    for (const member of members) {
+      const expanded = expandPromptTargets(
+        member.replace(/[–—]/g, '-'),
+        knownPrompts,
+        errors,
+        label,
+      );
+      for (const prompt of expanded) {
+        if (seen.has(prompt)) errors.push(`${label} repeats Prompt ${prompt}`);
+        else seen.add(prompt);
+        order.push(prompt);
+      }
+    }
+  }
+  return order;
 }
 
 function promptTrailers(message) {
@@ -202,6 +252,58 @@ function validateCatalogIntegrity({ plan, progress, dependency, errors }) {
       errors.push(`dependency evidence ${evidenceId} is missing an edge direction`);
     }
     if (!record.language.trim()) errors.push(`dependency evidence ${evidenceId} has empty source language`);
+  }
+  const wolfEvidence = dependency.evidence.get(WOLF_SEQUENCE_EVIDENCE_ID);
+  const wolfSequence = dependency.sequences.get('WOLF-ATTACK');
+  const wolfRows = new Set([...dependency.rows]
+    .filter(([, row]) => row.sequenceRules.split(';').map((value) => value.trim()).includes('WOLF-ATTACK'))
+    .map(([prompt]) => prompt));
+  const hasWolfContract = plan.definitions.has('425') || plan.wolfAttackSequenceSource !== null ||
+    Boolean(wolfEvidence) || Boolean(wolfSequence) || wolfRows.size > 0;
+  if (hasWolfContract) {
+    const planWolfOrder = expandOrderedPromptSequence(
+      plan.wolfAttackSequenceSource,
+      plan.definitions,
+      errors,
+      'canonical plan WOLF-ATTACK order',
+    );
+    const evidenceWolfOrder = expandOrderedPromptSequence(
+      wolfEvidence?.direction,
+      plan.definitions,
+      errors,
+      `${WOLF_SEQUENCE_EVIDENCE_ID} direction`,
+    );
+    const indexWolfOrder = expandOrderedPromptSequence(
+      wolfSequence?.order,
+      plan.definitions,
+      errors,
+      'dependency index WOLF-ATTACK order',
+    );
+    if (JSON.stringify(planWolfOrder) !== JSON.stringify(evidenceWolfOrder)) {
+      errors.push(`canonical plan WOLF-ATTACK order does not match ${WOLF_SEQUENCE_EVIDENCE_ID} evidence direction`);
+    }
+    if (JSON.stringify(planWolfOrder) !== JSON.stringify(indexWolfOrder)) {
+      errors.push('canonical plan WOLF-ATTACK order does not match the dependency index sequence table');
+    }
+    if (!wolfSequence?.evidenceIds.includes(WOLF_SEQUENCE_EVIDENCE_ID)) {
+      errors.push(`dependency index WOLF-ATTACK order must cite ${WOLF_SEQUENCE_EVIDENCE_ID}`);
+    }
+    for (const prompt of planWolfOrder) {
+      if (!wolfRows.has(prompt)) {
+        errors.push(`canonical plan WOLF-ATTACK order includes Prompt ${prompt} without a WOLF-ATTACK row`);
+      }
+    }
+    for (const prompt of wolfRows) {
+      if (!planWolfOrder.includes(prompt)) {
+        errors.push(`WOLF-ATTACK row Prompt ${prompt} is missing from the canonical plan order`);
+      }
+      const evidenceIds = dependency.rows.get(prompt)?.evidenceIds.split(';')
+        .map((value) => value.trim().toUpperCase()) ?? [];
+      if (!evidenceIds.includes(WOLF_SEQUENCE_EVIDENCE_ID)) {
+        errors.push(`WOLF-ATTACK row Prompt ${prompt} must cite ${WOLF_SEQUENCE_EVIDENCE_ID}`);
+      }
+    }
+    plan.wolfAttackOrder = planWolfOrder;
   }
   for (const prompt of promptIds) {
     if (!plan.definitions.has(prompt)) errors.push(`canonical plan is missing Prompt ${prompt}`);

@@ -20,6 +20,14 @@ const sources = {
   milestones: await readFile(resolve(process.cwd(), 'docs/IMPLEMENTATION_MILESTONES.md'), 'utf8'),
 };
 
+const expectedWolfOrder = [
+  '425', '426', '428', '427', '432', '432a', '433', '433a', '433b', '434', '434a',
+  ...Array.from({ length: 10 }, (_, index) => String(435 + index)),
+  ...Array.from({ length: 29 }, (_, index) => String(445 + index)),
+  ...Array.from({ length: 8 }, (_, index) => String(475 + index)),
+  '474', '484', '621', '645',
+];
+
 const binding = (worktree: string) => ({
   owner: `${userInfo().username}:${process.getuid?.() ?? 'unknown'}`,
   worktree,
@@ -82,6 +90,10 @@ describe('compact prompt dependency packets', () => {
       selected: { prompt: '666', changeClass: 'non-feature' },
     });
     expect(JSON.parse(json).readyQueue[0].prompt).toBe('012');
+    expect(packet.readyQueue
+      .filter((record: { sequence: string }) => record.sequence === 'WOLF-ATTACK')
+      .map((record: { prompt: string }) => record.prompt))
+      .toEqual(expectedWolfOrder.filter((prompt) => prompt !== '433a'));
     expect(formatDependencyPacket(packet, { json: true })).toBe(json);
   });
 
@@ -111,6 +123,47 @@ describe('compact prompt dependency packets', () => {
         '| 666 | REPAIR | partial |',
       ) },
     })).toThrow(/plan tag.*does not match/i);
+  });
+
+  it('fails closed when the plan-declared WOLF-ATTACK sequence drifts from its typed evidence or row membership', () => {
+    const worktree = '/tmp/p666-wolf-sequence';
+    const options = {
+      prompt: '666',
+      sources,
+      binding: binding(worktree),
+      coordinationState: { entries: [ownerEntry(worktree)] },
+      repositoryRoot: worktree,
+      repositoryIdentity: '/tmp/repository.git',
+    };
+    const mutations = [
+      sources.plan.replace('425 → 426 → 428', '426 → 425 → 428'),
+      sources.plan.replace('425 → 426 → 428', '425 → 425 → 426 → 428'),
+      sources.plan.replace('425 → 426 → 428', '425 → 428'),
+    ];
+    for (const plan of mutations) {
+      expect(() => createDependencyPacket({ ...options, sources: { ...sources, plan } }))
+        .toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    }
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '425 -> 426 -> 428 -> 427',
+          '426 -> 425 -> 428 -> 427',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
+    expect(() => createDependencyPacket({
+      ...options,
+      sources: {
+        ...sources,
+        dependency: sources.dependency.replace(
+          '| 425 | NEW | missing | none | none | none | none | none | WOLF-ATTACK |',
+          '| 425 | NEW | missing | none | none | none | none | none | none |',
+        ),
+      },
+    })).toThrow(/WOLF-ATTACK|E-WOLF|Wolf attack/i);
   });
 
   it('ignores unrelated ledger noise but fingerprints relevant ownership and conflicts', () => {

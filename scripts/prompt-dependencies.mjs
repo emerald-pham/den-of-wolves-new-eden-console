@@ -34,14 +34,6 @@ export const DEPENDENCY_AUTHORITY_PATHS = Object.freeze({
 const ACTIVE_STATUSES = new Set(['active', 'parked']);
 const BUSY_STATUSES = new Set(['active', 'in-progress', 'in_progress']);
 const SELECTABLE_STATUSES = new Set(['missing', 'partial']);
-const WOLF_ORDER = Object.freeze([
-  '425', '426', '428', '427', '432', '432a', '433', '433a', '433b', '434', '434a',
-  ...Array.from({ length: 10 }, (_, index) => String(435 + index)),
-  ...Array.from({ length: 29 }, (_, index) => String(445 + index)),
-  ...Array.from({ length: 8 }, (_, index) => String(475 + index)),
-  '474', '484', '621', '645',
-]);
-
 function sha256(value) {
   return createHash('sha256').update(String(value)).digest('hex');
 }
@@ -144,7 +136,7 @@ function milestoneRoute(source, hints) {
 function dispatcher(catalog) {
   const rows = [...catalog.dependency.rows.values()];
   const order = new Map(rows.map((row, index) => [row.prompt, index]));
-  const wolf = new Map(WOLF_ORDER.map((prompt, index) => [prompt, index]));
+  const wolf = new Map(catalog.plan.wolfAttackOrder.map((prompt, index) => [prompt, index]));
   const compare = (left, right) => {
     const milestone = (row) => Number(row.milestoneHints.match(/M(\d+)/)?.[1] ?? 999);
     return milestone(left) - milestone(right) ||
