@@ -773,6 +773,38 @@ version, with only that task's notes. If the diff instead adds bullets to an
 existing version entry, stop, allocate a separate version, and preserve every
 task as its own entry before merging.
 
+### Blocking-agent merge handoff
+
+A blocking agent is the identifiable Codex task that owns an active overlapping
+coordination claim or required same-file work. CI visibility, an external
+dependency, pending user input, and an ordinary test failure are not agent
+blockers. A task that cannot be identified and messaged directly is not an
+eligible blocking-agent handoff destination.
+
+When that blocking agent prevents merge, commit and push the exact task branch
+before sending the handoff. Do not edit through the blocker, leave only a
+coordination note, or ask the user to remember the branch. Send a direct
+user-visible message to the blocking agent with the destination task ID, remote
+branch, exact commit SHA, blocker reason, and overlapping files or claims.
+Include any still-needed same-file delta rather than implying that an incomplete
+branch is already merge-ready.
+
+Instruct the blocking agent: after its blocker work is finished and its claims
+are released, start a handoff integration coordination entry and record its
+entry ID, fetch the branch, reconcile it with current main, apply any named
+same-file delta, rerun required validation on the exact reconciled SHA, merge to
+main, push origin/main, and run `coordination:finish` for that same handoff
+integration entry. The blocking agent owns that queued integration unless the
+user changes priority; it must not merge before its original blocker work is
+complete.
+
+Verify direct-message delivery and request an acknowledgement when supported
+before closing the source entry as preserved; a coordination note is not proof
+of delivery. Record the destination task ID, remote branch, exact SHA, delivery
+result, blocker, and required merge sequence in the preservation result. If
+direct delivery cannot be verified, keep the source entry active and report the
+undelivered handoff instead of claiming preservation is complete.
+
 ### Truthful closeout outcomes
 
 `coordination:finish` closes only the entry named by the exact `--id` from
@@ -801,6 +833,12 @@ start SHA and a clean worktree. It does not require merge, a release validation
 receipt, or a push to `main`; record `outcome: preserved`, destination
 kind/value, verified commit SHA, and verification time. `pushed` is false (or
 absent) for the `main` release even if the preservation ref itself was pushed.
+
+When preservation is caused by a blocking agent, the
+[blocking-agent merge handoff](#blocking-agent-merge-handoff) is mandatory
+before this closeout: the exact branch must already be pushed, the direct merge
+instructions must be delivered to that blocker, and the preservation result
+must record the verified handoff evidence.
 
 If work is reviewed and no longer needed, close it as discarded:
 
@@ -1074,6 +1112,9 @@ tests/rules/      assertions against the emulator
   (pushing deploys the affected Firebase surfaces, including Hosting for
   visible product edits); for preserved or discarded work, the decision and
   preservation destination or discard evidence are recorded.
+- [ ] If another active agent blocked merge, the exact branch was pushed and a
+  direct, delivery-verified merge handoff was sent to that blocking task with
+  the branch, SHA, overlap, and complete post-blocker landing sequence.
 - [ ] Record completion time and retain the completed worktree and attached
   branch for 48 hours before cleanup; landed commits are pushed immediately,
   while discarded work does not require a push.
