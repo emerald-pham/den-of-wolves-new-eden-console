@@ -2683,13 +2683,6 @@
       "type": "hard_prompt"
     },
     {
-      "direction": "427 -> 426",
-      "id": "E-AUDIT-427",
-      "language": "Private attack preparation consumes attack composition.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
-      "type": "hard_prompt"
-    },
-    {
       "direction": "429 -> 425;428",
       "id": "E-AUDIT-429",
       "language": "Targeting consumes Wolf catalog and centralized combat math.",
@@ -4517,13 +4510,6 @@
       "type": "evidence"
     },
     {
-      "direction": "425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645",
-      "id": "E-WOLF",
-      "language": "Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645.",
-      "source": "IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding",
-      "type": "sequence"
-    },
-    {
       "direction": "428 -> 425;426",
       "id": "E-AUDIT-428",
       "language": "Combat math consumes Wolf catalog and composition.",
@@ -4550,6 +4536,27 @@
       "language": "Removing destroyed vessels while keeping escape pods addressable requires the durable catastrophe and pod-capacity record from Prompt 140d. Current destruction paths record ship damage and a ship-destroyed event but do not create escape-pod state; hiding a DRADIS contact alone cannot satisfy the acceptance. This records implementation readiness only, not a commit, merge, push, or deployment gate.",
       "source": "docs/implementation-prompts.json (Prompts 314 and 140d); functions/src/index.ts; src/types/game.ts",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645",
+      "id": "E-WOLF",
+      "language": "Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645.",
+      "source": "IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding",
+      "type": "sequence"
+    },
+    {
+      "direction": "427 -> 426",
+      "id": "E-AUDIT-427",
+      "language": "Private attack preparation consumes attack composition.",
+      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "type": "hard_prompt"
+    },
+    {
+      "direction": "427 -> 432",
+      "id": "E-427-PRIVATE-PREPARATION",
+      "language": "The GM-only Wolf preparation path composes the exact scheduled roster from Prompt 426, validates active fleet targets and a closed configured marker vocabulary, and persists only private preparation data. stageWolfAttackPreparation requires a live GM instance, active/current-turn session, request ID, shared receipt fingerprint, and expected-revision CAS; its atomic transaction writes the current private projection, audit record, and receipt while exact retries replay without writes. Firestore rules allow every connected GM to read the same current revision and deny players plus all client writes/enumeration. Focused callable and request-guard tests, 71 GM-console tests, listener/service coverage, 69 Firestore-rule tests, Functions and app builds, and lint pass. Local responsive evidence at 320x844, 1440x900, and 844x390 under reduced motion checks the usable staging form, 44px controls, typography, overflow, and keyboard-visible parent navigation. Declaration, random outcomes, damage, and casualties remain later prompts.",
+      "source": "functions/src/wolfAttackPreparation.ts; functions/src/wolfAttackPreparationCallable.test.ts; functions/src/requestGuards.ts; functions/src/index.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; focused tests/build/lint; /tmp/p427-render-evidence.txt; /tmp/p427-render/wolf-attack-preparation-1440x900.png",
+      "type": "evidence / related/consumes"
     }
   ],
   "plan": {
@@ -15394,8 +15401,8 @@
         "acceptance": "one GM can stage eligible cards, targets, modifiers, and notes before declaration while players receive nothing early; a second GM sees the same revision without becoming required.",
         "title": "Prepare an attack privately from the GM console."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-427",
+      "description": "The active GM console now stages a server-owned private Wolf attack draft: the scheduled card roster, active fleet targets, closed configured preparation markers, target mode, and bounded facilitator notes. The callable requires a live facilitator instance, active session/current-turn state, mandatory request IDs, shared command receipts, replay-safe fingerprints, and a monotonic CAS revision; one transaction writes the private projection, GM audit record, and receipt. Firestore rules let every connected GM read the same current revision while players cannot read, enumerate, or write it. A second GM therefore sees the same draft without becoming required. No card outcomes, dice, damage, casualties, or declaration are accepted here; those remain later attack contracts. Focused callable, request-guard, listener/service, GM-console, and Firestore-rule tests pass, with local responsive rendered evidence at 320x844, 1440x900, and 844x390 under reduced motion.",
+      "evidenceIds": "E-WOLF;E-AUDIT-427;E-427-PRIVATE-PREPARATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "426",
@@ -15406,7 +15413,7 @@
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

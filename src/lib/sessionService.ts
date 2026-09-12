@@ -10,6 +10,10 @@ import type {
   SetupReceipt,
   ShipJumpState,
   ShipJumpTransition,
+  WolfAttackPreparation,
+  WolfAttackPreparationModifierId,
+  WolfAttackPreparationTargetAssignment,
+  WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
   SessionPhase,
@@ -2114,6 +2118,44 @@ function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
   };
 }
 
+function wolfAttackPreparationReply(value: unknown): WolfAttackPreparation | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  const shipIds = Array.isArray(reply.shipIds)
+    ? reply.shipIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  const targetAssignments = Array.isArray(reply.targetAssignments)
+    ? reply.targetAssignments.flatMap((assignment): WolfAttackPreparationTargetAssignment[] => {
+      if (typeof assignment !== 'object' || assignment === null || Array.isArray(assignment)) return [];
+      const candidate = assignment as Record<string, unknown>;
+      return typeof candidate.cardIndex === 'number' && Number.isSafeInteger(candidate.cardIndex) &&
+        candidate.cardIndex >= 0 && typeof candidate.targetShipId === 'string'
+        ? [{ cardIndex: candidate.cardIndex, targetShipId: candidate.targetShipId }]
+        : [];
+    })
+    : [];
+  const modifiers = Array.isArray(reply.modifiers)
+    ? reply.modifiers.filter((modifier): modifier is WolfAttackPreparationModifierId => typeof modifier === 'string')
+    : [];
+  if (
+    !Number.isSafeInteger(reply.turn) || (reply.turn as number) < 1 ||
+    !Number.isSafeInteger(reply.revision) || (reply.revision as number) < 0 ||
+    (reply.targetMode !== 'manual' && reply.targetMode !== 'pre-rolled') ||
+    typeof reply.notes !== 'string' || !Array.isArray(reply.shipIds) || shipIds.length !== reply.shipIds.length ||
+    !Array.isArray(reply.targetAssignments) || targetAssignments.length !== reply.targetAssignments.length ||
+    !Array.isArray(reply.modifiers) || modifiers.length !== reply.modifiers.length
+  ) return null;
+  return {
+    turn: reply.turn as number,
+    revision: reply.revision as number,
+    shipIds,
+    targetMode: reply.targetMode as WolfAttackTargetMode,
+    targetAssignments,
+    modifiers,
+    notes: reply.notes,
+  };
+}
+
 /** Mark the approximate first Wolf-attack window from an active GM console. */
 export async function setWolfAttackWindow(
   status: WolfAttackWindowStatus,
@@ -2140,6 +2182,46 @@ export async function setWolfAttackWindow(
     if (!reply) throw new Error('The server returned an invalid Wolf-attack timing marker.');
     // The private projection listener remains the source of truth for the GM
     // panel. The callable reply is safe to render immediately after commit.
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+/** Save a server-validated, facilitator-only Wolf preparation draft. */
+export async function stageWolfAttackPreparation(
+  preparation: Omit<WolfAttackPreparation, 'revision'>,
+  expectedRevision: number,
+): Promise<WolfAttackPreparation> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before staging a private Wolf attack preparation.');
+  }
+  requireFreshSessionAuthority('Reconnect before staging a private Wolf attack preparation.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedRevision,
+    turn: preparation.turn,
+    shipIds: [...preparation.shipIds],
+    targetMode: preparation.targetMode,
+    targetAssignments: preparation.targetAssignments.map(({ cardIndex, targetShipId }) => ({
+      cardIndex,
+      targetShipId,
+    })),
+    modifiers: [...preparation.modifiers],
+    notes: preparation.notes,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'stageWolfAttackPreparation');
+  try {
+    const reply = wolfAttackPreparationReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Wolf-attack preparation.');
     if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
     return reply;
   } catch (cause) {

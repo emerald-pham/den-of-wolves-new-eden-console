@@ -10,6 +10,13 @@ import {
 } from './gameSetup';
 import { commandError } from './commandErrors';
 import { FIGHTER_WING_IDS, type FighterWingId } from './fighterWings';
+import {
+  WOLF_ATTACK_PREPARATION_MODIFIER_IDS,
+  WOLF_ATTACK_TARGET_MODES,
+  type WolfAttackPreparationModifierId,
+  type WolfAttackTargetAssignment,
+  type WolfAttackTargetMode,
+} from './wolfAttackPreparation';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -598,6 +605,88 @@ export function requireWolfAttackWindowRequest(data: {
     requestId: requiredId(data.requestId, 'requestId'),
     expectedRevision: data.expectedRevision as number,
     status: data.status,
+  };
+}
+
+export function requireWolfAttackPreparationRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  turn?: unknown;
+  shipIds?: unknown;
+  targetMode?: unknown;
+  targetAssignments?: unknown;
+  modifiers?: unknown;
+  notes?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  turn: number;
+  shipIds: string[];
+  targetMode: WolfAttackTargetMode;
+  targetAssignments: WolfAttackTargetAssignment[];
+  modifiers: WolfAttackPreparationModifierId[];
+  notes: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (!Number.isSafeInteger(data.turn) || (data.turn as number) < 1) {
+    throw new HttpsError('invalid-argument', 'turn must be a positive integer.');
+  }
+  if (!Array.isArray(data.shipIds) || data.shipIds.length < 1 || data.shipIds.length > 24 ||
+      data.shipIds.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(id))) {
+    throw new HttpsError('invalid-argument', 'shipIds must contain one to twenty-four known card ids.');
+  }
+  if (!WOLF_ATTACK_TARGET_MODES.includes(data.targetMode as WolfAttackTargetMode)) {
+    throw new HttpsError('invalid-argument', 'targetMode must be manual or pre-rolled.');
+  }
+  if (!Array.isArray(data.targetAssignments) || data.targetAssignments.length > 24) {
+    throw new HttpsError('invalid-argument', 'targetAssignments must be a list of at most twenty-four assignments.');
+  }
+  const targetAssignments: WolfAttackTargetAssignment[] = data.targetAssignments.map((value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new HttpsError('invalid-argument', 'Each target assignment must be an object.');
+    }
+    const assignment = value as Record<string, unknown>;
+    if (!Number.isSafeInteger(assignment.cardIndex) || (assignment.cardIndex as number) < 0 ||
+        typeof assignment.targetShipId !== 'string' || !/^[A-Za-z0-9_-]+$/.test(assignment.targetShipId)) {
+      throw new HttpsError('invalid-argument', 'Each target assignment requires a cardIndex and targetShipId.');
+    }
+    return {
+      cardIndex: assignment.cardIndex as number,
+      targetShipId: assignment.targetShipId as WolfAttackTargetAssignment['targetShipId'],
+    };
+  });
+  if (new Set(targetAssignments.map((assignment) => assignment.cardIndex)).size !== targetAssignments.length) {
+    throw new HttpsError('invalid-argument', 'Each card may have only one prepared target.');
+  }
+  if (!Array.isArray(data.modifiers) || data.modifiers.length > WOLF_ATTACK_PREPARATION_MODIFIER_IDS.length ||
+      data.modifiers.some((modifier) => !(WOLF_ATTACK_PREPARATION_MODIFIER_IDS as readonly unknown[]).includes(modifier))) {
+    throw new HttpsError('invalid-argument', 'modifiers contains an unsupported preparation marker.');
+  }
+  const modifiers = data.modifiers as WolfAttackPreparationModifierId[];
+  if (new Set(modifiers).size !== modifiers.length) {
+    throw new HttpsError('invalid-argument', 'modifiers cannot contain duplicates.');
+  }
+  if (data.notes !== undefined && typeof data.notes !== 'string') {
+    throw new HttpsError('invalid-argument', 'notes must be text.');
+  }
+  const notes = typeof data.notes === 'string' ? data.notes.trim() : '';
+  if (notes.length > 2_000) throw new HttpsError('invalid-argument', 'notes must be 2,000 characters or fewer.');
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    turn: data.turn as number,
+    shipIds: [...data.shipIds] as string[],
+    targetMode: data.targetMode as WolfAttackTargetMode,
+    targetAssignments,
+    modifiers: [...modifiers],
+    notes,
   };
 }
 

@@ -145,6 +145,19 @@ service cloud.firestore {
         }
       }
 
+      // Private Wolf cards, targets, modifiers, and facilitator notes are a
+      // server-owned projection. Every connected GM may read the same
+      // revision; players and clients may never write or enumerate it.
+      match /wolfAttackPreparation/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if projectionId == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
       // Mission decks contain the authoritative shuffled order. They are
       // server-only state, including from connected GM devices.
       match /serverState/{document=**} {

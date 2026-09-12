@@ -29,6 +29,7 @@ vi.mock('@/lib/sessionService', () => ({
   setFighterWingCount: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
+  stageWolfAttackPreparation: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
@@ -41,17 +42,18 @@ vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
+  subscribeGmWolfAttackPreparation: vi.fn(),
   subscribeGmWolfAssignment: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, setEmergencyTimerPaused,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, stageWolfAttackPreparation, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
   setFighterWingCount } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAttackPreparation, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -101,6 +103,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
     onWindow(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackPreparation).mockImplementation((_sessionId, onPreparation) => {
+    onPreparation(null);
     return vi.fn();
   });
   vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
@@ -1657,6 +1663,43 @@ it('lets the facilitator mark and resolve the approximate Wolf window without st
   await waitFor(() => expect(turnControls).toHaveTextContent(
     /wolf-attack timing \/\/ resolved \/\/ turn 1 \/\/ revision 2/i,
   ));
+});
+
+it('stages a private card and target draft through the GM-only preparation panel', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'active',
+    currentTurn: 1,
+    activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124'],
+  });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(stageWolfAttackPreparation).mockResolvedValue({
+    turn: 1,
+    revision: 1,
+    shipIds: [...Array<string>(10).fill('wolf-fighter-wing'), ...Array<string>(5).fill('wolf-assault-transport')],
+    targetMode: 'manual',
+    targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
+    modifiers: [],
+    notes: 'Private setup',
+  });
+  renderConsole();
+
+  const preparation = await screen.findByRole('region', { name: 'Private Wolf attack preparation' });
+  expect(preparation).toHaveTextContent(/players receive no cards/i);
+  await user.clear(within(preparation).getByRole('spinbutton', { name: 'Fighter Wing count' }));
+  await user.type(within(preparation).getByRole('spinbutton', { name: 'Fighter Wing count' }), '10');
+  await user.selectOptions(within(preparation).getByRole('combobox', { name: 'Target for Wolf card 1' }), 'aegis');
+  await user.click(within(preparation).getByRole('button', { name: 'Save private attack draft' }));
+
+  await waitFor(() => expect(stageWolfAttackPreparation).toHaveBeenCalledWith(expect.objectContaining({
+    turn: 1,
+    targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
+  }), 0));
 });
 
 it('requires three deliberate clicks to pause and resume the emergency timer', async () => {

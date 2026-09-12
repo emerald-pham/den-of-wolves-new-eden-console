@@ -33,6 +33,7 @@ const {
   subscribeConnectedPlayers,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmWolfAttackPreparation,
   subscribeGmWolfAttackWindow,
   subscribeGmWolfAssignment,
   subscribeSessionEvents,
@@ -787,6 +788,37 @@ it('hydrates the facilitator-only Wolf timing marker and rejects malformed state
   expect(onWindow).toHaveBeenLastCalledWith(null);
   unsubscribe();
   expect(onWindow).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates the facilitator-only Wolf preparation and keeps revisions monotonic', () => {
+  const { callbacks } = captureSessionListener();
+  const onPreparation = vi.fn();
+  const unsubscribe = subscribeGmWolfAttackPreparation('s1', onPreparation);
+
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({ revision: 1, turn: 1, shipIds: ['wolf-fighter-wing'], targetMode: 'manual',
+      targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }], modifiers: [], notes: 'private' }),
+  });
+  expect(onPreparation).not.toHaveBeenCalled();
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ revision: 2, turn: 1, shipIds: ['wolf-fighter-wing'], targetMode: 'pre-rolled',
+      targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }], modifiers: ['aegis-command-and-control'], notes: 'private' }),
+  });
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ revision: 1, turn: 1, shipIds: ['wolf-fighter-wing'], targetMode: 'manual',
+      targetAssignments: [], modifiers: [], notes: 'stale' }),
+  });
+
+  expect(onPreparation).toHaveBeenCalledTimes(1);
+  expect(onPreparation).toHaveBeenLastCalledWith(expect.objectContaining({ revision: 2, targetMode: 'pre-rolled' }));
+  unsubscribe();
+  expect(onPreparation).toHaveBeenLastCalledWith(null);
 });
 
 it('does not let a delayed older Wolf timing revision overwrite the newer server marker', () => {

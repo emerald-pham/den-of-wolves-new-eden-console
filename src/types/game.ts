@@ -251,6 +251,35 @@ export interface WolfAttackWindow {
   readonly revision: number;
 }
 
+/** Facilitator-only Wolf preparation; combat outcomes remain server-owned by later prompts. */
+export type WolfAttackTargetMode = 'manual' | 'pre-rolled';
+export type WolfAttackPreparationModifierId =
+  | 'wolf-commander-target-reroll'
+  | 'aegis-command-and-control'
+  | 'gorgoneion-force-field-projector'
+  | 'enriched-warheads'
+  | 'pallas-boarding-rerolls'
+  | 'chepu-boarding-support'
+  | 'engineering-service-shuttle-support'
+  | 'aegis-boarding-rerolls'
+  | 'rosal-militia-leader'
+  | 'wolf-commander-boarding-lead';
+
+export interface WolfAttackPreparationTargetAssignment {
+  readonly cardIndex: number;
+  readonly targetShipId: string;
+}
+
+export interface WolfAttackPreparation {
+  readonly turn: number;
+  readonly revision: number;
+  readonly shipIds: readonly string[];
+  readonly targetMode: WolfAttackTargetMode;
+  readonly targetAssignments: readonly WolfAttackPreparationTargetAssignment[];
+  readonly modifiers: readonly WolfAttackPreparationModifierId[];
+  readonly notes: string;
+}
+
 /** The shared real-time window that starts with every numbered turn. */
 export interface TurnPhase {
   readonly turn: number;

@@ -238,6 +238,37 @@ describe('session header', () => {
     await assertFails(getDocs(gmAudit));
   });
 
+  it('shares the private Wolf preparation revision with every GM and no player', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackPreparation/current`), {
+        turn: 1,
+        revision: 1,
+        shipIds: ['wolf-fighter-wing'],
+        targetMode: 'pre-rolled',
+        targetAssignments: [{ cardIndex: 0, targetShipId: 'aegis' }],
+        modifiers: ['aegis-command-and-control'],
+        notes: 'Private GM note',
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackPreparation/current/audit/wolf-1`), {
+        type: 'wolf-attack-preparation', turn: 1, revision: 1, actorUid: 'gm1',
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/players/gm2`), {
+        uid: 'gm2', role: 'gm', connected: true,
+      });
+    });
+    const gmPreparation = doc(as('gm1'), `${SESSION}/wolfAttackPreparation/current`);
+    const secondGmPreparation = doc(as('gm2'), `${SESSION}/wolfAttackPreparation/current`);
+    const playerPreparation = doc(as('alice'), `${SESSION}/wolfAttackPreparation/current`);
+    const gmAudit = collection(as('gm1'), `${SESSION}/wolfAttackPreparation/current/audit`);
+
+    await assertSucceeds(getDoc(gmPreparation));
+    await assertSucceeds(getDoc(secondGmPreparation));
+    await assertFails(getDoc(playerPreparation));
+    await assertSucceeds(getDocs(gmAudit));
+    await assertFails(setDoc(gmPreparation, { revision: 2 }));
+    await assertFails(getDocs(collection(as('gm1'), `${SESSION}/wolfAttackPreparation`)));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);

@@ -46,6 +46,7 @@ import {
   setFighterWingCount,
   extendAirspaceWindow,
   setWolfAttackWindow,
+  stageWolfAttackPreparation,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
@@ -75,10 +76,34 @@ import type {
   GmInstance,
   Player,
   SessionEvent,
+  WolfAttackPreparation,
+  WolfAttackPreparationModifierId,
+  WolfAttackTargetMode,
   WolfAttackWindow,
   WolfAttackWindowStatus,
   WolfAssignment,
 } from '@/types/game';
+
+const WOLF_PREPARATION_CARD_TYPES = [
+  { id: 'wolf-fighter-wing', label: 'Fighter Wing' },
+  { id: 'wolf-assault-transport', label: 'Assault Transport' },
+  { id: 'wolf-destroyer', label: 'Destroyer' },
+  { id: 'wolf-cruiser', label: 'Cruiser' },
+  { id: 'wolf-strikecarrier', label: 'Fleet Strikecarrier' },
+  { id: 'wolf-battlestation', label: 'Battlestation' },
+] as const;
+const WOLF_PREPARATION_MODIFIERS: readonly { id: WolfAttackPreparationModifierId; label: string }[] = [
+  { id: 'wolf-commander-target-reroll', label: 'Wolf Commander // targeting reroll' },
+  { id: 'aegis-command-and-control', label: 'AEGIS // Command and Control' },
+  { id: 'gorgoneion-force-field-projector', label: 'Gorgoneion // Force Field Projector' },
+  { id: 'enriched-warheads', label: 'Enriched warheads' },
+  { id: 'pallas-boarding-rerolls', label: 'Pallas // boarding rerolls' },
+  { id: 'chepu-boarding-support', label: 'Chepu // boarding support' },
+  { id: 'engineering-service-shuttle-support', label: 'Engineering/service shuttle support' },
+  { id: 'aegis-boarding-rerolls', label: 'AEGIS // boarding rerolls' },
+  { id: 'rosal-militia-leader', label: 'Rosal Militia Leader' },
+  { id: 'wolf-commander-boarding-lead', label: 'Wolf Commander // boarding lead' },
+];
 
 interface PlayerRoleGroup {
   readonly id: string;
@@ -265,10 +290,20 @@ export default function GmConsole() {
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
+  const [wolfAttackPreparation, setWolfAttackPreparationState] = useState<WolfAttackPreparation | null>(null);
   const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
   const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
   const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
+  const [wolfPreparationMutation, setWolfPreparationMutation] = useState(false);
+  const [wolfPreparationMode, setWolfPreparationMode] = useState<WolfAttackTargetMode>('manual');
+  const [wolfPreparationCounts, setWolfPreparationCounts] = useState<Readonly<Record<string, string>>>(() => ({
+    'wolf-fighter-wing': '10',
+    'wolf-assault-transport': '5',
+  }));
+  const [wolfPreparationTargets, setWolfPreparationTargets] = useState<Readonly<Record<number, string>>>({});
+  const [wolfPreparationModifiers, setWolfPreparationModifiers] = useState<Readonly<Record<string, boolean>>>({});
+  const [wolfPreparationNotes, setWolfPreparationNotes] = useState('');
   const [clock, setClock] = useState(() => Date.now());
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
@@ -398,6 +433,16 @@ export default function GmConsole() {
     hasUnconfirmedRosterChanges ? draftRoleIds : serverRoleIds,
     hasUnconfirmedRosterChanges ? undefined : session?.activeVesselIds,
   );
+  const wolfPreparationShipIds = WOLF_PREPARATION_CARD_TYPES.flatMap(({ id }) => {
+    const count = Number(wolfPreparationCounts[id] ?? '0');
+    return Number.isSafeInteger(count) && count > 0
+      ? Array<string>(Math.min(count, 24)).fill(id)
+      : [];
+  });
+  const wolfPreparationRevision = wolfAttackPreparation?.revision ?? 0;
+  const wolfPreparationTargetOptions = activeShipIds.filter((shipId) =>
+    ['aegis', 'dione', 'icebreaker', 'quellon', 'shepherd', 'refinery-124', 'capybara'].includes(shipId),
+  );
   const rosterConfigurationValid = isValidRoleConfiguration(draftRoleIds);
   const rosterQueued = setupQueued;
   const conditionalUnionRoles = JOINT_ENGINEERING_ROLE_IDS.flatMap((roleId) => {
@@ -520,6 +565,7 @@ export default function GmConsole() {
       subscribeConnectedPlayers,
       subscribeDamageDraws,
       subscribeGmInstances,
+      subscribeGmWolfAttackPreparation,
       subscribeGmWolfAttackWindow,
       subscribeGmWolfAssignment,
       subscribeSessionEvents,
@@ -542,6 +588,11 @@ export default function GmConsole() {
       const stopWolfAttackWindow = subscribeGmWolfAttackWindow(
         sessionId,
         (next) => setWolfAttackWindowState((current) =>
+          current && next && next.revision < current.revision ? current : next),
+      );
+      const stopWolfAttackPreparation = subscribeGmWolfAttackPreparation(
+        sessionId,
+        (next) => setWolfAttackPreparationState((current) =>
           current && next && next.revision < current.revision ? current : next),
       );
       const stopWolfAssignment = subscribeGmWolfAssignment(
@@ -575,6 +626,7 @@ export default function GmConsole() {
       unsubscribe = () => {
         stopInstances();
         stopWolfAttackWindow();
+        stopWolfAttackPreparation();
         stopWolfAssignment();
         stopEvents();
         stopDamageDraws();
@@ -585,6 +637,7 @@ export default function GmConsole() {
       active = false;
       unsubscribe();
       setWolfAssignment(null);
+      setWolfAttackPreparationState(null);
     };
   }, [isGm, sessionId]);
 
@@ -593,6 +646,22 @@ export default function GmConsole() {
       (loyaltyCensus?.entries ?? []).map((entry) => [entry.uid, entry.note ?? '']),
     ));
   }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
+
+  useEffect(() => {
+    if (!wolfAttackPreparation) return;
+    const counts: Record<string, string> = {};
+    for (const { id } of WOLF_PREPARATION_CARD_TYPES) counts[id] = '';
+    for (const id of wolfAttackPreparation.shipIds) counts[id] = String(Number(counts[id] ?? '0') + 1);
+    setWolfPreparationCounts(counts);
+    setWolfPreparationMode(wolfAttackPreparation.targetMode);
+    setWolfPreparationTargets(Object.fromEntries(
+      wolfAttackPreparation.targetAssignments.map(({ cardIndex, targetShipId }) => [cardIndex, targetShipId]),
+    ));
+    setWolfPreparationModifiers(Object.fromEntries(
+      wolfAttackPreparation.modifiers.map((modifier) => [modifier, true]),
+    ));
+    setWolfPreparationNotes(wolfAttackPreparation.notes);
+  }, [wolfAttackPreparation]);
 
   useEffect(() => {
     if ((!capybaraEnabled || !activeShipIds.includes('capybara')) && viewerId === 'capybara') {
@@ -1136,6 +1205,30 @@ export default function GmConsole() {
     }
   }
 
+  async function saveWolfAttackPreparation(): Promise<void> {
+    if (wolfPreparationMutation || !session || !local || wolfPreparationShipIds.length === 0) return;
+    setWolfPreparationMutation(true);
+    try {
+      const next = await stageWolfAttackPreparation({
+        turn: currentTurn,
+        shipIds: wolfPreparationShipIds,
+        targetMode: wolfPreparationMode,
+        targetAssignments: wolfPreparationShipIds.flatMap((_, cardIndex) => {
+          const targetShipId = wolfPreparationTargets[cardIndex];
+          return targetShipId ? [{ cardIndex, targetShipId }] : [];
+        }),
+        modifiers: WOLF_PREPARATION_MODIFIERS.flatMap(({ id }) =>
+          wolfPreparationModifiers[id] ? [id] : []),
+        notes: wolfPreparationNotes,
+      }, wolfPreparationRevision);
+      setWolfAttackPreparationState(next);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setWolfPreparationMutation(false);
+    }
+  }
+
   async function saveCensusNote(targetUid: string): Promise<void> {
     if (!loyaltyCensus || censusNoteMutationUid !== null) return;
     setCensusNoteMutationUid(targetUid);
@@ -1419,6 +1512,115 @@ export default function GmConsole() {
                   onClick={() => void changeWolfAttackWindow('deferred')}
                 >
                   {wolfWindowMutation === 'deferred' ? 'Deferring to Turn 2…' : 'Defer to Turn 2'}
+                </button>
+              </div>
+            </section>
+            <section className="gm-wolf-preparation" aria-label="Private Wolf attack preparation">
+              <p className="gm-console__status">
+                Private attack draft // {wolfAttackPreparation
+                  ? `Turn ${wolfAttackPreparation.turn} // revision ${wolfAttackPreparation.revision}`
+                  : 'no revision saved'}
+              </p>
+              <p className="gm-console__hint">
+                GM-only staging // players receive no cards, targets, modifiers, or notes. Declaration,
+                dice, damage, and casualties remain separate server actions.
+              </p>
+              <fieldset className="gm-wolf-preparation__fieldset">
+                <legend>Eligible Wolf cards // Turn {currentTurn}</legend>
+                <div className="gm-wolf-preparation__cards">
+                  {WOLF_PREPARATION_CARD_TYPES.map(({ id, label }) => (
+                    <label className="gm-wolf-preparation__field" key={id}>
+                      <span>{label}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        inputMode="numeric"
+                        value={wolfPreparationCounts[id] ?? ''}
+                        onChange={(event) => setWolfPreparationCounts((current) => ({
+                          ...current,
+                          [id]: event.target.value,
+                        }))}
+                        aria-label={`${label} count`}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="gm-wolf-preparation__field">
+                <span>Target preparation mode</span>
+                <select
+                  value={wolfPreparationMode}
+                  onChange={(event) => setWolfPreparationMode(event.target.value as WolfAttackTargetMode)}
+                  aria-label="Wolf attack target preparation mode"
+                >
+                  <option value="manual">Manual target plan</option>
+                  <option value="pre-rolled">Pre-rolled target plan</option>
+                </select>
+              </label>
+              {wolfPreparationShipIds.length > 0 && (
+                <fieldset className="gm-wolf-preparation__fieldset">
+                  <legend>Target plan // optional until declaration</legend>
+                  <div className="gm-wolf-preparation__targets">
+                    {wolfPreparationShipIds.map((shipId, cardIndex) => (
+                      <label className="gm-wolf-preparation__field" key={`${shipId}-${cardIndex}`}>
+                        <span>{cardIndex + 1}. {WOLF_PREPARATION_CARD_TYPES.find((card) => card.id === shipId)?.label}</span>
+                        <select
+                          value={wolfPreparationTargets[cardIndex] ?? ''}
+                          onChange={(event) => setWolfPreparationTargets((current) => ({
+                            ...current,
+                            [cardIndex]: event.target.value,
+                          }))}
+                          aria-label={`Target for Wolf card ${cardIndex + 1}`}
+                        >
+                          <option value="">Unassigned</option>
+                          {wolfPreparationTargetOptions.map((targetId) => (
+                            <option value={targetId} key={targetId}>
+                              {SHIPS.find((ship) => ship.id === targetId)?.name ?? targetId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+              <fieldset className="gm-wolf-preparation__fieldset">
+                <legend>Configured preparation markers</legend>
+                <div className="gm-wolf-preparation__modifiers">
+                  {WOLF_PREPARATION_MODIFIERS.map(({ id, label }) => (
+                    <label className="gm-wolf-preparation__check" key={id}>
+                      <input
+                        type="checkbox"
+                        checked={wolfPreparationModifiers[id] === true}
+                        onChange={(event) => setWolfPreparationModifiers((current) => ({
+                          ...current,
+                          [id]: event.target.checked,
+                        }))}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <label className="gm-wolf-preparation__field gm-wolf-preparation__notes">
+                <span>Private facilitator notes</span>
+                <textarea
+                  rows={3}
+                  maxLength={2000}
+                  value={wolfPreparationNotes}
+                  onChange={(event) => setWolfPreparationNotes(event.target.value)}
+                  aria-label="Private Wolf attack facilitator notes"
+                />
+              </label>
+              <div className="gm-turn-control__actions">
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={wolfPreparationMutation || !local || currentTurn < 1 || wolfPreparationShipIds.length === 0}
+                  onClick={() => void saveWolfAttackPreparation()}
+                >
+                  {wolfPreparationMutation ? 'Saving private draft…' : 'Save private attack draft'}
                 </button>
               </div>
             </section>

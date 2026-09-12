@@ -53,6 +53,7 @@ import {
   requireAirspaceWindowExtensionRequest,
   requireEmergencyTimerPauseRequest,
   requireWolfAttackWindowRequest,
+  requireWolfAttackPreparationRequest,
   requireFacilitatorCensusNoteRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
@@ -217,6 +218,11 @@ import {
   type AwayMissionParticipantSnapshot,
 } from './awayMissionCards';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
+import {
+  validateWolfAttackPreparation,
+  wolfAttackPreparationState,
+  type WolfAttackPreparation,
+} from './wolfAttackPreparation';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -6319,6 +6325,148 @@ export const setWolfAttackWindow = onCall<{
     tx.set(auditRef, {
       type: 'wolf-attack-window',
       action: next.status,
+      turn: next.turn,
+      revision: next.revision,
+      actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
+    return next;
+  });
+
+  return result;
+});
+
+/** Stage private Wolf cards, targets, modifiers, and notes before declaration. */
+export const stageWolfAttackPreparation = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  turn?: unknown;
+  shipIds?: unknown;
+  targetMode?: unknown;
+  targetAssignments?: unknown;
+  modifiers?: unknown;
+  notes?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireWolfAttackPreparationRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const projectionRef = db.doc(`sessions/${change.sessionId}/wolfAttackPreparation/current`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackPreparation/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const canonicalAssignments = [...change.targetAssignments]
+    .sort((left, right) => left.cardIndex - right.cardIndex)
+    .map(({ cardIndex, targetShipId }) => `${cardIndex}:${targetShipId}`);
+  const fingerprint: CommandFingerprint = {
+    action: 'stage-wolf-attack-preparation',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: change.expectedRevision,
+    payload: {
+      turn: change.turn,
+      shipIds: change.shipIds,
+      targetMode: change.targetMode,
+      targetAssignments: canonicalAssignments.join(','),
+      modifiers: [...change.modifiers].sort(),
+      notes: change.notes,
+    },
+  };
+
+  const result = await db.runTransaction(async tx => {
+    const [session, player, instance, projection, receipt, audit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${change.sessionId}/gmInstances/${change.instanceId}`)),
+      tx.get(projectionRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const liveInstance = instance.exists
+      ? {
+        id: instance.id,
+        uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
+        connected: instance.get('connected') !== false,
+        lastSeenAt: gmInstanceLeaseTimestamp(instance),
+      }
+      : null;
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      liveInstance === null || liveInstance.uid !== uid || !isLiveSetupGm(liveInstance)
+    ) {
+      throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+    }
+    await rejectForeignLegacyM1Command(
+      tx, change.sessionId, change.requestId, 'Wolf attack preparation', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfAttackPreparation => wolfAttackPreparationState(value) !== undefined,
+      'Wolf attack preparation',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf attack preparation');
+    if (session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'Private Wolf-attack preparation is available only during the active game.',
+        'invalid-phase',
+      );
+    }
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    if (currentTurn < 1 || change.turn !== currentTurn) {
+      throw commandError(
+        'failed-precondition',
+        'Prepare the attack for the current live turn.',
+        'stale-revision',
+      );
+    }
+    const current = projection.exists ? wolfAttackPreparationState(projection.data()) : undefined;
+    if (current && current.turn !== currentTurn) {
+      throw commandError('failed-precondition', 'The private preparation belongs to another turn.', 'stale-revision');
+    }
+    const currentRevision = current?.revision ?? 0;
+    if (change.expectedRevision !== currentRevision) {
+      throw commandError(
+        'failed-precondition',
+        'Wolf-attack preparation changed. Wait for the live GM draft and try again.',
+        'stale-revision',
+      );
+    }
+    const activeVesselIds = activeVesselIdsForSession(session);
+    let validated: Omit<WolfAttackPreparation, 'revision'>;
+    try {
+      validated = validateWolfAttackPreparation({
+        turn: change.turn,
+        shipIds: change.shipIds,
+        targetMode: change.targetMode,
+        targetAssignments: change.targetAssignments,
+        modifiers: change.modifiers,
+        notes: change.notes,
+      }, activeVesselIds);
+    } catch (error) {
+      throw commandError(
+        'failed-precondition',
+        error instanceof Error ? error.message : 'The preparation is not valid for this setup.',
+        'invalid-phase',
+      );
+    }
+    const next: WolfAttackPreparation = { ...validated, revision: currentRevision + 1 };
+    if (current && JSON.stringify({ ...current, revision: undefined }) === JSON.stringify({ ...next, revision: undefined })) {
+      tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
+      return current;
+    }
+    tx.set(projectionRef, { ...next, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(auditRef, {
+      type: 'wolf-attack-preparation',
       turn: next.turn,
       revision: next.revision,
       actorUid: uid,

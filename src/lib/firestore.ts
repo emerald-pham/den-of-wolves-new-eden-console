@@ -40,6 +40,10 @@ import type {
   ShipNavigationLogs,
   SetupReceipt,
   UnrestAlert,
+  WolfAttackPreparation,
+  WolfAttackPreparationModifierId,
+  WolfAttackTargetMode,
+  WolfAttackPreparationTargetAssignment,
   WolfAttackWindow,
   WolfAssignment,
 } from '@/types/game';
@@ -323,6 +327,58 @@ function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
     status: state.status,
     turn: state.turn,
     revision: state.revision,
+  };
+}
+
+const WOLF_ATTACK_PREPARATION_MODIFIERS: ReadonlySet<string> = new Set([
+  'wolf-commander-target-reroll',
+  'aegis-command-and-control',
+  'gorgoneion-force-field-projector',
+  'enriched-warheads',
+  'pallas-boarding-rerolls',
+  'chepu-boarding-support',
+  'engineering-service-shuttle-support',
+  'aegis-boarding-rerolls',
+  'rosal-militia-leader',
+  'wolf-commander-boarding-lead',
+]);
+
+function wolfAttackPreparation(value: unknown): WolfAttackPreparation | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const state = value as Record<string, unknown>;
+  const targetAssignments = Array.isArray(state.targetAssignments)
+    ? state.targetAssignments.flatMap((assignment): WolfAttackPreparationTargetAssignment[] => {
+      if (typeof assignment !== 'object' || assignment === null || Array.isArray(assignment)) return [];
+      const candidate = assignment as Record<string, unknown>;
+      return typeof candidate.cardIndex === 'number' && Number.isSafeInteger(candidate.cardIndex) &&
+        candidate.cardIndex >= 0 && typeof candidate.targetShipId === 'string'
+        ? [{ cardIndex: candidate.cardIndex, targetShipId: candidate.targetShipId }]
+        : [];
+    })
+    : [];
+  const shipIds = Array.isArray(state.shipIds)
+    ? state.shipIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  const modifiers = Array.isArray(state.modifiers)
+    ? state.modifiers.filter((modifier): modifier is WolfAttackPreparationModifierId =>
+      typeof modifier === 'string' && WOLF_ATTACK_PREPARATION_MODIFIERS.has(modifier))
+    : [];
+  if (
+    !Number.isSafeInteger(state.turn) || (state.turn as number) < 1 ||
+    !Number.isSafeInteger(state.revision) || (state.revision as number) < 0 ||
+    (state.targetMode !== 'manual' && state.targetMode !== 'pre-rolled') ||
+    typeof state.notes !== 'string' || !Array.isArray(state.shipIds) || shipIds.length !== state.shipIds.length ||
+    !Array.isArray(state.targetAssignments) || targetAssignments.length !== state.targetAssignments.length ||
+    !Array.isArray(state.modifiers) || modifiers.length !== state.modifiers.length
+  ) return null;
+  return {
+    turn: state.turn as number,
+    revision: state.revision as number,
+    shipIds,
+    targetMode: state.targetMode as WolfAttackTargetMode,
+    targetAssignments,
+    modifiers,
+    notes: state.notes,
   };
 }
 
@@ -1077,6 +1133,32 @@ export function subscribeGmWolfAttackWindow(
     subscribed = false;
     unsubscribe();
     onWindow(null);
+  };
+}
+
+/** Subscribe to the facilitator-only private Wolf preparation draft. */
+export function subscribeGmWolfAttackPreparation(
+  sessionId: string,
+  onPreparation: (preparation: WolfAttackPreparation | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const acceptsRevision = createMonotonicRevisionGate();
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAttackPreparation/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      const preparation = snapshot.exists() ? wolfAttackPreparation(snapshot.data()) : null;
+      if (preparation && !acceptsRevision(preparation.revision)) return;
+      onPreparation(preparation);
+    },
+    () => {
+      if (subscribed) onPreparation(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onPreparation(null);
   };
 }
 
