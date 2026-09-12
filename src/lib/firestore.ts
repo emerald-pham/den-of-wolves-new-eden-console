@@ -57,6 +57,7 @@ import {
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
+import { fleetTickerState } from './fleetTickerState';
 import { normalizeDisplayName } from './displayName';
 import { turnPhaseState, turnStateForPhaseContext } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
@@ -722,6 +723,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     fleetRedAlert: fleetRedAlert(data.fleetRedAlert),
     debriefMode: debriefMode(data.debriefMode),
     pressDispatch: normalizePressDispatch(data.pressDispatch),
+    fleetTicker: fleetTickerState(data.fleetTicker),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),

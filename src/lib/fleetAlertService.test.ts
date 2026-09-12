@@ -15,7 +15,9 @@ beforeEach(() => {
 it('sends the current revision to the callable without optimistically changing shared state', async () => {
   await setFleetRedAlert(false);
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'setFleetRedAlert');
-  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: false, expectedRevision: 3 });
+  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', active: false, expectedRevision: 3, requestId: expect.any(String),
+  }));
   expect(useSessionStore.getState().session?.fleetRedAlert?.active).toBe(true);
 });
 it('rejects offline commands without queueing a delayed warning', async () => {
@@ -31,10 +33,16 @@ it('rejects cache-backed commands even when the connection label is live', async
 it('includes the GM instance for observer write mode', async () => {
   useSessionStore.setState({ gmInstance: { id: 'gm1', sessionId: 's1', uid: 'u1', name: 'GM', deviceLabel: '', claimedAt: '' } });
   await setFleetRedAlert(false);
-  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: false, expectedRevision: 3, instanceId: 'gm1' });
+  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', active: false, expectedRevision: 3, instanceId: 'gm1',
+    requestId: expect.any(String),
+  }));
 });
 
 it('transmits custom alert copy with the authoritative revision', async () => {
   await setFleetRedAlert(true, 'hold position');
-  expect(mocks.call).toHaveBeenCalledWith({ sessionId: 's1', active: true, expectedRevision: 3, text: 'HOLD POSITION' });
+  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
+    sessionId: 's1', active: true, expectedRevision: 3, text: 'HOLD POSITION',
+    requestId: expect.any(String),
+  }));
 });

@@ -41,6 +41,33 @@ it('plays a finite replacement for exactly its configured passes', () => {
   view.unmount(); render(<FleetTicker message={cancelled} />);
   expect(screen.queryByRole('status', { name: cancelled.text })).not.toBeInTheDocument();
 });
+it('does not let session storage overrule server-authoritative pass state', () => {
+  sessionStorage.setItem('fleet-ticker:server-stand-down', '2');
+  render(<FleetTicker message={{
+    id: 'server-stand-down',
+    text: 'AEGIS // STAND DOWN',
+    tone: 'normal',
+    passes: 2,
+    serverAuthoritative: true,
+  }} />);
+
+  expect(screen.getByRole('status', { name: 'AEGIS // STAND DOWN' })).toBeVisible();
+});
+it('returns to the supplied standing copy when the server deadline expires', () => {
+  vi.useFakeTimers(); setMotionOverride('reduce');
+  vi.setSystemTime(new Date('2026-09-12T13:00:00.000Z'));
+  render(<FleetTicker
+    message={{
+      id: 'server-stand-down-expiring', text: 'AEGIS // STAND DOWN', tone: 'normal',
+      passes: 2, expiresAt: '2026-09-12T13:01:00.000Z', serverAuthoritative: true,
+    }}
+    fallback={{ id: 'airspace-standing', text: 'AIRSPACE CONTROL // AIRSPACE CLOSED', tone: 'normal' }}
+  />);
+
+  expect(screen.getByRole('status', { name: 'AEGIS // STAND DOWN' })).toBeVisible();
+  act(() => vi.advanceTimersByTime(60_000));
+  expect(screen.getByRole('status', { name: 'AIRSPACE CONTROL // AIRSPACE CLOSED' })).toBeVisible();
+});
 it('returns to a standing press bulletin after a finite broadcast completes', () => {
   const standby = {
     id: 'press-standby',

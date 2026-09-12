@@ -1,10 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
-const mock = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined as string | undefined, turnPhase: undefined as unknown }));
+const mock = vi.hoisted(() => ({
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), receipts: new Map<string, Record<string, unknown>>(),
+  role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1,
+  revision: 0, active: false, raisedAt: undefined as string | undefined, turnPhase: undefined as unknown,
+}));
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({ doc: (path: string) => path, collection: (path: string) => path,
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({ get: mock.get, update: mock.update }) }),
+    runTransaction: (callback: (tx: unknown) => unknown) => callback({ get: mock.get, update: mock.update, set: mock.set }) }),
   FieldValue: { serverTimestamp: () => 'server-time' }, Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 import { setFleetRedAlert } from './index';
@@ -13,7 +17,16 @@ const request = (input = data) => ({ data: input, auth: { uid: 'u1' } }) as Call
 beforeEach(() => {
   Object.assign(mock, { role: 'player', post: 'admiral', connected: true, exists: true, phase: 'active', currentTurn: 1, revision: 0, active: false, raisedAt: undefined, turnPhase: undefined });
   mock.update.mockReset();
+  mock.set.mockReset();
+  mock.receipts.clear();
+  mock.set.mockImplementation((path: string, value: Record<string, unknown>) => {
+    mock.receipts.set(path, value);
+  });
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) {
+      const value = mock.receipts.get(path);
+      return { exists: value !== undefined, get: (key: string) => value?.[key] };
+    }
     if (path.endsWith('/players')) return { docs: ['admiral', 'executive-officer', 'wing-commander'].map(post => ({ exists: true, get: (key: string) => ({ connected: true, role: 'player', activeConsoleRoleId: post } as Record<string, unknown>)[key] })) };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
@@ -27,6 +40,14 @@ it('lets the active Admiral raise and cancel the shared warning', async () => {
   mock.active = true; mock.revision = 1;
   await setFleetRedAlert.run(request({ ...data, active: false, expectedRevision: 1 }));
   expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({ fleetRedAlert: expect.objectContaining({ active: false, revision: 2 }) }));
+});
+it('replays a request id without a second alert or ticker revision', async () => {
+  const command = { ...data, requestId: 'alert-retry-1' };
+  const first = await setFleetRedAlert.run(request(command));
+  mock.update.mockClear();
+
+  await expect(setFleetRedAlert.run(request(command))).resolves.toEqual(first);
+  expect(mock.update).not.toHaveBeenCalled();
 });
 it('stops an airspace bulletin when AEGIS sends a new fleet alert', async () => {
   mock.turnPhase = {

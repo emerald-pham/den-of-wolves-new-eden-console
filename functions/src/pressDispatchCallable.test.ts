@@ -2,7 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), role: 'player', post: 'press-officer', connected: true,
+  get: vi.fn(), update: vi.fn(), set: vi.fn(), receipts: new Map<string, Record<string, unknown>>(),
+  role: 'player', post: 'press-officer', connected: true,
   exists: true, phase: 'active', currentTurn: 1, pressDispatch: undefined as unknown,
   turnPhase: undefined as unknown,
   activeRoleIds: undefined as readonly string[] | undefined,
@@ -15,7 +16,7 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => path,
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get, update: mock.update,
+      get: mock.get, update: mock.update, set: mock.set,
     }),
   }),
   FieldValue: { serverTimestamp: () => 'server-time' },
@@ -29,6 +30,24 @@ const request = (input: Record<string, unknown> = data) => ({
   data: input, auth: { uid: 'u1' },
 }) as CallableRequest<Record<string, unknown>>;
 
+function expectAuthoritativeTicker(update: Record<string, unknown>, sourceId: string) {
+  expect(update.fleetTicker).toEqual(expect.objectContaining({
+    revision: expect.any(Number),
+    nextSequence: expect.any(Number),
+    replayCursor: expect.any(Number),
+  }));
+  const ticker = update.fleetTicker as {
+    current?: { sourceId?: string };
+    queued?: readonly { sourceId?: string }[];
+    draining?: readonly { sourceId?: string }[];
+  };
+  expect([
+    ticker.current?.sourceId,
+    ...(ticker.queued ?? []).map((entry) => entry.sourceId),
+    ...(ticker.draining ?? []).map((entry) => entry.sourceId),
+  ]).toContain(sourceId);
+}
+
 beforeEach(() => {
   Object.assign(mock, {
     role: 'player', post: 'press-officer', connected: true, exists: true,
@@ -39,7 +58,16 @@ beforeEach(() => {
   mock.randomUUID.mockReset();
   mock.randomUUID.mockReturnValue('dispatch-new');
   mock.update.mockReset();
+  mock.set.mockReset();
+  mock.receipts.clear();
+  mock.set.mockImplementation((path: string, value: Record<string, unknown>) => {
+    mock.receipts.set(path, value);
+  });
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) {
+      const value = mock.receipts.get(path);
+      return { exists: value !== undefined, get: (key: string) => value?.[key] };
+    }
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, activeConsoleRoleId: mock.post, connected: mock.connected }
       : {
@@ -58,7 +86,7 @@ beforeEach(() => {
 it('lets the active Press Officer publish a serialized dispatch during red alert', async () => {
   mock.pressDispatch = { text: 'Old news', revision: 0 };
   await publishPressDispatch.run(request());
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pressDispatch: {
       dispatches: [
         { id: 'legacy-0', text: 'Old news' },
@@ -67,18 +95,20 @@ it('lets the active Press Officer publish a serialized dispatch during red alert
       revision: 1,
     },
     updatedAt: 'server-time',
-  });
+  }));
+  expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
 it('uses revision zero when the session has no earlier dispatch', async () => {
   await publishPressDispatch.run(request());
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pressDispatch: {
       dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
       revision: 1,
     },
     updatedAt: 'server-time',
-  });
+  }));
+  expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
 it('stops an airspace bulletin when Press publishes new copy', async () => {
@@ -91,7 +121,7 @@ it('stops an airspace bulletin when Press publishes new copy', async () => {
 
   await publishPressDispatch.run(request());
 
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pressDispatch: {
       dispatches: [{ id: 'dispatch-new', text: `SNN // ${data.text}` }],
       revision: 1,
@@ -103,7 +133,8 @@ it('stops an airspace bulletin when Press publishes new copy', async () => {
       airspace: { state: 'lifted', tickerActive: false, pressAccess: false },
     },
     updatedAt: 'server-time',
-  });
+  }));
+  expectAuthoritativeTicker(mock.update.mock.calls[0]?.[1], 'dispatch-new');
 });
 
 it('holds Press Officer dispatches at Turn 0 unless the caller is a GM', async () => {
@@ -127,13 +158,15 @@ it('dismisses only the selected active dispatch and advances the collection revi
   await dismissPressDispatch.run(request({
     sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 2,
   }));
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     pressDispatch: {
       dispatches: [{ id: 'dispatch-2', text: 'SNN // Second report' }],
       revision: 3,
     },
     updatedAt: 'server-time',
-  });
+  }));
+  const update = mock.update.mock.calls[0]?.[1] as Record<string, unknown>;
+  expectAuthoritativeTicker(update, 'dispatch-1');
 });
 
 it('denies other roles, disconnected players, and unsigned callers', async () => {
@@ -157,6 +190,15 @@ it('keeps Press publishing when the counted roster changes', async () => {
     revision: 1,
   });
   expect(mock.update).toHaveBeenCalled();
+});
+
+it('replays a request id without publishing a second dispatch or ticker revision', async () => {
+  const command = { ...data, requestId: 'press-retry-1' };
+  const first = await publishPressDispatch.run(request(command));
+  mock.update.mockClear();
+
+  await expect(publishPressDispatch.run(request(command))).resolves.toEqual(first);
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('denies every Press action while the authoritative toggle is disabled, including GM access', async () => {

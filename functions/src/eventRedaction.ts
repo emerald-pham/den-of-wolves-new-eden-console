@@ -21,6 +21,7 @@ const MEMBER_EVENT_FIELDS: Readonly<Record<string, readonly string[]>> = {
   'seat-release': ['actorUid', 'seatId', 'revision', 'requestId', 'reason'],
   'airspace-opened': ['transition'],
   'turn-advanced': ['transition', 'fromTurn', 'toTurn', 'reason'],
+  'fleet-ticker': ['action', 'messageId', 'revision', 'sequence', 'serverTime'],
   'timer-pause': ['action', 'turn', 'window', 'actorName', 'byUid'],
   'ship-confetti': ['shipId', 'shipName', 'actorUid', 'actorName', 'actorRoleName'],
   'roll': ['byUid', 'sides', 'count', 'rolls', 'total'],

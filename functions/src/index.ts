@@ -201,6 +201,15 @@ import {
   commandReceiptDisposition,
   type CommandFingerprint,
 } from './commandIdempotency';
+import {
+  dismissFleetTickerSource,
+  emptyFleetTickerState,
+  FLEET_TICKER_PRIORITIES,
+  publishFleetTicker,
+  standDownExpiry,
+  type FleetTickerState,
+  type FleetTickerTransmission,
+} from './fleetTickerState';
 
 /**
  * Server-side authority for the companion console.
@@ -218,11 +227,154 @@ const db = getFirestore();
 type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
 type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
+const FLEET_TICKER_COPY = {
+  turnZero: 'AEGIS // CONSOLES LOCKED OUT UNTIL IRIS AUTHENTICATION IS COMPLETE',
+  airspaceClosed: 'AIRSPACE CONTROL // AIRSPACE CLOSED // AIRSPACE LOCKDOWN, ALL CREW MUST RETURN TO ORIGIN SHIPS / STAY IN THEIR ORIGIN SHIPS // SHUTTLES MUST STAY AT CURRENT LOCATION.',
+  airspaceOpen: 'AIRSPACE CONTROL // AIRSPACE OPEN',
+  emergency: 'AIRSPACE CONTROL // EMERGENCY TIMER PAUSED // ALL FLEET CLOCKS ON HOLD // GM RESUME REQUIRED',
+  standDown: 'AEGIS // RED ALERT CANCELLED BY AEGIS, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. REPEAT, STAND DOWN, STAND DOWN ALL BATTLESTATIONS. RED ALERT CANCELLED BY AEGIS.',
+  finale: 'CREDITS // BASED ON THE ORIGINAL MEGAGAME DEN OF WOLVES BY JOHN MIZON (SOUTH WEST MEGAGAMES) // NEW EDEN GAME DESIGN: JOHN KEYWORTH (KIWI GAME DESIGN) // WEB APP LEAD: EMERALD FLEUR PHAM',
+} as const;
+
+function fleetTickerStateFromLegacy(
+  sessionId: string,
+  session: DocumentSnapshot,
+  now: string,
+): FleetTickerState {
+  let state = emptyFleetTickerState();
+  const currentTurn = sessionTurn(session.get('currentTurn'));
+  if (currentTurn === 0) {
+    state = publishFleetTicker(sessionId, state, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
+      text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long', sourceId: 'turn-zero',
+    }, now);
+  }
+  const phase = turnPhaseState(session.get('turnPhase'));
+  if (phase?.timerPause) {
+    state = publishFleetTicker(sessionId, state, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
+      text: FLEET_TICKER_COPY.emergency, tone: 'danger', gap: 'long',
+      sourceId: `emergency:${phase.turn}:${phase.timerPause.pausedAt}`,
+    }, now);
+  } else if (phase?.airspace.tickerActive) {
+    state = publishFleetTicker(sessionId, state, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      text: phase.airspace.state === 'restricted'
+        ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
+      tone: 'normal', gap: 'long', sourceId: `airspace:${phase.turn}:${phase.airspace.state}`,
+    }, now);
+  }
+  const dispatches = pressDispatchState(session.get('pressDispatch')).dispatches;
+  for (const dispatch of dispatches) {
+    state = publishFleetTicker(sessionId, state, {
+      source: 'press', priority: FLEET_TICKER_PRIORITIES.press,
+      text: dispatch.text.startsWith('SNN //') ? dispatch.text : `SNN // ${dispatch.text}`,
+      tone: 'normal', gap: 'long', sourceId: dispatch.id,
+    }, now);
+  }
+  const alert = session.get('fleetRedAlert') as Record<string, unknown> | undefined;
+  const alertRevision = typeof alert?.revision === 'number' && Number.isSafeInteger(alert.revision)
+    ? alert.revision : 0;
+  if (alertRevision > 0) {
+    const active = alert?.active === true;
+    state = publishFleetTicker(sessionId, state, active ? {
+      source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
+      text: `ICSN ADMIRAL // ${(typeof alert?.text === 'string' && alert.text.length > 0
+        ? alert.text : 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS').toUpperCase()}`,
+      tone: 'danger', sourceId: `red-alert:${alertRevision}`,
+    } : {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.admiral,
+      text: FLEET_TICKER_COPY.standDown, tone: 'normal', passCount: 2,
+      expiresAt: standDownExpiry(now), sourceId: `red-alert:${alertRevision}`,
+    }, now);
+  }
+  const debrief = session.get('debriefMode') as Record<string, unknown> | undefined;
+  const debriefRevision = typeof debrief?.revision === 'number' && Number.isSafeInteger(debrief.revision)
+    ? debrief.revision : 0;
+  if (debrief?.active === true) {
+    state = publishFleetTicker(sessionId, state, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.debrief,
+      text: FLEET_TICKER_COPY.finale, tone: 'normal', sourceId: `debrief:${debriefRevision}`,
+    }, now);
+  }
+  return state;
+}
+
+function fleetTickerForSession(
+  sessionId: string,
+  session: DocumentSnapshot,
+  now: string,
+): FleetTickerState {
+  const stored = session.get('fleetTicker');
+  return stored === undefined
+    ? fleetTickerStateFromLegacy(sessionId, session, now)
+    : (stored as FleetTickerState);
+}
+
+function publishSessionFleetTicker(
+  sessionId: string,
+  session: DocumentSnapshot,
+  input: FleetTickerTransmission,
+  now: string,
+): FleetTickerState {
+  return publishFleetTicker(sessionId, fleetTickerForSession(sessionId, session, now), input, now);
+}
+
 type TurnAdvanceEvent = Readonly<{
   actorUid: string;
   transitionServerTime: string;
   reason: 'expiry' | 'override';
 }>;
+
+function txSetIfSupported(
+  tx: Transaction,
+  reference: DocumentReference,
+  value: Record<string, unknown>,
+): void {
+  // A few legacy unit fixtures model only update/get transactions. Production
+  // Firestore transactions always expose set; keeping the compatibility guard
+  // lets those fixtures continue to exercise the authority path.
+  const setter = (tx as unknown as { set?: (ref: DocumentReference, data: Record<string, unknown>) => void }).set;
+  if (typeof setter === 'function') setter.call(tx, reference, value);
+}
+
+function writeFleetTickerAudit(
+  tx: Transaction,
+  sessionId: string,
+  action: string,
+  stream: FleetTickerState,
+  messageId: string | undefined,
+  serverTime: string,
+): void {
+  txSetIfSupported(tx, db.doc(`sessions/${sessionId}/events/fleet-ticker-${stream.revision}`),
+    buildPrivacySafeEventRecord({
+      type: 'fleet-ticker',
+      payload: {
+        action,
+        ...(messageId ? { messageId } : {}),
+        revision: stream.revision,
+        sequence: stream.replayCursor,
+        serverTime,
+      },
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+}
+
+function isFleetAlertResult(value: unknown): value is { active: boolean; revision: number } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.active === 'boolean' &&
+    typeof result.revision === 'number' && Number.isSafeInteger(result.revision) &&
+    result.revision >= 0;
+}
+
+function isPressDispatchResult(value: unknown): value is { dispatches: readonly unknown[]; revision: number } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return Array.isArray(result.dispatches) &&
+    typeof result.revision === 'number' && Number.isSafeInteger(result.revision) &&
+    result.revision >= 0;
+}
 
 function writeAirspaceOpenedEvent(
   tx: Transaction,
@@ -945,6 +1097,17 @@ function advanceTurnInTransaction(
     survivorPopulation: announcementPopulation,
   };
   const turnPhase = startTurnPhase(nextTurn);
+  const tickerTime = transition?.transitionServerTime ?? new Date().toISOString();
+  const fleetTicker = publishFleetTicker(
+    sessionId,
+    fleetTickerForSession(sessionId, session, tickerTime),
+    {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      text: FLEET_TICKER_COPY.airspaceClosed, tone: 'normal', gap: 'long',
+      sourceId: `airspace:${nextTurn}:restricted`,
+    },
+    tickerTime,
+  );
   const turnState = nextTurnState(session, turnPhase, new Date().toISOString());
   const expiredTurnResources = currentTurn >= 1
     ? expireTurnScopedResources(
@@ -987,6 +1150,7 @@ function advanceTurnInTransaction(
     fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
     turnPhase,
     ...(turnState ? { turnState } : {}),
+    fleetTicker,
     ...(expiredTurnResources
       ? {
         maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -1192,6 +1356,10 @@ export const createSession = onCall<{
       const sessionRef = db.collection('sessions').doc();
       const eventRef = db.doc(`sessions/${sessionRef.id}/events/create-${creation.requestId}`);
       const now = new Date().toISOString();
+      const initialFleetTicker = publishFleetTicker(sessionRef.id, emptyFleetTickerState(), {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.turnZero,
+        text: FLEET_TICKER_COPY.turnZero, tone: 'normal', gap: 'long', sourceId: 'turn-zero',
+      }, now);
       // The expansion mode is persisted now, but its two-role composition is
       // deliberately resolved by the casting/start slice. Adding both roles
       // here would silently create more role holders than configured players
@@ -1241,6 +1409,7 @@ export const createSession = onCall<{
           fleetSurvivorPopulationAdjustment: 0,
           populationAlerts: {},
           gmControlsLocked: false,
+          fleetTicker: initialFleetTicker,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
           shuttleDockings: composition.shuttleDockings,
@@ -1344,6 +1513,7 @@ export const createSession = onCall<{
           fleetSurvivorPopulationAdjustment: 0,
           populationAlerts: {},
           gmControlsLocked: false,
+          fleetTicker: initialFleetTicker,
           debriefMode: { active: false, revision: 0 },
           activeRoleIds,
           shuttleDockings: composition.shuttleDockings,
@@ -3966,6 +4136,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
         gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
         debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
+        fleetTicker: fleetTickerForSession(sessionId, sessionSnap, new Date().toISOString()),
         activeRoleIds,
         shuttleDockings,
         shuttleVisitLog,
@@ -4155,6 +4326,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       populationAlerts: publicAlertMap(sessionSnap.get('populationAlerts'), activeVesselIds, true),
       gmControlsLocked: sessionSnap.get('gmControlsLocked') === true,
       debriefMode: debriefModeState(sessionSnap.get('debriefMode')),
+      fleetTicker: fleetTickerForSession(sessionId, sessionSnap, new Date().toISOString()),
       activeRoleIds,
       shuttleDockings,
       shuttleVisitLog,
@@ -5028,6 +5200,7 @@ export const setDebriefMode = onCall<{
   const instanceRef = db.doc(
     `sessions/${setting.sessionId}/gmInstances/${setting.instanceId}`,
   );
+  const transitionServerTime = new Date().toISOString();
 
   const debriefMode = await db.runTransaction(async (tx): Promise<DebriefMode> => {
     const [session, player, instance] = await Promise.all([
@@ -5048,8 +5221,20 @@ export const setDebriefMode = onCall<{
     const current = debriefModeState(session.get('debriefMode'));
     if (current.active === setting.active) return current;
     const next = { active: setting.active, revision: current.revision + 1 };
+    const fleetTicker = setting.active
+      ? publishSessionFleetTicker(setting.sessionId, session, {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.debrief,
+        text: FLEET_TICKER_COPY.finale, tone: 'normal', sourceId: `debrief:${next.revision}`,
+      }, transitionServerTime)
+      : dismissFleetTickerSource(
+        setting.sessionId,
+        fleetTickerForSession(setting.sessionId, session, transitionServerTime),
+        `debrief:${current.revision}`,
+        transitionServerTime,
+      );
     tx.update(sessionRef, {
       debriefMode: next,
+      fleetTicker,
       updatedAt: FieldValue.serverTimestamp(),
     });
     return next;
@@ -5295,9 +5480,15 @@ export const beginOpenAirspacePhase = onCall<{
       airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
     };
     const turnState = phaseTransitionTurnState(session, turnPhase);
+    const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
+      sourceId: `airspace:${turnPhase.turn}:lifted`,
+    }, transitionServerTime);
     tx.update(sessionRef, {
       turnPhase,
       ...(turnState ? { turnState } : {}),
+      fleetTicker,
       updatedAt: FieldValue.serverTimestamp(),
     });
     writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
@@ -5368,6 +5559,7 @@ export const setEmergencyTimerPaused = onCall<{
   const instanceRef = db.doc(`sessions/${requestData.sessionId}/gmInstances/${requestData.instanceId}`);
   // Firestore may retry a transaction; one logical command must retain one audit id.
   const eventId = randomUUID();
+  const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async tx => {
     const [session, player, instance] = await Promise.all([
@@ -5417,9 +5609,20 @@ export const setEmergencyTimerPaused = onCall<{
       throw new HttpsError('internal', 'The emergency timer transition had no active window.');
     }
     const turnState = updatedTurnState(session, turnPhase);
+    const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, turnPhase.timerPause ? {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.emergency,
+      text: FLEET_TICKER_COPY.emergency, tone: 'danger', gap: 'long',
+      sourceId: `emergency:${currentTurn}:${turnPhase.timerPause.pausedAt}`,
+    } : {
+      source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+      text: turnPhase.airspace.state === 'restricted'
+        ? FLEET_TICKER_COPY.airspaceClosed : FLEET_TICKER_COPY.airspaceOpen,
+      tone: 'normal', gap: 'long', sourceId: `airspace:${currentTurn}:${turnPhase.airspace.state}`,
+    }, transitionServerTime);
     tx.update(sessionRef, {
       turnPhase,
       ...(turnState ? { turnState } : {}),
+      fleetTicker,
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${requestData.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
@@ -5627,9 +5830,15 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
         airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
       };
       const turnState = phaseTransitionTurnState(session, turnPhase);
+      const fleetTicker = publishSessionFleetTicker(requestData.sessionId, session, {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.airspace,
+        text: FLEET_TICKER_COPY.airspaceOpen, tone: 'normal', gap: 'long',
+        sourceId: `airspace:${turnPhase.turn}:lifted`,
+      }, transitionServerTime);
       tx.update(sessionRef, {
         turnPhase,
         ...(turnState ? { turnState } : {}),
+        fleetTicker,
         updatedAt: FieldValue.serverTimestamp(),
       });
       writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
@@ -7652,18 +7861,27 @@ function toTimestampMillis(value: unknown): number | undefined {
 }
 
 export const setFleetRedAlert = onCall<{
-  sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown;
+  sessionId: string; active: boolean; expectedRevision: number; instanceId?: string; text?: unknown; requestId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = request.data;
-  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId', 'text'].includes(key)) ||
+  if (!data || Object.keys(data).some(key => !['sessionId', 'active', 'expectedRevision', 'instanceId', 'text', 'requestId'].includes(key)) ||
       typeof data.sessionId !== 'string' || !/^[\w-]{1,128}$/.test(data.sessionId) ||
       (data.instanceId !== undefined && (typeof data.instanceId !== 'string' || !/^[\w-]{1,128}$/.test(data.instanceId))) ||
+      (data.requestId !== undefined && (typeof data.requestId !== 'string' || !/^[\w-]{1,128}$/.test(data.requestId))) ||
       (data.text !== undefined && (typeof data.text !== 'string' || !data.text.trim() || data.text.length > 500)) ||
       typeof data.active !== 'boolean' || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) {
     throw new HttpsError('invalid-argument', 'Invalid fleet alert command.');
   }
   const ref = db.doc(`sessions/${data.sessionId}`);
+  const requestId = typeof data.requestId === 'string' ? data.requestId : undefined;
+  const receiptRef = requestId ? commandReceiptRef(data.sessionId, requestId) : undefined;
+  const fingerprint: CommandFingerprint | undefined = requestId ? {
+    action: 'set-fleet-red-alert', sessionId: data.sessionId, requestId, actorUid: uid,
+    instanceId: data.instanceId ?? null, expectedRevision: data.expectedRevision,
+    payload: { active: data.active, text: typeof data.text === 'string' ? data.text.trim().toUpperCase() : null },
+  } : undefined;
+  const serverTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role')))) {
@@ -7674,6 +7892,11 @@ export const setFleetRedAlert = onCall<{
     } else await requireConsoleAuthority(tx, data.sessionId, player, 'admiral');
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(receipt, fingerprint, isFleetAlertResult, 'fleet red alert');
+      if (replay) return replay;
+    }
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     requireActiveGameplayPhase(session);
@@ -7683,12 +7906,18 @@ export const setFleetRedAlert = onCall<{
       throw commandError('failed-precondition', 'Fleet alert changed. Wait for the live update and try again.', 'stale-revision');
     }
     const lastRaisedAt = toTimestampMillis(current?.raisedAt);
-    const now = Date.now();
+    const now = Date.parse(serverTime);
     if (data.active && !current?.active && lastRaisedAt !== undefined && now - lastRaisedAt < FLEET_ALERT_COOLDOWN_MS) {
       throw commandError('failed-precondition', 'Fleet red alert may be raised once every 10 minutes.', 'invalid-phase');
     }
     const text = typeof data.text === 'string' ? data.text.trim().toUpperCase() : current?.text;
-    if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) return { revision: current?.revision ?? 0 };
+    if ((current?.active ?? false) === data.active && (!data.active || text === current?.text)) {
+      const result = { active: current?.active ?? false, revision: current?.revision ?? 0 };
+      if (receiptRef && fingerprint) {
+        txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      }
+      return result;
+    }
     const fleetRedAlert: { active: boolean; revision: number; text?: string; raisedAt?: string } = {
       active: data.active,
       revision: data.expectedRevision + 1,
@@ -7701,28 +7930,58 @@ export const setFleetRedAlert = onCall<{
       phase.airspace.tickerActive
       ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
       : undefined;
+    const fleetTicker = data.active
+      ? publishSessionFleetTicker(data.sessionId, session, {
+        source: 'admiral', priority: FLEET_TICKER_PRIORITIES.admiral,
+        text: `ICSN ADMIRAL // ${text ?? 'RED ALERT // WOLF ATTACK IMMINENT, ALL HANDS TO BATTLE STATIONS'}`,
+        tone: 'danger', sourceId: `red-alert:${fleetRedAlert.revision}`,
+      }, serverTime)
+      : publishSessionFleetTicker(data.sessionId, session, {
+        source: 'automatic', priority: FLEET_TICKER_PRIORITIES.admiral,
+        text: FLEET_TICKER_COPY.standDown, tone: 'normal', passCount: 2,
+        expiresAt: standDownExpiry(serverTime), sourceId: `red-alert:${fleetRedAlert.revision}`,
+      }, serverTime);
     tx.update(ref, {
       fleetRedAlert,
+      fleetTicker,
       ...(turnPhase ? { turnPhase } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeFleetTickerAudit(tx, data.sessionId, data.active ? 'raised' : 'stand-down', fleetTicker,
+      fleetTicker.current?.id, serverTime);
+    if (receiptRef && fingerprint) {
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: fleetRedAlert, createdAt: FieldValue.serverTimestamp() });
+    }
     return fleetRedAlert;
   });
 });
 
 /** Press dispatches are serialized so two open Press consoles cannot overwrite unseen copy. */
 export const publishPressDispatch = onCall<{
-  sessionId?: unknown; text?: unknown; expectedRevision?: unknown;
+  sessionId?: unknown; requestId?: unknown; text?: unknown; expectedRevision?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchRequest(request.data ?? {});
   const dispatchId = randomUUID();
   const ref = db.doc(`sessions/${data.sessionId}`);
+  const requestId = data.requestId;
+  const receiptRef = requestId ? commandReceiptRef(data.sessionId, requestId) : undefined;
+  const fingerprint: CommandFingerprint | undefined = requestId ? {
+    action: 'publish-press-dispatch', sessionId: data.sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: data.expectedRevision,
+    payload: { text: data.text },
+  } : undefined;
+  const serverTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const [player, session] = await Promise.all([
       tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
       tx.get(ref),
     ]);
+    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dispatch');
+      if (replay) return replay;
+    }
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
@@ -7761,27 +8020,49 @@ export const publishPressDispatch = onCall<{
       phase.airspace.tickerActive
       ? { ...phase, airspace: { ...phase.airspace, tickerActive: false } }
       : undefined;
+    const fleetTicker = publishSessionFleetTicker(data.sessionId, session, {
+      source: 'press', priority: FLEET_TICKER_PRIORITIES.press,
+      text: `SNN // ${data.text}`, tone: 'normal', gap: 'long', sourceId: dispatchId,
+    }, serverTime);
     tx.update(ref, {
       pressDispatch,
+      fleetTicker,
       ...(turnPhase ? { turnPhase } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    writeFleetTickerAudit(tx, data.sessionId, 'publish', fleetTicker, fleetTicker.current?.id, serverTime);
+    if (receiptRef && fingerprint) {
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: pressDispatch, createdAt: FieldValue.serverTimestamp() });
+    }
     return pressDispatch;
   });
 });
 
 /** Only the active Press Officer may retire one fleet dispatch from the ticker. */
 export const dismissPressDispatch = onCall<{
-  sessionId?: unknown; dispatchId?: unknown; expectedRevision?: unknown;
+  sessionId?: unknown; requestId?: unknown; dispatchId?: unknown; expectedRevision?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const data = requirePressDispatchDismissalRequest(request.data ?? {});
   const ref = db.doc(`sessions/${data.sessionId}`);
+  const requestId = data.requestId;
+  const receiptRef = requestId ? commandReceiptRef(data.sessionId, requestId) : undefined;
+  const fingerprint: CommandFingerprint | undefined = requestId ? {
+    action: 'dismiss-press-dispatch', sessionId: data.sessionId, requestId, actorUid: uid,
+    instanceId: null, expectedRevision: data.expectedRevision,
+    payload: { dispatchId: data.dispatchId },
+  } : undefined;
+  const serverTime = new Date().toISOString();
   return db.runTransaction(async tx => {
     const [player, session] = await Promise.all([
       tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`)),
       tx.get(ref),
     ]);
+    const receipt = receiptRef ? await tx.get(receiptRef) : undefined;
+    if (receipt && fingerprint) {
+      const replay = replayBoundCommand(receipt, fingerprint, isPressDispatchResult, 'Press dismissal');
+      if (replay) return replay;
+    }
     if (!isActivePlayer(player) || !['player', 'gm'].includes(String(player.get('role'))) ||
         player.get('activeConsoleRoleId') !== 'press-officer' || hasCoreAssignment(player) ||
         (typeof session.get('pressHolderUid') === 'string' &&
@@ -7815,7 +8096,17 @@ export const dismissPressDispatch = onCall<{
       dispatches: current.dispatches.filter(dispatch => dispatch.id !== data.dispatchId),
       revision: data.expectedRevision + 1,
     };
-    tx.update(ref, { pressDispatch, updatedAt: FieldValue.serverTimestamp() });
+    const fleetTicker = dismissFleetTickerSource(
+      data.sessionId,
+      fleetTickerForSession(data.sessionId, session, serverTime),
+      data.dispatchId,
+      serverTime,
+    );
+    tx.update(ref, { pressDispatch, fleetTicker, updatedAt: FieldValue.serverTimestamp() });
+    writeFleetTickerAudit(tx, data.sessionId, 'dismiss', fleetTicker, data.dispatchId, serverTime);
+    if (receiptRef && fingerprint) {
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: pressDispatch, createdAt: FieldValue.serverTimestamp() });
+    }
     return pressDispatch;
   });
 });

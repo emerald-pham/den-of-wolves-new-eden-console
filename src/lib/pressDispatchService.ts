@@ -4,6 +4,10 @@ import { useSessionStore } from '@/store/useSessionStore';
 import { normalizePressDispatch } from './pressDispatchState';
 import { requireFreshSessionAuthority } from './sessionMutationAuthority';
 
+function commandId(): string {
+  return window.crypto.randomUUID();
+}
+
 function activeSession(): { sessionId: string; revision: number } {
   const { session } = useSessionStore.getState();
   if (!session) {
@@ -19,7 +23,7 @@ function activeSession(): { sessionId: string; revision: number } {
 export async function publishPressDispatch(text: string): Promise<void> {
   const { sessionId, revision } = activeSession();
   await httpsCallable(functions(), 'publishPressDispatch')({
-    sessionId,
+    sessionId, requestId: commandId(),
     text,
     expectedRevision: revision,
   });
@@ -28,7 +32,7 @@ export async function publishPressDispatch(text: string): Promise<void> {
 export async function dismissPressDispatch(dispatchId: string): Promise<void> {
   const { sessionId, revision } = activeSession();
   await httpsCallable(functions(), 'dismissPressDispatch')({
-    sessionId,
+    sessionId, requestId: commandId(),
     dispatchId,
     expectedRevision: revision,
   });

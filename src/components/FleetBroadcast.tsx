@@ -1,5 +1,7 @@
 import { ADMIRAL_ALERT_PREFIX, DEFAULT_FLEET_ALERT_MESSAGE } from '@/lib/fleetAlertMessage';
 import { normalizePressDispatch } from '@/lib/pressDispatchState';
+import { fleetTickerState } from '@/lib/fleetTickerState';
+import type { FleetTickerMessage as AuthoritativeFleetTickerMessage } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { useSessionStore } from '@/store/useSessionStore';
 import FleetTicker from './FleetTicker';
@@ -19,6 +21,22 @@ function formatAdmiralAlert(text: string): string {
   return uppercaseText.startsWith(ADMIRAL_ALERT_PREFIX)
     ? uppercaseText
     : `${ADMIRAL_ALERT_PREFIX}${uppercaseText}`;
+}
+
+function displayFleetTickerMessage(
+  message: AuthoritativeFleetTickerMessage,
+  pressText?: string,
+) {
+  return {
+    id: message.id,
+    text: message.text,
+    tone: message.tone,
+    gap: message.gap,
+    ...(pressText ? { pressText } : {}),
+    ...(message.passCount === undefined ? {} : { passes: message.passCount }),
+    ...(message.expiresAt === undefined ? {} : { expiresAt: message.expiresAt }),
+    serverAuthoritative: true as const,
+  };
 }
 
 export default function FleetBroadcast() {
@@ -70,6 +88,38 @@ export default function FleetBroadcast() {
     : undefined;
   const standingMessage = turnZeroBulletin ?? emergencyPauseBulletin ?? airspaceBulletin ?? pressDispatch;
   if (!session || !me) return null;
+  const authoritativeTicker = fleetTickerState(session.fleetTicker);
+  if (session.fleetTicker && authoritativeTicker.revision > 0) {
+    const currentIsRepeatingAlert = authoritativeTicker.current?.source === 'admiral' &&
+      authoritativeTicker.current.passCount === undefined &&
+      authoritativeTicker.current.expiresAt === undefined;
+    const activePressText = currentIsRepeatingAlert
+      ? authoritativeTicker.queued
+        .filter((entry) => entry.source === 'press')
+        .map((entry) => entry.text)
+        .join(' // ')
+      : '';
+    const streamMessage = authoritativeTicker.current
+      ? displayFleetTickerMessage(authoritativeTicker.current, activePressText || undefined) : undefined;
+    const queue = authoritativeTicker.queued
+      .filter((entry) => !(currentIsRepeatingAlert && entry.source === 'press'))
+      .map((entry) => displayFleetTickerMessage(entry));
+    const currentSourceId = authoritativeTicker.current?.sourceId;
+    const fallback = streamMessage && currentSourceId?.startsWith('red-alert:') &&
+      // A queued Press dispatch is already the next authoritative bulletin;
+      // using it as the compatibility fallback would duplicate the copy.
+      !authoritativeTicker.queued.some((entry) => entry.source === 'press')
+      ? standingMessage : undefined;
+    if (streamMessage || queue.length > 0) {
+      return <FleetTicker
+        {...(streamMessage ? { message: streamMessage } : {})}
+        {...(fallback ? { fallback } : {})}
+        {...(queue.length > 0 ? { queue } : {})}
+      />;
+    }
+    if (standingMessage) return <FleetTicker message={standingMessage} />;
+    return null;
+  }
   if (debriefMode.active) {
     return <FleetTicker message={{
       id: `${session.id}:finale-credits:${debriefMode.revision}`,

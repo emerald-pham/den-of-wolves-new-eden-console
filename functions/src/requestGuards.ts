@@ -1010,14 +1010,16 @@ export function requireSetupConfirmationRequest(data: {
 
 export function requirePressDispatchRequest(data: {
   sessionId?: unknown;
+  requestId?: unknown;
   text?: unknown;
   expectedRevision?: unknown;
-}): { sessionId: string; text: string; expectedRevision: number } {
+}): { sessionId: string; requestId?: string; text: string; expectedRevision: number } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
+    ...(data.requestId === undefined ? {} : { requestId: requiredId(data.requestId, 'requestId') }),
     text: requiredText(data.text, 'text', 220),
     expectedRevision: data.expectedRevision as number,
   };
@@ -1025,14 +1027,16 @@ export function requirePressDispatchRequest(data: {
 
 export function requirePressDispatchDismissalRequest(data: {
   sessionId?: unknown;
+  requestId?: unknown;
   dispatchId?: unknown;
   expectedRevision?: unknown;
-}): { sessionId: string; dispatchId: string; expectedRevision: number } {
+}): { sessionId: string; requestId?: string; dispatchId: string; expectedRevision: number } {
   if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
   }
   return {
     sessionId: requiredId(data.sessionId, 'sessionId'),
+    ...(data.requestId === undefined ? {} : { requestId: requiredId(data.requestId, 'requestId') }),
     dispatchId: requiredId(data.dispatchId, 'dispatchId'),
     expectedRevision: data.expectedRevision as number,
   };

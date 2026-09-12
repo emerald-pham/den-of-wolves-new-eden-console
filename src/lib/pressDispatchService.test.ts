@@ -30,9 +30,10 @@ beforeEach(() => {
 it('publishes against the current dispatch revision without optimistic shared state', async () => {
   await publishPressDispatch('Convoy arrival confirmed');
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'publishPressDispatch');
-  expect(mocks.call).toHaveBeenCalledWith({
+  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', text: 'Convoy arrival confirmed', expectedRevision: 2,
-  });
+    requestId: expect.any(String),
+  }));
   expect(useSessionStore.getState().session?.pressDispatch?.dispatches)
     .toEqual([{ id: 'dispatch-1', text: 'SNN // Your Trusted Partner' }]);
 });
@@ -40,9 +41,10 @@ it('publishes against the current dispatch revision without optimistic shared st
 it('dismisses one active dispatch against the current collection revision', async () => {
   await dismissPressDispatch('dispatch-1');
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'dismissPressDispatch');
-  expect(mocks.call).toHaveBeenCalledWith({
+  expect(mocks.call).toHaveBeenCalledWith(expect.objectContaining({
     sessionId: 's1', dispatchId: 'dispatch-1', expectedRevision: 2,
-  });
+    requestId: expect.any(String),
+  }));
   expect(useSessionStore.getState().session?.pressDispatch?.dispatches)
     .toEqual([{ id: 'dispatch-1', text: 'SNN // Your Trusted Partner' }]);
 });

@@ -181,6 +181,42 @@ export interface PressDispatchState {
   readonly revision: number;
 }
 
+export type FleetTickerSource = 'automatic' | 'admiral' | 'press';
+export type FleetTickerTone = 'danger' | 'normal';
+export type FleetTickerGap = 'standard' | 'long';
+
+export interface FleetTickerMessage {
+  readonly id: string;
+  readonly sequence: number;
+  readonly source: FleetTickerSource;
+  readonly priority: number;
+  readonly text: string;
+  readonly tone: FleetTickerTone;
+  readonly gap: FleetTickerGap;
+  readonly sourceId?: string;
+  readonly passCount?: number;
+  /** Server expiry for finite notices; visual tails may finish after this deadline. */
+  readonly expiresAt?: Timestamp;
+  readonly createdAt: Timestamp;
+}
+
+export interface FleetTickerDismissal {
+  readonly id: string;
+  readonly sequence: number;
+  readonly revision: number;
+  readonly dismissedAt: Timestamp;
+}
+
+export interface FleetTickerState {
+  readonly revision: number;
+  readonly nextSequence: number;
+  readonly replayCursor: number;
+  readonly current: FleetTickerMessage | null;
+  readonly queued: readonly FleetTickerMessage[];
+  readonly draining: readonly FleetTickerMessage[];
+  readonly dismissed: readonly FleetTickerDismissal[];
+}
+
 /** Facilitator-only marker for the approximate first Wolf-attack window. */
 export type WolfAttackWindowStatus = 'due' | 'resolved' | 'deferred';
 
@@ -272,6 +308,7 @@ export interface GameSession {
     readonly revision: number;
   };
   readonly pressDispatch?: PressDispatchState;
+  readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;

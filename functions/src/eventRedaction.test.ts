@@ -59,6 +59,21 @@ describe('buildPrivacySafeEventRecord', () => {
     expect(memberEventFieldsFor('future-secret-event')).toEqual([]);
   });
 
+  it('keeps fleet ticker audit metadata audience safe while retaining server time', () => {
+    expect(buildPrivacySafeEventRecord({
+      type: 'fleet-ticker',
+      payload: {
+        action: 'stand-down', messageId: 's1:fleet-ticker:4', revision: 4,
+        sequence: 4, serverTime: '2026-09-12T13:01:00.000Z', secretText: 'hidden',
+      },
+      createdAt: 'server-time',
+    })).toEqual({
+      type: 'fleet-ticker',
+      action: 'stand-down', messageId: 's1:fleet-ticker:4', revision: 4,
+      sequence: 4, serverTime: '2026-09-12T13:01:00.000Z', createdAt: 'server-time',
+    });
+  });
+
   it('preserves stable actor attribution for existing audit payloads', () => {
     expect(buildPrivacySafeEventRecord({
       type: 'timer-pause',

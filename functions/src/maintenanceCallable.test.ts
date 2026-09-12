@@ -797,6 +797,9 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
     turnStartAnnouncement: { turn: 2, survivorPopulation: 156_041 },
     fleetSurvivorPopulationAdjustment: 40,
     turnPhase: expect.objectContaining({ turn: 2 }),
+    fleetTicker: expect.objectContaining({
+      current: expect.objectContaining({ source: 'automatic', sourceId: 'airspace:2:restricted' }),
+    }),
   }));
   expect(mock.set).toHaveBeenCalledWith(
     'sessions/s1/events/turn-advanced-1',
@@ -1168,6 +1171,9 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     turnPhase: expect.objectContaining({
       airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+    }),
+    fleetTicker: expect.objectContaining({
+      current: expect.objectContaining({ source: 'automatic', sourceId: 'airspace:2:lifted' }),
     }),
   }));
   expect(mock.set).toHaveBeenCalledWith(
@@ -1617,6 +1623,9 @@ it('lets only the active GM pause and resume a live turn clock with an audit eve
         window: 'restricted', remainingMs: 180_000,
         pausedAt: '2026-09-06T12:02:00.000Z',
       },
+    }),
+    fleetTicker: expect.objectContaining({
+      current: expect.objectContaining({ source: 'automatic', sourceId: 'emergency:2:2026-09-06T12:02:00.000Z' }),
     }),
   }));
   expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/pause-event', expect.objectContaining({
