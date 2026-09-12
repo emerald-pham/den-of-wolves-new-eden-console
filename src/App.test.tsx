@@ -7,7 +7,7 @@ import {
   SESSION_STORAGE_KEY,
   useSessionStore,
 } from '@/store/useSessionStore';
-import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief } from '@/types/game';
+import type { GameSession, GmInstance, LoyaltyCensus, Player, RoleBrief, SetupReceipt } from '@/types/game';
 import { SHIP_PLOT_RESIZE_MS } from '@/components/ShipPlot';
 import { SESSION_WAIVER_STORAGE_KEY } from '@/lib/sessionWaiver';
 import { MOTION_SAFETY_STORAGE_KEY } from '@/lib/motionSafety';
@@ -439,6 +439,15 @@ describe('App', () => {
       return censusUnsubscribe;
     });
     const member = { ...player, role: 'player' as const };
+    const receipt = {
+      source: 'routine-start', playerCount: 8, mode: 'base', rosterIds: ['admiral'],
+      pressEligibility: {}, excludedGmCount: 1, wolfCount: 1 as const,
+      wolfRule: 'one-wolf-at-8-13', selectedWolfRoleIds: ['admiral'],
+      eligibleRoleIds: ['admiral'], orderedModifiers: [], resultCount: 1,
+      loyaltySource: 'automatic-default' as const, request: {}, expectedSetupRevision: 0,
+      committedSetupRevision: 1, actorUid: 'u1', serverTime: '2026-01-01T00:00:00.000Z',
+      event: 'game-started',
+    } satisfies SetupReceipt;
     useSessionStore.getState().setIdentity(session, member);
 
     const { unmount } = render(<App />);
@@ -459,17 +468,22 @@ describe('App', () => {
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 7 }],
     }));
     expect(useSessionStore.getState().gmLoyaltyCensus).toMatchObject({ revision: 4 });
+    act(() => handlers?.onSetupReceipt?.(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toEqual(receipt);
 
     act(() => {
       handlers?.onPlayer(member);
       handlers?.onPlayerFreshness?.(true);
     });
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
     act(() => censusCallback?.({
       revision: 5,
       entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 99 }],
     }));
     expect(useSessionStore.getState().gmLoyaltyCensus).toBeNull();
+    act(() => handlers?.onSetupReceipt?.(receipt));
+    expect(useSessionStore.getState().gmSetupReceipt).toBeNull();
 
     unmount();
     expect(censusUnsubscribe).toHaveBeenCalled();

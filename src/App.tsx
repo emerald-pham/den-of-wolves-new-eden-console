@@ -146,7 +146,10 @@ function AppRoutes() {
               }
             }
           }
-          if (next.role !== 'gm') clearLoyaltyCensus();
+          if (next.role !== 'gm') {
+            clearLoyaltyCensus();
+            useSessionStore.getState().setGmSetupReceipt(null);
+          }
         },
         onPlayerFreshness: (fresh) => {
           playerProjectionFresh = fresh;
@@ -181,7 +184,17 @@ function AppRoutes() {
           pendingRoleBrief = next;
           store.setRoleBrief(null);
         },
-        onSetupReceipt: (next) => useSessionStore.getState().setGmSetupReceipt(next),
+        onSetupReceipt: (next) => {
+          const store = useSessionStore.getState();
+          // A denied GM query can report through the still-mounted session
+          // listener after demotion. Never retain or rehydrate that private
+          // receipt unless the current player projection is still a GM.
+          if (store.me?.role !== 'gm') {
+            store.setGmSetupReceipt(null);
+            return;
+          }
+          store.setGmSetupReceipt(next);
+        },
         onError: () => useSessionStore.getState().setConnection('offline'),
       });
     });
