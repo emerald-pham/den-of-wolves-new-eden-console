@@ -4487,6 +4487,13 @@
       "language": "Focused checks passed for all three supported session modes (base, none and Capybara), confirming exactly one 0000 starting coordinate per active vessel in both storage and response. Sequential independent relocations preserve other ships and the previous input map. The existing jump callable check proves one atomic destination and transition write with fuel/charge changes under a transaction retry. Six selected tests passed, plus Functions typecheck. The routed private exploration table identifies 0000 as START. Tests and roadmap only; no runtime, version, UI, new permission or deployment change.",
       "source": "functions/src/index.ts; functions/src/sessionComposition.ts; functions/src/createSessionCallable.test.ts; functions/src/navigation.test.ts; functions/src/jumpCallable.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "426 -> 427;312;421;421a;494",
+      "id": "E-426-SCHEDULED-COMPOSITION",
+      "language": "The routed private Wolf attack derivative supplies the exact turn-one roster and inclusive 15–24 capacity range for later ordinary scheduled attacks. Three focused tests verify exact composition rather than capacity alone, order independence, both capacity boundaries and adjacent invalid totals, unknown cards/invalid turns, input-copy isolation and frozen output. Functions build and affected-file lint pass. No player-selected hidden-card endpoint or randomness is added. Private staging/declaration consumes this policy in the next prompt; encounter and Commander rules are separate.",
+      "source": "functions/src/wolfAttackComposition.ts; functions/src/wolfAttackComposition.test.ts; functions/src/wolfShipCatalog.ts",
+      "type": "evidence / related/consumes"
     }
   ],
   "plan": {
@@ -15308,19 +15315,19 @@
         "acceptance": "Turn 1 and later attacks meet their exact composition/capacity constraints without player-selected hidden cards.",
         "title": "Define attack-composition rules."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-WOLF;E-AUDIT-426",
+      "description": "Server-side scheduled-attack composition rules now build the exact first-turn roster of ten fighter wings and five assault transports, and validate later scheduled rosters against inclusive 15–24 damage capacity using the canonical Wolf ship catalog. Unknown cards, invalid turns, wrong first-turn substitutions and out-of-range totals are rejected; returned rosters and counts are immutable snapshots. This is the composition policy layer for private GM staging in Prompt 427, not a new public submission or attack-declaration endpoint. Encounter-triggered compositions and the Commander attack dial remain their separately planned contracts.",
+      "evidenceIds": "E-WOLF;E-AUDIT-426;E-426-SCHEDULED-COMPOSITION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "425",
       "id": "426",
       "milestoneHints": "M9",
-      "relatedConsumes": "none",
+      "relatedConsumes": "427;312;421;421a;494",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Wolf attack engine, fleet combat, and boarding (Prompts 425–484)",
       "sequenceRules": "WOLF-ATTACK",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

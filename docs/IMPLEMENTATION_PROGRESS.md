@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**191 / 747 prompts complete (25.57%)**
+**192 / 747 prompts complete (25.70%)**
 
-Status breakdown: **191 done · 14 partial · 542 missing**.
+Status breakdown: **192 done · 14 partial · 541 missing**.
 
 Active prompt: **none**
 
@@ -874,7 +874,7 @@ release classification and evidence.
 | 423 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 424 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 425 | done | non-feature | — | Implemented a typed server-safe catalog for the six routed Wolf ship cards. Each Fighter Wing, Assault Transport, Destroyer, Cruiser, Fleet Strikecarrier, and Battlestation entry declares its printed capacity, all three range-specific destruction outcomes, survival effect, and return rule; Battlestation short range is an explicit damage immunity. Focused invariants cover the complete card set, capacities, every range, survival effects, return rules, and unknown IDs. The authorized routed Wolf Attack derivative supplies the explicit card facts, while the current archive lacks the Wolf primary PDF; no primary-PDF visual verification is claimed. This data-only slice does not add attack resolution, targeting, GM controls, lifecycle behavior, or player-facing flow. |
-| 426 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 426 | done | non-feature | — | Server-side scheduled-attack composition rules now build the exact first-turn roster of ten fighter wings and five assault transports, and validate later scheduled rosters against inclusive 15–24 damage capacity using the canonical Wolf ship catalog. Unknown cards, invalid turns, wrong first-turn substitutions and out-of-range totals are rejected; returned rosters and counts are immutable snapshots. This is the composition policy layer for private GM staging in Prompt 427, not a new public submission or attack-declaration endpoint. Encounter-triggered compositions and the Commander attack dial remain their separately planned contracts. |
 | 427 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 428 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 429 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
