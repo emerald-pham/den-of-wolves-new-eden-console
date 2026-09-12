@@ -4312,6 +4312,13 @@
       "language": "The current map only records the initial fleet score and has no authoritative group/location consumer. Per-turn increments need the group pursuit foundation to identify applicable groups and preserve the Ion Nebula no-rise exception. This is implementation readiness, not a Git or deployment gate.",
       "source": "functions/src/index.ts (startGame, advanceTurnInTransaction); src/types/game.ts (Session.pursuitGroups); authorized pursuit source review 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "172 -> 130;161;162",
+      "id": "E-172-VERIFIED",
+      "language": "Both hull cards carry the recycle rule and the common damage callable preserves survivors for either hull. The last-card branch does not recycle; the following empty-deck draw destroys the vessel. 34 damage helper/callable tests passed, including both production hull cases and transaction-retry audit stability. Documentation verification only.",
+      "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/index.ts (addShipDamage); functions/src/maintenance.ts (riot)",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -8692,8 +8699,8 @@
         "acceptance": "6♥ and 7♥ prevent survivor loss and recycle only when permitted.",
         "title": "Resolve AEGIS Armoured Hull I and II."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-172",
+      "description": "Verified the existing authoritative AEGIS Armoured Hull I (6♥) and II (7♥) behavior: neither loses survivors; a hull recycles only while another damage card remains, and the final hull stays out of the exhausted deck. Production callable cases cover both cards, population preservation, replay-safe transaction retries and exact damage audit fields. No runtime change.",
+      "evidenceIds": "E-AUDIT-172;E-172-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "130;161;162",
@@ -8704,7 +8711,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
