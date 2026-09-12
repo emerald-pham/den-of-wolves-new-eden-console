@@ -824,7 +824,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 660 | REPAIR | done | none | none | none | none | none | none | none | none | none | none | Make exact validation self-prepare a collision-safe emulator slot. |
 | 661 | POLISH | done | none | none | none | none | none | none | none | none | none | none | Add a safe copy-only validation fast path. |
 | 662 | DECISION | missing | none | none | none | OWNER-APPROVED-WOLF-DESIGNATION-POLICY | none | none | none | 054;075;496;586-588 | E-662 | none | Resolve ordinary-start Wolf designation policy. |
-| 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make Fleetwide Red Alert discoverable in a normal browser. |
+| 663 | REPAIR | missing | none | none | none | none | none | none | none | none | none | X | Make the AEGIS Fleetwide Red Alert button visible across layouts. |
 | 664 | REPAIR | done | 660;661 | none | none | none | none | none | none | none | E-664 | none | Enforce universal roadmap registration before non-documentation commits. |
 | 665 | EXTEND | done | 664 | none | none | none | none | none | none | none | E-665 | none | Make session goals durable and machine-checked across coordination lifecycle. |
 | 666 | EXTEND | done | 665 | none | none | none | none | none | none | none | E-666 | none | Generate a compact deterministic dependency packet and worktree receipt. |
