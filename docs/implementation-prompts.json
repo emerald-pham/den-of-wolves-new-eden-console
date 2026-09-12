@@ -322,6 +322,13 @@
       "language": "The single startGame transaction validates the locked roster and craft manifest, preserves prepared stores and any existing Turn 1 state, materializes canonical intact damage and empty maintenance state for every active vessel, initializes inactive fleet alert and empty Press dispatch defaults when absent, composes private Wolf/loyalty state, starts Turn 1 with pursuit 2 and timers, and writes one setup receipt and privacy-safe event. The start callable and production 8-, 19-, and 20-player matrix cover defaults, preservation, replay, and race behavior.",
       "source": "functions/src/startState.ts; functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; functions/src/shipDamage.ts; functions/src/maintenance.ts; functions/src/pressDispatchState.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "075 -> 077",
+      "id": "E-077-START",
+      "language": "The existing authoritative start transition persists exactly one initial pursuit group, fleet, at value 2. The start callable and production 8-, 19-, and 20-player matrix assert the exact map, while the existing replay and concurrent-start assertions prove repeated requests do not mutate it. Initial fleet splitting and later pursuit changes remain separate mechanics.",
+      "source": "functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/lib/sessionService.ts; src/lib/firestore.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2176,8 +2183,8 @@
         "acceptance": "Turn 1 begins with one server-owned pursuit value per initial fleet group.",
         "title": "Initialize pursuit at 2."
       },
-      "description": "Start initializes fleet pursuit at 2; split-group pursuit remains open.",
-      "evidenceIds": "none",
+      "description": "The existing authoritative Turn 1 start initializes the canonical single initial fleet group as pursuit 2; production 8-, 19-, and 20-player starts and replay requests prove the exact group map without introducing split-group mechanics.",
+      "evidenceIds": "E-077-START",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2190,7 +2197,7 @@
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "NEW"
     },
     {

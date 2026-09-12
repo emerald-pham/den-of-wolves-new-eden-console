@@ -264,6 +264,7 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: { fleet: 2 },
   }));
   const sessionUpdate = mock.update.mock.calls.find(([ref]) => ref.path === 'sessions/s1')?.[1];
+  expect(sessionUpdate?.pursuitGroups).toEqual({ fleet: 2 });
   const activeVesselIds = mock.session.activeVesselIds as string[];
   expect(sessionUpdate).toMatchObject({
     shipDamage: Object.fromEntries(activeVesselIds.map((shipId) => [shipId, {

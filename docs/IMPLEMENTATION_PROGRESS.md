@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**109 / 747 prompts complete (14.59%)**
+**110 / 747 prompts complete (14.73%)**
 
-Status breakdown: **109 done · 12 partial · 626 missing**.
+Status breakdown: **110 done · 11 partial · 626 missing**.
 
 Active prompt: **none**
 
@@ -487,7 +487,7 @@ release classification and evidence.
 | 074 | done | feature | 0.3.5 | Start requires authenticated active facilitator instance. |
 | 075 | done | feature | 0.3.5, 0.3.13, 0.3.40 | The single startGame transaction now preserves prepared stores and existing Turn 1 state, materializes canonical intact damage and empty maintenance state for each active vessel (repairing malformed legacy cycles before maintenance reads), fills absent inactive fleet-alert and Press-dispatch defaults, composes routine private Wolf/default loyalty state, records the one-GM calculation receipt and safe event, initializes pursuit 2, and enters Turn 1 exactly once with the existing timer/announcement behavior. The persisted setup is additive and replay-safe; release 0.3.40 records the player-visible repair for legacy sessions that previously could crash when maintenance began. |
 | 076 | done | non-feature | — | Durable start request replay test. |
-| 077 | partial | feature | 0.3.5 | Start initializes fleet pursuit at 2; split-group pursuit remains open. |
+| 077 | done | feature | 0.3.5 | The existing authoritative Turn 1 start initializes the canonical single initial fleet group as pursuit 2; production 8-, 19-, and 20-player starts and replay requests prove the exact group map without introducing split-group mechanics. |
 | 078 | done | feature | 0.3.5 | Six-to-eight validation and start configuration lock. |
 | 079 | done | non-feature | — | Turn 1 timer override tests. |
 | 080 | missing | non-feature | — | Facilitator-marked approximate Wolf-attack window remains open. |

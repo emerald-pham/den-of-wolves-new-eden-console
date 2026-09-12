@@ -804,9 +804,9 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       phase: 'active',
       currentTurn: 1,
       configurationLocked: true,
-      pursuitGroups: { fleet: 2 },
       activeRoleIds,
     });
+    expect(storedSession.pursuitGroups).toEqual({ fleet: 2 });
     const storedResources = storedSession.shipResources as Record<string, Record<string, number>>;
     const storedDamage = storedSession.shipDamage as Record<string, unknown>;
     const storedMaintenance = storedSession.maintenanceCycles as Record<string, unknown>;
