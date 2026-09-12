@@ -46,6 +46,20 @@ it('reuses the Reactor request after a transient failure instead of charging twi
   expect(mocks.call.mock.calls[1]?.[0]).toEqual(firstRequest);
 });
 
+it('carries optional Capybara Scrap production through a transient retry unchanged', async () => {
+  mocks.call.mockRejectedValueOnce({ code: 'functions/unavailable' });
+  const choices = { productionConsoleId: 'advanced-hydroponics' as const, productionScrap: true };
+  await expect(runMaintenance('capybara', 'production', 6, choices))
+    .rejects.toMatchObject({ code: 'functions/unavailable' });
+  const firstRequest = mocks.call.mock.calls[0]?.[0];
+  expect(firstRequest).toEqual(expect.objectContaining({
+    shipId: 'capybara', action: 'production', expectedRevision: 6,
+    productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+  }));
+  await runMaintenance('capybara', 'production', 6, choices);
+  expect(mocks.call.mock.calls[1]?.[0]).toEqual(firstRequest);
+});
+
 it.each([
   ['maintenance', () => runMaintenance('aegis', 'begin', 2)],
   ['rollback', () => rollbackMaintenance('aegis', 2)],

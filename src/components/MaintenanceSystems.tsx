@@ -51,7 +51,10 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [waterLevel, setWaterLevel] = useState(0);
   const [consoles, setConsoles] = useState<string[]>([]);
   const [refuels, setRefuels] = useState<Record<string, string>>({});
-  useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotices([]); }, [shipId, step]);
+  const [productionScrap, setProductionScrap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setProductionScrap({}); setError(''); setDamageNotices([]);
+  }, [shipId, step]);
   const damage = shipState ? shipState.damage : session?.shipDamage?.[shipId];
   const resources = shipState ? shipState.resources : session?.shipResources?.[shipId];
   const maintenanceDamageDraw = cycle?.damageDrawId
@@ -80,18 +83,28 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const bays = systems.filter(system => system.timing === 6 || system.timing === 7);
   const docked = session?.shuttleDockings?.filter(dock => dock.shipId === shipId) ?? [];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
-  const dioneProductionSystems = systems.filter(system => ['hydroponics', 'water-reclamation'].includes(system.id));
+  const productionSystems = systems.filter(system =>
+    ['hydroponics', 'water-reclamation', 'advanced-hydroponics', 'water-production'].includes(system.id));
   const productionDisabled = (consoleId: string, mode: 'run' | 'skip' = 'run') => {
-    const baseDisabled = blocked || maintenancePhaseBlocked || shipId !== 'dione' || step !== 6 ||
+    const isDione = shipId === 'dione';
+    const isCapybara = shipId === 'capybara';
+    const baseDisabled = blocked || maintenancePhaseBlocked || (!isDione && !isCapybara) || step !== 6 ||
       !resources || !cycle?.charges.includes(consoleId) || damage?.destroyed === true;
-    const waterBlockedByHydroponics = consoleId === 'water-reclamation' && cycle?.charges.includes('hydroponics') &&
+    const waterBlockedByHydroponics = isDione && consoleId === 'water-reclamation' && cycle?.charges.includes('hydroponics') &&
       !damage?.damagedSystemIds.includes('hydroponics') && resources?.water !== undefined && resources.water >= 1;
-    const hydroponicsForeclosedByWater = consoleId === 'hydroponics' && cycle?.results['5']?.includes('Water Reclamation');
+    const hydroponicsForeclosedByWater = isDione && consoleId === 'hydroponics' && cycle?.results['5']?.includes('Water Reclamation');
     if (mode === 'skip') return baseDisabled || waterBlockedByHydroponics || hydroponicsForeclosedByWater;
+    const capybaraWaterBlocked = isCapybara && consoleId === 'advanced-hydroponics' && (resources?.water ?? 0) < 2;
+    const capybaraScrapBlocked = isCapybara && productionScrap[consoleId] === true && (resources?.scrap ?? 0) < 1;
     return baseDisabled || damage?.damagedSystemIds.includes(consoleId) || hydroponicsForeclosedByWater ||
-      (consoleId === 'hydroponics' && resources!.water < 1) ||
-      waterBlockedByHydroponics;
+      (isDione && consoleId === 'hydroponics' && (resources?.water ?? 0) < 1) ||
+      waterBlockedByHydroponics || capybaraWaterBlocked || capybaraScrapBlocked;
   };
+  const productionChoices = (consoleId: string, mode?: 'skip'): MaintenanceChoices => ({
+    productionConsoleId: consoleId as NonNullable<MaintenanceChoices['productionConsoleId']>,
+    ...(mode ? { productionMode: mode } : {}),
+    ...(!mode && productionScrap[consoleId] === true ? { productionScrap: true } : {}),
+  });
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
   const reactorDisabled = disabled(5) || maintenancePhaseBlocked || consoles.length > capacity ||
@@ -193,20 +206,24 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 </div>
               </fieldset>
             </>}
-            {step === 6 && shipId === 'dione' && <fieldset disabled={blocked} className="maintenance-controls">
-              <legend>Dione production consoles</legend>
-              <p>Resolve or explicitly skip charged production consoles in order before shuttle bay refuelling. Live stores: {resources
-                ? `${resources.food} food // ${resources.water} water`
+            {step === 6 && productionSystems.length > 0 && <fieldset disabled={blocked} className="maintenance-controls">
+              <legend>{name} production consoles</legend>
+              <p>Resolve or explicitly skip charged production consoles before shuttle bay refuelling. Live stores: {resources
+                ? `${resources.food} food // ${resources.water} water${shipId === 'capybara' ? ` // ${resources.scrap ?? 0} Scrap` : ''}`
                 : 'awaiting live resource state'}.</p>
-              {dioneProductionSystems.map(system => <div key={system.id}>
+              {productionSystems.map(system => <div key={system.id}>
+                {shipId === 'capybara' && <label>
+                  <input type="checkbox" aria-label={`Spend 1 Scrap on ${system.name}`} checked={productionScrap[system.id] === true}
+                    disabled={productionDisabled(system.id) || (resources?.scrap ?? 0) < 1}
+                    onChange={event => setProductionScrap(previous => ({ ...previous, [system.id]: event.target.checked }))} />
+                  Spend 1 Scrap for +6 output
+                </label>}
                 <button className="cic-action-button" disabled={productionDisabled(system.id)}
-                  onClick={() => void execute('production', { productionConsoleId: system.id as 'hydroponics' | 'water-reclamation' })}>
+                  onClick={() => void execute('production', productionChoices(system.id))}>
                   Run {system.name}
                 </button>{' '}
                 <button className="cic-action-button" disabled={productionDisabled(system.id, 'skip')}
-                  onClick={() => void execute('production', {
-                    productionConsoleId: system.id as 'hydroponics' | 'water-reclamation', productionMode: 'skip',
-                  })}>
+                  onClick={() => void execute('production', productionChoices(system.id, 'skip'))}>
                   Skip {system.name}
                 </button>
               </div>)}

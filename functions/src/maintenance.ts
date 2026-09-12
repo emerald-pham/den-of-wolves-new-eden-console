@@ -16,7 +16,7 @@ export interface MaintenanceInput {
   cargo: Record<string, Record<string, number>>; fuelled: Record<string, boolean>;
   rolls: number[]; entropy: number; foodLevel?: number; waterLevel?: number;
   consoles?: string[]; refuels?: Record<string, string>; productionConsoleId?: string;
-  productionMode?: 'run' | 'skip';
+  productionMode?: 'run' | 'skip'; productionScrap?: boolean;
   upgraded?: readonly string[]; now: string;
   damageDrawId?: string;
 }
@@ -32,10 +32,30 @@ export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water:
 export { MAINTENANCE_ORDERS } from './maintenanceOrder';
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
 
-const DIONE_PRODUCTION = {
-  hydroponics: { waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
-  'water-reclamation': { waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
-} as const;
+interface ProductionRule {
+  readonly waterCost: number;
+  readonly foodYield?: number;
+  readonly upgradedFoodYield?: number;
+  readonly waterYield?: number;
+  readonly upgradedWaterYield?: number;
+  readonly scrapFoodYield?: number;
+  readonly scrapWaterYield?: number;
+}
+
+const PRODUCTION_RULES: Readonly<Record<string, Readonly<Record<string, ProductionRule>>>> = {
+  dione: {
+    hydroponics: { waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+    'water-reclamation': { waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+  },
+  capybara: {
+    'advanced-hydroponics': {
+      waterCost: 2, foodYield: 6, upgradedFoodYield: 9, scrapFoodYield: 6,
+    },
+    'water-production': {
+      waterCost: 0, waterYield: 6, upgradedWaterYield: 9, scrapWaterYield: 6,
+    },
+  },
+};
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -105,7 +125,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
   // step-6 shuttle bay. They consume a charge but do not advance the lane.
   const isProduction = action === 'production';
   if ((!isProduction && expectedAction !== action) ||
-      (isProduction && (shipId !== 'dione' || cycleInput.step !== 6))) {
+      (isProduction && (!['dione', 'capybara'].includes(shipId) || cycleInput.step !== 6))) {
     throw new Error('This action is not available at the current step.');
   }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
@@ -183,18 +203,24 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.results['5'] = `Reactor powered up. Previous unused charge lost. Charged ${consoles.length}/${capacity} consoles.`;
     for (const dock of input.dockings.filter(d => d.shipId === shipId)) fuelled[dock.shuttleId] = false;
   } else if (action === 'production') {
-    const consoleId = input.productionConsoleId as keyof typeof DIONE_PRODUCTION | undefined;
-    if (!consoleId || !(consoleId in DIONE_PRODUCTION)) throw new Error('Select a Dione production console.');
+    const consoleId = input.productionConsoleId;
+    const productionRules = PRODUCTION_RULES[shipId];
+    const rule = consoleId === undefined ? undefined : productionRules?.[consoleId];
+    const shipLabel = shipId === 'capybara' ? 'Capybara' : 'Dione';
+    if (!consoleId || !rule) throw new Error(`Select a ${shipLabel} production console.`);
     if (!cycleInput.charges.includes(consoleId)) throw new Error('Production console is not charged.');
     const productionMode = input.productionMode ?? 'run';
-    if (productionMode !== 'run' && productionMode !== 'skip') throw new Error('Invalid Dione production choice.');
+    if (productionMode !== 'run' && productionMode !== 'skip') throw new Error(`Invalid ${shipLabel} production choice.`);
+    if (input.productionScrap && shipId !== 'capybara') throw new Error('Scrap production spending is only available on Capybara.');
+    if (input.productionScrap && productionMode === 'skip') throw new Error('Scrap cannot be spent when skipping production.');
     const priorProductionResult = cycleInput.results['5'] ?? '';
-    if (consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
+    const dioneHydroponics = PRODUCTION_RULES.dione?.hydroponics;
+    if (shipId === 'dione' && consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
         !damage.damagedSystemIds.includes('hydroponics') &&
-        resources.water >= DIONE_PRODUCTION.hydroponics.waterCost) {
+        dioneHydroponics !== undefined && resources.water >= dioneHydroponics.waterCost) {
       throw new Error('Resolve Hydroponics before Water Reclamation, or skip it.');
     }
-    if (consoleId === 'hydroponics' && priorProductionResult.includes('Water Reclamation')) {
+    if (shipId === 'dione' && consoleId === 'hydroponics' && priorProductionResult.includes('Water Reclamation')) {
       throw new Error('Hydroponics must be resolved before Water Reclamation.');
     }
     if (productionMode === 'skip') {
@@ -204,17 +230,33 @@ export function advanceMaintenance(input: MaintenanceInput) {
     } else {
       if (damage.damagedSystemIds.includes(consoleId)) throw new Error('Damaged production console cannot be used.');
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
-      if (consoleId === 'hydroponics') {
-        const rule = DIONE_PRODUCTION.hydroponics;
+      const scrap = input.productionScrap === true;
+      const scrapCost = scrap ? 1 : 0;
+      if (rule.foodYield !== undefined) {
         if (resources.water < rule.waterCost) throw new Error('Insufficient water for Hydroponics.');
-        const foodYield = upgraded ? rule.upgradedFoodYield : rule.foodYield;
-        resources = { ...resources, water: resources.water - rule.waterCost, food: resources.food + foodYield };
-        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Hydroponics: spent ${rule.waterCost} water, generated ${foodYield} food.`;
+        const foodYield = upgraded && rule.upgradedFoodYield !== undefined ? rule.upgradedFoodYield : rule.foodYield;
+        if (scrap && (resources.scrap ?? 0) < scrapCost) throw new Error('Insufficient Scrap for production.');
+        const scrapYield = scrap ? rule.scrapFoodYield ?? 0 : 0;
+        resources = {
+          ...resources,
+          water: resources.water - rule.waterCost,
+          food: resources.food + foodYield + scrapYield,
+          ...(scrap ? { scrap: (resources.scrap ?? 0) - scrapCost } : {}),
+        };
+        const label = shipId === 'capybara' ? 'Advanced Hydroponics' : 'Hydroponics';
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label}: spent ${rule.waterCost} water${scrap ? ' and 1 Scrap' : ''}, generated ${foodYield + scrapYield} food.`;
       } else {
-        const rule = DIONE_PRODUCTION['water-reclamation'];
-        const waterYield = upgraded ? rule.upgradedWaterYield : rule.waterYield;
-        resources = { ...resources, water: resources.water + waterYield };
-        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Water Reclamation: generated ${waterYield} water.`;
+        if (rule.waterYield === undefined) throw new Error('Invalid production rule.');
+        const waterYield = upgraded && rule.upgradedWaterYield !== undefined ? rule.upgradedWaterYield : rule.waterYield;
+        if (scrap && (resources.scrap ?? 0) < scrapCost) throw new Error('Insufficient Scrap for production.');
+        const scrapYield = scrap ? rule.scrapWaterYield ?? 0 : 0;
+        resources = {
+          ...resources,
+          water: resources.water + waterYield + scrapYield,
+          ...(scrap ? { scrap: (resources.scrap ?? 0) - scrapCost } : {}),
+        };
+        const label = shipId === 'capybara' ? 'Water Production' : 'Water Reclamation';
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label}: generated ${waterYield + scrapYield} water${scrap ? ' after spending 1 Scrap' : ''}.`;
       }
       cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
     }

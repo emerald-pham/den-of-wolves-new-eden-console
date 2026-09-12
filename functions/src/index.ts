@@ -8462,6 +8462,7 @@ type MaintenanceRequestFingerprint = Readonly<{
   refuels: readonly (readonly [string, string])[];
   productionConsoleId: string | null;
   productionMode: 'run' | 'skip' | null;
+  productionScrap: boolean | null;
   consoleRoleId: string | null;
 }>;
 
@@ -8472,6 +8473,7 @@ type MaintenanceCommand = ReturnType<typeof requireMaintenanceRequest> & {
   refuels?: Record<string, string>;
   productionConsoleId?: string;
   productionMode?: 'run' | 'skip';
+  productionScrap?: boolean;
   consoleRoleId?: string;
 };
 
@@ -8489,6 +8491,7 @@ function maintenanceRequestFingerprint(command: MaintenanceCommand, actorUid: st
     refuels: Object.entries(command.refuels ?? {}).sort(([left], [right]) => left.localeCompare(right)),
     productionConsoleId: command.productionConsoleId ?? null,
     productionMode: command.productionMode ?? null,
+    productionScrap: command.productionScrap ?? null,
     consoleRoleId: command.consoleRoleId ?? null,
   };
 }
@@ -8515,6 +8518,7 @@ function sameMaintenanceRequestFingerprint(
     samePairs(candidate.refuels, expected.refuels) &&
     candidate.productionConsoleId === expected.productionConsoleId &&
     candidate.productionMode === expected.productionMode &&
+    (candidate.productionScrap ?? null) === expected.productionScrap &&
     candidate.consoleRoleId === expected.consoleRoleId;
 }
 
@@ -8592,11 +8596,11 @@ function maintenanceReceiptReply(
 export const runMaintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
-  consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; consoleRoleId?: unknown;
+  consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; productionScrap?: unknown; consoleRoleId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
-  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'consoleRoleId'];
+  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'productionScrap', 'consoleRoleId'];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }
@@ -8609,6 +8613,7 @@ export const runMaintenance = onCall<{
     ...(raw.refuels === undefined ? {} : { refuels: raw.refuels as Record<string, string> }),
     ...(raw.productionConsoleId === undefined ? {} : { productionConsoleId: raw.productionConsoleId as string }),
     ...(raw.productionMode === undefined ? {} : { productionMode: raw.productionMode as 'run' | 'skip' }),
+    ...(raw.productionScrap === undefined ? {} : { productionScrap: raw.productionScrap as boolean }),
     ...(raw.consoleRoleId === undefined ? {} : { consoleRoleId: raw.consoleRoleId as string }),
   };
   if (!MAINTENANCE_RULES[data.shipId] ||
@@ -8621,8 +8626,12 @@ export const runMaintenance = onCall<{
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
     (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(id => typeof id !== 'string'))) ||
     (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string'))) ||
-    (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !['hydroponics', 'water-reclamation'].includes(data.productionConsoleId))) ||
+    (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !(
+      (data.shipId === 'dione' && ['hydroponics', 'water-reclamation'].includes(data.productionConsoleId)) ||
+      (data.shipId === 'capybara' && ['advanced-hydroponics', 'water-production'].includes(data.productionConsoleId))
+    ))) ||
     (data.productionMode !== undefined && data.productionMode !== 'run' && data.productionMode !== 'skip') ||
+    (data.productionScrap !== undefined && typeof data.productionScrap !== 'boolean') ||
     (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }

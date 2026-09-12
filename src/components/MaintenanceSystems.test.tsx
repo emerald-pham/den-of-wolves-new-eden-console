@@ -139,6 +139,44 @@ it('renders Dione production controls from live charges and resource state', asy
   expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeDisabled();
 });
 
+it('renders Capybara production controls with optional Scrap spending', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 } },
+    shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { capybara: { step: 6, revision: 3, results: { '5': 'Reactor powered up.' }, charges: ['advanced-hydroponics', 'water-production'], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Capybara" shipId="capybara"
+    systems={[
+      { id: 'advanced-hydroponics', name: 'Advanced Hydroponics', timing: 5 },
+      { id: 'water-production', name: 'Water Production', timing: 5 },
+      { id: 'shuttle-bay', name: 'Shuttle Bay', timing: 6 },
+    ]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByText(/Live stores: 9 food \/\/ 4 water \/\/ 2 Scrap/)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Run Advanced Hydroponics' })).toBeEnabled();
+  expect(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Advanced Hydroponics' })).toBeEnabled();
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Advanced Hydroponics' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Skip Advanced Hydroponics' }));
+  expect(run).toHaveBeenCalledWith('capybara', 'production', 3, {
+    productionConsoleId: 'advanced-hydroponics', productionMode: 'skip',
+  }, undefined);
+  run.mockClear();
+  await userEvent.click(screen.getByRole('button', { name: 'Run Advanced Hydroponics' }));
+  expect(run).toHaveBeenCalledWith('capybara', 'production', 3, {
+    productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+  }, undefined);
+
+  act(() => useSessionStore.setState({ session: {
+    ...useSessionStore.getState().session!,
+    shipResources: { capybara: { ore: 0, fuel: 3, food: 15, water: 10, materials: 0, securityTeams: 2, scrap: 0 } },
+    maintenanceCycles: { capybara: { step: 6, revision: 4, results: { '5': 'Advanced Hydroponics generated 12 food.' }, charges: ['water-production'], refuelled: [] } },
+  } }));
+  expect(screen.getByRole('button', { name: 'Run Water Production' })).toBeEnabled();
+  expect(screen.getByRole('checkbox', { name: 'Spend 1 Scrap on Water Production' })).toBeDisabled();
+});
+
 it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {
   useSessionStore.setState({ session: {
     ...session,

@@ -453,6 +453,74 @@ it('resolves Dione production atomically with authoritative resources, charge co
   expect(maintenance.session.shipResources).toMatchObject({ dione: { food: 16, water: 13 } });
 });
 
+it('resolves Capybara production with optional Scrap exactly once across replay and stale CAS', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+      maintenanceCycles: {
+        capybara: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: ['advanced-hydroponics', 'water-production'], refuelled: [] },
+      },
+      shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 } },
+      shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_000 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  const requestData = {
+    ...data, shipId: 'capybara', action: 'production', expectedRevision: 0,
+    requestId: 'capybara-hydroponics', productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+  };
+
+  const production = await runMaintenance.run(request(requestData));
+  expect(production).toMatchObject({
+    status: 'committed', action: 'production', committedRevision: 1,
+    cycle: { step: 6, charges: ['water-production'], results: { '5': expect.stringContaining('generated 12 food') } },
+    result: { resources: { food: 21, water: 2, scrap: 1 } },
+  });
+  const updateCount = mock.update.mock.calls.length;
+  await expect(runMaintenance.run(request(requestData))).resolves.toMatchObject({
+    status: 'replayed', requestId: 'capybara-hydroponics',
+  });
+  expect(mock.update.mock.calls.length).toBe(updateCount);
+  await expect(runMaintenance.run(request({
+    ...requestData, requestId: 'capybara-stale', productionConsoleId: 'water-production', productionScrap: false,
+  }))).resolves.toMatchObject({ status: 'stale', currentRevision: 1 });
+  expect(maintenance.session.shipResources).toMatchObject({ capybara: { food: 21, water: 2, scrap: 1 } });
+});
+
+it('denies Capybara production when the console is uncharged or damaged without writing', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1, activeVesselIds: ['aegis', 'dione', 'capybara'],
+      maintenanceCycles: { capybara: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] } },
+      shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 1 } },
+      shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { capybara: 0 }, shipSurvivors: { capybara: 20_000 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'capybara', action: 'production', requestId: 'capybara-uncharged', productionConsoleId: 'advanced-hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/not charged/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  maintenance.session.maintenanceCycles = {
+    capybara: { step: 6, revision: 0, results: {}, charges: ['advanced-hydroponics'], refuelled: [] },
+  };
+  maintenance.session.shipDamage = { capybara: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false } };
+  mock.update.mockClear();
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'capybara', action: 'production', requestId: 'capybara-damaged', productionConsoleId: 'advanced-hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/damaged/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('uses the server-owned Dione upgrade and rejects damaged production consoles', async () => {
   mock.maintenanceCycles = {
     dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },

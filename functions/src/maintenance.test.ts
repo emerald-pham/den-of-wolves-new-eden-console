@@ -354,6 +354,70 @@ it('rejects uncharged or damaged Dione production without changing the resource 
   expect(() => advanceMaintenance({ ...base, cycle: { ...base.cycle, charges: ['hydroponics'] }, damage: { damagedSystemIds: ['hydroponics'], destroyed: false } })).toThrow(/damaged/i);
 });
 
+it('resolves Capybara Advanced Hydroponics with its base, Scrap, and upgrade yields', () => {
+  const base = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'advanced-hydroponics',
+    cycle: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: ['advanced-hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(base.resources).toMatchObject({ food: 15, water: 2, scrap: 2 });
+  expect(base.cycle).toMatchObject({ step: 6, revision: 1, charges: [] });
+  expect(base.cycle.results['5']).toContain('Advanced Hydroponics: spent 2 water, generated 6 food.');
+
+  const scrap = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['advanced-hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(scrap.resources).toMatchObject({ food: 21, water: 2, scrap: 1 });
+  expect(scrap.cycle.results['5']).toContain('1 Scrap');
+
+  const upgraded = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+    upgraded: ['advanced-hydroponics'],
+    cycle: { step: 6, revision: 0, results: {}, charges: ['advanced-hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(upgraded.resources).toMatchObject({ food: 24, water: 2, scrap: 1 });
+});
+
+it('resolves Capybara Water Production with its base, Scrap, and upgrade yields', () => {
+  const base = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'water-production',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['water-production'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(base.resources).toMatchObject({ food: 9, water: 10, scrap: 2 });
+
+  const scrap = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'water-production', productionScrap: true,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['water-production'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(scrap.resources).toMatchObject({ water: 16, scrap: 1 });
+
+  const upgraded = advanceMaintenance(input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'water-production', productionScrap: true,
+    upgraded: ['water-production'],
+    cycle: { step: 6, revision: 0, results: {}, charges: ['water-production'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 },
+  }));
+  expect(upgraded.resources).toMatchObject({ water: 19, scrap: 1 });
+});
+
+it('rejects Capybara production without chargeable resources or a usable console', () => {
+  const base = input({
+    shipId: 'capybara', action: 'production', productionConsoleId: 'advanced-hydroponics', productionScrap: true,
+    cycle: { step: 6, revision: 0, results: {}, charges: ['advanced-hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 1, materials: 0, securityTeams: 2, scrap: 0 },
+  });
+  expect(() => advanceMaintenance(base)).toThrow(/Insufficient water/i);
+  expect(() => advanceMaintenance({ ...base, resources: { ...base.resources, water: 4 } })).toThrow(/Insufficient Scrap/i);
+  expect(() => advanceMaintenance({ ...base, cycle: { ...base.cycle, charges: [] } })).toThrow(/not charged/i);
+  expect(() => advanceMaintenance({ ...base, cycle: { ...base.cycle, charges: ['advanced-hydroponics'] }, damage: { damagedSystemIds: ['advanced-hydroponics'], destroyed: false } })).toThrow(/damaged/i);
+  expect(base.resources).toMatchObject({ food: 9, water: 1, scrap: 0 });
+});
+
 it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {
   const variants = [
     { label: 'nominal', capacity: nominalCapacity, damaged: false, upgraded: false },
