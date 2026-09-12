@@ -4933,6 +4933,12 @@ export const setWolfAttackWindow = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
     }
+    // This request ID is shared with the older M1 command stores. A legacy
+    // record cannot be reinterpreted as this new action, even when the GM
+    // marker itself is otherwise authorized.
+    await rejectForeignLegacyM1Command(
+      tx, change.sessionId, change.requestId, 'Wolf attack timing', [],
+    );
     const replay = replayBoundCommand(
       receipt,
       fingerprint,
@@ -4958,10 +4964,6 @@ export const setWolfAttackWindow = onCall<{
     const sameState = current?.status === change.status &&
       (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn);
     if (change.expectedRevision !== currentRevision) {
-      if (sameState) {
-        tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
-        return current;
-      }
       throw commandError(
         'failed-precondition',
         'Wolf attack timing changed. Wait for the live facilitator marker and try again.',

@@ -144,6 +144,53 @@ it('rejects stale opposite actions without changing the private marker', async (
   });
 });
 
+it('rejects a stale same-status retry without writing a receipt', async () => {
+  await setWolfAttackWindow.run(request());
+  mock.update.mockClear();
+  mock.set.mockClear();
+
+  await expect(setWolfAttackWindow.run(request({
+    ...baseData, requestId: 'wolf-stale-same-status', expectedRevision: 0, status: 'due',
+  }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.documents.has('sessions/s1/commandReceipts/wolf-stale-same-status')).toBe(false);
+});
+
+it('rejects every legacy M1 request namespace collision before any write', async () => {
+  const requestId = 'wolf-legacy-collision';
+  const legacyPaths = [
+    `sessions/s1/setupMutationRequests/${requestId}`,
+    `sessions/s1/gmResponsibilityRequests/${requestId}`,
+    `sessions/s1/seatMutationRequests/${requestId}`,
+    `sessions/s1/loyaltyAssignmentRequests/${requestId}`,
+    `sessionStartRequests/s1_${requestId}`,
+    `sessions/s1/events/setup-confirm-${requestId}`,
+    `sessions/s1/events/gm-responsibility-${requestId}`,
+    `sessions/s1/events/start-${requestId}`,
+    `sessions/s1/events/seat-claim-${requestId}`,
+    `sessions/s1/events/seat-release-${requestId}`,
+    `sessions/s1/events/${requestId}`,
+    `sessions/s1/events/press-availability-${requestId}`,
+  ];
+
+  for (const path of legacyPaths) {
+    mock.documents.clear();
+    mock.update.mockClear();
+    mock.set.mockClear();
+    session();
+    gm();
+    put(path, { legacy: true });
+
+    await expect(setWolfAttackWindow.run(request({ ...baseData, requestId })))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+    expect(mock.documents.has('sessions/s1/wolfAttackWindow/current')).toBe(false);
+    expect(mock.documents.has(`sessions/s1/commandReceipts/${requestId}`)).toBe(false);
+  }
+});
+
 it('denies non-GM, stale instances, malformed, closed, and out-of-window commands', async () => {
   await expect(setWolfAttackWindow.run(request({ ...baseData, status: 'later' }))).rejects
     .toMatchObject({ code: 'invalid-argument' });
