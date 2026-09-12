@@ -273,6 +273,14 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     sessionId: 's1', currentTurn: 1, setupRevision: 1,
     turnStartAnnouncement: { turn: 1 },
     turnPhase: { turn: 1, airspace: { state: 'restricted' } },
+    turnState: {
+      currentTurn: 1,
+      maxTurn: 6,
+      phase: 'team',
+      phaseRevision: 1,
+      startedAt: expect.any(String),
+      endsAt: expect.any(String),
+    },
   });
   expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({ path: 'sessions/s1' }), expect.objectContaining({
     phase: 'active', configurationLocked: true, setupRevision: 1, pursuitGroups: { fleet: 2 },

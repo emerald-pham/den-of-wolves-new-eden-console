@@ -57,7 +57,7 @@ import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resource
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
 import { normalizePressDispatch } from './pressDispatchState';
 import { normalizeDisplayName } from './displayName';
-import { turnPhaseState } from './turnPhase';
+import { turnPhaseState, turnStateState } from './turnPhase';
 import { parseMaintenanceEvent } from './maintenanceEvent';
 import { useSessionStore } from '@/store/useSessionStore';
 import { parseMaintenanceCycle } from './shipStateProjection';
@@ -627,6 +627,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const dradisContactTriggeredAt = data.dradisContactTriggeredAt;
   const announcement = turnStartAnnouncement(data.turnStartAnnouncement);
   const phaseClock = turnPhaseState(data.turnPhase);
+  const turnState = turnStateState(data.turnState);
   const playerCount = Number.isSafeInteger(data.playerCount) && data.playerCount >= 8 && data.playerCount <= 20
     ? data.playerCount as number
     : undefined;
@@ -683,6 +684,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
       activeVesselIds ? { activeVesselIds: [...activeVesselIds] } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
+    ...(turnState ? { turnState } : {}),
     capybaraEnabled: data.capybaraEnabled !== false,
     dioneEnabled: data.dioneEnabled !== false,
     universalArbourEnabled: data.universalArbourEnabled === true,

@@ -5,6 +5,10 @@ import {
   isTurnPhaseTimerActive,
   pauseActiveTurnPhase,
   resumePausedTurnPhase,
+  startTurnPhase,
+  turnStateForPhase,
+  turnStateState,
+  updateTurnStateForPhase,
 } from './turnZero';
 
 it('reserves Turn 0 gameplay commands for GMs', () => {
@@ -97,4 +101,52 @@ it('does not create a second pause or extend a paused window', () => {
     'restricted',
     Date.parse('2026-09-07T12:03:00.000Z'),
   )).toBeUndefined();
+});
+
+it('records a complete turn entity across the existing Team-to-Coordination boundary', () => {
+  const startedAt = '2026-09-07T12:00:00.000Z';
+  const team = startTurnPhase(1, Date.parse(startedAt));
+  const initial = turnStateForPhase(team, 7, 1, startedAt);
+
+  expect(initial).toEqual({
+    currentTurn: 1,
+    maxTurn: 7,
+    phase: 'team',
+    phaseRevision: 1,
+    startedAt,
+    endsAt: '2026-09-07T12:10:00.000Z',
+  });
+  expect(turnStateState(initial)).toEqual(initial);
+  expect(updateTurnStateForPhase(team, initial)).toEqual(initial);
+
+  const coordination = {
+    ...team,
+    airspace: { ...team.airspace, state: 'lifted' as const },
+  };
+  expect(updateTurnStateForPhase(coordination, initial)).toEqual({
+    currentTurn: 1,
+    maxTurn: 7,
+    phase: 'coordination',
+    phaseRevision: 2,
+    startedAt: '2026-09-07T12:10:00.000Z',
+    endsAt: '2026-09-07T12:30:00.000Z',
+  });
+});
+
+it('rejects an incomplete or impossible turn entity without inventing a fallback', () => {
+  expect(turnStateState({
+    currentTurn: 1,
+    maxTurn: 7,
+    phase: 'team',
+    phaseRevision: 1,
+    startedAt: '2026-09-07T12:00:00.000Z',
+  })).toBeUndefined();
+  expect(turnStateState({
+    currentTurn: 8,
+    maxTurn: 7,
+    phase: 'coordination',
+    phaseRevision: 2,
+    startedAt: '2026-09-07T12:10:00.000Z',
+    endsAt: '2026-09-07T12:30:00.000Z',
+  })).toBeUndefined();
 });

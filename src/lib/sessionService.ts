@@ -27,7 +27,7 @@ import {
   requireFreshSessionAuthority,
   type SessionAuthorityCheckpoint,
 } from './sessionMutationAuthority';
-import { turnPhaseState } from './turnPhase';
+import { turnPhaseState, turnStateState } from './turnPhase';
 import type { AirspaceWindow } from '@/types/game';
 import {
   commandErrorCode,
@@ -1472,6 +1472,7 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
 
 interface TurnAdvanceReply {
   readonly currentTurn: number;
+  readonly turnState?: unknown;
   readonly turnStartAnnouncement?: { turn: number; survivorPopulation: number };
   readonly turnPhase?: unknown;
   readonly maintenanceCycles?: GameSession['maintenanceCycles'];
@@ -1585,6 +1586,7 @@ function applyTurnAdvanceReply(
     Number.isSafeInteger(announcement.survivorPopulation) && announcement.survivorPopulation >= 0,
   );
   const phaseClock = turnPhaseState(reply.turnPhase);
+  const turnState = turnStateState(reply.turnState);
   if (
     activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
     reply.currentTurn < 0 || !authorityCheckpointIsCurrent(checkpoint)
@@ -1594,6 +1596,7 @@ function applyTurnAdvanceReply(
     currentTurn: reply.currentTurn,
     ...(hasAnnouncement && announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
+    ...(turnState ? { turnState } : {}),
     ...(reply.maintenanceCycles
       ? { maintenanceCycles: reply.maintenanceCycles }
       : {}),
@@ -1728,14 +1731,19 @@ export async function beginOpenAirspacePhase(expectedTurn: number): Promise<void
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; expectedTurn: number },
-    { turnPhase?: unknown }
+    { turnPhase?: unknown; turnState?: unknown }
   >(functions(), 'beginOpenAirspacePhase');
   try {
     const reply = await call({ sessionId: store.session.id, expectedTurn });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        turnPhase: phaseClock,
+        ...(turnState ? { turnState } : {}),
+      });
     }
   } catch (cause) {
     // A concurrent GM advance intentionally makes an already-scheduled handoff stale.
@@ -1767,7 +1775,7 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
   await ensureSignedIn();
   const call = httpsCallable<
     { sessionId: string; instanceId: string; expectedTurn: number; window: AirspaceWindow },
-    { turnPhase?: unknown }
+    { turnPhase?: unknown; turnState?: unknown }
   >(functions(), 'extendAirspaceWindow');
   try {
     const reply = await call({
@@ -1777,9 +1785,14 @@ export async function extendAirspaceWindow(window: AirspaceWindow): Promise<void
       window,
     });
     const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === store.session.id && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        turnPhase: phaseClock,
+        ...(turnState ? { turnState } : {}),
+      });
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
@@ -1802,16 +1815,21 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
     expectedTurn: store.session.currentTurn ?? 1,
     paused,
   };
-  const call = httpsCallable<typeof payload, { turnPhase?: unknown }>(
+  const call = httpsCallable<typeof payload, { turnPhase?: unknown; turnState?: unknown }>(
     functions(),
     'setEmergencyTimerPaused',
   );
   try {
     const reply = await call(payload);
     const phaseClock = turnPhaseState(reply.data.turnPhase);
+    const turnState = turnStateState(reply.data.turnState);
     const activeSession = useSessionStore.getState().session;
     if (phaseClock && activeSession?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
-      useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
+      useSessionStore.getState().setSession({
+        ...activeSession,
+        turnPhase: phaseClock,
+        ...(turnState ? { turnState } : {}),
+      });
     }
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));

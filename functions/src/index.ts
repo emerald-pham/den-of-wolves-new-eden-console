@@ -173,7 +173,10 @@ import {
   pauseActiveTurnPhase,
   resumePausedTurnPhase,
   startTurnPhase,
+  turnStateForPhase,
+  turnStateState,
   turnPhaseState,
+  updateTurnStateForPhase,
 } from './turnZero';
 import {
   ACTION_METADATA,
@@ -206,6 +209,7 @@ setGlobalOptions(CALLABLE_RUNTIME_OPTIONS);
 const db = getFirestore();
 
 type ActiveTurnPhase = NonNullable<ReturnType<typeof turnPhaseState>>;
+type ActiveTurnState = NonNullable<ReturnType<typeof turnStateState>>;
 
 type TurnAdvanceEvent = Readonly<{
   actorUid: string;
@@ -797,11 +801,61 @@ function requireActionPhase(
 
 type TurnAdvanceResult = {
   readonly currentTurn: number;
+  readonly turnState?: ActiveTurnState;
   readonly turnStartAnnouncement?: TurnStartAnnouncement;
   readonly turnPhase: ReturnType<typeof startTurnPhase>;
   readonly maintenanceCycles?: Record<string, MaintenanceCycle>;
   readonly shuttleFuelled?: Record<string, boolean>;
 };
+
+function sessionTurnLimit(session: DocumentSnapshot): 6 | 7 | 8 | undefined {
+  const direct = session.get('turnLimit');
+  if (direct === 6 || direct === 7 || direct === 8) return direct;
+  const setup = session.get('setup');
+  if (typeof setup === 'object' && setup !== null && !Array.isArray(setup)) {
+    const nested = (setup as Record<string, unknown>).turnLimit;
+    if (nested === 6 || nested === 7 || nested === 8) return nested;
+  }
+  // `normalizeSessionConfiguration` already gives legacy empty sessions the
+  // printed six-turn default; keep this entity projection aligned with that
+  // existing compatibility behavior.
+  return 6;
+}
+
+function nextTurnState(
+  session: DocumentSnapshot,
+  phase: ActiveTurnPhase,
+  startedAt: string,
+): ActiveTurnState | undefined {
+  const maxTurn = sessionTurnLimit(session);
+  if (!maxTurn) return undefined;
+  const current = turnStateState(session.get('turnState'));
+  const phaseRevision = current && current.currentTurn < phase.turn
+    ? current.phaseRevision + 1
+    : 1;
+  return turnStateForPhase(phase, maxTurn, phaseRevision, startedAt);
+}
+
+function updatedTurnState(
+  session: DocumentSnapshot,
+  phase: ActiveTurnPhase,
+): ActiveTurnState | undefined {
+  const current = turnStateState(session.get('turnState'));
+  if (!current || current.currentTurn !== phase.turn) return undefined;
+  return updateTurnStateForPhase(phase, current);
+}
+
+/** Backfill a missing entity only at a real Team-to-Coordination boundary. */
+function phaseTransitionTurnState(
+  session: DocumentSnapshot,
+  phase: ActiveTurnPhase,
+): ActiveTurnState | undefined {
+  const current = updatedTurnState(session, phase);
+  if (current) return current;
+  const maxTurn = sessionTurnLimit(session);
+  if (!maxTurn || phase.airspace.state !== 'lifted') return undefined;
+  return turnStateForPhase(phase, maxTurn, 2, phase.teamPhaseEndsAt);
+}
 
 function advanceTurnInTransaction(
   tx: Transaction,
@@ -824,6 +878,7 @@ function advanceTurnInTransaction(
     survivorPopulation: announcementPopulation,
   };
   const turnPhase = startTurnPhase(nextTurn);
+  const turnState = nextTurnState(session, turnPhase, new Date().toISOString());
   const expiredTurnResources = currentTurn >= 1
     ? expireTurnScopedResources(
       (session.get('maintenanceCycles') ?? {}) as Record<string, MaintenanceCycle>,
@@ -837,6 +892,7 @@ function advanceTurnInTransaction(
       : announcement,
     fleetSurvivorPopulationAdjustment: nextFleetPopulation - fleetShipSurvivorPopulation(session),
     turnPhase,
+    ...(turnState ? { turnState } : {}),
     ...(expiredTurnResources
       ? {
         maintenanceCycles: expiredTurnResources.maintenanceCycles,
@@ -851,6 +907,7 @@ function advanceTurnInTransaction(
   }
   return {
     currentTurn: nextTurn,
+    ...(turnState ? { turnState } : {}),
     ...(skipTurnStartAnnouncement ? {} : { turnStartAnnouncement: announcement }),
     turnPhase,
     ...(expiredTurnResources
@@ -2500,6 +2557,7 @@ export const startGame = onCall<{
       setupRevision: committedSetupRevision,
       turnStartAnnouncement: transition.turnStartAnnouncement,
       turnPhase: transition.turnPhase,
+      ...(transition.turnState ? { turnState: transition.turnState } : {}),
       setupReceipt,
     };
     tx.set(startRequestRef, {
@@ -3745,6 +3803,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 
     const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
     const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+    const turnState = turnStateState(sessionSnap.get('turnState'));
     const activeRoleIds = sessionActiveRoleIds(sessionSnap);
     const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
     const activeVesselIds = setup.activeVesselIds;
@@ -3776,6 +3835,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         activeVesselIds: [...setup.activeVesselIds],
         ...(announcement ? { turnStartAnnouncement: announcement } : {}),
         ...(phaseClock ? { turnPhase: phaseClock } : {}),
+        ...(turnState ? { turnState } : {}),
         capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
         dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
         pressEnabled: sessionSnap.get('pressEnabled') !== false,
@@ -3930,6 +3990,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const announcement = turnStartAnnouncement(sessionSnap.get('turnStartAnnouncement'));
   const phaseClock = turnPhaseState(sessionSnap.get('turnPhase'));
+  const turnState = turnStateState(sessionSnap.get('turnState'));
   const activeRoleIds = sessionActiveRoleIds(sessionSnap);
   const setup = canonicalSetupForSession(sessionSnap, activeRoleIds);
   const activeVesselIds = setup.activeVesselIds;
@@ -3961,6 +4022,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       activeVesselIds: [...setup.activeVesselIds],
       ...(announcement ? { turnStartAnnouncement: announcement } : {}),
       ...(phaseClock ? { turnPhase: phaseClock } : {}),
+      ...(turnState ? { turnState } : {}),
       capybaraEnabled: sessionSnap.get('capybaraEnabled') !== false,
       dioneEnabled: sessionSnap.get('dioneEnabled') !== false,
       pressEnabled: sessionSnap.get('pressEnabled') !== false,
@@ -5084,14 +5146,22 @@ export const beginOpenAirspacePhase = onCall<{
     if (Date.now() < Date.parse(phase.teamPhaseEndsAt)) {
       throw commandError('failed-precondition', 'The airspace-closed timer is still active.', 'invalid-phase');
     }
-    if (phase.airspace.state === 'lifted') return { turnPhase: phase };
+    if (phase.airspace.state === 'lifted') {
+      const turnState = turnStateState(session.get('turnState'));
+      return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
+    }
     const turnPhase = {
       ...phase,
       airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
     };
-    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+    const turnState = phaseTransitionTurnState(session, turnPhase);
+    tx.update(sessionRef, {
+      turnPhase,
+      ...(turnState ? { turnState } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
     writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
-    return { turnPhase };
+    return { turnPhase, ...(turnState ? { turnState } : {}) };
   });
 });
 
@@ -5134,8 +5204,13 @@ export const extendAirspaceWindow = onCall<{
     if (!turnPhase) {
       throw commandError('failed-precondition', 'The requested airspace window is no longer active.', 'stale-revision');
     }
-    tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
-    return { turnPhase };
+    const turnState = updatedTurnState(session, turnPhase);
+    tx.update(sessionRef, {
+      turnPhase,
+      ...(turnState ? { turnState } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { turnPhase, ...(turnState ? { turnState } : {}) };
   });
 });
 
@@ -5180,7 +5255,10 @@ export const setEmergencyTimerPaused = onCall<{
       throw commandError('failed-precondition', 'No current turn phase is available.', 'invalid-phase');
     }
     const currentlyPaused = phase.timerPause !== undefined;
-    if (currentlyPaused === requestData.paused) return { turnPhase: phase };
+    if (currentlyPaused === requestData.paused) {
+      const turnState = turnStateState(session.get('turnState'));
+      return { turnPhase: phase, ...(turnState ? { turnState } : {}) };
+    }
 
     const turnPhase = requestData.paused
       ? pauseActiveTurnPhase(phase)
@@ -5198,8 +5276,10 @@ export const setEmergencyTimerPaused = onCall<{
     if (!window) {
       throw new HttpsError('internal', 'The emergency timer transition had no active window.');
     }
+    const turnState = updatedTurnState(session, turnPhase);
     tx.update(sessionRef, {
       turnPhase,
+      ...(turnState ? { turnState } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${requestData.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
@@ -5213,7 +5293,7 @@ export const setEmergencyTimerPaused = onCall<{
       },
       createdAt: FieldValue.serverTimestamp(),
     }));
-    return { turnPhase };
+    return { turnPhase, ...(turnState ? { turnState } : {}) };
   });
 });
 
@@ -5406,9 +5486,14 @@ export const unlockPressAirspace = onCall<{ sessionId?: unknown }>(async request
         ...phase,
         airspace: { ...phase.airspace, state: 'lifted' as const, tickerActive: true },
       };
-      tx.update(sessionRef, { turnPhase, updatedAt: FieldValue.serverTimestamp() });
+      const turnState = phaseTransitionTurnState(session, turnPhase);
+      tx.update(sessionRef, {
+        turnPhase,
+        ...(turnState ? { turnState } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
       writeAirspaceOpenedEvent(tx, requestData.sessionId, phase, transitionServerTime);
-      return { turnPhase };
+      return { turnPhase, ...(turnState ? { turnState } : {}) };
     }
     if (phase.airspace.state !== 'restricted' || phase.airspace.pressAccess) {
       return { turnPhase: phase };

@@ -385,6 +385,13 @@
       "language": "Typed public projections now remove nested hidden-state fields and unknown craft or vessel keys at client and callable boundaries while preserving valid operational state and SNN Press escort data. Existing member-readable session roots remain intentionally public; role briefs, loyalty, and facilitator notes stay on protected paths. Focused start, join, resume, and client projection tests cover malformed hidden fields, unknown IDs, valid-data preservation, and inactive prepared maintenance cycles.",
       "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/index.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/startState.ts; functions/src/startCallable.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "091 -> M2-TURN-ENTITY",
+      "id": "E-091-TURN-ENTITY",
+      "language": "The existing server-owned Team and Coordination clock now persists one complete turnState alongside its compatibility fields: current and maximum turn, phase, monotonic phase revision, and authoritative phase start/end instants. The start/advance, Team-to-Coordination, timer extension, emergency pause/resume, join, resume, and client callable paths preserve the entity; malformed records are rejected and legacy sessions are backfilled only at a real phase boundary. Focused turn-zero, start, production 8/19/20, airspace transition, and client parser tests cover the schema and lifecycle.",
+      "source": "functions/src/turnZero.ts; functions/src/index.ts; functions/src/turnZero.test.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; functions/src/maintenanceCallable.test.ts; src/lib/turnPhase.ts; src/lib/turnPhase.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2577,8 +2584,8 @@
         "acceptance": "active state records current/max turn, phase, phase revision, and server start/end timestamps.",
         "title": "Implement the turn entity."
       },
-      "description": "Server turn clock exists; complete turn entity remains open.",
-      "evidenceIds": "none",
+      "description": "The authoritative turn transitions now persist and project one complete turnState with current/max turn, Team or Coordination phase, phase revision, and server phase start/end instants while preserving the existing clock fields and legacy transition behavior.",
+      "evidenceIds": "E-091-TURN-ENTITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2589,7 +2596,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

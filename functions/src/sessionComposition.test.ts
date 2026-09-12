@@ -805,6 +805,14 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       currentTurn: 1,
       configurationLocked: true,
       activeRoleIds,
+      turnState: {
+        currentTurn: 1,
+        maxTurn: 8,
+        phase: 'team',
+        phaseRevision: 1,
+        startedAt: expect.any(String),
+        endsAt: expect.any(String),
+      },
     });
     expect(storedSession.pursuitGroups).toEqual({ fleet: 2 });
     const storedResources = storedSession.shipResources as Record<string, Record<string, number>>;

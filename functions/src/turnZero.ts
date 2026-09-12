@@ -17,6 +17,23 @@ export type TurnTimerPause = {
   readonly pausedAt: string;
 };
 
+export type TurnStatePhase = 'team' | 'coordination';
+
+/**
+ * The persisted turn entity is a projection of the existing server-owned
+ * phase clock. It carries the setup limit and phase boundary metadata in one
+ * shape while the older currentTurn/turnLimit/turnPhase fields remain the
+ * compatibility surface for existing clients.
+ */
+export type TurnState = {
+  readonly currentTurn: number;
+  readonly maxTurn: 6 | 7 | 8;
+  readonly phase: TurnStatePhase;
+  readonly phaseRevision: number;
+  readonly startedAt: string;
+  readonly endsAt: string;
+};
+
 export type TurnPhase = {
   readonly turn: number;
   readonly teamPhaseEndsAt: string;
@@ -28,6 +45,74 @@ export type TurnPhase = {
   };
   readonly timerPause?: TurnTimerPause;
 };
+
+function phaseForAirspace(state: TurnPhase['airspace']['state']): TurnStatePhase {
+  return state === 'lifted' ? 'coordination' : 'team';
+}
+
+function turnStateInstant(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+/** Read a complete persisted turn entity and reject malformed server data. */
+export function turnStateState(value: unknown): TurnState | undefined {
+  if (!record(value)) return undefined;
+  const { currentTurn, maxTurn, phase, phaseRevision, startedAt, endsAt } = value;
+  if (
+    typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
+    typeof maxTurn !== 'number' || !([6, 7, 8] as const).includes(maxTurn as 6 | 7 | 8) ||
+    currentTurn > maxTurn ||
+    (phase !== 'team' && phase !== 'coordination') ||
+    typeof phaseRevision !== 'number' || !Number.isSafeInteger(phaseRevision) || phaseRevision < 1 ||
+    !turnStateInstant(startedAt) || !turnStateInstant(endsAt) ||
+    Date.parse(endsAt) < Date.parse(startedAt)
+  ) return undefined;
+  return {
+    currentTurn,
+    maxTurn: maxTurn as 6 | 7 | 8,
+    phase,
+    phaseRevision,
+    startedAt,
+    endsAt,
+  };
+}
+
+/** Build the turn entity from an already-authoritative phase transition. */
+export function turnStateForPhase(
+  phase: TurnPhase,
+  maxTurn: 6 | 7 | 8,
+  phaseRevision: number,
+  startedAt: string,
+): TurnState {
+  const coordination = phase.airspace.state === 'lifted';
+  return {
+    currentTurn: phase.turn,
+    maxTurn,
+    phase: phaseForAirspace(phase.airspace.state),
+    phaseRevision,
+    startedAt,
+    endsAt: coordination ? phase.openAirspaceEndsAt : phase.teamPhaseEndsAt,
+  };
+}
+
+/** Keep an existing entity aligned after a timer-only update. */
+export function updateTurnStateForPhase(
+  phase: TurnPhase,
+  current: TurnState,
+): TurnState {
+  const phaseKind = phaseForAirspace(phase.airspace.state);
+  const changedPhase = phaseKind !== current.phase || phase.turn !== current.currentTurn;
+  return {
+    currentTurn: phase.turn,
+    maxTurn: current.maxTurn,
+    phase: phaseKind,
+    phaseRevision: changedPhase ? current.phaseRevision + 1 : current.phaseRevision,
+    startedAt: changedPhase && phaseKind === 'coordination'
+      ? phase.teamPhaseEndsAt
+      : current.startedAt,
+    endsAt: phaseKind === 'coordination' ? phase.openAirspaceEndsAt : phase.teamPhaseEndsAt,
+  };
+}
 
 function record(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

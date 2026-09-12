@@ -91,6 +91,34 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
 });
 
+it('hydrates the complete turn entity only when its server fields are valid', () => {
+  const session = sessionFrom('turn-state-session', {
+    ...sessionData(8),
+    currentTurn: 2,
+    turnLimit: 7,
+    turnState: {
+      currentTurn: 2,
+      maxTurn: 7,
+      phase: 'coordination',
+      phaseRevision: 4,
+      startedAt: '2026-01-01T00:05:00.000Z',
+      endsAt: '2026-01-01T00:20:00.000Z',
+    },
+  });
+  expect(session.turnState).toEqual({
+    currentTurn: 2,
+    maxTurn: 7,
+    phase: 'coordination',
+    phaseRevision: 4,
+    startedAt: '2026-01-01T00:05:00.000Z',
+    endsAt: '2026-01-01T00:20:00.000Z',
+  });
+  expect(sessionFrom('malformed-turn-state-session', {
+    ...sessionData(8),
+    turnState: { currentTurn: 1, maxTurn: 7, phase: 'team' },
+  }).turnState).toBeUndefined();
+});
+
 it('removes hidden state nested in public and crew projections while preserving operations', () => {
   const session = sessionFrom('redaction-session', {
     ...sessionData(8),

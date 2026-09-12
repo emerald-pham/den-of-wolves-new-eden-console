@@ -3,6 +3,7 @@ import {
   hasActiveTurnTimer,
   turnPhaseReadout,
   turnPhaseState,
+  turnStateState,
 } from './turnPhase';
 
 const phase = {
@@ -45,6 +46,45 @@ describe('emergency timer pause readout', () => {
     expect(turnPhaseState({
       ...phase,
       timerPause: { window: 'open', remainingMs: -1, pausedAt: phase.teamPhaseEndsAt },
+    })).toBeUndefined();
+  });
+});
+
+describe('persisted turn entity', () => {
+  it('accepts the complete server-owned shape', () => {
+    expect(turnStateState({
+      currentTurn: 2,
+      maxTurn: 8,
+      phase: 'coordination',
+      phaseRevision: 4,
+      startedAt: '2026-09-07T12:05:00.000Z',
+      endsAt: '2026-09-07T12:20:00.000Z',
+    })).toEqual({
+      currentTurn: 2,
+      maxTurn: 8,
+      phase: 'coordination',
+      phaseRevision: 4,
+      startedAt: '2026-09-07T12:05:00.000Z',
+      endsAt: '2026-09-07T12:20:00.000Z',
+    });
+  });
+
+  it('rejects malformed or out-of-range entity data', () => {
+    expect(turnStateState({
+      currentTurn: 2,
+      maxTurn: 8,
+      phase: 'coordination',
+      phaseRevision: 4,
+      startedAt: '2026-09-07T12:20:00.000Z',
+      endsAt: '2026-09-07T12:05:00.000Z',
+    })).toBeUndefined();
+    expect(turnStateState({
+      currentTurn: 9,
+      maxTurn: 8,
+      phase: 'team',
+      phaseRevision: 1,
+      startedAt: '2026-09-07T12:00:00.000Z',
+      endsAt: '2026-09-07T12:05:00.000Z',
     })).toBeUndefined();
   });
 });

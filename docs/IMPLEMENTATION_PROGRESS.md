@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**118 / 747 prompts complete (15.80%)**
+**119 / 747 prompts complete (15.93%)**
 
-Status breakdown: **118 done · 7 partial · 622 missing**.
+Status breakdown: **119 done · 6 partial · 622 missing**.
 
 Active prompt: **none**
 
@@ -501,7 +501,7 @@ release classification and evidence.
 | 088 | done | feature | 0.3.44 | Revisioned facilitator census and Wolf timing listeners reject delayed lower revisions for each active subscription while preserving equal updates, clear-on-delete/error behavior, and fresh ordering on re-subscribe. |
 | 089 | done | non-feature | — | Existing event snapshots replace the visible list on reconnect, use Firestore document IDs as stable event identities, and do not replay event effects. |
 | 090 | done | feature | 0.3.45 | Typed client and callable projections exclude nested hidden fields and unknown craft or vessel keys while preserving valid operational state; protected role, loyalty, and facilitator paths remain separate. |
-| 091 | partial | non-feature | — | Server turn clock exists; complete turn entity remains open. |
+| 091 | done | non-feature | — | The authoritative turn transitions now persist and project one complete turnState with current/max turn, Team or Coordination phase, phase revision, and server phase start/end instants while preserving the existing clock fields and legacy transition behavior. |
 | 092 | done | feature | 0.3.21 | `functions/src/index.ts` keeps Turn 0 setup-only, validates the current numbered phase, permits normal handoff only after lifted Coordination expiry, and preserves explicit numbered-phase GM overrides; the existing `functions/src/maintenanceCallable.test.ts` transition case proves illegal-phase no-write rejection, exact schedule/resource/event handoff, and presentation-only announcement skipping. |
 | 093 | done | non-feature | — | Existing `beginOpenAirspacePhase` and Team-action boundary are preserved by the composed `functions/src/maintenanceCallable.test.ts` proof: early/exact-deadline/stale/duplicate transitions and late `runMaintenance` denial are write-free where required, with deterministic `airspace-opened` identity and the existing concurrent expiry proof retained. |
 | 094 | done | non-feature | — | Server Team timer duration tests. |

@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
-  turnPhase: undefined as unknown, pressDispatch: undefined as unknown,
+  turnPhase: undefined as unknown, turnState: undefined as unknown, pressDispatch: undefined as unknown,
   race: undefined as {
     attempts: number;
     ready: Promise<void>;
@@ -134,6 +134,7 @@ vi.mock('firebase-admin/firestore', () => ({
           const snapshot = {
             currentTurn: mock.currentTurn,
             turnPhase: mock.turnPhase,
+            turnState: mock.turnState,
             turnStartAnnouncement: mock.turnStartAnnouncement,
             maintenanceCycles: mock.maintenanceCycles,
             shuttleFuelled: mock.shuttleFuelled,
@@ -169,6 +170,7 @@ vi.mock('firebase-admin/firestore', () => ({
             if (path === 'sessions/s1') {
               if ('currentTurn' in fields) mock.currentTurn = fields.currentTurn as number;
               if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
+              if ('turnState' in fields) mock.turnState = fields.turnState;
               if ('turnStartAnnouncement' in fields) mock.turnStartAnnouncement = fields.turnStartAnnouncement;
               if ('maintenanceCycles' in fields) mock.maintenanceCycles = fields.maintenanceCycles as Record<string, unknown>;
               if ('shuttleFuelled' in fields) mock.shuttleFuelled = fields.shuttleFuelled as Record<string, boolean>;
@@ -228,6 +230,7 @@ beforeEach(() => {
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
   mock.turnPhase = undefined;
+  mock.turnState = undefined;
   mock.race = undefined;
   mock.pressDispatch = undefined;
   mock.pressEnabled = true;
@@ -268,6 +271,7 @@ beforeEach(() => {
           capybaraEnabled: mock.capybaraEnabled,
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
+          turnState: mock.turnState,
           pressDispatch: mock.pressDispatch,
           pressEnabled: mock.pressEnabled,
           activeRoleIds: mock.activeRoleIds,
@@ -701,7 +705,7 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
 
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
-  }))).resolves.toEqual({
+  }))).resolves.toMatchObject({
     currentTurn: 2,
     turnStartAnnouncement: { turn: 2, survivorPopulation: 156_041 },
     maintenanceCycles: {},
@@ -747,7 +751,7 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
   mock.set.mockClear();
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2,
-  }))).resolves.toEqual({
+  }))).resolves.toMatchObject({
     currentTurn: 3,
     turnStartAnnouncement: { turn: 3, survivorPopulation: 156_041 },
     maintenanceCycles: {
@@ -884,7 +888,7 @@ it('skips the numbered-turn fullscreen transmission when requested', async () =>
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 1,
     skipTurnStartAnnouncement: true,
-  }))).resolves.toEqual({
+  }))).resolves.toMatchObject({
     currentTurn: 2,
     maintenanceCycles: {},
     shuttleFuelled: {},
@@ -925,7 +929,7 @@ it('turns the ticker into an open-airspace bulletin after the team timer expires
   vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
   await expect(beginOpenAirspacePhase.run(request({
     sessionId: 's1', expectedTurn: 2,
-  }))).resolves.toEqual({
+  }))).resolves.toMatchObject({
     turnPhase: {
       turn: 2,
       teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
@@ -1082,8 +1086,8 @@ it('serializes simultaneous airspace expiry observers into one transition event'
     openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
     airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
   };
-  expect(first).toEqual({ turnPhase: expected });
-  expect(second).toEqual({ turnPhase: expected });
+  expect(first).toMatchObject({ turnPhase: expected });
+  expect(second).toMatchObject({ turnPhase: expected });
   expect(mock.update).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledTimes(1);
   expect(mock.set).toHaveBeenCalledWith(
@@ -1107,7 +1111,7 @@ it('serializes simultaneous airspace expiry observers into one transition event'
   mock.update.mockClear();
   mock.set.mockClear();
   await expect(beginOpenAirspacePhase.run(request({ sessionId: 's1', expectedTurn: 1 }, 'u3')))
-    .resolves.toEqual({ turnPhase: expected });
+    .resolves.toMatchObject({ turnPhase: expected });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 
@@ -1236,7 +1240,7 @@ it('lets the active GM add five minutes to a live restricted window', async () =
 
   await expect(extendAirspaceWindow.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'restricted',
-  }))).resolves.toEqual({
+  }))).resolves.toMatchObject({
     turnPhase: {
       turn: 2,
       teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
@@ -1275,6 +1279,63 @@ it('lets the active GM add five minutes to a live open window', async () => {
       airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
     },
   });
+});
+
+it('keeps the persisted turn entity aligned with a phase boundary and timer update', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:05:00.000Z'));
+  mock.currentTurn = 2;
+  mock.turnPhase = {
+    turn: 2,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+  };
+  mock.turnState = {
+    currentTurn: 2,
+    maxTurn: 7,
+    phase: 'team',
+    phaseRevision: 3,
+    startedAt: '2026-09-06T12:00:00.000Z',
+    endsAt: '2026-09-06T12:05:00.000Z',
+  };
+
+  await expect(beginOpenAirspacePhase.run(request({
+    sessionId: 's1', expectedTurn: 2,
+  }))).resolves.toMatchObject({
+    turnState: {
+      currentTurn: 2,
+      maxTurn: 7,
+      phase: 'coordination',
+      phaseRevision: 4,
+      startedAt: '2026-09-06T12:05:00.000Z',
+      endsAt: '2026-09-06T12:20:00.000Z',
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnState: expect.objectContaining({ phase: 'coordination', phaseRevision: 4 }),
+  }));
+
+  mock.turnPhase = {
+    ...mock.turnPhase,
+    airspace: { ...mock.turnPhase.airspace, state: 'lifted' as const },
+  };
+  mock.turnState = {
+    ...mock.turnState as Record<string, unknown>,
+    phase: 'coordination',
+    phaseRevision: 4,
+  };
+  mock.update.mockClear();
+  await expect(extendAirspaceWindow.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 2, window: 'open',
+  }))).resolves.toMatchObject({
+    turnState: expect.objectContaining({
+      phase: 'coordination', phaseRevision: 4, endsAt: '2026-09-06T12:25:00.000Z',
+    }),
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    turnState: expect.objectContaining({ phaseRevision: 4, endsAt: '2026-09-06T12:25:00.000Z' }),
+  }));
 });
 
 it('rejects stale, inactive-window, and non-GM airspace extensions without writing', async () => {
@@ -1421,7 +1482,7 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
     airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
   };
 
-  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
     turnPhase: {
       turn: 1,
       teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
@@ -1439,7 +1500,7 @@ it('requires AEGIS authority for the Press exception and heals a stale restricti
 
   mock.activeConsoleRoleId = 'admiral';
   vi.setSystemTime(new Date('2026-09-06T12:10:00.000Z'));
-  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toEqual({
+  await expect(unlockPressAirspace.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
     turnPhase: {
       turn: 1,
       teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',

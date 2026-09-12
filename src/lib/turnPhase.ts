@@ -1,9 +1,30 @@
-import type { GameSession, TurnPhase } from '@/types/game';
+import type { GameSession, TurnPhase, TurnState } from '@/types/game';
 
 export type TurnPhaseReadout = {
   readonly kind: 'team' | 'open' | 'complete';
   readonly remainingMs: number;
 };
+
+/** Safely read the complete server-owned turn entity when present. */
+export function turnStateState(value: unknown): TurnState | undefined {
+  if (!record(value)) return undefined;
+  const { currentTurn, maxTurn, phase, phaseRevision, startedAt, endsAt } = value;
+  if (
+    typeof currentTurn !== 'number' || !Number.isSafeInteger(currentTurn) || currentTurn < 1 ||
+    (maxTurn !== 6 && maxTurn !== 7 && maxTurn !== 8) || currentTurn > maxTurn ||
+    (phase !== 'team' && phase !== 'coordination') ||
+    typeof phaseRevision !== 'number' || !Number.isSafeInteger(phaseRevision) || phaseRevision < 1 ||
+    !instant(startedAt) || !instant(endsAt) || Date.parse(endsAt) < Date.parse(startedAt)
+  ) return undefined;
+  return {
+    currentTurn,
+    maxTurn,
+    phase,
+    phaseRevision,
+    startedAt,
+    endsAt,
+  };
+}
 
 function record(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

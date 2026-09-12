@@ -202,6 +202,18 @@ export interface TurnPhase {
   readonly timerPause?: TurnTimerPause;
 }
 
+/** One complete server-owned turn entity, retained beside legacy clock fields. */
+export type TurnStatePhase = 'team' | 'coordination';
+
+export interface TurnState {
+  readonly currentTurn: number;
+  readonly maxTurn: 6 | 7 | 8;
+  readonly phase: TurnStatePhase;
+  readonly phaseRevision: number;
+  readonly startedAt: Timestamp;
+  readonly endsAt: Timestamp;
+}
+
 export interface TurnStartAnnouncement {
   readonly turn: number;
   readonly survivorPopulation: number;
@@ -234,6 +246,8 @@ export interface SessionSetup {
 export interface GameSession {
   /** Shared game turn advanced by an active GM; new sessions begin at Turn 0. */
   readonly currentTurn?: number;
+  /** Complete server-owned turn entity; legacy clock fields remain supported. */
+  readonly turnState?: TurnState;
   /** The most recently authorized fleet-status transmission for a turn start. */
   readonly turnStartAnnouncement?: TurnStartAnnouncement;
   /** Current server-authorized real-time phase and airspace directive. */
