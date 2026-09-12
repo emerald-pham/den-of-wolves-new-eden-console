@@ -41,6 +41,8 @@ interface ProductionRule {
   readonly upgradedWaterYield?: number;
   readonly scrapFoodYield?: number;
   readonly scrapWaterYield?: number;
+  readonly materialYield?: number;
+  readonly scrapYield?: number;
 }
 
 const PRODUCTION_RULES: Readonly<Record<string, Readonly<Record<string, ProductionRule>>>> = {
@@ -56,6 +58,10 @@ const PRODUCTION_RULES: Readonly<Record<string, Readonly<Record<string, Producti
     'water-production': {
       label: 'Water Production',
       waterCost: 0, waterYield: 6, upgradedWaterYield: 9, scrapWaterYield: 6,
+    },
+    'scrap-refinery': {
+      label: 'Scrap Refinery',
+      waterCost: 0, materialYield: 3, scrapYield: 1,
     },
   },
 };
@@ -124,8 +130,8 @@ export function advanceMaintenance(input: MaintenanceInput) {
     : aegisOmegaComplete || (input.damage.destroyed && cycleInput.step === 7)
       ? 'end'
       : order[cycleInput.step - 1] ?? (cycleInput.step === order.length + 1 ? 'end' : undefined);
-  // Dione's production consoles branch from the powered Reactor before the
-  // step-6 shuttle bay. They consume a charge but do not advance the lane.
+  // Production consoles branch from the powered Reactor before the step-6
+  // shuttle bay. They consume a charge but do not advance the lane.
   const isProduction = action === 'production';
   if ((!isProduction && expectedAction !== action) ||
       (isProduction && (!['dione', 'capybara'].includes(shipId) || cycleInput.step !== 6))) {
@@ -234,7 +240,23 @@ export function advanceMaintenance(input: MaintenanceInput) {
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
       const scrap = input.productionScrap === true;
       const scrapCost = scrap ? 1 : 0;
-      if (rule.foodYield !== undefined) {
+      if (rule.materialYield !== undefined || rule.scrapYield !== undefined) {
+        if (scrap) {
+          if ((resources.scrap ?? 0) < scrapCost) throw new Error('Insufficient Scrap for production.');
+          resources = {
+            ...resources,
+            scrap: addResourceAmount(resources.scrap ?? 0, -scrapCost),
+            materials: addResourceAmount(resources.materials, rule.materialYield ?? 0),
+          };
+          cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: spent 1 Scrap, generated ${rule.materialYield ?? 0} materials.`;
+        } else {
+          resources = {
+            ...resources,
+            scrap: addResourceAmount(resources.scrap ?? 0, rule.scrapYield ?? 0),
+          };
+          cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${rule.label}: generated ${rule.scrapYield ?? 0} Scrap.`;
+        }
+      } else if (rule.foodYield !== undefined) {
         if (resources.water < rule.waterCost) throw new Error('Insufficient water for Hydroponics.');
         const foodYield = upgraded && rule.upgradedFoodYield !== undefined ? rule.upgradedFoodYield : rule.foodYield;
         if (scrap && (resources.scrap ?? 0) < scrapCost) throw new Error('Insufficient Scrap for production.');

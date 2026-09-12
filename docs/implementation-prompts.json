@@ -1585,6 +1585,13 @@
     },
     {
       "direction": "257 -> 253;122;125",
+      "id": "E-257-VERIFIED",
+      "language": "Capybara's rendered-authority 7♠ Scrap Refinery is a server-authoritative step-6 production action: a charged console can generate one Scrap or spend one Scrap for three Materials, with the selected charge consumed exactly once. The hidden extracted 5♦ remains provenance-only. The existing maintenance callable preserves role, active-instance, phase, turn, configuration, damaged-console, revision CAS, request-fingerprint, receipt replay, and atomic resource guards; focused pure, callable, and component tests cover both choices, skipped conversion prevention, resource conservation, and replay/stale behavior.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/maintenanceCallable.test.ts; functions/src/index.ts; src/lib/maintenanceService.ts; src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/data/vessels/capybara.ts; functions/src/shipDamage.ts; focused Functions and unit tests; authorized routed Capybara expansion derivative",
+      "type": "evidence"
+    },
+    {
+      "direction": "257 -> 253;122;125",
       "id": "E-AUDIT-257",
       "language": "Expansion consoles consume expansion identity and Reactor eligibility.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
@@ -11234,8 +11241,8 @@
         "acceptance": "charged rendered-authority 7♠ either creates one Scrap or converts one Scrap to three materials; the hidden extracted 5♦ is provenance-only and creates no gameplay ambiguity.",
         "title": "Resolve the Scrap Refinery."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-257",
+      "description": "Capybara's Scrap Refinery is a server-authoritative step-6 production action using the rendered 7♠ authority: a charged console can generate one Scrap or spend one Scrap for three Materials, consumes its charge exactly once, and leaves the hidden extracted 5♦ as provenance-only. The existing maintenance callable supplies role, active-instance, phase, turn, Capybara configuration, damaged-console, revision CAS, request-fingerprint, receipt replay, and atomic inventory guards; the Maintenance Systems surface exposes the two choices and prevents a selected conversion from being silently skipped. Focused pure, callable, and component tests cover both choices, charge consumption, insufficient resources, damage, replay, stale CAS, and UI payloads. Terra review is required for this callable/shared-state change before release integration.",
+      "evidenceIds": "E-257-VERIFIED;E-AUDIT-257",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "253;122;125",
@@ -11246,7 +11253,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

@@ -8,7 +8,7 @@ export interface MaintenanceChoices {
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
   readonly refuels?: Readonly<Record<string, string>>;
-  readonly productionConsoleId?: 'hydroponics' | 'water-reclamation' | 'advanced-hydroponics' | 'water-production';
+  readonly productionConsoleId?: 'hydroponics' | 'water-reclamation' | 'advanced-hydroponics' | 'water-production' | 'scrap-refinery';
   readonly productionMode?: 'run' | 'skip';
   readonly productionScrap?: boolean;
 }

@@ -84,7 +84,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const docked = session?.shuttleDockings?.filter(dock => dock.shipId === shipId) ?? [];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
   const productionSystems = systems.filter(system =>
-    ['hydroponics', 'water-reclamation', 'advanced-hydroponics', 'water-production'].includes(system.id));
+    ['hydroponics', 'water-reclamation', 'advanced-hydroponics', 'water-production', 'scrap-refinery'].includes(system.id));
   const productionDisabled = (consoleId: string, mode: 'run' | 'skip' = 'run') => {
     const isDione = shipId === 'dione';
     const isCapybara = shipId === 'capybara';
@@ -93,13 +93,17 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
     const waterBlockedByHydroponics = isDione && consoleId === 'water-reclamation' && cycle?.charges.includes('hydroponics') &&
       !damage?.damagedSystemIds.includes('hydroponics') && resources?.water !== undefined && resources.water >= 1;
     const hydroponicsForeclosedByWater = isDione && consoleId === 'hydroponics' && cycle?.results['5']?.includes('Water Reclamation');
-    if (mode === 'skip') return baseDisabled || waterBlockedByHydroponics || hydroponicsForeclosedByWater;
+    if (mode === 'skip') return baseDisabled || waterBlockedByHydroponics || hydroponicsForeclosedByWater ||
+      (isCapybara && consoleId === 'scrap-refinery' && productionScrap[consoleId] === true);
     const capybaraWaterBlocked = isCapybara && consoleId === 'advanced-hydroponics' && (resources?.water ?? 0) < 2;
     const capybaraScrapBlocked = isCapybara && productionScrap[consoleId] === true && (resources?.scrap ?? 0) < 1;
     return baseDisabled || damage?.damagedSystemIds.includes(consoleId) || hydroponicsForeclosedByWater ||
       (isDione && consoleId === 'hydroponics' && (resources?.water ?? 0) < 1) ||
       waterBlockedByHydroponics || capybaraWaterBlocked || capybaraScrapBlocked;
   };
+  const scrapRefinerySelectionDisabled = (consoleId: string) => blocked || maintenancePhaseBlocked ||
+    shipId !== 'capybara' || step !== 6 || !resources || !cycle?.charges.includes(consoleId) ||
+    damage?.destroyed === true || damage?.damagedSystemIds.includes(consoleId);
   const productionChoices = (consoleId: string, mode?: 'skip'): MaintenanceChoices => ({
     productionConsoleId: consoleId as NonNullable<MaintenanceChoices['productionConsoleId']>,
     ...(mode ? { productionMode: mode } : {}),
@@ -212,7 +216,24 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 ? `${resources.food} food // ${resources.water} water${shipId === 'capybara' ? ` // ${resources.scrap ?? 0} Scrap` : ''}`
                 : 'awaiting live resource state'}.</p>
               {productionSystems.map(system => <div key={system.id}>
-                {shipId === 'capybara' && <label>
+                {shipId === 'capybara' && system.id === 'scrap-refinery' && <fieldset className="maintenance-controls__choice">
+                  <legend>{system.name} choice</legend>
+                  <label>
+                    <input type="radio" name={`${shipId}-${system.id}-mode`} aria-label="Generate 1 Scrap"
+                      checked={productionScrap[system.id] !== true}
+                      disabled={scrapRefinerySelectionDisabled(system.id)}
+                      onChange={() => setProductionScrap(previous => ({ ...previous, [system.id]: false }))} />
+                    Generate 1 Scrap
+                  </label>
+                  <label>
+                    <input type="radio" name={`${shipId}-${system.id}-mode`} aria-label="Spend 1 Scrap for 3 Materials"
+                      checked={productionScrap[system.id] === true}
+                      disabled={scrapRefinerySelectionDisabled(system.id) || (resources?.scrap ?? 0) < 1}
+                      onChange={() => setProductionScrap(previous => ({ ...previous, [system.id]: true }))} />
+                    Spend 1 Scrap for 3 Materials
+                  </label>
+                </fieldset>}
+                {shipId === 'capybara' && system.id !== 'scrap-refinery' && <label>
                   <input type="checkbox" aria-label={`Spend 1 Scrap on ${system.name}`} checked={productionScrap[system.id] === true}
                     disabled={productionDisabled(system.id) || (resources?.scrap ?? 0) < 1}
                     onChange={event => setProductionScrap(previous => ({ ...previous, [system.id]: event.target.checked }))} />

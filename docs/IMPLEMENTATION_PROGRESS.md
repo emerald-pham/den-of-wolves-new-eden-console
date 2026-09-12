@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**196 / 747 prompts complete (26.24%)**
+**197 / 747 prompts complete (26.37%)**
 
-Status breakdown: **196 done · 15 partial · 536 missing**.
+Status breakdown: **197 done · 15 partial · 535 missing**.
 
 Active prompt: **none**
 
@@ -696,7 +696,7 @@ release classification and evidence.
 | 254 | done | non-feature | — | The existing shared maintenance and jump paths already implement Capybara Storage and Reactor behavior. Focused tests verify floor-rounded losses for every applicable store and docked cargo, nominal three-console charging, damaged and upgraded capacity boundaries, the damaged Jump Drive exception, and 3/6/12 jump costs. This closes the existing production-path evidence without a runtime change or release. |
 | 255 | done | non-feature | 0.3.68 | Capybara Advanced Hydroponics is a server-authoritative step-6 production action that consumes two water for six food, optionally spends one Scrap for six additional food, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior. |
 | 256 | done | non-feature | 0.3.68 | Capybara Water Production is a server-authoritative step-6 production action that generates six water, optionally spends one Scrap for six additional water, applies the upgrade yield once, and rejects uncharged or damaged consoles. Request fingerprints include the Scrap choice for exact replay, and Skip consumes only the selected console charge. Focused callable, maintenance, client-service, and rendered console evidence covers resource, charge, damage, owner, phase, CAS, and retry behavior. |
-| 257 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 257 | done | non-feature | — | Capybara's Scrap Refinery is a server-authoritative step-6 production action using the rendered 7♠ authority: a charged console can generate one Scrap or spend one Scrap for three Materials, consumes its charge exactly once, and leaves the hidden extracted 5♦ as provenance-only. The existing maintenance callable supplies role, active-instance, phase, turn, Capybara configuration, damaged-console, revision CAS, request-fingerprint, receipt replay, and atomic inventory guards; the Maintenance Systems surface exposes the two choices and prevents a selected conversion from being silently skipped. Focused pure, callable, and component tests cover both choices, charge consumption, insufficient resources, damage, replay, stale CAS, and UI payloads. Terra review is required for this callable/shared-state change before release integration. |
 | 258 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 259 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 260 | partial | non-feature | — | The canonical catalogs and route already preserve Starlight's Wing Commander ownership, AEGIS initial dock, two-jump scouting with a fuelled second scan, and +3 exploration / +1 salvage mission bonuses. Focused config and route tests verify those facts and keep cargo transfer unadvertised. The routed Starlight derivative does not establish a cargo-transfer contract, and no preserved/provenanced Starlight primary sheet is available in the authorized source index, so this prompt remains partial pending an authoritative cargo decision; no cargo permission was invented. |

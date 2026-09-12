@@ -8865,7 +8865,7 @@ export const runMaintenance = onCall<{
     (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string'))) ||
     (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !(
       (data.shipId === 'dione' && ['hydroponics', 'water-reclamation'].includes(data.productionConsoleId)) ||
-      (data.shipId === 'capybara' && ['advanced-hydroponics', 'water-production'].includes(data.productionConsoleId))
+      (data.shipId === 'capybara' && ['advanced-hydroponics', 'water-production', 'scrap-refinery'].includes(data.productionConsoleId))
     ))) ||
     (data.productionMode !== undefined && data.productionMode !== 'run' && data.productionMode !== 'skip') ||
     (data.productionScrap !== undefined && typeof data.productionScrap !== 'boolean') ||

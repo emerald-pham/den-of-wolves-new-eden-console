@@ -178,6 +178,36 @@ it('renders Capybara production controls with optional Scrap spending', async ()
   expect(screen.getByRole('button', { name: 'Skip Water Production' })).toBeEnabled();
 });
 
+it('renders Scrap Refinery generate and conversion choices without conflating skip', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { capybara: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 2 } },
+    shipDamage: { capybara: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { capybara: { step: 6, revision: 3, results: { '5': 'Reactor powered up.' }, charges: ['scrap-refinery'], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Capybara" shipId="capybara"
+    systems={[{ id: 'scrap-refinery', name: 'Scrap Refinery', timing: 5 }]}
+    renderSystem={() => null} rations={null} />);
+
+  const generate = screen.getByRole('radio', { name: 'Generate 1 Scrap' });
+  const spend = screen.getByRole('radio', { name: 'Spend 1 Scrap for 3 Materials' });
+  expect(generate).toBeChecked();
+  expect(spend).toBeEnabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Run Scrap Refinery' }));
+  expect(run).toHaveBeenCalledWith('capybara', 'production', 3, {
+    productionConsoleId: 'scrap-refinery',
+  }, undefined);
+
+  run.mockClear();
+  await userEvent.click(spend);
+  expect(spend).toBeChecked();
+  expect(screen.getByRole('button', { name: 'Skip Scrap Refinery' })).toBeDisabled();
+  await userEvent.click(screen.getByRole('button', { name: 'Run Scrap Refinery' }));
+  expect(run).toHaveBeenCalledWith('capybara', 'production', 3, {
+    productionConsoleId: 'scrap-refinery', productionScrap: true,
+  }, undefined);
+});
+
 it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {
   useSessionStore.setState({ session: {
     ...session,

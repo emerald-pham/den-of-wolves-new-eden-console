@@ -182,6 +182,27 @@ it('uses the printed Capybara Storage and Reactor policy', () => {
   }));
   expect(damagedUpgraded.cycle.charges).toEqual(['jump-drive']);
 });
+it('resolves the charged Capybara Scrap Refinery choice atomically', () => {
+  const base = input({
+    shipId: 'capybara', action: 'production', expectedRevision: 0,
+    productionConsoleId: 'scrap-refinery',
+    cycle: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: ['scrap-refinery'], refuelled: [] },
+    resources: { ore: 0, fuel: 3, food: 9, water: 4, materials: 0, securityTeams: 2, scrap: 3 },
+  });
+
+  const generated = advanceMaintenance({ ...base, productionScrap: false });
+  expect(generated.resources).toMatchObject({ scrap: 4, materials: 0 });
+  expect(generated.cycle).toMatchObject({ step: 6, revision: 1, charges: [] });
+  expect(generated.cycle.results['5']).toContain('Scrap Refinery: generated 1 Scrap.');
+
+  const converted = advanceMaintenance({ ...base, productionScrap: true });
+  expect(converted.resources).toMatchObject({ scrap: 2, materials: 3 });
+  expect(converted.cycle.results['5']).toContain('Scrap Refinery: spent 1 Scrap, generated 3 materials.');
+  expect(() => advanceMaintenance({ ...base, productionScrap: true,
+    resources: { ...base.resources, scrap: 0 } })).toThrow(/Insufficient Scrap/);
+  expect(() => advanceMaintenance({ ...base, damage: { damagedSystemIds: ['scrap-refinery'], destroyed: false } }))
+    .toThrow(/Damaged production console/);
+});
 it('spends food and water separately and retains both ration bonuses', () => {
   const result = advanceMaintenance(input({ action: 'rations', cycle: { step: 2, revision: 0, results: {}, charges: [], refuelled: [] }, foodLevel: 1, waterLevel: 2 }));
   expect(result.resources).toMatchObject({ food: 5, water: 3 });
