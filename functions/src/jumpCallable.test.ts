@@ -144,6 +144,32 @@ it('rejects an unprinted locked coordinate with a server-owned one-hour integrit
   expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
+it('validates reachability from stored position even when the client supplies a different origin', async () => {
+  for (const [origin, destination] of [['5143', '0101'], ['0101', '5143'], ['5143', '5143']]) {
+    mock.coordinate = origin!;
+    mock.update.mockClear();
+    await expect(jumpShip.run(request({ ...data, destination, origin: '0000' }))).resolves.toMatchObject({
+      status: 'integrity-lockout', origin, destination,
+    });
+    const fields = mock.update.mock.calls[0]?.[1];
+    expect(fields).toHaveProperty('shipJumpStates.aegis');
+    for (const field of ['shipGalacticCoordinates.aegis', 'shipResources.aegis.fuel', 'maintenanceCycles.aegis', 'shipJumpTransitions.aegis']) {
+      expect(fields).not.toHaveProperty(field);
+    }
+    expect(mock.update).toHaveBeenCalledTimes(1);
+  }
+  expect(mock.randomInt).not.toHaveBeenCalled();
+
+  mock.coordinate = '5143';
+  mock.update.mockClear();
+  await expect(jumpShip.run(request({ ...data, destination: '0000', origin: '0101' }))).resolves.toMatchObject({
+    status: 'jumped', origin: '5143', destination: '0000',
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'shipGalacticCoordinates.aegis': '0000',
+  }));
+});
+
 it('uses the active GM instance and atomically moves, burns fuel, consumes charge, and publishes the transition', async () => {
   mock.transactionRetries = 1;
   mock.upgrades = { aegis: ['jump-drive'] };

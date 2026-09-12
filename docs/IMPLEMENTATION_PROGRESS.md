@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**194 / 747 prompts complete (25.97%)**
+**195 / 747 prompts complete (26.10%)**
 
-Status breakdown: **194 done · 14 partial · 539 missing**.
+Status breakdown: **195 done · 14 partial · 538 missing**.
 
 Active prompt: **none**
 
@@ -734,7 +734,7 @@ release classification and evidence.
 | 290 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 291 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 292 | done | non-feature | — | The existing jump callable validates exactly four ASCII digits before starting a transaction. Malformed values fail without reading or changing fuel, charge, position, pursuit, lockout, or event state. A focused callable regression verifies absent, non-string, short, long, non-digit, embedded-space, and non-ASCII input; valid but unprinted coordinates retain their separate integrity-lockout behavior. |
-| 293 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 293 | done | non-feature | — | The existing server derives the jump origin from the stored position and validates both endpoints against the canonical printed graph. A callable regression verifies unprinted destinations, unprinted stored origins, and zero-distance attempts fail under the retained integrity-lock policy without fuel, charge, location, or transition changes. A forged client origin cannot bypass these checks or prevent a legal return route. All printed coordinates share a connected graph; numeric distance-band policy remains the separate unresolved Prompt 287 decision. |
 | 294 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 295 | done | non-feature | — | Verified the retained facilitator integrity-lock policy for well-formed but unprinted jump destinations: the server returns a one-hour lockout, without accepting the coordinate as a system or changing location, fuel, charge, or transition. Existing active lockouts return without writes. The console displays the server lockout and disables departure. This preserves the current product policy; it does not claim the exact lock duration is a printed rule. |
 | 296 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

@@ -4494,6 +4494,13 @@
       "language": "The routed private Wolf attack derivative supplies the exact turn-one roster and inclusive 15–24 capacity range for later ordinary scheduled attacks. Three focused tests verify exact composition rather than capacity alone, order independence, both capacity boundaries and adjacent invalid totals, unknown cards/invalid turns, input-copy isolation and frozen output. Functions build and affected-file lint pass. No player-selected hidden-card endpoint or randomness is added. Private staging/declaration consumes this policy in the next prompt; encounter and Commander rules are separate.",
       "source": "functions/src/wolfAttackComposition.ts; functions/src/wolfAttackComposition.test.ts; functions/src/wolfShipCatalog.ts",
       "type": "evidence / related/consumes"
+    },
+    {
+      "direction": "293",
+      "id": "E-293-REACHABILITY",
+      "language": "Eleven focused jump callable/resolver tests and Functions compilation pass. New production-path regression checks stored-origin authority, invalid endpoint denial without movement/resource spending, zero-distance denial, and a legal non-start-origin return despite a forged client origin. Test and roadmap evidence only; existing integrity-lock and distance-band policies unchanged.",
+      "source": "functions/src/index.ts (jumpShip); functions/src/jumpDrive.ts; functions/src/starChartGraph.ts; functions/src/jumpCallable.test.ts; functions/src/jumpDrive.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -12093,8 +12100,8 @@
         "acceptance": "a well-formed but unreachable destination fails from the current authoritative origin.",
         "title": "Validate printed reachability."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-293",
+      "description": "The existing server derives the jump origin from the stored position and validates both endpoints against the canonical printed graph. A callable regression verifies unprinted destinations, unprinted stored origins, and zero-distance attempts fail under the retained integrity-lock policy without fuel, charge, location, or transition changes. A forged client origin cannot bypass these checks or prevent a legal return route. All printed coordinates share a connected graph; numeric distance-band policy remains the separate unresolved Prompt 287 decision.",
+      "evidenceIds": "E-AUDIT-293;E-293-REACHABILITY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "281;282;285",
@@ -12105,7 +12112,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
