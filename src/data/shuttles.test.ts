@@ -176,6 +176,32 @@ describe('fleet shuttlebays', () => {
     expect(blacksmith?.operations[1]?.effect).not.toMatch(/scrap/i);
   });
 
+  it('keeps Black Sheep recharge attached to the Shepherd Engineer rather than Condor', () => {
+    const blackSheep = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'black-sheep');
+    const condor = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'condor');
+
+    expect(blackSheep).toMatchObject({
+      captainRoleId: 'shepherd-engineer',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+      initialDocking: { shipId: 'shepherd', dockedAt: 'SESSION START' },
+    });
+    expect(blackSheep?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Recharge', phase: 'Coordination',
+        effect: expect.stringMatching(/when fuelled.*charge one console.*immediate maintenance effect.*resolves immediately/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence', phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+    expect(condor).toMatchObject({
+      captainRoleId: 'quellon-engineer',
+      initialDocking: { shipId: 'quellon', dockedAt: 'SESSION START' },
+    });
+  });
+
   it('starts the independently crewed and shipboard shuttlecraft docked with their home ships', () => {
     expect(INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId)).toEqual([
       'snn-press-shuttle',

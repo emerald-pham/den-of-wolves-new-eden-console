@@ -43,6 +43,11 @@ describe('role-owned craft composition', () => {
       .toEqual(['blacksmith']);
   });
 
+  it('keeps Black Sheep owned by the Shepherd Engineer', () => {
+    expect(ownedCraftIdsForRole('shepherd-engineer', ['shepherd-engineer']))
+      .toEqual(['black-sheep']);
+  });
+
   it('rejects a changed owner or mode in the persisted server manifest', () => {
     const expected = roleOwnedCraftManifestForSetup(['admiral', 'wing-commander'], 'base-capybara');
     expect(roleOwnedCraftManifestMatches(expected, expected)).toBe(true);

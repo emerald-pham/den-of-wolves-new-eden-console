@@ -411,6 +411,48 @@ it('opens Blacksmith on its Icebreaker Engineer route with its repair and cargo 
   expect(screen.getByText('Icebreaker Engineer parent')).toBeInTheDocument();
 });
 
+it('opens Black Sheep on its Shepherd Engineer route with the owned recharge envelope', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['shepherd-engineer'],
+    shuttleDockings: [{ shuttleId: 'black-sheep', shipId: 'shepherd', dockedAt: 'SESSION START' }],
+    shuttleFuelled: { 'black-sheep': true },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'shepherd-engineer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/black-sheep']}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/shepherd/roles/shepherd-engineer" element={<p>Shepherd Engineer parent</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'R.S.S. Black Sheep' })).toBeInTheDocument();
+  expect(screen.getByText('Engineer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*shepherd/i,
+  );
+  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Recharge' })).toBeInTheDocument();
+  expect(screen.getByText(/when fuelled.*charge one console.*immediate maintenance effect.*resolves immediately/i))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+
+  const back = screen.getByRole('link', { name: /back to shepherd engineer console/i });
+  expect(back).toHaveClass('ship-console__back', 'cic-text-button');
+  expect(back).toHaveAttribute('href', '/ships/shepherd/roles/shepherd-engineer');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Shepherd Engineer parent')).toBeInTheDocument();
+});
+
 it('opens Starlight on its Wing Commander route with its routed operation envelope', () => {
   const state = useSessionStore.getState();
   state.setSession({
