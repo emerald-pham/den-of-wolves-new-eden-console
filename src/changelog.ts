@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['275b'],
+    implementationProgress: {
+      completed: 158,
+      total: 747,
+      percentage: '21.15%',
+      done: 158,
+      partial: 7,
+      active: 0,
+      missing: 582,
+    },
+    changes: [
+      'The SNN Press Officer Dispatch Desk is restored and usable during Turn 0, so its claimed operator can publish and retire fleet dispatches while stale, duplicate, disabled, and unauthorized actions remain blocked. 158 of 747 planned items are complete (21.15%).',
+    ],
+  },
+  {
+    version: '0.3.55',
     implementationPrompts: ['122a'],
     implementationProgress: {
       "completed": 153,

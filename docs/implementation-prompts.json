@@ -11458,14 +11458,14 @@
       "tag": "EXTEND"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "audit git history and restore the last working end-to-end Dispatch Desk implementation as the design baseline unless a documented necessity requires change. The enabled, uniquely claimed Press Officer can discover, open, author, publish, dismiss, reconnect to, and audit the desk through the existing route, models, callables, rules, tests, styles, broadcast queue, and SNN shuttle/Press authority; ordinary, foreign, disabled, stale, and duplicate actors remain denied. The Dispatch Desk is explicitly excluded from generic Turn Zero UI and action restrictions: it remains visible and fully actionable during Turn Zero without weakening unrelated phase gates. Add chronological failing regression coverage proving the current breakage and composed restoration, including audience-correct bridge presentation, history/replay, accessibility, keyboard/screen-reader operation, mobile/short-landscape/reduced-motion containment, and established CIC aesthetics. Preserve SNN Press as a separate optional non-counted twenty-first station; do not invent printed behavior or silently fold this repair into an unrelated release.",
         "title": "Recover and restore the SNN Dispatch Desk regression."
       },
-      "description": "Owner-reported regression: the SNN Dispatch Desk is not working. A dedicated follow-on release must recover the last working implementation from git history and restore the complete route/model/callable/rules/UI/reconnect/audit path. The enabled claimed Press Officer must be able to use the desk during Turn Zero because it is explicitly excluded from generic Turn Zero restrictions. Add chronological failing end-to-end regression, authority, bridge/audience, accessibility, mobile/landscape/reduced-motion, and CIC evidence; classify it as a feature with its own version only when that repair release is reserved. Do not fold it into 0.3.12 or count Press as core.",
+      "description": "The SNN Dispatch Desk is restored from the last working history baseline. The enabled, uniquely claimed Press Officer can open, author, publish, dismiss, reconnect to, and audit the existing desk and authoritative fleet ticker; ordinary, foreign, disabled, stale, duplicate, revoked, disconnected, reassigned, and replayed actors remain denied. The Turn Zero exception is preserved only for the independent Press desk, while unrelated phase and authority gates remain intact. Chronological route and callable regressions now cover the restoration and replay revocation boundary; 26/26 focused callable cases, related focused route/component/state/broadcast suites, root and Functions builds, lint, and diff checks passed. A local Chrome fixture covered phone, desktop, short-landscape, keyboard focus, and reduced-motion containment; Terra independently cleared the replay authority repair. No live Firebase deployment or counted-roster claim is included.",
       "evidenceIds": "E-275B;E-AUDIT-275B",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11474,10 +11474,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "POST-CURRENT-DEPENDENCY-SLICE;SEPARATE-RELEASE-0.3.12",
-      "releases": [],
+      "releases": [
+        "0.3.56"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "PRESS-DESK",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

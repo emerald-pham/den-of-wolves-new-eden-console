@@ -401,7 +401,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 274 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-274 | M3;M5;M6 | Register J.E.U. Wobbly completely. |
 | 275 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-275 | M3;M5;M6 | Register J.E.U. Ally completely. |
 | 275a | EXTEND | done | 004;051 | none | BASE-ROSTER-SETUP;PRESS-CATALOG-AUTHORITY | none | none | none | none | 598;605 | E-275A;E-275A-RELATED | M3;M5;M6 | Restore the optional SNN Independent Press Shuttle. |
-| 275b | REPAIR | missing | 275a | none | none | none | none | PRESS-DESK | POST-CURRENT-DEPENDENCY-SLICE;SEPARATE-RELEASE-0.3.12 | none | E-275B;E-AUDIT-275B | M3;M5;M6 | Recover and restore the SNN Dispatch Desk regression. |
+| 275b | REPAIR | done | 275a | none | none | none | none | PRESS-DESK | POST-CURRENT-DEPENDENCY-SLICE;SEPARATE-RELEASE-0.3.12 | none | E-275B;E-AUDIT-275B | M3;M5;M6 | Recover and restore the SNN Dispatch Desk regression. |
 | 276 | PRESERVE | missing | 053;166 | none | none | none | none | none | none | none | E-AUDIT-276 | M3;M5;M6 | Assign the Quellon/Refinery Union pair. |
 | 277 | PRESERVE | missing | 053;166 | none | none | none | none | none | none | none | E-AUDIT-277 | M3;M5;M6 | Assign the Shepherd/Icebreaker Union pair. |
 | 278 | EXTEND | missing | 166;234 | none | none | none | none | none | none | none | E-AUDIT-278 | M3;M5;M6 | Build extra-ship Captain workspaces. |
