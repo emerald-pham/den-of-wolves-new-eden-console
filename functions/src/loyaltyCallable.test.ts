@@ -52,7 +52,7 @@ beforeEach(() => {
   mock.actor = { connected: true, role: 'gm' };
   mock.target = { connected: true, role: 'player', assignedRoleId: 'icebreaker-miner' };
   mock.partner = { connected: true, role: 'player', assignedRoleId: 'admiral' };
-  mock.instance = { uid: 'u1' };
+  mock.instance = { uid: 'u1', connected: true, lastSeenAt: new Date() };
   mock.loyaltySecrets = [];
   mock.census = undefined;
   mock.priorResults = {};
@@ -323,7 +323,7 @@ it('rejects a replay from a different authorized actor before touching setup', a
   };
   mock.target = { connected: true, role: 'gm', assignedRoleId: 'icebreaker-miner' };
   mock.actor = { connected: true, role: 'player' };
-  mock.instance = { uid: 'u2' };
+  mock.instance = { uid: 'u2', connected: true, lastSeenAt: new Date() };
   mock.players = [
     { id: 'u1', fields: mock.actor },
     { id: 'u2', fields: mock.target },

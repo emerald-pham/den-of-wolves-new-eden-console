@@ -408,7 +408,7 @@ it('denies a downsize that would remove a claimed stable seat without mutating s
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     if (ref.path === 'sessions/s1/seats/capybara-recycler') {
       return snapshot({ status: 'claimed', holderUid: 'u9' });
     }
@@ -432,7 +432,7 @@ it('locks the effective vessel mode after casting begins without mutating setup'
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     return snapshot({}, false);
   });
 
@@ -458,7 +458,7 @@ it('returns a typed setup error for a malformed persisted high-count mode', asyn
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     return snapshot({}, false);
   });
 
@@ -486,7 +486,7 @@ it('replays a same-mode setup retry after casting without applying another write
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     if (ref.path === 'sessions/s1/setupMutationRequests/same-mode-retry' && storedReceipt) {
       return snapshot(storedReceipt);
     }
@@ -519,7 +519,7 @@ it('returns a safe stale receipt when setup revision changed before confirmation
       });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     if (ref.path === 'sessions/s1/setupMutationRequests/setup-stale-receipt' && staleReceiptPersisted) {
       return snapshot({
         action: 'confirm-setup', sessionId: 's1', actorUid: 'u1', instanceId: 'bridge',
@@ -569,7 +569,7 @@ it('does not replay a setup receipt for an inactive or foreign facilitator', asy
       return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     return snapshot({}, false);
   });
   const command = request({
@@ -732,7 +732,7 @@ it('rejects a setup replay when the tuple payload changes under the same request
       return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     return snapshot({}, false);
   });
 
@@ -777,7 +777,7 @@ it('rejects a setup replay when only the expected setup revision changes', async
       return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 1, activeRoleIds });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     return snapshot({}, false);
   });
 
@@ -798,7 +798,7 @@ it('backfills canonical metadata on a retained legacy seat without touching its 
       return snapshot({ phase: 'lobby', configurationLocked: false, setupRevision: 0, activeRoleIds });
     }
     if (ref.path === 'sessions/s1/players/u1') return snapshot({ connected: true, role: 'gm' });
-    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1' });
+    if (ref.path === 'sessions/s1/gmInstances/bridge') return snapshot({ uid: 'u1', connected: true, lastSeenAt: new Date() });
     if (ref.path === 'sessions/s1/seats/admiral') {
       return snapshot({ status: 'claimed', holderUid: 'u9', claimedAt: 'legacy-claim', label: 'Admiral' });
     }

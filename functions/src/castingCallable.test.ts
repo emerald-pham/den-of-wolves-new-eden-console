@@ -63,7 +63,7 @@ beforeEach(() => {
   };
   mock.actor = { connected: true, role: 'gm' };
   mock.target = { connected: true, role: 'player', assignedRoleId: null };
-  mock.instance = { uid: 'u1' };
+  mock.instance = { uid: 'u1', connected: true, lastSeenAt: new Date() };
   mock.players = [
     { id: 'u1', fields: mock.actor },
     { id: 'u2', fields: mock.target },

@@ -46,7 +46,7 @@ beforeEach(() => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner }
+        ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
         : {
           activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
           shipDamage: mock.damage,

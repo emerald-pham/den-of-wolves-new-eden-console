@@ -18,7 +18,7 @@ beforeEach(() => {
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
-      : path.includes('/gmInstances/') ? { uid: mock.owner }
+      : path.includes('/gmInstances/') ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
       : {
         activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
         shipSurvivors: { [mock.shipId]: mock.population }, populationAlerts: mock.alerts,
@@ -55,7 +55,7 @@ it('moves AEGIS through its own printed track', async () => {
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
-      : path.includes('/gmInstances/') ? { uid: mock.owner }
+      : path.includes('/gmInstances/') ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
       : { shipSurvivors: { aegis: mock.population }, populationAlerts: mock.alerts };
     return { exists: true, get: (key: string) => fields[key] };
   });

@@ -70,7 +70,7 @@ function session(fields: Fields = {}): void {
 
 function gm(uid = 'u1', instanceId = 'gm-1', fields: Fields = {}): void {
   put(`sessions/s1/players/${uid}`, { uid, role: 'gm', connected: true, ...fields });
-  put(`sessions/s1/gmInstances/${instanceId}`, { uid, connected: true });
+  put(`sessions/s1/gmInstances/${instanceId}`, { uid, connected: true, lastSeenAt: new Date() });
 }
 
 beforeEach(() => {
