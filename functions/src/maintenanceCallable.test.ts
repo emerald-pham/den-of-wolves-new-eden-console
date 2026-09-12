@@ -6,7 +6,8 @@ const mock = vi.hoisted(() => ({
   gmInstanceOwners: {} as Record<string, string>,
   damage: {} as Record<string, unknown>, currentTurn: 1, maintenanceCycles: {} as Record<string, unknown>, retry: false,
   shuttleFuelled: {} as Record<string, boolean>,
-  shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
+  shipSurvivors: {} as Record<string, number>, shipUpgrades: {} as Record<string, unknown>,
+  capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
@@ -163,6 +164,7 @@ vi.mock('firebase-admin/firestore', () => ({
             maintenanceCycles: mock.maintenanceCycles,
             shuttleFuelled: mock.shuttleFuelled,
             shipSurvivors: mock.shipSurvivors,
+            shipUpgrades: mock.shipUpgrades,
             fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
             capybaraEnabled: mock.capybaraEnabled,
             dioneEnabled: mock.dioneEnabled,
@@ -277,6 +279,7 @@ beforeEach(() => {
   mock.maintenanceCycles = {};
   mock.shuttleFuelled = {};
   mock.shipSurvivors = {};
+  mock.shipUpgrades = {};
   mock.capybaraEnabled = true;
   mock.dioneEnabled = true;
   mock.fleetSurvivorPopulationAdjustment = 0;
@@ -345,6 +348,7 @@ beforeEach(() => {
           maintenanceCycles: mock.maintenanceCycles,
           shuttleFuelled: mock.shuttleFuelled,
           shipSurvivors: mock.shipSurvivors,
+          shipUpgrades: mock.shipUpgrades,
           fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
           turnStartAnnouncement: mock.turnStartAnnouncement,
           capybaraEnabled: mock.capybaraEnabled,
@@ -553,6 +557,57 @@ it('rejects Team maintenance while the server phase is Coordination', async () =
   });
   expect(mock.update).not.toHaveBeenCalled();
 });
+
+it('uses only the authoritative completed Reactor upgrade for capacity', async () => {
+  const consoles = [
+    'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+    'missile-launchers', 'point-defence-lasers', 'construction-bay',
+  ];
+  mock.maintenanceCycles = {
+    aegis: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+  };
+
+  await expect(runMaintenance.run(request({
+    ...data, action: 'reactor', requestId: 'reactor-without-upgrade', consoles,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/capacity/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.shipUpgrades = { aegis: [{ id: 'reactor', status: 'pending' }] };
+  await expect(runMaintenance.run(request({
+    ...data, action: 'reactor', requestId: 'reactor-pending-upgrade', consoles,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/capacity/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+
+  mock.shipUpgrades = { aegis: ['reactor'] };
+  const upgraded = await runMaintenance.run(request({
+    ...data, action: 'reactor', requestId: 'reactor-authoritative-upgrade', consoles,
+  }));
+  expect(upgraded).toMatchObject({
+    status: 'committed',
+    cycle: {
+      charges: consoles,
+      results: { '5': expect.stringContaining('Charged 6/6 consoles.') },
+    },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    'maintenanceCycles.aegis': expect.objectContaining({ charges: consoles }),
+  }));
+
+  mock.update.mockClear();
+  await expect(runMaintenance.run(request({
+    ...data,
+    action: 'reactor',
+    requestId: 'reactor-client-claimed-upgrade',
+    consoles,
+    upgraded: ['reactor'],
+  }))).rejects.toMatchObject({ code: 'invalid-argument' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
 it('denies unauthenticated, disconnected, unassigned players and foreign GM instances', async () => {
   await expect(runMaintenance.run(request(data, null))).rejects.toMatchObject({ code: 'unauthenticated' });
   mock.connected = false;

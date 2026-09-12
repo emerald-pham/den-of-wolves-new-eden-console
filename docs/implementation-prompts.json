@@ -515,7 +515,7 @@
     {
       "direction": "124 -> 122",
       "id": "E-AUDIT-124",
-      "language": "Reactor upgrades extend the base capacity contract.",
+      "language": "Reactor capacity applies each printed vessel's +1 upgrade modifier only from server-owned completed upgrade state.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -7236,7 +7236,7 @@
         "acceptance": "only an authoritative completed upgrade adds the printed charge capacity.",
         "title": "Apply Reactor upgrades."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "`functions/src/maintenance.test.ts` covers all seven enabled vessels at nominal, upgraded, damaged, and damaged-plus-upgraded capacities; `functions/src/maintenanceCallable.test.ts` proves the production `runMaintenance` path reads only server-owned `session.shipUpgrades`: six AEGIS consoles reject without the stored Reactor upgrade, reject a pending upgrade-shaped record, commit at `6/6` when that completed upgrade is present, and reject a forged client `upgraded` field with no write. Acquisition and completion of upgrade state remain deferred to the later Endeavour research work in P211/P391. Proof-only; no player release.",
       "evidenceIds": "E-AUDIT-124",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -7248,7 +7248,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
