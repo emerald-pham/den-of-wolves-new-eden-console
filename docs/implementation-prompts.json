@@ -8309,7 +8309,7 @@
         "acceptance": "six core ships, four base small ships, Voyage 33-0, and expansion Capybara have distinct stable definitions.",
         "title": "Register every vessel variant."
       },
-      "description": "The typed vessel catalog now registers the six core ships, four optional base small ships (Gorgoneion, base-game Capybara, Warrior, and Vulcan), the Voyage 33-0 approaching-vessel identity, and the separate expansion Capybara definition. Base small-ship Capybara uses a distinct stable ID and mode-gated lookup so it cannot be mixed with the expansion ship; optional registrations remain outside the core session roster until their gameplay prompts land. Focused vessel-template tests prove distinct identities, central lookup, and Capybara mode isolation. Proof-only; no player release.",
+      "description": "The typed vessel catalog now registers the six core ships, four optional base small ships (Gorgoneion, base-game Capybara, Warrior, and Vulcan), the Voyage 33-0 approaching-vessel identity, and the separate expansion Capybara definition. Base small-ship Capybara uses a distinct stable ID and mode-gated lookup so it cannot be mixed with the expansion ship; optional registrations remain outside the core session roster until their gameplay prompts land. Focused vessel-template tests prove distinct identities, central lookup, and Capybara mode isolation. Foundational catalog implementation; no player release because no current player/runtime consumer behavior changes.",
       "evidenceIds": "E-AUDIT-161",
       "hardContract": "none",
       "hardMilestone": "none",
