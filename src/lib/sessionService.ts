@@ -12,7 +12,9 @@ import type {
   ShipJumpTransition,
   WolfAttackWindow,
   WolfAttackWindowStatus,
+  SessionPhase,
 } from '@/types/game';
+import type { VesselActionEnvelope } from '@/types/vesselAction';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
 import { normalizeShuttleManifest } from '@/data/shuttles';
@@ -52,6 +54,17 @@ import {
 interface SessionReply {
   readonly session: GameSession;
   readonly player: Player;
+}
+
+const SESSION_PHASES: ReadonlySet<SessionPhase> = new Set([
+  'lobby', 'casting', 'briefing', 'active', 'success', 'failure',
+  'debrief', 'closed', 'retained-empty',
+]);
+
+function sessionPhase(value: unknown): SessionPhase | undefined {
+  return typeof value === 'string' && SESSION_PHASES.has(value as SessionPhase)
+    ? value as SessionPhase
+    : undefined;
 }
 
 export interface SetupConfirmationInput {
@@ -722,9 +735,18 @@ async function sendCounterChange(
 ): Promise<void> {
   requireFreshSessionAuthority();
   try {
+    const store = useSessionStore.getState();
+    const shipId = typeof payload.shipId === 'string' ? payload.shipId : undefined;
+    const stablePayload = {
+      ...payload,
+      requestId: typeof payload.requestId === 'string' ? payload.requestId : commandId(),
+      ...(payload.expectedRevision === undefined && shipId
+        ? { expectedRevision: store.session?.vesselActionRevisions?.[shipId] ?? 0 }
+        : {}),
+    };
     await ensureSignedIn();
     const call = httpsCallable<typeof payload, unknown>(functions(), name);
-    await call(payload);
+    await call(stablePayload);
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
   }
@@ -734,16 +756,33 @@ export type ShipCounterBatchTarget =
   | { readonly counter: 'resource'; readonly resourceId: ResourceId }
   | { readonly counter: 'unrest' | 'population' };
 
-export interface ShipCounterBatchResult {
+export interface ShipCounterBatchResult extends Partial<VesselActionEnvelope> {
   readonly amount: number;
   readonly alertRaised: boolean;
+  readonly status?: 'stale';
+  readonly currentRevision?: number;
 }
 
 function counterBatchReply(value: unknown): ShipCounterBatchResult | null {
   if (typeof value !== 'object' || value === null || !('amount' in value)) return null;
-  return typeof value.amount === 'number' && Number.isFinite(value.amount) &&
-    'alertRaised' in value && typeof value.alertRaised === 'boolean'
-    ? { amount: value.amount, alertRaised: value.alertRaised }
+  const raw = value as Record<string, unknown>;
+  const phase = sessionPhase(raw.phase);
+  return typeof raw.amount === 'number' && Number.isFinite(raw.amount) &&
+    'alertRaised' in raw && typeof raw.alertRaised === 'boolean'
+    ? {
+      amount: raw.amount, alertRaised: raw.alertRaised,
+      ...(raw.status === 'stale' ? { status: 'stale' as const } : {}),
+      ...(typeof raw.currentRevision === 'number' ? { currentRevision: raw.currentRevision } : {}),
+      ...(typeof raw.revision === 'number' ? { revision: raw.revision } : {}),
+      ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
+      ...(typeof raw.auditId === 'string' ? { auditId: raw.auditId } : {}),
+      ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+      ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null
+        ? { actorRoleId: raw.actorRoleId } : {}),
+      ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
+      ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
+      ...(phase === undefined ? {} : { phase }),
+    }
     : null;
 }
 
@@ -772,6 +811,8 @@ export async function applyShipCounterSteps(
     shipId,
     counter: target.counter,
     steps: [...steps],
+    requestId: commandId(),
+    expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(target.counter === 'resource' ? { resourceId: target.resourceId } : {}),
   };
   try {
@@ -791,6 +832,10 @@ export async function applyShipCounterSteps(
           ...current.shipResources,
           [shipId]: { ...inventory, [target.resourceId]: reply.amount },
         },
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+        },
       });
       return reply;
     }
@@ -798,12 +843,20 @@ export async function applyShipCounterSteps(
       useSessionStore.getState().setSession({
         ...current,
         shipUnrest: { ...current.shipUnrest, [shipId]: reply.amount },
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+        },
       });
       return reply;
     }
     useSessionStore.getState().setSession({
       ...current,
       shipSurvivors: { ...current.shipSurvivors, [shipId]: reply.amount },
+      vesselActionRevisions: {
+        ...(current.vesselActionRevisions ?? {}),
+        ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+      },
     });
     return reply;
   } catch (cause) {
@@ -812,7 +865,7 @@ export async function applyShipCounterSteps(
   }
 }
 
-export interface FighterWingCountResult {
+export interface FighterWingCountResult extends Partial<VesselActionEnvelope> {
   readonly status: 'committed' | 'replayed' | 'stale';
   readonly wingId: string;
   readonly count?: number;
@@ -827,6 +880,7 @@ function fighterWingCountReply(value: unknown): FighterWingCountResult | null {
   if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
     typeof raw.wingId !== 'string' || typeof raw.capacity !== 'number' ||
     !Number.isSafeInteger(raw.capacity) || raw.capacity < 0) return null;
+  const phase = sessionPhase(raw.phase);
   const result: FighterWingCountResult = {
     status: raw.status,
     wingId: raw.wingId,
@@ -835,6 +889,13 @@ function fighterWingCountReply(value: unknown): FighterWingCountResult | null {
     ...(typeof raw.revision === 'number' && Number.isSafeInteger(raw.revision) ? { revision: raw.revision } : {}),
     ...(typeof raw.currentRevision === 'number' && Number.isSafeInteger(raw.currentRevision)
       ? { currentRevision: raw.currentRevision } : {}),
+    ...(typeof raw.actorUid === 'string' ? { actorUid: raw.actorUid } : {}),
+    ...(typeof raw.actorRoleId === 'string' || raw.actorRoleId === null ? { actorRoleId: raw.actorRoleId as string | null } : {}),
+    ...(typeof raw.vesselId === 'string' ? { vesselId: raw.vesselId } : {}),
+    ...(typeof raw.turn === 'number' ? { turn: raw.turn } : {}),
+    ...(phase === undefined ? {} : { phase }),
+    ...(typeof raw.idempotencyKey === 'string' ? { idempotencyKey: raw.idempotencyKey } : {}),
+    ...(typeof raw.auditId === 'string' ? { auditId: raw.auditId } : {}),
   };
   return result;
 }
@@ -1364,7 +1425,7 @@ export async function setPressEnabled(pressEnabled: boolean): Promise<CommandDis
   });
 }
 
-export interface ShipNavigationMoveReply {
+export interface ShipNavigationMoveReply extends Partial<VesselActionEnvelope> {
   readonly shipId: string;
   readonly origin: string;
   readonly destination: string;
@@ -1386,6 +1447,8 @@ export async function moveShipToLocation(
     instanceId: store.gmInstance.id,
     shipId,
     destination,
+    requestId: commandId(),
+    expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
   };
   const checkpoint = sessionAuthorityCheckpoint(
     payload.sessionId,
@@ -1405,6 +1468,10 @@ export async function moveShipToLocation(
         shipGalacticCoordinates: {
           ...current.shipGalacticCoordinates,
           [shipId]: reply.destination,
+        },
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
         },
       });
     }
@@ -1429,12 +1496,14 @@ export async function setShipConsoleLock(
     sessionId: store.session.id,
     shipId,
     locked,
+    requestId: commandId(),
+    expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
     await ensureSignedIn();
-    const call = httpsCallable<typeof payload, { shipId: string; locked: boolean }>(
+    const call = httpsCallable<typeof payload, { shipId: string; locked: boolean; revision?: number }>(
       functions(),
       'setShipConsoleLock',
     );
@@ -1447,6 +1516,10 @@ export async function setShipConsoleLock(
           ...current.shipConsoleLocks,
           [reply.shipId]: reply.locked,
         },
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+        },
       });
     }
     return 'applied';
@@ -1456,7 +1529,7 @@ export async function setShipConsoleLock(
   }
 }
 
-export interface JumpShipReply {
+export interface JumpShipReply extends Partial<VesselActionEnvelope> {
   readonly status: 'integrity-locked' | 'integrity-lockout' | 'drive-failure' | 'jumped';
   readonly shipId: string;
   readonly origin: string;
@@ -1478,6 +1551,8 @@ export async function jumpShip(shipId: string, destination: string): Promise<Jum
     sessionId: store.session.id,
     shipId,
     destination,
+    requestId: commandId(),
+    expectedRevision: store.session.vesselActionRevisions?.[shipId] ?? 0,
     ...(store.gmInstance ? { instanceId: store.gmInstance.id } : {}),
   };
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
@@ -1507,6 +1582,10 @@ export async function jumpShip(shipId: string, destination: string): Promise<Jum
         ...(reply.transition ? {
           shipJumpTransitions: { ...current.shipJumpTransitions, [shipId]: reply.transition },
         } : {}),
+        vesselActionRevisions: {
+          ...(current.vesselActionRevisions ?? {}),
+          ...(reply.revision === undefined ? {} : { [shipId]: reply.revision }),
+        },
       };
       useSessionStore.getState().setSession(nextSession);
     }

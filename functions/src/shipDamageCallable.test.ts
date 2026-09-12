@@ -25,7 +25,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import { addShipDamage } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<{
+  return { data: data.requestId === undefined ? { ...data, requestId: 'test-damage' } : data, auth: { uid } } as CallableRequest<{
     sessionId: string; shipId: string; instanceId: string;
   }>;
 }
@@ -43,6 +43,7 @@ beforeEach(() => {
   mock.update.mockReset();
   mock.set.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
@@ -101,7 +102,7 @@ it.each(aegisHullCases)('production path $name without survivor loss', async ({ 
     },
     'shipSurvivors.aegis': 2500,
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage', expect.objectContaining({
     type: 'ship-damage', shipId: 'aegis', card, systemId, systemName, recycled,
   }));
 });
@@ -119,23 +120,24 @@ it('does not reroll or fork the audit when a recycled hull transaction retries',
   };
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(0).mockReturnValue(12);
-  mock.randomUUID.mockReturnValueOnce('hull-event').mockReturnValue('retry-event');
 
   await expect(addShipDamage.run(request(data))).resolves.toMatchObject({
     card: { card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I' },
     recycled: true, destroyed: false,
   });
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
-  expect(mock.randomUUID).toHaveBeenCalledTimes(1);
-  expect(mock.set).toHaveBeenCalledTimes(2);
-  expect(mock.set).toHaveBeenNthCalledWith(1, 'sessions/s1/damageDraws/hull-event',
+  expect(mock.randomUUID).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(4);
+  const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
+  expect(eventCalls).toHaveLength(2);
+  expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
     expect.objectContaining({
       type: 'ship-damage', card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I', recycled: true,
-    }));
-  expect(mock.set).toHaveBeenNthCalledWith(2, 'sessions/s1/damageDraws/hull-event',
+    })]);
+  expect(eventCalls[1]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
     expect.objectContaining({
       type: 'ship-damage', card: '6♥', systemId: 'armoured-hull-i', systemName: 'Armoured Hull I', recycled: true,
-    }));
+    })]);
 });
 
 it('draws and persists one AEGIS damage card atomically in the shared draw log', async () => {
@@ -147,7 +149,7 @@ it('draws and persists one AEGIS damage card atomically in the shared draw log',
     'shipDamage.aegis': { damagedSystemIds: ['reactor'], destroyed: false },
     updatedAt: 'server-time',
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage', expect.objectContaining({
     type: 'ship-damage', shipId: 'aegis', card: '10♥', systemId: 'reactor',
   }));
 });
@@ -155,17 +157,18 @@ it('draws and persists one AEGIS damage card atomically in the shared draw log',
 it('does not reroll the card or event identity when Firestore retries the transaction', async () => {
   mock.retry = true;
   mock.randomInt.mockReturnValueOnce(3_100_000_000).mockReturnValue(0);
-  mock.randomUUID.mockReturnValueOnce('first-event').mockReturnValue('retry-event');
 
   await addShipDamage.run(request(data));
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
-  expect(mock.randomUUID).toHaveBeenCalledTimes(1);
-  expect(mock.set).toHaveBeenCalledTimes(2);
-  expect(mock.set).toHaveBeenNthCalledWith(1, 'sessions/s1/damageDraws/first-event',
-    expect.objectContaining({ card: '10♥', systemId: 'reactor' }));
-  expect(mock.set).toHaveBeenNthCalledWith(2, 'sessions/s1/damageDraws/first-event',
-    expect.objectContaining({ card: '10♥', systemId: 'reactor' }));
+  expect(mock.randomUUID).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(4);
+  const eventCalls = mock.set.mock.calls.filter(([path]) => String(path).includes('/damageDraws/'));
+  expect(eventCalls).toHaveLength(2);
+  expect(eventCalls[0]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
+    expect.objectContaining({ card: '10♥', systemId: 'reactor' })]);
+  expect(eventCalls[1]).toEqual(['sessions/s1/damageDraws/damage-test-damage',
+    expect.objectContaining({ card: '10♥', systemId: 'reactor' })]);
 });
 
 it.each(['player', 'observer'])('denies %s even with a forged GM instance', async (role) => {
@@ -196,11 +199,12 @@ it('marks AEGIS destroyed without inventing a card when the deck is empty', asyn
     },
   };
 
-  await expect(addShipDamage.run(request(data))).resolves.toEqual({ destroyed: true });
+  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true,
+    actorUid: 'u1', vesselId: 'aegis', idempotencyKey: 'test-damage', revision: 1 });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipDamage.aegis': expect.objectContaining({ destroyed: true }),
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-event', expect.objectContaining({
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage', expect.objectContaining({
     type: 'ship-destroyed', shipId: 'aegis',
   }));
 });
@@ -216,10 +220,11 @@ it.each(['aegis', 'capybara'])('repairs all %s damage and restores its deck with
   const { repairAllShipDamage } = await import('./index');
   mock.damage = { [shipId]: { damagedSystemIds: ['reactor'], destroyed: true } };
   await repairAllShipDamage.run(request({ ...data, shipId }));
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     [`shipDamage.${shipId}`]: { damagedSystemIds: [], destroyed: false }, updatedAt: 'server-time',
-  });
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/damage-event', expect.objectContaining({ type: 'ship-repaired', shipId, actorUid: 'u1' }));
+    [`vesselActionRevisions.${shipId}`]: 1,
+  }));
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/events/repair-test-damage', expect.objectContaining({ type: 'ship-repaired', shipId, actorUid: 'u1' }));
 });
 it.each(['player', 'observer'])('denies repair by %s with forged GM identity', async role => {
   const { repairAllShipDamage } = await import('./index');

@@ -76,6 +76,9 @@ beforeEach(() => {
 it('atomically docks a known small ship with an active core host', async () => {
   await expect(setSmallShipDocking.run(request(dockingBase))).resolves.toMatchObject({
     status: 'committed', smallShipId: 'gorgoneion', hostShipId: 'aegis', committedRevision: 1,
+    actorUid: 'u1', actorRoleId: null, vesselId: 'gorgoneion',
+    turn: 1, phase: 'active', revision: 1, idempotencyKey: 'dock-1',
+    auditId: 'small-ship-docking-dock-1',
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'smallShipStates.gorgoneion': expect.objectContaining({ hostShipId: 'aegis', dockingRevision: 1 }),
@@ -124,6 +127,9 @@ it('replays an undock with its explicit null host target', async () => {
   const receiptPath = 'sessions/s1/smallShipRequests/dock-undock';
   const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
   mock.receipts[receiptPath] = receipt;
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion'), dockingRevision: 2 },
+  };
   mock.set.mockReset();
   await expect(setSmallShipDocking.run(request(undock))).resolves.toMatchObject({ status: 'replayed', docked: false });
   expect(mock.set).not.toHaveBeenCalled();

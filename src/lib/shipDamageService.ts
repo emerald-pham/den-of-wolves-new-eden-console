@@ -2,15 +2,18 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebase';
 import { useSessionStore } from '@/store/useSessionStore';
 import { requireFreshSessionAuthority } from './sessionMutationAuthority';
+import type { VesselActionEnvelope } from '@/types/vesselAction';
 
 interface ShipDamageCommand {
   readonly sessionId: string;
   readonly shipId: string;
   readonly instanceId: string;
+  readonly requestId: string;
+  readonly expectedRevision: number;
 }
 
 export type AssignShipDamageResult =
-  | { readonly destroyed: true }
+  | ({ readonly destroyed: true } & VesselActionClientEnvelope)
   | {
     readonly destroyed: false;
     readonly card: {
@@ -19,7 +22,13 @@ export type AssignShipDamageResult =
       readonly systemName: string;
     };
     readonly recycled: boolean;
-  };
+  } & VesselActionClientEnvelope;
+
+type VesselActionClientEnvelope = Partial<VesselActionEnvelope>;
+
+function commandId(): string {
+  return window.crypto.randomUUID();
+}
 
 async function damageCommand<Result>(shipId: string, callable: string): Promise<Result> {
   const { session, me, gmInstance } = useSessionStore.getState();
@@ -31,6 +40,8 @@ async function damageCommand<Result>(shipId: string, callable: string): Promise<
     sessionId: session.id,
     shipId,
     instanceId: gmInstance.id,
+    requestId: commandId(),
+    expectedRevision: session.vesselActionRevisions?.[shipId] ?? 0,
   });
   return response.data;
 }

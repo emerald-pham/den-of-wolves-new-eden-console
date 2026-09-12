@@ -48,7 +48,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import { jumpShip } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
+  return { data: data.requestId === undefined ? { ...data, requestId: 'test-jump' } : data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
 const data = {
@@ -75,6 +75,7 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('jump-event');
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
       : path.includes('/gmInstances/')
@@ -158,7 +159,9 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     length: 'short',
     fuelCost: 1,
     remainingFuel: 3,
-    transition: expect.objectContaining({ id: 'jump-event', destination: '5143' }),
+    transition: expect.objectContaining({ id: 'jump-test-jump', destination: '5143' }),
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1, phase: 'active',
+    revision: 1, idempotencyKey: 'test-jump', auditId: 'jump-ship-test-jump',
   });
 
   expect(mock.randomInt).toHaveBeenCalledTimes(1);
@@ -169,10 +172,10 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     'shipResources.aegis.fuel': 3,
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
-    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-event' }),
+    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
-        id: 'jump-event-0',
+        id: 'jump-test-jump-0',
         type: 'self-jump',
         origin: '0000',
         destination: '5143',
@@ -209,10 +212,10 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
     'shipResources.aegis.fuel': 2,
     'maintenanceCycles.aegis': expect.objectContaining({ charges: [] }),
     'shipJumpStates.aegis': { lastJumpTurn: 1 },
-    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-event' }),
+    'shipJumpTransitions.aegis': expect.objectContaining({ id: 'jump-test-jump' }),
     shipNavigationLogs: expect.objectContaining({
       aegis: expect.arrayContaining([expect.objectContaining({
-        id: 'jump-event-0',
+        id: 'jump-test-jump-0',
         type: 'self-jump',
         origin: '0000',
         destination: '5143',
@@ -224,6 +227,7 @@ it('uses the active GM instance and atomically moves, burns fuel, consumes charg
 
 it('rejects Coordination jumps while the server phase is Team', async () => {
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: undefined }
       : path.includes('/gmInstances/')

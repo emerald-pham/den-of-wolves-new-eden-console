@@ -398,7 +398,10 @@ const data = { sessionId: 's1', shipId: 'aegis', requestId: 'maintenance-base', 
 
 
 it('begins maintenance atomically with a server-owned revision', async () => {
-  await expect(runMaintenance.run(request(data))).resolves.toMatchObject({ step: 1, revision: 1 });
+  await expect(runMaintenance.run(request(data))).resolves.toMatchObject({
+    step: 1, revision: 1, actorUid: 'u1', vesselId: 'aegis', turn: 1,
+    phase: 'active', idempotencyKey: 'maintenance-base', auditId: 'maintenance-maintenance-base',
+  });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'maintenanceCycles.aegis': expect.objectContaining({ step: 1, revision: 1 }),
   }));
@@ -1995,7 +1998,7 @@ it('holds the player ICN travel lock at Turn 0', async () => {
   mock.currentTurn = 0;
 
   await expect(setShipConsoleLock.run(request({
-    sessionId: 's1', shipId: 'aegis', locked: true,
+    sessionId: 's1', shipId: 'aegis', locked: true, requestId: 'lock-turn-zero',
   }))).rejects.toMatchObject({
     code: 'failed-precondition',
     message: expect.stringMatching(/turn 1/i),

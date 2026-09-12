@@ -9,12 +9,13 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 import { adjustShipPopulation, dismissPopulationAlert } from './index';
 function request(data: Record<string, unknown>, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<{ sessionId: string; shipId: string; delta: number; instanceId: string }>;
+  return { data: data.requestId === undefined ? { ...data, requestId: 'test-population' } : data, auth: { uid } } as CallableRequest<{ sessionId: string; shipId: string; delta: number; instanceId: string }>;
 }
 beforeEach(() => {
   mock.role = 'gm'; mock.owner = 'u1'; mock.connected = true; mock.shipId = 'capybara'; mock.population = 16000; mock.alerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
@@ -28,7 +29,11 @@ beforeEach(() => {
 });
 const data = { sessionId: 's1', shipId: 'capybara', delta: -1, instanceId: 'gm1' };
 it('writes a step and the targeted alert in the same transaction', async () => {
-  await expect(adjustShipPopulation.run(request(data))).resolves.toMatchObject({ amount: 15000, alertRaised: true });
+  await expect(adjustShipPopulation.run(request(data))).resolves.toMatchObject({
+    amount: 15000, alertRaised: true, actorUid: 'u1', vesselId: 'capybara',
+    turn: 1, phase: 'active', revision: 1, idempotencyKey: 'test-population',
+    auditId: 'adjust-population-test-population',
+  });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipSurvivors.capybara': 15000,
     populationAlerts: { capybara: expect.objectContaining({ population: 15000, targetGmInstanceIds: ['gm1', 'gm2'] }) },
@@ -52,6 +57,7 @@ it('moves AEGIS through its own printed track', async () => {
   mock.shipId = 'aegis';
   mock.population = 2500;
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
@@ -109,9 +115,10 @@ it('rejects an off-track population value without writing the session', async ()
 it('preserves the other GM acknowledgement and does not alter unrest', async () => {
   mock.alerts = { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm1','gm2'] } };
   await dismissPopulationAlert.run(request(data));
-  expect(mock.update).toHaveBeenCalledWith('sessions/s1', {
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     populationAlerts: { capybara: { shipId: 'capybara', population: 15000, targetGmInstanceIds: ['gm2'] } }, updatedAt: 'server-time',
-  });
+    'vesselActionRevisions.capybara': 1,
+  }));
 });
 it('blocks advancing while a threshold is awaiting acknowledgement', async () => {
   mock.alerts = { capybara: { targetGmInstanceIds: ['gm1'] } };

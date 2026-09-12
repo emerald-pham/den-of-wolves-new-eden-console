@@ -373,6 +373,8 @@ export interface GameSession {
   readonly shipNavigationLogs?: ShipNavigationLogs;
   /** Server-authorized travel lock state, by ship. */
   readonly shipConsoleLocks?: ShipConsoleLocks;
+  /** Revision cursor shared by vessel actions without a narrower domain revision. */
+  readonly vesselActionRevisions?: Readonly<Record<string, number>>;
   /** Server-authorized jump integrity and once-per-turn state, by ship. */
   readonly shipJumpStates?: ShipJumpStates;
   /** Latest completed jump, used for fleetwide presentation and DRADIS blackout. */

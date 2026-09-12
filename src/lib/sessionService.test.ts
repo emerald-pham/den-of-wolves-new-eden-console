@@ -2240,10 +2240,16 @@ it('sends population changes and acknowledgement with the GM instance', async ()
   const { adjustShipPopulation, dismissPopulationAlert } = await import('./sessionService');
   await adjustShipPopulation('capybara', -1);
   expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'adjustShipPopulation');
-  expect(call).toHaveBeenLastCalledWith({ sessionId: 's1', shipId: 'capybara', delta: -1, instanceId: 'gm1' });
+  expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
+    sessionId: 's1', shipId: 'capybara', delta: -1, instanceId: 'gm1',
+    requestId: expect.any(String), expectedRevision: 0,
+  }));
   await dismissPopulationAlert('capybara');
   expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'dismissPopulationAlert');
-  expect(call).toHaveBeenLastCalledWith({ sessionId: 's1', shipId: 'capybara', instanceId: 'gm1' });
+  expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
+    sessionId: 's1', shipId: 'capybara', instanceId: 'gm1',
+    requestId: expect.any(String), expectedRevision: 0,
+  }));
 });
 
 it('sends one ordered counter batch and applies only the server-confirmed amount', async () => {
@@ -2264,10 +2270,10 @@ it('sends one ordered counter batch and applies only the server-confirmed amount
   );
 
   expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'applyShipCounterSteps');
-  expect(call).toHaveBeenLastCalledWith({
+  expect(call).toHaveBeenLastCalledWith(expect.objectContaining({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
-    resourceId: 'fuel', steps: [1, 1],
-  });
+    resourceId: 'fuel', steps: [1, 1], requestId: expect.any(String), expectedRevision: 0,
+  }));
   expect(useSessionStore.getState().session?.shipResources?.dione?.fuel).toBe(8);
   expect(result).toEqual({ amount: 8, alertRaised: false });
 });

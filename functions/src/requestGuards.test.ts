@@ -41,6 +41,7 @@ import {
   requireUnrestDismissalRequest,
   requireSessionSeatRequest,
   requireUid,
+  requireVesselActionRequest,
 } from './requestGuards';
 
 function expectHttpsError(action: () => unknown, code: string): void {
@@ -53,6 +54,15 @@ describe('callable request guards', () => {
   it('requires an authenticated uid', () => {
     expectHttpsError(() => requireUid(undefined), 'unauthenticated');
     expect(requireUid({ uid: 'u1' })).toBe('u1');
+  });
+
+  it('requires a stable vessel request identity and validates its CAS cursor', () => {
+    expect(requireVesselActionRequest({ requestId: 'move-1', expectedRevision: 3 }))
+      .toEqual({ requestId: 'move-1', expectedRevision: 3 });
+    expect(requireVesselActionRequest({ requestId: 'move-1' })).toEqual({ requestId: 'move-1' });
+    expectHttpsError(() => requireVesselActionRequest({ expectedRevision: 0 }), 'invalid-argument');
+    expectHttpsError(() => requireVesselActionRequest({ requestId: 'move-1', expectedRevision: -1 }), 'invalid-argument');
+    expectHttpsError(() => requireVesselActionRequest({ requestId: 'move/1' }), 'invalid-argument');
   });
 
   it('requires both session and seat ids', () => {

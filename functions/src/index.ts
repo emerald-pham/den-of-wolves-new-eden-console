@@ -86,6 +86,7 @@ import {
   requireSetupConfirmationRequest,
   requirePressDispatchDismissalRequest,
   requirePressDispatchRequest,
+  requireVesselActionRequest,
 } from './requestGuards';
 import {
   applyShipNavigationMove,
@@ -205,6 +206,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
 import {
   commandReceiptDisposition,
@@ -1493,6 +1495,7 @@ export const createSession = onCall<{
           shipNavigationLogs,
           shipConsoleLocks,
           shipJumpStates,
+          vesselActionRevisions: Object.fromEntries(setup.activeVesselIds.map((shipId) => [shipId, 0])),
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
@@ -1598,6 +1601,7 @@ export const createSession = onCall<{
           shipNavigationLogs,
           shipConsoleLocks,
           shipJumpStates,
+          vesselActionRevisions: Object.fromEntries(setup.activeVesselIds.map((shipId) => [shipId, 0])),
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
@@ -1694,6 +1698,83 @@ type CastingMutationResult = {
 
 function commandReceiptRef(sessionId: string, requestId: string): DocumentReference {
   return db.doc(`sessions/${sessionId}/commandReceipts/${requestId}`);
+}
+
+function vesselActionRevision(session: DocumentSnapshot, vesselId: string): number {
+  const revisions = session.get('vesselActionRevisions');
+  if (isRecord(revisions) && Number.isSafeInteger(revisions[vesselId]) &&
+      (revisions[vesselId] as number) >= 0) return revisions[vesselId] as number;
+  return 0;
+}
+
+function vesselActionRevisionPatch(vesselId: string, revision: number): Record<string, number> {
+  return { [`vesselActionRevisions.${vesselId}`]: revision };
+}
+
+function vesselActionPhase(session: DocumentSnapshot): import('./lifecycle').LifecyclePhase {
+  const phase = session.get('phase');
+  if (['lobby', 'casting', 'briefing', 'active', 'success', 'failure', 'debrief', 'closed', 'retained-empty']
+    .includes(String(phase))) return phase as import('./lifecycle').LifecyclePhase;
+  // Existing test and legacy fixtures omit phase while the gameplay guards
+  // already establish the active window. Keep that compatibility explicit.
+  return 'active';
+}
+
+function vesselActorRoleId(player: DocumentSnapshot): string | null {
+  return typeof player.get('activeConsoleRoleId') === 'string'
+    ? player.get('activeConsoleRoleId') as string : null;
+}
+
+function vesselActionEnvelope(
+  session: DocumentSnapshot,
+  player: DocumentSnapshot,
+  actorUid: string,
+  vesselId: string,
+  revision: number,
+  requestId: string,
+  action: string,
+  hostShipId?: string,
+): VesselActionEnvelope {
+  return buildVesselActionEnvelope({
+    actorUid,
+    actorRoleId: vesselActorRoleId(player),
+    vesselId,
+    ...(hostShipId === undefined ? {} : { hostShipId }),
+    turn: sessionTurn(session.get('currentTurn')),
+    phase: vesselActionPhase(session),
+    revision,
+    idempotencyKey: requestId,
+    auditId: `${action}-${requestId}`,
+  });
+}
+
+function isVesselActionResult(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return typeof result.idempotencyKey === 'string' &&
+    typeof result.auditId === 'string' && typeof result.vesselId === 'string' &&
+    typeof result.actorUid === 'string' && typeof result.turn === 'number' &&
+    typeof result.phase === 'string' && typeof result.revision === 'number';
+}
+
+function vesselActionFingerprint(
+  action: string,
+  sessionId: string,
+  requestId: string,
+  actorUid: string,
+  instanceId: string | null,
+  expectedRevision: number | null,
+  payload: Record<string, import('./commandIdempotency').CommandPayloadValue>,
+): CommandFingerprint {
+  return { action, sessionId, requestId, actorUid, instanceId, expectedRevision, payload };
+}
+
+function vesselActionReceiptReply(
+  receipt: DocumentSnapshot,
+  fingerprint: CommandFingerprint,
+  label: string,
+): Record<string, unknown> | undefined {
+  return replayBoundCommand(receipt, fingerprint, isVesselActionResult, label) ?? undefined;
 }
 
 /**
@@ -5022,14 +5103,19 @@ export const moveShipToLocation = onCall<{
   instanceId?: string;
   shipId?: string;
   destination?: string;
+  requestId?: string;
+  expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipNavigationMoveRequest(request.data ?? {});
-  // Fix the event clock and ids before the transaction callback. Firestore may
-  // retry that callback, but a retry must not create a second-looking jump.
-  const now = new Date();
-  const eventIdPrefix = randomUUID();
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'move-ship', change.sessionId, identity.requestId, uid, change.instanceId,
+    identity.expectedRevision ?? null, { shipId: change.shipId, destination: change.destination },
+  );
+  const now = new Date();
 
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
@@ -5037,10 +5123,26 @@ export const moveShipToLocation = onCall<{
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'ship movement');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActionPhase(session, 'movement', 'facilitator');
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'move-ship');
+      const stale = { status: 'stale' as const, shipId: change.shipId,
+        currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    // The request ID is the durable audit identity. It also makes navigation
+    // log IDs stable when Firestore retries this transaction callback.
+    const eventIdPrefix = `navigation-${identity.requestId}`;
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw commandError('failed-precondition', 'Capybara is not in this session.', 'conflict');
     }
@@ -5073,14 +5175,19 @@ export const moveShipToLocation = onCall<{
     tx.update(sessionRef, {
       shipGalacticCoordinates: move.coordinates,
       shipNavigationLogs: move.logs,
+      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return {
+    const result = {
       shipId: change.shipId,
       origin: move.origin,
       destination: move.destination,
       stardate: move.stardate,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
+        identity.requestId, 'move-ship'),
     };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
@@ -5090,27 +5197,46 @@ export const jumpShip = onCall<{
   instanceId?: string;
   shipId?: string;
   destination?: string;
+  requestId?: string;
+  expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipJumpRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'jump-ship', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    identity.expectedRevision ?? null, { shipId: change.shipId, destination: change.destination },
+  );
   const now = new Date();
-  const transitionId = randomUUID();
+  const transitionId = `jump-${identity.requestId}`;
   // Firestore may retry the transaction callback. Populate this only after
   // the authoritative reads confirm a damaged drive, then reuse it so
   // contention cannot reroll the same departure.
   let integrityRoll: number | undefined;
-  const sessionRef = db.doc(`sessions/${change.sessionId}`);
 
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, false);
     const session = await tx.get(sessionRef);
     const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'ship jump');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireTurnOneForPlayer(session, player);
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'jump-ship');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     if (change.shipId === 'capybara' && session.get('capybaraEnabled') === false) {
       throw commandError('failed-precondition', 'Capybara is not in this session.', 'conflict');
     }
@@ -5181,26 +5307,40 @@ export const jumpShip = onCall<{
     }
 
     if (result.status === 'integrity-locked') {
-      return {
+      const reply = {
         ...result,
         shipId: change.shipId,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+          identity.requestId, 'jump-ship'),
       };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
     if (result.status === 'integrity-lockout') {
+      const revision = currentRevision + 1;
       tx.update(sessionRef, {
         [`shipJumpStates.${change.shipId}`]: result.state,
+        ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      return {
+      const reply = {
         ...result,
         shipId: change.shipId,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+          identity.requestId, 'jump-ship'),
       };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
     if (result.status === 'drive-failure') {
-      return {
+      const reply = {
         ...result,
         shipId: change.shipId,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+          identity.requestId, 'jump-ship'),
       };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
 
     const move = applyShipNavigationMove({
@@ -5227,6 +5367,7 @@ export const jumpShip = onCall<{
         ftl: `FTL jump complete // ${result.origin} → ${result.destination} // ${result.length.toUpperCase()} // ${result.fuelCost} fuel.`,
       },
     };
+    const revision = currentRevision + 1;
     tx.update(sessionRef, {
       [`shipGalacticCoordinates.${change.shipId}`]: result.destination,
       [`shipResources.${change.shipId}.fuel`]: result.remainingFuel,
@@ -5234,12 +5375,17 @@ export const jumpShip = onCall<{
       [`shipJumpStates.${change.shipId}`]: result.state,
       [`shipJumpTransitions.${change.shipId}`]: result.transition,
       shipNavigationLogs: move.logs,
+      ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return {
+    const reply = {
       ...result,
       shipId: change.shipId,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+        identity.requestId, 'jump-ship'),
     };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 
@@ -5249,35 +5395,62 @@ export const setShipConsoleLock = onCall<{
   shipId?: string;
   instanceId?: string;
   locked?: boolean;
+  requestId?: string;
+  expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipConsoleLockRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
   const playerRef = db.doc(`sessions/${change.sessionId}/players/${uid}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'console-lock', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    identity.expectedRevision ?? null, { shipId: change.shipId, locked: change.locked },
+  );
 
-  await db.runTransaction(async (tx) => {
+  return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, false,
     );
     const session = await tx.get(sessionRef);
     const player = await tx.get(playerRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'console lock');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActiveGameplayPhase(session);
     requireTurnOneForPlayer(session, player);
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'console-lock');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const revision = currentRevision + 1;
     const activeVesselIds = activeVesselIdsForSession(session);
     tx.update(sessionRef, {
       shipConsoleLocks: {
         ...activeVesselRecord(shipConsoleLocks(session.get('shipConsoleLocks')), activeVesselIds),
         [change.shipId]: change.locked,
       },
+      ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    const result = {
+      shipId: change.shipId,
+      locked: change.locked,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+        identity.requestId, 'console-lock'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
-
-  return { shipId: change.shipId, locked: change.locked };
 });
 
 /** Lock or unlock subsequent GM registration. */
@@ -7130,16 +7303,35 @@ type StoredUnrestAlert = {
 
 export const adjustShipResource = onCall<{
   sessionId: string; shipId: string; resourceId: string; delta: number; instanceId?: string;
+  requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'adjust-resource', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    identity.expectedRevision ?? null, { shipId: change.shipId, resourceId: change.resourceId, delta: change.delta },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'resource adjustment');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'adjust-resource');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     const inventories = shipResources(session.get('shipResources'));
     const inventory = inventories[change.shipId];
     const current = inventory?.[change.resourceId];
@@ -7149,24 +7341,50 @@ export const adjustShipResource = onCall<{
     const amount = nextResourceAmount(current, change.delta);
     tx.update(sessionRef, {
       [`shipResources.${change.shipId}.${change.resourceId}`]: amount,
+      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return { amount };
+    const result = {
+      amount,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
+        identity.requestId, 'adjust-resource'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
 export const adjustShipUnrest = onCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
+  requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'adjust-unrest', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    identity.expectedRevision ?? null, { shipId: change.shipId, delta: change.delta },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest adjustment');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'adjust-unrest');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
     const amounts = shipUnrest(session.get('shipUnrest'));
     const result = unrestChange(amounts[change.shipId] ?? 0, change.delta, Boolean(alerts[change.shipId]));
@@ -7190,33 +7408,67 @@ export const adjustShipUnrest = onCall<{
     tx.update(sessionRef, {
       [`shipUnrest.${change.shipId}`]: result.amount,
       unrestAlerts: nextAlerts,
+      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return { amount: result.amount, alertRaised: result.kind === 'overflow' };
+    const reply = {
+      amount: result.amount, alertRaised: result.kind === 'overflow',
+      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
+        identity.requestId, 'adjust-unrest'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 
 export const dismissUnrestAlert = onCall<{
-  sessionId: string; shipId: string; instanceId: string;
+  sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${dismissal.sessionId}`);
+  const receiptRef = commandReceiptRef(dismissal.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'dismiss-unrest', dismissal.sessionId, identity.requestId, uid, dismissal.instanceId,
+    identity.expectedRevision ?? null, { shipId: dismissal.shipId },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${dismissal.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'unrest dismissal');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, dismissal.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, dismissal.shipId, currentRevision,
+        identity.requestId, 'dismiss-unrest');
+      const stale = { status: 'stale' as const, shipId: dismissal.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     const alerts = (session.get('unrestAlerts') ?? {}) as Record<string, StoredUnrestAlert>;
     const alert = alerts[dismissal.shipId];
-    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) return { dismissed: true };
+    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) {
+      const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
+        dismissal.shipId, currentRevision, identity.requestId, 'dismiss-unrest') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    }
     const remaining = alert.targetGmInstanceIds.filter((id) => id !== dismissal.instanceId);
     const nextAlerts = { ...alerts };
     if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
     else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
-    tx.update(sessionRef, { unrestAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
-    return { dismissed: true };
+    const revision = currentRevision + 1;
+    tx.update(sessionRef, { unrestAlerts: nextAlerts, ...vesselActionRevisionPatch(dismissal.shipId, revision), updatedAt: FieldValue.serverTimestamp() });
+    const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
+      dismissal.shipId, revision, identity.requestId, 'dismiss-unrest') };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
@@ -7226,31 +7478,51 @@ export const dismissUnrestAlert = onCall<{
  */
 export const addShipDamage = onCall<{
   sessionId: string; shipId: string; instanceId: string;
+  requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[change.shipId]) {
     throw new HttpsError('invalid-argument', 'This ship has no implemented damage deck.');
   }
-  // Transactions may retry. Fix both random inputs before entering the callback
-  // so contention cannot quietly reroll the card or fork the audit identity.
-  const entropyRange = 0x1_0000_0000;
-  const drawEntropy = randomInt(0, entropyRange);
-  const eventId = randomUUID();
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'add-damage', change.sessionId, identity.requestId, uid, change.instanceId,
+    identity.expectedRevision ?? null, { shipId: change.shipId },
+  );
+  // These values are fixed after the receipt read, then reused if Firestore
+  // retries the transaction callback.
+  const entropyRange = 0x1_0000_0000;
+  let drawEntropy: number | undefined;
+  const eventId = `damage-${identity.requestId}`;
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'ship damage');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'add-damage');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    drawEntropy ??= randomInt(0, entropyRange);
     const storedDamage = shipDamage(session.get('shipDamage'));
     const current = storedDamage[change.shipId] ?? { damagedSystemIds: [], destroyed: false };
     const result = drawShipDamage(
       change.shipId,
       current,
-      (upperBound) => Math.floor((drawEntropy / entropyRange) * upperBound),
+      (upperBound) => Math.floor(((drawEntropy ?? 0) / entropyRange) * upperBound),
     );
     const eventRef = db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`);
 
@@ -7276,15 +7548,21 @@ export const addShipDamage = onCall<{
       [`shipSurvivors.${change.shipId}`]: nextPopulation,
       [`shipUnrest.${change.shipId}`]: nextUnrest,
       populationAlerts, unrestAlerts,
+      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    const revision = currentRevision + 1;
     if (result.destroyed) {
       tx.set(eventRef, {
         type: 'ship-destroyed',
         shipId: change.shipId,
         createdAt: FieldValue.serverTimestamp(),
       });
-      return { destroyed: true };
+      const reply = { destroyed: true,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+          identity.requestId, 'add-damage') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
     tx.set(eventRef, {
       type: 'ship-damage',
@@ -7295,7 +7573,13 @@ export const addShipDamage = onCall<{
       recycled: result.recycled,
       createdAt: FieldValue.serverTimestamp(),
     });
-    return { card: result.card, recycled: result.recycled, destroyed: false };
+    const reply = {
+      card: result.card, recycled: result.recycled, destroyed: false,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+        identity.requestId, 'add-damage'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 
@@ -7343,17 +7627,36 @@ type StoredPopulationAlert = StoredUnrestAlert & { population: number };
 /** GM-only, atomic movement through the ship's printed survivor track. */
 export const adjustShipPopulation = onCall<{
   sessionId: string; shipId: string; delta: number; instanceId?: string;
+  requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipUnrestRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   if (!populationTrackForShip(change.shipId)) {
     throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
   }
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'adjust-population', change.sessionId, identity.requestId, uid, change.instanceId ?? null,
+    identity.expectedRevision ?? null, { shipId: change.shipId, delta: change.delta },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'population adjustment');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'adjust-population');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
     const population = populationForShip(change.shipId, session.get('shipSurvivors'));
     if (population === undefined) throw new HttpsError('invalid-argument', 'Unknown survivor track.');
@@ -7382,9 +7685,17 @@ export const adjustShipPopulation = onCall<{
     }
     tx.update(sessionRef, {
       [`shipSurvivors.${change.shipId}`]: result.amount,
-      populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp(),
+      populationAlerts: nextAlerts,
+      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
+      updatedAt: FieldValue.serverTimestamp(),
     });
-    return result;
+    const reply = {
+      ...result,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision + 1,
+        identity.requestId, 'adjust-population'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 
@@ -7399,19 +7710,41 @@ export const applyShipCounterSteps = onCall<{
   counter: string;
   resourceId?: string;
   steps: number[];
+  requestId?: string;
+  expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const change = requireShipCounterBatchRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   if (change.counter === 'population' && !populationTrackForShip(change.shipId)) {
     throw new HttpsError('invalid-argument', 'This ship has no survivor track.');
   }
   const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'counter-batch', change.sessionId, identity.requestId, uid, change.instanceId,
+    identity.expectedRevision ?? null,
+    { shipId: change.shipId, counter: change.counter, steps: change.steps.join(','), ...(change.counter === 'resource' ? { resourceId: change.resourceId } : {}) },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(
       tx, change.sessionId, uid, change.shipId, change.instanceId, true,
     );
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'counter batch');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'counter-batch');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const revision = currentRevision + 1;
 
     if (change.counter === 'resource') {
       const inventories = shipResources(session.get('shipResources'));
@@ -7423,9 +7756,13 @@ export const applyShipCounterSteps = onCall<{
       const result = applyResourceSteps(current, change.steps);
       tx.update(sessionRef, {
         [`shipResources.${change.shipId}.${change.resourceId}`]: result.amount,
+        ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      return result;
+      const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+        revision, identity.requestId, 'counter-batch') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
 
     if (change.counter === 'unrest') {
@@ -7458,9 +7795,13 @@ export const applyShipCounterSteps = onCall<{
       tx.update(sessionRef, {
         [`shipUnrest.${change.shipId}`]: result.amount,
         unrestAlerts: nextAlerts,
+        ...vesselActionRevisionPatch(change.shipId, revision),
         updatedAt: FieldValue.serverTimestamp(),
       });
-      return result;
+      const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+        revision, identity.requestId, 'counter-batch') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
     }
 
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
@@ -7499,9 +7840,13 @@ export const applyShipCounterSteps = onCall<{
     tx.update(sessionRef, {
       [`shipSurvivors.${change.shipId}`]: result.amount,
       populationAlerts: nextAlerts,
+      ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return result;
+    const reply = { ...result, ...vesselActionEnvelope(session, player, uid, change.shipId,
+      revision, identity.requestId, 'counter-batch') };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 
@@ -7593,6 +7938,7 @@ export const setFighterWingCount = onCall<{
       tx.get(requestRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
     const replay = fighterWingCountReceiptReply(prior, fingerprint);
     if (replay) return replay;
     requireActiveGameplayPhase(session);
@@ -7615,8 +7961,9 @@ export const setFighterWingCount = onCall<{
           requestId: change.requestId,
           wingId: change.wingId,
           count: current.count,
-          revision: currentRevision,
           capacity,
+          ...vesselActionEnvelope(session, player, uid, 'aegis', currentRevision,
+            change.requestId, 'fighter-count'),
         };
         tx.set(requestRef, {
           ...fingerprint,
@@ -7634,6 +7981,8 @@ export const setFighterWingCount = onCall<{
         currentRevision,
         capacity,
         ...(current ? { count: current.count } : {}),
+        ...vesselActionEnvelope(session, player, uid, 'aegis', currentRevision,
+          change.requestId, 'fighter-count'),
       };
       tx.set(requestRef, {
         ...fingerprint,
@@ -7650,8 +7999,9 @@ export const setFighterWingCount = onCall<{
       requestId: change.requestId,
       wingId: change.wingId,
       count: change.count,
-      revision,
       capacity,
+      ...vesselActionEnvelope(session, player, uid, 'aegis', revision,
+        change.requestId, 'fighter-count'),
     };
     tx.update(sessionRef, {
       [`fighterWingCounts.${change.wingId}`]: { count: change.count, revision },
@@ -7668,24 +8018,51 @@ export const setFighterWingCount = onCall<{
 });
 
 export const dismissPopulationAlert = onCall<{
-  sessionId: string; shipId: string; instanceId: string;
+  sessionId: string; shipId: string; instanceId: string; requestId?: string; expectedRevision?: number;
 }>(async (request) => {
   const uid = requireUid(request.auth);
   const dismissal = requireUnrestDismissalRequest(request.data ?? {});
+  const identity = requireVesselActionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${dismissal.sessionId}`);
+  const receiptRef = commandReceiptRef(dismissal.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'dismiss-population', dismissal.sessionId, identity.requestId, uid, dismissal.instanceId,
+    identity.expectedRevision ?? null, { shipId: dismissal.shipId },
+  );
   return db.runTransaction(async (tx) => {
     await requireShipCounterAuthority(tx, dismissal.sessionId, uid, dismissal.shipId, dismissal.instanceId, true);
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${dismissal.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'population dismissal');
+    if (replay) return replay;
+    const currentRevision = vesselActionRevision(session, dismissal.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, dismissal.shipId, currentRevision,
+        identity.requestId, 'dismiss-population');
+      const stale = { status: 'stale' as const, shipId: dismissal.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
     const alerts = (session.get('populationAlerts') ?? {}) as Record<string, StoredPopulationAlert>;
     const alert = alerts[dismissal.shipId];
-    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) return { dismissed: true };
+    if (!alert?.targetGmInstanceIds.includes(dismissal.instanceId)) {
+      const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
+        dismissal.shipId, currentRevision, identity.requestId, 'dismiss-population') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+      return result;
+    }
     const remaining = acknowledgePopulationAlert(alert.targetGmInstanceIds, dismissal.instanceId);
     const nextAlerts = { ...alerts };
     if (remaining.length === 0) delete nextAlerts[dismissal.shipId];
     else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
-    tx.update(sessionRef, { populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
-    return { dismissed: true };
+    const revision = currentRevision + 1;
+    tx.update(sessionRef, { populationAlerts: nextAlerts, ...vesselActionRevisionPatch(dismissal.shipId, revision), updatedAt: FieldValue.serverTimestamp() });
+    const result = { dismissed: true, ...vesselActionEnvelope(session, player, uid,
+      dismissal.shipId, revision, identity.requestId, 'dismiss-population') };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
@@ -7853,18 +8230,24 @@ export const setSmallShipDocking = onCall<{
     hostShipId: data.hostShipId, docked: data.docked,
   };
   const reply = await db.runTransaction(async tx => {
-    const prior = await tx.get(requestRef);
-    const replay = smallShipReceiptReply(prior, fingerprint, uid);
-    if (replay) return replay;
     const session = await tx.get(sessionRef);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${data.sessionId}/players/${uid}`));
+    const prior = await tx.get(requestRef);
     requireSmallShipMode(session, id);
     const parsedCurrent = storedSmallShipState(session, id);
     if (hasStoredSmallShipState(session, id) && !parsedCurrent) {
       throw commandError('failed-precondition', 'The stored small-ship state is malformed. Refresh the session before operating it.', 'conflict');
     }
     const current = parsedCurrent ?? emptySmallShipState(id);
-    const authorityHost = data.docked ? data.hostShipId : current.hostShipId;
+    // An undock replay arrives after the current state has already cleared its
+    // host. Keep the original authority read bound to the committed receipt so
+    // replay can return the exact result without reopening mutable state.
+    const priorAuthorityHost = typeof prior.get('authorityHostId') === 'string'
+      ? prior.get('authorityHostId') as string
+      : (isRecord(prior.get('reply')) && typeof prior.get('reply')?.hostShipId === 'string'
+        ? prior.get('reply')?.hostShipId as string : undefined);
+    const authorityHost = data.docked ? data.hostShipId : (priorAuthorityHost ?? current.hostShipId);
     if (!authorityHost || !isResourceShipId(authorityHost) ||
         !activeVesselIdsForSession(session).includes(authorityHost)) {
       throw commandError('failed-precondition', 'Small ships must dock with an active fleet host.', 'conflict');
@@ -7873,13 +8256,18 @@ export const setSmallShipDocking = onCall<{
     // otherwise an arbitrary member could probe another session's revision.
     requireSmallShipDockingPhase(session);
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
+    const replay = smallShipReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
     if (current.dockingRevision !== data.expectedRevision) {
       const stale = {
         status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
         smallShipId: id, expectedRevision: data.expectedRevision,
         currentRevision: current.dockingRevision,
+        ...vesselActionEnvelope(session, player, uid, id, current.dockingRevision,
+          data.requestId, 'small-ship-docking', authorityHost),
       };
-      tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
+      tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint,
+        authorityHostId: authorityHost, reply: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
     }
     const next: SmallShipState = {
@@ -7895,12 +8283,15 @@ export const setSmallShipDocking = onCall<{
       requestId: data.requestId, sessionId: data.sessionId, smallShipId: id,
       hostShipId: next.hostShipId, docked: next.hostShipId !== null,
       expectedRevision: data.expectedRevision, committedRevision: next.dockingRevision,
+      ...vesselActionEnvelope(session, player, uid, id, next.dockingRevision,
+        data.requestId, 'small-ship-docking', next.hostShipId ?? undefined),
     };
     tx.update(sessionRef, {
       [`smallShipStates.${id}`]: next,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: committed, createdAt: FieldValue.serverTimestamp() });
+    tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint,
+      authorityHostId: authorityHost, reply: committed, createdAt: FieldValue.serverTimestamp() });
     return committed;
   });
   return reply;
@@ -7940,11 +8331,21 @@ export const runSmallShipMaintenance = onCall<{
   const sessionRef = db.doc(`sessions/${data.sessionId}`);
   const preflight = await db.runTransaction(async tx => {
     const prior = await tx.get(requestRef);
-    const replay = smallShipReceiptReply(prior, fingerprint, uid);
-    if (replay) return { player: undefined, state: undefined, replay };
+    // A completed retry may arrive after a mutable small-ship projection has
+    // advanced. Bind the authority read to the original host recorded in the
+    // receipt, then return the stored result without rereading outcome state.
+    const priorReply = isRecord(prior.get('reply')) ? prior.get('reply') : undefined;
+    const priorHost = typeof priorReply?.hostShipId === 'string' ? priorReply.hostShipId : undefined;
+    if (priorHost) {
+      await requireShipCounterAuthority(tx, data.sessionId, uid, priorHost, data.instanceId, false);
+      const replay = smallShipReceiptReply(prior, fingerprint, uid);
+      if (replay) return { player: undefined, state: undefined, replay };
+    }
     const { player, state } = await requireSmallShipHostAuthority(
       tx, data.sessionId, uid, data.instanceId, id,
     );
+    const replay = smallShipReceiptReply(prior, fingerprint, uid);
+    if (replay) return { player: undefined, state: undefined, replay };
     return { player, state, replay: undefined };
   });
   if (preflight.replay) return preflight.replay;
@@ -7966,6 +8367,8 @@ export const runSmallShipMaintenance = onCall<{
         status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
         smallShipId: id, action: data.action, expectedRevision: data.expectedRevision,
         currentRevision: state.cycle.revision,
+        ...vesselActionEnvelope(session, player, uid, id, state.cycle.revision,
+          data.requestId, 'small-ship-maintenance', state.hostShipId ?? undefined),
       };
       tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
@@ -7992,8 +8395,10 @@ export const runSmallShipMaintenance = onCall<{
       smallShipId: id, hostShipId: result.state.hostShipId,
       action: data.action, expectedRevision: data.expectedRevision,
       committedRevision: result.state.cycle.revision, currentTurn: sessionTurn(session.get('currentTurn')),
-      phase: 'active' as const, serverTime, cycle: result.state.cycle,
+      serverTime, cycle: result.state.cycle,
       result: { state: result.state, hostResources: result.hostResources },
+      ...vesselActionEnvelope(session, player, uid, id, result.state.cycle.revision,
+        data.requestId, 'small-ship-maintenance', result.state.hostShipId ?? undefined),
     };
     tx.update(sessionRef, {
       [`smallShipStates.${id}`]: result.state,
@@ -8250,6 +8655,8 @@ export const runMaintenance = onCall<{
         action: data.action,
         expectedRevision: data.expectedRevision,
         currentRevision: currentCycle.revision,
+        ...vesselActionEnvelope(snapshot, player, uid, data.shipId, currentCycle.revision,
+          data.requestId, 'maintenance'),
       };
       tx.set(requestRef, {
         ...fingerprint,
@@ -8335,13 +8742,14 @@ export const runMaintenance = onCall<{
       expectedRevision: data.expectedRevision,
       committedRevision: result.cycle.revision,
       currentTurn,
-      phase: 'active' as const,
       serverTime,
       cycle: result.cycle,
       result: {
         resources: result.resources, damage: result.damage, unrest: result.unrest,
         population: result.population, cargo: result.cargo, fuelled: result.fuelled,
       },
+      ...vesselActionEnvelope(snapshot, player, uid, data.shipId, result.cycle.revision,
+        data.requestId, 'maintenance'),
     };
     tx.set(undoRef, { turn: currentTurn, entries });
     tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() });
@@ -8656,19 +9064,40 @@ export const dismissPressDispatch = onCall<{
 /** GM correction: restore all systems and the deck, preserving casualty history. */
 export const repairAllShipDamage = onCall<{
   sessionId: string; shipId: string; instanceId: string;
+  requestId?: string; expectedRevision?: number;
 }>(async request => {
   const uid = requireUid(request.auth);
   const change = requireShipDamageRequest(request.data ?? {});
   if (!SHIP_DAMAGE_DECKS[change.shipId]) throw new HttpsError('invalid-argument', 'Unknown damage deck.');
-  const eventId = randomUUID();
+  const identity = requireVesselActionRequest(request.data ?? {});
+  const eventId = `repair-${identity.requestId}`;
   const ref = db.doc(`sessions/${change.sessionId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, identity.requestId);
+  const fingerprint = vesselActionFingerprint(
+    'repair-damage', change.sessionId, identity.requestId, uid, change.instanceId,
+    identity.expectedRevision ?? null, { shipId: change.shipId },
+  );
   return db.runTransaction(async tx => {
     await requireShipCounterAuthority(tx, change.sessionId, uid, change.shipId, change.instanceId, true);
     const session = await tx.get(ref);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const player = await tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`));
+    const prior = await tx.get(receiptRef);
+    const replay = vesselActionReceiptReply(prior, fingerprint, 'ship repair');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    const currentRevision = vesselActionRevision(session, change.shipId);
+    if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
+      const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+        identity.requestId, 'repair-damage');
+      const stale = { status: 'stale' as const, shipId: change.shipId, currentRevision, ...envelope };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const revision = currentRevision + 1;
     tx.update(ref, {
       [`shipDamage.${change.shipId}`]: { damagedSystemIds: [], destroyed: false },
+      ...vesselActionRevisionPatch(change.shipId, revision),
       updatedAt: FieldValue.serverTimestamp(),
     });
     tx.set(db.doc(`sessions/${change.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
@@ -8676,7 +9105,13 @@ export const repairAllShipDamage = onCall<{
       payload: { shipId: change.shipId, actorUid: uid },
       createdAt: FieldValue.serverTimestamp(),
     }));
-    return { repaired: true };
+    const result = {
+      repaired: true,
+      ...vesselActionEnvelope(session, player, uid, change.shipId, revision,
+        identity.requestId, 'repair-damage'),
+    };
+    txSetIfSupported(tx, receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
   });
 });
 
@@ -8760,6 +9195,8 @@ export const rollbackMaintenance = onCall<{
         shipId: change.shipId,
         expectedRevision: change.expectedRevision,
         currentRevision: cycle?.revision ?? 0,
+        ...vesselActionEnvelope(authority.session, authority.player, uid, change.shipId,
+          cycle?.revision ?? 0, change.requestId, 'maintenance-rollback'),
       };
       tx.set(requestRef, {
         requestId: change.requestId,
@@ -8788,8 +9225,9 @@ export const rollbackMaintenance = onCall<{
       sessionId: change.sessionId,
       shipId: change.shipId,
       expectedRevision: change.expectedRevision,
-      revision: change.expectedRevision + 1,
       eventId,
+      ...vesselActionEnvelope(authority.session, authority.player, uid, change.shipId,
+        change.expectedRevision + 1, change.requestId, 'maintenance-rollback'),
     };
     tx.update(ref, { ...Object.fromEntries(Object.entries(patch).map(([field, value]) => [field, value === undefined ? FieldValue.delete() : value])), updatedAt: FieldValue.serverTimestamp() });
     tx.set(undoRef, { turn: undo.get('turn'), entries: entries.slice(0, -1) });

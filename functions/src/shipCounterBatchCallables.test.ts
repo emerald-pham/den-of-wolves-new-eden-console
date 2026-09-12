@@ -29,7 +29,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import { adjustShipResource, applyShipCounterSteps } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
-  return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
+  return { data: data.requestId === undefined ? { ...data, requestId: 'test-counter' } : data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
 beforeEach(() => {
@@ -39,6 +39,7 @@ beforeEach(() => {
   mock.unrestAlerts = {}; mock.populationAlerts = {};
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
     if (path.endsWith('/gmInstances')) return { docs: [{ id: 'gm1' }, { id: 'gm2' }] };
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
@@ -59,7 +60,8 @@ it('applies rapid resource steps in their click order inside one transaction', a
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
     resourceId: 'fuel', steps: [1, 1, -1],
-  }))).resolves.toEqual({ amount: 7, appliedSteps: [1, 1, -1], alertRaised: false });
+  }))).resolves.toMatchObject({ amount: 7, appliedSteps: [1, 1, -1], alertRaised: false,
+    actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', auditId: 'counter-batch-test-counter' });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': 7,
   }));
@@ -72,7 +74,8 @@ it('re-evaluates one resource command against the latest count after a transacti
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
     resourceId: 'fuel', steps: [1],
-  }))).resolves.toEqual({ amount: 8, appliedSteps: [1], alertRaised: false });
+  }))).resolves.toMatchObject({ amount: 8, appliedSteps: [1], alertRaised: false,
+    actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', revision: 1 });
   expect(mock.update).toHaveBeenNthCalledWith(1, 'sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': 7,
   }));
@@ -86,11 +89,13 @@ it('keeps single and ordered resource commands at the safe upper boundary', asyn
 
   await expect(adjustShipResource.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', resourceId: 'fuel', delta: 1,
-  }))).resolves.toEqual({ amount: Number.MAX_SAFE_INTEGER });
+  }))).resolves.toMatchObject({ amount: Number.MAX_SAFE_INTEGER,
+    actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', revision: 1 });
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'resource',
     resourceId: 'fuel', steps: [1],
-  }))).resolves.toEqual({ amount: Number.MAX_SAFE_INTEGER, appliedSteps: [1], alertRaised: false });
+  }))).resolves.toMatchObject({ amount: Number.MAX_SAFE_INTEGER, appliedSteps: [1], alertRaised: false,
+    actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', revision: 1 });
   expect(mock.update).toHaveBeenLastCalledWith('sessions/s1', expect.objectContaining({
     'shipResources.dione.fuel': Number.MAX_SAFE_INTEGER,
   }));
@@ -99,7 +104,8 @@ it('keeps single and ordered resource commands at the safe upper boundary', asyn
 it('preserves an unrest threshold crossing rather than netting it away', async () => {
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'dione', counter: 'unrest', steps: [1, -1],
-  }))).resolves.toEqual({ amount: 8, appliedSteps: [1], alertRaised: true });
+  }))).resolves.toMatchObject({ amount: 8, appliedSteps: [1], alertRaised: true,
+    actorUid: 'u1', vesselId: 'dione', idempotencyKey: 'test-counter', auditId: 'counter-batch-test-counter' });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipUnrest.dione': 8,
     unrestAlerts: { dione: expect.objectContaining({ targetGmInstanceIds: ['gm1', 'gm2'] }) },
@@ -109,7 +115,8 @@ it('preserves an unrest threshold crossing rather than netting it away', async (
 it('preserves the first population threshold and targets every active GM', async () => {
   await expect(applyShipCounterSteps.run(request({
     sessionId: 's1', instanceId: 'gm1', shipId: 'capybara', counter: 'population', steps: [-1, -1],
-  }))).resolves.toEqual({ amount: 15_000, appliedSteps: [-1], alertRaised: true });
+  }))).resolves.toMatchObject({ amount: 15_000, appliedSteps: [-1], alertRaised: true,
+    actorUid: 'u1', vesselId: 'capybara', idempotencyKey: 'test-counter', auditId: 'counter-batch-test-counter' });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipSurvivors.capybara': 15_000,
     populationAlerts: { capybara: expect.objectContaining({ population: 15_000, targetGmInstanceIds: ['gm1', 'gm2'] }) },

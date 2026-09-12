@@ -360,6 +360,21 @@ function requiredId(value: unknown, field: string): string {
   return id;
 }
 
+/** Identity shared by vessel-console retries and the server-owned action envelope. */
+export function requireVesselActionRequest(data: {
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}): { requestId: string; expectedRevision?: number } {
+  if (data.expectedRevision !== undefined &&
+      (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0)) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    requestId: requiredId(data.requestId, 'requestId'),
+    ...(data.expectedRevision === undefined ? {} : { expectedRevision: data.expectedRevision as number }),
+  };
+}
+
 export function requireGmClaimRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
@@ -725,6 +740,8 @@ export function requireShipNavigationMoveRequest(data: {
   instanceId?: unknown;
   shipId?: unknown;
   destination?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
 }): { sessionId: string; instanceId: string; shipId: string; destination: string } {
   const destination = requiredText(data.destination, 'destination', 4);
   if (!isStarSystemCoordinate(destination)) {

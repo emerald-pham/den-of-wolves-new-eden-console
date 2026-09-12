@@ -750,6 +750,7 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       shipId: 'capybara',
       resourceId: 'scrap',
       delta: 1,
+      requestId: 'inactive-counter',
     }, base.ownerUid))).rejects.toMatchObject({ code: 'failed-precondition' });
 
     mock.reset();
@@ -760,7 +761,34 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       shipId: 'capybara',
       resourceId: 'scrap',
       delta: 1,
+      requestId: 'active-counter',
     }, expansion.ownerUid))).resolves.toMatchObject({ amount: 4 });
+  });
+
+  it('replays a vessel result exactly and rejects request-id payload collisions', async () => {
+    const base = await composeProductionSession(8);
+    const command = {
+      sessionId: base.sessionId,
+      instanceId: 'bridge-8',
+      shipId: 'aegis',
+      resourceId: 'fuel',
+      delta: 1,
+      requestId: 'vessel-replay-1',
+    };
+    const committed = await adjustShipResource.run(request(command, base.ownerUid));
+    expect(committed).toMatchObject({
+      actorUid: base.ownerUid, vesselId: 'aegis', turn: 1, phase: 'active',
+      revision: 1, idempotencyKey: 'vessel-replay-1',
+      auditId: 'adjust-resource-vessel-replay-1',
+    });
+    const afterCommit = stateSnapshot();
+    const replay = await adjustShipResource.run(request(command, base.ownerUid));
+    expect(replay).toEqual(committed);
+    expect(stateSnapshot()).toBe(afterCommit);
+    await expect(adjustShipResource.run(request({ ...command, delta: -1 }, base.ownerUid)))
+      .rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(stateSnapshot()).toBe(afterCommit);
+
   });
 
   it('denies a role command that reuses the completed setup request id', async () => {

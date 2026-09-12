@@ -576,6 +576,14 @@ function shipConsoleLocks(value: unknown): NonNullable<GameSession['shipConsoleL
   ]));
 }
 
+function vesselActionRevisions(value: unknown): NonNullable<GameSession['vesselActionRevisions']> {
+  const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+  return Object.fromEntries(Object.entries(stored).flatMap(([vesselId, revision]) =>
+    typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0
+      ? [[vesselId, revision]] : []));
+}
+
 function shipJumpStates(value: unknown): ShipJumpStates {
   const stored = typeof value === 'object' && value !== null && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -779,6 +787,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipGalacticCoordinates: shipGalacticCoordinates(data.shipGalacticCoordinates),
     shipNavigationLogs: shipNavigationLogs(data.shipNavigationLogs),
     shipConsoleLocks: shipConsoleLocks(data.shipConsoleLocks),
+    vesselActionRevisions: vesselActionRevisions(data.vesselActionRevisions),
     shipJumpStates: shipJumpStates(data.shipJumpStates),
     shipJumpTransitions: shipJumpTransitions(data.shipJumpTransitions),
     pursuitGroups: pursuitGroups(data.pursuitGroups),

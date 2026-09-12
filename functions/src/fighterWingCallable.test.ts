@@ -76,9 +76,11 @@ beforeEach(() => {
 });
 
 it('commits a GM correction with a new per-wing revision and private receipt', async () => {
-  await expect(setFighterWingCount.run(request(base))).resolves.toEqual({
+  await expect(setFighterWingCount.run(request(base))).resolves.toMatchObject({
     status: 'committed', sessionId: 's1', requestId: 'wing-1',
     wingId: 'fighter-wing-alpha', count: 3, revision: 1, capacity: 4,
+    actorUid: 'u1', actorRoleId: null, vesselId: 'aegis', turn: 1,
+    phase: 'active', idempotencyKey: 'wing-1', auditId: 'fighter-count-wing-1',
   });
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'fighterWingCounts.fighter-wing-alpha': { count: 3, revision: 1 },
