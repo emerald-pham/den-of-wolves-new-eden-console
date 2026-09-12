@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **199 / 747 prompts complete (26.64%)**
 
-Status breakdown: **199 done · 16 partial · 532 missing**.
+Status breakdown: **199 done · 17 partial · 531 missing**.
 
 Active prompt: **none**
 
@@ -560,7 +560,7 @@ release classification and evidence.
 | 140a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140c | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 140d | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 140d | partial | non-feature | — | The authoritative addShipDamage and maintenance riot transactions now share a server-only printed-capacity transition. Exhaustion creates one stable damage-destroyed event with the full vessel's printed crew-plus-passenger pod capacity; repeated destroyed draws replay without a new revision or catastrophe, and survivor/resources/retained craft state is untouched. The seven current full damage-deck ships are covered, while small/base variants and Voyage 33-0 remain an explicit source/path gap because their sheets provide no independent crew/passenger capacity and they cannot be assigned fabricated zero or population values. Focused resolver, add-damage, maintenance-callable, and public event-parser tests pass; this remains partial until a source-authorized small-vessel destruction path/capacity exists. |
 | 140e | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140f | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 140g | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

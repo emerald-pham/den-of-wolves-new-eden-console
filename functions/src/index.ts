@@ -152,6 +152,7 @@ import {
   isPresenceStale,
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import { destructionTransition } from './shipDestruction';
 import {
   missionDeckStateFromCards,
   parseMissionDeckState,
@@ -7938,7 +7939,25 @@ export const addShipDamage = onCall<{
       current,
       (upperBound) => Math.floor(((drawEntropy ?? 0) / entropyRange) * upperBound),
     );
-    const eventRef = db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`);
+    let catastropheEventExists = false;
+    if (result.destroyed && current.destroyed) {
+      catastropheEventExists = (await tx.get(
+        db.doc(`sessions/${change.sessionId}/damageDraws/${destructionTransition(change.shipId, true, false).eventId}`),
+      )).exists;
+    }
+    const destruction = result.destroyed
+      ? destructionTransition(change.shipId, current.destroyed, catastropheEventExists)
+      : undefined;
+    // An already-destroyed ship is a terminal result.  Keep the callable
+    // replayable, but do not advance its vessel revision or emit a second
+    // catastrophe when a caller draws again.
+    if (destruction && current.destroyed && !destruction.createEvent) {
+      const reply = { destroyed: true,
+        ...vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
+          identity.requestId, 'add-damage') };
+      txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
+      return reply;
+    }
 
     const currentPopulation = populationForShip(change.shipId, session.get('shipSurvivors'))!;
     const takesCasualties = !result.destroyed && !result.card.systemId.startsWith('armoured-hull') && currentPopulation > 0;
@@ -7957,19 +7976,26 @@ export const addShipDamage = onCall<{
         if (unrest < 8 && nextUnrest >= 8) unrestAlerts[change.shipId] = alert;
       }
     }
-    tx.update(sessionRef, {
-      [`shipDamage.${change.shipId}`]: result.state,
-      [`shipSurvivors.${change.shipId}`]: nextPopulation,
-      [`shipUnrest.${change.shipId}`]: nextUnrest,
-      populationAlerts, unrestAlerts,
-      ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    const revision = currentRevision + 1;
+    const newlyDestroyed = Boolean(destruction && !current.destroyed);
+    if (!result.destroyed || newlyDestroyed) {
+      tx.update(sessionRef, {
+        [`shipDamage.${change.shipId}`]: result.state,
+        [`shipSurvivors.${change.shipId}`]: nextPopulation,
+        [`shipUnrest.${change.shipId}`]: nextUnrest,
+        populationAlerts, unrestAlerts,
+        ...vesselActionRevisionPatch(change.shipId, currentRevision + 1),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    const revision = newlyDestroyed ? currentRevision + 1 : currentRevision;
     if (result.destroyed) {
-      tx.set(eventRef, {
+      if (!destruction) throw new Error('Missing destruction transition.');
+      if (destruction.createEvent) tx.set(db.doc(
+        `sessions/${change.sessionId}/damageDraws/${destruction.eventId}`,
+      ), {
         type: 'ship-destroyed',
         shipId: change.shipId,
+        podCapacity: destruction.capacity.podCapacity,
         createdAt: FieldValue.serverTimestamp(),
       });
       const reply = { destroyed: true,
@@ -7978,7 +8004,7 @@ export const addShipDamage = onCall<{
       txSetIfSupported(tx, receiptRef, { fingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
     }
-    tx.set(eventRef, {
+    tx.set(db.doc(`sessions/${change.sessionId}/damageDraws/${eventId}`), {
       type: 'ship-damage',
       shipId: change.shipId,
       card: result.card.card,
@@ -9117,6 +9143,9 @@ export const runMaintenance = onCall<{
     }
     const population = populationForShip(data.shipId, snapshot.get('shipSurvivors'))!;
     const unrest = shipUnrest(snapshot.get('shipUnrest'))[data.shipId]!;
+    const currentDamage = shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? {
+      damagedSystemIds: [], destroyed: false,
+    };
     const unrestAlerts = { ...(snapshot.get('unrestAlerts') ?? {}) } as Record<string, StoredUnrestAlert>;
     const populationAlerts = { ...(snapshot.get('populationAlerts') ?? {}) } as Record<string, StoredPopulationAlert>;
     if (unrestAlerts[data.shipId] || populationAlerts[data.shipId]) {
@@ -9128,7 +9157,7 @@ export const runMaintenance = onCall<{
       result = advanceMaintenance({
         ...data, cycle: currentCycle, currentTurn,
         resources: shipResources(snapshot.get('shipResources'))[data.shipId]!,
-        damage: shipDamage(snapshot.get('shipDamage'))[data.shipId] ?? { damagedSystemIds: [], destroyed: false },
+        damage: currentDamage,
         unrest, population, dockings: snapshot.get('shuttleDockings') ?? [],
         cargo: snapshot.get('shuttleCargo') ?? {}, fuelled: snapshot.get('shuttleFuelled') ?? {},
         upgraded: (snapshot.get('shipUpgrades') ?? {})[data.shipId] ?? [], rolls: stableRolls,
@@ -9136,6 +9165,18 @@ export const runMaintenance = onCall<{
       });
     } catch (cause) {
       throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Maintenance failed.', 'conflict');
+    }
+    let catastropheEventExists = false;
+    if (result.damageDraw?.destroyed && currentDamage.destroyed) {
+      catastropheEventExists = (await tx.get(
+        db.doc(`sessions/${data.sessionId}/damageDraws/${destructionTransition(data.shipId, true, false).eventId}`),
+      )).exists;
+    }
+    const destruction = result.damageDraw?.destroyed
+      ? destructionTransition(data.shipId, currentDamage.destroyed, catastropheEventExists)
+      : undefined;
+    if (destruction && result.cycle.damageDrawId !== destruction.eventId) {
+      result = { ...result, cycle: { ...result.cycle, damageDrawId: destruction.eventId } };
     }
     const populationThreshold = result.population !== population && populationTrackForShip(data.shipId)?.thresholds.includes(result.population);
     if ((unrest < 8 && result.unrest >= 8) || populationThreshold) {
@@ -9207,13 +9248,18 @@ export const runMaintenance = onCall<{
     }));
     if (result.damageDraw) {
       const draw = result.damageDraw;
-      tx.set(db.doc(`sessions/${data.sessionId}/damageDraws/${eventId}`), {
-        shipId: data.shipId, requestId: data.requestId, eventId,
-        createdAt: FieldValue.serverTimestamp(),
-        ...(draw.destroyed ? { type: 'ship-destroyed' } : {
-          type: 'ship-damage', ...draw.card, recycled: draw.recycled,
-        }),
-      });
+      if (!draw.destroyed || destruction?.createEvent) {
+        const damageDrawEventId = draw.destroyed && destruction ? destruction.eventId : eventId;
+        tx.set(db.doc(`sessions/${data.sessionId}/damageDraws/${damageDrawEventId}`), {
+          shipId: data.shipId, requestId: data.requestId, eventId: damageDrawEventId,
+          createdAt: FieldValue.serverTimestamp(),
+          ...(draw.destroyed ? {
+            type: 'ship-destroyed', podCapacity: destruction?.capacity.podCapacity,
+          } : {
+            type: 'ship-damage', ...draw.card, recycled: draw.recycled,
+          }),
+        });
+      }
     }
     tx.set(requestRef, {
       ...fingerprint,
@@ -9229,7 +9275,7 @@ export const runMaintenance = onCall<{
       serverEntropy: randomStep ? stableEntropy : null,
       serverRolls: randomStep ? stableRolls : null,
       eventId,
-      ...(result.damageDraw ? { damageDrawId: eventId } : {}),
+      ...(result.damageDraw ? { damageDrawId: destruction?.eventId ?? eventId } : {}),
       fingerprint, reply,
       createdAt: FieldValue.serverTimestamp(),
     });

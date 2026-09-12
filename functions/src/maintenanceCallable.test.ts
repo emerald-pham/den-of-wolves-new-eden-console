@@ -407,6 +407,48 @@ it('begins maintenance atomically with a server-owned revision', async () => {
   }));
 });
 
+it('creates the stable pod-capacity catastrophe from a riot destruction', async () => {
+  const exhaustedAegis = [
+    'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+    'missile-launchers', 'point-defence-lasers', 'armoured-hull-i',
+    'armoured-hull-ii', 'storage', 'jump-drive', 'reactor',
+    'construction-bay', 'shuttle-bay-zeta', 'shuttle-bay-omega',
+  ];
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1,
+      maintenanceCycles: { aegis: { step: 4, revision: 4, results: {}, charges: [], refuelled: [] } },
+      shipDamage: { aegis: { damagedSystemIds: exhaustedAegis, destroyed: false } },
+      shipResources: { aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 } },
+      shipUnrest: { aegis: 10 }, shipSurvivors: { aegis: 2500 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+  mock.randomInt.mockImplementation((_min: number, max?: number) => max === 7 ? 1 : 0);
+
+  await expect(runMaintenance.run(request({
+    ...data, action: 'riot', expectedRevision: 4, requestId: 'riot-destroyed',
+  }))).resolves.toMatchObject({
+    status: 'committed', action: 'riot', committedRevision: 5,
+    cycle: { damageDrawId: 'damage-destroyed-aegis' },
+    damageDrawId: 'damage-destroyed-aegis',
+  });
+  expect(maintenance.session.shipDamage).toEqual({
+    aegis: { damagedSystemIds: exhaustedAegis, destroyed: true },
+  });
+  expect(maintenance.damageDraws['sessions/s1/damageDraws/damage-destroyed-aegis']).toMatchObject({
+    type: 'ship-destroyed', shipId: 'aegis', podCapacity: 3100,
+  });
+  expect(Object.keys(maintenance.damageDraws)).toHaveLength(1);
+  expect(maintenance.session.shipSurvivors).toEqual({ aegis: 2500 });
+  expect(maintenance.session.shipResources).toEqual({
+    aegis: { ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9 },
+  });
+});
+
 it('resolves Dione production atomically with authoritative resources, charge consumption, replay, and stale CAS', async () => {
   const maintenance = {
     session: {

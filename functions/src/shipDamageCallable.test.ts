@@ -204,8 +204,42 @@ it('marks AEGIS destroyed without inventing a card when the deck is empty', asyn
   expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
     'shipDamage.aegis': expect.objectContaining({ destroyed: true }),
   }));
-  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-test-damage', expect.objectContaining({
-    type: 'ship-destroyed', shipId: 'aegis',
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/damageDraws/damage-destroyed-aegis', expect.objectContaining({
+    type: 'ship-destroyed', shipId: 'aegis', podCapacity: 3100,
+  }));
+});
+
+it('does not advance or emit another catastrophe when a destroyed ship is drawn again', async () => {
+  mock.damage = {
+    aegis: {
+      damagedSystemIds: [
+        'fighter-bay-alpha', 'fighter-bay-bravo', 'command-and-control',
+        'missile-launchers', 'point-defence-lasers', 'armoured-hull-i',
+        'armoured-hull-ii', 'storage', 'jump-drive', 'reactor',
+        'construction-bay', 'shuttle-bay-zeta', 'shuttle-bay-omega',
+      ],
+      destroyed: true,
+    },
+  };
+  mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) return { exists: false, get: () => undefined };
+    if (path.includes('/damageDraws/')) return { exists: true, get: () => undefined };
+    const fields: Record<string, unknown> = path.includes('/players/')
+      ? { role: mock.role, connected: mock.connected }
+      : path.includes('/gmInstances/')
+        ? { uid: mock.owner, connected: true, lastSeenAt: new Date() }
+        : {
+          activeVesselIds: ['aegis', 'dione', 'icebreaker', 'shepherd', 'quellon', 'refinery-124', 'capybara'],
+          shipDamage: mock.damage,
+        };
+    return { exists: true, get: (key: string) => fields[key] };
+  });
+
+  await expect(addShipDamage.run(request(data))).resolves.toMatchObject({ destroyed: true, revision: 0 });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).toHaveBeenCalledTimes(1);
+  expect(mock.set).toHaveBeenCalledWith('sessions/s1/commandReceipts/test-damage', expect.objectContaining({
+    result: expect.objectContaining({ destroyed: true, revision: 0 }),
   }));
 });
 

@@ -4557,6 +4557,13 @@
       "language": "The GM-only Wolf preparation path composes the exact scheduled roster from Prompt 426, validates active fleet targets and a closed configured marker vocabulary, and persists only private preparation data. stageWolfAttackPreparation requires a live GM instance, active/current-turn session, request ID, shared receipt fingerprint, and expected-revision CAS; its atomic transaction writes the current private projection, audit record, and receipt while exact retries replay without writes. Firestore rules allow every connected GM to read the same current revision and deny players plus all client writes/enumeration. Focused callable and request-guard tests, 71 GM-console tests, listener/service coverage, 69 Firestore-rule tests, Functions and app builds, and lint pass. Local responsive evidence at 320x844, 1440x900, and 844x390 under reduced motion checks the usable staging form, 44px controls, typography, overflow, and keyboard-visible parent navigation. Declaration, random outcomes, damage, and casualties remain later prompts.",
       "source": "functions/src/wolfAttackPreparation.ts; functions/src/wolfAttackPreparationCallable.test.ts; functions/src/requestGuards.ts; functions/src/index.ts; firestore.rules; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; src/index.css; focused tests/build/lint; /tmp/p427-render-evidence.txt; /tmp/p427-render/wolf-attack-preparation-1440x900.png",
       "type": "evidence / related/consumes"
+    },
+    {
+      "direction": "140d",
+      "id": "E-140D-VERIFIED",
+      "language": "The server-only printed-capacity table covers all seven current full damage-deck vessels. Both addShipDamage and maintenance riot exhaustion use the shared destruction transition, persist one stable damage-destroyed record containing only podCapacity derived from printed crew plus passengers, and leave survivors, resources, and retained craft untouched. Already-destroyed retries return the terminal result without a new revision or catastrophe event. Small/base variants and Voyage 33-0 remain explicitly unresolved because their routed sheets do not provide an independent crew/passenger capacity and those paths have no damage-deck transaction. Focused destruction, callable, maintenance, and event-parser tests pass; no player release is claimed.",
+      "source": "functions/src/shipDestruction.ts; functions/src/shipDestruction.test.ts; functions/src/index.ts addShipDamage/runMaintenance; functions/src/shipDamageCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/types/game.ts; src/lib/firestore.ts; authorized routed REFERENCE_ONLY_SHIPS.md",
+      "type": "evidence / partial"
     }
   ],
   "plan": {
@@ -8130,8 +8137,8 @@
         "acceptance": "the destroyed ship exposes only its printed crew-plus-passenger pod capacity and one durable catastrophe event.",
         "title": "Create escape pods on ship destruction."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-140D",
+      "description": "The authoritative addShipDamage and maintenance riot transactions now share a server-only printed-capacity transition. Exhaustion creates one stable damage-destroyed event with the full vessel's printed crew-plus-passenger pod capacity; repeated destroyed draws replay without a new revision or catastrophe, and survivor/resources/retained craft state is untouched. The seven current full damage-deck ships are covered, while small/base variants and Voyage 33-0 remain an explicit source/path gap because their sheets provide no independent crew/passenger capacity and they cannot be assigned fabricated zero or population values. Focused resolver, add-damage, maintenance-callable, and public event-parser tests pass; this remains partial until a source-authorized small-vessel destruction path/capacity exists.",
+      "evidenceIds": "E-AUDIT-140D;E-140D-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "131",
@@ -8142,7 +8149,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

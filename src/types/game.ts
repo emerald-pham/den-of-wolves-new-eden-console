@@ -633,7 +633,8 @@ export type DamageDraw = {
     readonly systemName: string;
     readonly recycled: boolean;
   }
-  | { readonly type: 'ship-destroyed' }
+  /** Legacy destruction records may omit podCapacity; new records always carry it. */
+  | { readonly type: 'ship-destroyed'; readonly podCapacity?: number }
 );
 
 /** Anything the server generated and only some players may read. */

@@ -1423,13 +1423,19 @@ export function subscribeDamageDraws(
         const drawSessionId = parseEntityId('session', sessionId);
         const drawShipId = parseEntityId('vessel', data.shipId);
         if (!drawId || !drawSessionId || !drawShipId) return [];
-        if (data.type === 'ship-destroyed') return [{
+        if (data.type === 'ship-destroyed') {
+          const podCapacity = typeof data.podCapacity === 'number' &&
+            Number.isSafeInteger(data.podCapacity) && data.podCapacity > 0
+            ? data.podCapacity : undefined;
+          return [{
           id: drawId,
           sessionId: drawSessionId,
           type: 'ship-destroyed' as const,
           shipId: drawShipId,
           createdAt: iso(data.createdAt),
-        }];
+          ...(podCapacity === undefined ? {} : { podCapacity }),
+          }];
+        }
         if (data.type !== 'ship-damage') return [];
         return [{
           id: drawId,
