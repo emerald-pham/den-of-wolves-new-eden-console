@@ -97,6 +97,33 @@ it('keeps typed entity IDs stable at the session snapshot boundary', () => {
   expect(session.shuttleVisitLog?.[0]).toMatchObject({ id: 'visit-1', shuttleId: 'starlight', shipId: 'aegis' });
 });
 
+it('hydrates only valid optional small-ship state and keeps host linkage explicit', () => {
+  const session = sessionFrom('small-ship-state-session', {
+    ...sessionData(8),
+    activeVesselIds: ['aegis'],
+    smallShipStates: {
+      gorgoneion: {
+        id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2,
+        population: 1_000, unrest: 1,
+        cycle: {
+          step: 1, revision: 3, results: { '1': 'Rations applied.' }, charges: [],
+          turn: 1, rationBonus: 6, startedAt: '2026-01-01T00:00:00.000Z',
+        },
+      },
+      warrior: {
+        id: 'warrior', hostShipId: 'aegis', dockingRevision: 1,
+        population: 'spoofed', unrest: 0,
+        cycle: { step: 0, revision: 0, results: {}, charges: [] },
+      },
+    },
+  });
+  expect(session.smallShipStates?.gorgoneion).toMatchObject({
+    id: 'gorgoneion', hostShipId: 'aegis', dockingRevision: 2,
+    population: 1_000, cycle: { step: 1, revision: 3, turn: 1 },
+  });
+  expect(session.smallShipStates?.warrior).toBeUndefined();
+});
+
 it('hydrates the complete turn entity only when its server fields are valid', () => {
   const session = sessionFrom('turn-state-session', {
     ...sessionData(8),

@@ -71,6 +71,8 @@ import {
   requireSessionRequest,
   requireAirspaceRequest,
   requireMaintenanceRequest,
+  requireSmallShipDockingRequest,
+  requireSmallShipMaintenanceRequest,
   requireSessionCreationRequest,
   requireCastingPreferenceRequest,
   requireRoleAssignmentRequest,
@@ -212,6 +214,15 @@ import {
   type FleetTickerState,
   type FleetTickerTransmission,
 } from './fleetTickerState';
+import {
+  advanceSmallShipMaintenance,
+  emptySmallShipState,
+  parseSmallShipState,
+  SMALL_SHIP_IDS,
+  SMALL_SHIP_RULES,
+  type SmallShipId,
+  type SmallShipState,
+} from './smallShip';
 
 /**
  * Server-side authority for the companion console.
@@ -496,6 +507,19 @@ function activeShipSurvivors(value: unknown, activeVesselIds: readonly string[])
     }
   }
   return activeVesselRecord({ ...INITIAL_SHIP_SURVIVORS, ...stored }, activeVesselIds);
+}
+
+function publicSmallShipStates(
+  value: unknown,
+  activeVesselIds: readonly string[],
+): Record<string, SmallShipState> {
+  const stored = isRecord(value) ? value : {};
+  const activeHosts = new Set(activeVesselIds.filter(isResourceShipId));
+  return Object.fromEntries(SMALL_SHIP_IDS.flatMap((smallShipId) => {
+    const state = parseSmallShipState(stored[smallShipId], smallShipId);
+    if (!state || (state.hostShipId !== null && !activeHosts.has(state.hostShipId))) return [];
+    return [[smallShipId, state]];
+  }));
 }
 
 function reconcileActiveVesselMap<T>(
@@ -1465,6 +1489,7 @@ export const createSession = onCall<{
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
+          smallShipStates: {},
           fighterWingCounts: composition.fighterWingCounts,
           shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
@@ -1569,6 +1594,7 @@ export const createSession = onCall<{
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
+          smallShipStates: {},
           fighterWingCounts: composition.fighterWingCounts,
           shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
@@ -4199,6 +4225,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
         unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
         maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
+        smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
         shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
         shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
         shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
@@ -4389,6 +4416,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
       unrestAlerts: publicAlertMap(sessionSnap.get('unrestAlerts'), activeVesselIds, false),
       maintenanceCycles: publicMaintenanceCycles(sessionSnap.get('maintenanceCycles'), activeVesselIds),
+      smallShipStates: publicSmallShipStates(sessionSnap.get('smallShipStates'), activeVesselIds),
       shuttleCargo: publicShuttleCargo(sessionSnap.get('shuttleCargo')),
       shuttleFuelled: publicShuttleFuelled(sessionSnap.get('shuttleFuelled')),
       shipUpgrades: publicShipUpgrades(sessionSnap.get('shipUpgrades'), activeVesselIds),
@@ -7626,6 +7654,299 @@ export const dismissPopulationAlert = onCall<{
     else nextAlerts[dismissal.shipId] = { ...alert, targetGmInstanceIds: remaining };
     tx.update(sessionRef, { populationAlerts: nextAlerts, updatedAt: FieldValue.serverTimestamp() });
     return { dismissed: true };
+  });
+});
+
+function smallShipId(value: string): SmallShipId | undefined {
+  return (SMALL_SHIP_IDS as readonly string[]).includes(value) ? value as SmallShipId : undefined;
+}
+
+function storedSmallShipState(session: DocumentSnapshot, id: SmallShipId): SmallShipState | undefined {
+  const stored = session.get('smallShipStates');
+  return isRecord(stored) ? parseSmallShipState(stored[id], id) : undefined;
+}
+
+function hasStoredSmallShipState(session: DocumentSnapshot, id: SmallShipId): boolean {
+  const stored = session.get('smallShipStates');
+  return isRecord(stored) && Object.prototype.hasOwnProperty.call(stored, id);
+}
+
+function requireSmallShipMode(session: DocumentSnapshot, id: SmallShipId): void {
+  if (id === 'capybara-small' &&
+      (session.get('expansion') !== 'base' || session.get('capybaraEnabled') === false)) {
+    throw commandError(
+      'failed-precondition',
+      'Base Capybara is unavailable when the expansion Capybara is selected or disabled.',
+      'conflict',
+    );
+  }
+}
+
+function requireSmallShipDockingPhase(session: DocumentSnapshot): void {
+  requireActiveGameplayPhase(session);
+  if (session.get('phase') !== 'active') {
+    throw commandError('failed-precondition', 'Small ships can only dock during active gameplay.', 'invalid-phase');
+  }
+  const phase = turnPhaseState(session.get('turnPhase'));
+  // Legacy active sessions have no phase clock and retain existing callable
+  // compatibility. Once a clock exists, docking is a Coordination action.
+  if (phase && phase.airspace.state !== 'lifted') {
+    throw commandError('failed-precondition', 'Small ships can only dock during the Coordination Phase.', 'invalid-phase');
+  }
+}
+
+async function requireSmallShipHostAuthority(
+  tx: Transaction,
+  sessionId: string,
+  uid: string,
+  instanceId: string | undefined,
+  id: SmallShipId,
+): Promise<{ player: DocumentSnapshot; session: DocumentSnapshot; state: SmallShipState }> {
+  const sessionRef = db.doc(`sessions/${sessionId}`);
+  const [player, session] = await Promise.all([
+    tx.get(db.doc(`sessions/${sessionId}/players/${uid}`)),
+    tx.get(sessionRef),
+  ]);
+  if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+  requireSmallShipMode(session, id);
+  const state = storedSmallShipState(session, id);
+  if (hasStoredSmallShipState(session, id) && !state) {
+    throw commandError('failed-precondition', 'The stored small-ship state is malformed. Refresh the session before operating it.', 'conflict');
+  }
+  if (!state || !state.hostShipId) {
+    throw commandError('failed-precondition', 'Dock the small ship with an active fleet host first.', 'conflict');
+  }
+  await requireShipCounterAuthority(tx, sessionId, uid, state.hostShipId, instanceId, false);
+  return { player, session, state };
+}
+
+type SmallShipCommandFingerprint = Readonly<{
+  kind: 'dock' | 'maintenance';
+  sessionId: string;
+  smallShipId: SmallShipId;
+  actorUid: string;
+  instanceId: string | null;
+  expectedRevision: number;
+  action?: string;
+  hostShipId?: string | null;
+  docked?: boolean;
+  foodLevel?: number | null;
+  waterLevel?: number | null;
+  consoles?: readonly string[];
+}>;
+
+function sameSmallShipFingerprint(value: unknown, expected: SmallShipCommandFingerprint): boolean {
+  if (!isRecord(value)) return false;
+  const consoles = value.consoles;
+  return value.kind === expected.kind && value.sessionId === expected.sessionId &&
+    value.smallShipId === expected.smallShipId && value.actorUid === expected.actorUid &&
+    value.instanceId === expected.instanceId && value.expectedRevision === expected.expectedRevision &&
+    value.action === (expected.action ?? undefined) && value.hostShipId === (expected.hostShipId ?? undefined) &&
+    value.docked === (expected.docked ?? undefined) && value.foodLevel === (expected.foodLevel ?? null) &&
+    value.waterLevel === (expected.waterLevel ?? null) && Array.isArray(consoles) &&
+    consoles.length === (expected.consoles ?? []).length &&
+    consoles.every((item, index) => item === expected.consoles?.[index]);
+}
+
+function smallShipReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: SmallShipCommandFingerprint,
+  uid: string,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  if (prior.get('actorUid') !== uid || !sameSmallShipFingerprint(prior.get('fingerprint'), fingerprint)) {
+    throw commandError('failed-precondition', 'This request id was already used for a different small-ship command or actor.', 'conflict');
+  }
+  const stored = prior.get('reply');
+  if (!isRecord(stored)) throw commandError('failed-precondition', 'This small-ship request has no replayable result.', 'conflict');
+  return stored.status === 'stale' ? stored : { ...stored, status: 'replayed' };
+}
+
+/** Atomically admit or release one optional small ship from a fleet host. */
+export const setSmallShipDocking = onCall<{
+  sessionId?: unknown; smallShipId?: unknown; hostShipId?: unknown; docked?: unknown;
+  instanceId?: unknown; requestId?: unknown; expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !['sessionId', 'smallShipId', 'hostShipId', 'docked', 'instanceId', 'requestId', 'expectedRevision'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid small-ship docking request.');
+  }
+  const data = requireSmallShipDockingRequest(raw);
+  const id = smallShipId(data.smallShipId);
+  if (!id || (data.docked && !data.hostShipId) || (!data.docked && data.hostShipId !== null)) {
+    throw new HttpsError('invalid-argument', 'Invalid small-ship docking target.');
+  }
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const requestRef = db.doc(`sessions/${data.sessionId}/smallShipRequests/${data.requestId}`);
+  const fingerprint: SmallShipCommandFingerprint = {
+    kind: 'dock', sessionId: data.sessionId, smallShipId: id, actorUid: uid,
+    instanceId: data.instanceId, expectedRevision: data.expectedRevision,
+    hostShipId: data.hostShipId, docked: data.docked,
+  };
+  const reply = await db.runTransaction(async tx => {
+    const prior = await tx.get(requestRef);
+    const replay = smallShipReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    const session = await tx.get(sessionRef);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireSmallShipMode(session, id);
+    const parsedCurrent = storedSmallShipState(session, id);
+    if (hasStoredSmallShipState(session, id) && !parsedCurrent) {
+      throw commandError('failed-precondition', 'The stored small-ship state is malformed. Refresh the session before operating it.', 'conflict');
+    }
+    const current = parsedCurrent ?? emptySmallShipState(id);
+    if (current.dockingRevision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
+        smallShipId: id, expectedRevision: data.expectedRevision,
+        currentRevision: current.dockingRevision,
+      };
+      tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    requireSmallShipDockingPhase(session);
+    const authorityHost = data.docked ? data.hostShipId : current.hostShipId;
+    if (!authorityHost || !isResourceShipId(authorityHost) ||
+        !activeVesselIdsForSession(session).includes(authorityHost)) {
+      throw commandError('failed-precondition', 'Small ships must dock with an active fleet host.', 'conflict');
+    }
+    await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
+    const next: SmallShipState = {
+      ...current,
+      hostShipId: data.docked ? data.hostShipId : null,
+      dockingRevision: current.dockingRevision + 1,
+    };
+    if (!data.docked && current.cycle.step !== 0) {
+      throw commandError('failed-precondition', 'Finish the small-ship maintenance cycle before undocking.', 'conflict');
+    }
+    const committed = {
+      status: 'committed' as const,
+      requestId: data.requestId, sessionId: data.sessionId, smallShipId: id,
+      hostShipId: next.hostShipId, docked: next.hostShipId !== null,
+      expectedRevision: data.expectedRevision, committedRevision: next.dockingRevision,
+    };
+    tx.update(sessionRef, {
+      [`smallShipStates.${id}`]: next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: committed, createdAt: FieldValue.serverTimestamp() });
+    return committed;
+  });
+  return reply;
+});
+
+/** Run the four-step small-ship cycle against the docked host's resources. */
+export const runSmallShipMaintenance = onCall<{
+  sessionId?: unknown; smallShipId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown;
+  expectedRevision?: unknown; instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown; consoles?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+      Object.keys(raw).some(key => !['sessionId', 'smallShipId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles'].includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid small-ship maintenance request.');
+  }
+  const parsed = requireSmallShipMaintenanceRequest(raw);
+  const id = smallShipId(parsed.smallShipId);
+  const data = {
+    ...parsed,
+    ...(raw.foodLevel === undefined ? {} : { foodLevel: raw.foodLevel as number }),
+    ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
+    ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
+  };
+  if (!id || !['begin', 'rations', 'unrest', 'riot', 'reactor', 'end'].includes(data.action) ||
+      [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isSafeInteger(level) || level < 0 || level > 3)) ||
+      (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(consoleId => typeof consoleId !== 'string')))) {
+    throw new HttpsError('invalid-argument', 'Invalid small-ship maintenance choices.');
+  }
+  const fingerprint: SmallShipCommandFingerprint = {
+    kind: 'maintenance', sessionId: data.sessionId, smallShipId: id, actorUid: uid,
+    instanceId: data.instanceId ?? null, expectedRevision: data.expectedRevision,
+    action: data.action, foodLevel: data.foodLevel ?? null, waterLevel: data.waterLevel ?? null,
+    consoles: [...(data.consoles ?? [])],
+  };
+  const requestRef = db.doc(`sessions/${data.sessionId}/smallShipRequests/${data.requestId}`);
+  const sessionRef = db.doc(`sessions/${data.sessionId}`);
+  const preflight = await db.runTransaction(async tx => {
+    const prior = await tx.get(requestRef);
+    const replay = smallShipReceiptReply(prior, fingerprint, uid);
+    if (replay) return { player: undefined, state: undefined, replay };
+    const { player, state } = await requireSmallShipHostAuthority(
+      tx, data.sessionId, uid, data.instanceId, id,
+    );
+    return { player, state, replay: undefined };
+  });
+  if (preflight.replay) return preflight.replay;
+  const randomStep = data.action === 'unrest' || data.action === 'riot';
+  const stableRolls = randomStep ? [randomInt(1, 7), randomInt(1, 7)] : [];
+  const serverTime = new Date().toISOString();
+  return db.runTransaction(async tx => {
+    const { player, session, state } = await requireSmallShipHostAuthority(
+      tx, data.sessionId, uid, data.instanceId, id,
+    );
+    const prior = await tx.get(requestRef);
+    const replay = smallShipReceiptReply(prior, fingerprint, uid);
+    if (replay) return replay;
+    requireTurnOneForGameplay(session);
+    requireActionPhase(session, 'maintenance', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireTurnOneForPlayer(session, player);
+    if (state.cycle.revision !== data.expectedRevision) {
+      const stale = {
+        status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
+        smallShipId: id, action: data.action, expectedRevision: data.expectedRevision,
+        currentRevision: state.cycle.revision,
+      };
+      tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
+      return stale;
+    }
+    const hostResources = shipResources(session.get('shipResources'))[state.hostShipId!];
+    if (!hostResources) throw commandError('failed-precondition', 'The docked host resource store is unavailable.', 'conflict');
+    let result: ReturnType<typeof advanceSmallShipMaintenance>;
+    try {
+      result = advanceSmallShipMaintenance({
+        state, action: data.action, expectedRevision: data.expectedRevision,
+        currentTurn: sessionTurn(session.get('currentTurn')), hostResources,
+        rolls: stableRolls, foodLevel: data.foodLevel, waterLevel: data.waterLevel,
+        consoles: data.consoles, now: serverTime,
+      });
+    } catch (cause) {
+      throw commandError('failed-precondition', cause instanceof Error ? cause.message : 'Invalid small-ship maintenance action.', 'conflict');
+    }
+    const eventId = `small-maintenance-${data.requestId}`;
+    const actorRoleId = typeof player.get('activeConsoleRoleId') === 'string'
+      ? player.get('activeConsoleRoleId') as string : null;
+    const reply = {
+      ...result.state.cycle,
+      status: 'committed' as const, requestId: data.requestId, sessionId: data.sessionId,
+      smallShipId: id, hostShipId: result.state.hostShipId,
+      action: data.action, expectedRevision: data.expectedRevision,
+      committedRevision: result.state.cycle.revision, currentTurn: sessionTurn(session.get('currentTurn')),
+      phase: 'active' as const, serverTime, cycle: result.state.cycle,
+      result: { state: result.state, hostResources: result.hostResources },
+    };
+    tx.update(sessionRef, {
+      [`smallShipStates.${id}`]: result.state,
+      [`shipResources.${state.hostShipId}`]: result.hostResources,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(db.doc(`sessions/${data.sessionId}/events/${eventId}`), buildPrivacySafeEventRecord({
+      type: 'maintenance',
+      envelope: buildAuthoritativeEventEnvelope({
+        sessionId: data.sessionId, actorUid: uid, actorRoleId,
+        turn: sessionTurn(session.get('currentTurn')), phase: 'active', type: 'maintenance',
+        requestId: data.requestId, revision: result.state.cycle.revision,
+        serverTime, visibility: EventVisibility.Member,
+      }),
+      payload: projectMaintenanceEvent({
+        shipId: id, shipName: SMALL_SHIP_RULES[id].name, action: data.action,
+        results: result.state.cycle.results,
+      }),
+      createdAt: FieldValue.serverTimestamp(),
+    }));
+    tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply, eventId, serverRolls: randomStep ? stableRolls : null, createdAt: FieldValue.serverTimestamp() });
+    return reply;
   });
 });
 

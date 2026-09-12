@@ -30,6 +30,8 @@ import type {
   SessionChartId,
   SessionExpansionMode,
   SessionEvent,
+  SmallShipId,
+  SmallShipState,
   ShuttleDocking,
   ShuttleVisit,
   ShipNavigationLogEntry,
@@ -54,6 +56,7 @@ import {
   INITIAL_SHIP_GALACTIC_COORDINATES,
   INITIAL_SHIP_JUMP_STATES,
   INITIAL_SHIP_JUMP_TRANSITIONS,
+  SMALL_SHIPS,
 } from '@/data/ships';
 import { RESOURCE_DEFINITIONS, shipResources, shipUnrest } from '@/data/resources';
 import { INITIAL_SHIP_SURVIVORS } from '@/data/shipPopulation';
@@ -422,6 +425,61 @@ function maintenanceCycles(value: unknown): NonNullable<GameSession['maintenance
   }));
 }
 
+const SMALL_SHIP_IDS: readonly SmallShipId[] = ['gorgoneion', 'capybara-small', 'warrior', 'vulcan'];
+
+function smallShipStates(value: unknown): NonNullable<GameSession['smallShipStates']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(SMALL_SHIP_IDS.flatMap((id) => {
+    const raw = recordValue(stored[id]);
+    const cycle = recordValue(raw?.cycle);
+    const results = recordValue(cycle?.results);
+    const charges = cycle?.charges;
+    const population = raw?.population;
+    const unrest = raw?.unrest;
+    const hostShipId = raw?.hostShipId === null ? null : parseEntityId('vessel', raw?.hostShipId);
+    const dockingRevision = nonNegativeInteger(raw?.dockingRevision);
+    const parsedPopulation = nonNegativeInteger(population);
+    const parsedUnrest = nonNegativeInteger(unrest);
+    const parsedStep = nonNegativeInteger(cycle?.step);
+    const parsedRevision = nonNegativeInteger(cycle?.revision);
+    if (!raw || (raw.hostShipId !== null && typeof raw.hostShipId !== 'string') ||
+        (raw.hostShipId !== null && hostShipId === undefined) ||
+        dockingRevision === undefined || parsedPopulation === undefined ||
+        parsedPopulation > (SMALL_SHIPS.find((ship) => ship.id === id)?.printedStatistics.population ?? 0) ||
+        parsedUnrest === undefined || parsedUnrest > 10 || !cycle ||
+        parsedStep === undefined || parsedStep > 5 || parsedRevision === undefined ||
+        !results || !Array.isArray(charges) || charges.some((charge) => typeof charge !== 'string')) return [];
+    if (cycle.turn !== undefined && !nonNegativeInteger(cycle.turn)) return [];
+    if (cycle.rationBonus !== undefined && (typeof cycle.rationBonus !== 'number' || !Number.isFinite(cycle.rationBonus))) return [];
+    if (cycle.chargingSkipped !== undefined && typeof cycle.chargingSkipped !== 'boolean') return [];
+    const parsedResults = Object.fromEntries(Object.entries(results).flatMap(([key, result]) =>
+      /^[1-4]$/.test(key) && typeof result === 'string' ? [[key, result]] : []));
+    const startedAt = cycle.startedAt === undefined ? undefined : timestampString(cycle.startedAt);
+    const completedAt = cycle.completedAt === undefined ? undefined : timestampString(cycle.completedAt);
+    if ((cycle.startedAt !== undefined && !startedAt) || (cycle.completedAt !== undefined && !completedAt)) return [];
+    const parsed: SmallShipState = {
+      id,
+      hostShipId: hostShipId ?? null,
+      dockingRevision,
+      population: parsedPopulation,
+      unrest: parsedUnrest,
+      cycle: {
+        step: parsedStep,
+        revision: parsedRevision,
+        results: parsedResults,
+        charges: charges as string[],
+        ...(cycle.turn === undefined ? {} : { turn: cycle.turn as number }),
+        ...(cycle.rationBonus === undefined ? {} : { rationBonus: cycle.rationBonus as number }),
+        ...(cycle.chargingSkipped === undefined ? {} : { chargingSkipped: cycle.chargingSkipped as boolean }),
+        ...(startedAt === undefined ? {} : { startedAt }),
+        ...(completedAt === undefined ? {} : { completedAt }),
+      },
+    };
+    return [[id, parsed]];
+  })) as NonNullable<GameSession['smallShipStates']>;
+}
+
 function shuttleCargo(value: unknown): NonNullable<GameSession['shuttleCargo']> {
   const stored = recordValue(value);
   if (!stored) return {};
@@ -726,6 +784,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     pressDispatch: normalizePressDispatch(data.pressDispatch),
     fleetTicker: fleetTickerState(data.fleetTicker),
     maintenanceCycles: maintenanceCycles(data.maintenanceCycles),
+    smallShipStates: smallShipStates(data.smallShipStates),
     shuttleCargo: shuttleCargo(data.shuttleCargo),
     shuttleFuelled: shuttleFuelled(data.shuttleFuelled),
     shipUpgrades: shipUpgrades(data.shipUpgrades),

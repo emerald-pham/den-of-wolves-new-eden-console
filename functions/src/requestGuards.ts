@@ -62,6 +62,70 @@ export function requireMaintenanceRequest(data: {
   };
 }
 
+export function requireSmallShipDockingRequest(data: {
+  sessionId?: unknown;
+  smallShipId?: unknown;
+  hostShipId?: unknown;
+  docked?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  smallShipId: string;
+  hostShipId: string | null;
+  docked: boolean;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+} {
+  if (typeof data.docked !== 'boolean') throw new HttpsError('invalid-argument', 'docked must be boolean.');
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    smallShipId: requiredId(data.smallShipId, 'smallShipId'),
+    hostShipId: data.hostShipId === null ? null : requiredId(data.hostShipId, 'hostShipId'),
+    docked: data.docked,
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+  };
+}
+
+export function requireSmallShipMaintenanceRequest(data: {
+  sessionId?: unknown;
+  smallShipId?: unknown;
+  shipId?: unknown;
+  requestId?: unknown;
+  instanceId?: unknown;
+  action?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  smallShipId: string;
+  requestId: string;
+  instanceId?: string;
+  action: string;
+  expectedRevision: number;
+} {
+  const smallShipId = data.smallShipId ?? data.shipId;
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    smallShipId: requiredId(smallShipId, 'smallShipId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    ...(data.instanceId === undefined ? {} : { instanceId: requiredId(data.instanceId, 'instanceId') }),
+    action: requiredText(data.action, 'action', 32),
+    expectedRevision: (() => {
+      if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+        throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+      }
+      return data.expectedRevision as number;
+    })(),
+  };
+}
+
 export function requireSessionCreationRequest(data: {
   requestId?: unknown;
   playerCount?: unknown;

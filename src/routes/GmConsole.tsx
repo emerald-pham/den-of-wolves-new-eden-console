@@ -6,6 +6,7 @@ import DradisEffectControls from '@/components/DradisEffectControls';
 import EmergencyTimerPauseControl from '@/components/EmergencyTimerPauseControl';
 import { DradisAirspaceTimer } from '@/components/TurnPhaseTimer';
 import GmStarmapModule from '@/components/GmStarmapModule';
+import SmallShipOperations from '@/components/SmallShipOperations';
 import PursuitTracker from '@/components/PursuitTracker';
 import RoleConsoleTemplate from '@/components/RoleConsoleTemplate';
 import ResourceIcon from '@/components/ResourceIcon';
@@ -1458,6 +1459,7 @@ export default function GmConsole() {
               Reset code of conduct checklist
             </button>
           </section>
+          <SmallShipOperations />
           <GmStarmapModule session={session} />
           <section
             className="gm-console__module gm-fleet-resources cic-frame"

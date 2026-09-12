@@ -171,6 +171,30 @@ export interface MaintenanceCycle {
   readonly damageDrawId?: Id;
 }
 
+/** Server-owned state for an optional base-game small ship while docked. */
+export interface SmallShipMaintenanceCycle {
+  readonly step: number;
+  readonly revision: number;
+  readonly results: Readonly<Record<string, string>>;
+  readonly charges: readonly string[];
+  readonly turn?: number;
+  readonly rationBonus?: number;
+  readonly chargingSkipped?: boolean;
+  readonly startedAt?: Timestamp;
+  readonly completedAt?: Timestamp;
+}
+
+export type SmallShipId = 'gorgoneion' | 'capybara-small' | 'warrior' | 'vulcan';
+
+export interface SmallShipState {
+  readonly id: SmallShipId;
+  readonly hostShipId: VesselId | null;
+  readonly dockingRevision: number;
+  readonly population: number;
+  readonly unrest: number;
+  readonly cycle: SmallShipMaintenanceCycle;
+}
+
 export interface PressDispatch {
   readonly id: string;
   readonly text: string;
@@ -310,6 +334,8 @@ export interface GameSession {
   readonly pressDispatch?: PressDispatchState;
   readonly fleetTicker?: FleetTickerState;
   readonly maintenanceCycles?: Readonly<Record<string, MaintenanceCycle>>;
+  /** Optional small-ship state; resources are always borrowed from hostShipId. */
+  readonly smallShipStates?: Readonly<Partial<Record<SmallShipId, SmallShipState>>>;
   readonly shuttleCargo?: Readonly<Record<string, Readonly<Record<string, number>>>>;
   readonly shuttleFuelled?: Readonly<Record<string, boolean>>;
   readonly shipUpgrades?: Readonly<Record<string, readonly string[]>>;
