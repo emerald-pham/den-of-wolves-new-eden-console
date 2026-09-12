@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['234a'],
+    implementationProgress: {
+      completed: 167,
+      total: 747,
+      percentage: '22.36%',
+      done: 167,
+      partial: 7,
+      active: 0,
+      missing: 573,
+    },
+    changes: [
+      'Facilitators now see a reminder to consider roughly 3 additional Wolf damage capacity per attack for each extra role. The facilitator chooses the adjustment. 167 of 747 planned items are complete (22.36%).',
+    ],
+  },
+  {
+    version: '0.3.59',
     implementationPrompts: ['188', '189'],
     implementationProgress: {
       completed: 162,
