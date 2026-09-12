@@ -245,6 +245,13 @@
       "language": "The owner requested all-fleet or selected-ship transmission of known scanned system details. Per-ship knowledge, private scouting, discovery persistence, audit, and communication eligibility are related contracts.",
       "source": "Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11",
       "type": "related/consumes"
+    },
+    {
+      "direction": "679 -> 281;282;283;313;677",
+      "id": "E-679",
+      "language": "The owner requested random travel to an adjacent map node via blind jump. Locked graph resolution, arrival history, and per-ship knowledge are related contracts; lack of prior destination knowledge must not prevent the blind jump.",
+      "source": "Owner request - random adjacent-node blind jumps, 2026-09-11",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -17478,6 +17485,29 @@
       "id": "678",
       "milestoneHints": "none",
       "relatedConsumes": "677;328;330;331;339;340",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "NEW"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "An entitled ship can choose a blind jump without supplying known destination coordinates. The server reads that ship's authoritative current node and the locked chart graph, randomly selects one directly connected node, and applies the normal jump workflow to that destination. A blind jump may select an undiscovered connected node; do not require the ship to know its coordinates or reveal the candidate neighbor set, hidden coordinates, or organiser chart to the client. Preserve existing role, phase, drive, fuel, group, damage, and jump-consequence rules; the client cannot choose the result, graph, random seed, or origin. Bind the selected destination to the authoritative request/receipt so retries, concurrent commands, and reconnect never redraw or duplicate movement or resource costs. A successful arrival records only the appropriate newly visited/discovered knowledge for that ship. Handle a missing or invalid graph/current node or no eligible connected destination truthfully without mutation. Prove adjacency, unknown-destination eligibility, server randomness, authorization, existing jump requirements, idempotent retry, and arrival knowledge without chart leakage.",
+        "title": "Allow blind jumps to a random adjacent system."
+      },
+      "description": "Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge.",
+      "evidenceIds": "E-679",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "679",
+      "milestoneHints": "none",
+      "relatedConsumes": "281;282;283;313;677",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",

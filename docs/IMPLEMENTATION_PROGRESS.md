@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 745 prompts complete (13.83%)**
+**103 / 746 prompts complete (13.81%)**
 
-Status breakdown: **103 done · 17 partial · 625 missing**.
+Status breakdown: **103 done · 17 partial · 626 missing**.
 
 Active prompt: **none**
 
@@ -1155,6 +1155,7 @@ release classification and evidence.
 | 676 | missing | non-feature | — | Owner-requested jump-map layering repair: render the scanline under other map elements while preserving animation, map behavior, accessibility, and other console rendering. |
 | 677 | missing | feature | — | Owner-requested per-ship jump-coordinate knowledge and a separate Ship View Privacy control for location contents; only that ship's visits or authorized discoveries reveal coordinates. |
 | 678 | missing | feature | — | Owner-requested ship-console sharing of selected scanned system information with the whole fleet or selected ships, using authoritative known facts, recipient eligibility, and per-ship knowledge. |
+| 679 | missing | feature | — | Owner-requested blind jump option: server-random travel to one node connected to the ship's current jump-map node, preserving normal jump authority, costs, consequences, and private chart knowledge. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

@@ -840,6 +840,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 676 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Render the jump-map scanline beneath map content. |
 | 677 | NEW | missing | none | none | none | none | none | none | none | 084;284;313;328;330 | E-677 | none | Gate jump-map coordinates by ship knowledge and hide location details. |
 | 678 | NEW | missing | none | none | none | none | none | none | none | 677;328;330;331;339;340 | E-678 | none | Transmit scanned system details to all fleet ships or selected ships. |
+| 679 | NEW | missing | none | none | none | none | none | none | none | 281;282;283;313;677 | E-679 | none | Allow blind jumps to a random adjacent system. |
 
 ## Explicit sequence rules
 
@@ -896,6 +897,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-675 | related/consumes | 675 -> 097;098;108 | Owner request - disconnect pause and first-rejoin resume, 2026-09-11 | The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries, not new hard prerequisites. |
 | E-677 | related/consumes | 677 -> 084;284;313;328;330 | Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11 | The owner requested ship-specific visited/discovered coordinate knowledge plus independent location-content privacy. Existing ship projections, chart redaction, discovery history, and private scout results are related contracts. |
 | E-678 | related/consumes | 678 -> 677;328;330;331;339;340 | Owner request - ship-specific map knowledge and selected system sharing, 2026-09-11 | The owner requested all-fleet or selected-ship transmission of known scanned system details. Per-ship knowledge, private scouting, discovery persistence, audit, and communication eligibility are related contracts. |
+| E-679 | related/consumes | 679 -> 281;282;283;313;677 | Owner request - random adjacent-node blind jumps, 2026-09-11 | The owner requested random travel to an adjacent map node via blind jump. Locked graph resolution, arrival history, and per-ship knowledge are related contracts; lack of prior destination knowledge must not prevent the blind jump. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate
