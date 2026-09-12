@@ -470,6 +470,41 @@ export function requireWolfAttackWindowRequest(data: {
   };
 }
 
+/** A facilitator's private census annotation is revisioned and clearable. */
+export function requireFacilitatorCensusNoteRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  note?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  targetUid: string;
+  note: string;
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (data.note !== undefined && typeof data.note !== 'string') {
+    throw new HttpsError('invalid-argument', 'note must be text or empty.');
+  }
+  const note = typeof data.note === 'string' ? data.note.trim() : '';
+  if (note.length > 240) {
+    throw new HttpsError('invalid-argument', 'note must be 240 characters or fewer.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    targetUid: requiredId(data.targetUid, 'targetUid'),
+    note,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -37,6 +37,7 @@ import {
   setPressEnabled,
   setGmControlsLocked,
   setFacilitatorResponsibility,
+  setFacilitatorCensusNote,
   applyShipCounterSteps,
   advanceTurn,
   startGame,
@@ -72,6 +73,7 @@ import type {
   SessionEvent,
   WolfAttackWindow,
   WolfAttackWindowStatus,
+  WolfAssignment,
 } from '@/types/game';
 
 interface PlayerRoleGroup {
@@ -259,6 +261,9 @@ export default function GmConsole() {
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
   const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
+  const [wolfAssignment, setWolfAssignment] = useState<WolfAssignment | null>(null);
+  const [censusNotes, setCensusNotes] = useState<Readonly<Record<string, string>>>({});
+  const [censusNoteMutationUid, setCensusNoteMutationUid] = useState<string | null>(null);
   const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
@@ -472,6 +477,7 @@ export default function GmConsole() {
       subscribeDamageDraws,
       subscribeGmInstances,
       subscribeGmWolfAttackWindow,
+      subscribeGmWolfAssignment,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -493,6 +499,10 @@ export default function GmConsole() {
         sessionId,
         (next) => setWolfAttackWindowState((current) =>
           current && next && next.revision < current.revision ? current : next),
+      );
+      const stopWolfAssignment = subscribeGmWolfAssignment(
+        sessionId,
+        setWolfAssignment,
       );
       const stopEvents = subscribeSessionEvents(
         sessionId,
@@ -521,6 +531,7 @@ export default function GmConsole() {
       unsubscribe = () => {
         stopInstances();
         stopWolfAttackWindow();
+        stopWolfAssignment();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -529,8 +540,15 @@ export default function GmConsole() {
     return () => {
       active = false;
       unsubscribe();
+      setWolfAssignment(null);
     };
   }, [isGm, sessionId]);
+
+  useEffect(() => {
+    setCensusNotes(Object.fromEntries(
+      (loyaltyCensus?.entries ?? []).map((entry) => [entry.uid, entry.note ?? '']),
+    ));
+  }, [loyaltyCensus?.entries, loyaltyCensus?.revision]);
 
   useEffect(() => {
     if (!capybaraEnabled && viewerId === 'capybara') setViewerId('aegis');
@@ -1060,6 +1078,18 @@ export default function GmConsole() {
       // The shared interception notice reports the server rejection.
     } finally {
       setWolfWindowMutation(null);
+    }
+  }
+
+  async function saveCensusNote(targetUid: string): Promise<void> {
+    if (!loyaltyCensus || censusNoteMutationUid !== null) return;
+    setCensusNoteMutationUid(targetUid);
+    try {
+      await setFacilitatorCensusNote(targetUid, censusNotes[targetUid] ?? '');
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setCensusNoteMutationUid(null);
     }
   }
 
@@ -1891,7 +1921,7 @@ export default function GmConsole() {
                   <table className="gm-loyalty-census__table">
                     <caption className="sr-only">Private loyalty cards by player identity</caption>
                     <thead>
-                      <tr><th scope="col">Player</th><th scope="col">Loyalty</th><th scope="col">Suspicion</th></tr>
+                      <tr><th scope="col">Player</th><th scope="col">Loyalty</th><th scope="col">Suspicion</th><th scope="col">Facilitator note</th></tr>
                     </thead>
                     <tbody>
                       {loyaltyCensus.entries.map((entry) => (
@@ -1899,12 +1929,47 @@ export default function GmConsole() {
                           <th scope="row">{entry.uid}</th>
                           <td>{entry.kind}</td>
                           <td>{entry.suspicion === null ? 'none' : entry.suspicion}</td>
+                          <td>
+                            <label className="sr-only" htmlFor={`census-note-${entry.uid}`}>
+                              Facilitator note for {entry.uid}
+                            </label>
+                            <textarea
+                              id={`census-note-${entry.uid}`}
+                              maxLength={240}
+                              rows={2}
+                              value={censusNotes[entry.uid] ?? ''}
+                              onChange={(event) => setCensusNotes((current) => ({
+                                ...current,
+                                [entry.uid]: event.target.value,
+                              }))}
+                            />
+                            <button
+                              className="gm-census-note__save"
+                              type="button"
+                              disabled={censusNoteMutationUid !== null}
+                              onClick={() => void saveCensusNote(entry.uid)}
+                            >
+                              {censusNoteMutationUid === entry.uid ? 'Saving…' : 'Save note'}
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               )}
+            </section>
+          )}
+
+          {isGm && wolfAssignment && (
+            <section className="gm-console__module cic-frame gm-wolf-assignment" aria-label="Private Wolf assignment">
+              <h2 className="gm-console__section-title">Private Wolf assignment</h2>
+              <p className="gm-player-roster__hint">Facilitator-only setup secret // hidden role cards</p>
+              <ul>
+                {wolfAssignment.roleIds.map((roleId) => (
+                  <li key={roleId}>{CONSOLE_ROLES.find((role) => role.id === roleId)?.name ?? roleId}</li>
+                ))}
+              </ul>
             </section>
           )}
 

@@ -924,6 +924,30 @@ export async function setFacilitatorResponsibility(
   });
 }
 
+/** Save one bounded facilitator census annotation through the server CAS. */
+export async function setFacilitatorCensusNote(
+  targetUid: string,
+  note: string,
+): Promise<CommandDisposition> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance || !store.gmLoyaltyCensus) {
+    throw new Error('An active GM census is required before saving a note.');
+  }
+  return sendOrQueue({
+    id: commandId(),
+    kind: 'setFacilitatorCensusNote',
+    payload: {
+      sessionId: store.session.id,
+      instanceId: store.gmInstance.id,
+      requestId: commandId(),
+      expectedRevision: store.gmLoyaltyCensus.revision,
+      targetUid,
+      note: note.trim().slice(0, 240),
+    },
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /** Claim a stable role seat through the server-owned CAS transaction. */
 export async function claimSeat(seatId: string): Promise<CommandDisposition> {
   const store = useSessionStore.getState();

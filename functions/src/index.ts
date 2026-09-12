@@ -53,6 +53,7 @@ import {
   requireAirspaceWindowExtensionRequest,
   requireEmergencyTimerPauseRequest,
   requireWolfAttackWindowRequest,
+  requireFacilitatorCensusNoteRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -2026,6 +2027,7 @@ export const startGame = onCall<{
   const instancesRef = db.collection(`sessions/${start.sessionId}/gmInstances`);
   const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
+  const censusRef = db.doc(`sessions/${start.sessionId}/loyaltyCensus/current`);
   const craftOwnershipManifestRef = db.doc(`sessions/${start.sessionId}/craftOwnership/manifest`);
   const markerFingerprint: CommandFingerprint = {
     action: 'start-game',
@@ -2038,7 +2040,7 @@ export const startGame = onCall<{
   };
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -2048,6 +2050,7 @@ export const startGame = onCall<{
       tx.get(secretsRef),
       tx.get(eventRef),
       tx.get(craftOwnershipManifestRef),
+      tx.get(censusRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -2325,6 +2328,7 @@ export const startGame = onCall<{
           ? [{ uid: holder.uid, kind: assignment.kind, suspicion: assignment.suspicion }]
           : [];
       }),
+      census,
     );
     tx.set(db.doc(`sessions/${start.sessionId}/secrets/wolf-assignment`), {
       visibleToUids: gmUids,
@@ -2611,6 +2615,7 @@ export const releaseRole = onCall<{
   const targetBriefRef = db.doc(`sessions/${release.sessionId}/roleBriefs/${release.targetUid}`);
   const playersRef = db.collection(`sessions/${release.sessionId}/players`);
   const secretsRef = db.collection(`sessions/${release.sessionId}/secrets`);
+  const censusRef = db.doc(`sessions/${release.sessionId}/loyaltyCensus/current`);
   const fingerprint: CommandFingerprint = {
     action: 'release-role',
     sessionId: release.sessionId,
@@ -2638,11 +2643,12 @@ export const releaseRole = onCall<{
     );
     if (replay) return { sessionId: replay.sessionId, setupRevision: replay.setupRevision };
     if (legacyEvent.exists) rejectLegacyEventReplay('role release');
-    const [target, targetSecret, players, secrets] = await Promise.all([
+    const [target, targetSecret, players, secrets, census] = await Promise.all([
       tx.get(db.doc(`sessions/${release.sessionId}/players/${release.targetUid}`)),
       tx.get(targetSecretRef),
       tx.get(playersRef),
       tx.get(secretsRef),
+      tx.get(censusRef),
     ]);
     const storedSeatId = target.get('seatId');
     const targetSeatRef = typeof storedSeatId === 'string' && storedSeatId.length > 0
@@ -2715,6 +2721,7 @@ export const releaseRole = onCall<{
       players.docs,
       configuredRoleIds(authority.session),
       removedUids,
+      census,
     );
     tx.update(sessionRef, { setupRevision: result.setupRevision, updatedAt: FieldValue.serverTimestamp() });
     tx.set(eventRef, buildPrivacySafeEventRecord({
@@ -2882,6 +2889,7 @@ type LoyaltyCensusEntry = Readonly<{
   uid: string;
   kind: LoyaltyKind;
   suspicion: number | null;
+  note?: string;
 }>;
 
 function loyaltyCensusEntryFromSecret(
@@ -2919,19 +2927,32 @@ function setLoyaltyCensusFromSecrets(
   players: readonly DocumentSnapshot[],
   activeRoleIds: readonly string[],
   patches: ReadonlyMap<string, LoyaltyCensusEntry | null> = new Map(),
+  previousCensus?: DocumentSnapshot,
 ): void {
+  const previousNotes = censusNotesFromSnapshot(previousCensus);
+  const previousRevision = previousCensus?.exists && Number.isSafeInteger(previousCensus.get('revision')) &&
+    (previousCensus.get('revision') as number) >= 0
+    ? previousCensus.get('revision') as number
+    : -1;
+  const censusRevision = Math.max(revision, previousRevision + 1);
   const entries = new Map<string, LoyaltyCensusEntry>();
   for (const secret of secrets) {
     const entry = loyaltyCensusEntryFromSecret(secret, players, activeRoleIds);
-    if (entry) entries.set(entry.uid, entry);
+    if (entry) {
+      const note = previousNotes.get(entry.uid);
+      entries.set(entry.uid, note ? { ...entry, note } : entry);
+    }
   }
   for (const [uid, entry] of patches) {
-    if (entry) entries.set(uid, entry);
+    if (entry) {
+      const note = entry.note ?? previousNotes.get(uid);
+      entries.set(uid, note ? { ...entry, note } : entry);
+    }
     else entries.delete(uid);
   }
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
-    revision,
+    revision: censusRevision,
     entries: [...entries.values()].sort((left, right) => left.uid.localeCompare(right.uid)),
   });
 }
@@ -2941,13 +2962,176 @@ function setLoyaltyCensusEntries(
   sessionId: string,
   revision: number,
   entries: readonly LoyaltyCensusEntry[],
+  previousCensus?: DocumentSnapshot,
 ): void {
+  const previousNotes = censusNotesFromSnapshot(previousCensus);
+  const previousRevision = previousCensus?.exists && Number.isSafeInteger(previousCensus.get('revision')) &&
+    (previousCensus.get('revision') as number) >= 0
+    ? previousCensus.get('revision') as number
+    : -1;
+  const censusRevision = Math.max(revision, previousRevision + 1);
   tx.set(db.doc(`sessions/${sessionId}/loyaltyCensus/current`), {
     type: 'loyalty-census',
-    revision,
-    entries: [...entries].sort((left, right) => left.uid.localeCompare(right.uid)),
+    revision: censusRevision,
+    entries: entries.map((entry) => {
+      const note = entry.note ?? previousNotes.get(entry.uid);
+      return note ? { ...entry, note } : entry;
+    }).sort((left, right) => left.uid.localeCompare(right.uid)),
   });
 }
+
+function censusNotesFromSnapshot(snapshot: DocumentSnapshot | undefined): Map<string, string> {
+  const notes = new Map<string, string>();
+  if (!snapshot?.exists) return notes;
+  const entries = snapshot.get('entries');
+  if (!Array.isArray(entries)) return notes;
+  for (const rawEntry of entries) {
+    if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) continue;
+    const entry = rawEntry as Record<string, unknown>;
+    if (typeof entry.uid === 'string' && typeof entry.note === 'string' && entry.note.trim()) {
+      notes.set(entry.uid, entry.note.trim().slice(0, 240));
+    }
+  }
+  return notes;
+}
+
+function storedLoyaltyCensusEntries(snapshot: DocumentSnapshot): LoyaltyCensusEntry[] | null {
+  if (!snapshot.exists) return null;
+  const rawEntries = snapshot.get('entries');
+  if (!Array.isArray(rawEntries)) return null;
+  const entries: LoyaltyCensusEntry[] = [];
+  for (const rawEntry of rawEntries) {
+    if (typeof rawEntry !== 'object' || rawEntry === null || Array.isArray(rawEntry)) return null;
+    const entry = rawEntry as Record<string, unknown>;
+    if (
+      typeof entry.uid !== 'string' || !entry.uid ||
+      typeof entry.kind !== 'string' || !entry.kind ||
+      (typeof entry.suspicion !== 'number' && entry.suspicion !== null) ||
+      (entry.note !== undefined && (typeof entry.note !== 'string' || entry.note.length > 240))
+    ) return null;
+    entries.push({
+      uid: entry.uid,
+      kind: entry.kind as LoyaltyKind,
+      suspicion: entry.suspicion,
+      ...(typeof entry.note === 'string' && entry.note.trim() ? { note: entry.note.trim() } : {}),
+    });
+  }
+  return new Set(entries.map((entry) => entry.uid)).size === entries.length ? entries : null;
+}
+
+type FacilitatorCensusNoteResult = Readonly<{
+  sessionId: string;
+  targetUid: string;
+  revision: number;
+  note: string;
+}>;
+
+function isFacilitatorCensusNoteResult(value: unknown, sessionId: string): value is FacilitatorCensusNoteResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  return result.sessionId === sessionId &&
+    typeof result.targetUid === 'string' &&
+    Number.isSafeInteger(result.revision) && (result.revision as number) >= 0 &&
+    typeof result.note === 'string' && result.note.length <= 240;
+}
+
+/** Save a facilitator-only census note without publishing private facts. */
+export const setFacilitatorCensusNote = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  targetUid?: unknown;
+  note?: unknown;
+}>(async (request) => {
+  const uid = requireUid(request.auth);
+  const change = requireFacilitatorCensusNoteRequest(request.data ?? {});
+  const censusRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/loyaltyCensus/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-facilitator-census-note',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: change.expectedRevision,
+    payload: { targetUid: change.targetUid, note: change.note },
+  };
+
+  return db.runTransaction(async (tx): Promise<FacilitatorCensusNoteResult> => {
+    const [authority, census, receipt, audit] = await Promise.all([
+      requireFacilitatorInstance(tx, change.sessionId, uid, change.instanceId),
+      tx.get(censusRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    await rejectForeignLegacyM1Command(
+      tx, change.sessionId, change.requestId, 'facilitator census note', [],
+    );
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is FacilitatorCensusNoteResult => isFacilitatorCensusNoteResult(value, change.sessionId),
+      'facilitator census note',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('facilitator census note');
+    if (authority.session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    const currentRevision = census.exists && Number.isSafeInteger(census.get('revision')) &&
+      (census.get('revision') as number) >= 0
+      ? census.get('revision') as number
+      : 0;
+    if (!census.exists || currentRevision !== change.expectedRevision) {
+      throw commandError(
+        'failed-precondition',
+        'The facilitator census changed. Wait for the live census and try again.',
+        'stale-revision',
+      );
+    }
+    const entries = storedLoyaltyCensusEntries(census);
+    if (!entries) {
+      throw commandError('failed-precondition', 'The facilitator census is malformed; refresh before retrying.', 'malformed-input');
+    }
+    if (!entries.some((entry) => entry.uid === change.targetUid)) {
+      throw commandError('failed-precondition', 'That identity is not currently in the facilitator census.', 'conflict');
+    }
+    const nextRevision = currentRevision + 1;
+    const nextEntries = entries.map((entry) => {
+      if (entry.uid !== change.targetUid) return entry;
+      return change.note ? { ...entry, note: change.note } : (() => {
+        const withoutNote = { ...entry };
+        delete withoutNote.note;
+        return withoutNote;
+      })();
+    });
+    const result: FacilitatorCensusNoteResult = {
+      sessionId: change.sessionId,
+      targetUid: change.targetUid,
+      revision: nextRevision,
+      note: change.note,
+    };
+    tx.set(censusRef, {
+      type: 'loyalty-census',
+      revision: nextRevision,
+      entries: nextEntries,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(auditRef, {
+      type: 'loyalty-census-note',
+      action: change.note ? 'set' : 'clear',
+      targetUid: change.targetUid,
+      revision: nextRevision,
+      actorUid: uid,
+      instanceId: change.instanceId,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result, createdAt: FieldValue.serverTimestamp() });
+    return result;
+  });
+});
 
 function canonicalLoyaltySecret(
   secret: DocumentSnapshot,
@@ -3041,6 +3225,7 @@ export const assignLoyalty = onCall<{
       partnerUid: fingerprint.partnerUid,
     },
   };
+  const censusRef = db.doc(`sessions/${assignment.sessionId}/loyaltyCensus/current`);
 
   return db.runTransaction(async (tx): Promise<CastingMutationResult & { assignedUids: readonly string[] }> => {
     // Authorize before replay. The receipt is server-only; the public event is
@@ -3088,13 +3273,14 @@ export const assignLoyalty = onCall<{
     }
     if (legacyEvent.exists) rejectLegacyEventReplay('loyalty assignment');
 
-    const [target, partner, players, secrets, targetSecret, partnerSecret] = await Promise.all([
+    const [target, partner, players, secrets, targetSecret, partnerSecret, census] = await Promise.all([
       tx.get(targetRef),
       partnerRef ? tx.get(partnerRef) : Promise.resolve(undefined),
       tx.get(playersRef),
       tx.get(secretsRef),
       tx.get(targetSecretRef),
       partnerSecretRef ? tx.get(partnerSecretRef) : Promise.resolve(undefined),
+      tx.get(censusRef),
     ]);
     requireCastingWindow(authority.session);
     const activeRoleIds = configuredRoleIds(authority.session);
@@ -3236,6 +3422,7 @@ export const assignLoyalty = onCall<{
       playerDocuments,
       activeRoleIds,
       censusPatches,
+      census,
     );
     tx.update(sessionRef, {
       phase: 'casting',
@@ -3793,8 +3980,9 @@ export const claimGmInstance = onCall<{
   );
   const playersRef = db.collection(`sessions/${claim.sessionId}/players`);
   const secretsRef = db.collection(`sessions/${claim.sessionId}/secrets`);
+  const censusRef = db.doc(`sessions/${claim.sessionId}/loyaltyCensus/current`);
   await db.runTransaction(async (tx) => {
-    const [access, session, player, existing, activeInstances, players, secrets] = await Promise.all([
+    const [access, session, player, existing, activeInstances, players, secrets, census] = await Promise.all([
       tx.get(accessRef),
       tx.get(sessionRef),
       tx.get(playerRef),
@@ -3802,6 +3990,7 @@ export const claimGmInstance = onCall<{
       tx.get(instancesRef),
       tx.get(playersRef),
       tx.get(secretsRef),
+      tx.get(censusRef),
     ]);
     if (!access.exists || !isGmAccessActive(access.get('authenticatedAt'))) {
       throw new HttpsError('permission-denied', 'Log in to GM access before claiming the GM console.');
@@ -3846,6 +4035,7 @@ export const claimGmInstance = onCall<{
           players.docs,
           configuredRoleIds(session),
           new Map([[uid, null]]),
+          census,
         );
       }
       if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {
@@ -3990,6 +4180,7 @@ async function removePlayer(
         playersSnapshot.docs,
         configuredRoleIds(session),
         new Map([[action.targetUid, null]]),
+        census,
       );
     }
     if (
@@ -4077,6 +4268,7 @@ export const setPressEnabled = onCall<{
   const playersRef = db.collection(`sessions/${setting.sessionId}/players`);
   const secretsRef = db.collection(`sessions/${setting.sessionId}/secrets`);
   const wolfSecretRef = db.doc(`sessions/${setting.sessionId}/secrets/wolf-assignment`);
+  const censusRef = db.doc(`sessions/${setting.sessionId}/loyaltyCensus/current`);
   const fingerprint: CommandFingerprint = {
     action: 'set-press-availability',
     sessionId: setting.sessionId,
@@ -4088,7 +4280,7 @@ export const setPressEnabled = onCall<{
   };
 
   const result = await db.runTransaction(async (tx) => {
-    const [session, player, instance, players, secrets, receipt, legacyEvent, wolfSecret] = await Promise.all([
+    const [session, player, instance, players, secrets, receipt, legacyEvent, wolfSecret, census] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(instanceRef),
@@ -4097,6 +4289,7 @@ export const setPressEnabled = onCall<{
       tx.get(receiptRef),
       tx.get(eventRef),
       tx.get(wolfSecretRef),
+      tx.get(censusRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     const liveInstance = instance.exists
@@ -4186,6 +4379,7 @@ export const setPressEnabled = onCall<{
           players.docs,
           configuredRoleIds(session),
           new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
+          census,
         );
       }
     }
@@ -5311,6 +5505,7 @@ export const refreshPresence = onCall<{
   const playersRef = db.collection(`sessions/${sessionId}/players`);
   const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
+  const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
   await db.runTransaction(async (tx) => {
     const requestedRoleId = typeof request.data?.activeConsoleRoleId === 'string'
       ? request.data.activeConsoleRoleId
@@ -5319,7 +5514,7 @@ export const refreshPresence = onCall<{
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, holders, pressHolders, wolfSecret, players, secrets] = await Promise.all([
+    const [player, session, holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
       tx.get(playerRef),
       tx.get(sessionRef),
       roleHolders ? tx.get(roleHolders) : null,
@@ -5327,6 +5522,7 @@ export const refreshPresence = onCall<{
       tx.get(wolfSecretRef),
       tx.get(playersRef),
       tx.get(secretsRef),
+      tx.get(censusRef),
     ]);
     if (!isActivePlayer(player)) {
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
@@ -5448,6 +5644,7 @@ export const refreshPresence = onCall<{
         players.docs,
         configuredRoleIds(session),
         new Map([...removedLoyaltyUids].map((removedUid) => [removedUid, null])),
+        census,
       );
     }
     tx.update(playerRef, presenceUpdate);
@@ -5474,9 +5671,10 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
   const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
   const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
   const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
+  const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
 
   await db.runTransaction(async (tx) => {
-    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets] = await Promise.all([
+    const [sessionDoc, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
@@ -5485,6 +5683,7 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
       tx.get(wolfSecretRef),
       tx.get(allPlayers),
       tx.get(secretsRef),
+      tx.get(censusRef),
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
@@ -5511,6 +5710,7 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
           playerSnapshot.docs,
           configuredRoleIds(sessionDoc),
           new Map([[uid, null]]),
+          census,
         );
       }
       if (sessionDoc.get('pressHolderUid') === uid || sessionDoc.get('pressHolderUid') === undefined) {
@@ -5580,8 +5780,9 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
     const secretsRef = db.collection(`sessions/${sessionId}/secrets`);
     const gmInstances = db.collection(`sessions/${sessionId}/gmInstances`);
     const wolfSecretRef = db.doc(`sessions/${sessionId}/secrets/wolf-assignment`);
+    const censusRef = db.doc(`sessions/${sessionId}/loyaltyCensus/current`);
     await db.runTransaction(async (tx) => {
-      const [session, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets] = await Promise.all([
+      const [session, player, membership, connected, ownedInstances, wolfSecret, playerSnapshot, secrets, census] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
@@ -5590,6 +5791,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
         tx.get(wolfSecretRef),
         tx.get(allPlayers),
         tx.get(secretsRef),
+        tx.get(censusRef),
       ]);
       const lastSeenAt = player.get('lastSeenAt') as Timestamp | undefined;
       if (
@@ -5622,6 +5824,7 @@ export const expireStalePlayers = onSchedule('* * * * *', async () => {
             playerSnapshot.docs,
             configuredRoleIds(session),
             new Map([[uid, null]]),
+            census,
           );
         }
         if (session.get('pressHolderUid') === uid || session.get('pressHolderUid') === undefined) {

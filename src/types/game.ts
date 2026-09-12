@@ -344,6 +344,11 @@ export interface SetupReceipt {
   readonly event: string;
 }
 
+/** Facilitator-only role assignment selected during authoritative game setup. */
+export interface WolfAssignment {
+  readonly roleIds: readonly RoleId[];
+}
+
 export interface RoleOwnedCraftRecord {
   readonly id: string;
   readonly kind: 'shuttle' | 'fighter-wing';
@@ -374,6 +379,8 @@ export interface LoyaltyCensusEntry {
   readonly uid: PlayerId;
   readonly kind: string;
   readonly suspicion: number | null;
+  /** Optional facilitator annotation; never included in member projections. */
+  readonly note?: string;
 }
 
 export interface LoyaltyCensus {

@@ -38,6 +38,7 @@ import type {
   SetupReceipt,
   UnrestAlert,
   WolfAttackWindow,
+  WolfAssignment,
 } from '@/types/game';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -192,12 +193,27 @@ function loyaltyCensus(value: unknown): LoyaltyCensus | null {
     const candidate = entry as Record<string, unknown>;
     const uid = parseEntityId('player', candidate.uid);
     if (!uid || typeof candidate.kind !== 'string' ||
-        (typeof candidate.suspicion !== 'number' && candidate.suspicion !== null)) return [];
-    return [{ uid, kind: candidate.kind, suspicion: candidate.suspicion }];
+        (typeof candidate.suspicion !== 'number' && candidate.suspicion !== null) ||
+        (candidate.note !== undefined && typeof candidate.note !== 'string')) return [];
+    return [{
+      uid,
+      kind: candidate.kind,
+      suspicion: candidate.suspicion,
+      ...(typeof candidate.note === 'string' && candidate.note.trim() ? { note: candidate.note.trim() } : {}),
+    }];
   });
   if (entries.length !== raw.entries.length ||
       new Set(entries.map((entry) => entry.uid)).size !== entries.length) return null;
   return { revision: raw.revision, entries };
+}
+
+function wolfAssignment(value: unknown): WolfAssignment | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const roleIds = parseEntityIdArray('role', raw.roleIds);
+  if (raw.type !== 'wolf-assignment' || !roleIds || roleIds.length < 1 || roleIds.length > 2 ||
+      new Set(roleIds).size !== roleIds.length) return null;
+  return { roleIds };
 }
 
 function setupReceipt(value: unknown): SetupReceipt | null {
@@ -848,6 +864,29 @@ export function subscribeGmWolfAttackWindow(
     subscribed = false;
     unsubscribe();
     onWindow(null);
+  };
+}
+
+/** Subscribe to the existing setup secret that lists the hidden Wolf roles. */
+export function subscribeGmWolfAssignment(
+  sessionId: string,
+  onAssignment: (assignment: WolfAssignment | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/secrets/wolf-assignment`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onAssignment(snapshot.exists() ? wolfAssignment(snapshot.get('payload')) : null);
+    },
+    () => {
+      if (subscribed) onAssignment(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onAssignment(null);
   };
 }
 

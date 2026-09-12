@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**114 / 747 prompts complete (15.26%)**
+**115 / 747 prompts complete (15.39%)**
 
-Status breakdown: **114 done · 9 partial · 624 missing**.
+Status breakdown: **115 done · 8 partial · 624 missing**.
 
 Active prompt: **none**
 
@@ -496,7 +496,7 @@ release classification and evidence.
 | 083 | done | non-feature | — | Member/nonmember snapshot rules tests. |
 | 084 | done | feature | 0.3.5 | Ship consoles now consume a typed allowlisted projection of selected public vessel state; private role briefs and loyalty remain on protected paths. |
 | 085 | done | feature | 0.3.42 | The session listener clears replaced private projections and ignores stale callbacks, so reconnect restores only the current player's role and loyalty state. |
-| 086 | partial | feature | 0.3.5 | GM reads exist; census/suspicion/note projection remains incomplete. |
+| 086 | done | feature | 0.3.43 | The GM console now restores the existing hidden Wolf assignment and a revisioned, replay-safe facilitator census with editable notes; member projections remain denied and census rebuilds preserve notes only for the same current identity. |
 | 087 | done | non-feature | — | Broad direct-write denial matrix in rules tests. |
 | 088 | partial | non-feature | — | Revision parsing exists; universal delayed-snapshot ordering remains open. |
 | 089 | missing | non-feature | — | General event replay/reconstruction remains open. |

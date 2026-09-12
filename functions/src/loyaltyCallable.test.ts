@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   partner: { connected: true, role: 'player', assignedRoleId: 'admiral' },
   instance: { uid: 'u1' },
   loyaltySecrets: [] as Array<{ id: string; fields: Record<string, unknown> }>,
+  census: undefined as Record<string, unknown> | undefined,
   priorResults: {} as Record<string, Record<string, unknown>>,
   players: [] as Array<{ id: string; fields: Record<string, unknown> }>,
 }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   mock.partner = { connected: true, role: 'player', assignedRoleId: 'admiral' };
   mock.instance = { uid: 'u1' };
   mock.loyaltySecrets = [];
+  mock.census = undefined;
   mock.priorResults = {};
   mock.players = [
     { id: 'u1', fields: mock.actor },
@@ -75,6 +77,9 @@ beforeEach(() => {
         exists: true,
         docs: mock.loyaltySecrets.map(({ id, fields }) => snapshot(fields, `sessions/s1/secrets/${id}`)),
       };
+    }
+    if (ref.path === 'sessions/s1/loyaltyCensus/current' && mock.census) {
+      return snapshot(mock.census, ref.path);
     }
     const loyaltySecret = mock.loyaltySecrets.find(({ id }) => ref.path === `sessions/s1/secrets/${id}`);
     if (loyaltySecret) return snapshot(loyaltySecret.fields, ref.path);
@@ -167,6 +172,37 @@ it('retains a disconnected core loyalty when an unrelated assignment rebuilds th
   expect(censusWrite?.entries).toEqual(expect.arrayContaining([
     { uid: 'u2', kind: 'fleet-loyalist', suspicion: 5 },
     { uid: 'u3', kind: 'android', suspicion: null },
+  ]));
+});
+
+it('preserves a facilitator note for the same UID when loyalty census rebuilds', async () => {
+  mock.census = {
+    type: 'loyalty-census', revision: 2,
+    entries: [{ uid: 'u2', kind: 'fleet-loyalist', suspicion: 5, note: 'Keep this identity under review' }],
+  };
+  mock.loyaltySecrets = [{
+    id: 'loyalty-u2',
+    fields: {
+      visibleToUids: ['u2'],
+      payload: { type: 'loyalty', kind: 'fleet-loyalist', suspicion: 5 },
+    },
+  }];
+  mock.players = [
+    { id: 'u1', fields: mock.actor },
+    { id: 'u2', fields: mock.target },
+    { id: 'u3', fields: { ...mock.partner, assignedRoleId: 'admiral' } },
+  ];
+
+  await expect(assignLoyalty.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'preserve-census-note',
+    targetUid: 'u3', kind: 'android', suspicion: null,
+  }))).resolves.toEqual({ sessionId: 's1', setupRevision: 3, assignedUids: ['u3'] });
+
+  const censusWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/loyaltyCensus/current',
+  )?.[1] as { entries: Array<Record<string, unknown>> } | undefined;
+  expect(censusWrite?.entries).toEqual(expect.arrayContaining([
+    { uid: 'u2', kind: 'fleet-loyalist', suspicion: 5, note: 'Keep this identity under review' },
   ]));
 });
 

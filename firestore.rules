@@ -114,6 +114,11 @@ service cloud.firestore {
       match /loyaltyCensus/{projectionId} {
         allow get: if projectionId == 'current' && isGm(sessionId);
         allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if projectionId == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
       }
 
       // The approximate Wolf-attack timing marker and its audit trail are

@@ -113,6 +113,10 @@ beforeEach(async () => {
       visibleToUids: ['gm1'],
       payload: { type: 'setup-receipt', source: 'routine-start' },
     });
+    await setDoc(doc(db, `${SESSION}/secrets/wolf-assignment`), {
+      visibleToUids: ['gm1'],
+      payload: { type: 'wolf-assignment', roleIds: ['admiral'] },
+    });
     await setDoc(doc(db, `${SESSION}/roleBriefs/alice`), {
       type: 'role-brief',
       sessionId: 's1',
@@ -195,6 +199,11 @@ describe('session header', () => {
     await assertFails(getDoc(playerCensus));
     await assertFails(getDocs(collection(as('gm1'), `${SESSION}/loyaltyCensus`)));
     await assertFails(setDoc(gmCensus, { type: 'loyalty-census', revision: 99, entries: [] }));
+    await assertSucceeds(getDocs(collection(as('gm1'), `${SESSION}/loyaltyCensus/current/audit`)));
+    await assertFails(getDocs(collection(as('alice'), `${SESSION}/loyaltyCensus/current/audit`)));
+    await assertFails(setDoc(doc(as('gm1'), `${SESSION}/loyaltyCensus/current/audit/note-1`), {
+      type: 'loyalty-census-note',
+    }));
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
@@ -648,16 +657,20 @@ describe('secrets', () => {
 
   it('are readable by an allowlisted active GM', async () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/wolf-assignment`)));
+    await assertFails(getDoc(doc(as('alice'), `${SESSION}/secrets/wolf-assignment`)));
   });
 
   it('revokes GM-private reads after the allowlisted GM is demoted', async () => {
     await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertSucceeds(getDoc(doc(as('gm1'), `${SESSION}/secrets/wolf-assignment`)));
 
     await env.withSecurityRulesDisabled(async (ctx) => {
       await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { role: 'player' });
     });
 
     await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/setup-receipt-start-1`)));
+    await assertFails(getDoc(doc(as('gm1'), `${SESSION}/secrets/wolf-assignment`)));
     await assertFails(getDocs(query(
       collection(as('gm1'), `${SESSION}/secrets`),
       where('visibleToUids', 'array-contains', 'gm1'),

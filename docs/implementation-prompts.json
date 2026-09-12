@@ -357,6 +357,13 @@
       "language": "The authenticated session listener hydrates only the current UID's role brief and loyalty projection, clears private projections when its session/UID subscription is replaced or removed, and ignores delayed callbacks from an older listener. Assignment UID and role guards remain in the App layer; protected roleBrief and loyalty paths remain rules enforced.",
       "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/App.tsx; src/App.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "086 -> M1-FACILITATOR-PRIVATE",
+      "id": "E-086-FACILITATOR-PRIVATE",
+      "language": "The existing wolf-assignment secret now hydrates a typed GM-only projection. The facilitator loyalty census accepts bounded optional notes, and an authorized revisioned callable persists, audits, replays, and clears those notes without publishing a member event. Census rebuilds preserve notes for the same current UID and removal patches drop them; callable, lifecycle, client, GM-console, and rules tests cover authorization, stale/replay behavior, teardown, and member denial.",
+      "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/censusNoteCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2428,8 +2435,8 @@
         "acceptance": "authorized facilitators regain census, suspicion, notes, and hidden resolution state while members remain denied.",
         "title": "Refresh facilitator-private state."
       },
-      "description": "GM reads exist; census/suspicion/note projection remains incomplete.",
-      "evidenceIds": "none",
+      "description": "The GM console now restores the existing hidden Wolf assignment and a revisioned, replay-safe facilitator census with editable notes; member projections remain denied and census rebuilds preserve notes only for the same current identity.",
+      "evidenceIds": "E-086-FACILITATOR-PRIVATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2438,11 +2445,11 @@
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
       "releases": [
-        "0.3.5"
+        "0.3.43"
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

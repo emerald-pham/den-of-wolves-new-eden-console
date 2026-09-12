@@ -1460,6 +1460,38 @@ body {
   font-weight: 600;
 }
 
+.gm-loyalty-census__table textarea {
+  box-sizing: border-box;
+  width: min(18rem, 100%);
+  min-width: 10rem;
+  resize: vertical;
+  background: var(--cic-void);
+  color: var(--cic-ink);
+  border: 1px solid var(--cic-rule);
+  padding: 0.4rem;
+  font: 0.72rem/1.4 var(--cic-mono);
+  text-transform: none;
+}
+
+.gm-census-note__save {
+  display: block;
+  min-height: 2rem;
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--cic-amber-dim);
+  background: transparent;
+  color: var(--cic-amber);
+  font: 0.6rem/1.2 var(--cic-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gm-census-note__save:hover:not(:disabled),
+.gm-census-note__save:focus-visible {
+  border-color: var(--cic-amber);
+  color: var(--cic-scream);
+}
+
 .gm-console {
   width: 100%;
   max-width: none;

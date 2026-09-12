@@ -31,6 +31,7 @@ const {
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
   subscribeGmWolfAttackWindow,
+  subscribeGmWolfAssignment,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -485,6 +486,35 @@ it('hydrates the facilitator-only Wolf timing marker and rejects malformed state
   expect(onWindow).toHaveBeenLastCalledWith(null);
   unsubscribe();
   expect(onWindow).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates only the typed facilitator Wolf assignment and clears after teardown', () => {
+  const { callbacks } = captureSessionListener();
+  const onAssignment = vi.fn();
+  const unsubscribe = subscribeGmWolfAssignment('s1', onAssignment);
+
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    get: () => ({ type: 'wolf-assignment', roleIds: ['admiral'] }),
+  });
+  expect(onAssignment).not.toHaveBeenCalled();
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'wolf-assignment', roleIds: ['admiral', 'wing-commander'], privateBrief: 'omit' }),
+  });
+  expect(onAssignment).toHaveBeenCalledWith({ roleIds: ['admiral', 'wing-commander'] });
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    get: () => ({ type: 'wolf-assignment', roleIds: ['roles/admiral'] }),
+  });
+  expect(onAssignment).toHaveBeenLastCalledWith(null);
+  unsubscribe();
+  expect(onAssignment).toHaveBeenLastCalledWith(null);
 });
 
 it('drops malformed player identities from private loyalty and setup receipt projections', () => {

@@ -30,6 +30,7 @@ vi.mock('@/lib/sessionService', () => ({
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
+  setFacilitatorCensusNote: vi.fn(),
   applyShipCounterSteps: vi.fn(),
   triggerDradisContact: vi.fn(),
 }));
@@ -38,15 +39,16 @@ vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
   subscribeGmWolfAttackWindow: vi.fn(),
+  subscribeGmWolfAssignment: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, applyShipCounterSteps, triggerDradisContact } =
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -96,6 +98,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
     onWindow(null);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
+    onAssignment(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -162,6 +168,28 @@ it('shows the facilitator-only loyalty census without exposing private card extr
   expect(census).toHaveTextContent('wolf-agent');
   expect(census).toHaveTextContent('10');
   expect(census).not.toHaveTextContent(/brief|notes|link|proof/i);
+});
+
+it('renders and saves facilitator notes and hydrates the hidden Wolf assignment', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  useSessionStore.getState().setGmLoyaltyCensus({
+    revision: 7,
+    entries: [{ uid: 'u2', kind: 'wolf-agent', suspicion: 10, note: 'Watch the transfer window' }],
+  });
+  vi.mocked(setFacilitatorCensusNote).mockResolvedValue('applied');
+  vi.mocked(subscribeGmWolfAssignment).mockImplementation((_sessionId, onAssignment) => {
+    onAssignment({ roleIds: ['admiral'] });
+    return vi.fn();
+  });
+  streamInstances([local]);
+  renderConsole();
+
+  const census = await screen.findByRole('region', { name: 'Private loyalty census' });
+  expect(within(census).getByLabelText('Facilitator note for u2')).toHaveValue('Watch the transfer window');
+  await user.click(within(census).getByRole('button', { name: 'Save note' }));
+  expect(setFacilitatorCensusNote).toHaveBeenCalledWith('u2', 'Watch the transfer window');
+  expect(await screen.findByRole('region', { name: 'Private Wolf assignment' })).toHaveTextContent('Admiral');
 });
 
 it('returns to role selection', async () => {

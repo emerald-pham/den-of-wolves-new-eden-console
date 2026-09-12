@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['086'],
+    implementationProgress: {
+      completed: 115,
+      total: 747,
+      percentage: '15.39%',
+      done: 115,
+      partial: 8,
+      active: 0,
+      missing: 624,
+    },
+    changes: [
+      'Facilitators can now restore the hidden Wolf assignment and keep private census notes for the right player as the session reconnects or updates. 115 of 747 planned items are complete (15.39%).',
+    ],
+  },
+  {
+    version: '0.3.42',
     implementationPrompts: ['085'],
     implementationProgress: {
       completed: 114,
