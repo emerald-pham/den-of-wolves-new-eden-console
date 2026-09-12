@@ -224,6 +224,13 @@
       "language": "The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries, not new hard prerequisites.",
       "source": "Owner request - GM ship-console observation and confirmed intervention, 2026-09-11",
       "type": "related/consumes"
+    },
+    {
+      "direction": "675 -> 097;098;108",
+      "id": "E-675",
+      "language": "The owner requested automatic empty-session pause and corrected restart to resume. Existing exact timer pause, idempotent expiry, and server-time reconnect contracts are related implementation boundaries, not new hard prerequisites.",
+      "source": "Owner request - disconnect pause and first-rejoin resume, 2026-09-11",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -17371,6 +17378,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "REPAIR"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "When authoritative session presence determines that everyone has disconnected, automatically pause a running session timer and persist its exact remaining time. As soon as the first authenticated participant rejoins, resume that automatically paused timer from the preserved remaining time, never restart its full duration. Use existing authoritative disconnect/expiry and reconnect paths rather than a browser-local clock or arbitrary new grace period. Track the automatic empty-session pause separately from a manual or emergency GM pause; rejoining must not undo a deliberate pause or resume a completed or closed phase/session. Serialize concurrent disconnects, rejoins, timer expiry, and manual pause changes so there is one transition and no duplicate time, skipped expiry, stale overwrite, or unauthorized mutation. All clients converge on the resumed server clock. Prove last-person disconnect, abrupt loss detection, first-person rejoin, multiple simultaneous rejoins, offline hydration, manual-pause preservation, and exact remaining-time continuity with focused presence/timer tests.",
+        "title": "Pause an empty session timer and resume when someone rejoins."
+      },
+      "description": "Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority.",
+      "evidenceIds": "E-675",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "675",
+      "milestoneHints": "none",
+      "relatedConsumes": "097;098;108",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [
