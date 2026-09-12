@@ -14,4 +14,11 @@ export default defineSupplementalVessel({
   description: 'The damaged approaching vessel identity used by the Voyage 33-0 crisis path.',
   flag: gliese,
   color: 'var(--cic-faction-gliese)',
+  printedStatistics: {
+    capacity: null,
+    population: 40_000,
+    jumpCosts: { short: 1, medium: 1, long: 2 },
+    reactorCapacity: 1,
+    maintenanceSteps: [1, 2, 3, 4],
+  },
 });

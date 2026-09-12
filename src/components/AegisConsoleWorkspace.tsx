@@ -13,6 +13,7 @@ import {
   type AegisCraft,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
+import aegis from '@/data/vessels/aegis';
 import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
@@ -67,9 +68,9 @@ function SystemCard({
         currentCoordinate={galacticCoordinate}
         fuel={fuel}
         jumpCosts={[
-          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
-          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
-          AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
+          aegis.printedStatistics.jumpCosts.short,
+          aegis.printedStatistics.jumpCosts.medium,
+          aegis.printedStatistics.jumpCosts.long,
         ]}
         charged={charged}
         damaged={damaged}
@@ -222,6 +223,7 @@ function FighterWingCard({
 
 function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
+  const printedStatistics = aegis.printedStatistics;
   const session = useSessionStore((state) => state.session);
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
@@ -236,8 +238,8 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
       title={page === 'systems' ? 'Ship systems' : 'Navigation'}
       galacticCoordinate={galacticCoordinate}
       fuel={fuel}
-      reactorCapacity={console.reactorCapacity}
-      jumpCosts={[console.jumpCosts.short, console.jumpCosts.medium, console.jumpCosts.long]}
+      reactorCapacity={printedStatistics.reactorCapacity}
+      jumpCosts={[printedStatistics.jumpCosts.short, printedStatistics.jumpCosts.medium, printedStatistics.jumpCosts.long]}
       damage={damage}
       pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
       activePage={page} onPageChange={setPage}
@@ -303,11 +305,11 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
       title={page === 'flight' ? 'Flight group' : page === 'combat' ? 'Combat doctrine' : 'Navigation'}
       galacticCoordinate={galacticCoordinate} fuel={fuel}
-      reactorCapacity={AEGIS_ROLE_CONSOLES.admiral.reactorCapacity}
+      reactorCapacity={aegis.printedStatistics.reactorCapacity}
       jumpCosts={[
-        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
-        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
-        AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
+        aegis.printedStatistics.jumpCosts.short,
+        aegis.printedStatistics.jumpCosts.medium,
+        aegis.printedStatistics.jumpCosts.long,
       ]} damage={damage}
       telemetry={<div><dt>Flight assets</dt><dd>{console.craft.length}</dd></div>}
       pages={[{ id: 'flight', label: 'Flight group' }, { id: 'combat', label: 'Combat doctrine' }, { id: 'navigation', label: 'Navigation' }]} activePage={page} onPageChange={setPage}>

@@ -14,4 +14,11 @@ export default defineSupplementalVessel({
   description: 'An optional frigate auxiliary vessel for an expanded fleet line-up.',
   flag: icn,
   color: 'var(--cic-faction-icn)',
+  printedStatistics: {
+    capacity: null,
+    population: 1_000,
+    jumpCosts: { short: 1, medium: 1, long: 2 },
+    reactorCapacity: 2,
+    maintenanceSteps: [1, 2, 3, 4],
+  },
 });

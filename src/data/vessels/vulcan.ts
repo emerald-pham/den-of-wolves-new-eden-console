@@ -14,4 +14,11 @@ export default defineSupplementalVessel({
   description: 'An optional prison vessel auxiliary for an expanded fleet line-up.',
   flag: proxima,
   color: 'var(--cic-faction-proxima)',
+  printedStatistics: {
+    capacity: null,
+    population: 15_000,
+    jumpCosts: { short: 1, medium: 1, long: 2 },
+    reactorCapacity: 2,
+    maintenanceSteps: [1, 2, 3, 4],
+  },
 });

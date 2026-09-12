@@ -8,7 +8,6 @@ import AssignedShuttlecraft from './AssignedShuttlecraft';
 import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
-import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
@@ -53,14 +52,7 @@ export default function FleetSystemsWorkspace({
   const session = useSessionStore((state) => state.session);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
   const maintenance = ship.maintenance;
-  const commandMetrics = maintenance ?? {
-    reactor: AEGIS_ROLE_CONSOLES.admiral.reactorCapacity,
-    jump: [
-      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.short,
-      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.medium,
-      AEGIS_ROLE_CONSOLES.admiral.jumpCosts.long,
-    ],
-  };
+  const commandMetrics = ship.printedStatistics;
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
   const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[ship.id];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[ship.id] ?? [];
@@ -82,7 +74,7 @@ export default function FleetSystemsWorkspace({
         shipName={ship.name}
         currentCoordinate={galacticCoordinate}
         fuel={fuel}
-        jumpCosts={commandMetrics.jump}
+        jumpCosts={[commandMetrics.jumpCosts.short, commandMetrics.jumpCosts.medium, commandMetrics.jumpCosts.long]}
         charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
         damaged={damaged}
         upgraded={upgrades.includes('jump-drive')}
@@ -101,7 +93,9 @@ export default function FleetSystemsWorkspace({
   return <FleetRoleConsoleTemplate shipName={ship.name} roleName={role.name}
     title={page === 'systems' ? 'Ship systems' : 'Navigation'}
     galacticCoordinate={galacticCoordinate} fuel={fuel}
-    reactorCapacity={commandMetrics.reactor} jumpCosts={commandMetrics.jump} damage={damage}
+    reactorCapacity={commandMetrics.reactorCapacity}
+    jumpCosts={[commandMetrics.jumpCosts.short, commandMetrics.jumpCosts.medium, commandMetrics.jumpCosts.long]}
+    damage={damage}
     pages={[{ id: 'systems', label: 'Ship systems' }, { id: 'navigation', label: 'Navigation' }]}
     activePage={page} onPageChange={setPage}>
     {page === 'navigation' ? <ShipNavigationWorkspace

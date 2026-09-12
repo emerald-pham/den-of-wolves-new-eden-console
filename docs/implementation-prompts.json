@@ -779,6 +779,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "162 -> VESSEL-STATISTICS",
+      "id": "E-AUDIT-162-STATS",
+      "language": "The shared typed vessel registration and statistics profile records source-aligned identity, capacity applicability, population, jump costs, Reactor capacity, and maintenance-step ranges for every registered full and supplemental vessel. Full-ship population/specification consumers and ship console telemetry read the profile; supplemental profiles remain metadata-only until their gameplay prompts land.",
+      "source": "src/data/vessels/templates.ts; src/data/vessels/aegis.ts; src/data/vessels/gorgoneion.ts; src/data/vessels/capybara-small.ts; src/data/vessels/warrior.ts; src/data/vessels/vulcan.ts; src/data/vessels/voyage-33-0.ts; src/data/shipPopulation.ts; src/components/FleetSystemsWorkspace.tsx; src/components/AegisConsoleWorkspace.tsx; src/data/vesselTemplates.test.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "164 -> 161;162",
       "id": "E-AUDIT-164",
       "language": "Cargo permissions are typed by registered vessels and their printed statistics.",
@@ -8332,8 +8339,8 @@
         "acceptance": "nation, class, capacity, population, jump costs, Reactor capacity, and maintenance steps match each sheet.",
         "title": "Encode printed vessel statistics."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-162",
+      "description": "The shared typed vessel registration and statistics profile records the printed nation/class identity, full-ship capacity, population, jump costs, Reactor capacity, and maintenance-step range for all seven full vessel sheets. It also records applicable population, jump, Reactor, and steps 1–4 metadata for Gorgoneion, base-game Capybara, Warrior, Vulcan, and Voyage 33-0 while explicitly marking their independent crew/passenger capacity as unavailable. Full-ship population/specification catalogs and shared ship-console telemetry read the profile; supplemental entries remain metadata-only until their gameplay prompts land. Focused cross-vessel tests match the routed printed values and preserve the expansion/base Capybara distinction. Foundational catalog implementation; no player release because no current player/runtime consumer behavior changes.",
+      "evidenceIds": "E-AUDIT-162;E-AUDIT-162-STATS",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161",
@@ -8344,7 +8351,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

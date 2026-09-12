@@ -23,7 +23,15 @@ export default defineShip({
   workspace: 'aegis',
   systems: AEGIS_ROLE_CONSOLES.admiral.systems.map(system => ({
     id: system.id, name: system.name, effect: system.baseline,
+    ...(system.timing === undefined ? {} : { timing: system.timing }),
   })),
+  printedStatistics: {
+    capacity: { length: '250m', tonnage: 80_000, crewCapacity: 3_000, passengerCapacity: 100 },
+    population: 2_500,
+    jumpCosts: { short: 2, medium: 3, long: 6 },
+    reactorCapacity: 5,
+    maintenanceSteps: [1, 2, 3, 4, 5, 6, 7],
+  },
   populationTrack: {
     steps: [2500, 2000, 1500, 1250, 1000, 750, 500, 250, 0],
     thresholds: [0],

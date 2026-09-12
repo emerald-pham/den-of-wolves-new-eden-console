@@ -20,6 +20,32 @@ export interface ShipIdentity {
   readonly secondaryColor?: string;
 }
 
+export type MaintenanceStep = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+export interface VesselCapacity {
+  readonly length: string;
+  readonly tonnage: number;
+  readonly crewCapacity: number;
+  readonly passengerCapacity: number;
+}
+
+export interface PrintedVesselStatistics {
+  /** Small ships and the approaching vessel have no independent crew/passenger capacity. */
+  readonly capacity: VesselCapacity | null;
+  readonly population: number;
+  readonly jumpCosts: {
+    readonly short: number;
+    readonly medium: number;
+    readonly long: number;
+  };
+  readonly reactorCapacity: number;
+  readonly maintenanceSteps: readonly MaintenanceStep[];
+}
+
+export interface FullPrintedVesselStatistics extends PrintedVesselStatistics {
+  readonly capacity: VesselCapacity;
+}
+
 export interface ShipSystem {
   readonly id: string;
   readonly name: string;
@@ -28,6 +54,7 @@ export interface ShipSystem {
 }
 
 export interface Ship extends ShipIdentity {
+  readonly printedStatistics: FullPrintedVesselStatistics;
   readonly systems?: readonly ShipSystem[];
   readonly maintenance?: {
     readonly reactor: number;
@@ -50,13 +77,28 @@ export interface Ship extends ShipIdentity {
 }
 
 export function defineShip(
-  definition: Omit<Ship, 'workspace' | 'roles'> &
+  definition: Omit<Ship, 'workspace' | 'roles' | 'printedStatistics'> &
     Partial<Pick<Ship, 'workspace'>> & {
     readonly roles: readonly Omit<ConsoleRole, 'shipId'>[];
+    readonly printedStatistics?: FullPrintedVesselStatistics;
   },
 ): Ship {
+  const maintenance = definition.maintenance;
+  const maintenanceStepCount = Math.max(6, ...(definition.systems ?? [])
+    .map(system => typeof system.timing === 'number' ? system.timing : 0));
+  const printedStatistics: FullPrintedVesselStatistics = definition.printedStatistics ?? {
+    capacity: definition.specifications,
+    population: definition.initialSurvivors,
+    jumpCosts: {
+      short: maintenance?.jump[0] ?? 0,
+      medium: maintenance?.jump[1] ?? 0,
+      long: maintenance?.jump[2] ?? 0,
+    },
+    reactorCapacity: maintenance?.reactor ?? 0,
+    maintenanceSteps: Array.from({ length: maintenanceStepCount }, (_, index) => index + 1) as MaintenanceStep[],
+  };
   return {
-    workspace: 'scaffold', ...definition,
+    workspace: 'scaffold', ...definition, printedStatistics,
     roles: definition.roles.map((role) => ({ ...role, shipId: definition.id })),
   };
 }
@@ -73,6 +115,7 @@ export interface SupplementalVessel extends ShipIdentity {
   readonly id: SupplementalVesselId;
   readonly kind: SupplementalVesselKind;
   readonly availability: SupplementalVesselAvailability;
+  readonly printedStatistics: PrintedVesselStatistics;
 }
 
 export type RegisteredVessel = Ship | SupplementalVessel;

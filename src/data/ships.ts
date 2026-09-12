@@ -11,7 +11,16 @@ import warrior from './vessels/warrior';
 import vulcan from './vessels/vulcan';
 import voyage330 from './vessels/voyage-33-0';
 import type { RegisteredVessel, Ship, ShipOrigin, SupplementalVessel } from './vessels/templates';
-export type { RegisteredVessel, Ship, ShipOrigin, SupplementalVessel } from './vessels/templates';
+export type {
+  FullPrintedVesselStatistics,
+  MaintenanceStep,
+  PrintedVesselStatistics,
+  RegisteredVessel,
+  Ship,
+  ShipOrigin,
+  SupplementalVessel,
+  VesselCapacity,
+} from './vessels/templates';
 
 export const SHIP_ORIGIN_LABELS = {
   earth: 'Old Nations of Earth',
