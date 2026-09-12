@@ -60,6 +60,7 @@ import {
   requireShipConfettiRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
+  requireFighterWingCountRequest,
   requireShipDamageRequest,
   requireMaintenanceRollbackRequest,
   requireShipJumpRequest,
@@ -146,6 +147,11 @@ import {
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
 import { atomicStartState } from './startState';
+import {
+  fighterWingCapacity,
+  fighterWingCounts,
+  type FighterWingId,
+} from './fighterWings';
 import {
   applyPopulationSteps,
   applyResourceSteps,
@@ -506,6 +512,10 @@ function publicShipUpgrades(value: unknown, activeVesselIds: readonly string[]):
     Array.isArray(stored[shipId])
       ? [[shipId, stored[shipId].filter((upgrade): upgrade is string => typeof upgrade === 'string')]]
       : []));
+}
+
+function publicFighterWingCounts(value: unknown): ReturnType<typeof fighterWingCounts> | undefined {
+  return value === undefined ? undefined : fighterWingCounts(value);
 }
 
 function publicAlertMap<T extends { shipId: string; shipName: string; targetGmInstanceIds: readonly string[]; createdAt: string }>(
@@ -1224,6 +1234,7 @@ export const createSession = onCall<{
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
+          fighterWingCounts: composition.fighterWingCounts,
           shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
           shipSurvivors: composition.shipSurvivors,
@@ -1326,6 +1337,7 @@ export const createSession = onCall<{
           shipJumpTransitions: {},
           shipResources: composition.shipResources,
           shipDamage: {},
+          fighterWingCounts: composition.fighterWingCounts,
           shipUnrest: composition.shipUnrest,
           unrestAlerts: {},
           shipSurvivors: composition.shipSurvivors,
@@ -2623,6 +2635,7 @@ export const startGame = onCall<{
       activeVesselIds,
       shipDamage: authority.session.get('shipDamage'),
       maintenanceCycles: authority.session.get('maintenanceCycles'),
+      fighterWingCounts: authority.session.get('fighterWingCounts'),
       fleetRedAlert: authority.session.get('fleetRedAlert'),
       pressDispatch: authority.session.get('pressDispatch'),
     });
@@ -3897,6 +3910,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
     const shuttleVisitLog = publicShuttleVisitLog(
       sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
     );
+    const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
     return {
       session: {
         id: sessionId,
@@ -3939,6 +3953,7 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
         shipJumpTransitions: activeVesselRecord(
           shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
         ),
+        ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
         shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
         shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
         shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
@@ -4084,6 +4099,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const shuttleVisitLog = publicShuttleVisitLog(
     sessionSnap.get('shuttleVisitLog'), shuttleDockings, activeVesselIds,
   );
+  const fighterWingCounts = publicFighterWingCounts(sessionSnap.get('fighterWingCounts'));
   return {
     session: {
       id: sessionId,
@@ -4126,6 +4142,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       shipJumpTransitions: activeVesselRecord(
         shipJumpTransitions(sessionSnap.get('shipJumpTransitions')), activeVesselIds,
       ),
+      ...(fighterWingCounts === undefined ? {} : { fighterWingCounts }),
       shipDamage: activeVesselRecord(shipDamage(sessionSnap.get('shipDamage')), activeVesselIds),
       shipResources: activeVesselRecord(shipResources(sessionSnap.get('shipResources')), activeVesselIds),
       shipUnrest: activeVesselRecord(shipUnrest(sessionSnap.get('shipUnrest')), activeVesselIds),
@@ -7074,6 +7091,168 @@ export const applyShipCounterSteps = onCall<{
       updatedAt: FieldValue.serverTimestamp(),
     });
     return result;
+  });
+});
+
+type FighterWingCountFingerprint = Readonly<{
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  wingId: FighterWingId;
+  count: number;
+  expectedRevision: number;
+  actorUid: string;
+}>;
+
+function sameFighterWingCountFingerprint(
+  value: unknown,
+  expected: FighterWingCountFingerprint,
+): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return Object.entries(expected).every(([key, item]) => candidate[key] === item);
+}
+
+function fighterWingCountReceiptReply(
+  prior: DocumentSnapshot,
+  fingerprint: FighterWingCountFingerprint,
+): Record<string, unknown> | undefined {
+  if (!prior.exists) return undefined;
+  const storedFingerprint = prior.get('fingerprint');
+  if (!sameFighterWingCountFingerprint(storedFingerprint, fingerprint)) {
+    if (
+      typeof storedFingerprint === 'object' && storedFingerprint !== null &&
+      (storedFingerprint as Record<string, unknown>).actorUid !== fingerprint.actorUid
+    ) {
+      throw new HttpsError('permission-denied', 'This fighter-wing request belongs to a different actor.');
+    }
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing request id is bound to a different correction.',
+      'conflict',
+    );
+  }
+  const reply = prior.get('reply');
+  if (typeof reply !== 'object' || reply === null || Array.isArray(reply)) {
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing request has no replayable result.',
+      'conflict',
+    );
+  }
+  const result = reply as Record<string, unknown>;
+  return result.status === 'stale' ? result : { ...result, status: 'replayed' };
+}
+
+/** Correct one AEGIS fighter-wing count through a GM-owned CAS revision. */
+export const setFighterWingCount = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  wingId?: unknown;
+  count?: unknown;
+  expectedRevision?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const raw = request.data;
+  const allowed = ['sessionId', 'instanceId', 'requestId', 'wingId', 'count', 'expectedRevision'];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
+    throw new HttpsError('invalid-argument', 'Invalid fighter-wing count request.');
+  }
+  const change = requireFighterWingCountRequest(raw);
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const requestRef = db.doc(
+    `sessions/${change.sessionId}/fighterWingCountRequests/${change.requestId}`,
+  );
+  const fingerprint: FighterWingCountFingerprint = {
+    sessionId: change.sessionId,
+    instanceId: change.instanceId,
+    requestId: change.requestId,
+    wingId: change.wingId,
+    count: change.count,
+    expectedRevision: change.expectedRevision,
+    actorUid: uid,
+  };
+  return db.runTransaction(async tx => {
+    await requireShipCounterAuthority(
+      tx, change.sessionId, uid, 'aegis', change.instanceId, true,
+    );
+    const [session, prior] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(requestRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const replay = fighterWingCountReceiptReply(prior, fingerprint);
+    if (replay) return replay;
+    requireActiveGameplayPhase(session);
+
+    const current = fighterWingCounts(session.get('fighterWingCounts'))[change.wingId];
+    const currentRevision = current?.revision ?? 0;
+    const capacity = fighterWingCapacity(session.get('shipUpgrades'));
+    if (change.count > capacity) {
+      throw commandError(
+        'failed-precondition',
+        `That correction exceeds the current ${capacity}-fighter capacity.`,
+        'conflict',
+      );
+    }
+    if (currentRevision !== change.expectedRevision) {
+      if (current?.count === change.count) {
+        const reply = {
+          status: 'replayed' as const,
+          sessionId: change.sessionId,
+          requestId: change.requestId,
+          wingId: change.wingId,
+          count: current.count,
+          revision: currentRevision,
+          capacity,
+        };
+        tx.set(requestRef, {
+          ...fingerprint,
+          fingerprint,
+          reply,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return reply;
+      }
+      const reply = {
+        status: 'stale' as const,
+        sessionId: change.sessionId,
+        requestId: change.requestId,
+        wingId: change.wingId,
+        currentRevision,
+        capacity,
+        ...(current ? { count: current.count } : {}),
+      };
+      tx.set(requestRef, {
+        ...fingerprint,
+        fingerprint,
+        reply,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return reply;
+    }
+    const revision = currentRevision + 1;
+    const reply = {
+      status: 'committed' as const,
+      sessionId: change.sessionId,
+      requestId: change.requestId,
+      wingId: change.wingId,
+      count: change.count,
+      revision,
+      capacity,
+    };
+    tx.update(sessionRef, {
+      [`fighterWingCounts.${change.wingId}`]: { count: change.count, revision },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(requestRef, {
+      ...fingerprint,
+      fingerprint,
+      reply,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return reply;
   });
 });
 

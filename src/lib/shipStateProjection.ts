@@ -32,6 +32,7 @@ export interface ShipConsoleProjection {
   readonly navigationLogs: ShipNavigationLogs;
   readonly maintenanceCycle?: MaintenanceCycle;
   readonly upgrades: readonly string[];
+  readonly fighterWingCounts?: GameSession['fighterWingCounts'];
   readonly jumpState?: ShipJumpState;
   readonly jumpTransition?: ShipJumpTransition;
   readonly consoleLocked: boolean;
@@ -202,6 +203,7 @@ export function projectShipState(session: GameSession, shipId: string): ShipCons
     navigationLogs: navigationLogsForShip(session, shipId),
     ...(maintenance === undefined ? {} : { maintenanceCycle: maintenance }),
     upgrades: upgradesForShip(session, shipId),
+    ...(shipId === 'aegis' ? { fighterWingCounts: session.fighterWingCounts ?? {} } : {}),
     ...(jumps === undefined ? {} : { jumpState: jumps }),
     ...(transition === undefined ? {} : { jumpTransition: transition }),
     consoleLocked: session.shipConsoleLocks?.[shipId] === true,

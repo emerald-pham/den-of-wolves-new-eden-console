@@ -794,7 +794,7 @@ it('gives the Wing Commander Starlight and fighter-wing operations without XO sy
   expect(within(workspace).getByRole('heading', { name: 'Fighter Wing Bravo' })).toBeInTheDocument();
   for (const fighterName of ['Fighter Wing Alpha', 'Fighter Wing Bravo']) {
     expect(within(workspace).getByRole('heading', { name: fighterName }).closest('article'))
-      .toHaveTextContent(/capacity.*4 fighters.*6 upgraded/i);
+      .toHaveTextContent(/effective capacity.*unavailable.*live strength.*awaiting fighter count from the server/i);
   }
 
   await user.click(within(workspace).getByRole('button', { name: 'Combat doctrine' }));

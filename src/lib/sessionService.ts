@@ -812,6 +812,74 @@ export async function applyShipCounterSteps(
   }
 }
 
+export interface FighterWingCountResult {
+  readonly status: 'committed' | 'replayed' | 'stale';
+  readonly wingId: string;
+  readonly count?: number;
+  readonly revision?: number;
+  readonly currentRevision?: number;
+  readonly capacity: number;
+}
+
+function fighterWingCountReply(value: unknown): FighterWingCountResult | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  if ((raw.status !== 'committed' && raw.status !== 'replayed' && raw.status !== 'stale') ||
+    typeof raw.wingId !== 'string' || typeof raw.capacity !== 'number' ||
+    !Number.isSafeInteger(raw.capacity) || raw.capacity < 0) return null;
+  const result: FighterWingCountResult = {
+    status: raw.status,
+    wingId: raw.wingId,
+    capacity: raw.capacity,
+    ...(typeof raw.count === 'number' && Number.isSafeInteger(raw.count) ? { count: raw.count } : {}),
+    ...(typeof raw.revision === 'number' && Number.isSafeInteger(raw.revision) ? { revision: raw.revision } : {}),
+    ...(typeof raw.currentRevision === 'number' && Number.isSafeInteger(raw.currentRevision)
+      ? { currentRevision: raw.currentRevision } : {}),
+  };
+  return result;
+}
+
+/** Send one revisioned GM correction and patch only the matching live session. */
+export async function setFighterWingCount(
+  wingId: string,
+  count: number,
+): Promise<FighterWingCountResult | null> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) throw new Error('An active GM instance is required.');
+  requireFreshSessionAuthority();
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  const expectedRevision = store.session.fighterWingCounts?.[wingId]?.revision ?? 0;
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    wingId,
+    count,
+    expectedRevision,
+  };
+  try {
+    await ensureSignedIn();
+    const call = httpsCallable<typeof payload, unknown>(functions(), 'setFighterWingCount');
+    const reply = fighterWingCountReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid fighter-wing count.');
+    const current = useSessionStore.getState().session;
+    if (!current || current.id !== sessionId || !authorityCheckpointIsCurrent(checkpoint) ||
+      reply.status === 'stale' || reply.count === undefined || reply.revision === undefined) return reply;
+    useSessionStore.getState().setSession({
+      ...current,
+      fighterWingCounts: {
+        ...current.fighterWingCounts,
+        [wingId]: { count: reply.count, revision: reply.revision },
+      },
+    });
+    return reply;
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    return null;
+  }
+}
+
 export async function adjustShipResource(
   shipId: string,
   resourceId: ResourceId,

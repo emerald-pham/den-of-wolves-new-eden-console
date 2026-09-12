@@ -37,6 +37,7 @@ import {
   requireGameStartRequest,
   requireShipCounterBatchRequest,
   requireShipCounterRequest,
+  requireFighterWingCountRequest,
   requireUnrestDismissalRequest,
   requireSessionSeatRequest,
   requireUid,
@@ -112,6 +113,24 @@ describe('callable request guards', () => {
     });
     expectHttpsError(() => requireCastingPreferenceRequest({
       sessionId: 's1', requestId: 'preference-1', shipId: '',
+    }), 'invalid-argument');
+  });
+
+  it('validates revisioned fighter-wing count corrections', () => {
+    expect(requireFighterWingCountRequest({
+      sessionId: 's1', instanceId: 'gm1', requestId: 'wing-1',
+      wingId: 'fighter-wing-alpha', count: 4, expectedRevision: 0,
+    })).toEqual({
+      sessionId: 's1', instanceId: 'gm1', requestId: 'wing-1',
+      wingId: 'fighter-wing-alpha', count: 4, expectedRevision: 0,
+    });
+    expectHttpsError(() => requireFighterWingCountRequest({
+      sessionId: 's1', instanceId: 'gm1', requestId: 'wing-1',
+      wingId: 'fighter-wing-charlie', count: 4, expectedRevision: 0,
+    }), 'invalid-argument');
+    expectHttpsError(() => requireFighterWingCountRequest({
+      sessionId: 's1', instanceId: 'gm1', requestId: 'wing-1',
+      wingId: 'fighter-wing-alpha', count: 7, expectedRevision: 0,
     }), 'invalid-argument');
   });
 

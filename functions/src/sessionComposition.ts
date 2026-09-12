@@ -15,6 +15,10 @@ import {
   roleOwnedCraftForRoles,
   type RoleOwnedCraft,
 } from './craftOwnership';
+import {
+  initialFighterWingCounts,
+  type FighterWingCounts,
+} from './fighterWings';
 
 type ShuttleDocking = ReturnType<typeof initialShuttleDockingsForRoles>[number];
 type ShuttleVisit = ReturnType<typeof initialShuttleVisitsForDockings>[number];
@@ -35,6 +39,7 @@ export interface InitialSessionComposition {
   readonly shipResources: ShipResourceInventories;
   readonly shipUnrest: Readonly<Record<string, number>>;
   readonly shipSurvivors: Readonly<Record<string, number>>;
+  readonly fighterWingCounts: FighterWingCounts;
   readonly shuttleDockings: readonly ShuttleDocking[];
   readonly shuttleVisitLog: readonly ShuttleVisit[];
   /** Server-owned printed role allowlist; no player UID is stored here. */
@@ -60,6 +65,7 @@ export function initialSessionComposition(
     shipResources,
     shipUnrest,
     shipSurvivors,
+    fighterWingCounts: initialFighterWingCounts(),
     shuttleDockings,
     shuttleVisitLog: initialShuttleVisitsForDockings(shuttleDockings),
     roleOwnedCraft: roleOwnedCraftForRoles(setup.activeRoleIds),

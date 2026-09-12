@@ -6,6 +6,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { INITIAL_SHIP_RESOURCES } from '@/data/resources';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import {
   SESSION_WAIVER_RESET_EVENT,
   SESSION_WAIVER_STORAGE_KEY,
@@ -25,6 +26,7 @@ vi.mock('@/lib/sessionService', () => ({
   setGmControlsLocked: vi.fn(),
   advanceTurn: vi.fn(),
   startGame: vi.fn(),
+  setFighterWingCount: vi.fn(),
   extendAirspaceWindow: vi.fn(),
   setWolfAttackWindow: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
@@ -46,7 +48,8 @@ vi.mock('@/lib/firestore', () => ({
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
   replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, setEmergencyTimerPaused,
-  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact } =
+  confirmSetup, setFacilitatorResponsibility, setFacilitatorCensusNote, applyShipCounterSteps, triggerDradisContact,
+  setFighterWingCount } =
   await import('@/lib/sessionService');
 const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeGmWolfAssignment, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
@@ -566,6 +569,37 @@ it('shows live resource stock for every flagged ship', async () => {
   expect(within(dione).getByRole('button', { name: /decrease survivor population/i }))
     .toBeEnabled();
   expect(within(dione).getByRole('button', { name: /increase civil unrest/i })).toBeEnabled();
+});
+
+it('keeps fighter counts read-only until GM write mode and sends one wing correction', async () => {
+  const user = userEvent.setup();
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    activeVesselIds: ['aegis'],
+    shipUpgrades: { aegis: [] },
+    fighterWingCounts: Object.fromEntries(FIGHTER_WING_IDS.map((wingId) => [wingId, { count: 4, revision: 0 }])),
+  });
+  vi.mocked(setFighterWingCount).mockResolvedValue({
+    status: 'committed', wingId: 'fighter-wing-alpha', count: 3, revision: 1, capacity: 4,
+  });
+  renderConsole();
+
+  const fleet = await screen.findByRole('region', { name: /fleet resource controls/i });
+  const aegis = within(fleet).getByRole('group', { name: 'AEGIS resource controls' });
+  const alpha = within(aegis).getByRole('listitem', { name: /fighter-wing-alpha fighter count 4/i });
+  expect(within(alpha).getByRole('button', { name: /apply fighter-wing-alpha fighter count/i })).toBeDisabled();
+
+  await user.click(within(fleet).getByRole('button', { name: /ship numbers write mode/i }));
+  const input = within(alpha).getByRole('spinbutton', { name: /set fighter-wing-alpha fighter count/i });
+  await user.clear(input);
+  await user.type(input, '3');
+  await user.click(within(alpha).getByRole('button', { name: /apply fighter-wing-alpha fighter count/i }));
+
+  expect(setFighterWingCount).toHaveBeenCalledWith('fighter-wing-alpha', 3);
 });
 
 it('shows each ship-local pursuit tracker beneath its resource controls', async () => {

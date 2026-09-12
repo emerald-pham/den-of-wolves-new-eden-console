@@ -42,6 +42,7 @@ import type {
 } from '@/types/game';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
+import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { ROLE_SEAT_METADATA } from '@/data/seatMetadata';
 import {
   normalizeShuttleManifest,
@@ -463,6 +464,18 @@ function shipDamage(value: unknown): NonNullable<GameSession['shipDamage']> {
   }));
 }
 
+function fighterWingCounts(value: unknown): NonNullable<GameSession['fighterWingCounts']> {
+  const stored = recordValue(value);
+  if (!stored) return {};
+  return Object.fromEntries(FIGHTER_WING_IDS.flatMap((wingId) => {
+    const raw = recordValue(stored[wingId]);
+    if (!raw || typeof raw.count !== 'number' || !Number.isSafeInteger(raw.count) ||
+      raw.count < 0 || raw.count > 6 || typeof raw.revision !== 'number' ||
+      !Number.isSafeInteger(raw.revision) || raw.revision < 0) return [];
+    return [[wingId, { count: raw.count, revision: raw.revision }]];
+  })) as NonNullable<GameSession['fighterWingCounts']>;
+}
+
 function shipSurvivors(value: unknown): NonNullable<GameSession['shipSurvivors']> {
   const stored = recordValue(value);
   if (!stored) return INITIAL_SHIP_SURVIVORS;
@@ -715,6 +728,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     shipUpgrades: shipUpgrades(data.shipUpgrades),
     shipResources: shipResources(data.shipResources),
     shipDamage: shipDamage(data.shipDamage),
+    fighterWingCounts: fighterWingCounts(data.fighterWingCounts),
     shipUnrest: shipUnrest(data.shipUnrest),
     shipSurvivors: shipSurvivors(data.shipSurvivors),
     populationAlerts: alertMap<PopulationAlert>(data.populationAlerts, true),

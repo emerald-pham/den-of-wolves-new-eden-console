@@ -41,6 +41,10 @@ describe('projectShipState', () => {
         capybara: { step: 1, revision: 1, results: {}, charges: [], refuelled: [] },
       },
       shipUpgrades: { aegis: ['jump-drive', { private: 'loyalty' }], capybara: ['storage'] },
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 4, revision: 1 },
+        'fighter-wing-bravo': { count: 2, revision: 3 },
+      },
       shipJumpStates: {
         aegis: { lastJumpTurn: 2, integrityLockedUntil: '2026-09-12T00:05:00.000Z', privateNote: 'hidden' },
         capybara: { lastJumpTurn: 1 },
@@ -70,6 +74,10 @@ describe('projectShipState', () => {
       unrest: 2,
       upgrades: ['jump-drive'],
       consoleLocked: true,
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 4, revision: 1 },
+        'fighter-wing-bravo': { count: 2, revision: 3 },
+      },
     });
     expect(projection.resources).toEqual({
       ore: 0, fuel: 4, food: 8, water: 6, materials: 1, securityTeams: 9,
@@ -92,6 +100,7 @@ describe('projectShipState', () => {
       occurredAt: '2026-09-12T00:00:00.000Z',
     });
     expect(projection.navigationLogs).not.toHaveProperty('capybara');
+    expect(projectShipState(session, 'capybara')).not.toHaveProperty('fighterWingCounts');
     expect(projection).not.toHaveProperty('roleBrief');
     expect(projection).not.toHaveProperty('privateLoyalty');
     expect(JSON.stringify(projection)).not.toMatch(/private|loyalty|wolf-agent/i);

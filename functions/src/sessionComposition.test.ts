@@ -815,6 +815,10 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
       },
     });
     expect(storedSession.pursuitGroups).toEqual({ fleet: 2 });
+    expect(storedSession.fighterWingCounts).toEqual({
+      'fighter-wing-alpha': { count: 4, revision: 0 },
+      'fighter-wing-bravo': { count: 4, revision: 0 },
+    });
     const storedResources = storedSession.shipResources as Record<string, Record<string, number>>;
     const storedDamage = storedSession.shipDamage as Record<string, unknown>;
     const storedMaintenance = storedSession.maintenanceCycles as Record<string, unknown>;

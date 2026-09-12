@@ -14,6 +14,7 @@ import { normalizeDisplayName } from '@/lib/displayName';
 import { fleetOriginFor, fleetViewFrom } from '@/data/fleetFormation';
 import { nextGmClockUpdate } from '@/lib/gmClock';
 import { RESOURCE_DEFINITIONS, resourcesForShip, type ResourceId } from '@/data/resources';
+import { FIGHTER_WING_IDS } from '@/data/aegisConsoles';
 import { SHIPS } from '@/data/ships';
 import { ORIGIN_GALACTIC_COORDINATE } from '@/data/ships';
 import { CONSOLE_ROLES, DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -41,6 +42,7 @@ import {
   applyShipCounterSteps,
   advanceTurn,
   startGame,
+  setFighterWingCount,
   extendAirspaceWindow,
   setWolfAttackWindow,
   replayTurnStartAnnouncement,
@@ -269,6 +271,8 @@ export default function GmConsole() {
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
   const [shipNumberWrite, setShipNumberWrite] = useState(false);
+  const [fighterWingDrafts, setFighterWingDrafts] = useState<Readonly<Record<string, string>>>({});
+  const [fighterWingMutation, setFighterWingMutation] = useState<string | null>(null);
   const [stagedCounters, setStagedCounters] = useState<Readonly<Record<string, StagedCounter>>>({});
   const stagedCountersRef = useRef<Readonly<Record<string, StagedCounter>>>({});
   const counterTimers = useRef(new Map<string, number>());
@@ -1103,6 +1107,19 @@ export default function GmConsole() {
     }
   }
 
+  async function changeFighterWingCount(wingId: string): Promise<void> {
+    if (!shipNumberWrite || fighterWingMutation !== null) return;
+    const rawCount = fighterWingDrafts[wingId];
+    const count = Number(rawCount);
+    if (!Number.isSafeInteger(count) || count < 0 || count > 6) return;
+    setFighterWingMutation(wingId);
+    try {
+      await setFighterWingCount(wingId, count);
+    } finally {
+      setFighterWingMutation(null);
+    }
+  }
+
   function airspaceWindowLabel(window: AirspaceWindow): string {
     return window === 'restricted' ? 'Airspace restricted' : 'Airspace open';
   }
@@ -1521,6 +1538,42 @@ export default function GmConsole() {
                         </div>
                       </li>
                     </ul>
+                    {ship.id === 'aegis' && (
+                      <>
+                        <h4 className="gm-fleet-resource-ship__category">Fighter wings</h4>
+                        <p className="gm-role-setup__note">GM correction only // live strength is separate from bay charge, damage, and upgrade state.</p>
+                        <ul>
+                          {FIGHTER_WING_IDS.map((wingId) => {
+                            const currentWing = session.fighterWingCounts?.[wingId];
+                            const capacity = session.shipUpgrades?.aegis?.includes('construction-bay') ? 6 : 4;
+                            const draft = fighterWingDrafts[wingId] ?? (currentWing ? String(currentWing.count) : '');
+                            const parsedDraft = Number(draft);
+                            const validDraft = Number.isSafeInteger(parsedDraft) && parsedDraft >= 0 && parsedDraft <= capacity;
+                            return (
+                              <li key={wingId} aria-label={`${wingId} fighter count ${currentWing?.count ?? 'unavailable'}`}>
+                                <span className="resource-label">{wingId === 'fighter-wing-alpha' ? 'Alpha' : 'Bravo'} // {currentWing ? `${currentWing.count} / ${capacity}` : `Unavailable / ${capacity}`}</span>
+                                <div className="ship-counter__controls">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={capacity}
+                                    value={draft}
+                                    aria-label={`Set ${wingId} fighter count`}
+                                    onChange={(event) => setFighterWingDrafts((values) => ({ ...values, [wingId]: event.target.value }))}
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label={`Apply ${wingId} fighter count`}
+                                    disabled={!shipNumberWrite || !validDraft || fighterWingMutation !== null}
+                                    onClick={() => void changeFighterWingCount(wingId)}
+                                  >{fighterWingMutation === wingId ? 'Applying…' : 'Apply'}</button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </>
+                    )}
                     <PursuitTracker
                       currentTurn={currentTurn}
                       shipId={ship.id}

@@ -297,6 +297,19 @@ describe('session header', () => {
     await assertFails(updateDoc(doc(as('gm1'), SESSION), { gmControlsLocked: true }));
   });
 
+  it('keeps fighter-wing counts and correction receipts server-owned', async () => {
+    const session = doc(as('gm1'), SESSION);
+    await assertFails(updateDoc(session, {
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 6, revision: 1 },
+        'fighter-wing-bravo': { count: 4, revision: 0 },
+      },
+    }));
+    const receipt = doc(as('gm1'), `${SESSION}/fighterWingCountRequests/wing-1`);
+    await assertFails(getDoc(receipt));
+    await assertFails(setDoc(receipt, { reply: { status: 'committed' } }));
+  });
+
   it('cannot enable or retract the shared finale from a client', async () => {
     const session = doc(as('gm1'), SESSION);
     await assertFails(updateDoc(session, { debriefMode: { active: true, revision: 1 } }));

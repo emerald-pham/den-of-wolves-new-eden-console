@@ -9,6 +9,7 @@ import {
   type SessionConfiguration,
 } from './gameSetup';
 import { commandError } from './commandErrors';
+import { FIGHTER_WING_IDS, type FighterWingId } from './fighterWings';
 
 export function requireUid(auth: { uid: string } | undefined): string {
   if (!auth?.uid) {
@@ -725,6 +726,40 @@ export function requireShipCounterRequest(data: {
   };
   if (data.instanceId !== undefined) result.instanceId = requiredId(data.instanceId, 'instanceId');
   return result;
+}
+
+export function requireFighterWingCountRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  wingId?: unknown;
+  count?: unknown;
+  expectedRevision?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  wingId: FighterWingId;
+  count: number;
+  expectedRevision: number;
+} {
+  if (!(FIGHTER_WING_IDS as readonly string[]).includes(data.wingId as string)) {
+    throw new HttpsError('invalid-argument', 'Unknown fighter wing.');
+  }
+  if (!Number.isSafeInteger(data.count) || (data.count as number) < 0 || (data.count as number) > 6) {
+    throw new HttpsError('invalid-argument', 'count must be an integer from 0 through 6.');
+  }
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  return {
+    sessionId: requiredId(data.sessionId, 'sessionId'),
+    instanceId: requiredId(data.instanceId, 'instanceId'),
+    requestId: requiredId(data.requestId, 'requestId'),
+    wingId: data.wingId as FighterWingId,
+    count: data.count as number,
+    expectedRevision: data.expectedRevision as number,
+  };
 }
 
 export type ShipCounterStep = -1 | 1;

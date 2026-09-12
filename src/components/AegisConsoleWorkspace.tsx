@@ -7,11 +7,13 @@ import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AEGIS_FIGHTER_BAY_SYSTEMS,
   AEGIS_ROLE_CONSOLES,
   isImplementedAegisRole,
+  type AegisCraft,
   type AegisShipSystem,
 } from '@/data/aegisConsoles';
-import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
+import type { DamageDraw, MaintenanceCycle, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 
@@ -87,6 +89,137 @@ function SystemCard({
   );
 }
 
+type ChargeState = 'charged' | 'not-charged' | 'unavailable';
+
+function SystemStatus({
+  damaged,
+  damagedRule,
+  charge,
+  upgraded,
+}: {
+  readonly damaged: boolean | null;
+  readonly damagedRule: string;
+  readonly charge?: { readonly state: ChargeState; readonly unavailableReason?: string };
+  readonly upgraded?: { readonly label: string; readonly value: string };
+}) {
+  const condition = damaged === null
+    ? 'Unavailable // awaiting live server state'
+    : damaged ? 'Damaged' : 'Operational';
+  const chargeText = charge?.state === 'charged'
+    ? 'Charged'
+    : charge?.state === 'not-charged'
+      ? 'Not charged'
+      : charge?.unavailableReason ?? 'Unavailable // awaiting live server state';
+
+  return (
+    <dl>
+      <div className="aegis-system__condition">
+        <dt>Condition</dt><dd>{condition}</dd>
+      </div>
+      {charge && <div><dt>Charge</dt><dd>{chargeText}</dd></div>}
+      {upgraded && <div><dt>{upgraded.label}</dt><dd>{upgraded.value}</dd></div>}
+      <div className="aegis-system__damaged-rule"><dt>If Damaged</dt><dd>{damaged === null ? 'Unavailable // awaiting live server state' : damagedRule}</dd></div>
+    </dl>
+  );
+}
+
+function liveStateLabel(
+  freshness: 'unknown' | 'cache' | 'server',
+  connection: 'idle' | 'connecting' | 'live' | 'offline',
+) {
+  if (freshness === 'server') {
+    return connection === 'offline'
+      ? 'Live server snapshot // reconnecting for updates'
+      : 'Live server snapshot';
+  }
+  if (connection === 'connecting') return 'Loading live server state';
+  if (connection === 'offline' || freshness === 'cache') return 'Unavailable // reconnect required';
+  return 'Awaiting live server state';
+}
+
+function FighterWingCard({
+  craft,
+  authoritativeDamage,
+  constructionBayUpgraded,
+  fighterWingCount,
+  hasServerSnapshot,
+  maintenance,
+  snapshotLabel,
+  fighterCapacity,
+}: {
+  readonly craft: AegisCraft;
+  readonly authoritativeDamage: ShipDamageState | undefined;
+  readonly constructionBayUpgraded: boolean | null;
+  readonly fighterWingCount: { readonly count: number; readonly revision: number } | undefined;
+  readonly hasServerSnapshot: boolean;
+  readonly maintenance: MaintenanceCycle | undefined;
+  readonly snapshotLabel: string;
+  readonly fighterCapacity: { readonly standard: number; readonly upgraded: number };
+}) {
+  const baySystem = craft.launchSystemId
+    ? AEGIS_FIGHTER_BAY_SYSTEMS[craft.launchSystemId]
+    : undefined;
+  const damaged = hasServerSnapshot && craft.launchSystemId && authoritativeDamage
+    ? authoritativeDamage.damagedSystemIds.includes(craft.launchSystemId)
+    : null;
+  const charge: { readonly state: ChargeState; readonly unavailableReason?: string } = hasServerSnapshot && maintenance
+    ? {
+      state: maintenance.charges.includes(craft.launchSystemId ?? '') ? 'charged' : 'not-charged',
+    }
+    : {
+      state: 'unavailable',
+      unavailableReason: hasServerSnapshot
+        ? 'Unavailable // no active maintenance cycle'
+        : 'Unavailable // awaiting live server state',
+    };
+  const launchEligibility = damaged === null || charge.state === 'unavailable'
+    ? `Unavailable // ${damaged === null ? 'awaiting live bay state' : 'current charge state is unavailable'}`
+    : damaged
+      ? 'Blocked // bay damaged'
+      : charge.state === 'charged'
+        ? 'Eligible // bay charged and operational'
+        : 'Blocked // bay not charged';
+  const capacity = constructionBayUpgraded === null
+    ? 'Unavailable // awaiting live server state'
+    : `${constructionBayUpgraded ? fighterCapacity.upgraded : fighterCapacity.standard} fighters // Construction Bay ${constructionBayUpgraded ? 'upgraded' : 'standard'}`;
+
+  return (
+    <article
+      className="aegis-craft cic-frame"
+      data-damaged={damaged === null ? undefined : String(damaged)}
+      key={craft.id}
+    >
+      <p>{craft.type} // {craft.assignment}</p>
+      <h3>{craft.name}</h3>
+      <p className="aegis-craft__state" role="status" aria-live="polite">{snapshotLabel}</p>
+      <dl>
+        <div><dt>Effective capacity</dt><dd>{capacity}</dd></div>
+        <div><dt>Launch eligibility</dt><dd>{launchEligibility}</dd></div>
+        <div><dt>Live strength</dt><dd>{hasServerSnapshot && fighterWingCount
+          ? `${fighterWingCount.count} fighters // revision ${fighterWingCount.revision}`
+          : hasServerSnapshot
+            ? 'Unavailable // server has not published a fighter count'
+            : 'Unavailable // awaiting fighter count from the server'}</dd></div>
+      </dl>
+      {baySystem && <>
+        <p className="aegis-craft__system-label">Assigned system // {baySystem.name}</p>
+        <p>{baySystem.baseline}</p>
+        <SystemStatus
+          damaged={damaged}
+          charge={charge}
+          upgraded={{
+            label: 'Upgrade source',
+            value: constructionBayUpgraded === null
+              ? 'Unavailable // awaiting live server state'
+              : `Construction Bay // ${constructionBayUpgraded ? 'upgraded' : 'standard'}`,
+          }}
+          damagedRule={baySystem.damaged}
+        />
+      </>}
+    </article>
+  );
+}
+
 function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
   const session = useSessionStore((state) => state.session);
@@ -148,11 +281,23 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
   );
 }
 
-function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs, consoleLocked }: Omit<Props, 'roleId'>) {
+function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const [page, setPage] = useState<'flight' | 'combat' | 'navigation'>('flight');
   const console = AEGIS_ROLE_CONSOLES['wing-commander'];
+  const session = useSessionStore((state) => state.session);
+  const sessionSnapshotFreshness = useSessionStore((state) => state.sessionSnapshotFreshness);
+  const connection = useSessionStore((state) => state.connection);
   const starlight = console.craft[0];
   if (!starlight) return null;
+  const hasServerSnapshot = Boolean(session && sessionSnapshotFreshness === 'server');
+  const snapshotLabel = liveStateLabel(sessionSnapshotFreshness, connection);
+  const maintenance = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
+  const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
+  const authoritativeDamage = damage ?? (shipState ? shipState.damage : session?.shipDamage?.aegis);
+  const constructionBayUpgraded = hasServerSnapshot
+    ? upgrades.includes('construction-bay')
+    : null;
+  const fighterWingCounts = shipState?.fighterWingCounts ?? session?.fighterWingCounts;
 
   return (
     <FleetRoleConsoleTemplate shipName="AEGIS" roleName="Wing Commander"
@@ -189,15 +334,17 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
             </Link>
           </article>
           {console.craft.slice(1).map((craft) => (
-            <article className="aegis-craft cic-frame" key={craft.id}>
-              <p>{craft.type} // {craft.assignment}</p>
-              <h3>{craft.name}</h3>
-              <dl>
-                <div><dt>Capacity</dt><dd>{console.fighterCapacity.standard} fighters // {console.fighterCapacity.upgraded} upgraded</dd></div>
-                <div><dt>Launch authority</dt><dd>Assigned fighter bay must be charged and undamaged</dd></div>
-                <div><dt>Live strength</dt><dd>Tracked at the table</dd></div>
-              </dl>
-            </article>
+            <FighterWingCard
+              key={craft.id}
+              craft={craft}
+              authoritativeDamage={authoritativeDamage}
+              constructionBayUpgraded={constructionBayUpgraded}
+              fighterWingCount={fighterWingCounts?.[craft.id]}
+              hasServerSnapshot={hasServerSnapshot}
+              maintenance={maintenance}
+              snapshotLabel={snapshotLabel}
+              fighterCapacity={console.fighterCapacity}
+            />
           ))}
         </div>
       ) : (
@@ -225,5 +372,5 @@ export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
     ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} consoleLocked={consoleLocked} shipState={shipState} />
-    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} consoleLocked={consoleLocked} />;
+    : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} consoleLocked={consoleLocked} shipState={shipState} />;
 }

@@ -169,6 +169,10 @@ it('returns only the public session projection when the persisted root has priva
       },
       shuttleFuelled: { starlight: true, wolfAssignment: true, candidateBonus: true },
       shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false, deckOrder: ['5d'] } },
+      fighterWingCounts: {
+        'fighter-wing-alpha': { count: 4, revision: 0 },
+        'fighter-wing-bravo': { count: 3, revision: 2 },
+      },
       shipUpgrades: { aegis: ['storage', { candidateBonus: 2 }] },
       shuttleVisitLog: [{
         id: 'starlight-initial-aegis-docking', shuttleId: 'starlight', shipId: 'aegis',
@@ -212,6 +216,10 @@ it('returns only the public session projection when the persisted root has priva
     }],
     confettiUsedShipIds: ['aegis'],
     shuttleFuelled: { starlight: true },
+    fighterWingCounts: {
+      'fighter-wing-alpha': { count: 4, revision: 0 },
+      'fighter-wing-bravo': { count: 3, revision: 2 },
+    },
   });
   expect(privateSnapshotKeys(response.session)).toEqual([]);
 });

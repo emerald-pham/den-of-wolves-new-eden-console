@@ -139,6 +139,13 @@ export interface ShipDamageState {
 
 export type ShipDamage = Readonly<Record<string, ShipDamageState>>;
 
+export interface FighterWingCountState {
+  readonly count: number;
+  readonly revision: number;
+}
+
+export type FighterWingCounts = Readonly<Record<string, FighterWingCountState>>;
+
 export interface UnrestAlert {
   readonly shipId: VesselId;
   readonly shipName: string;
@@ -313,6 +320,8 @@ export interface GameSession {
   readonly shipResources?: ShipResources;
   /** Drawn damage cards by ship; absent legacy sessions begin with an intact deck. */
   readonly shipDamage?: ShipDamage;
+  /** Server-owned live fighter totals; absent legacy entries remain unavailable. */
+  readonly fighterWingCounts?: FighterWingCounts;
   /** Per-ship unrest ranges from 0–10; the physical-style dial fails above 7. */
   readonly shipUnrest?: Readonly<Record<string, number>>;
   /** Threshold alerts awaiting acknowledgement by the GM instances active when triggered. */

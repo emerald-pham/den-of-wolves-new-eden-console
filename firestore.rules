@@ -163,6 +163,12 @@ service cloud.firestore {
         allow read, write: if false;
       }
 
+      // Fighter-wing corrections are GM callables with private replay receipts;
+      // no client may inspect or forge the correction ledger.
+      match /fighterWingCountRequests/{requestId} {
+        allow read, write: if false;
+      }
+
       match /damageDraws/{drawId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

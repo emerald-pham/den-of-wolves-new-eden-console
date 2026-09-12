@@ -4455,15 +4455,37 @@ body {
 .aegis-craft dl div { min-width: 0; }
 .aegis-system dd,
 .aegis-craft dd { margin: 0.2rem 0 0; }
+.aegis-craft__state {
+  color: var(--cic-cyan-hot) !important;
+  font-size: 0.56rem !important;
+  letter-spacing: 0.08em;
+}
+.aegis-craft__system-label {
+  margin: 0.8rem 0 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--cic-rule);
+  color: var(--cic-amber);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .aegis-system dt + dd { color: var(--cic-ink); }
 .aegis-system .aegis-system__condition dd { color: var(--cic-cyan-hot); text-transform: uppercase; }
+.aegis-craft .aegis-system__condition dd { color: var(--cic-cyan-hot); text-transform: uppercase; }
 .aegis-system[data-damaged='true'] {
   border-color: var(--cic-danger);
   background: color-mix(in srgb, var(--cic-danger) 10%, var(--cic-panel));
 }
 .aegis-system[data-damaged='true'] .aegis-system__condition dd { color: var(--cic-danger); }
+.aegis-craft[data-damaged='true'] {
+  border-color: var(--cic-danger);
+  background: color-mix(in srgb, var(--cic-danger) 10%, var(--cic-panel));
+}
+.aegis-craft[data-damaged='true'] .aegis-system__condition dd { color: var(--cic-danger); }
 .aegis-system dt:first-child { color: var(--cic-amber); }
+.aegis-craft dt:first-child { color: var(--cic-amber); }
 .aegis-system .aegis-system__damaged-rule dt { color: var(--cic-danger); }
+.aegis-craft .aegis-system__damaged-rule dt { color: var(--cic-danger); }
 .aegis-craft--starlight { grid-column: 1 / -1; }
 
 .aegis-maintenance { padding: 0.75rem; }

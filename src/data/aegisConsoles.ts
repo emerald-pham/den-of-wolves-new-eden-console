@@ -13,7 +13,14 @@ export interface AegisCraft {
   readonly name: string;
   readonly type: string;
   readonly assignment: string;
+  /** The ship-system id that controls launch eligibility, when applicable. */
+  readonly launchSystemId?: string;
 }
+
+export const FIGHTER_WING_IDS = [
+  'fighter-wing-alpha',
+  'fighter-wing-bravo',
+] as const;
 
 const ADMIRAL_SYSTEMS: readonly AegisShipSystem[] = [
   {
@@ -97,14 +104,36 @@ const WING_CRAFT: readonly AegisCraft[] = [
     name: 'Fighter Wing Alpha',
     type: 'Carrier fighter wing',
     assignment: 'Fighter Bay Alpha',
+    launchSystemId: 'fighter-bay-alpha',
   },
   {
     id: 'fighter-wing-bravo',
     name: 'Fighter Wing Bravo',
     type: 'Carrier fighter wing',
     assignment: 'Fighter Bay Bravo',
+    launchSystemId: 'fighter-bay-bravo',
   },
 ];
+
+/** Shared ship-system descriptions used by the Wing Commander flight cards. */
+export const AEGIS_FIGHTER_BAY_SYSTEMS: Readonly<Record<string, AegisShipSystem>> = {
+  'fighter-bay-alpha': {
+    id: 'fighter-bay-alpha',
+    name: 'Fighter Bay Alpha',
+    station: 'Combat // launch eligibility',
+    timing: 'combat',
+    baseline: 'A charged, undamaged bay permits this fighter wing to launch during a Wolf Attack.',
+    damaged: 'Cannot launch fighters.',
+  },
+  'fighter-bay-bravo': {
+    id: 'fighter-bay-bravo',
+    name: 'Fighter Bay Bravo',
+    station: 'Combat // launch eligibility',
+    timing: 'combat',
+    baseline: 'A charged, undamaged bay permits this fighter wing to launch during a Wolf Attack.',
+    damaged: 'Cannot launch fighters.',
+  },
+};
 
 export const AEGIS_ROLE_CONSOLES = {
   admiral: {
