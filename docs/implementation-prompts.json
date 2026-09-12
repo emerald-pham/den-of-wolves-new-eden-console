@@ -4251,10 +4251,17 @@
       "type": "evidence"
     },
     {
-      "direction": "173;195;205;217;225 -> 115",
+      "direction": "173;185;195;205;217;225 -> 115;183",
       "id": "E-VESSEL-STORAGE-VERIFIED",
       "language": "Registered vessel Storage identities route to the shared server branch, which rounds losses down and filters docked cargo by the acting ship. The callable transaction commits both stores and cargo. Existing unit evidence verifies rounding and unrelated cargo preservation; the 40-test callable suite verifies committed state, authority and replay/CAS. Rechecked on 2026-09-12; no new runtime behavior.",
       "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/shipDamage.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/data/vessels/",
+      "type": "evidence"
+    },
+    {
+      "direction": "183 -> 161;162",
+      "id": "E-183-VERIFIED",
+      "language": "Existing setup and roster validation gate Dione at the supported player-count boundary. Active-vessel composition/projections restrict stores and population; disabled console and role routes return to the fleet roster. Verified 14 focused setup/roster cases and 2 disabled-route tests on 2026-09-12, reusing unchanged passing composition/resource evidence.",
+      "source": "functions/src/gameSetup.ts; functions/src/gameSetup.test.ts; functions/src/sessionComposition.ts; functions/src/sessionComposition.test.ts; functions/src/resources.test.ts; src/routes/ShipConsole.test.tsx; src/routes/ShipRoleSelect.test.tsx",
       "type": "evidence"
     }
   ],
@@ -8889,8 +8896,8 @@
         "acceptance": "at 12+ players Dione starts with its exact population and stores; below 12 it is absent everywhere.",
         "title": "Gate Dione by roster."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-183",
+      "description": "Existing setup validation rejects Dione below 12 players, and the recommended roster/active-vessel matrix includes Dione from 12 through 20. Production composition creates only active-vessel stores and population, while disabled ship and role routes return to the fleet roster. Verified 14 setup/roster cases and both disabled-Dione route checks, alongside the already-passing production composition and resource suites. No runtime change or new deployment is claimed.",
+      "evidenceIds": "E-AUDIT-183;E-183-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162",
@@ -8901,7 +8908,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -8935,8 +8942,8 @@
         "acceptance": "damaged 8♣ discards the authoritative half of Dione and docked-craft stores.",
         "title": "Resolve Dione Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-185",
+      "description": "Existing Dione Storage uses the shared authoritative maintenance storage branch and registered damage identity. Losses round down and affect only Dione stores and its docked craft, with stores/cargo persisted in one callable transaction. Verified the shared damaged-storage unit check and reused the passing 40-test maintenance callable suite; Dione roster gating is separately verified by Prompt 183. Evidence reconciliation only, with no runtime change.",
+      "evidenceIds": "E-AUDIT-185;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115;183",
@@ -8947,7 +8954,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

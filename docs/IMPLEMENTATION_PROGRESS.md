@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**150 / 747 prompts complete (20.08%)**
+**152 / 747 prompts complete (20.35%)**
 
-Status breakdown: **150 done · 7 partial · 590 missing**.
+Status breakdown: **152 done · 7 partial · 588 missing**.
 
 Active prompt: **none**
 
@@ -606,9 +606,9 @@ release classification and evidence.
 | 180 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 181 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 182 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 183 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 183 | done | non-feature | — | Existing setup validation rejects Dione below 12 players, and the recommended roster/active-vessel matrix includes Dione from 12 through 20. Production composition creates only active-vessel stores and population, while disabled ship and role routes return to the fleet roster. Verified 14 setup/roster cases and both disabled-Dione route checks, alongside the already-passing production composition and resource suites. No runtime change or new deployment is claimed. |
 | 184 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 185 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 185 | done | non-feature | — | Existing Dione Storage uses the shared authoritative maintenance storage branch and registered damage identity. Losses round down and affect only Dione stores and its docked craft, with stores/cargo persisted in one callable transaction. Verified the shared damaged-storage unit check and reused the passing 40-test maintenance callable suite; Dione roster gating is separately verified by Prompt 183. Evidence reconciliation only, with no runtime change. |
 | 186 | done | non-feature | — | The existing shared maintenance resolver implements the Dione Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 187 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 188 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
