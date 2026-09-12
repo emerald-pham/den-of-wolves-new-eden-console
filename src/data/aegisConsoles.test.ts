@@ -56,4 +56,28 @@ describe('AEGIS role console reference', () => {
     expect(AEGIS_ROLE_CONSOLES['wing-commander'].awayMissionBonus)
       .toEqual({ explore: 3, salvage: 1 });
   });
+
+  it('keeps Pallas registration facts aligned across its owner, cargo, docking, and operations', () => {
+    const pallas = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'pallas');
+    expect(pallas).toMatchObject({
+      captainRoleId: 'executive-officer',
+      cargoTransferTypes: ['securityTeams'],
+      cargoTransfer: 'Security teams only',
+      initialDocking: { shipId: 'aegis', dockedAt: 'SESSION START' },
+    });
+    expect(pallas?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Cargo transfer', phase: 'Coordination',
+        effect: expect.stringMatching(/security teams.*to and from ships/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence', phase: 'Wolf attack',
+        effect: expect.stringMatching(/security teams.*defend.*reroll up to 3 boarding dice/i),
+      }),
+      expect.objectContaining({
+        name: 'Fuelled redeployment', phase: 'Wolf attack',
+        effect: expect.stringMatching(/fuelled.*chosen ship.*start of the Boarding Action step/i),
+      }),
+    ]);
+  });
 });

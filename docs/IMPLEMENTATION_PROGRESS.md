@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**169 / 747 prompts complete (22.62%)**
+**170 / 747 prompts complete (22.76%)**
 
-Status breakdown: **169 done · 9 partial · 569 missing**.
+Status breakdown: **170 done · 9 partial · 568 missing**.
 
 Active prompt: **none**
 
@@ -700,7 +700,7 @@ release classification and evidence.
 | 258 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 259 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
 | 260 | partial | non-feature | — | The canonical catalogs and route already preserve Starlight's Wing Commander ownership, AEGIS initial dock, two-jump scouting with a fuelled second scan, and +3 exploration / +1 salvage mission bonuses. Focused config and route tests verify those facts and keep cargo transfer unadvertised. The routed Starlight derivative does not establish a cargo-transfer contract, and no preserved/provenanced Starlight primary sheet is available in the authorized source index, so this prompt remains partial pending an authoritative cargo decision; no cargo permission was invented. |
-| 261 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 261 | done | non-feature | — | The canonical shuttle registry and shared route preserve Pallas's AEGIS Executive Officer ownership, SESSION START AEGIS dock, Security teams only cargo allowlist, and distinct Coordination/Wolf attack procedures for boarding support, up to 3 rerolls, and fuelled Boarding Action relocation. Focused catalog and route tests verify owner, cargo, dock, operations, and live docking/fuel presentation. The route presents source-aligned configuration; future cargo transfer, boarding resolution, and relocation engines remain owned by separate prompts. The routed Pallas derivative establishes these registration facts, and no primary Pallas PDF inspection is claimed. |
 | 262 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 263 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 264 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

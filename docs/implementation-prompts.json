@@ -1586,8 +1586,8 @@
     {
       "direction": "261 -> 161;162",
       "id": "E-AUDIT-261",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Pallas registration preserves its Executive Officer owner, security-team cargo allowlist, AEGIS initial dock, and distinct boarding-support, reroll, and fuelled-relocation procedures; route proof presents the configuration without claiming combat execution.",
+      "source": "src/data/vessels/pallas.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; src/data/aegisConsoles.test.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx",
       "type": "hard_prompt"
     },
     {
@@ -11180,7 +11180,7 @@
         "acceptance": "security cargo, boarding support, rerolls, fuelled relocation, owner, dock, and route are distinct.",
         "title": "Register Pallas completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical shuttle registry and shared route preserve Pallas's AEGIS Executive Officer ownership, SESSION START AEGIS dock, Security teams only cargo allowlist, and distinct Coordination/Wolf attack procedures for boarding support, up to 3 rerolls, and fuelled Boarding Action relocation. Focused catalog and route tests verify owner, cargo, dock, operations, and live docking/fuel presentation. The route presents source-aligned configuration; future cargo transfer, boarding resolution, and relocation engines remain owned by separate prompts. The routed Pallas derivative establishes these registration facts, and no primary Pallas PDF inspection is claimed.",
       "evidenceIds": "E-AUDIT-261",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11192,7 +11192,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

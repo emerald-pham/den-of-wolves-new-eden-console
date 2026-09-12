@@ -337,6 +337,37 @@ it('opens Starlight on its Wing Commander route with its routed operation envelo
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
 });
 
+it('opens Pallas on its Executive Officer route with its security and boarding envelope', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['executive-officer'],
+    shuttleDockings: [{ shuttleId: 'pallas', shipId: 'aegis', dockedAt: 'SESSION START' }],
+    shuttleFuelled: { pallas: true },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'executive-officer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/pallas']}>
+      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'I.C.S.S. Pallas' })).toBeInTheDocument();
+  expect(screen.getByText('Executive Officer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*aegis/i,
+  );
+  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Security teams only')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Cargo transfer' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+  expect(screen.getByText(/security teams.*defend.*reroll up to 3 boarding dice/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Fuelled redeployment' })).toBeInTheDocument();
+  expect(screen.getByText(/fuelled.*chosen ship.*start of the Boarding Action step/i)).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+});
+
 it('keeps a GM-controlled Union shuttle out of the default roster', () => {
   render(
     <MemoryRouter initialEntries={['/shuttles/wobbly']}>
