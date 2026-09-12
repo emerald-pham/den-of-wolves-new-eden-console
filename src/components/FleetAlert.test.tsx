@@ -203,6 +203,59 @@ it('posts the current airspace window as a compact looping Airspace Control bull
   })).toBeVisible();
 });
 
+it('queues an urgent alert after the standing tail without duplicating or losing it', () => {
+  const airspaceId = 's1:airspace:1:restricted';
+  const alertId = 's1:red-alert:1';
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    currentTurn: 1,
+    turnPhase: {
+      turn: 1,
+      teamPhaseEndsAt: '2026-09-06T12:10:00.000Z',
+      openAirspaceEndsAt: '2026-09-06T12:30:00.000Z',
+      airspace: { state: 'restricted', tickerActive: true, pressAccess: false },
+    },
+  } as never));
+  const view = render(<FleetBroadcast />);
+  const standingGroups = [...view.container.querySelectorAll<HTMLElement>(
+    `.fleet-ticker__group[data-message-id="${airspaceId}"]`,
+  )];
+  expect(standingGroups).toHaveLength(2);
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    fleetRedAlert: { active: true, revision: 1, text: 'urgent broadcast' },
+  }));
+
+  expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // URGENT BROADCAST' })).toBeVisible();
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${airspaceId}"]`,
+  )).toHaveLength(2);
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${alertId}"]`,
+  )).toHaveLength(2);
+
+  act(() => useSessionStore.getState().setSession({
+    ...useSessionStore.getState().session!,
+    turnPhase: {
+      ...useSessionStore.getState().session!.turnPhase!,
+      airspace: { state: 'restricted', tickerActive: false, pressAccess: false },
+    },
+  } as never));
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${alertId}"]`,
+  )).toHaveLength(2);
+
+  standingGroups.forEach((group) => fireEvent.animationEnd(group));
+  expect(view.container.querySelector(
+    `.fleet-ticker__group[data-message-id="${airspaceId}"]`,
+  )).not.toBeInTheDocument();
+  expect(view.container.querySelectorAll(
+    `.fleet-ticker__group[data-message-id="${alertId}"]`,
+  )).toHaveLength(2);
+  expect(screen.getByRole('status', { name: 'ICSN ADMIRAL // URGENT BROADCAST' })).toBeVisible();
+});
+
 it('rehydrates the live timer and permitted actions from the same server phase after reconnect', () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-09T17:10:00.000Z'));

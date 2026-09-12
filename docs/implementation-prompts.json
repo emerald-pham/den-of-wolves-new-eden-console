@@ -415,6 +415,13 @@
       "type": "evidence"
     },
     {
+      "direction": "106a -> FLEET-BROADCAST-PRECEDENCE",
+      "id": "E-106A",
+      "language": "Existing FleetBroadcast standing-message precedence routes Turn 0, emergency pause, airspace, and Press copy below an authoritative fleet red alert. A focused FleetAlert regression drives a restricted-airspace ticker into an urgent alert, confirms the lower-priority groups remain on the shared track while the alert is queued exactly once, drains the standing tail once, and keeps the urgent alert visible after the standing state clears. FleetTicker tests cover finite replacement, fallback drain, and seamless moving-group preservation. Proof-only; no production change.",
+      "source": "src/components/FleetBroadcast.tsx; src/components/FleetTicker.tsx; src/components/FleetAlert.test.tsx; src/components/FleetTicker.test.tsx",
+      "type": "evidence"
+    },
+    {
       "direction": "104 -> M2-FINAL-TURN",
       "id": "E-104-FINAL-TURN",
       "language": "The authoritative final-turn advance keeps the configured maximum turn, expires only turn-scoped maintenance charges and shuttle fuel flags, transitions the session atomically from active to debrief, and clears the live phase entity and announcement without creating a next-turn event. A shared command receipt replays the terminal result exactly and blocks a distinct re-entry; focused callable, client, and console tests cover stale-state cleanup, normal mutation denial, and visible evaluation state. Firestore client writes remain denied by the existing server-owned session, lifecycle, and command-receipt rules.",
@@ -6740,8 +6747,8 @@
         "acceptance": "urgent authoritative transmissions preempt lower-priority ticker content, queue safely, and drain once without losing a higher-priority state.",
         "title": "Enforce FleetBroadcast precedence."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Existing FleetBroadcast/FleetTicker precedence and shared-track draining are preserved. The focused FleetAlert regression proves an urgent authoritative red alert supersedes lower-priority airspace content, queues once behind the visible tail, drains that tail once, and remains visible after the standing state clears. Proof-only; no production change.",
+      "evidenceIds": "E-106A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -6752,7 +6759,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

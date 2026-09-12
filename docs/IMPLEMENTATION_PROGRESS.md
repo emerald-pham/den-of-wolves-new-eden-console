@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**122 / 747 prompts complete (16.33%)**
+**123 / 747 prompts complete (16.47%)**
 
-Status breakdown: **122 done · 6 partial · 619 missing**.
+Status breakdown: **123 done · 6 partial · 618 missing**.
 
 Active prompt: **none**
 
@@ -518,7 +518,7 @@ release classification and evidence.
 | 104 | done | feature | 0.3.46 | When the configured final turn completes, the server keeps the maximum turn, expires only turn-scoped charges and fuel flags, transitions the session to debrief, and clears the live phase entity and announcement. Normal gameplay mutations are rejected in endgame evaluation while existing GM debrief controls and read routes remain available; no winner or outcome is inferred. |
 | 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | done | non-feature | — | The authoritative session listener hydrates the latest parsed turn, phase, and announcement snapshot, while `TurnStartAnnouncement` opens a visual transmission only for a newer live turn or server revision. The production listener integration test drives Turn 1 to Turn 2, confirms one transmission, unsubscribes and reconnects with the same server snapshot, then verifies the current state rehydrates without a duplicate visual effect. Existing announcement timing and event-snapshot replacement tests continue to cover intentional replay and stable server IDs. Proof-only; no runtime change. |
-| 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 106a | done | non-feature | — | Existing FleetBroadcast/FleetTicker precedence and shared-track draining are preserved. The focused FleetAlert regression proves an urgent authoritative red alert supersedes lower-priority airspace content, queues once behind the visible tail, drains that tail once, and remains visible after the standing state clears. Proof-only; no production change. |
 | 106b | done | feature | 0.3.27 | Prompt 106B preserves exact turn-transmission lifecycle timing: Turn 0 lockout and finale credits keep accessible status visible while outgoing tails drain, then clear and replay at the next authorized transition. Focused red/green and rendered evidence cover compact reduced-motion wrapping, ordinary-turn composition, lockout/finale drain, and revision replay. |
 | 106c | missing | non-feature | — | Future server-authoritative FleetTicker lifecycle: deterministic session/message/revision identities, precedence, current/queued/draining state, pass counts, dismissals, and replay cursors must serialize concurrent automatic/Admiral/Press send-replace-dismiss and Red Alert activation/stand-down. Reconnect/replay/late join and every client converge; idempotent CAS, authenticated authority, privacy-safe projection/audit, schema bounds, and direct-write denial precede P652a/P652b. |
 | 107 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
