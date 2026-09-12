@@ -1579,8 +1579,8 @@
     {
       "direction": "260 -> 161;162",
       "id": "E-AUDIT-260",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Starlight registration preserves the canonical shuttle and Wing Commander facts; its cargo-transfer contract remains unresolved.",
+      "source": "src/data/vessels/starlight.ts; src/data/shuttles.ts; src/data/aegisConsoles.ts; src/data/aegisConsoles.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx",
       "type": "hard_prompt"
     },
     {
@@ -11157,7 +11157,7 @@
         "acceptance": "its owner, initial dock, scout ranges, fuel exception, cargo, mission bonuses, and UI route match the sheet.",
         "title": "Register Starlight completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical catalogs and route already preserve Starlight's Wing Commander ownership, AEGIS initial dock, two-jump scouting with a fuelled second scan, and +3 exploration / +1 salvage mission bonuses. Focused config and route tests verify those facts and keep cargo transfer unadvertised. The routed Starlight derivative does not establish a cargo-transfer contract, and no preserved/provenanced Starlight primary sheet is available in the authorized source index, so this prompt remains partial pending an authoritative cargo decision; no cargo permission was invented.",
       "evidenceIds": "E-AUDIT-260",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11169,7 +11169,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

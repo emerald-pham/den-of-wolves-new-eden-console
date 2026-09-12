@@ -19,7 +19,7 @@ session can resume at the first unresolved acceptance.
 
 **169 / 747 prompts complete (22.62%)**
 
-Status breakdown: **169 done · 8 partial · 570 missing**.
+Status breakdown: **169 done · 9 partial · 569 missing**.
 
 Active prompt: **none**
 
@@ -699,7 +699,7 @@ release classification and evidence.
 | 257 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 258 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 259 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
-| 260 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 260 | partial | non-feature | — | The canonical catalogs and route already preserve Starlight's Wing Commander ownership, AEGIS initial dock, two-jump scouting with a fuelled second scan, and +3 exploration / +1 salvage mission bonuses. Focused config and route tests verify those facts and keep cargo transfer unadvertised. The routed Starlight derivative does not establish a cargo-transfer contract, and no preserved/provenanced Starlight primary sheet is available in the authorized source index, so this prompt remains partial pending an authoritative cargo decision; no cargo permission was invented. |
 | 261 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 262 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 263 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

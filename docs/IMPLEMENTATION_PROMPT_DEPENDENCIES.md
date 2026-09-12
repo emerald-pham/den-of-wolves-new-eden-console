@@ -384,7 +384,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 257 | NEW | missing | 253;122;125 | none | none | none | none | none | none | none | E-AUDIT-257 | M3;M5;M6 | Resolve the Scrap Refinery. |
 | 258 | NEW | missing | 253;122;125 | none | none | none | none | none | none | none | E-AUDIT-258 | M3;M5;M6 | Resolve Capybara Shuttle Bay choice. |
 | 259 | PROVE | missing | 253;287-304 | none | none | none | none | none | none | none | E-AUDIT-259 | M3;M5;M6 | Audit the expansion Capybara Jump Drive. |
-| 260 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-260 | M3;M5;M6 | Register Starlight completely. |
+| 260 | PRESERVE | partial | 161;162 | none | none | none | none | none | none | none | E-AUDIT-260 | M3;M5;M6 | Register Starlight completely. |
 | 261 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-261 | M3;M5;M6 | Register Pallas completely. |
 | 262 | PRESERVE | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-262 | M3;M5;M6 | Register Fighter Wings Alpha and Bravo. |
 | 263 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-263 | M3;M5;M6 | Register Philia completely. |
@@ -1088,7 +1088,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-257 | hard_prompt | 257 -> 253;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Expansion consoles consume expansion identity and Reactor eligibility. |
 | E-AUDIT-258 | hard_prompt | 258 -> 253;122;125 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Expansion consoles consume expansion identity and Reactor eligibility. |
 | E-AUDIT-259 | hard_prompt | 259 -> 253;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Expansion jump audit consumes expansion identity and common jump authority. |
-| E-AUDIT-260 | hard_prompt | 260 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
+| E-AUDIT-260 | hard_prompt | 260 -> 161;162 | src/data/vessels/starlight.ts; src/data/shuttles.ts; src/data/aegisConsoles.ts; src/data/aegisConsoles.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx | Starlight registration preserves the canonical shuttle and Wing Commander facts; its cargo-transfer contract remains unresolved. |
 | E-AUDIT-261 | hard_prompt | 261 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-262 | hard_prompt | 262 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fighter-wing registration consumes vessel, statistics, and console metadata. |
 | E-AUDIT-263 | hard_prompt | 263 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |

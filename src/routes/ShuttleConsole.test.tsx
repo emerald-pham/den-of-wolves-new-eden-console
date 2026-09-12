@@ -311,6 +311,32 @@ it('opens a printed shipboard shuttle for its owning role without press-only equ
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
 });
 
+it('opens Starlight on its Wing Commander route with its routed operation envelope', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['wing-commander'],
+    shuttleDockings: [{ shuttleId: 'starlight', shipId: 'aegis', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'wing-commander' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/starlight']}>
+      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'I.C.S.S. Starlight' })).toBeInTheDocument();
+  expect(screen.getByText('Wing Commander // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*aegis/i,
+  );
+  expect(screen.getByRole('heading', { name: 'Scouting' })).toBeInTheDocument();
+  expect(screen.getByText(/within 2 jumps.*fuelled.*second system/i)).toBeInTheDocument();
+  expect(screen.getByText(/\+3.*exploration.*\+1.*salvage/i)).toBeInTheDocument();
+  expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
+});
+
 it('keeps a GM-controlled Union shuttle out of the default roster', () => {
   render(
     <MemoryRouter initialEntries={['/shuttles/wobbly']}>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AEGIS_ROLE_CONSOLES } from './aegisConsoles';
+import { SHUTTLECRAFT } from './shuttles';
 
 describe('AEGIS role console reference', () => {
   it('assigns every ship-sheet console to the Admiral without client-side cards', () => {
@@ -29,5 +30,30 @@ describe('AEGIS role console reference', () => {
       .toEqual({ explore: 3, salvage: 1 });
     expect(AEGIS_ROLE_CONSOLES['wing-commander'].fighterCapacity)
       .toEqual({ standard: 4, upgraded: 6 });
+  });
+
+  it('keeps Starlight registration facts aligned across the shuttle and AEGIS catalogs', () => {
+    const starlight = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'starlight');
+    expect(starlight).toMatchObject({
+      captainRoleId: 'wing-commander',
+      initialDocking: { shipId: 'aegis', dockedAt: 'SESSION START' },
+    });
+    expect(starlight?.cargoTransfer).toBeUndefined();
+    expect(starlight?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Scouting', phase: 'Coordination',
+        effect: expect.stringMatching(/within 2 jumps.*fuelled.*second system/i),
+      }),
+      expect.objectContaining({
+        name: 'Away missions', phase: 'Away mission',
+        effect: expect.stringMatching(/\+3.*exploration.*\+1.*salvage/i),
+      }),
+    ]);
+    expect(AEGIS_ROLE_CONSOLES['wing-commander'].craft[0]).toMatchObject({
+      id: 'starlight', name: 'I.C.S.S. Starlight',
+    });
+    expect(AEGIS_ROLE_CONSOLES['wing-commander'].scoutRange).toBe(2);
+    expect(AEGIS_ROLE_CONSOLES['wing-commander'].awayMissionBonus)
+      .toEqual({ explore: 3, salvage: 1 });
   });
 });
