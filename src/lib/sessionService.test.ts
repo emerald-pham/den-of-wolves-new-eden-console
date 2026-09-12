@@ -42,6 +42,7 @@ const {
   beginOpenAirspacePhase,
   extendAirspaceWindow,
   setEmergencyTimerPaused,
+  setWolfAttackWindow,
   setActiveRoleEnabled,
   setActiveRoleConfiguration,
   selectConsoleRole,
@@ -1260,6 +1261,29 @@ describe('GM instance commands', () => {
         pausedAt: '2026-01-01T00:02:00.000Z',
       },
     }));
+  });
+
+  it('marks the private Wolf timing window through the live GM callable', async () => {
+    useSessionStore.getState().setIdentity({ ...session, phase: 'active', currentTurn: 1 }, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setConnection('live');
+    useSessionStore.getState().setSessionSnapshotFreshness('server');
+    const callable = callableReturning({ data: { status: 'due', turn: 1, revision: 1 } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await expect(setWolfAttackWindow('due', 0)).resolves.toEqual({
+      status: 'due', turn: 1, revision: 1,
+    });
+
+    expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'setWolfAttackWindow');
+    expect(callable).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 's1', instanceId: 'instance-1', expectedRevision: 0,
+      requestId: expect.any(String), status: 'due',
+    }));
+    expect(useSessionStore.getState().session).not.toHaveProperty('wolfAttackWindow');
   });
 
   it('does not queue an emergency timer command while offline', async () => {

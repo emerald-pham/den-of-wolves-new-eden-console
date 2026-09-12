@@ -41,6 +41,7 @@ import {
   advanceTurn,
   startGame,
   extendAirspaceWindow,
+  setWolfAttackWindow,
   replayTurnStartAnnouncement,
   type ShipCounterBatchResult,
   type TurnStartReplayAudience,
@@ -62,7 +63,16 @@ import {
   type CounterPreview,
   type CounterStep,
 } from '@/lib/counterPreview';
-import type { AirspaceWindow, DamageDraw, GameSession, GmInstance, Player, SessionEvent } from '@/types/game';
+import type {
+  AirspaceWindow,
+  DamageDraw,
+  GameSession,
+  GmInstance,
+  Player,
+  SessionEvent,
+  WolfAttackWindow,
+  WolfAttackWindowStatus,
+} from '@/types/game';
 
 interface PlayerRoleGroup {
   readonly id: string;
@@ -248,6 +258,8 @@ export default function GmConsole() {
   const [castingMutationUid, setCastingMutationUid] = useState<string | null>(null);
   const [castingMutationMessage, setCastingMutationMessage] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly SessionEvent[]>([]);
+  const [wolfAttackWindow, setWolfAttackWindowState] = useState<WolfAttackWindow | null>(null);
+  const [wolfWindowMutation, setWolfWindowMutation] = useState<WolfAttackWindowStatus | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
   const [loading, setLoading] = useState(true);
@@ -350,6 +362,17 @@ export default function GmConsole() {
       ? 'open'
       : null;
   const activeTurnTimer = hasActiveTurnTimer(currentPhase, clock);
+  const wolfWindowStatus = wolfAttackWindow?.status ?? 'planned';
+  const wolfWindowTurn = wolfAttackWindow?.turn ?? 1;
+  const wolfWindowRevision = wolfAttackWindow?.revision ?? 0;
+  const wolfWindowDueAvailable = currentTurn === 1
+    ? wolfAttackWindow?.status !== 'due' && wolfAttackWindow?.status !== 'resolved' &&
+      wolfAttackWindow?.status !== 'deferred'
+    : currentTurn === 2 && wolfAttackWindow?.status === 'deferred' && wolfWindowTurn === 2;
+  const wolfWindowResolveAvailable = wolfAttackWindow?.status === 'due' &&
+    wolfWindowTurn === currentTurn;
+  const wolfWindowDeferAvailable = currentTurn === 1 &&
+    (wolfAttackWindow === null || wolfAttackWindow.status === 'due');
   const lockQueued = pendingCommands.some(
     (command) => command.kind === 'setGmControlsLocked',
   );
@@ -448,6 +471,7 @@ export default function GmConsole() {
       subscribeConnectedPlayers,
       subscribeDamageDraws,
       subscribeGmInstances,
+      subscribeGmWolfAttackWindow,
       subscribeSessionEvents,
     }) => {
       if (!active) return;
@@ -464,6 +488,11 @@ export default function GmConsole() {
             message: 'The live GM instance manifest could not be refreshed.',
           });
         },
+      );
+      const stopWolfAttackWindow = subscribeGmWolfAttackWindow(
+        sessionId,
+        (next) => setWolfAttackWindowState((current) =>
+          current && next && next.revision < current.revision ? current : next),
       );
       const stopEvents = subscribeSessionEvents(
         sessionId,
@@ -491,6 +520,7 @@ export default function GmConsole() {
       );
       unsubscribe = () => {
         stopInstances();
+        stopWolfAttackWindow();
         stopEvents();
         stopDamageDraws();
         stopPlayers();
@@ -1020,6 +1050,19 @@ export default function GmConsole() {
     }
   }
 
+  async function changeWolfAttackWindow(status: WolfAttackWindowStatus): Promise<void> {
+    if (wolfWindowMutation || !session || !local) return;
+    setWolfWindowMutation(status);
+    try {
+      const next = await setWolfAttackWindow(status, wolfWindowRevision);
+      setWolfAttackWindowState(next);
+    } catch {
+      // The shared interception notice reports the server rejection.
+    } finally {
+      setWolfWindowMutation(null);
+    }
+  }
+
   function airspaceWindowLabel(window: AirspaceWindow): string {
     return window === 'restricted' ? 'Airspace restricted' : 'Airspace open';
   }
@@ -1214,6 +1257,42 @@ export default function GmConsole() {
                     </button>
                   );
                 })}
+              </div>
+            </section>
+            <section className="gm-turn-control__airspace" aria-label="Wolf attack timing controls">
+              <p className="gm-console__status">
+                Wolf-attack timing // {wolfWindowStatus === 'planned'
+                  ? 'planned // facilitator action required'
+                  : `${wolfWindowStatus} // Turn ${wolfWindowTurn} // revision ${wolfWindowRevision}`}
+              </p>
+              <p className="gm-console__hint">
+                Approximate facilitator marker // no automatic attack, combat resolution, or turn advance.
+              </p>
+              <div className="gm-turn-control__actions">
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={!wolfWindowDueAvailable || wolfWindowMutation !== null}
+                  onClick={() => void changeWolfAttackWindow('due')}
+                >
+                  {wolfWindowMutation === 'due' ? 'Marking timing due…' : 'Mark timing due'}
+                </button>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={!wolfWindowResolveAvailable || wolfWindowMutation !== null}
+                  onClick={() => void changeWolfAttackWindow('resolved')}
+                >
+                  {wolfWindowMutation === 'resolved' ? 'Resolving timing…' : 'Resolve timing'}
+                </button>
+                <button
+                  className="cic-action-button"
+                  type="button"
+                  disabled={!wolfWindowDeferAvailable || wolfWindowMutation !== null}
+                  onClick={() => void changeWolfAttackWindow('deferred')}
+                >
+                  {wolfWindowMutation === 'deferred' ? 'Deferring to Turn 2…' : 'Defer to Turn 2'}
+                </button>
               </div>
             </section>
           </section>

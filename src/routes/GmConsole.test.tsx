@@ -26,6 +26,7 @@ vi.mock('@/lib/sessionService', () => ({
   advanceTurn: vi.fn(),
   startGame: vi.fn(),
   extendAirspaceWindow: vi.fn(),
+  setWolfAttackWindow: vi.fn(),
   setEmergencyTimerPaused: vi.fn(),
   confirmSetup: vi.fn(),
   setFacilitatorResponsibility: vi.fn(),
@@ -36,15 +37,16 @@ vi.mock('@/lib/sessionService', () => ({
 vi.mock('@/lib/firestore', () => ({
   subscribeConnectedPlayers: vi.fn(),
   subscribeGmInstances: vi.fn(),
+  subscribeGmWolfAttackWindow: vi.fn(),
   subscribeSessionEvents: vi.fn(),
   subscribeDamageDraws: vi.fn(),
 }));
 
 const { kickGmInstance, kickPlayer, assignRole, releaseRole, setCapybaraEnabled, setDioneEnabled, setPressEnabled, setDebriefMode, setGmControlsLocked,
-  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setEmergencyTimerPaused,
+  replayTurnStartAnnouncement, advanceTurn, startGame, extendAirspaceWindow, setWolfAttackWindow, setEmergencyTimerPaused,
   confirmSetup, setFacilitatorResponsibility, applyShipCounterSteps, triggerDradisContact } =
   await import('@/lib/sessionService');
-const { subscribeConnectedPlayers, subscribeGmInstances, subscribeSessionEvents, subscribeDamageDraws } =
+const { subscribeConnectedPlayers, subscribeGmInstances, subscribeGmWolfAttackWindow, subscribeSessionEvents, subscribeDamageDraws } =
   await import('@/lib/firestore');
 
 const local = {
@@ -90,6 +92,10 @@ beforeEach(() => {
   });
   vi.mocked(subscribeDamageDraws).mockImplementation((_sessionId, onDraws) => {
     onDraws([]);
+    return vi.fn();
+  });
+  vi.mocked(subscribeGmWolfAttackWindow).mockImplementation((_sessionId, onWindow) => {
+    onWindow(null);
     return vi.fn();
   });
   vi.mocked(subscribeConnectedPlayers).mockImplementation((_sessionId, onPlayers) => {
@@ -1488,6 +1494,38 @@ it('allows the same confirmed control for the live open airspace window', async 
   expect(extendAirspaceWindow).not.toHaveBeenCalled();
   await user.click(confirm);
   expect(extendAirspaceWindow).toHaveBeenCalledWith('open');
+});
+
+it('lets the facilitator mark and resolve the approximate Wolf window without starting combat', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({ ...activeSession, phase: 'active', currentTurn: 1 });
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  vi.mocked(setWolfAttackWindow)
+    .mockResolvedValueOnce({ status: 'due', turn: 1, revision: 1 })
+    .mockResolvedValueOnce({ status: 'resolved', turn: 1, revision: 2 });
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ planned/i);
+  expect(turnControls).toHaveTextContent(/no automatic attack, combat resolution, or turn advance/i);
+  const mark = within(turnControls).getByRole('button', { name: 'Mark timing due' });
+  expect(mark).toBeEnabled();
+
+  await user.click(mark);
+  expect(setWolfAttackWindow).toHaveBeenCalledWith('due', 0);
+  const resolve = await within(turnControls).findByRole('button', { name: 'Resolve timing' });
+  expect(resolve).toBeEnabled();
+  expect(turnControls).toHaveTextContent(/wolf-attack timing \/\/ due \/\/ turn 1 \/\/ revision 1/i);
+
+  await user.click(resolve);
+  expect(setWolfAttackWindow).toHaveBeenLastCalledWith('resolved', 1);
+  await waitFor(() => expect(turnControls).toHaveTextContent(
+    /wolf-attack timing \/\/ resolved \/\/ turn 1 \/\/ revision 2/i,
+  ));
 });
 
 it('requires three deliberate clicks to pause and resume the emergency timer', async () => {

@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['080'],
+    implementationProgress: {
+      completed: 111,
+      total: 747,
+      percentage: '14.86%',
+      done: 111,
+      partial: 11,
+      active: 0,
+      missing: 625,
+    },
+    changes: [
+      'Facilitators can mark the approximate first Wolf-attack timing as due, resolved, or deferred to Turn 2 from the GM console. The manual marker does not launch combat, advance the turn, or run a client timer. 111 of 747 planned items are complete (14.86%).',
+    ],
+  },
+  {
+    version: '0.3.40',
     implementationPrompts: ['075'],
     implementationProgress: {
       completed: 109,

@@ -357,7 +357,7 @@ composition or hidden-state story is complete.
 | 077 | verified | The existing `startGame` transition persists exactly `{ fleet: 2 }` for the canonical single initial fleet group. `functions/src/startCallable.test.ts` and the production 8/19/20 matrix assert the exact map; existing replay and concurrent-start coverage proves retries do not mutate it. |
 | 078 | verified | `normalizeSessionConfiguration` accepts only 6–8 and `startGame` locks the persisted configuration at the selected setup revision; validation and start tests cover both boundaries. |
 | 079 | verified | `functions/src/turnZero.ts`, `functions/src/turnZero.test.ts`, and timer tests cover Turn 1 extensions. |
-| 080 | missing | No facilitator-marked approximate first-attack timing state was found. Target attack-window decision record test. |
+| 080 | verified | `setWolfAttackWindow` persists the GM-only due/resolved/deferred marker and audit projection through one revisioned, replay-safe transaction; callable, rules, listener, service, and GM-console tests cover authorization, Turn 2 deferral, member privacy, and no automatic attack/combat/turn advancement. |
 | 081 | verified | `functions/src/turnStartReplayCallable.test.ts`, `functions/src/turnZero.test.ts`, and `src/components/TurnStartAnnouncement.test.tsx`. |
 | 082 | partial | `src/lib/firestore.ts` and UI snapshot components expose public/session state; no explicit seven-audience projection/redaction implementation proves the full boundary. Target public snapshot serialization test. |
 | 083 | verified | `tests/rules/firestore.rules.test.ts` member/nonmember and disconnected read cases. |

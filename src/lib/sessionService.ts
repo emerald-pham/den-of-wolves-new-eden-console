@@ -10,6 +10,8 @@ import type {
   SetupReceipt,
   ShipJumpState,
   ShipJumpTransition,
+  WolfAttackWindow,
+  WolfAttackWindowStatus,
 } from '@/types/game';
 import type { ResourceId } from '@/data/resources';
 import type { CounterStep } from './counterPreview';
@@ -1787,6 +1789,55 @@ export async function setEmergencyTimerPaused(paused: boolean): Promise<void> {
     if (phaseClock && activeSession?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({ ...activeSession, turnPhase: phaseClock });
     }
+  } catch (cause) {
+    useSessionStore.getState().setCommunicationError(interception(cause));
+    throw cause;
+  }
+}
+
+function wolfAttackWindowReply(value: unknown): WolfAttackWindow | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const reply = value as Record<string, unknown>;
+  if (
+    (reply.status !== 'due' && reply.status !== 'resolved' && reply.status !== 'deferred') ||
+    typeof reply.turn !== 'number' || !Number.isSafeInteger(reply.turn) || reply.turn < 1 ||
+    typeof reply.revision !== 'number' || !Number.isSafeInteger(reply.revision) || reply.revision < 0
+  ) return null;
+  return {
+    status: reply.status,
+    turn: reply.turn,
+    revision: reply.revision,
+  };
+}
+
+/** Mark the approximate first Wolf-attack window from an active GM console. */
+export async function setWolfAttackWindow(
+  status: WolfAttackWindowStatus,
+  expectedRevision: number,
+): Promise<WolfAttackWindow> {
+  const store = useSessionStore.getState();
+  if (!store.session || !store.gmInstance) {
+    throw new Error('Claim GM before marking the Wolf-attack timing window.');
+  }
+  requireFreshSessionAuthority('Reconnect before marking the Wolf-attack timing window.');
+  const sessionId = store.session.id;
+  const checkpoint = sessionAuthorityCheckpoint(sessionId, sessionAuthorityUid(store));
+  await ensureSignedIn();
+  const payload = {
+    sessionId,
+    instanceId: store.gmInstance.id,
+    requestId: commandId(),
+    expectedRevision,
+    status,
+  };
+  const call = httpsCallable<typeof payload, unknown>(functions(), 'setWolfAttackWindow');
+  try {
+    const reply = wolfAttackWindowReply((await call(payload)).data);
+    if (!reply) throw new Error('The server returned an invalid Wolf-attack timing marker.');
+    // The private projection listener remains the source of truth for the GM
+    // panel. The callable reply is safe to render immediately after commit.
+    if (!authorityCheckpointIsCurrent(checkpoint)) return reply;
+    return reply;
   } catch (cause) {
     useSessionStore.getState().setCommunicationError(interception(cause));
     throw cause;

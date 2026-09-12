@@ -4731,6 +4731,13 @@ body {
   border-top: 1px solid var(--cic-rule);
 }
 .gm-turn-control__airspace > .gm-console__status { margin: 0 0 0.6rem; }
+.gm-console__hint {
+  margin: 0 0 0.6rem;
+  color: var(--cic-muted);
+  font: 0.66rem/1.45 var(--cic-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 .gm-emergency-pause {
   display: grid;
   gap: 0.65rem;

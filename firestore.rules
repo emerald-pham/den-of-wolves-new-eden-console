@@ -116,6 +116,18 @@ service cloud.firestore {
         allow list, write: if false;
       }
 
+      // The approximate Wolf-attack timing marker and its audit trail are
+      // facilitator controls, never a player-readable session field.
+      match /wolfAttackWindow/{projectionId} {
+        allow get: if projectionId == 'current' && isGm(sessionId);
+        allow list, write: if false;
+
+        match /audit/{auditId} {
+          allow get, list: if projectionId == 'current' && isGm(sessionId);
+          allow write: if false;
+        }
+      }
+
       match /events/{eventId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

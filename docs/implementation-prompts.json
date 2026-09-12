@@ -329,6 +329,13 @@
       "language": "The existing authoritative start transition persists exactly one initial pursuit group, fleet, at value 2. The start callable and production 8-, 19-, and 20-player matrix assert the exact map, while the existing replay and concurrent-start assertions prove repeated requests do not mutate it. Initial fleet splitting and later pursuit changes remain separate mechanics.",
       "source": "functions/src/index.ts; functions/src/startCallable.test.ts; functions/src/sessionComposition.test.ts; src/lib/sessionService.ts; src/lib/firestore.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "080 -> M1-WOLF-TIMING",
+      "id": "E-080-WOLF-TIMING",
+      "language": "The active-GM setWolfAttackWindow callable stores a private due/resolved/deferred marker with a monotonic revision, one GM-only audit record, and a shared command receipt in one transaction. Callable, rules, Firestore listener, service, and GM-console tests cover authorization, stale and replay handling, Turn 1 defer to Turn 2, member privacy, and the absence of automatic attack/combat/turn advancement.",
+      "source": "functions/src/index.ts; functions/src/wolfAttackWindow.ts; functions/src/wolfAttackWindowCallable.test.ts; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2249,15 +2256,15 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "facilitators can mark and resolve the approximate Turn 1 timing without turning “about ten minutes” into client automation.",
         "title": "Represent the first Wolf-attack timing window."
       },
-      "description": "Facilitator-marked approximate Wolf-attack window remains open.",
-      "evidenceIds": "none",
+      "description": "The GM console now lets an active facilitator mark the approximate first Wolf-attack timing as due, resolve it, or defer it to Turn 2. The marker is a private, revisioned server projection with retry-safe audit state; it never launches combat, advances the turn, enforces a client timer, or exposes timing to members.",
+      "evidenceIds": "E-080-WOLF-TIMING",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2265,10 +2272,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.41"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

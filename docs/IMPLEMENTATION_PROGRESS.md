@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**110 / 747 prompts complete (14.73%)**
+**111 / 747 prompts complete (14.86%)**
 
-Status breakdown: **110 done · 11 partial · 626 missing**.
+Status breakdown: **111 done · 11 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -490,7 +490,7 @@ release classification and evidence.
 | 077 | done | feature | 0.3.5 | The existing authoritative Turn 1 start initializes the canonical single initial fleet group as pursuit 2; production 8-, 19-, and 20-player starts and replay requests prove the exact group map without introducing split-group mechanics. |
 | 078 | done | feature | 0.3.5 | Six-to-eight validation and start configuration lock. |
 | 079 | done | non-feature | — | Turn 1 timer override tests. |
-| 080 | missing | non-feature | — | Facilitator-marked approximate Wolf-attack window remains open. |
+| 080 | done | feature | 0.3.41 | The GM console now lets an active facilitator mark the approximate first Wolf-attack timing as due, resolve it, or defer it to Turn 2. The marker is a private, revisioned server projection with retry-safe audit state; it never launches combat, advances the turn, enforces a client timer, or exposes timing to members. |
 | 081 | done | non-feature | — | Durable Turn 1 announcement/replay tests. |
 | 082 | partial | non-feature | — | Public state exists; complete projection serializer remains open. |
 | 083 | done | non-feature | — | Member/nonmember snapshot rules tests. |

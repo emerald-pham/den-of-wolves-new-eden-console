@@ -52,6 +52,7 @@ import {
   requireGmInstanceRequest,
   requireAirspaceWindowExtensionRequest,
   requireEmergencyTimerPauseRequest,
+  requireWolfAttackWindowRequest,
   requirePlayerKickRequest,
   requireOpenAirspacePhaseRequest,
   requireTurnAdvanceRequest,
@@ -182,6 +183,7 @@ import {
   buildAuthoritativeEventEnvelope,
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
+import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
@@ -4881,6 +4883,155 @@ export const setEmergencyTimerPaused = onCall<{
     }));
     return { turnPhase };
   });
+});
+
+/** Record the facilitator's approximate first Wolf-attack timing decision. */
+export const setWolfAttackWindow = onCall<{
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  status?: unknown;
+}>(async request => {
+  const uid = requireUid(request.auth);
+  const change = requireWolfAttackWindowRequest(request.data ?? {});
+  const sessionRef = db.doc(`sessions/${change.sessionId}`);
+  const projectionRef = db.doc(`sessions/${change.sessionId}/wolfAttackWindow/current`);
+  const auditRef = db.doc(`sessions/${change.sessionId}/wolfAttackWindow/current/audit/${change.requestId}`);
+  const receiptRef = commandReceiptRef(change.sessionId, change.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'set-wolf-attack-window',
+    sessionId: change.sessionId,
+    requestId: change.requestId,
+    actorUid: uid,
+    instanceId: change.instanceId,
+    expectedRevision: change.expectedRevision,
+    payload: { status: change.status },
+  };
+
+  const result = await db.runTransaction(async tx => {
+    const [session, player, instance, projection, receipt, audit] = await Promise.all([
+      tx.get(sessionRef),
+      tx.get(db.doc(`sessions/${change.sessionId}/players/${uid}`)),
+      tx.get(db.doc(`sessions/${change.sessionId}/gmInstances/${change.instanceId}`)),
+      tx.get(projectionRef),
+      tx.get(receiptRef),
+      tx.get(auditRef),
+    ]);
+    if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    const liveInstance = instance.exists
+      ? {
+        id: instance.id,
+        uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
+        connected: instance.get('connected') !== false,
+        lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+      }
+      : null;
+    if (
+      !isActivePlayer(player) || player.get('role') !== 'gm' ||
+      liveInstance === null || liveInstance.uid !== uid || !isLiveSetupGm(liveInstance)
+    ) {
+      throw new HttpsError('permission-denied', 'An active facilitator instance is required.');
+    }
+    const replay = replayBoundCommand(
+      receipt,
+      fingerprint,
+      (value): value is WolfAttackWindow => wolfAttackWindowState(value) !== undefined,
+      'Wolf attack timing',
+    );
+    if (replay) return replay;
+    if (audit.exists) rejectLegacyEventReplay('Wolf attack timing');
+    if (session.get('phase') === 'closed') {
+      throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    if (session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'The first Wolf-attack timing window is available only during the active game.',
+        'invalid-phase',
+      );
+    }
+
+    const current = projection.exists ? wolfAttackWindowState(projection.data()) : undefined;
+    const currentRevision = current?.revision ?? 0;
+    const currentTurn = sessionTurn(session.get('currentTurn'));
+    const sameState = current?.status === change.status &&
+      (change.status === 'deferred' ? current.turn === 2 : current.turn === currentTurn);
+    if (change.expectedRevision !== currentRevision) {
+      if (sameState) {
+        tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
+        return current;
+      }
+      throw commandError(
+        'failed-precondition',
+        'Wolf attack timing changed. Wait for the live facilitator marker and try again.',
+        'stale-revision',
+      );
+    }
+    if (sameState && current) {
+      tx.set(receiptRef, { fingerprint, result: current, createdAt: FieldValue.serverTimestamp() });
+      return current;
+    }
+
+    let turn: number;
+    if (change.status === 'deferred') {
+      if (currentTurn !== 1 || (current && current.status === 'resolved')) {
+        throw commandError(
+          'failed-precondition',
+          'The first Wolf-attack window can be deferred only during Turn 1.',
+          'invalid-phase',
+        );
+      }
+      turn = 2;
+    } else if (change.status === 'due') {
+      const canMarkDue = (currentTurn === 1 && current === undefined) ||
+        (currentTurn === 2 && current?.status === 'deferred' && current.turn === 2);
+      if (!canMarkDue || (current && current.status === 'resolved')) {
+        throw commandError(
+          'failed-precondition',
+          'The first Wolf-attack timing marker is unavailable in this turn.',
+          'invalid-phase',
+        );
+      }
+      turn = current?.turn === 2 ? 2 : 1;
+    } else {
+      if (
+        !current || (current.status !== 'due' && current.status !== 'deferred') ||
+        current.turn !== currentTurn || (currentTurn !== 1 && currentTurn !== 2)
+      ) {
+        throw commandError(
+          'failed-precondition',
+          'Mark the active Wolf-attack timing window before resolving it.',
+          'invalid-phase',
+        );
+      }
+      turn = currentTurn;
+    }
+
+    const next: WolfAttackWindow = {
+      status: change.status,
+      turn,
+      revision: currentRevision + 1,
+    };
+    tx.set(projectionRef, {
+      ...next,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    // This audit is deliberately in the GM-only projection. Players can read
+    // the session event stream, but should not learn private marker timing.
+    tx.set(auditRef, {
+      type: 'wolf-attack-window',
+      action: next.status,
+      turn: next.turn,
+      revision: next.revision,
+      actorUid: uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(receiptRef, { fingerprint, result: next, createdAt: FieldValue.serverTimestamp() });
+    return next;
+  });
+
+  return result;
 });
 
 /** AEGIS may grant the SNN Press shuttle a limited exception during restricted airspace. */

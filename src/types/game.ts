@@ -174,6 +174,16 @@ export interface PressDispatchState {
   readonly revision: number;
 }
 
+/** Facilitator-only marker for the approximate first Wolf-attack window. */
+export type WolfAttackWindowStatus = 'due' | 'resolved' | 'deferred';
+
+export interface WolfAttackWindow {
+  readonly status: WolfAttackWindowStatus;
+  /** The numbered turn in which the facilitator should handle this window. */
+  readonly turn: number;
+  readonly revision: number;
+}
+
 /** The shared real-time window that starts with every numbered turn. */
 export interface TurnPhase {
   readonly turn: number;

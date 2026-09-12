@@ -443,6 +443,33 @@ export function requireEmergencyTimerPauseRequest(data: {
   };
 }
 
+export function requireWolfAttackWindowRequest(data: {
+  sessionId?: unknown;
+  instanceId?: unknown;
+  requestId?: unknown;
+  expectedRevision?: unknown;
+  status?: unknown;
+}): {
+  sessionId: string;
+  instanceId: string;
+  requestId: string;
+  expectedRevision: number;
+  status: 'due' | 'resolved' | 'deferred';
+} {
+  if (!Number.isSafeInteger(data.expectedRevision) || (data.expectedRevision as number) < 0) {
+    throw new HttpsError('invalid-argument', 'expectedRevision must be a non-negative integer.');
+  }
+  if (data.status !== 'due' && data.status !== 'resolved' && data.status !== 'deferred') {
+    throw new HttpsError('invalid-argument', 'status must be due, resolved, or deferred.');
+  }
+  return {
+    ...requireGmInstanceRequest(data),
+    requestId: requiredId(data.requestId, 'requestId'),
+    expectedRevision: data.expectedRevision as number,
+    status: data.status,
+  };
+}
+
 export function requireShipAvailabilityRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;

@@ -30,6 +30,7 @@ const {
   subscribeConnectedPlayers,
   subscribeDamageDraws,
   subscribeLoyaltyCensus,
+  subscribeGmWolfAttackWindow,
   subscribeSessionEvents,
   subscribeSessionState,
 } = await import('./firestore');
@@ -455,6 +456,35 @@ it('hydrates the known facilitator census only from server authority and allowli
     data: () => ({ type: 'loyalty-census', revision: 8, entries: [{ uid: 'players/u2', kind: 'wolf-agent', suspicion: 10 }] }),
   });
   expect(onLoyaltyCensus).toHaveBeenLastCalledWith(null);
+});
+
+it('hydrates the facilitator-only Wolf timing marker and rejects malformed state', () => {
+  const { callbacks } = captureSessionListener();
+  const onWindow = vi.fn();
+  const unsubscribe = subscribeGmWolfAttackWindow('s1', onWindow);
+
+  callbacks[0]?.({
+    metadata: { fromCache: true },
+    exists: () => true,
+    data: () => ({ status: 'due', turn: 1, revision: 1 }),
+  });
+  expect(onWindow).not.toHaveBeenCalled();
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'deferred', turn: 2, revision: 2, privateNote: 'omit' }),
+  });
+  expect(onWindow).toHaveBeenCalledWith({ status: 'deferred', turn: 2, revision: 2 });
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    exists: () => true,
+    data: () => ({ status: 'unknown', turn: 2, revision: 3 }),
+  });
+  expect(onWindow).toHaveBeenLastCalledWith(null);
+  unsubscribe();
+  expect(onWindow).toHaveBeenLastCalledWith(null);
 });
 
 it('drops malformed player identities from private loyalty and setup receipt projections', () => {

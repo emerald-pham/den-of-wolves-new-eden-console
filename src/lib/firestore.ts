@@ -37,6 +37,7 @@ import type {
   ShipNavigationLogs,
   SetupReceipt,
   UnrestAlert,
+  WolfAttackWindow,
 } from '@/types/game';
 import type { EntityId, EntityKind } from '@/types/identifiers';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
@@ -261,6 +262,21 @@ function debriefMode(value: unknown): NonNullable<GameSession['debriefMode']> {
     state.revision < 0
   ) return { active: false, revision: 0 };
   return { active: state.active, revision: state.revision };
+}
+
+function wolfAttackWindow(value: unknown): WolfAttackWindow | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const state = value as Readonly<Record<string, unknown>>;
+  if (
+    (state.status !== 'due' && state.status !== 'resolved' && state.status !== 'deferred') ||
+    typeof state.turn !== 'number' || !Number.isSafeInteger(state.turn) || state.turn < 1 ||
+    typeof state.revision !== 'number' || !Number.isSafeInteger(state.revision) || state.revision < 0
+  ) return null;
+  return {
+    status: state.status,
+    turn: state.turn,
+    revision: state.revision,
+  };
 }
 
 function shipNavigationLogs(value: unknown): ShipNavigationLogs {
@@ -791,6 +807,30 @@ export function subscribeLoyaltyCensus(
     subscribed = false;
     unsubscribe();
     onCensus(null);
+  };
+}
+
+/** Subscribe to the facilitator-only first Wolf-attack timing marker. */
+export function subscribeGmWolfAttackWindow(
+  sessionId: string,
+  onWindow: (window: WolfAttackWindow | null) => void,
+): Unsubscribe {
+  let subscribed = true;
+  const unsubscribe = onSnapshot(
+    doc(db(), `sessions/${sessionId}/wolfAttackWindow/current`),
+    (snapshot) => {
+      if (!subscribed || snapshot.metadata?.fromCache === true) return;
+      onWindow(snapshot.exists() ? wolfAttackWindow(snapshot.data()) : null);
+    },
+    () => {
+      if (!subscribed) return;
+      onWindow(null);
+    },
+  );
+  return () => {
+    subscribed = false;
+    unsubscribe();
+    onWindow(null);
   };
 }
 

@@ -202,6 +202,33 @@ describe('session header', () => {
     await assertFails(getDoc(gmCensus));
   });
 
+  it('keeps the Wolf-attack timing marker and audit private to connected GMs', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackWindow/current`), {
+        status: 'due', turn: 1, revision: 1,
+      });
+      await setDoc(doc(ctx.firestore(), `${SESSION}/wolfAttackWindow/current/audit/wolf-1`), {
+        type: 'wolf-attack-window', action: 'due', turn: 1, revision: 1, actorUid: 'gm1',
+      });
+    });
+    const gmWindow = doc(as('gm1'), `${SESSION}/wolfAttackWindow/current`);
+    const playerWindow = doc(as('alice'), `${SESSION}/wolfAttackWindow/current`);
+    const gmAudit = collection(as('gm1'), `${SESSION}/wolfAttackWindow/current/audit`);
+    const playerAudit = collection(as('alice'), `${SESSION}/wolfAttackWindow/current/audit`);
+
+    await assertSucceeds(getDoc(gmWindow));
+    await assertFails(getDoc(playerWindow));
+    await assertSucceeds(getDocs(gmAudit));
+    await assertFails(getDocs(playerAudit));
+    await assertFails(setDoc(gmWindow, { status: 'resolved', turn: 1, revision: 2 }));
+
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), `${SESSION}/players/gm1`), { connected: false });
+    });
+    await assertFails(getDoc(gmWindow));
+    await assertFails(getDocs(gmAudit));
+  });
+
   it('shares drawn damage cards with members but denies strangers and every client write', async () => {
     const playerDraw = doc(as('alice'), `${SESSION}/damageDraws/draw1`);
     const gmDraw = doc(as('gm1'), `${SESSION}/damageDraws/draw1`);
