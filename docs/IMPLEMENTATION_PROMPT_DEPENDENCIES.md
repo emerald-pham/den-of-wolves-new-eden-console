@@ -212,7 +212,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 110 | PROVE | done | 103 | none | none | none | none | none | none | none | E-AUDIT-110 | M2 | Run the lobby-to-two-turn scenario. |
 | 111 | PRESERVE | done | none | none | none | none | none | none | none | none | E-AUDIT-111 | M2 | Define authoritative resource ledgers. |
 | 112 | NEW | missing | 111 | none | none | none | none | none | none | none | E-AUDIT-112 | M2 | Resolve same-table trades. |
-| 113 | NEW | missing | 111;164;361 | none | none | none | none | none | none | none | E-AUDIT-113 | M2 | Resolve shuttle-mediated transfers. |
+| 113 | NEW | missing | 111;361 | none | none | none | none | none | none | 164 | E-AUDIT-113;E-164-TRANSFER-RELATED | M2 | Resolve shuttle-mediated transfers. |
 | 114 | PRESERVE | partial | 161;162;234;249 | none | none | none | none | none | none | 121;235;241;242;246;250;571;591 | E-AUDIT-114;E-AUDIT-114-ORDER;E-AUDIT-114-RELATED | M2 | Register vessel-specific maintenance order. |
 | 115 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Resolve damaged Storage. |
 | 116 | PRESERVE | missing | 117;162 | none | none | none | none | none | none | none | E-AUDIT-116 | M2 | Select food and water rations independently. |
@@ -503,7 +503,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 374 | NEW | missing | 130;373 | none | none | none | none | none | none | none | E-AUDIT-374 | M7 | Preserve shuttle damage immunity. |
 | 375 | NEW | missing | 361;369 | none | none | none | none | none | none | none | E-AUDIT-375 | M7 | Enforce ordinary bay capacity. |
 | 376 | NEW | missing | 126;369 | none | none | none | none | none | none | none | E-AUDIT-376 | M7 | Enforce AEGIS dual-bay capacity. |
-| 377 | NEW | missing | 164;361;363 | none | none | none | none | none | none | none | E-AUDIT-377 | M7 | Transfer permitted shuttle cargo. |
+| 377 | NEW | missing | 361;363 | none | none | none | none | none | none | 164 | E-AUDIT-377;E-164-TRANSFER-RELATED | M7 | Transfer permitted shuttle cargo. |
 | 378 | NEW | missing | 377 | none | none | none | none | none | none | none | E-AUDIT-378 | M7 | Preserve security-team semantics. |
 | 379 | NEW | missing | 377 | none | none | none | none | none | none | none | E-AUDIT-379 | M7 | Deny invalid cargo moves. |
 | 380 | NEW | missing | 365;366;367 | none | none | none | none | none | none | none | E-AUDIT-380 | M7 | Reconcile movement conflicts. |
@@ -979,6 +979,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-162-STATS | evidence | 162 -> VESSEL-STATISTICS | src/data/vessels/templates.ts; src/data/vessels/aegis.ts; src/data/vessels/gorgoneion.ts; src/data/vessels/capybara-small.ts; src/data/vessels/warrior.ts; src/data/vessels/vulcan.ts; src/data/vessels/voyage-33-0.ts; src/data/shipPopulation.ts; src/components/FleetSystemsWorkspace.tsx; src/components/AegisConsoleWorkspace.tsx; src/data/vesselTemplates.test.ts | The shared typed vessel registration and statistics profile records source-aligned identity, capacity applicability, population, jump costs, Reactor capacity, and maintenance-step ranges for every registered full and supplemental vessel. Full-ship population/specification consumers and ship console telemetry read the profile; supplemental profiles remain metadata-only until their gameplay prompts land. |
 | E-AUDIT-164 | hard_prompt | 164 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Cargo permissions are typed by registered vessels and their printed statistics. |
 | E-164-ALLOWLIST-PARTIAL | evidence | 164 -> 113;377 | src/data/vessels/templates.ts; src/data/vessels/*.ts; src/data/shuttles.test.ts; functions/src/actionMetadata.ts; functions/src/index.ts | Registered shuttle definitions carry source-aligned cargo allowlists and an exact printed matrix test, while no production cargo-transfer callable or resolver exists yet; authoritative enforcement remains deferred to the later transfer prompts. |
+| E-164-TRANSFER-RELATED | related/consumes | 113;377 -> 164 | docs/implementation-prompts.json; src/data/vessels/templates.ts; src/data/shuttles.test.ts | Prompts 113 and 377 consume P164's typed shuttle allowlists; their authoritative transfer integration closes P164's remaining enforcement boundary without making the partial foundation a hard prerequisite. |
 | E-AUDIT-165 | hard_prompt | 165 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Console metadata is attached to registered vessel and printed-system definitions. |
 | E-AUDIT-166 | hard_prompt | 166 -> 161;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role action binding consumes vessel and console metadata. |
 | E-AUDIT-169 | hard_prompt | 169 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Shared fixtures exercise the common vessel and console contracts. |
