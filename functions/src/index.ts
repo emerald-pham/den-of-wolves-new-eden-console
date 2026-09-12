@@ -207,6 +207,7 @@ import {
 } from './eventEnvelope';
 import { buildPrivacySafeEventRecord } from './eventRedaction';
 import { buildVesselActionEnvelope, type VesselActionEnvelope } from './vesselActionEnvelope';
+import type { LifecyclePhase } from './lifecycle';
 import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow';
 import {
   commandReceiptDisposition,
@@ -1711,10 +1712,14 @@ function vesselActionRevisionPatch(vesselId: string, revision: number): Record<s
   return { [`vesselActionRevisions.${vesselId}`]: revision };
 }
 
-function vesselActionPhase(session: DocumentSnapshot): import('./lifecycle').LifecyclePhase {
+const LIFECYCLE_PHASES = [
+  'lobby', 'casting', 'briefing', 'active', 'success', 'failure',
+  'debrief', 'closed', 'retained-empty',
+] as const satisfies readonly LifecyclePhase[];
+
+function vesselActionPhase(session: DocumentSnapshot): LifecyclePhase {
   const phase = session.get('phase');
-  if (['lobby', 'casting', 'briefing', 'active', 'success', 'failure', 'debrief', 'closed', 'retained-empty']
-    .includes(String(phase))) return phase as import('./lifecycle').LifecyclePhase;
+  if (LIFECYCLE_PHASES.includes(phase as LifecyclePhase)) return phase as LifecyclePhase;
   // Existing test and legacy fixtures omit phase while the gameplay guards
   // already establish the active window. Keep that compatibility explicit.
   return 'active';
@@ -1751,10 +1756,18 @@ function vesselActionEnvelope(
 function isVesselActionResult(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const result = value as Record<string, unknown>;
-  return typeof result.idempotencyKey === 'string' &&
-    typeof result.auditId === 'string' && typeof result.vesselId === 'string' &&
-    typeof result.actorUid === 'string' && typeof result.turn === 'number' &&
-    typeof result.phase === 'string' && typeof result.revision === 'number';
+  return typeof result.idempotencyKey === 'string' && result.idempotencyKey.length > 0 &&
+    typeof result.auditId === 'string' && result.auditId.length > 0 &&
+    typeof result.vesselId === 'string' && result.vesselId.length > 0 &&
+    typeof result.actorUid === 'string' && result.actorUid.length > 0 &&
+    (typeof result.actorRoleId === 'string' || result.actorRoleId === null) &&
+    typeof result.turn === 'number' && Number.isSafeInteger(result.turn) && result.turn >= 0 &&
+    typeof result.phase === 'string' && LIFECYCLE_PHASES.includes(result.phase as LifecyclePhase) &&
+    typeof result.revision === 'number' && Number.isSafeInteger(result.revision) && result.revision >= 0 &&
+    // Small-ship docking retains its legacy nullable domain field; the
+    // flattened envelope omits hostShipId when an undock has no host.
+    (result.hostShipId === undefined || result.hostShipId === null ||
+      (typeof result.hostShipId === 'string' && result.hostShipId.length > 0));
 }
 
 function vesselActionFingerprint(
@@ -7897,6 +7910,13 @@ function fighterWingCountReceiptReply(
     );
   }
   const result = reply as Record<string, unknown>;
+  if (!isVesselActionResult(result)) {
+    throw commandError(
+      'failed-precondition',
+      'This fighter-wing request has no complete replayable vessel envelope.',
+      'conflict',
+    );
+  }
   return result.status === 'stale' ? result : { ...result, status: 'replayed' };
 }
 
@@ -8203,6 +8223,9 @@ function smallShipReceiptReply(
   }
   const stored = prior.get('reply');
   if (!isRecord(stored)) throw commandError('failed-precondition', 'This small-ship request has no replayable result.', 'conflict');
+  if (!isVesselActionResult(stored)) {
+    throw commandError('failed-precondition', 'This small-ship request has no complete replayable vessel envelope.', 'conflict');
+  }
   return stored.status === 'stale' ? stored : { ...stored, status: 'replayed' };
 }
 
@@ -8557,6 +8580,9 @@ function maintenanceReceiptReply(
     throw commandError('failed-precondition', 'This maintenance request has no replayable result.', 'conflict');
   }
   const reply = storedReply as Record<string, unknown>;
+  if (!isVesselActionResult(reply)) {
+    throw commandError('failed-precondition', 'This maintenance request has no complete replayable vessel envelope.', 'conflict');
+  }
   return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
 }
 
@@ -9152,6 +9178,9 @@ function maintenanceRollbackReceiptReply(
     throw commandError('failed-precondition', 'This rollback request has no replayable result.', 'conflict');
   }
   const reply = storedReply as Record<string, unknown>;
+  if (!isVesselActionResult(reply)) {
+    throw commandError('failed-precondition', 'This rollback request has no complete replayable vessel envelope.', 'conflict');
+  }
   return reply.status === 'stale' ? reply : { ...reply, status: 'replayed' };
 }
 
