@@ -2230,7 +2230,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 122a
 - [ ] Prompt 123
 - [ ] Prompt 124
-- [ ] Prompt 125
+- [x] Prompt 125
 - [ ] Prompt 126
 - [ ] Prompt 127
 - [ ] Prompt 128
@@ -2981,7 +2981,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 122a — [REPAIR] Confirm Reactor power-up before authoritative mutation.** Acceptance: preserve the existing authoritative `runMaintenance` Reactor transaction and the repository's danger-red second-press convention, but require a confirmation before replacing unused charges or committing the selected consoles. The first activation changes the same control to the exact `ARE YOU SURE?` treatment with an accessible summary of the selected consoles and lost prior charge; only the confirmed activation may call the server. Cancel, blur, Escape, navigation, and any backdrop used by the chosen shared pattern restore focus and leave local/server state unchanged. Pending and rapid double-submit are disabled, retry is request-idempotent, stale/wrong-phase/over-capacity/damaged/ineligible/unauthorized inputs fail without mutation or audit, and only an accepted transaction creates one replayable event/receipt. Reuse the existing maintenance route, `MaintenanceSystems`, maintenance service/callable, revision arithmetic, event path, CIC styling, and established Begin-maintenance confirmation rather than a parallel dialog; prove keyboard, screen-reader, 44px touch, long selected labels, reduced motion, and unobscured mobile/short-landscape layout. This repair depends on the capacity, damage/upgrade, eligibility, expiry, and atomicity contracts in Prompts 122–125, 128, and 138 without claiming their broader vessel matrix complete.
 - **Prompt 123 — [EXTEND] Apply vessel-specific damaged-Reactor penalties.** Acceptance: Shepherd and Quellon use their own reductions and no generic value overwrites a ship sheet.
 - **Prompt 124 — [EXTEND] Apply Reactor upgrades.** Acceptance: only an authoritative completed upgrade adds the printed charge capacity.
-- **Prompt 125 — [PRESERVE] Enforce console charge eligibility.** Acceptance: nonexistent, damaged, already charged, wrong-phase, or otherwise unavailable consoles cannot be charged.
+- **Prompt 125 — [PRESERVE] Enforce console charge eligibility.** Acceptance: nonexistent, damaged non-Jump consoles, duplicate or already-consumed selections, wrong-phase, or otherwise unavailable consoles cannot be charged; the printed damaged Jump Drive remains chargeable for its integrity check.
 - **Prompt 126 — [PRESERVE] Resolve both AEGIS shuttle bays.** Acceptance: Zeta and Omega each fuel at most one craft in their printed order, with the Omega text conflict preserved as errata.
 - **Prompt 127 — [PRESERVE] Resolve ordinary single-bay fuelling.** Acceptance: one eligible docked shuttle costs one host fuel and a damaged bay cannot fuel it.
 - **Prompt 128 — [PRESERVE] Expire unused charges and shuttle fuel.** Acceptance: turn rollover clears them once even when their owner disconnects.

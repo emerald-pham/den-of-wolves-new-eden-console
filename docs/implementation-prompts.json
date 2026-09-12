@@ -522,7 +522,7 @@
     {
       "direction": "125 -> 122;138",
       "id": "E-AUDIT-125",
-      "language": "Charge eligibility uses Reactor capacity and atomic maintenance authority.",
+      "language": "Charge eligibility uses Reactor capacity and atomic maintenance authority: unknown, duplicate, and damaged non-Jump consoles are rejected while the printed damaged Jump Drive integrity case remains chargeable.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -7256,10 +7256,10 @@
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
-        "acceptance": "nonexistent, damaged, already charged, wrong-phase, or otherwise unavailable consoles cannot be charged.",
+        "acceptance": "nonexistent, damaged non-Jump consoles, duplicate or already-consumed selections, wrong-phase, or otherwise unavailable consoles cannot be charged; the printed damaged Jump Drive remains chargeable for its integrity check.",
         "title": "Enforce console charge eligibility."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "Prompt 125 is preserved by the existing server-owned Reactor validation: unknown or non-chargeable IDs, duplicate selections, and damaged non-Jump consoles are rejected before writes; Team-phase, destroyed or unavailable ship, authority, revision, idempotency, and replay tests cover the remaining denial paths. The printed damaged Jump Drive integrity case remains chargeable and is resolved authoritatively by the jump path. Focused domain and UI tests cover the eligibility matrix and disabled controls. No player release is required.",
       "evidenceIds": "E-AUDIT-125",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -7271,7 +7271,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

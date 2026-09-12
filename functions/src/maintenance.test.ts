@@ -167,6 +167,37 @@ it('replaces old charges at reactor power-up and enforces damaged capacity', () 
   expect(() => advanceMaintenance({ ...base, consoles: ['storage'] })).toThrow(/console/);
 });
 
+it('rejects nonexistent, non-chargeable, duplicate, and damaged consoles', () => {
+  const base = input({
+    action: 'reactor',
+    cycle: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+  });
+  for (const consoleId of ['not-a-console', 'storage', 'reactor', 'shuttle-bay-zeta', 'armoured-hull-i']) {
+    expect(() => advanceMaintenance({ ...base, consoles: [consoleId] }), consoleId)
+      .toThrow(/invalid or damaged console selected/i);
+  }
+  expect(() => advanceMaintenance({
+    ...base,
+    consoles: ['fighter-bay-alpha', 'fighter-bay-alpha'],
+  })).toThrow(/invalid or damaged console selected/i);
+  expect(() => advanceMaintenance({
+    ...base,
+    damage: { damagedSystemIds: ['fighter-bay-alpha'], destroyed: false },
+    consoles: ['fighter-bay-alpha'],
+  })).toThrow(/invalid or damaged console selected/i);
+});
+
+it('preserves the printed damaged Jump Drive integrity exception', () => {
+  const result = advanceMaintenance(input({
+    action: 'reactor',
+    cycle: { step: 5, revision: 0, results: {}, charges: [], refuelled: [] },
+    damage: { damagedSystemIds: ['jump-drive'], destroyed: false },
+    consoles: ['jump-drive'],
+  }));
+
+  expect(result.cycle.charges).toEqual(['jump-drive']);
+});
+
 it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {
   const variants = [
     { label: 'nominal', capacity: nominalCapacity, damaged: false, upgraded: false },

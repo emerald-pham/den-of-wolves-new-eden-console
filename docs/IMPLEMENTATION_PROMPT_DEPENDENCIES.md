@@ -225,7 +225,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 122a | REPAIR | missing | 122-125;128;138 | none | none | none | none | REACTOR-REPAIR | none | none | E-122A;E-REACTOR | M2 | Confirm Reactor power-up before authoritative mutation. |
 | 123 | EXTEND | missing | 122;162 | none | none | none | none | none | none | none | E-AUDIT-123 | M2 | Apply vessel-specific damaged-Reactor penalties. |
 | 124 | EXTEND | missing | 122 | none | none | none | none | none | none | none | E-AUDIT-124 | M2 | Apply Reactor upgrades. |
-| 125 | PRESERVE | missing | 122;138 | none | none | none | none | none | none | none | E-AUDIT-125 | M2 | Enforce console charge eligibility. |
+| 125 | PRESERVE | done | 122;138 | none | none | none | none | none | none | none | E-AUDIT-125 | M2 | Enforce console charge eligibility. |
 | 126 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-126 | M2 | Resolve both AEGIS shuttle bays. |
 | 127 | PRESERVE | missing | 361 | none | none | none | none | none | none | none | E-AUDIT-127 | M2 | Resolve ordinary single-bay fuelling. |
 | 128 | PRESERVE | missing | 103 | none | none | none | none | none | none | none | E-AUDIT-128 | M2 | Expire unused charges and shuttle fuel. |
@@ -937,7 +937,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-121 | hard_prompt | 121 -> 114;120 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship maintenance exceptions extend the ordered maintenance and riot paths. |
 | E-AUDIT-123 | hard_prompt | 123 -> 122;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Damaged Reactor penalties extend the capacity contract and printed vessel values. |
 | E-AUDIT-124 | hard_prompt | 124 -> 122 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Reactor upgrades extend the base capacity contract. |
-| E-AUDIT-125 | hard_prompt | 125 -> 122;138 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Charge eligibility uses Reactor capacity and atomic maintenance authority. |
+| E-AUDIT-125 | hard_prompt | 125 -> 122;138 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Charge eligibility uses Reactor capacity and atomic maintenance authority: unknown, duplicate, and damaged non-Jump consoles are rejected while the printed damaged Jump Drive integrity case remains chargeable. |
 | E-AUDIT-126 | hard_prompt | 126 -> 127;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The two-bay behavior consumes the ordinary bay and authoritative craft-manifest contracts. |
 | E-AUDIT-127 | hard_prompt | 127 -> 361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Single-bay fuelling resolves against the authoritative shuttle manifest. |
 | E-AUDIT-128 | hard_prompt | 128 -> 103 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Expiry is applied at the authoritative turn rollover. |

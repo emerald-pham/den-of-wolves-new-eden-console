@@ -97,6 +97,28 @@ it('sends separate ration choices and displays server results across remounts', 
   expect(run).toHaveBeenCalledWith('aegis', 'rations', 2, { foodLevel: 1, waterLevel: 2 }, undefined);
 });
 
+it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    maintenanceCycles: { aegis: { step: 5, revision: 5, results: {}, charges: [], refuelled: [] } },
+    shipDamage: { aegis: { damagedSystemIds: ['construction-bay', 'jump-drive'], destroyed: false } },
+  } });
+  render(<MaintenanceSystems
+    name="AEGIS"
+    shipId="aegis"
+    systems={[
+      { id: 'construction-bay', name: 'Construction Bay', timing: 5 },
+      { id: 'jump-drive', name: 'Jump Drive', timing: 'ftl' },
+    ]}
+    renderSystem={() => null}
+    rations={null}
+  />);
+
+  expect(screen.getByLabelText('Construction Bay')).toBeDisabled();
+  expect(screen.getByLabelText('Jump Drive')).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
+});
+
 it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintenance', async shipId => {
   const props = { name: shipId, shipId, systems: [], renderSystem: () => null, rations: null };
   const view = render(<MaintenanceSystems {...props} />);

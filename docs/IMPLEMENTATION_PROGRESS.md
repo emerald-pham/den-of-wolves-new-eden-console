@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**125 / 747 prompts complete (16.73%)**
+**126 / 747 prompts complete (16.87%)**
 
-Status breakdown: **125 done · 6 partial · 616 missing**.
+Status breakdown: **126 done · 6 partial · 615 missing**.
 
 Active prompt: **none**
 
@@ -540,7 +540,7 @@ release classification and evidence.
 | 122a | missing | non-feature | — | Owner-requested Reactor confirmation repair: the current `MaintenanceSystems` control submits `runMaintenance(..., 'reactor', ...)` directly, while the transaction replaces prior charges and appends an event without request-id replay. A dedicated release must reuse the danger-red second-press `ARE YOU SURE?` pattern before mutation, make cancel/blur/Escape/navigation/backdrop paths no-ops with focus restoration, prevent pending/double-submit, add idempotent retry and accepted-only audit/replay, and prove stale/unauthorized/invalid denial plus accessible mobile/reduced-motion containment. |
 | 123 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 124 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 125 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 125 | done | non-feature | — | Prompt 125 is preserved by the existing server-owned Reactor validation: unknown or non-chargeable IDs, duplicate selections, and damaged non-Jump consoles are rejected before writes; Team-phase, destroyed or unavailable ship, authority, revision, idempotency, and replay tests cover the remaining denial paths. The printed damaged Jump Drive integrity case remains chargeable and is resolved authoritatively by the jump path. Focused domain and UI tests cover the eligibility matrix and disabled controls. No player release is required. |
 | 126 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 127 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 128 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

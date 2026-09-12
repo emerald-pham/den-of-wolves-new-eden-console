@@ -156,6 +156,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const consoles = input.consoles ?? [];
     const eligible = SHIP_DAMAGE_DECKS[shipId]!.filter(c => !['storage', 'reactor'].includes(c.systemId) && !c.systemId.startsWith('shuttle-bay') && !c.systemId.startsWith('armoured-hull')).map(c => c.systemId);
     if (consoles.length > capacity) throw new Error('Reactor capacity exceeded.');
+    // A damaged Jump Drive remains chargeable so its printed integrity check can run on departure.
     if (new Set(consoles).size !== consoles.length || consoles.some(id => !eligible.includes(id) || (id !== 'jump-drive' && damage.damagedSystemIds.includes(id)))) throw new Error('Invalid or damaged console selected.');
     cycle.charges = [...consoles];
     cycle.results['5'] = `Reactor powered up. Previous unused charge lost. Charged ${consoles.length}/${capacity} consoles.`;
