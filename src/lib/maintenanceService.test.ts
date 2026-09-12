@@ -36,6 +36,16 @@ it('allows maintenance commands backed by a live server snapshot', async () => {
   expect(mocks.callable).toHaveBeenCalledWith('functions', 'rollbackMaintenance');
 });
 
+it('reuses the Reactor request after a transient failure instead of charging twice', async () => {
+  mocks.call.mockRejectedValueOnce({ code: 'functions/unavailable' });
+  await expect(runMaintenance('aegis', 'reactor', 5, { consoles: ['jump-drive'] }))
+    .rejects.toMatchObject({ code: 'functions/unavailable' });
+  const firstRequest = mocks.call.mock.calls[0]?.[0];
+  expect(firstRequest.requestId).toEqual(expect.any(String));
+  await runMaintenance('aegis', 'reactor', 5, { consoles: ['jump-drive'] });
+  expect(mocks.call.mock.calls[1]?.[0]).toEqual(firstRequest);
+});
+
 it.each([
   ['maintenance', () => runMaintenance('aegis', 'begin', 2)],
   ['rollback', () => rollbackMaintenance('aegis', 2)],

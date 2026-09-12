@@ -33,12 +33,15 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
+  const gmInstanceId = useSessionStore((state) => state.gmInstance?.id);
   const access = useConsoleAccess();
   const cycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[shipId];
   const step = cycle?.step ?? 0;
   const revision = cycle?.revision ?? 0;
   const currentTurn = shipState ? shipState.currentTurn ?? 1 : session?.currentTurn ?? 1;
   const [confirmBegin, setConfirmBegin] = useState(false);
+  const [reactorConfirmation, setReactorConfirmation] = useState<string | null>(null);
+  const reactorButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { setConfirmBegin(false); }, [shipId, currentTurn, step, revision, session?.id, connection]);
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
@@ -78,6 +81,19 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
+  const reactorDisabled = disabled(5) || maintenancePhaseBlocked || consoles.length > capacity ||
+    consoles.some(id => !chargeable.some(system => system.id === id) ||
+      (id !== 'jump-drive' && damage?.damagedSystemIds.includes(id)));
+  const reactorConfirmationKey = JSON.stringify([
+    session?.id, me?.uid, gmInstanceId, access.roleId, access.writable, connection,
+    shipId, currentTurn, step, revision, session?.turnPhase, consoles, capacity,
+    damage, cycle?.charges,
+  ]);
+  const confirmReactor = !reactorDisabled && reactorConfirmation === reactorConfirmationKey;
+  useEffect(() => { setReactorConfirmation(null); }, [reactorConfirmationKey]);
+  const reactorSummaryId = `${shipId}-reactor-confirmation-summary`;
+  const consoleNames = (ids: readonly string[]) => ids.map(id =>
+    chargeable.find(system => system.id === id)?.name ?? id).join(', ');
   const endDisabled = blocked || step !== 7 ||
     (shipId === 'aegis' && cycle?.results['7'] === undefined && damage?.destroyed !== true);
   const labels = [
@@ -127,14 +143,41 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
             <div className="aegis-system-grid">{systems.filter(system => system.timing === step).map(renderSystem)}</div>
             {step === 5 && <>
               <p>Unused charge is lost when the reactor powers up. Choose up to {capacity} consoles.</p>
-              <fieldset disabled={disabled(5)} className="maintenance-controls"><legend>Consoles to charge // {consoles.length}/{capacity}</legend>
+              <fieldset disabled={disabled(5) || maintenancePhaseBlocked} className="maintenance-controls"><legend>Consoles to charge // {consoles.length}/{capacity}</legend>
                 {chargeable.map(system => <label key={system.id}>
                   <input type="checkbox" checked={consoles.includes(system.id)}
                     disabled={(system.id !== 'jump-drive' && damage?.damagedSystemIds.includes(system.id)) || (!consoles.includes(system.id) && consoles.length >= capacity)}
                     onChange={event => setConsoles(previous => event.target.checked ? [...previous, system.id] : previous.filter(id => id !== system.id))} />
                   {system.name}{cycle?.charges.includes(system.id) ? ' // Charged' : ''}
                 </label>)}
-                <button className="cic-action-button" onClick={() => void execute('reactor', { consoles })}>Power up reactor</button>
+                {confirmReactor && <p id={reactorSummaryId} role="status">
+                  {consoles.length ? `Charge: ${consoleNames(consoles)}.` : 'No consoles selected.'}{' '}
+                  {cycle?.charges.length
+                    ? `Previous unused charges will be lost: ${consoleNames(cycle.charges)}.`
+                    : 'There are no previous unused charges.'}
+                </p>}
+                <div className="maintenance-controls__confirmation" onBlur={event => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setReactorConfirmation(null);
+                }} onKeyDown={event => {
+                  if (event.key === 'Escape') {
+                    setReactorConfirmation(null);
+                    reactorButton.current?.focus();
+                  }
+                }}>
+                  <button ref={reactorButton} className="cic-action-button" disabled={reactorDisabled}
+                    aria-describedby={confirmReactor ? reactorSummaryId : undefined}
+                    style={confirmReactor ? { color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' } : undefined}
+                    onClick={() => {
+                      if (reactorDisabled || busy.current) return;
+                      if (!confirmReactor) { setReactorConfirmation(reactorConfirmationKey); return; }
+                      setReactorConfirmation(null);
+                      void execute('reactor', { consoles });
+                    }}>{confirmReactor ? 'ARE YOU SURE?' : 'Power up reactor'}</button>
+                  {confirmReactor && <button className="cic-action-button" onClick={() => {
+                    setReactorConfirmation(null);
+                    reactorButton.current?.focus();
+                  }}>Cancel reactor power-up</button>}
+                </div>
               </fieldset>
             </>}
             {(step === 6 || (step === 7 && shipId === 'aegis' && cycle?.results['7'] === undefined)) && <fieldset

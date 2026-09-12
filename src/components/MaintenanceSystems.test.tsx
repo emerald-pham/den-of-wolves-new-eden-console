@@ -119,6 +119,70 @@ it('disables damaged consoles before reactor charge while preserving the damaged
   expect(screen.getByRole('button', { name: 'Power up reactor' })).toBeEnabled();
 });
 
+function renderReactor() {
+  useSessionStore.setState({ session: {
+    ...session,
+    maintenanceCycles: { aegis: { step: 5, revision: 5, results: {}, charges: ['jump-drive'], refuelled: [] } },
+  } });
+  return render(<MaintenanceSystems name="AEGIS" shipId="aegis"
+    systems={[{ id: 'jump-drive', name: 'Jump Drive', timing: 'ftl' }]}
+    renderSystem={() => null} rations={null} />);
+}
+
+it('summarizes Reactor replacement before confirmation and submits only once while pending', async () => {
+  let finish!: () => void;
+  run.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+  renderReactor();
+  await userEvent.click(screen.getByRole('checkbox', { name: /Jump Drive/ }));
+  const power = screen.getByRole('button', { name: 'Power up reactor' });
+  await userEvent.click(power);
+  expect(run).not.toHaveBeenCalled();
+  expect(power).toHaveAccessibleName('ARE YOU SURE?');
+  expect(power).toHaveAccessibleDescription('Charge: Jump Drive. Previous unused charges will be lost: Jump Drive.');
+  expect(power).toHaveStyle({ color: 'var(--cic-danger)', borderColor: 'var(--cic-danger)' });
+  await userEvent.dblClick(power);
+  expect(run).toHaveBeenCalledExactlyOnceWith('aegis', 'reactor', 5, { consoles: ['jump-drive'] }, undefined);
+  expect(power).toBeDisabled();
+  await act(async () => finish());
+});
+
+it('cancels Reactor confirmation with Cancel, Escape or blur without losing the selection', async () => {
+  renderReactor();
+  const selected = screen.getByRole('checkbox', { name: /Jump Drive/ });
+  await userEvent.click(selected);
+  const power = screen.getByRole('button', { name: 'Power up reactor' });
+  await userEvent.click(power);
+  await userEvent.tab();
+  expect(screen.getByRole('button', { name: 'Cancel reactor power-up' })).toHaveFocus();
+  await userEvent.keyboard('{Enter}');
+  expect(power).toHaveFocus();
+  expect(power).toHaveAccessibleName('Power up reactor');
+  await userEvent.keyboard('{Enter}{Escape}');
+  expect(power).toHaveFocus();
+  expect(power).toHaveAccessibleName('Power up reactor');
+  await userEvent.click(power);
+  await userEvent.tab({ shift: true });
+  expect(power).toHaveAccessibleName('Power up reactor');
+  expect(selected).toBeChecked();
+  expect(run).not.toHaveBeenCalled();
+});
+
+it('invalidates Reactor confirmation after a live revision change or route remount', async () => {
+  const view = renderReactor();
+  await userEvent.click(screen.getByRole('button', { name: 'Power up reactor' }));
+  expect(screen.getByRole('status')).toHaveTextContent('No consoles selected.');
+  act(() => useSessionStore.setState({ session: {
+    ...useSessionStore.getState().session!,
+    maintenanceCycles: { aegis: { step: 5, revision: 6, results: {}, charges: [], refuelled: [] } },
+  } }));
+  expect(screen.queryByRole('button', { name: 'ARE YOU SURE?' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Power up reactor' }));
+  view.unmount();
+  renderReactor();
+  expect(screen.queryByRole('button', { name: 'ARE YOU SURE?' })).not.toBeInTheDocument();
+  expect(run).not.toHaveBeenCalled();
+});
+
 it.each(['aegis', 'capybara'])('lets only a GM assign damage beneath %s maintenance', async shipId => {
   const props = { name: shipId, shipId, systems: [], renderSystem: () => null, rations: null };
   const view = render(<MaintenanceSystems {...props} />);

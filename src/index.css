@@ -4833,7 +4833,10 @@ body {
   margin: 0;
   color: var(--cic-cyan);
   font: 0.875rem/1.5 var(--cic-mono);
+  overflow-wrap: anywhere;
 }
+.maintenance-controls__confirmation { display: flex; flex-wrap: wrap; gap: 0.75rem; min-width: 0; }
+.maintenance-controls__confirmation .cic-action-button { max-width: 100%; white-space: normal; }
 .maintenance-systems button:disabled,
 .maintenance-controls:disabled label,
 .maintenance-controls select:disabled {
