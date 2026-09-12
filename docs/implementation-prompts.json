@@ -445,7 +445,7 @@
     {
       "direction": "110 -> 103",
       "id": "E-AUDIT-110",
-      "language": "The two-turn proof consumes the committed next-turn transition.",
+      "language": "The production callable two-turn proof consumes server-timed Team and Coordination completion, the committed Turn 2 transition, and its exactly-once event/retry behavior.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
     },
@@ -6891,7 +6891,7 @@
         "acceptance": "a production-path fixture creates, joins, casts, starts, completes both phases, and enters Turn 2 exactly once.",
         "title": "Run the lobby-to-two-turn scenario."
       },
-      "description": "Planned [PROVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "`functions/src/sessionComposition.test.ts` now drives the production callable composition through an 8-player create→join→cast→start flow, keeps the GM and a joined player live with server-time presence heartbeats, completes Team by opening airspace, completes Coordination by expiry, and concurrently advances to Turn 2 with exactly one committed contender, one stale contender, one `turn-advanced-1` event, and an unchanged replay retry. Proof-only; no player release.",
       "evidenceIds": "E-AUDIT-110",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -6903,7 +6903,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {

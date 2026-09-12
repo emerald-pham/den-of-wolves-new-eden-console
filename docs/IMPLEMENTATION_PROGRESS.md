@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**126 / 747 prompts complete (16.87%)**
+**127 / 747 prompts complete (17.00%)**
 
-Status breakdown: **126 done · 6 partial · 615 missing**.
+Status breakdown: **127 done · 6 partial · 614 missing**.
 
 Active prompt: **none**
 
@@ -524,7 +524,7 @@ release classification and evidence.
 | 107 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 108 | done | non-feature | — | Existing `src/components/FleetAlert.test.tsx` feeds an active Team phase through the actual `subscribeSessionState` listener, renders the server-deadline timer and permitted action controls, advances the client clock, unsubscribes and reconnects with the same persisted snapshot, then observes the reduced remaining time and the lifted Coordination action gate. Proof-only; no production change. |
 | 109 | done | feature | 0.3.26 | `subscribeSessionState` now suppresses delayed lower-turn and earlier same-turn Team snapshots at the production session listener boundary using the authoritative lifecycle transition graph plus normalized server `TurnPhase`; equal lifecycle snapshots still flow newer current-window data, next-turn Team resets are accepted, terminal/debrief/closed states cannot reopen actionable phases, malformed/legacy records remain safe, and teardown/re-subscribe gets a fresh cursor. Focused `src/lib/firestore.test.ts` regressions prove the listener callback path. Prompt 088 remains partial because this does not claim universal ordering across every projection. |
-| 110 | missing | non-feature | — | Planned [PROVE] prompt; no production-path evidence has been recorded yet. |
+| 110 | done | non-feature | — | `functions/src/sessionComposition.test.ts` now drives the production callable composition through an 8-player create→join→cast→start flow, keeps the GM and a joined player live with server-time presence heartbeats, completes Team by opening airspace, completes Coordination by expiry, and concurrently advances to Turn 2 with exactly one committed contender, one stale contender, one `turn-advanced-1` event, and an unchanged replay retry. Proof-only; no player release. |
 | 111 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 112 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 113 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

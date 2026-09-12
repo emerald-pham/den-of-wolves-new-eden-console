@@ -226,9 +226,11 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import {
+  advanceTurn,
   assignRole,
   assignLoyalty,
   adjustShipResource,
+  beginOpenAirspacePhase,
   claimGmInstance,
   claimSeat,
   confirmSetup,
@@ -962,6 +964,78 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
     });
     expect(JSON.stringify(resumed)).not.toMatch(/wolf-agent|selectedWolfRoleIds|fleet-loyalist/);
     expect(resumed).not.toHaveProperty('secrets');
+  });
+
+  it('completes Team and Coordination through Turn 2 exactly once on the production callable path', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-12T16:00:00.000Z'));
+    try {
+      const composition = await composeProductionSession(8);
+      const sessionPath = `sessions/${composition.sessionId}`;
+      const turnOne = read(sessionPath) as StoredDocument;
+      const turnOnePhase = turnOne.turnPhase as { teamPhaseEndsAt: string; openAirspaceEndsAt: string };
+
+      const initialTime = Date.parse('2026-09-12T16:00:00.000Z');
+      for (let heartbeatAt = initialTime + 30_000;
+        heartbeatAt < Date.parse(turnOnePhase.teamPhaseEndsAt);
+        heartbeatAt += 30_000) {
+        vi.setSystemTime(new Date(heartbeatAt));
+        await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.ownerUid));
+        await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.coreUids[0]!));
+      }
+      vi.setSystemTime(new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 1));
+      await expect(beginOpenAirspacePhase.run(request({
+        sessionId: composition.sessionId,
+        expectedTurn: 1,
+      }, composition.coreUids[0]!))).resolves.toMatchObject({
+        turnPhase: { turn: 1, airspace: { state: 'lifted' } },
+      });
+
+      for (let heartbeatAt = Date.parse(turnOnePhase.teamPhaseEndsAt) + 1_000;
+        heartbeatAt < Date.parse(turnOnePhase.openAirspaceEndsAt);
+        heartbeatAt += 30_000) {
+        vi.setSystemTime(new Date(heartbeatAt));
+        await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.ownerUid));
+      }
+      vi.setSystemTime(new Date(Date.parse(turnOnePhase.openAirspaceEndsAt) + 1));
+      const advanceRequests = [
+        { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1a', expectedTurn: 1 },
+        { sessionId: composition.sessionId, instanceId: composition.startRequest.instanceId, requestId: 'advance-turn-1b', expectedTurn: 1 },
+      ];
+      const advances = await Promise.allSettled(advanceRequests.map((advance) =>
+        advanceTurn.run(request(advance, composition.ownerUid))));
+      expect(advances.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(advances.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      const advanced = advances.find((result): result is PromiseFulfilledResult<Record<string, unknown>> =>
+        result.status === 'fulfilled')!.value;
+      expect(advanced).toMatchObject({
+        currentTurn: 2,
+        turnPhase: { turn: 2, airspace: { state: 'restricted' } },
+        turnState: { currentTurn: 2, phase: 'team' },
+      });
+
+      const stored = read(sessionPath) as StoredDocument;
+      expect(stored).toMatchObject({
+        phase: 'active',
+        currentTurn: 2,
+        turnPhase: { turn: 2, airspace: { state: 'restricted' } },
+        turnState: { currentTurn: 2, phase: 'team' },
+      });
+      expect([...mock.documents.keys()].filter((path) =>
+        path === `${sessionPath}/events/turn-advanced-1`,
+      )).toHaveLength(1);
+
+      const stateAfterAdvance = stateSnapshot();
+      await expect(advanceTurn.run(request({
+        ...advanceRequests[0], requestId: 'advance-turn-1-retry',
+      }, composition.ownerUid))).rejects.toMatchObject({
+        code: 'failed-precondition',
+        message: expect.stringMatching(/turn changed/i),
+      });
+      expect(stateSnapshot()).toBe(stateAfterAdvance);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('fills absent Turn 1 state without resetting prepared damage, maintenance, alert, or dispatch state', async () => {
