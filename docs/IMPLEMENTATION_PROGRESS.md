@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**153 / 747 prompts complete (20.48%)**
+**154 / 747 prompts complete (20.62%)**
 
-Status breakdown: **153 done · 7 partial · 587 missing**.
+Status breakdown: **154 done · 7 partial · 586 missing**.
 
 Active prompt: **none**
 
@@ -733,7 +733,7 @@ release classification and evidence.
 | 289 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 290 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 291 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 292 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 292 | done | non-feature | — | The existing jump callable validates exactly four ASCII digits before starting a transaction. Malformed values fail without reading or changing fuel, charge, position, pursuit, lockout, or event state. A focused callable regression verifies absent, non-string, short, long, non-digit, embedded-space, and non-ASCII input; valid but unprinted coordinates retain their separate integrity-lockout behavior. |
 | 293 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 294 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 295 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

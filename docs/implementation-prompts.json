@@ -4270,6 +4270,13 @@
       "language": "Same-control Reactor confirmation adds a selected-console/lost-charge summary, cancel/focus handling, tuple invalidation and pending suppression while preserving server maintenance authority. Independent Terra review cleared 39f9dcb; 24 component/service tests pass, including stable transient retry. Rendered 320x844, 390x844, 1440x900, and 844x390 show 44px controls, wrapped long labels, no horizontal overflow and reduced-motion static controls. Browser fixture blocks mutation; existing callable and rules checks prove server behavior separately.",
       "source": "src/components/MaintenanceSystems.tsx; src/components/MaintenanceSystems.test.tsx; src/lib/maintenanceService.ts; src/lib/maintenanceService.test.ts; src/index.css; review 39f9dcb",
       "type": "evidence"
+    },
+    {
+      "direction": "292",
+      "id": "E-292-VERIFIED",
+      "language": "Existing request shape guard runs before database transaction and transition ID creation. Focused callable assertion rejects malformed input with invalid-argument and no reads, writes, random roll or event ID. All 46 jump callable, request guard and jump resolver tests passed. Test and roadmap reconciliation only; no runtime or release change.",
+      "source": "functions/src/requestGuards.ts (requireShipJumpRequest); functions/src/index.ts (jumpShip); functions/src/jumpCallable.test.ts; functions/src/requestGuards.test.ts; functions/src/jumpDrive.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -11828,8 +11835,8 @@
         "acceptance": "malformed input fails before fuel, charge, location, pursuit, or lockout changes.",
         "title": "Validate coordinate shape."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The existing jump callable validates exactly four ASCII digits before starting a transaction. Malformed values fail without reading or changing fuel, charge, position, pursuit, lockout, or event state. A focused callable regression verifies absent, non-string, short, long, non-digit, embedded-space, and non-ASCII input; valid but unprinted coordinates retain their separate integrity-lockout behavior.",
+      "evidenceIds": "E-292-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -11840,7 +11847,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

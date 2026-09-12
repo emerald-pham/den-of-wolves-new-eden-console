@@ -110,6 +110,19 @@ beforeEach(() => {
   });
 });
 
+it('rejects malformed coordinates before reading or changing any authoritative state', async () => {
+  mock.get.mockClear();
+  for (const destination of [undefined, null, 5143, '', '513', '51430', '51a3', '51 3', '５１４３']) {
+    await expect(jumpShip.run(request({ ...data, destination }))).rejects.toMatchObject({
+      code: 'invalid-argument',
+    });
+  }
+  expect(mock.get).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.randomUUID).not.toHaveBeenCalled();
+});
+
 it('rejects an unprinted locked coordinate with a server-owned one-hour integrity lockout', async () => {
   await expect(jumpShip.run(request({ ...data, destination: '0101' }))).resolves.toMatchObject({
     status: 'integrity-lockout',
