@@ -1425,12 +1425,38 @@ export async function setPressEnabled(pressEnabled: boolean): Promise<CommandDis
   });
 }
 
-export interface ShipNavigationMoveReply extends Partial<VesselActionEnvelope> {
+export interface ShipNavigationMoveCommittedReply extends Partial<VesselActionEnvelope> {
+  readonly status?: never;
   readonly shipId: string;
   readonly origin: string;
   readonly destination: string;
   readonly stardate: string;
 }
+
+export interface ShipNavigationMoveStaleReply extends Partial<VesselActionEnvelope> {
+  readonly status: 'stale';
+  readonly shipId: string;
+  readonly currentRevision: number;
+}
+
+export type ShipNavigationMoveReply =
+  | ShipNavigationMoveCommittedReply
+  | ShipNavigationMoveStaleReply;
+
+interface ShipConsoleLockCommittedReply extends Partial<VesselActionEnvelope> {
+  readonly status?: never;
+  readonly shipId: string;
+  readonly locked: boolean;
+  readonly revision?: number;
+}
+
+interface ShipConsoleLockStaleReply extends Partial<VesselActionEnvelope> {
+  readonly status: 'stale';
+  readonly shipId: string;
+  readonly currentRevision: number;
+}
+
+type ShipConsoleLockReply = ShipConsoleLockCommittedReply | ShipConsoleLockStaleReply;
 
 /** GM-only, immediate movement; a relocation must never sit in an offline outbox. */
 export async function moveShipToLocation(
@@ -1461,6 +1487,23 @@ export async function moveShipToLocation(
       'moveShipToLocation',
     );
     const reply = (await call(payload)).data;
+    if (reply.status === 'stale') {
+      const current = useSessionStore.getState().session;
+      if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+        const localRevision = current.vesselActionRevisions?.[shipId] ?? 0;
+        if (reply.currentRevision >= localRevision) {
+          useSessionStore.getState().setSession({
+            ...current,
+            vesselActionRevisions: {
+              ...(current.vesselActionRevisions ?? {}),
+              [shipId]: reply.currentRevision,
+            },
+          });
+        }
+      }
+      recordStaleAuthorityReply();
+      return reply;
+    }
     const current = useSessionStore.getState().session;
     if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({
@@ -1503,11 +1546,31 @@ export async function setShipConsoleLock(
   const checkpoint = sessionAuthorityCheckpoint(payload.sessionId, sessionAuthorityUid(store));
   try {
     await ensureSignedIn();
-    const call = httpsCallable<typeof payload, { shipId: string; locked: boolean; revision?: number }>(
+    const call = httpsCallable<typeof payload, ShipConsoleLockReply>(
       functions(),
       'setShipConsoleLock',
     );
     const reply = (await call(payload)).data;
+    if (reply.status === 'stale') {
+      const current = useSessionStore.getState().session;
+      if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
+        const localRevision = current.vesselActionRevisions?.[shipId] ?? 0;
+        if (reply.currentRevision >= localRevision) {
+          useSessionStore.getState().setSession({
+            ...current,
+            vesselActionRevisions: {
+              ...(current.vesselActionRevisions ?? {}),
+              [shipId]: reply.currentRevision,
+            },
+          });
+        }
+      }
+      recordStaleAuthorityReply();
+      return 'stale';
+    }
+    if (reply.shipId !== shipId || typeof reply.locked !== 'boolean') {
+      throw new Error('The server returned an invalid console-lock result.');
+    }
     const current = useSessionStore.getState().session;
     if (current?.id === payload.sessionId && authorityCheckpointIsCurrent(checkpoint)) {
       useSessionStore.getState().setSession({

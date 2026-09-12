@@ -130,6 +130,7 @@ it('replays an undock with its explicit null host target', async () => {
   mock.session.smallShipStates = {
     gorgoneion: { ...emptySmallShipState('gorgoneion'), dockingRevision: 2 },
   };
+  mock.session.turnPhase = { airspace: { state: 'restricted' } };
   mock.set.mockReset();
   await expect(setSmallShipDocking.run(request(undock))).resolves.toMatchObject({ status: 'replayed', docked: false });
   expect(mock.set).not.toHaveBeenCalled();

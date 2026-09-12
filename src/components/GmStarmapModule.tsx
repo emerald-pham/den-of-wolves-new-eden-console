@@ -56,6 +56,10 @@ export default function GmStarmapModule({ session }: Props) {
     setStatus(`Moving ${selectedShip.label} // ${selectedShip.coordinate} → ${selectedCoordinate}`);
     try {
       const result = await moveShipToLocation(selectedShip.id, selectedCoordinate);
+      if (result.status === 'stale') {
+        setStatus('Movement rejected // the chart changed, review the live vessel position.');
+        return;
+      }
       setStatus(`${selectedShip.label} moved // stardate ${result.stardate}`);
     } catch {
       setStatus('Movement rejected // review the GM uplink and current chart fix.');

@@ -8275,12 +8275,13 @@ export const setSmallShipDocking = onCall<{
         !activeVesselIdsForSession(session).includes(authorityHost)) {
       throw commandError('failed-precondition', 'Small ships must dock with an active fleet host.', 'conflict');
     }
-    // Validate phase and GM/host authority before recording a stale receipt;
-    // otherwise an arbitrary member could probe another session's revision.
-    requireSmallShipDockingPhase(session);
+    // Validate GM/host authority before replay so a receipt cannot disclose
+    // another session's result. A completed command remains replayable after
+    // its docking window advances; phase validation belongs to fresh writes.
     await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const replay = smallShipReceiptReply(prior, fingerprint, uid);
     if (replay) return replay;
+    requireSmallShipDockingPhase(session);
     if (current.dockingRevision !== data.expectedRevision) {
       const stale = {
         status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
