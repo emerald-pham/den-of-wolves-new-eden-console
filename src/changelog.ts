@@ -32,7 +32,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       missing: 617,
     },
     changes: [
-      'AEGIS crews and facilitators can now see each fighter wing's live strength, sourced capacity, and bay readiness separately, with GM-only count corrections when the table needs a manual update. 124 of 747 planned items are complete (16.60%).',
+      "AEGIS crews and facilitators can now see each fighter wing's live strength, sourced capacity, and bay readiness separately, with GM-only count corrections when the table needs a manual update. 124 of 747 planned items are complete (16.60%).",
     ],
   },
   {
