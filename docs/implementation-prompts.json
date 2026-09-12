@@ -93,6 +93,13 @@
       "type": "related/consumes"
     },
     {
+      "direction": "147 -> 432;433",
+      "id": "E-147-RELATED",
+      "language": "Prompt 147 remains pending until the atomic attack declaration and audience-safe permitted-action projection exist; its capability filter must consume those future combat surfaces without adding combat resolution or nearest-host policy.",
+      "source": "IMPLEMENTATION_PLAN.md - Prompt 147 definition and Wolf attack engine sequence",
+      "type": "related/consumes"
+    },
+    {
       "direction": "602 -> 602a",
       "id": "E-602-CLOSURE",
       "language": "Universal Prompt 602 cannot close until the ordinary shuttle return repair 602a is green; this is a closure gate, not a start blocker.",
@@ -7957,14 +7964,14 @@
         "acceptance": "extend current typed craft/docking catalogs so only printed combat-capable shuttles and fighter wings appear in attack actions; all others remain parked.",
         "title": "Restrict battle-table craft."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Preserved [NEW] prompt: the typed shuttle and craft catalogs contain role ownership and operational procedures, but the current production surface has no attack declaration, battle-table action, or attack projection to filter. `functions/src/index.ts` exposes only the facilitator timing marker `setWolfAttackWindow`, and `src/routes/GmConsole.tsx` explicitly keeps that marker free of automatic attack or combat resolution. The missing attack foundation belongs to Prompts 432/432a (declaration and lifecycle) with audience projection in Prompt 433; Fighter Bay launch authorization remains Prompt 449. Keep this prompt missing until a real attack action consumes the printed combat-capability catalog; do not close it with metadata alone or invent combat resolution or nearest-host tie policy.",
+      "evidenceIds": "E-147-RELATED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
       "id": "147",
       "milestoneHints": "M2",
-      "relatedConsumes": "none",
+      "relatedConsumes": "432;433",
       "releaseBoundaries": "none",
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",

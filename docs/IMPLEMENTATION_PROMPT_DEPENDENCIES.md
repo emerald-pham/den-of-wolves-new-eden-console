@@ -255,7 +255,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 144 | NEW | missing | 141;143 | none | none | none | none | none | none | none | E-AUDIT-144 | M2 | Resolve a legal shuttle move. |
 | 145 | EXTEND | missing | 141 | none | none | none | none | none | none | none | E-AUDIT-145 | M2 | Lock airspace for a Wolf attack. |
 | 146 | DECISION | missing | none | none | none | none | none | none | none | none | none | M2 | Decide nearest-ship parking ties. |
-| 147 | EXTEND | missing | none | none | none | none | none | none | none | none | none | M2 | Restrict battle-table craft. |
+| 147 | EXTEND | missing | none | none | none | none | none | none | none | 432;433 | E-147-RELATED | M2 | Restrict battle-table craft. |
 | 148 | NEW | missing | 145 | none | none | none | none | none | none | none | E-AUDIT-148 | M2 | Preserve post-attack parking. |
 | 149 | NEW | missing | 143 | none | none | none | none | none | none | none | E-AUDIT-149 | M2 | Restrict quarantined docking. |
 | 150 | NEW | missing | 149 | none | none | none | none | none | none | none | E-AUDIT-150 | M2 | Prevent quarantine reset exploits. |
@@ -876,6 +876,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-WOLF | sequence | 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645 | IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding | Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645. |
 | E-433A | hard_prompt | 351, 353-360 -> 433a | IMPLEMENTATION_PLAN.md - Wolf attack engine, fleet combat, and boarding | Prompts 351 and 353-360 consume the stable 433a contract only after it exists. |
 | E-436 | related/consumes | 436 -> 435 | IMPLEMENTATION_PLAN.md - Prompt 436 definition | AEGIS Command and Control is available only after Commander rerolls; this is related sequencing, not a hard prompt edge. |
+| E-147-RELATED | related/consumes | 147 -> 432;433 | IMPLEMENTATION_PLAN.md - Prompt 147 definition and Wolf attack engine sequence | Prompt 147 remains pending until the atomic attack declaration and audience-safe permitted-action projection exist; its capability filter must consume those future combat surfaces without adding combat resolution or nearest-host policy. |
 | E-602-CLOSURE | evidence/audit closure | 602 -> 602a | IMPLEMENTATION_MILESTONES.md - audited baseline | Universal Prompt 602 cannot close until the ordinary shuttle return repair 602a is green; this is a closure gate, not a start blocker. |
 | E-RETURN-REPAIR-SEQUENCE | sequence | 602a -> 602 | IMPLEMENTATION_MILESTONES.md - audited baseline | Deliver ordinary shuttle return repair 602a before the universal Prompt 602 proof. |
 | E-602A | hard_contract | 602a -> AUTHORITATIVE-SHUTTLE-ASSOCIATION; CONSOLE-ROUTE-ENTITLEMENT | IMPLEMENTATION_MILESTONES.md - audited baseline and Prompt 602a definition | The ordinary return target is resolved from authoritative docking/association state and canonical route entitlement. |

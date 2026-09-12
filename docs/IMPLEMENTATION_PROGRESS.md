@@ -570,7 +570,7 @@ release classification and evidence.
 | 144 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 145 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 146 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
-| 147 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 147 | missing | non-feature | — | Preserved [NEW] prompt: the typed shuttle and craft catalogs contain role ownership and operational procedures, but the current production surface has no attack declaration, battle-table action, or attack projection to filter. `functions/src/index.ts` exposes only the facilitator timing marker `setWolfAttackWindow`, and `src/routes/GmConsole.tsx` explicitly keeps that marker free of automatic attack or combat resolution. The missing attack foundation belongs to Prompts 432/432a (declaration and lifecycle) with audience projection in Prompt 433; Fighter Bay launch authorization remains Prompt 449. Keep this prompt missing until a real attack action consumes the printed combat-capability catalog; do not close it with metadata alone or invent combat resolution or nearest-host tie policy. |
 | 148 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 149 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 150 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
