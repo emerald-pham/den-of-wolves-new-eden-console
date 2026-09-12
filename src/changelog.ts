@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['090'],
+    implementationProgress: {
+      completed: 118,
+      total: 747,
+      percentage: '15.80%',
+      done: 118,
+      partial: 7,
+      active: 0,
+      missing: 622,
+    },
+    changes: [
+      'Players now receive only shared ship status when they join or reconnect, so private cards, bonuses, deck order, loyalty details, and facilitator notes stay out of public session projections. 118 of 747 planned items are complete (15.80%).',
+    ],
+  },
+  {
+    version: APP_VERSION,
     implementationPrompts: ['088'],
     implementationProgress: {
       completed: 116,

@@ -378,6 +378,13 @@
       "language": "The existing wolf-assignment secret now hydrates a typed GM-only projection. The facilitator loyalty census accepts bounded optional notes, and an authorized revisioned callable persists, audits, replays, and clears those notes without publishing a member event. Census rebuilds preserve notes for the same current UID and removal patches drop them; callable, lifecycle, client, GM-console, and rules tests cover authorization, stale/replay behavior, teardown, and member denial.",
       "source": "functions/src/index.ts; functions/src/requestGuards.ts; functions/src/censusNoteCallable.test.ts; functions/src/loyaltyCallable.test.ts; src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx; src/routes/GmConsole.test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "090 -> M1-HIDDEN-REDACTION",
+      "id": "E-090-HIDDEN-REDACTION",
+      "language": "Typed public projections now remove nested hidden-state fields and unknown craft or vessel keys at client and callable boundaries while preserving valid operational state and SNN Press escort data. Existing member-readable session roots remain intentionally public; role briefs, loyalty, and facilitator notes stay on protected paths. Focused start, join, resume, and client projection tests cover malformed hidden fields, unknown IDs, valid-data preservation, and inactive prepared maintenance cycles.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; functions/src/index.ts; functions/src/joinSessionCallable.test.ts; functions/src/sessionResumeCallable.test.ts; functions/src/startState.ts; functions/src/startCallable.test.ts; functions/src/maintenance.ts; functions/src/maintenance.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2538,15 +2545,15 @@
       "tag": "PRESERVE"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "serialized public and crew projections contain no unrevealed loyalty, deck order, private card, candidate bonus, or facilitator note.",
         "title": "Prove hidden-state redaction."
       },
-      "description": "Full serialized hidden-state redaction proof remains open.",
-      "evidenceIds": "none",
+      "description": "Typed client and callable projections exclude nested hidden fields and unknown craft or vessel keys while preserving valid operational state; protected role, loyalty, and facilitator paths remain separate.",
+      "evidenceIds": "E-090-HIDDEN-REDACTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2554,10 +2561,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.45"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PROVE"
     },
     {
