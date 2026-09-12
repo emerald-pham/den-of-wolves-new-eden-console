@@ -212,6 +212,7 @@ import { wolfAttackWindowState, type WolfAttackWindow } from './wolfAttackWindow
 import {
   commandReceiptDisposition,
   type CommandFingerprint,
+  type CommandPayloadValue,
 } from './commandIdempotency';
 import {
   dismissFleetTickerSource,
@@ -1777,7 +1778,7 @@ function vesselActionFingerprint(
   actorUid: string,
   instanceId: string | null,
   expectedRevision: number | null,
-  payload: Record<string, import('./commandIdempotency').CommandPayloadValue>,
+  payload: Record<string, CommandPayloadValue>,
 ): CommandFingerprint {
   return { action, sessionId, requestId, actorUid, instanceId, expectedRevision, payload };
 }

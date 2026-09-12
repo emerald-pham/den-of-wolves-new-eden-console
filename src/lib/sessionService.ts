@@ -1500,8 +1500,8 @@ export async function moveShipToLocation(
             },
           });
         }
+        recordStaleAuthorityReply();
       }
-      recordStaleAuthorityReply();
       return reply;
     }
     const current = useSessionStore.getState().session;
@@ -1564,8 +1564,8 @@ export async function setShipConsoleLock(
             },
           });
         }
+        recordStaleAuthorityReply();
       }
-      recordStaleAuthorityReply();
       return 'stale';
     }
     if (reply.shipId !== shipId || typeof reply.locked !== 'boolean') {

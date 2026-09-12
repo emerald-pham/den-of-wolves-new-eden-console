@@ -2088,6 +2088,74 @@ it('does not let stale vessel replies clobber an interleaved authoritative snaps
   expect(useSessionStore.getState().session).toEqual(lockNewerSession);
 });
 
+it('discards stale vessel notices after switching to another session', async () => {
+  const sessionA = {
+    ...session,
+    id: 'stale-vessel-a',
+    phase: 'active' as const,
+    currentTurn: 1,
+    updatedAt: '2026-09-11T12:00:00.000Z',
+    vesselActionRevisions: { aegis: 0 },
+  };
+  const sessionB = {
+    ...session,
+    id: 'stale-vessel-b',
+    phase: 'active' as const,
+    currentTurn: 1,
+    updatedAt: '2026-09-11T12:01:00.000Z',
+    vesselActionRevisions: { aegis: 4 },
+  };
+  const playerA = { ...player, sessionId: sessionA.id, role: 'gm' as const };
+  const playerB = { ...player, sessionId: sessionB.id, role: 'gm' as const };
+  const gmA = {
+    id: 'bridge-a', sessionId: sessionA.id, uid: 'u1', name: 'Bridge A',
+    deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const gmB = { ...gmA, id: 'bridge-b', sessionId: sessionB.id, name: 'Bridge B' };
+
+  useSessionStore.getState().reset();
+  useSessionStore.getState().setIdentity(sessionA, playerA);
+  useSessionStore.getState().setGmInstance(gmA);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+
+  let finishMove!: (value: { data: { status: 'stale'; shipId: string; currentRevision: number } }) => void;
+  const move = Object.assign(vi.fn(() => new Promise<{ data: { status: 'stale'; shipId: string; currentRevision: number } }>((resolve) => {
+    finishMove = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(move as never);
+  const moving = moveShipToLocation('aegis', 'A-1');
+  await vi.waitFor(() => expect(move).toHaveBeenCalled());
+  useSessionStore.getState().setIdentity(sessionB, playerB);
+  useSessionStore.getState().setGmInstance(gmB);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  finishMove({ data: { status: 'stale', shipId: 'aegis', currentRevision: 1 } });
+  await expect(moving).resolves.toMatchObject({ status: 'stale' });
+  expect(useSessionStore.getState().session).toEqual(sessionB);
+  expect(useSessionStore.getState().communicationError).toBeNull();
+
+  useSessionStore.getState().setIdentity(sessionA, playerA);
+  useSessionStore.getState().setGmInstance(gmA);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  let finishLock!: (value: { data: { status: 'stale'; shipId: string; currentRevision: number } }) => void;
+  const lock = Object.assign(vi.fn(() => new Promise<{ data: { status: 'stale'; shipId: string; currentRevision: number } }>((resolve) => {
+    finishLock = resolve;
+  })), { stream: vi.fn() });
+  vi.mocked(httpsCallable).mockReturnValue(lock as never);
+  const locking = setShipConsoleLock('aegis', true);
+  await vi.waitFor(() => expect(lock).toHaveBeenCalled());
+  useSessionStore.getState().setIdentity(sessionB, playerB);
+  useSessionStore.getState().setGmInstance(gmB);
+  useSessionStore.getState().setConnection('live');
+  useSessionStore.getState().setSessionSnapshotFreshness('server');
+  finishLock({ data: { status: 'stale', shipId: 'aegis', currentRevision: 1 } });
+  await expect(locking).resolves.toBe('stale');
+  expect(useSessionStore.getState().session).toEqual(sessionB);
+  expect(useSessionStore.getState().communicationError).toBeNull();
+});
+
 describe('same-uid cross-session delayed callable matrix', () => {
   function sessionFor(sessionId: string) {
     return {
