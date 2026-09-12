@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**195 / 747 prompts complete (26.10%)**
+**196 / 747 prompts complete (26.24%)**
 
-Status breakdown: **195 done · 15 partial · 537 missing**.
+Status breakdown: **196 done · 15 partial · 536 missing**.
 
 Active prompt: **none**
 
@@ -593,7 +593,7 @@ release classification and evidence.
 | 167 | done | non-feature | 0.3.67 | Vessel-console mutations now return one server-owned action envelope with the authenticated actor and role, the acting vessel identity, turn and lifecycle phase, committed domain revision, stable idempotency key, and audit ID. Committed receipts persist the original complete envelope and private result for exact authorized replay without new randomness or audit events; mismatched payloads, actors, malformed legacy receipts, stale revisions, and wrong phases remain denied. Previously unversioned actions use transaction-owned vesselActionRevisions, small craft keeps its own vesselId with an optional hostShipId, and clients preserve request identity while discarding stale replies that could overwrite newer session state. Focused callable, envelope, client retry, stale-session, and GmStarmap tests pass, with independent Terra authority review clearing the reconciled candidate. This closes the envelope contract and does not claim cargo-transfer mechanics owned by Prompts 113 and 377. |
 | 168 | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 169 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
-| 170 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 170 | done | non-feature | — | Existing vessel views consume an allowlisted per-ship operational projection: private records and unknown nested fields are excluded. Crew retains its assigned role; GM Observer can inspect configured consoles without taking a seat and starts read-only, with explicit write elevation reset on navigation. Facilitator-only records remain on separately protected paths; neither observer elevation nor GM status exposes server deck order or unassigned loyalty secrets. Fifteen focused projection and route checks verify the existing behavior; no UI, callable, or rules behavior changed. |
 | 171 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 172 | done | non-feature | — | Verified the existing authoritative AEGIS Armoured Hull I (6♥) and II (7♥) behavior: neither loses survivors; a hull recycles only while another damage card remains, and the final hull stays out of the exhausted deck. Production callable cases cover both cards, population preservation, replay-safe transaction retries and exact damage audit fields. No runtime change. |
 | 173 | done | non-feature | — | The existing AEGIS Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed. |

@@ -4508,6 +4508,13 @@
       "language": "Eleven focused jump callable/resolver tests and Functions compilation pass. New production-path regression checks stored-origin authority, invalid endpoint denial without movement/resource spending, zero-distance denial, and a legal non-start-origin return despite a forged client origin. Test and roadmap evidence only; existing integrity-lock and distance-band policies unchanged.",
       "source": "functions/src/index.ts (jumpShip); functions/src/jumpDrive.ts; functions/src/starChartGraph.ts; functions/src/jumpCallable.test.ts; functions/src/jumpDrive.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "170",
+      "id": "E-170-OBSERVER-PROJECTION",
+      "language": "Fifteen existing focused unit tests passed at integration base 6a4a581, whose affected code is identical to this documentation candidate: poisoned nested projection fields are stripped; crew and held roles stay scoped; observer route denies non-GMs; observer read/write toggles and reset are verified. Existing protected-path rules deny all client serverState access and unassigned loyalty reads, including GM; the unchanged rules and rule tests already passed all 68 checks in the prepared 0.3.69 integration. Documentation reconciliation only, no new runtime or deployment claim.",
+      "source": "src/lib/shipStateProjection.ts and .test.ts; src/routes/ShipConsole.tsx and .test.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -8844,8 +8851,8 @@
         "acceptance": "crew, read-only observer, elevated GM, and facilitator views differ without leaking deck or loyalty secrets.",
         "title": "Project observer-safe vessel data."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-170",
+      "description": "Existing vessel views consume an allowlisted per-ship operational projection: private records and unknown nested fields are excluded. Crew retains its assigned role; GM Observer can inspect configured consoles without taking a seat and starts read-only, with explicit write elevation reset on navigation. Facilitator-only records remain on separately protected paths; neither observer elevation nor GM status exposes server deck order or unassigned loyalty secrets. Fifteen focused projection and route checks verify the existing behavior; no UI, callable, or rules behavior changed.",
+      "evidenceIds": "E-AUDIT-170;E-170-OBSERVER-PROJECTION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "048;049",
@@ -8856,7 +8863,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
