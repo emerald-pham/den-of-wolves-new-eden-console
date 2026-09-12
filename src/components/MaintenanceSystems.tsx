@@ -84,12 +84,13 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const productionDisabled = (consoleId: string, mode: 'run' | 'skip' = 'run') => {
     const baseDisabled = blocked || maintenancePhaseBlocked || shipId !== 'dione' || step !== 6 ||
       !resources || !cycle?.charges.includes(consoleId) || damage?.destroyed === true;
-    if (mode === 'skip') return baseDisabled;
-    return baseDisabled || damage?.damagedSystemIds.includes(consoleId) ||
-      (consoleId === 'hydroponics' && cycle!.results['5']?.includes('Water Reclamation:')) ||
+    const waterBlockedByHydroponics = consoleId === 'water-reclamation' && cycle?.charges.includes('hydroponics') &&
+      !damage?.damagedSystemIds.includes('hydroponics') && resources?.water !== undefined && resources.water >= 1;
+    const hydroponicsForeclosedByWater = consoleId === 'hydroponics' && cycle?.results['5']?.includes('Water Reclamation');
+    if (mode === 'skip') return baseDisabled || waterBlockedByHydroponics || hydroponicsForeclosedByWater;
+    return baseDisabled || damage?.damagedSystemIds.includes(consoleId) || hydroponicsForeclosedByWater ||
       (consoleId === 'hydroponics' && resources!.water < 1) ||
-      (consoleId === 'water-reclamation' && cycle!.charges.includes('hydroponics') &&
-        !damage?.damagedSystemIds.includes('hydroponics') && resources!.water >= 1);
+      waterBlockedByHydroponics;
   };
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));

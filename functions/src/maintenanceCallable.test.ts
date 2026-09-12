@@ -475,6 +475,10 @@ it('records a Dione skip choice before allowing the next production console', as
   mock.maintenanceCycles = {
     dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
   };
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation', productionMode: 'skip',
+    requestId: 'dione-water-skip-first',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/Resolve Hydroponics before Water Reclamation/) });
   const skipped = await runMaintenance.run(request({
     ...data, shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', productionMode: 'skip',
   }));
@@ -490,6 +494,17 @@ it('records a Dione skip choice before allowing the next production console', as
     requestId: 'dione-water-after-skip', productionConsoleId: 'water-reclamation',
   }));
   expect(next).toMatchObject({ status: 'committed', result: { resources: { food: 13, water: 16 } } });
+});
+
+it('rejects Dione production when the session has disabled Dione', async () => {
+  mock.dioneEnabled = false;
+  mock.maintenanceCycles = {
+    dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
+  };
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/unavailable/i) });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('commits maintenance resources, charges, fuel, and damage once across duplicate and stale CAS requests', async () => {

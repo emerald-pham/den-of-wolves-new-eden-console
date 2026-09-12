@@ -118,6 +118,7 @@ it('renders Dione production controls from live charges and resource state', asy
   expect(hydroponics).toBeEnabled();
   expect(reclamation).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Skip Water Reclamation' })).toBeDisabled();
   await userEvent.click(hydroponics);
   expect(run).toHaveBeenCalledWith('dione', 'production', 3, { productionConsoleId: 'hydroponics' }, undefined);
 
@@ -128,6 +129,14 @@ it('renders Dione production controls from live charges and resource state', asy
   } }));
   expect(screen.getByRole('button', { name: 'Run Water Reclamation' })).toBeEnabled();
   expect(screen.getByRole('button', { name: 'Run Hydroponics' })).toBeDisabled();
+
+  act(() => useSessionStore.setState({ session: {
+    ...useSessionStore.getState().session!,
+    shipResources: { dione: { ore: 0, fuel: 3, food: 13, water: 0, materials: 0, securityTeams: 2 } },
+    maintenanceCycles: { dione: { step: 6, revision: 5, results: { '5': 'Water Reclamation skipped.' }, charges: ['hydroponics'], refuelled: [] } },
+  } }));
+  expect(screen.getByRole('button', { name: 'Run Hydroponics' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeDisabled();
 });
 
 it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {

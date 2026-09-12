@@ -257,6 +257,12 @@ it('applies Dione production upgrades and enforces production order without trap
 });
 
 it('records an explicit production skip so the next console can run without spending resources', () => {
+  expect(() => advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation', productionMode: 'skip',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 1, materials: 0, securityTeams: 0 },
+  }))).toThrow(/Resolve Hydroponics before Water Reclamation/);
+
   const skipped = advanceMaintenance(input({
     shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', productionMode: 'skip',
     cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
@@ -265,6 +271,22 @@ it('records an explicit production skip so the next console can run without spen
   expect(skipped.resources).toMatchObject({ food: 0, water: 14 });
   expect(skipped.cycle.charges).toEqual(['water-reclamation']);
   expect(skipped.cycle.results['5']).toContain('Hydroponics skipped.');
+
+  const waterSkippedWithoutSupply = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation', productionMode: 'skip',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['water-reclamation', 'hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  }));
+  expect(() => advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+    cycle: waterSkippedWithoutSupply.cycle, expectedRevision: waterSkippedWithoutSupply.cycle.revision,
+    resources: waterSkippedWithoutSupply.resources,
+  }))).toThrow(/before Water Reclamation/);
+  expect(() => advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', productionMode: 'skip',
+    cycle: waterSkippedWithoutSupply.cycle, expectedRevision: waterSkippedWithoutSupply.cycle.revision,
+    resources: waterSkippedWithoutSupply.resources,
+  }))).toThrow(/before Water Reclamation/);
 });
 
 it('rejects uncharged or damaged Dione production without changing the resource ledger', () => {

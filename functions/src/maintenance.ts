@@ -189,20 +189,20 @@ export function advanceMaintenance(input: MaintenanceInput) {
     const productionMode = input.productionMode ?? 'run';
     if (productionMode !== 'run' && productionMode !== 'skip') throw new Error('Invalid Dione production choice.');
     const priorProductionResult = cycleInput.results['5'] ?? '';
+    if (consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
+        !damage.damagedSystemIds.includes('hydroponics') &&
+        resources.water >= DIONE_PRODUCTION.hydroponics.waterCost) {
+      throw new Error('Resolve Hydroponics before Water Reclamation, or skip it.');
+    }
+    if (consoleId === 'hydroponics' && priorProductionResult.includes('Water Reclamation')) {
+      throw new Error('Hydroponics must be resolved before Water Reclamation.');
+    }
     if (productionMode === 'skip') {
       cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
       const label = consoleId === 'hydroponics' ? 'Hydroponics' : 'Water Reclamation';
       cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label} skipped.`;
     } else {
       if (damage.damagedSystemIds.includes(consoleId)) throw new Error('Damaged production console cannot be used.');
-      if (consoleId === 'hydroponics' && priorProductionResult.includes('Water Reclamation:')) {
-        throw new Error('Hydroponics must be resolved before Water Reclamation.');
-      }
-      if (consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
-          !damage.damagedSystemIds.includes('hydroponics') &&
-          resources.water >= DIONE_PRODUCTION.hydroponics.waterCost) {
-        throw new Error('Resolve Hydroponics before Water Reclamation, or skip it.');
-      }
       const rule = DIONE_PRODUCTION[consoleId];
       const upgraded = input.upgraded?.includes(consoleId) ?? false;
       if (consoleId === 'hydroponics') {
