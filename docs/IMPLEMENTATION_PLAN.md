@@ -2205,7 +2205,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [x] Prompt 102
 - [x] Prompt 103
 - [ ] Prompt 103a
-- [ ] Prompt 104
+- [x] Prompt 104
 - [ ] Prompt 105
 - [x] Prompt 106
 - [ ] Prompt 106a
@@ -2956,7 +2956,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - **Prompt 102 — [PRESERVE] Announce Coordination completion.** Acceptance: one durable message precedes the committed next-turn state and cannot be forged by clients.
 - **Prompt 103 — [PRESERVE] Initialize the next turn.** Acceptance: turn increments once, Team opens, and only defined per-turn counters reset or expire.
 - **Prompt 103a — [NEW] Hold the airspace deadline behind turn-advance interstitials.** Acceptance: Given a committed turn advance with an uncleared turn-advance interstitial, the turn-advance screen hides the `AIRSPACE CLOSED` timer while the authoritative airspace timer/deadline remains frozen at its captured remaining time; only one explicit clear/dismiss action after the committed transition reveals/resumes it from that preserved remaining time, never resetting, extending, or advancing it early. Stale, replayed, retried, reconnecting, and multi-client clear/advance attempts cannot decrement, resume, duplicate, or overwrite a newer deadline or transition event. The preserved/resumed status is accessible, has truthful keyboard order/focus and touch targets, and remains readable under reduced motion. Dependencies: Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. Apply the authorized core-rules and facilitation source areas and consume existing server-owned timing and broadcast precedence; do not invent a client timer or a new airspace rule.
-- **Prompt 104 — [NEW] Complete the configured final turn.** Acceptance: normal actions freeze and the game enters explicit endgame evaluation rather than an orphaned active phase.
+- **Prompt 104 — [PROVE] Complete the configured final turn.** Acceptance: normal actions freeze and the game enters explicit endgame evaluation rather than an orphaned active phase.
 - **Prompt 105 — [NEW] Trigger pursuit-10 failure.** Acceptance: authoritative pursuit reaching 10 creates one failure outcome and blocks further normal actions.
 - **Prompt 106 — [PRESERVE] Replay lifecycle announcements.** Acceptance: reconnecting members see the latest relevant turn/phase state without duplicate visual effects.
 - **Prompt 106a — [PRESERVE] Enforce FleetBroadcast precedence.** Acceptance: urgent authoritative transmissions preempt lower-priority ticker content, queue safely, and drain once without losing a higher-priority state.

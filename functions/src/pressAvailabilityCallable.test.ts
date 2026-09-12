@@ -129,6 +129,16 @@ beforeEach(() => {
   mock.runTransaction.mockClear();
 });
 
+it('freezes Press roster mutations during endgame evaluation', async () => {
+  session({ phase: 'debrief' });
+  gm();
+
+  await expect(setPressEnabled.run(request())).rejects
+    .toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
 it('changes Press with a server revision, audit, and holder revocation only', async () => {
   session({
     activeRoleIds: ['admiral'],

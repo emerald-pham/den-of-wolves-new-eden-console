@@ -23,7 +23,7 @@ export default function PressDispatch({ shuttle }: {
   const [notice, setNotice] = useState('');
   const hasPressAuthority = me?.activeConsoleRoleId === shuttle.captainRoleId;
   const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
-  const authorized = hasPressAuthority && !turnZeroLocked;
+  const authorized = hasPressAuthority && !turnZeroLocked && session?.phase !== 'debrief' && session?.phase !== 'closed';
 
   async function publish(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -109,7 +109,9 @@ export default function PressDispatch({ shuttle }: {
       <p className="press-dispatch__status" aria-live="polite">
         {notice || (turnZeroLocked
           ? 'Turn 0 // Awaiting Iris Authentication'
-          : !authorized ? 'Press Officer authority required' : '')}
+          : session?.phase === 'debrief'
+            ? 'Endgame evaluation // gameplay dispatches frozen'
+            : !authorized ? 'Press Officer authority required' : '')}
       </p>
     </section>
   );

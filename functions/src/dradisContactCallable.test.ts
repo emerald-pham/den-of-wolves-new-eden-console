@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { CallableRequest } from 'firebase-functions/v2/https';
 
 const mock = vi.hoisted(() => ({
-  get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true,
+  get: vi.fn(), update: vi.fn(), role: 'gm', owner: 'u1', connected: true, phase: 'active',
 }));
 
 vi.mock('firebase-admin/app', () => ({ initializeApp: vi.fn() }));
@@ -32,13 +32,14 @@ beforeEach(() => {
   mock.role = 'gm';
   mock.owner = 'u1';
   mock.connected = true;
+  mock.phase = 'active';
   mock.update.mockReset();
   mock.get.mockImplementation(async (path: string) => {
     const fields: Record<string, unknown> = path.includes('/players/')
       ? { role: mock.role, connected: mock.connected }
       : path.includes('/gmInstances/')
         ? { uid: mock.owner }
-        : {};
+        : { phase: mock.phase };
     return { exists: true, get: (key: string) => fields[key] };
   });
 });
@@ -61,5 +62,13 @@ it('denies players and GM instances owned by another browser', async () => {
   mock.owner = 'other';
   await expect(triggerDradisContact.run(request())).rejects
     .toMatchObject({ code: 'permission-denied' });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('freezes new DRADIS effects during endgame evaluation', async () => {
+  mock.phase = 'debrief';
+
+  await expect(triggerDradisContact.run(request())).rejects
+    .toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
 });

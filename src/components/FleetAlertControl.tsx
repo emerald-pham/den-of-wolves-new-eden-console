@@ -39,7 +39,8 @@ export default function FleetAlertControl() {
     ? `${lockoutMinutes} ${lockoutMinutes === 1 ? 'MINUTE' : 'MINUTES'} REMAINING // FLEET ALERT COOLDOWN`
     : null;
   const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
-  const unavailable = turnZeroLocked || !access.writable || connection !== 'live' || session?.phase === 'closed';
+  const unavailable = turnZeroLocked || !access.writable || connection !== 'live' ||
+    session?.phase === 'debrief' || session?.phase === 'closed';
   const execute = async (nextActive = !active) => {
     if (busy.current || unavailable) return;
     busy.current = true; setPending(true); setError('');
@@ -82,7 +83,15 @@ export default function FleetAlertControl() {
       </button>
     </div>
     <p className="confetti-dispenser__status">
-      FLEET COMMAND // {turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : pending ? 'TRANSMITTING' : active ? 'ALERT ACTIVE' : 'STANDING BY'}
+      FLEET COMMAND // {turnZeroLocked
+        ? 'TURN 0 // AWAITING IRIS AUTHENTICATION'
+        : session?.phase === 'debrief'
+          ? 'ENDGAME EVALUATION // COMMAND FROZEN'
+          : pending
+            ? 'TRANSMITTING'
+            : active
+              ? 'ALERT ACTIVE'
+              : 'STANDING BY'}
     </p>
     {cooldownNotice && <p className="confetti-dispenser__notice">{cooldownNotice}</p>}
     <p className="confetti-dispenser__notice">

@@ -777,11 +777,26 @@ function requireLiveAirspaceWindow(phase: ActiveTurnPhase): void {
  * clock. Legacy sessions predate that field and retain their existing
  * callable behavior until the next authoritative turn transition supplies it.
  */
+function requireActiveGameplayPhase(session: DocumentSnapshot): void {
+  const lifecyclePhase = session.get('phase');
+  if (lifecyclePhase === 'closed') {
+    throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+  }
+  if (lifecyclePhase === 'debrief' || lifecyclePhase === 'success' || lifecyclePhase === 'failure') {
+    throw commandError(
+      'failed-precondition',
+      'Gameplay actions are unavailable during endgame evaluation.',
+      'invalid-phase',
+    );
+  }
+}
+
 function requireActionPhase(
   session: DocumentSnapshot,
   action: ActionId,
   actorScope: ActorScope,
 ): void {
+  requireActiveGameplayPhase(session);
   if (session.get('turnPhase') === undefined) return;
   const decision = decideActionAuthorization({
     action,
@@ -802,12 +817,21 @@ function requireActionPhase(
 
 type TurnAdvanceResult = {
   readonly currentTurn: number;
+  readonly phase?: 'debrief';
   readonly turnState?: ActiveTurnState;
   readonly turnStartAnnouncement?: TurnStartAnnouncement;
-  readonly turnPhase: ReturnType<typeof startTurnPhase>;
+  readonly turnPhase?: ReturnType<typeof startTurnPhase>;
   readonly maintenanceCycles?: Record<string, MaintenanceCycle>;
   readonly shuttleFuelled?: Record<string, boolean>;
 };
+
+function isTurnAdvanceResult(value: unknown): value is TurnAdvanceResult {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const result = value as Record<string, unknown>;
+  if (!Number.isSafeInteger(result.currentTurn) || (result.currentTurn as number) < 0) return false;
+  if (result.phase === 'debrief') return result.turnPhase === undefined;
+  return result.phase === undefined && turnPhaseState(result.turnPhase) !== undefined;
+}
 
 function sessionTurnLimit(session: DocumentSnapshot): 6 | 7 | 8 | undefined {
   const direct = session.get('turnLimit');
@@ -900,6 +924,7 @@ function advanceTurnInTransaction(
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
   const nextTurn = currentTurn + 1;
+  const maxTurn = sessionTurnLimit(session);
   const currentFleetPopulation = fleetSurvivorPopulation(session);
   const announcementPopulation = currentFleetPopulation % 10 === 0 || currentFleetPopulation % 10 === 5
     ? currentFleetPopulation + 42
@@ -917,6 +942,33 @@ function advanceTurnInTransaction(
       (session.get('shuttleFuelled') ?? {}) as Record<string, boolean>,
     )
     : undefined;
+  if (maxTurn !== undefined && currentTurn >= maxTurn) {
+    tx.update(sessionRef, {
+      currentTurn: maxTurn,
+      phase: 'debrief',
+      turnPhase: FieldValue.delete(),
+      turnState: FieldValue.delete(),
+      turnStartAnnouncement: FieldValue.delete(),
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
+      ...additionalFields,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      currentTurn: maxTurn,
+      phase: 'debrief',
+      ...(expiredTurnResources
+        ? {
+          maintenanceCycles: expiredTurnResources.maintenanceCycles,
+          shuttleFuelled: expiredTurnResources.shuttleFuelled,
+        }
+        : {}),
+    };
+  }
   tx.update(sessionRef, {
     currentTurn: nextTurn,
     turnStartAnnouncement: skipTurnStartAnnouncement
@@ -4459,6 +4511,7 @@ export const triggerDradisContact = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    requireActiveGameplayPhase(session);
     tx.update(sessionRef, {
       dradisContactTriggeredAt: triggeredAt,
       updatedAt: FieldValue.serverTimestamp(),
@@ -4538,6 +4591,7 @@ export const setPressEnabled = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    requireActiveGameplayPhase(session);
     await rejectForeignLegacyM1Command(
       tx, setting.sessionId, setting.requestId, 'Press availability', [eventRef.path],
     );
@@ -4892,6 +4946,7 @@ export const setShipConsoleLock = onCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
+    requireActiveGameplayPhase(session);
     requireTurnOneForPlayer(session, player);
     const activeVesselIds = activeVesselIdsForSession(session);
     tx.update(sessionRef, {
@@ -4933,6 +4988,7 @@ export const setGmControlsLocked = onCall<{
     ) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    requireActiveGameplayPhase(session);
     tx.update(sessionRef, {
       gmControlsLocked: setting.locked,
       updatedAt: FieldValue.serverTimestamp(),
@@ -4989,6 +5045,7 @@ export const setDebriefMode = onCall<{
 export const advanceTurn = onCall<{
   sessionId?: string;
   instanceId?: string;
+  requestId?: string;
   expectedTurn?: number;
   overridePhaseTimer?: boolean;
   skipTurnStartAnnouncement?: boolean;
@@ -4998,19 +5055,45 @@ export const advanceTurn = onCall<{
   const sessionRef = db.doc(`sessions/${advance.sessionId}`);
   const playerRef = db.doc(`sessions/${advance.sessionId}/players/${uid}`);
   const instanceRef = db.doc(`sessions/${advance.sessionId}/gmInstances/${advance.instanceId}`);
+  const receiptRef = commandReceiptRef(advance.sessionId, advance.requestId);
+  const fingerprint: CommandFingerprint = {
+    action: 'advance-turn',
+    sessionId: advance.sessionId,
+    requestId: advance.requestId,
+    actorUid: uid,
+    instanceId: advance.instanceId,
+    expectedRevision: advance.expectedTurn,
+    payload: {
+      overridePhaseTimer: advance.overridePhaseTimer,
+      skipTurnStartAnnouncement: advance.skipTurnStartAnnouncement,
+    },
+  };
   const transitionServerTime = new Date().toISOString();
 
   return db.runTransaction(async (tx) => {
-    const [session, player, instance] = await Promise.all([
+    const [session, player, instance, receipt] = await Promise.all([
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
+      tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player) || player.get('role') !== 'gm' ||
         !instance.exists || instance.get('uid') !== uid) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
+    await rejectForeignLegacyM1Command(
+      tx, advance.sessionId, advance.requestId, 'turn advance', [],
+    );
+    const replay = replayBoundCommand(receipt, fingerprint, isTurnAdvanceResult, 'turn advance');
+    if (replay) return replay;
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    }
+    if (session.get('phase') !== undefined && session.get('phase') !== 'active') {
+      throw commandError(
+        'failed-precondition',
+        'The final turn is already complete; endgame evaluation is in progress.',
+        'invalid-phase',
+      );
     }
     const currentTurn = sessionTurn(session.get('currentTurn'));
     if (currentTurn !== advance.expectedTurn) {
@@ -5043,7 +5126,7 @@ export const advanceTurn = onCall<{
         'invalid-phase',
       );
     }
-    return advanceTurnInTransaction(
+    const result = advanceTurnInTransaction(
       tx,
       sessionRef,
       advance.sessionId,
@@ -5056,6 +5139,14 @@ export const advanceTurn = onCall<{
         reason: advance.overridePhaseTimer === true ? 'override' : 'expiry',
       },
     );
+    if (result.phase === 'debrief') {
+      tx.set(receiptRef, {
+        fingerprint,
+        result,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return result;
   });
 });
 
@@ -5602,6 +5693,7 @@ export const popShipConfetti = onCall<{
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isActivePlayer(player)) throw new HttpsError('permission-denied', 'Join the session first.');
+    requireActiveGameplayPhase(session);
     requireTurnOneForPlayer(session, player);
     if (shipId !== 'snn-press-shuttle' && !activeVesselIdsForSession(session).includes(shipId)) {
       throw commandError('failed-precondition', 'That ship is not active in this session.', 'conflict');
@@ -6796,6 +6888,7 @@ export const rollDice = onCall<{ sessionId: string; sides: number; count: number
       throw new HttpsError('permission-denied', 'Join the session first.');
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    requireActiveGameplayPhase(session);
     requireTurnOneForPlayer(session, player);
 
     const rolls = Array.from({ length: count }, () => randomInt(1, sides + 1));
@@ -7404,6 +7497,7 @@ export const setFleetRedAlert = onCall<{
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     requireTurnOneForPlayer(session, player);
     if (session.get('phase') === 'closed') throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
+    requireActiveGameplayPhase(session);
     const current = session.get('fleetRedAlert') as
       { active: boolean; revision: number; text?: string; raisedAt?: string | Timestamp } | undefined;
     if ((current?.revision ?? 0) !== data.expectedRevision) {
@@ -7467,6 +7561,7 @@ export const publishPressDispatch = onCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
+    requireActiveGameplayPhase(session);
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
       throw commandError(
@@ -7525,6 +7620,7 @@ export const dismissPressDispatch = onCall<{
     if (session.get('phase') === 'closed') {
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
+    requireActiveGameplayPhase(session);
     const current = pressDispatchState(session.get('pressDispatch'));
     if (current.revision !== data.expectedRevision) {
       throw commandError(

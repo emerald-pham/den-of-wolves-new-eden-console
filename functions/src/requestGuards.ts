@@ -355,12 +355,14 @@ export function requireGmInstanceRequest(data: {
 export function requireTurnAdvanceRequest(data: {
   sessionId?: unknown;
   instanceId?: unknown;
+  requestId?: unknown;
   expectedTurn?: unknown;
   overridePhaseTimer?: unknown;
   skipTurnStartAnnouncement?: unknown;
 }): {
   sessionId: string;
   instanceId: string;
+  requestId: string;
   expectedTurn: number;
   overridePhaseTimer: boolean;
   skipTurnStartAnnouncement: boolean;
@@ -368,6 +370,7 @@ export function requireTurnAdvanceRequest(data: {
   if (!Number.isSafeInteger(data.expectedTurn) || (data.expectedTurn as number) < 0) {
     throw new HttpsError('invalid-argument', 'expectedTurn must be a non-negative integer.');
   }
+  const requestId = requiredId(data.requestId, 'requestId');
   if (data.overridePhaseTimer !== undefined && typeof data.overridePhaseTimer !== 'boolean') {
     throw new HttpsError('invalid-argument', 'overridePhaseTimer must be boolean.');
   }
@@ -379,6 +382,7 @@ export function requireTurnAdvanceRequest(data: {
   }
   return {
     ...requireGmInstanceRequest(data),
+    requestId,
     expectedTurn: data.expectedTurn as number,
     overridePhaseTimer: data.overridePhaseTimer === true,
     skipTurnStartAnnouncement: data.skipTurnStartAnnouncement === true,

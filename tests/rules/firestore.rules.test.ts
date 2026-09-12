@@ -759,6 +759,32 @@ describe('complete server-owned denial matrix', () => {
     }
   });
 
+  it('denies clients from forging final-turn lifecycle state or terminal receipts', async () => {
+    for (const uid of ['alice', 'gm1']) {
+      await assertFails(updateDoc(doc(as(uid), SESSION), {
+        phase: 'debrief',
+        currentTurn: 6,
+        turnPhase: {
+          turn: 6,
+          airspace: { state: 'lifted' },
+        },
+        turnState: {
+          currentTurn: 6,
+          maxTurn: 6,
+          phase: 'coordination',
+        },
+        turnStartAnnouncement: {
+          turn: 6,
+          survivorPopulation: 242500,
+        },
+      }));
+      await assertFails(setDoc(doc(as(uid), SESSION + '/commandReceipts/final-turn-1'), {
+        fingerprint: { action: 'advance-turn' },
+        result: { currentTurn: 6, phase: 'debrief' },
+      }));
+    }
+  });
+
   it('denies every client write to authority-only collections', async () => {
     const db = as('alice');
     const targets = [

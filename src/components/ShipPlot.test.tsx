@@ -74,6 +74,33 @@ it('keeps expanded DRADIS effects disabled while the connection is unavailable',
   expect(triggerDradisContact).not.toHaveBeenCalled();
 });
 
+it('freezes expanded DRADIS effects during endgame evaluation', async () => {
+  const user = userEvent.setup();
+  const session = {
+    id: 's1', name: 'Table one', joinCode: '4821', phase: 'debrief' as const, ownerUid: 'u1',
+    currentTurn: 6, turnLimit: 6 as const,
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  useSessionStore.getState().setIdentity(session, {
+    uid: 'u1', sessionId: 's1', displayName: 'GM', role: 'gm', seatId: null,
+    joinedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setGmInstance({
+    id: 'gm-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+    deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+  });
+  useSessionStore.getState().setConnection('live');
+  render(<ShipPlot hostile={false} aboard viewerId="aegis" ambientSession={session} />);
+
+  await user.click(screen.getByRole('button', { name: /zoom into dradis/i }));
+  const effects = screen.getByRole('region', { name: /gm dradis effects/i });
+  expect(screen.getByText(/endgame evaluation.*gameplay effects frozen/i)).toBeInTheDocument();
+  const trigger = within(effects).getByRole('button', { name: /trigger unknown contact/i });
+  expect(trigger).toBeDisabled();
+  await user.click(trigger);
+  expect(triggerDradisContact).not.toHaveBeenCalled();
+});
+
 it('keeps expanded DRADIS effect controls hidden from non-GMs', async () => {
   const user = userEvent.setup();
   render(<ShipPlot hostile={false} aboard viewerId="aegis" />);

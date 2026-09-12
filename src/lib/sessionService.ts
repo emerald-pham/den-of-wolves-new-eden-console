@@ -1477,6 +1477,7 @@ export async function setDebriefMode(active: boolean): Promise<CommandDispositio
 
 interface TurnAdvanceReply {
   readonly currentTurn: number;
+  readonly phase?: GameSession['phase'];
   readonly turnState?: unknown;
   readonly turnStartAnnouncement?: { turn: number; survivorPopulation: number };
   readonly turnPhase?: unknown;
@@ -1612,6 +1613,12 @@ function applyTurnAdvanceReply(
       ? { shuttleFuelled: reply.shuttleFuelled }
       : {}),
   };
+  if (reply.phase === 'debrief') {
+    nextSession.phase = 'debrief';
+    delete nextSession.turnPhase;
+    delete nextSession.turnState;
+    delete nextSession.turnStartAnnouncement;
+  }
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
   // An accepted transition with no valid phase must not carry an entity from
   // the previous turn forward. A valid phase below replaces this projection
@@ -1625,9 +1632,12 @@ function applyTurnAdvanceReply(
 export async function advanceTurn({
   overridePhaseTimer = false,
   skipTurnStartAnnouncement = false,
+  requestId = commandId(),
 }: {
   readonly overridePhaseTimer?: boolean;
   readonly skipTurnStartAnnouncement?: boolean;
+  /** Reuse the same id after an ambiguous transport failure. */
+  readonly requestId?: string;
 } = {}): Promise<void> {
   const store = useSessionStore.getState();
   if (!store.session || !store.gmInstance) throw new Error('Claim GM before advancing the turn.');
@@ -1642,6 +1652,7 @@ export async function advanceTurn({
     {
       sessionId: string;
       instanceId: string;
+      requestId: string;
       expectedTurn: number;
       overridePhaseTimer?: boolean;
       skipTurnStartAnnouncement?: boolean;
@@ -1652,6 +1663,7 @@ export async function advanceTurn({
     const reply = await call({
       sessionId: store.session.id,
       instanceId: store.gmInstance.id,
+      requestId,
       expectedTurn,
       ...(overridePhaseTimer ? { overridePhaseTimer: true } : {}),
       ...(skipTurnStartAnnouncement ? { skipTurnStartAnnouncement: true } : {}),

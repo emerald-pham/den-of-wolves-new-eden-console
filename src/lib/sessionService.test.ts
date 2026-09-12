@@ -1096,11 +1096,12 @@ describe('GM instance commands', () => {
     });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await advanceTurn({ overridePhaseTimer: true });
+    await advanceTurn({ overridePhaseTimer: true, requestId: 'advance-ui-1' });
 
     expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'advanceTurn');
     expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 3, overridePhaseTimer: true,
+      sessionId: 's1', instanceId: 'instance-1', requestId: 'advance-ui-1',
+      expectedTurn: 3, overridePhaseTimer: true,
     });
     expect(useSessionStore.getState().session?.currentTurn).toBe(4);
     expect(useSessionStore.getState().session?.turnStartAnnouncement).toEqual({
@@ -1273,13 +1274,61 @@ describe('GM instance commands', () => {
     });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 
-    await advanceTurn({ skipTurnStartAnnouncement: true });
+    await advanceTurn({ skipTurnStartAnnouncement: true, requestId: 'advance-ui-skip-1' });
 
     expect(callable).toHaveBeenCalledWith({
-      sessionId: 's1', instanceId: 'instance-1', expectedTurn: 0,
-      skipTurnStartAnnouncement: true,
+      sessionId: 's1', instanceId: 'instance-1', requestId: 'advance-ui-skip-1',
+      expectedTurn: 0, skipTurnStartAnnouncement: true,
     });
     expect(useSessionStore.getState().session?.currentTurn).toBe(1);
+    expect(useSessionStore.getState().session?.turnStartAnnouncement).toBeUndefined();
+  });
+
+  it('reconciles a terminal final-turn reply into the player evaluation state', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      phase: 'active',
+      currentTurn: 6,
+      turnLimit: 6,
+      turnStartAnnouncement: { turn: 6, survivorPopulation: 242_500 },
+      turnPhase: {
+        turn: 6,
+        teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+        openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+        airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+      },
+      turnState: {
+        currentTurn: 6,
+        maxTurn: 6,
+        phase: 'coordination',
+        phaseRevision: 6,
+        startedAt: '2026-01-01T00:00:00.000Z',
+        endsAt: '2026-01-01T00:20:00.000Z',
+      },
+    });
+    const callable = callableReturning({
+      data: { currentTurn: 6, phase: 'debrief' },
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await advanceTurn({ requestId: 'advance-ui-final' });
+
+    expect(callable).toHaveBeenCalledWith({
+      sessionId: 's1',
+      instanceId: 'instance-1',
+      requestId: 'advance-ui-final',
+      expectedTurn: 6,
+    });
+    expect(useSessionStore.getState().session).toMatchObject({
+      phase: 'debrief',
+      currentTurn: 6,
+    });
+    expect(useSessionStore.getState().session?.turnPhase).toBeUndefined();
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
     expect(useSessionStore.getState().session?.turnStartAnnouncement).toBeUndefined();
   });
 

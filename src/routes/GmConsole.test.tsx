@@ -1421,6 +1421,28 @@ it('locks and unlocks subsequent GM registration without locking Setup', async (
   expect(screen.getByRole('group', { name: /active roles/i })).toBeInTheDocument();
 });
 
+it('shows endgame evaluation and removes GM advance controls after the final turn', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'debrief',
+    currentTurn: 6,
+    turnLimit: 6,
+  });
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  const turnControls = await screen.findByRole('region', { name: /turn controls/i });
+  expect(turnControls).toHaveTextContent(
+    /final turn complete.*endgame evaluation active.*advance and skip controls are disabled/i,
+  );
+  expect(within(turnControls).queryByRole('button', { name: /advance to turn/i })).not.toBeInTheDocument();
+  expect(within(turnControls).queryByRole('button', { name: /skip to turn/i })).not.toBeInTheDocument();
+  expect(advanceTurn).not.toHaveBeenCalled();
+});
+
 it('requires a deliberate second GM advance while either phase timer is active', async () => {
   const user = userEvent.setup();
   const activeSession = useSessionStore.getState().session;

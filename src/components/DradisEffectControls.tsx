@@ -22,12 +22,14 @@ const DRADIS_EFFECTS: readonly DradisEffectDefinition[] = [
 export default function DradisEffectControls({ expanded }: { expanded: boolean }) {
   const isGm = useSessionStore(selectIsGm);
   const connection = useSessionStore((state) => state.connection);
+  const phase = useSessionStore((state) => state.session?.phase);
   const [pendingEffect, setPendingEffect] = useState<string | null>(null);
+  const gameplayFrozen = phase === 'debrief' || phase === 'closed';
 
   if (!expanded || !isGm) return null;
 
   const run = async (effect: DradisEffectDefinition) => {
-    if (connection !== 'live' || pendingEffect !== null) return;
+    if (connection !== 'live' || gameplayFrozen || pendingEffect !== null) return;
     setPendingEffect(effect.id);
     try {
       await effect.trigger();
@@ -41,12 +43,17 @@ export default function DradisEffectControls({ expanded }: { expanded: boolean }
   return (
     <section className="dradis-effect-controls" aria-label="GM DRADIS effects">
       <p className="dradis-effect-controls__title">GM DRADIS effects</p>
+      {gameplayFrozen && (
+        <p className="dradis-effect-controls__status" role="status">
+          Endgame evaluation // gameplay effects frozen.
+        </p>
+      )}
       {DRADIS_EFFECTS.map((effect) => (
         <button
           className="cic-text-button dradis-effect-controls__trigger"
           type="button"
           key={effect.id}
-          disabled={connection !== 'live' || pendingEffect !== null}
+          disabled={connection !== 'live' || gameplayFrozen || pendingEffect !== null}
           onClick={() => void run(effect)}
         >
           {pendingEffect === effect.id ? effect.pendingLabel : effect.label}

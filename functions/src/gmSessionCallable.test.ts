@@ -135,6 +135,7 @@ import {
   kickPlayer,
   listGmInstances,
   releaseGmInstance,
+  setGmControlsLocked,
   setFacilitatorResponsibility,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
@@ -601,5 +602,19 @@ describe('GM instance ownership', () => {
       sessionId: 's1', instanceId: 'bridge', targetUid: 'u2',
     }))).rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1/players/u2')).toMatchObject({ connected: true });
+  });
+});
+
+describe('GM registration lock', () => {
+  it('freezes registration mutations during endgame evaluation', async () => {
+    session({ phase: 'debrief' });
+    player('u1', { role: 'gm' });
+    instance('bridge', 'u1');
+
+    await expect(setGmControlsLocked.run(request({
+      sessionId: 's1', instanceId: 'bridge', locked: true,
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+    expect(read('sessions/s1')).toMatchObject({ gmControlsLocked: false, phase: 'debrief' });
+    expect(mock.update).not.toHaveBeenCalled();
   });
 });

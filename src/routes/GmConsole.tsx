@@ -354,6 +354,7 @@ export default function GmConsole() {
   const controlsLocked = session?.gmControlsLocked === true;
   const debriefMode = session?.debriefMode ?? { active: false, revision: 0 };
   const currentTurn = session?.currentTurn ?? 1;
+  const endgameEvaluation = session?.phase === 'debrief';
   const canReplayTurnAnnouncement = Boolean(
     session?.turnStartAnnouncement && session.turnStartAnnouncement.turn === currentTurn && currentTurn >= 1,
   );
@@ -1204,7 +1205,11 @@ export default function GmConsole() {
               </p>
             )}
             <div className="gm-turn-control__actions">
-              {currentTurn === 0 ? (
+              {endgameEvaluation ? (
+                <p className="gm-console__status" role="status">
+                  Final turn complete // Endgame evaluation active. Advance and skip controls are disabled.
+                </p>
+              ) : currentTurn === 0 ? (
                 <p className="gm-console__status" role="status">
                   Turn 0 // ordinary production start is available in Setup.
                 </p>
@@ -1222,7 +1227,7 @@ export default function GmConsole() {
                       : `Advance to Turn ${currentTurn + 1}`}
                 </button>
               )}
-              <button
+              {!endgameEvaluation && <button
                 className={`cic-action-button${confirmTurnSkip ? ' cic-action-button--confirm' : ''}`}
                 type="button"
                 disabled={changingTurn || replayingTurnAnnouncement !== null}
@@ -1233,7 +1238,7 @@ export default function GmConsole() {
                   : confirmTurnSkip
                     ? `ARE YOU SURE? // Skip to Turn ${currentTurn + 1}`
                     : `Skip to Turn ${currentTurn + 1}`}
-              </button>
+              </button>}
               <button
                 className="cic-action-button"
                 type="button"

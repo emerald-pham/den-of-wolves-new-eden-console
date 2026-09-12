@@ -632,6 +632,31 @@ it('shows Admiral ship systems alongside the maintenance cycle', () => {
     .toHaveTextContent(/Food.*0.*3.*5.*8.*Water.*0.*2.*3.*6/i);
 });
 
+it('freezes ship gameplay controls while showing the final-turn evaluation state', async () => {
+  const activeSession = useSessionStore.getState().session;
+  const activePlayer = useSessionStore.getState().me;
+  if (!activeSession || !activePlayer) throw new Error('Expected the test session.');
+  useSessionStore.getState().setSession({
+    ...activeSession,
+    phase: 'debrief',
+    currentTurn: 6,
+    turnLimit: 6,
+  });
+  useSessionStore.getState().setMe({ ...activePlayer, activeConsoleRoleId: 'admiral' });
+  useSessionStore.getState().setConnection('live');
+
+  render(
+    <MemoryRouter initialEntries={['/ships/aegis/roles/admiral']}>
+      <Routes><Route path="/ships/:shipId/roles/:roleId" element={<ShipConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('status')).toHaveTextContent(
+    /final turn complete.*endgame evaluation in progress.*gameplay controls are frozen/i,
+  );
+  expect(screen.getByRole('button', { name: /engage icn console lock/i })).toBeDisabled();
+});
+
 it('keeps ship controls read-only until the requested role is confirmed', async () => {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error('Expected the test session.');

@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**121 / 747 prompts complete (16.20%)**
+**122 / 747 prompts complete (16.33%)**
 
-Status breakdown: **121 done · 6 partial · 620 missing**.
+Status breakdown: **122 done · 6 partial · 619 missing**.
 
 Active prompt: **none**
 
@@ -515,7 +515,7 @@ release classification and evidence.
 | 102 | done | non-feature | — | The authoritative `advanceTurn` transaction derives one server-owned next-turn announcement and commits it atomically with `currentTurn` and `turnPhase`, alongside the deterministic member-visible `turn-advanced` event. Focused callable coverage proves one generated announcement/state commit and event identity while ignoring a forged request field; Firestore emulator coverage denies client writes to the combined next-turn state/announcement and the transition event. The atomic commit is the ordering guarantee; no separate timing semantics are introduced. Proof-only; no runtime change. |
 | 103 | done | non-feature | — | Existing next-turn initialization is preserved by the atomic transition in `functions/src/index.ts:597-654` and callable path at `:3217-3271`; `functions/src/turnTransition.ts:8-27` resets turn-scoped charges and shuttle fuel, while `functions/src/maintenanceCallable.test.ts:578-703` covers schedule/expiry and `:792-937` covers overlapping advance/CAS/stale write-free behavior. Proof-only; no runtime change. |
 | 103a | missing | non-feature | — | Planned [NEW] prompt: hide AIRSPACE CLOSED on the turn-advance interstitial, freeze the authoritative deadline until clear/dismiss, resume from preserved remaining time, and cover stale/retry/reconnect/multi-client/accessibility behavior; no production-path evidence has been recorded. Depends on Prompts 091–096, 098, 101–103, 106b, 108–109, and 154–158. |
-| 104 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 104 | done | feature | 0.3.46 | When the configured final turn completes, the server keeps the maximum turn, expires only turn-scoped charges and fuel flags, transitions the session to debrief, and clears the live phase entity and announcement. Normal gameplay mutations are rejected in endgame evaluation while existing GM debrief controls and read routes remain available; no winner or outcome is inferred. |
 | 105 | partial | non-feature | — | PursuitTracker now exposes the remaining pursuit-10 distance as cycle/cycles copy in visible and progressbar ARIA text; authoritative terminal-failure outcome and action lockout remain open. |
 | 106 | done | non-feature | — | The authoritative session listener hydrates the latest parsed turn, phase, and announcement snapshot, while `TurnStartAnnouncement` opens a visual transmission only for a newer live turn or server revision. The production listener integration test drives Turn 1 to Turn 2, confirms one transmission, unsubscribes and reconnects with the same server snapshot, then verifies the current state rehydrates without a duplicate visual effect. Existing announcement timing and event-snapshot replacement tests continue to cover intentional replay and stable server IDs. Proof-only; no runtime change. |
 | 106a | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

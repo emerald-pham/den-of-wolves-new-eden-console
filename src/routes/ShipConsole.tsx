@@ -66,7 +66,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   );
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
   const consoleLocked = shipState?.consoleLocked ?? false;
-  const effectiveWritable = writable && !consoleLocked;
+  const effectiveWritable = writable && !consoleLocked && session?.phase !== 'debrief';
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const [coverOpen, setCoverOpen] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -204,7 +204,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   }
 
   async function toggleConsoleLock(): Promise<void> {
-    if (!ship || !writable || turnZeroLocked || lockPending) return;
+    if (!ship || !writable || session?.phase === 'debrief' || turnZeroLocked || lockPending) return;
     setLockPending(true);
     try {
       await setShipConsoleLock(ship.id, !consoleLocked);
@@ -254,6 +254,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
         <h1 className="ship-console__name" id="ship-name">{ship.name}</h1>
         <p className="ship-console__type">{ship.vesselType}</p>
         <p className="ship-console__description">{ship.description}</p>
+        {session.phase === 'debrief' && (
+          <p className="ship-console__status" role="status">
+            Final turn complete // Endgame evaluation in progress. Gameplay controls are frozen.
+          </p>
+        )}
         <ShipSpecifications shipId={ship.id} shipName={ship.name} population={hideCensus ? undefined : population} />
         {(consoleRole || observer) && (
           <RoleAssignment value={observer ? 'Observer' : consoleRole?.name ?? ''} />
@@ -264,7 +269,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
           <button
             className="cic-action-button"
             type="button"
-            disabled={!writable || turnZeroLocked || lockPending}
+            disabled={!writable || session.phase === 'debrief' || turnZeroLocked || lockPending}
             onClick={() => void toggleConsoleLock()}
           >
             {consoleLocked ? 'Release ICN console lock' : 'Engage ICN console lock'}

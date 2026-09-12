@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['104'],
+    implementationProgress: {
+      completed: 122,
+      total: 747,
+      percentage: '16.33%',
+      done: 122,
+      partial: 6,
+      active: 0,
+      missing: 619,
+    },
+    changes: [
+      'When the configured final turn ends, normal gameplay actions now freeze and every console enters explicit endgame evaluation while existing GM debrief controls remain available. 122 of 747 planned items are complete (16.33%).',
+    ],
+  },
+  {
+    version: '0.3.45',
     implementationPrompts: ['090'],
     implementationProgress: {
       completed: 118,

@@ -9,7 +9,9 @@ const mock = vi.hoisted(() => ({
   shipSurvivors: {} as Record<string, number>, capybaraEnabled: true, dioneEnabled: true,
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
-  turnPhase: undefined as unknown, turnState: undefined as unknown, turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
+  turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
+  turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
+  commandReceipts: {} as Record<string, Record<string, unknown>>,
   race: undefined as {
     attempts: number;
     ready: Promise<void>;
@@ -53,6 +55,24 @@ vi.mock('firebase-admin/firestore', () => ({
             const updates: Array<readonly [string, Record<string, unknown>]> = [];
             const sets: Array<readonly [string, Record<string, unknown>]> = [];
             const document = (path: string) => {
+              if (path.includes('/commandReceipts/')) {
+                const fields = mock.commandReceipts[path];
+                return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path.includes('/setupMutationRequests/') ||
+                  path.includes('/gmResponsibilityRequests/') ||
+                  path.includes('/seatMutationRequests/') ||
+                  path.includes('/loyaltyAssignmentRequests/') ||
+                  path.includes('sessionStartRequests/') ||
+                  path.includes('/events/setup-confirm-') ||
+                  path.includes('/events/gm-responsibility-') ||
+                  path.includes('/events/start-') ||
+                  path.includes('/events/seat-claim-') ||
+                  path.includes('/events/seat-release-') ||
+                  path.includes('/events/press-availability-') ||
+                  path.includes('/events/advance-test-')) {
+                return { exists: false, get: () => undefined };
+              }
               if (path.includes('/maintenanceRequests/')) {
                 const fields = state.receipts[path];
                 return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
@@ -132,6 +152,7 @@ vi.mock('firebase-admin/firestore', () => ({
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const baseVersion = race.version;
           const snapshot = {
+            phase: mock.phase,
             currentTurn: mock.currentTurn,
             turnLimit: mock.turnLimit,
             turnPhase: mock.turnPhase,
@@ -148,12 +169,29 @@ vi.mock('firebase-admin/firestore', () => ({
           const sets: Array<readonly [string, Record<string, unknown>]> = [];
           const tx = {
             get: async (path: string) => {
+              if (path.includes('/commandReceipts/')) {
+                const fields = mock.commandReceipts[path];
+                return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+              }
+              if (path.includes('/setupMutationRequests/') ||
+                  path.includes('/gmResponsibilityRequests/') ||
+                  path.includes('/seatMutationRequests/') ||
+                  path.includes('/loyaltyAssignmentRequests/') ||
+                  path.includes('sessionStartRequests/') ||
+                  path.includes('/events/setup-confirm-') ||
+                  path.includes('/events/gm-responsibility-') ||
+                  path.includes('/events/start-') ||
+                  path.includes('/events/seat-claim-') ||
+                  path.includes('/events/seat-release-') ||
+                  path.includes('/events/press-availability-') ||
+                  path.includes('/events/advance-test-')) {
+                return { exists: false, get: () => undefined };
+              }
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
                 : path.includes('/gmInstances/')
                   ? { uid: mock.gmInstanceOwners[path.split('/').at(-1) ?? ''] ?? mock.owner }
                 : {
-                    phase: 'active',
                     ...snapshot,
                   };
               return { exists: true, get: (key: string) => fields[key] };
@@ -169,6 +207,7 @@ vi.mock('firebase-admin/firestore', () => ({
           for (const [path, fields] of updates) {
             mock.update(path, fields);
             if (path === 'sessions/s1') {
+              if ('phase' in fields) mock.phase = fields.phase as string;
               if ('currentTurn' in fields) mock.currentTurn = fields.currentTurn as number;
               if ('turnPhase' in fields) mock.turnPhase = fields.turnPhase;
               if ('turnState' in fields) mock.turnState = fields.turnState;
@@ -180,7 +219,10 @@ vi.mock('firebase-admin/firestore', () => ({
               }
             }
           }
-          for (const [path, fields] of sets) mock.set(path, fields);
+          for (const [path, fields] of sets) {
+            mock.set(path, fields);
+            if (path.includes('/commandReceipts/')) mock.commandReceipts[path] = fields;
+          }
           race.version += 1;
           return result;
         }
@@ -210,13 +252,19 @@ import {
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 
+let advanceRequestSequence = 0;
+
 function request(data: Record<string, unknown>, uid: string | null = 'u1') {
-  return { data, auth: uid === null ? undefined : { uid } } as CallableRequest<{
+  const payload = data.expectedTurn !== undefined && data.requestId === undefined
+    ? { ...data, requestId: `advance-test-${++advanceRequestSequence}` }
+    : data;
+  return { data: payload, auth: uid === null ? undefined : { uid } } as CallableRequest<{
     sessionId: string; shipId: string; requestId: string; instanceId: string; action: string; expectedRevision: number;
   }>;
 }
 
 beforeEach(() => {
+  advanceRequestSequence = 0;
   mock.role = 'gm';
   mock.owner = 'u1';
   mock.gmInstanceOwners = {};
@@ -238,6 +286,8 @@ beforeEach(() => {
   mock.pressEnabled = true;
   mock.activeConsoleRoleId = undefined;
   mock.activeRoleIds = undefined;
+  mock.phase = 'active';
+  mock.commandReceipts = {};
   mock.retry = false;
   mock.randomInt.mockReset();
   mock.randomInt.mockReturnValue(3_100_000_000);
@@ -245,7 +295,28 @@ beforeEach(() => {
   mock.randomUUID.mockReturnValue('damage-event');
   mock.update.mockReset();
   mock.set.mockReset();
+  mock.set.mockImplementation((path: string, fields: Record<string, unknown>) => {
+    if (path.includes('/commandReceipts/')) mock.commandReceipts[path] = fields;
+  });
   mock.get.mockImplementation(async (path: string) => {
+    if (path.includes('/commandReceipts/')) {
+      const fields = mock.commandReceipts[path];
+      return { exists: fields !== undefined, get: (key: string) => fields?.[key] };
+    }
+    if (path.includes('/setupMutationRequests/') ||
+        path.includes('/gmResponsibilityRequests/') ||
+        path.includes('/seatMutationRequests/') ||
+        path.includes('/loyaltyAssignmentRequests/') ||
+        path.includes('sessionStartRequests/') ||
+        path.includes('/events/setup-confirm-') ||
+        path.includes('/events/gm-responsibility-') ||
+        path.includes('/events/start-') ||
+        path.includes('/events/seat-claim-') ||
+        path.includes('/events/seat-release-') ||
+        path.includes('/events/press-availability-') ||
+        path.includes('/events/advance-test-')) {
+      return { exists: false, get: () => undefined };
+    }
     if (path.includes('/maintenanceRequests/')) {
       return { exists: false, get: () => undefined };
     }
@@ -263,6 +334,7 @@ beforeEach(() => {
       : path.includes('/gmInstances/')
         ? { uid: mock.owner }
         : {
+          phase: mock.phase,
           shipDamage: mock.damage,
           currentTurn: mock.currentTurn,
           turnLimit: mock.turnLimit,
@@ -832,6 +904,107 @@ it('commits one server-owned Coordination completion announcement with the next-
       revision: 2,
     }),
   );
+});
+
+it('freezes the configured final turn in debrief and replays the terminal receipt', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-06T12:20:00.000Z'));
+  mock.currentTurn = 6;
+  mock.turnLimit = 6;
+  mock.turnStartAnnouncement = { turn: 6, survivorPopulation: 242_500 };
+  mock.turnState = {
+    currentTurn: 6,
+    maxTurn: 6,
+    phase: 'team',
+    phaseRevision: 6,
+    startedAt: '2026-09-06T12:00:00.000Z',
+    endsAt: '2026-09-06T12:05:00.000Z',
+  };
+  mock.maintenanceCycles = {
+    aegis: {
+      step: 0,
+      revision: 8,
+      turn: 6,
+      results: { '7': 'Maintenance cycle complete.' },
+      charges: ['jump-drive'],
+      refuelled: ['starlight'],
+    },
+  };
+  mock.shuttleFuelled = { starlight: true };
+  mock.turnPhase = {
+    turn: 6,
+    teamPhaseEndsAt: '2026-09-06T12:05:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T12:20:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+
+  const terminalRequest = {
+    sessionId: 's1',
+    instanceId: 'bridge',
+    requestId: 'advance-test-final',
+    expectedTurn: 6,
+  };
+  const result = await advanceTurn.run(request(terminalRequest));
+
+  expect(result).toMatchObject({
+    currentTurn: 6,
+    phase: 'debrief',
+    maintenanceCycles: {
+      aegis: expect.objectContaining({ charges: [], refuelled: [] }),
+    },
+    shuttleFuelled: { starlight: false },
+  });
+  expect(mock.update).toHaveBeenCalledWith('sessions/s1', expect.objectContaining({
+    currentTurn: 6,
+    phase: 'debrief',
+    turnPhase: 'delete-field',
+    turnState: 'delete-field',
+    turnStartAnnouncement: 'delete-field',
+  }));
+  expect(mock.set).toHaveBeenCalledWith(
+    'sessions/s1/commandReceipts/advance-test-final',
+    expect.objectContaining({
+      fingerprint: expect.objectContaining({
+        action: 'advance-turn',
+        expectedRevision: 6,
+      }),
+      result: expect.objectContaining({ currentTurn: 6, phase: 'debrief' }),
+    }),
+  );
+  expect(mock.set.mock.calls.some(([path]) => String(path).includes('/events/'))).toBe(false);
+  mock.phase = 'debrief';
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request(terminalRequest))).resolves.toEqual(result);
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+
+  mock.update.mockClear();
+  mock.set.mockClear();
+  await expect(advanceTurn.run(request({
+    ...terminalRequest,
+    requestId: 'advance-test-final-retry',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/endgame evaluation/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('rejects normal gameplay mutations after final-turn debrief begins', async () => {
+  mock.phase = 'debrief';
+  mock.currentTurn = 6;
+  await expect(runMaintenance.run(request({
+    ...data,
+    expectedRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/endgame evaluation/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('expires charged consoles and shuttle fuel when a numbered turn hands off', async () => {
