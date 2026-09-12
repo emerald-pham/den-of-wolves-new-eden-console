@@ -217,6 +217,13 @@
       "language": "The owner expanded the queued Write Mode Off button consistency request into an application-wide and fleet-wide button audit, explicitly including Ship View Privacy controls. Coordinate the shared case without imposing a hard prerequisite.",
       "source": "Owner request - application-wide button conventions, 2026-09-11",
       "type": "related/consumes"
+    },
+    {
+      "direction": "674 -> 048;049;628",
+      "id": "E-674",
+      "language": "The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries, not new hard prerequisites.",
+      "source": "Owner request - GM ship-console observation and confirmed intervention, 2026-09-11",
+      "type": "related/consumes"
     }
   ],
   "plan": {
@@ -17341,6 +17348,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "POLISH"
+    },
+    {
+      "changeClass": "feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Remove the selectable ship Observer role while allowing an authorized GM to inspect ship consoles without claiming a player seat, altering player console ownership, or exposing the act of observation through player-visible console presence or notifications. Keep observation read-only by default. Provide a shared-style button labelled `GM ship console read write access`, with truthful read-only/read-write state; the first activation opens the standard red `Are you sure?` confirmation and a second explicit confirmation enables scoped GM intervention through existing server-authorized commands. Cancellation must not grant write access. Preserve GM eligibility, instance identity, expiry, scoped grant checks, server-only audit, and player privacy; revoke elevation on ship change or leaving the console, and do not enable player controls by local UI state alone. The owner requires no special behavior for an empty server; do not add an empty-server exception. Prove quiet read-only observation, confirmation/cancel, authorized intervention, unauthorized and stale-grant denial, multiple GM instances, role/route transitions, and accessible shared-button behavior across supported viewports. Coordinate with existing GM read-only and scoped-grant contracts rather than adding another parallel authority system.",
+        "title": "Replace ship Observer roles with unobtrusive GM viewing and confirmed write access."
+      },
+      "description": "Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch.",
+      "evidenceIds": "E-674",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "674",
+      "milestoneHints": "none",
+      "relatedConsumes": "048;049;628",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "REPAIR"
     }
   ],
   "retiredPromptIds": [

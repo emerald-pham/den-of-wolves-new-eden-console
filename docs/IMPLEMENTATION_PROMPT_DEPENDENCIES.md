@@ -835,6 +835,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 671 | POLISH | missing | none | none | none | none | none | none | none | 668 | E-671 | none | Align buttons across the fleet and application. |
 | 672 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Show shuttle docking history in main ship consoles. |
 | 673 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Mirror the galactic orientation compass on the ship navigation jump map. |
+| 674 | REPAIR | missing | none | none | none | none | none | none | none | 048;049;628 | E-674 | none | Replace ship Observer roles with unobtrusive GM viewing and confirmed write access. |
 
 ## Explicit sequence rules
 
@@ -887,6 +888,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-666 | hard_prompt | 666 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 666 definition | Dependencies: Prompt 665 supplies the durable coordination lifecycle that owns and validates the compact dependency receipt. |
 | E-667 | hard_prompt | 667 -> 665 | IMPLEMENTATION_PLAN.md - Prompt 667 definition | Dependencies: Prompt 665 supplies the durable reviewed coordination lifecycle; Prompt 667 independently rebaselines hostile-client and resource-exhaustion controls without blocking P012/P014 or depending on Prompt 666. |
 | E-671 | related/consumes | 671 -> 668 | Owner request - application-wide button conventions, 2026-09-11 | The owner expanded the queued Write Mode Off button consistency request into an application-wide and fleet-wide button audit, explicitly including Ship View Privacy controls. Coordinate the shared case without imposing a hard prerequisite. |
+| E-674 | related/consumes | 674 -> 048;049;628 | Owner request - GM ship-console observation and confirmed intervention, 2026-09-11 | The owner requested removing the ship Observer role while retaining read-only GM viewing and confirming scoped writes. Existing read-only entry, ship-change revocation, and GM-instance authority contracts remain related implementation boundaries, not new hard prerequisites. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

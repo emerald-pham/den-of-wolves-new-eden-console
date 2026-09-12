@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 740 prompts complete (13.92%)**
+**103 / 741 prompts complete (13.90%)**
 
-Status breakdown: **103 done · 17 partial · 620 missing**.
+Status breakdown: **103 done · 17 partial · 621 missing**.
 
 Active prompt: **none**
 
@@ -1150,6 +1150,7 @@ release classification and evidence.
 | 671 | missing | non-feature | — | Owner-requested app-wide and fleet-wide button consistency audit and repair, including both Ship View Privacy toggles; preserve behavior, privacy, authorization, and the accepted non-GM DRADIS experience. |
 | 672 | missing | feature | — | Owner-requested placement of existing right-sidebar shuttle docking history inside main ship consoles, preserving its data authority, access rules, and existing sidebar behavior. |
 | 673 | missing | feature | — | Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority. |
+| 674 | missing | feature | — | Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes
