@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['652b'],
+    implementationProgress: {
+      completed: 134,
+      total: 747,
+      percentage: '17.94%',
+      done: 134,
+      partial: 6,
+      active: 0,
+      missing: 607,
+    },
+    changes: [
+      'On phones, fleet broadcasts now stay pinned while you scroll, can be hidden and revealed with an accessible control, and automatically reappear for urgent Admiral or airspace notices before folding away after the latest notice. Wide screens keep the ticker visible, while reduced-motion screens keep one readable announcement surface. 134 of 747 planned items are complete (17.94%).',
+    ],
+  },
+  {
+    version: '0.3.51',
     implementationPrompts: ['111'],
     implementationProgress: {
       completed: 131,
