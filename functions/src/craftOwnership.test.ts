@@ -58,7 +58,7 @@ describe('role-owned craft composition', () => {
       .toEqual(['chacau']);
   });
 
-  it('keeps Chepu owned by the Refinery 124 PDF Colonel', () => {
+  it('keeps Chepu and the PDF Escort Fighter Wing owned by the Refinery 124 PDF Colonel', () => {
     expect(ownedCraftIdsForRole('refinery-124-pdf-colonel', ['refinery-124-pdf-colonel']))
       .toEqual(['chepu', 'pdf-escort-fighter-wing']);
   });
@@ -73,6 +73,12 @@ describe('role-owned craft composition', () => {
   it('keeps both AEGIS fighter wings independently owned by the Wing Commander', () => {
     expect(ownedCraftIdsForRole('wing-commander', ['wing-commander']))
       .toEqual(['starlight', 'fighter-wing-alpha', 'fighter-wing-bravo']);
+  });
+
+  it('keeps Wobbly owned by the active Quellon/Refinery Union assignment', () => {
+    expect(ownedCraftIdsForRole('joint-engineering-quellon-refinery', [
+      'joint-engineering-quellon-refinery',
+    ])).toEqual(['wobbly']);
   });
 
   it('rejects a changed owner or mode in the persisted server manifest', () => {

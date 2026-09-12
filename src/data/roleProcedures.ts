@@ -1,3 +1,5 @@
+import { PDF_ESCORT_FIGHTER_WING } from './pdfConsoles';
+
 export interface RoleProcedure { readonly name: string; readonly effect: string }
 
 const engineering: readonly RoleProcedure[] = [
@@ -40,8 +42,9 @@ const ROLE_PROCEDURES: Readonly<Record<string, readonly RoleProcedure[]>> = {
     { name: 'Water supply', effect: 'Coordinate Quellon’s water production with ships that need it for rations and hydroponics.' },
   ],
   'refinery-124-pdf-colonel': [
-    { name: 'Fighter launch', effect: 'A charged, undamaged Fighter Bay permits a fighter wing to launch during a Wolf Attack.' },
-    { name: 'Fighter combat', effect: 'Medium range: each fighter shifts one hostile targeting number by +1 or −1 with wraparound, or rolls one die for 1 damage on 5+. Short range: roll up to one die per fighter; 1 damage on 3+, lose a fighter on 1 or 2. Assign short-range damage to hostile fighter wings first.' },
+    { name: 'Fighter launch', effect: 'A charged, undamaged Fighter Bay permits the PDF Escort Fighter Wing to launch during a Wolf Attack.' },
+    { name: 'Fighter combat', effect: `${PDF_ESCORT_FIGHTER_WING.combat.mediumRange} ${PDF_ESCORT_FIGHTER_WING.combat.shortRange} ${PDF_ESCORT_FIGHTER_WING.combat.lossRule}` },
+    { name: 'Away mission support', effect: 'The PDF Escort Fighter Wing may participate in Away Missions without a Fighter Bay charge, adding +2 to search & rescue and +1 to salvage checks.' },
     { name: 'Boarding defence', effect: 'Each defending security team rolls one die: 1 destroys the security team; 4+ destroys a boarding party. Each surviving boarding party deals 1 damage.' },
   ],
   'capybara-recycler': [

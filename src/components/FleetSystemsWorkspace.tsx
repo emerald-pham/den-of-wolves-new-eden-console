@@ -5,9 +5,11 @@ import JumpDriveConsole from './JumpDriveConsole';
 import FleetRoleConsoleTemplate from './FleetRoleConsoleTemplate';
 import ShipNavigationWorkspace from './ShipNavigationWorkspace';
 import AssignedShuttlecraft from './AssignedShuttlecraft';
+import PdfEscortWingReference from './PdfEscortWingReference';
 import type { Ship } from '@/data/ships';
 import type { ConsoleRole } from '@/data/roles';
 import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
+import { PDF_ROLE_CONSOLE } from '@/data/pdfConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
@@ -116,6 +118,7 @@ export default function FleetSystemsWorkspace({
       <p>Initial ration schedule. At a starred population threshold, use the facilitator’s replacement schedule.</p>
       </>} />
       : <div className="aegis-system-grid">{systems.map(renderSystem)}</div>}
+      {ship.id === 'refinery-124' && role.id === PDF_ROLE_CONSOLE.roleId && <PdfEscortWingReference />}
       {procedures.length > 0 && <section className="console-workspace__section"
       aria-label={`${ship.name} ${role.name} role procedures`}>
       <h3>Role procedures</h3>

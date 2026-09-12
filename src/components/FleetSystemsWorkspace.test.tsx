@@ -124,6 +124,22 @@ describe('fleet system reference workspaces', () => {
     expect(screen.getByRole('link', { name: /open maliades shuttle console/i }))
       .toHaveAttribute('href', '/shuttles/maliades');
   });
+
+  it('renders the PDF wing registration separately from the Colonel’s shuttlecraft', () => {
+    const ship = SHIPS.find((candidate) => candidate.id === 'refinery-124')!;
+    const role = ship.roles.find((candidate) => candidate.id === 'refinery-124-pdf-colonel')!;
+    renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={3} galacticCoordinate="0408" />);
+
+    const wing = screen.getByRole('region', { name: 'PDF Escort Fighter Wing' });
+    expect(within(wing).getAllByRole('heading', { name: 'PDF Escort Fighter Wing' })).toHaveLength(2);
+    expect(wing).toHaveTextContent(/owner.*refinery-124-pdf-colonel/i);
+    expect(wing).toHaveTextContent(/fighter cap.*up to 4 fighters.*PDF wing cap/i);
+    expect(wing).toHaveTextContent(/away mission.*independent of Fighter Bay charge.*search.*rescue \+2.*salvage \+1/i);
+    expect(wing).toHaveTextContent(/combat launch.*fighter bay.*charged and undamaged.*wolf attack/i);
+    expect(wing).toHaveTextContent(/target number.*±1.*damage on 5+.*one die per fighter.*damage on 3+.*destroyed.*1 or 2/i);
+    expect(screen.getByRole('link', { name: /open chepu shuttle console/i }))
+      .toHaveAttribute('href', '/shuttles/chepu');
+  });
 });
 
 it.each(SHIPS.filter(ship => ship.maintenance))('keeps the complete $name maintenance reference together', (ship) => {

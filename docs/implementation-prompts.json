@@ -1691,15 +1691,15 @@
     {
       "direction": "273 -> 161;162;262",
       "id": "E-AUDIT-273",
-      "language": "PDF wing registration consumes vessel and fighter-wing contracts.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "The PDF Escort Fighter Wing registration consumes the canonical Refinery 124 vessel/Fighter Bay contract and the prior fighter-wing registration boundary while keeping its own four-fighter cap, mission bonuses, launch requirements, combat reference, and Colonel ownership.",
+      "source": "src/data/pdfConsoles.ts; src/data/pdfConsoles.test.ts; src/components/PdfEscortWingReference.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/FleetSystemsWorkspace.test.tsx; src/data/roleProcedures.ts; src/routes/RoleBrief.tsx; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; authorized routed fighter-wing derivative",
       "type": "hard_prompt"
     },
     {
       "direction": "274 -> 161;162",
       "id": "E-AUDIT-274",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Wobbly registration preserves its six-resource cargo transfer, fuelled one-console recharge each coordination phase, active Quellon/Refinery Union ownership, and facilitator-set docking while leaving later procedure resolution to its owning prompts.",
+      "source": "src/data/vessels/wobbly.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; functions/src/craftOwnership.ts; functions/src/craftOwnership.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx; authorized routed Wobbly derivative",
       "type": "hard_prompt"
     },
     {
@@ -11583,7 +11583,7 @@
         "acceptance": "four-fighter cap, independent mission participation, combat launch, bonuses, and Colonel ownership are distinct.",
         "title": "Register the PDF Escort Fighter Wing."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The typed PDF Escort Fighter Wing registration keeps the Refinery 124 wing distinct from AEGIS wings: it has an explicit four-fighter cap, P.D.F. Colonel ownership, a Refinery 124 Fighter Bay launch link that requires a charged and undamaged bay during Wolf Attack, and independent Away Mission participation that does not require bay charge. Its printed Away Mission bonuses (+2 search & rescue, +1 salvage), medium/short combat actions, and loss rule are rendered from the registration metadata and reflected in the Colonel procedures. Focused metadata, Refinery console, route, and Functions ownership tests prove the registration and preserve P680/P262 AEGIS behavior; no mutable PDF count, launch action, or combat resolver is invented, leaving those mechanics to later prompts. The routed fighter-wing derivative supplies the accepted registration facts; the private source index preserves no base-game PDF wing primary artifact, so this closure makes no primary visual-verification claim.",
       "evidenceIds": "E-AUDIT-273",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11595,7 +11595,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -11606,7 +11606,7 @@
         "acceptance": "its cargo and fuelled recharge belong to Wobbly despite copied Condor text and follow the active Union assignment.",
         "title": "Register J.E.U. Wobbly completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical Wobbly registration now keeps the six printed cargo resources and fuelled recharge each coordination phase on Wobbly despite the copied Condor sheet text, follows the Quellon/Refinery Union assignment, and preserves facilitator-set initial docking. Focused data, ownership, and console-route tests cover the typed facts and keyboard parent return; a local browser fixture verified the rendered route at the required viewports, with no later recharge, cargo, or boarding engine claimed. The routed derivative establishes these facts; no primary Wobbly PDF visual claim is made.",
       "evidenceIds": "E-AUDIT-274",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11618,7 +11618,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

@@ -320,6 +320,29 @@ describe('fleet shuttlebays', () => {
     ]));
   });
 
+  it('keeps Wobbly recharge and cargo attached to the active Quellon/Refinery Union assignment', () => {
+    const wobbly = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'wobbly');
+
+    expect(wobbly).toMatchObject({
+      captainRoleId: 'joint-engineering-quellon-refinery',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+      availability: 'gm-controlled',
+    });
+    expect(wobbly?.initialDocking).toBeUndefined();
+    expect(wobbly?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Recharge', phase: 'Coordination',
+        effect: expect.stringMatching(/when fuelled.*charge one console each coordination phase.*immediate maintenance effect.*resolves immediately/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence', phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+    expect(wobbly?.operations[0]?.effect).not.toMatch(/Condor/i);
+  });
+
   it('starts the independently crewed and shipboard shuttlecraft docked with their home ships', () => {
     expect(INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId)).toEqual([
       'snn-press-shuttle',

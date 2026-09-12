@@ -1,12 +1,13 @@
 import { Link, Navigate } from 'react-router-dom';
 import { useSessionStore } from '@/store/useSessionStore';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
+import { PDF_ESCORT_FIGHTER_WING } from '@/data/pdfConsoles';
 import { SHUTTLECRAFT } from '@/data/shuttles';
 
 const CRAFT_NAMES = new Map([
   ...SHUTTLECRAFT.map((craft) => [craft.id, craft.name] as const),
   ...AEGIS_ROLE_CONSOLES['wing-commander'].craft.map((craft) => [craft.id, craft.name] as const),
-  ['pdf-escort-fighter-wing', 'PDF Escort Fighter Wing'],
+  [PDF_ESCORT_FIGHTER_WING.id, PDF_ESCORT_FIGHTER_WING.name],
 ]);
 
 /** The authenticated player's role brief and common rules projection. */

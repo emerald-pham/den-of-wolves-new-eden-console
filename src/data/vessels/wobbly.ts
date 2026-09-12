@@ -21,7 +21,7 @@ export default defineShuttle({
     {
       name: 'Recharge',
       phase: 'Coordination',
-      effect: 'When fuelled, charge one console. A console with an immediate maintenance effect resolves immediately.',
+      effect: 'When fuelled, charge one console each coordination phase. A console with an immediate maintenance effect resolves immediately.',
     },
     {
       name: 'Boarding defence',

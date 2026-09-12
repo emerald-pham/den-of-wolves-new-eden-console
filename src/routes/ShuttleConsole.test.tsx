@@ -112,7 +112,14 @@ it('returns a Union engineer from Wobbly to the paired engineering console', asy
   );
 
   expect(screen.getByRole('heading', { name: /u\.s\. wobbly/i })).toBeInTheDocument();
-  await user.click(screen.getByRole('link', { name: /back to joint engineering union/i }));
+  expect(screen.getByText(/security teams, strytium ore, fuel, food, water, and materials/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Recharge' })).toBeInTheDocument();
+  expect(screen.getByText(/when fuelled, charge one console each coordination phase/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+  const back = screen.getByRole('link', { name: /back to joint engineering union/i });
+  expect(back).toHaveAttribute('href', '/union/roles/joint-engineering-quellon-refinery');
+  back.focus();
+  await user.keyboard('{Enter}');
   expect(screen.getByText('Joint Engineering console')).toBeInTheDocument();
 });
 
