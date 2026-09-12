@@ -4139,6 +4139,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "652b -> 106c;603a;652;652a",
+      "id": "E-AUDIT-652B",
+      "language": "Prompt 652b closes the narrow Press ticker presentation: the real AppHeader route keeps the ticker pinned with reserved safe-area/header flow, provides keyboard-reachable hide/reveal, expands a hidden ticker for authoritative Admiral Red Alert and queued airspace restriction triggers, refolds only after the newest trigger display, resets hiding across wide viewports, preserves one readable reduced-motion status, and avoids content overlap or horizontal overflow at every required viewport. Focused unit coverage proves manual hide/reveal, overlapping-trigger sequencing, user reveal persistence, wide reset, and reduced-motion timing; Chrome CDP evidence proves scroll pinning, responsive geometry, keyboard interaction, accessible control removal on wide, and all four viewport sizes.",
+      "source": "src/components/FleetBroadcast.tsx; src/components/FleetTicker.tsx; src/components/FleetBroadcastMobile.test.tsx; src/index.css; docs/AESTHETICS.md; Chrome CDP matrix /tmp/p652b-geometry/geometry.json",
+      "type": "hard_prompt"
+    },
+    {
       "direction": "656 -> 034;050",
       "id": "E-AUDIT-656",
       "language": "Launcher routing consumes session resume and established return paths.",
@@ -20845,8 +20852,8 @@
         "acceptance": "On narrow-width viewports, keep the Press ticker pinned to the top from initial render and throughout scrolling, using the established responsive breakpoint and safe-area layout. Provide an accessible narrow-only hide/reveal button that collapses the ticker while leaving a reachable reveal control. A new authoritative Red Alert broadcast or airspace-restriction change temporarily expands a hidden ticker with an expansion animation; after that notification finishes its complete display, animate it back to the hidden state only if the user has not chosen to reveal it. Repeated or overlapping notifications must not refold early, replay duplicate expansion, lose announcements, or clip the moving tail. Crossing into a wide viewport forces the ticker visible, resets hidden state, and removes the hide/reveal option from visual and keyboard/accessibility navigation; wide viewports cannot hide it. Reserve and update layout space during expansion, folding, resize, rotation, keyboard and safe-area changes so the ticker and reveal control never overlap content, focus, session ticket, or Role Select. Preserve authoritative message lifecycle, non-GM DRADIS behavior, and the existing wide-screen presentation; reduced motion uses equivalent immediate state changes and readable announcements. Prove scroll-top and scrolled states, manual hide/reveal, each automatic trigger, overlapping broadcasts, refolding, narrow-wide-narrow resize, live updates/reconnect, keyboard/screen-reader operation, and nonoverlap at 320×844, 390×844, 844×390, and 1440×900.",
         "title": "Keep the mobile Press ticker pinned with reversible hiding and alert expansion."
       },
-      "description": "Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees.",
-      "evidenceIds": "E-TICKER",
+      "description": "Owner-requested mobile ticker behavior supersedes the earlier optional scroll-threshold experiment: always pin the Press ticker on narrow viewports, allow narrow-only hide/reveal, temporarily expand hidden content for Red Alert or airspace-restriction changes, and refold after the newest notification display. Wide viewports force visible state and remove hiding controls; preserve lifecycle, layout, accessibility, and non-GM DRADIS guarantees. Focused unit and Chrome CDP evidence cover keyboard operation, overlapping triggers, reduced motion, responsive reset, and nonoverlap across all required viewports.",
+      "evidenceIds": "E-TICKER;E-AUDIT-652B",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "106c;603a;652;652a",
@@ -20854,10 +20861,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.51"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "TICKER-LIFECYCLE",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

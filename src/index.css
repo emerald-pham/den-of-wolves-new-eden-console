@@ -494,6 +494,33 @@ body {
   max-width: calc(100vw - 1.5rem);
 }
 
+.fleet-broadcast {
+  flex: 1 1 20rem;
+  min-width: 8rem;
+  min-height: 2.5rem;
+  display: flex;
+  min-inline-size: 0;
+}
+
+.fleet-broadcast__ticker {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fleet-broadcast__ticker > .fleet-ticker {
+  width: 100%;
+}
+
+.fleet-broadcast__reserve,
+.fleet-broadcast__toggle {
+  display: none;
+}
+
+.fleet-broadcast[data-empty='true']:not(:has(.fleet-ticker)) {
+  display: none;
+}
+
 .player-rank {
   min-height: 2.5rem;
   display: flex;
@@ -4007,6 +4034,80 @@ body {
 
   .landing__title-sub {
     letter-spacing: 0.14em;
+  }
+}
+
+@media (max-width: 48rem) {
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .fleet-broadcast__reserve {
+    display: block;
+    flex: 0 0 100%;
+    order: -1;
+    min-height: 2.5rem;
+  }
+
+  .fleet-broadcast {
+    position: fixed;
+    top: max(0.75rem, env(safe-area-inset-top));
+    right: max(0.75rem, env(safe-area-inset-right));
+    left: max(0.75rem, env(safe-area-inset-left));
+    z-index: 12;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 0.4rem;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .fleet-broadcast__ticker {
+    min-height: 0;
+    max-height: 12rem;
+    overflow: hidden;
+    transition: max-height 220ms ease;
+  }
+
+  .fleet-broadcast[data-hidden='true'] .fleet-broadcast__ticker {
+    max-height: 0;
+  }
+
+  .fleet-broadcast[data-hidden='true'] .fleet-broadcast__ticker > .fleet-ticker {
+    min-height: 0;
+    height: 0;
+    border-block-width: 0;
+    padding-block: 0;
+  }
+
+  .fleet-broadcast__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 3.75rem;
+    min-height: 2.5rem;
+    border: 1px solid var(--cic-rule);
+    border-radius: var(--cic-radius);
+    padding: 0.35rem 0.5rem;
+    background: var(--cic-void);
+    color: var(--cic-amber);
+    font: 0.62rem/1 var(--cic-mono);
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+
+  .fleet-broadcast__toggle:hover,
+  .fleet-broadcast__toggle:focus-visible {
+    border-color: var(--cic-amber);
+    color: var(--cic-amber-glow);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fleet-broadcast__ticker {
+    transition: none;
   }
 }
 

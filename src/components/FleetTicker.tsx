@@ -46,6 +46,7 @@ type TickerGroupStyle = CSSProperties & {
 const TICKER_SPEED_PX_PER_SECOND = 48;
 const FALLBACK_WINDOW_WIDTH = 320;
 const MIN_COPY_WIDTH = 96;
+const REDUCED_MESSAGE_DISPLAY_MS = 4_000;
 
 function messageLabel(message: FleetMessage): string {
   return [message.text, message.pressText].filter(Boolean).join(' // ');
@@ -107,14 +108,24 @@ function MessageCopy({ message, copyRef }: {
   );
 }
 
-function StationaryMessage({ message, fallback, queue = [] }: {
+function StationaryMessage({ message, fallback, queue = [], onMessageComplete }: {
   readonly message: FleetMessage;
   readonly fallback?: FleetMessage;
   readonly queue?: readonly FleetMessage[];
+  readonly onMessageComplete?: (messageId: string) => void;
 }) {
   const [completed, setCompleted] = useState(() => readCompletedPasses(message));
   const [expired, setExpired] = useState(false);
   const done = expired || (message.passes !== undefined && completed >= message.passes);
+
+  useEffect(() => {
+    if (done || !onMessageComplete) return undefined;
+    const duration = message.passes === undefined
+      ? REDUCED_MESSAGE_DISPLAY_MS
+      : message.passes * 30_000;
+    const timer = window.setTimeout(() => onMessageComplete(message.id), duration);
+    return () => window.clearTimeout(timer);
+  }, [done, message.id, message.passes, onMessageComplete]);
 
   useEffect(() => {
     if (!message.expiresAt) return undefined;
@@ -140,7 +151,8 @@ function StationaryMessage({ message, fallback, queue = [] }: {
       ? <StationaryMessage key={messageSignature(next)} message={next}
           {...(queue.length === 0 ? {} : {
             queue: fallback ? queue : queue.slice(1),
-          })} />
+          })}
+          {...(onMessageComplete ? { onMessageComplete } : {})} />
       : null;
   }
 
@@ -158,16 +170,18 @@ function StationaryMessage({ message, fallback, queue = [] }: {
   );
 }
 
-function MovingMessage({ message, fallback, queue = [] }: {
+function MovingMessage({ message, fallback, queue = [], onMessageComplete }: {
   readonly message?: FleetMessage;
   readonly fallback?: FleetMessage;
   readonly queue?: readonly FleetMessage[];
+  readonly onMessageComplete?: (messageId: string) => void;
 }) {
   const windowRef = useRef<HTMLDivElement>(null);
   const messageProbeRef = useRef<HTMLSpanElement>(null);
   const fallbackProbeRef = useRef<HTMLSpanElement>(null);
   const queueProbeRefs = useRef(new Map<string, HTMLSpanElement>());
   const groupElements = useRef(new Map<number, HTMLSpanElement>());
+  const completedMessageIds = useRef(new Set<string>());
   const groupsRef = useRef<readonly MovingGroup[]>([]);
   const activeMessage = useRef<FleetMessage | undefined>(undefined);
   const sequence = useRef(0);
@@ -459,6 +473,11 @@ function MovingMessage({ message, fallback, queue = [] }: {
     const ended = groupsRef.current.find((group) => group.key === key);
     if (!ended) return;
 
+    if (onMessageComplete && !completedMessageIds.current.has(ended.message.id)) {
+      completedMessageIds.current.add(ended.message.id);
+      onMessageComplete(ended.message.id);
+    }
+
     let nextGroups: readonly MovingGroup[] = groupsRef.current.filter(
       (group) => group.key !== key,
     );
@@ -496,7 +515,7 @@ function MovingMessage({ message, fallback, queue = [] }: {
     }
 
     setGroups(nextGroups);
-  }, [appendGroups, geometryFor, probeFor, setGroups]);
+  }, [appendGroups, geometryFor, onMessageComplete, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
   if (!fontReady) return null;
@@ -571,20 +590,25 @@ function MovingMessage({ message, fallback, queue = [] }: {
 }
 
 /** Shared viewport surface for alert and press messages; identity owns playback. */
-export default function FleetTicker({ message, fallback, queue = [] }: {
+export interface FleetTickerProps {
   readonly message?: FleetMessage;
   readonly fallback?: FleetMessage;
   readonly queue?: readonly FleetMessage[];
-}) {
+  readonly onMessageComplete?: (messageId: string) => void;
+}
+
+export default function FleetTicker({ message, fallback, queue = [], onMessageComplete }: FleetTickerProps) {
   const { reducedMotion } = useMotionPreference();
   if (reducedMotion) {
     return message
       ? <StationaryMessage key={messageSignature(message)} message={message}
           {...(fallback === undefined ? {} : { fallback })}
-          {...(queue.length === 0 ? {} : { queue })} />
+          {...(queue.length === 0 ? {} : { queue })}
+          {...(onMessageComplete ? { onMessageComplete } : {})} />
       : null;
   }
   return <MovingMessage {...(message === undefined ? {} : { message })}
     {...(fallback === undefined ? {} : { fallback })}
-    {...(queue.length === 0 ? {} : { queue })} />;
+    {...(queue.length === 0 ? {} : { queue })}
+    {...(onMessageComplete ? { onMessageComplete } : {})} />;
 }

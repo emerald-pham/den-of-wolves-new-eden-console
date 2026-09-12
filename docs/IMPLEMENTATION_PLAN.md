@@ -1102,36 +1102,29 @@ complete merely because its contract is documented.
   320×844, 390×844, 1440×900, and 844×390, resize/rotation, font load, long copy,
   and Red Alert activation/stand-down.
 
-#### Prompt 652b ATDD — reversible mobile sticky-ticker experiment
+#### Prompt 652b ATDD — pinned mobile Press ticker with reversible hiding
 
-- **Given** the experiment is disabled, unsupported, or cannot measure its
-  anchor/threshold safely, **when** the route scrolls, **then** FleetTicker uses
-  the established non-sticky header layout. That fallback is the permanent
-  baseline; the experiment must be explicitly enabled and may not silently
-  redefine it.
-- **Given** the experiment is enabled on mobile, **when** the ticker's measured
-  lower edge crosses the named threshold `safe-area-inset-top`, **then** it
-  becomes a top sticky/frozen-row instrument. Before that crossing it remains
-  in normal flow. A same-size placeholder or equivalent grid track reserves its
-  exact occupied block so content reflows without jump or overlap; scrolling
-  back across the threshold restores normal flow deterministically.
-- **Given** the session ticket, Role Select, routed controls, focus outlines,
-  software keyboard, safe areas, wrapped ticker, live resize, or rotation,
-  **when** sticky mode recomputes, **then** one measured layout places the
-  ticker below required safe/header chrome and reserves all of its height. It
-  never overlays, clips, hides, or z-index-covers content, controls, or the
-  session ticket at 320×844, 390×844, or 844×390; 1440×900 remains the
-  non-sticky reference.
-- **Given** reduced motion or a short landscape viewport, **when** the threshold
-  is crossed, **then** the state change has no animated slide and the wrapped
-  message remains keyboard/screen-reader/touch readable with at least 44 px
-  interactive targets around it. Performance evidence records scroll frame
-  behavior, layout-shift count, resize-observer stability, and interruption.
-  **Rollback criterion `TICKER-STICKY-OCCLUSION`** fires if any supported
-  viewport shows content/focus/session-ticket occlusion, a repeated threshold
-  oscillation, more than one unexpected layout shift per crossing, material
-  scroll jank against the recorded baseline, or loss/duplication of accessible
-  announcements; disable the experiment and retain the non-sticky layout.
+- **Given** a narrow viewport, **when** the route first renders or scrolls,
+  **then** the Press ticker remains pinned beneath the safe-area/header chrome,
+  reserves its measured block in flow, and leaves a reachable hide/reveal
+  control. Hidden state is local presentation state and never writes ticker
+  lifecycle or visual-pass progress.
+- **Given** a hidden ticker, **when** an authoritative Admiral Red Alert or
+  airspace-restriction message arrives, **then** the surface expands immediately
+  and remains expanded through the newest queued trigger's complete display. It
+  refolds only when the player has not revealed it; overlapping updates do not
+  replay expansion, duplicate announcements, reorder identities, or clip tails.
+- **Given** a wide viewport, **when** responsive state crosses the established
+  breakpoint, **then** the ticker is visible, hidden state resets, and the
+  hide/reveal control is absent from visual, keyboard, and assistive-technology
+  navigation. Resize, rotation, software keyboard, and safe-area changes
+  remeasure the reserved block without covering route content, focus, the
+  session ticket, or Role Select.
+- **Given** reduced motion, **when** the same lifecycle changes, **then** state
+  changes are immediate while wrapped copy remains readable and its status is
+  announced once. Chrome CDP evidence covers keyboard operation, scroll pinning,
+  trigger sequencing, wide reset, no overlap/overflow, and all four required
+  viewport sizes.
 
 #### Prompt 485a/611/611a/589b ATDD — alert semantics, type, and conduct copy
 
@@ -2818,7 +2811,7 @@ read-only dependency query may inform a numbered task but creates no receipt.
 - [ ] Prompt 651
 - [x] Prompt 652
 - [x] Prompt 652a
-- [ ] Prompt 652b
+- [x] Prompt 652b
 - [ ] Prompt 653
 - [ ] Prompt 654
 - [ ] Prompt 655
