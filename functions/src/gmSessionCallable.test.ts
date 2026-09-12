@@ -392,6 +392,32 @@ describe('GM instance ownership', () => {
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
   });
 
+  it('does not assign an optional lane to a stale GM instance', async () => {
+    session({ phase: 'lobby', setupRevision: 0, configurationLocked: false });
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm' });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/tablet', {
+      uid: 'u2', sessionId: 's1', name: 'Tablet', deviceLabel: 'Test browser',
+      connected: false, responsibilities: [], claimedAt: 'old-server-time',
+    });
+    mock.update.mockClear();
+    mock.set.mockClear();
+
+    await expect(setFacilitatorResponsibility.run(request({
+      sessionId: 's1', instanceId: 'bridge', targetInstanceId: 'tablet', responsibility: 'main',
+      requestId: 'responsibility-stale-target', expectedSetupRevision: 0, mode: 'share',
+    }))).rejects.toMatchObject({ code: 'failed-precondition' });
+
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u1' });
+    expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({
+      connected: false, responsibilities: [],
+    });
+    expect(read('sessions/s1')).toMatchObject({ setupRevision: 0 });
+    expect(mock.update).not.toHaveBeenCalled();
+    expect(mock.set).not.toHaveBeenCalled();
+  });
+
   it('logs in and out of persistent GM access', async () => {
     await expect(loginGmAccess.run(request({ password: 'bananasplit' })))
       .resolves.toEqual({ authenticated: true });
@@ -437,6 +463,37 @@ describe('GM instance ownership', () => {
 
     expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u1' });
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
+  });
+
+  it('lets a new GM recover a locked table when only a stale instance remains', async () => {
+    session({ gmControlsLocked: true });
+    player('u1');
+    player('u2', { role: 'gm', connected: false });
+    put('sessions/s1/gmInstances/stale', {
+      uid: 'u2',
+      sessionId: 's1',
+      name: 'Old tablet',
+      deviceLabel: 'Test browser',
+      connected: false,
+      responsibilities: ['main', 'assistant'],
+      claimedAt: 'old-server-time',
+    });
+    await login();
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1',
+      instanceId: 'bridge',
+      name: 'Bridge laptop',
+      deviceLabel: 'Test browser',
+    }))).resolves.toMatchObject({
+      instance: { id: 'bridge', uid: 'u1', responsibilities: ['main', 'assistant'] },
+    });
+
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      uid: 'u1', responsibilities: ['main', 'assistant'],
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
+    expect(read('sessions/s1/gmInstances/stale')).toBeDefined();
   });
 
   it('adds a post-start GM to the existing Wolf assignment audience without replacing its secret', async () => {
@@ -606,6 +663,20 @@ describe('GM instance ownership', () => {
 });
 
 describe('GM registration lock', () => {
+  it('rejects a stale GM instance from changing the shared registration lock', async () => {
+    session({ phase: 'active', currentTurn: 1 });
+    player('u1', { role: 'gm' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', name: 'Bridge', deviceLabel: 'Test browser',
+      connected: false, claimedAt: 'old-server-time',
+    });
+
+    await expect(setGmControlsLocked.run(request({
+      sessionId: 's1', instanceId: 'bridge', locked: true,
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1')).toMatchObject({ gmControlsLocked: false });
+  });
+
   it('freezes registration mutations during endgame evaluation', async () => {
     session({ phase: 'debrief' });
     player('u1', { role: 'gm' });

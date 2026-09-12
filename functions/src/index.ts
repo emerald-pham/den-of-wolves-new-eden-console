@@ -723,6 +723,44 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+/** Return only GM browser claims that can currently carry facilitator authority. */
+function liveGmInstanceDocs(
+  instances: readonly DocumentSnapshot[],
+  players: readonly DocumentSnapshot[],
+): readonly DocumentSnapshot[] {
+  const playersByUid = new Map(players.flatMap((player) => {
+    const uid = player.id || player.get('uid');
+    return typeof uid === 'string' ? [[uid, player] as const] : [];
+  }));
+  return instances.filter((instance) => {
+    const uid = instance.get('uid');
+    if (typeof uid !== 'string') return false;
+    const owner = playersByUid.get(uid);
+    if (!owner || !isActivePlayer(owner) || owner.get('role') !== 'gm') return false;
+    return isLiveSetupGm({
+      id: instance.id,
+      uid,
+      connected: instance.get('connected') !== false,
+      lastSeenAt: instance.get('lastSeenAt') ?? owner.get('lastSeenAt'),
+    });
+  });
+}
+
+function isLiveGmInstance(
+  instance: DocumentSnapshot,
+  player: DocumentSnapshot,
+  uid: string,
+): boolean {
+  if (!instance.exists || instance.get('uid') !== uid ||
+      !isActivePlayer(player) || player.get('role') !== 'gm') return false;
+  return isLiveSetupGm({
+    id: typeof instance.id === 'string' ? instance.id : '',
+    uid,
+    connected: instance.get('connected') !== false,
+    lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+  });
+}
+
 function hasCoreAssignment(player: DocumentSnapshot): boolean {
   const assignedRoleId = player.get('assignedRoleId');
   return typeof assignedRoleId === 'string' && assignedRoleId.trim().length > 0 &&
@@ -2315,9 +2353,12 @@ export const setFacilitatorResponsibility = onCall<{
       return { ...(reply as Record<string, unknown>), status: 'replayed' };
     }
 
-    const [instance, instances] = await Promise.all([tx.get(instanceRef), tx.get(instancesRef)]);
+    const [instance, instances, players] = await Promise.all([
+      tx.get(instanceRef), tx.get(instancesRef), tx.get(db.collection(`sessions/${responsibility.sessionId}/players`)),
+    ]);
     requireCastingWindow(authority.session);
     if (!instance.exists) throw new HttpsError('not-found', 'No such facilitator instance.');
+    const liveInstances = liveGmInstanceDocs(instances.docs, players.docs);
     if (setupRevision(authority.session) !== responsibility.expectedSetupRevision) {
       const reply = {
         status: 'stale' as const,
@@ -2339,21 +2380,25 @@ export const setFacilitatorResponsibility = onCall<{
 
     const targetInstanceId = responsibility.targetInstanceId ?? responsibility.instanceId;
     if (
-      instances.docs.length > 1 &&
+      liveInstances.length > 1 &&
       (responsibility.mode === 'share' || responsibility.mode === 'handoff') &&
       responsibility.targetInstanceId === undefined
     ) {
       throw new HttpsError('invalid-argument', 'targetInstanceId is required when multiple facilitator instances are active.');
     }
-    const target = instances.docs.find((candidate) => candidate.id === targetInstanceId);
-    if (!target) throw new HttpsError('not-found', 'No such target facilitator instance.');
-    const onlyInstance = instances.docs.length === 1;
+    const targetRecord = instances.docs.find((candidate) => candidate.id === targetInstanceId);
+    if (!targetRecord) throw new HttpsError('not-found', 'No such target facilitator instance.');
+    const target = liveInstances.find((candidate) => candidate.id === targetInstanceId);
+    if (!target) {
+      throw commandError('failed-precondition', 'The target facilitator instance is no longer active.', 'conflict');
+    }
+    const onlyInstance = liveInstances.length === 1;
     if (onlyInstance && responsibility.mode === 'drop') {
       throw commandError('failed-precondition', 'The sole active facilitator must carry both printed responsibilities.', 'conflict');
     }
 
     const nextByInstance = new Map<string, FacilitatorResponsibility[]>(
-      instances.docs.map((candidate) => [candidate.id, normalizedResponsibilities(candidate)]),
+      liveInstances.map((candidate) => [candidate.id, normalizedResponsibilities(candidate)]),
     );
     const current = nextByInstance.get(instance.id) ?? [];
     if (onlyInstance) {
@@ -2375,7 +2420,7 @@ export const setFacilitatorResponsibility = onCall<{
       ]);
     }
 
-    for (const candidate of instances.docs) {
+    for (const candidate of liveInstances) {
       const responsibilities = nextByInstance.get(candidate.id) ?? [];
       const legacyResponsibility = responsibilities[0] ?? null;
       tx.update(candidate.ref, {
@@ -2386,7 +2431,7 @@ export const setFacilitatorResponsibility = onCall<{
     }
 
     const nextRevision = responsibility.expectedSetupRevision + 1;
-    const nextInstances = instances.docs.map((candidate) => ({
+    const nextInstances = liveInstances.map((candidate) => ({
       ...candidate,
       get: (field: string) => field === 'responsibilities'
         ? nextByInstance.get(candidate.id) ?? []
@@ -4479,9 +4524,10 @@ export const claimGmInstance = onCall<{
     if (hasCoreSeat(player) || hasCoreAssignment(player)) {
       throw commandError('failed-precondition', 'Release your core station before joining as GM.', 'conflict');
     }
+    const liveInstances = liveGmInstanceDocs(activeInstances.docs, players.docs);
     if (
       !existing.exists &&
-      !mayClaimGmInstance(session.get('gmControlsLocked') === true, activeInstances.size)
+      !mayClaimGmInstance(session.get('gmControlsLocked') === true, liveInstances.length)
     ) {
       throw commandError('failed-precondition', 'GM registration is locked.', 'conflict');
     }
@@ -4497,7 +4543,7 @@ export const claimGmInstance = onCall<{
     ) {
       tx.update(wolfSecretRef, { visibleToUids: [...visibleToUids, uid] });
     }
-    const firstActiveGm = activeInstances.docs.length === 0;
+    const firstActiveGm = liveInstances.length === 0;
     tx.set(instanceRef, {
       uid,
       sessionId: claim.sessionId,
@@ -4571,7 +4617,7 @@ async function removeGmInstance(
       tx.get(callerRef),
       tx.get(callerPlayerRef),
     ]);
-    if (!isActivePlayer(callerPlayer) || !caller.exists || caller.get('uid') !== uid) {
+    if (!isLiveGmInstance(caller, callerPlayer, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     const target = action.targetInstanceId === action.instanceId
@@ -4630,10 +4676,7 @@ async function removePlayer(
       tx.get(secretsRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(caller) || caller.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, caller, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (!isActivePlayer(target)) {
@@ -4709,10 +4752,7 @@ export const triggerDradisContact = onCall<{
       tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     requireActiveGameplayPhase(session);
@@ -5186,10 +5226,7 @@ export const setGmControlsLocked = onCall<{
       tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     requireActiveGameplayPhase(session);
@@ -5224,10 +5261,7 @@ export const setDebriefMode = onCall<{
       tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
@@ -5293,8 +5327,7 @@ export const advanceTurn = onCall<{
       tx.get(receiptRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (!isActivePlayer(player) || player.get('role') !== 'gm' ||
-        !instance.exists || instance.get('uid') !== uid) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     await rejectForeignLegacyM1Command(
@@ -5421,10 +5454,7 @@ export const replayTurnStartAnnouncement = onCall<{
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
@@ -5529,10 +5559,7 @@ export const extendAirspaceWindow = onCall<{
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
@@ -5581,10 +5608,7 @@ export const setEmergencyTimerPaused = onCall<{
       tx.get(sessionRef), tx.get(playerRef), tx.get(instanceRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
-    if (
-      !isActivePlayer(player) || player.get('role') !== 'gm' ||
-      !instance.exists || instance.get('uid') !== uid
-    ) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
     }
     if (session.get('phase') === 'closed') {
@@ -6895,7 +6919,7 @@ async function requireShipCounterAuthority(
   if (role === 'gm') {
     if (!instanceId) throw new HttpsError('permission-denied', 'Active GM instance required.');
     const instance = await tx.get(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`));
-    if (!instance.exists || instance.get('uid') !== uid) {
+    if (!isLiveGmInstance(instance, player, uid)) {
       throw new HttpsError('permission-denied', 'Active GM instance required.');
     }
     return;

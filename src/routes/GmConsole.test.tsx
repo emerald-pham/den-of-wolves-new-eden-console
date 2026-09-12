@@ -1957,3 +1957,23 @@ it('keeps optional GM lane sharing and handoff visible without making a second G
     responsibility: 'main', mode: 'share', targetInstanceId: 'other-1',
   }));
 });
+
+it('shows one facilitator the complete current setup queue without requiring another GM', async () => {
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  const sessionWithoutSetup = { ...activeSession };
+  delete sessionWithoutSetup.setup;
+  useSessionStore.getState().setSession({
+    ...sessionWithoutSetup,
+    phase: 'casting',
+    currentTurn: 0,
+  });
+  useSessionStore.getState().setGmInstance({ ...local, responsibilities: ['main', 'assistant'] });
+  streamInstances([local]);
+  renderConsole();
+
+  const queue = await screen.findByRole('region', { name: 'Facilitator next actions' });
+  expect(within(queue).getByText('Confirm setup')).toBeInTheDocument();
+  expect(within(queue).getByText('Start production')).toBeInTheDocument();
+  expect(queue).toHaveTextContent(/one GM owns every required step/i);
+});

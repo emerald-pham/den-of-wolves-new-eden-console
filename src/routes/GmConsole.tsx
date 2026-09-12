@@ -53,6 +53,7 @@ import {
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { useMotionPreference } from '@/lib/motionPreference';
 import { hasActiveTurnTimer, phaseForSession, turnPhaseReadout } from '@/lib/turnPhase';
+import { facilitatorQueueFor } from '@/lib/facilitatorQueue';
 import { normalizeCommandError } from '@/lib/commandErrors';
 import {
   resetSessionWaiver,
@@ -432,6 +433,37 @@ export default function GmConsole() {
       shipName: SHIPS.find((ship) => ship.id === shipId)?.name ?? shipId,
       minutes: Math.floor(elapsed / 60_000),
     }];
+  });
+  const alertShips = [...new Set([
+    ...Object.values(session?.unrestAlerts ?? {}).map((alert) => alert.shipName),
+    ...Object.values(session?.populationAlerts ?? {}).map((alert) => alert.shipName),
+  ])];
+  const pendingActionLabels = pendingCommands.map((command) => {
+    switch (command.kind) {
+      case 'confirmSetup': return 'Setup confirmation pending';
+      case 'setFacilitatorResponsibility': return 'GM lane change pending';
+      case 'setGmControlsLocked': return 'GM registration lock pending';
+      case 'setDebriefMode': return 'Debrief command pending';
+      case 'claimGmInstance': return 'GM instance claim pending';
+      case 'kickGmInstance': return 'GM instance removal pending';
+      case 'kickPlayer': return 'Player removal pending';
+      case 'setPressEnabled': return 'Press availability pending';
+      default: return 'Authoritative command pending';
+    }
+  });
+  const facilitatorQueue = facilitatorQueueFor({
+    phase: session?.phase ?? 'lobby',
+    currentTurn,
+    maxTurn: session?.turnState?.maxTurn ?? session?.turnLimit ?? session?.setup?.turnLimit ?? 6,
+    setupSynchronized: session?.setup !== undefined && !hasUnconfirmedRosterChanges,
+    productionStartAvailable: currentTurn === 0 && session?.phase === 'casting',
+    turnPhase: phaseReadout?.kind,
+    timerPaused: Boolean(currentPhase?.timerPause),
+    wolfAttackStatus: wolfWindowStatus,
+    debriefActive: debriefMode.active,
+    overdueMaintenance,
+    alertShips,
+    pendingCommands: pendingActionLabels,
   });
   const connectedPlayerGroups = groupConnectedPlayers(connectedPlayers);
   const assignedCastingRoleIds = new Set(
@@ -1222,6 +1254,26 @@ export default function GmConsole() {
           </>}
         >
         <div className="gm-console__grid">
+          <section className="gm-console__module gm-next-actions cic-frame" aria-label="Facilitator next actions">
+            <h2 className="gm-console__section-title">Next actions</h2>
+            <p className="gm-console__status">
+              Server-backed facilitator queue // one GM owns every required step; additional GM lanes are optional.
+            </p>
+            <ol className="gm-next-actions__list">
+              {facilitatorQueue.map((item) => (
+                <li className="gm-next-actions__item" data-state={item.state} key={item.id}>
+                  <strong>{item.label}</strong>
+                  <span>{item.detail}</span>
+                </li>
+              ))}
+              {facilitatorQueue.length === 0 && (
+                <li className="gm-next-actions__item" data-state="waiting">
+                  <strong>No outstanding facilitator actions</strong>
+                  <span>Continue monitoring the live session projection.</span>
+                </li>
+              )}
+            </ol>
+          </section>
           <section className="gm-console__module cic-frame" aria-label="Turn controls">
             <h2 className="gm-console__section-title">Turn control</h2>
             <p className="gm-console__status">Turn {currentTurn}</p>
