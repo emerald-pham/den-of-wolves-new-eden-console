@@ -57,6 +57,20 @@ import { setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
 import { recommendedRoleIds } from './roleConfiguration';
 
+const PRIVATE_SNAPSHOT_KEYS = new Set([
+  'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
+  'loyaltyAssignments', 'loyalties', 'notes', 'privateBrief', 'privateBriefs', 'privateCard',
+  'privateCards', 'privateNotes', 'roleBrief', 'roleBriefs', 'setupReceipt', 'wolfAssignment',
+]);
+
+function privateSnapshotKeys(value: unknown, path = 'session'): string[] {
+  if (Array.isArray(value)) return value.flatMap((entry, index) => privateSnapshotKeys(entry, `${path}[${index}]`));
+  if (typeof value !== 'object' || value === null) return [];
+  return Object.entries(value).flatMap(([key, entry]) => PRIVATE_SNAPSHOT_KEYS.has(key)
+    ? [`${path}.${key}`]
+    : privateSnapshotKeys(entry, `${path}.${key}`));
+}
+
 function snapshot(fields: Record<string, unknown>, path: string, exists = true) {
   return {
     exists,
@@ -286,6 +300,7 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     expect.objectContaining({ path: 'sessionStartRequests/s1_start-1' }),
     expect.objectContaining({ requestId: 'start-1' }),
   );
+  expect(privateSnapshotKeys(sessionUpdate)).toEqual([]);
 });
 
 it('preserves valid state and normalizes malformed maintenance entries while filling absent vessels', async () => {

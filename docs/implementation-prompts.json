@@ -336,6 +336,13 @@
       "language": "The active-GM setWolfAttackWindow callable stores a private due/resolved/deferred marker with a monotonic revision, one GM-only audit record, and a shared command receipt in one transaction. Callable, rules, Firestore listener, service, and GM-console tests cover authorization, stale and replay handling, Turn 1 defer to Turn 2, member privacy, and the absence of automatic attack/combat/turn advancement.",
       "source": "functions/src/index.ts; functions/src/wolfAttackWindow.ts; functions/src/wolfAttackWindowCallable.test.ts; tests/rules/firestore.rules.test.ts; src/lib/firestore.ts; src/lib/sessionService.ts; src/routes/GmConsole.tsx",
       "type": "evidence"
+    },
+    {
+      "direction": "082 -> M1-PUBLIC-SNAPSHOT",
+      "id": "E-082-PUBLIC-SNAPSHOT",
+      "language": "The create/start callables persist only the explicit member session fields, while join reprojects the persisted root into that same public shape. Role briefs, loyalty secrets/census, setup receipts, and facilitator-only paths remain separate; callable and rules tests cover the public field allowlist and connected-member boundary.",
+      "source": "functions/src/createSessionCallable.test.ts; functions/src/startCallable.test.ts; functions/src/joinSessionCallable.test.ts; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2311,8 +2318,8 @@
         "acceptance": "players see turn, phase, active vessels, and permitted fleet status but no private briefs, loyalties, decks, or notes.",
         "title": "Publish the initial public snapshot."
       },
-      "description": "Public state exists; complete projection serializer remains open.",
-      "evidenceIds": "none",
+      "description": "The server's explicit member session projection and persisted session roots expose turn, phase, active vessels, and permitted fleet status only; role briefs, loyalties, decks, setup receipts, and facilitator notes remain on separate protected paths. Create/start/join callable tests and Firestore member-boundary tests prove the public snapshot shape and audience boundary.",
+      "evidenceIds": "E-082-PUBLIC-SNAPSHOT",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2323,7 +2330,7 @@
       "releases": [],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

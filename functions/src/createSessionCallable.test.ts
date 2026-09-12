@@ -41,6 +41,24 @@ vi.mock('firebase-admin/firestore', () => ({
 import { applyRolePreset, confirmSetup, createSession } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
 
+const PRIVATE_SNAPSHOT_KEYS = new Set([
+  'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
+  'loyaltyAssignments', 'loyalties', 'notes', 'privateBrief', 'privateBriefs', 'privateCard',
+  'privateCards', 'privateNotes', 'roleBrief', 'roleBriefs', 'setupReceipt', 'wolfAssignment',
+]);
+
+function privateSnapshotKeys(value: unknown, path = 'session'): string[] {
+  if (Array.isArray(value)) return value.flatMap((entry, index) => privateSnapshotKeys(entry, `${path}[${index}]`));
+  if (typeof value !== 'object' || value === null) return [];
+  return Object.entries(value).flatMap(([key, entry]) => PRIVATE_SNAPSHOT_KEYS.has(key)
+    ? [`${path}.${key}`]
+    : privateSnapshotKeys(entry, `${path}.${key}`));
+}
+
+function expectPublicSessionSnapshot(value: unknown) {
+  expect(privateSnapshotKeys(value)).toEqual([]);
+}
+
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
@@ -229,6 +247,24 @@ it('creates one configured lobby and persists a replayable creation result atomi
     'actorRoleId', 'actorUid', 'createdAt', 'phase', 'requestId', 'revision',
     'serverTime', 'sessionId', 'turn', 'type', 'visibility',
   ]);
+});
+
+it('keeps the created member snapshot free of private game material', async () => {
+  const reply = await createSession.run(request({
+    requestId: 'create-public-snapshot', playerCount: 19, expansion: 'capybara', turnLimit: 7,
+  }));
+  const sessionWrite = mock.set.mock.calls.find(([ref]) =>
+    (ref as { path: string }).path === 'sessions/generated-session',
+  )?.[1];
+
+  expect(reply.session).toMatchObject({
+    currentTurn: 0,
+    phase: 'lobby',
+    activeVesselIds: expect.any(Array),
+    shipResources: expect.any(Object),
+  });
+  expectPublicSessionSnapshot(reply.session);
+  expectPublicSessionSnapshot(sessionWrite);
 });
 
 it('does not write a creation event for unauthenticated or exhausted code-collision requests', async () => {

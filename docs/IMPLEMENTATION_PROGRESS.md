@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**111 / 747 prompts complete (14.86%)**
+**112 / 747 prompts complete (14.99%)**
 
-Status breakdown: **111 done · 11 partial · 625 missing**.
+Status breakdown: **112 done · 10 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -492,7 +492,7 @@ release classification and evidence.
 | 079 | done | non-feature | — | Turn 1 timer override tests. |
 | 080 | done | feature | 0.3.41 | The GM console now lets an active facilitator mark the approximate first Wolf-attack timing as due, resolve it, or defer it to Turn 2. The marker is a private, revisioned server projection with retry-safe audit state; it never launches combat, advances the turn, enforces a client timer, or exposes timing to members. |
 | 081 | done | non-feature | — | Durable Turn 1 announcement/replay tests. |
-| 082 | partial | non-feature | — | Public state exists; complete projection serializer remains open. |
+| 082 | done | non-feature | — | The server's explicit member session projection and persisted session roots expose turn, phase, active vessels, and permitted fleet status only; role briefs, loyalties, decks, setup receipts, and facilitator notes remain on separate protected paths. Create/start/join callable tests and Firestore member-boundary tests prove the public snapshot shape and audience boundary. |
 | 083 | done | non-feature | — | Member/nonmember snapshot rules tests. |
 | 084 | partial | feature | 0.3.5 | Crew UI/state exists; centralized per-ship projection remains open. |
 | 085 | missing | non-feature | — | Role-private reconnect projection remains open. |

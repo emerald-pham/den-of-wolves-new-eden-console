@@ -48,6 +48,20 @@ vi.mock('firebase-admin/firestore', () => ({
 
 import { joinSession } from './index';
 
+const PRIVATE_SNAPSHOT_KEYS = new Set([
+  'brief', 'deck', 'deckOrder', 'decks', 'facilitatorNotes', 'loyalty', 'loyaltyAssignment',
+  'loyaltyAssignments', 'loyalties', 'notes', 'privateBrief', 'privateBriefs', 'privateCard',
+  'privateCards', 'privateNotes', 'roleBrief', 'roleBriefs', 'setupReceipt', 'wolfAssignment',
+]);
+
+function privateSnapshotKeys(value: unknown, path = 'session'): string[] {
+  if (Array.isArray(value)) return value.flatMap((entry, index) => privateSnapshotKeys(entry, `${path}[${index}]`));
+  if (typeof value !== 'object' || value === null) return [];
+  return Object.entries(value).flatMap(([key, entry]) => PRIVATE_SNAPSHOT_KEYS.has(key)
+    ? [`${path}.${key}`]
+    : privateSnapshotKeys(entry, `${path}.${key}`));
+}
+
 function request(joinCode: string) {
   return {
     data: { joinCode },
@@ -96,6 +110,35 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
   await expect(joinSession.run(request(joinCode))).resolves.toMatchObject({
     session: { id: 's1', joinCode },
   });
+});
+
+it('returns only the public session projection when the persisted root has private-shaped fields', async () => {
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Table one',
+      phase: 'active',
+      currentTurn: 1,
+      activeVesselIds: ['aegis'],
+      roleBriefs: [{ text: 'private role brief' }],
+      loyaltyAssignments: { u1: { kind: 'wolf-agent' } },
+      decks: { aegis: ['hidden card'] },
+      notes: ['facilitator note'],
+      setupReceipt: { selectedWolfRoleIds: ['admiral'] },
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+
+  const response = await joinSession.run(request('482109')) as { session: Record<string, unknown> };
+
+  expect(response.session).toMatchObject({
+    id: 's1', phase: 'active', currentTurn: 1, activeVesselIds: expect.arrayContaining(['aegis']),
+  });
+  expect(privateSnapshotKeys(response.session)).toEqual([]);
 });
 
 it('does not redeem a code while its session is being retired', async () => {

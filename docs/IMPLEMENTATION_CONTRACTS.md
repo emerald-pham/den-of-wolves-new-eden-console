@@ -359,7 +359,7 @@ composition or hidden-state story is complete.
 | 079 | verified | `functions/src/turnZero.ts`, `functions/src/turnZero.test.ts`, and timer tests cover Turn 1 extensions. |
 | 080 | verified | `setWolfAttackWindow` persists the GM-only due/resolved/deferred marker and audit projection through one revisioned, replay-safe transaction; callable, rules, listener, service, and GM-console tests cover authorization, Turn 2 deferral, member privacy, and no automatic attack/combat/turn advancement. |
 | 081 | verified | `functions/src/turnStartReplayCallable.test.ts`, `functions/src/turnZero.test.ts`, and `src/components/TurnStartAnnouncement.test.tsx`. |
-| 082 | partial | `src/lib/firestore.ts` and UI snapshot components expose public/session state; no explicit seven-audience projection/redaction implementation proves the full boundary. Target public snapshot serialization test. |
+| 082 | done | `functions/src/createSessionCallable.test.ts`, `functions/src/startCallable.test.ts`, and `functions/src/joinSessionCallable.test.ts` prove the explicit public session shape at creation, Turn 1 start, and member rejoin; `tests/rules/firestore.rules.test.ts` proves connected-member root reads while role briefs, loyalty secrets/census, receipts, and other private paths remain audience protected. |
 | 083 | verified | `tests/rules/firestore.rules.test.ts` member/nonmember and disconnected read cases. |
 | 084 | partial | `src/components/FleetConsoleWorkspace.test.tsx` and ship-state parsing provide crew UI primitives; per-ship crew projection/redaction is not centralized. |
 | 085 | missing | No role-private reconnect projection was found. Target reconnect-private-state test. |
