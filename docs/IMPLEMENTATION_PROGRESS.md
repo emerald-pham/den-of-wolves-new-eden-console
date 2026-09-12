@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**156 / 747 prompts complete (20.88%)**
+**157 / 747 prompts complete (21.02%)**
 
-Status breakdown: **156 done · 7 partial · 584 missing**.
+Status breakdown: **157 done · 7 partial · 583 missing**.
 
 Active prompt: **none**
 
@@ -953,7 +953,7 @@ release classification and evidence.
 | 492 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 493 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 494 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 495 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 495 | done | non-feature | — | The existing authoritative start transaction gives each occupied configured player, including a uniquely claimed optional Press station, a private validated loyalty and starting suspicion. Automatic assignments use the server random source; complete explicit setups are validated and preserved, while partial, conflicting or public-audience records block start. GM devices are excluded from the player assignment pool. Verified against the existing start and setup tests; no new runtime change. |
 | 496 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 497 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 498 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
