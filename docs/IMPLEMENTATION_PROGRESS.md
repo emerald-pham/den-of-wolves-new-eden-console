@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 742 prompts complete (13.88%)**
+**103 / 743 prompts complete (13.86%)**
 
-Status breakdown: **103 done · 17 partial · 622 missing**.
+Status breakdown: **103 done · 17 partial · 623 missing**.
 
 Active prompt: **none**
 
@@ -1152,6 +1152,7 @@ release classification and evidence.
 | 673 | missing | feature | — | Owner-requested addition of the existing galactic orientation compass to ship navigation jump maps, preserving the reference compass, map interactions, coordinate meaning, and jump authority. |
 | 674 | missing | feature | — | Owner-requested removal of ship Observer roles in favor of unobtrusive authorized GM console viewing, default read-only access, and a shared two-step red confirmation button for scoped write intervention; no special empty-server branch. |
 | 675 | missing | feature | — | Owner-requested automatic timer pause when everyone disconnects and immediate resume from preserved remaining time when one participant rejoins; explicitly resume rather than restart and preserve manual pause authority. |
+| 676 | missing | non-feature | — | Owner-requested jump-map layering repair: render the scanline under other map elements while preserving animation, map behavior, accessibility, and other console rendering. |
 <!-- END GENERATED PROMPT CATALOG: progress-ledger -->
 
 ## Working notes

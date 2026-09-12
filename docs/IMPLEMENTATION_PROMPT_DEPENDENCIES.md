@@ -837,6 +837,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 673 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Mirror the galactic orientation compass on the ship navigation jump map. |
 | 674 | REPAIR | missing | none | none | none | none | none | none | none | 048;049;628 | E-674 | none | Replace ship Observer roles with unobtrusive GM viewing and confirmed write access. |
 | 675 | POLISH | missing | none | none | none | none | none | none | none | 097;098;108 | E-675 | none | Pause an empty session timer and resume when someone rejoins. |
+| 676 | POLISH | missing | none | none | none | none | none | none | none | none | none | none | Render the jump-map scanline beneath map content. |
 
 ## Explicit sequence rules
 

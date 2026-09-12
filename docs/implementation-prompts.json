@@ -17401,6 +17401,29 @@
       "sequenceRules": "none",
       "status": "missing",
       "tag": "POLISH"
+    },
+    {
+      "changeClass": "non-feature",
+      "closureEvidenceGates": "none",
+      "decisionOwner": "none",
+      "definition": {
+        "acceptance": "Place the decorative scanline in the ship navigation jump map beneath the other map elements, including markers, paths, labels, compass, overlays, and interactive controls, so it never paints over or obscures them. Preserve the scanline's existing motion, reduced-motion handling, and clipping boundaries; it must not intercept pointer or keyboard interaction. Keep the change confined to jump-map layering and preserve coordinates, zoom/pan, selection, jump authorization, and all other console and non-GM DRADIS rendering. Prove the layer order in a real rendered map and verify legibility and interaction at phone, desktop, and short-landscape sizes.",
+        "title": "Render the jump-map scanline beneath map content."
+      },
+      "description": "Owner-requested jump-map layering repair: render the scanline under other map elements while preserving animation, map behavior, accessibility, and other console rendering.",
+      "evidenceIds": "none",
+      "hardContract": "none",
+      "hardMilestone": "none",
+      "hardPromptPrerequisites": "none",
+      "id": "676",
+      "milestoneHints": "none",
+      "relatedConsumes": "none",
+      "releaseBoundaries": "none",
+      "releases": [],
+      "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
+      "sequenceRules": "none",
+      "status": "missing",
+      "tag": "POLISH"
     }
   ],
   "retiredPromptIds": [
