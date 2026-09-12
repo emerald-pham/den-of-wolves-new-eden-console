@@ -34,7 +34,10 @@ vi.mock('firebase-admin/firestore', () => ({
       const ref = { path, get: () => mock.get(ref) };
       return ref;
     },
-    collection: () => ({ doc: () => ({ path: 'generated-session' }) }),
+    collection: (path: string) => ({
+      path,
+      doc: (id = 'generated-session') => ({ path: `${path}/${id}` }),
+    }),
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
       get: mock.get,
       set: mock.set,
@@ -71,8 +74,13 @@ function request(joinCode: string) {
   } as CallableRequest<{ joinCode: string }>;
 }
 
-function snapshot(fields: Record<string, unknown>, exists = true) {
-  return { exists, data: () => fields, get: (field: string) => fields[field] };
+function snapshot(
+  fields: Record<string, unknown>,
+  exists = true,
+  id = '',
+  docs: readonly unknown[] = [],
+) {
+  return { exists, id, data: () => fields, docs, get: (field: string) => fields[field] };
 }
 
 beforeEach(() => {
@@ -106,6 +114,7 @@ it.each(['4821', '482109'])('redeems a valid %s legacy or current code', async (
     if (path === `joinCodes/${joinCode}`) return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ name: 'Table one', phase: 'lobby' });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -139,6 +148,7 @@ it('omits a valid-shaped turn entity when it disagrees with the current phase or
       },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -168,6 +178,7 @@ it('projects only the public fleet ticker fields on join', async () => {
       },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -193,6 +204,7 @@ it('keeps a legacy inactive alert streamless until its server command writes a d
       fleetRedAlert: { active: false, revision: 1 },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -262,6 +274,7 @@ it('returns only the public session projection when the persisted root has priva
       },
     });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error(`Unexpected read: ${path}`);
@@ -348,6 +361,7 @@ it('replaces a stale membership lock when the same identity joins its remembered
       seatId: null,
       activeConsoleRoleId: null,
     });
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: false });
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
@@ -375,6 +389,7 @@ it('rejects a browser that was kicked from this session', async () => {
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
     if (path === 'sessions/s1/players/u1') return snapshot({ kickedAt: 'server-time' });
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
   });
@@ -393,6 +408,7 @@ it('refuses to displace an identity that is actively connected in another sessio
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({
       connected: true,
@@ -415,6 +431,7 @@ it('treats a legacy connected player without a heartbeat as active elsewhere', a
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot({ phase: 'lobby' });
     if (path === 'sessions/s1/players/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({ sessionId: 's2' });
     if (path === 'sessions/s2/players/u1') return snapshot({ connected: true });
     throw new Error('Unexpected read: ' + path);
@@ -425,6 +442,54 @@ it('treats a legacy connected player without a heartbeat as active elsewhere', a
   });
   expect(mock.delete).not.toHaveBeenCalled();
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('migrates every non-kicked legacy player into the stable group and backfills pointers', async () => {
+  const activeRoleIds = [...recommendedRoleIds(8)];
+  const activeVesselIds = activeVesselIdsForRoles(activeRoleIds);
+  const playerFields: Record<string, unknown> = {
+    uid: 'u1', role: 'player', seatId: null, activeConsoleRoleId: null,
+  };
+  const legacyPlayers = [
+    snapshot({ uid: 'u1', role: 'player' }, true, 'u1'),
+    snapshot({ uid: 'u2', role: 'gm' }, true, 'u2'),
+    snapshot({ uid: 'observer', role: 'player', connected: false }, true, 'observer'),
+  ];
+  mock.get.mockImplementation(({ path }: { path: string }) => {
+    if (path === 'joinAttemptLimits/u1') return snapshot({}, false);
+    if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
+    if (path === 'sessions/s1') return snapshot({
+      name: 'Legacy table', phase: 'lobby', playerCount: 8, activeRoleIds, activeVesselIds,
+    });
+    if (path === 'sessions/s1/players/u1') return snapshot(playerFields, true, 'u1');
+    if (path === 'sessions/s1/players') return snapshot({}, true, '', legacyPlayers);
+    if (path === 'activeMemberships/u1') return snapshot({}, false);
+    if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
+    if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
+    throw new Error(`Unexpected read: ${path}`);
+  });
+  mock.update.mockImplementation((ref: { path: string }, fields: Record<string, unknown>) => {
+    if (ref.path === 'sessions/s1/players/u1') Object.assign(playerFields, fields);
+  });
+
+  await expect(joinSession.run(request('482109'))).resolves.toMatchObject({
+    player: { fleetGroupId: 'fleet-1' },
+  });
+
+  expect(mock.set).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/fleetGroups/fleet-1' }),
+    expect.objectContaining({
+      id: 'fleet-1', vesselIds: activeVesselIds, memberUids: ['u1', 'u2', 'observer'],
+    }),
+  );
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/u2' }),
+    { fleetGroupId: 'fleet-1' },
+  );
+  expect(mock.update).toHaveBeenCalledWith(
+    expect.objectContaining({ path: 'sessions/s1/players/observer' }),
+    { fleetGroupId: 'fleet-1' },
+  );
 });
 
 it('assigns a joining identity to the stable group once across repeated joins', async () => {
@@ -446,6 +511,7 @@ it('assigns a joining identity to the stable group once across repeated joins', 
     if (path === 'joinCodes/482109') return snapshot({ sessionId: 's1' });
     if (path === 'sessions/s1') return snapshot(sessionFields);
     if (path === 'sessions/s1/players/u1') return snapshot(playerFields, playerExists);
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot(groupFields ?? {}, groupFields !== undefined);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);

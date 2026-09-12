@@ -19,6 +19,7 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
     collection: (path: string) => ({
+      path,
       doc: () => ({ path: `${path}/${mock.sessionId}`, id: mock.sessionId }),
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => callback({

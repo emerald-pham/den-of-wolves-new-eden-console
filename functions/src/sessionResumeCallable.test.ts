@@ -39,6 +39,7 @@ vi.mock('firebase-admin/firestore', () => ({
       return ref;
     },
     collection: (path: string) => ({
+      path,
       doc: (id?: string) => ({ path: path + '/' + (id ?? 'generated-session') }),
     }),
     runTransaction: (callback: (tx: unknown) => unknown) => callback({
@@ -63,7 +64,7 @@ function request(sessionId: string) {
 }
 
 function snapshot(fields: Readonly<Record<string, unknown>>, exists = true) {
-  return { exists, get: (field: string) => fields[field] };
+  return { exists, docs: [], get: (field: string) => fields[field] };
 }
 
 function prepareResume(
@@ -105,6 +106,7 @@ function prepareResume(
     if (path === 'sessions/s1/fleetGroups/fleet-1') return snapshot({}, false);
     if (path === 'sessions/s1') return session;
     if (path === 'sessions/s1/players/u1') return player;
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path === 'sessions/s1/seats/seat-1') return snapshot(seat);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
@@ -399,6 +401,7 @@ it('rejects a session that closes after the initial read but before resume commi
         activeConsoleRoleId: null,
       });
     }
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
@@ -434,6 +437,7 @@ it('returns fresh server state after the resume transaction instead of its initi
         activeConsoleRoleId: null,
       });
     }
+    if (path === 'sessions/s1/players') return snapshot({}, true);
     if (path === 'activeMemberships/u1') return snapshot({}, false);
     if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);
     throw new Error('Unexpected read: ' + path);
@@ -464,6 +468,7 @@ it('replaces a stale membership lock but refuses an active membership in another
         seatId: null,
         activeConsoleRoleId: null,
       });
+      if (path === 'sessions/s1/players') return snapshot({}, true);
       if (path === 'activeMemberships/u1') return snapshot(membership);
       if (path === 'sessions/s2/players/u1') return snapshot(otherPlayer);
       if (path.startsWith('sessions/s1/seats/')) return snapshot({}, false);

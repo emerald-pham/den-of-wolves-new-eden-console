@@ -684,9 +684,15 @@ describe('GM instance ownership', () => {
   });
 
   it('kicks a player browser, frees its seat, and blocks its return to this session', async () => {
-    session();
-    player('u1', { role: 'gm' });
-    player('u2', { seatId: 'seat-1' });
+    session({ activeVesselIds: ['aegis'] });
+    player('u1', { role: 'gm', fleetGroupId: 'fleet-1' });
+    player('u2', { seatId: 'seat-1', fleetGroupId: 'fleet-1' });
+    put('sessions/s1/players/observer', {
+      uid: 'observer', sessionId: 's1', role: 'player', connected: false, fleetGroupId: 'fleet-1',
+    });
+    put('sessions/s1/fleetGroups/fleet-1', {
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'u2', 'observer'],
+    });
     put('sessions/s1/seats/seat-1', {
       status: 'claimed', holderUid: 'u2', claimedAt: 'server-time',
     });
@@ -707,6 +713,12 @@ describe('GM instance ownership', () => {
       status: 'open', holderUid: null, claimedAt: null,
     });
     expect(read('activeMemberships/u2')).toBeUndefined();
+    expect(read('sessions/s1/fleetGroups/fleet-1')).toMatchObject({
+      id: 'fleet-1', vesselIds: ['aegis'], memberUids: ['u1', 'observer'],
+    });
+    expect(read('sessions/s1/players/u1')).toMatchObject({ fleetGroupId: 'fleet-1' });
+    expect(read('sessions/s1/players/observer')).toMatchObject({ fleetGroupId: 'fleet-1' });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ fleetGroupId: null });
   });
 
   it('does not let an ordinary player kick another browser', async () => {

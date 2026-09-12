@@ -591,11 +591,6 @@ function activeFleetGroupMemberUids(players: readonly DocumentSnapshot[]): reado
   return memberUids;
 }
 
-function lifecycleFleetGroupMemberUids(storedGroup: DocumentSnapshot, uid: string): readonly string[] {
-  const parsed = storedGroup.exists ? fleetGroupRecord(storedGroup.data()) : undefined;
-  return [...new Set([...(parsed?.memberUids ?? []), uid])];
-}
-
 /**
  * Reconcile the one initial group from authoritative session/player records.
  * This is migration-safe for legacy sessions while keeping all future split
@@ -607,6 +602,7 @@ function ensureInitialFleetGroup(
   activeVesselIds: readonly string[],
   memberUids: readonly string[],
   storedGroup: DocumentSnapshot,
+  players: readonly DocumentSnapshot[] = [],
 ): FleetGroupRecord {
   if (new Set(memberUids).size !== memberUids.length || memberUids.some((uid) => uid.length === 0)) {
     throw commandError(
@@ -651,6 +647,14 @@ function ensureInitialFleetGroup(
       memberUids: [...group.memberUids],
       updatedAt: FieldValue.serverTimestamp(),
     });
+  }
+  for (const player of players) {
+    if (!player.exists || isKickedPlayer(player) || group.memberUids.includes(player.id) === false) continue;
+    if (player.get('fleetGroupId') !== group.id) {
+      tx.update(db.doc(`sessions/${sessionId}/players/${player.id}`), {
+        fleetGroupId: group.id,
+      });
+    }
   }
   return group;
 }
@@ -2475,13 +2479,15 @@ export const confirmSetup = onCall<{
       command.activeRoleIds,
       command.expectedSetupRevision,
     );
-    const [prior, marker, authority, legacyEvent, storedGroup] = await Promise.all([
+    const [prior, marker, authority, legacyEvent, storedGroup, players] = await Promise.all([
       tx.get(requestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, command.sessionId, uid, command.instanceId),
       tx.get(eventRef),
       tx.get(groupRef),
+      tx.get(db.collection(`sessions/${command.sessionId}/players`)),
     ]);
+    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
     await rejectForeignLegacyM1Command(
       tx, command.sessionId, command.requestId, 'setup', [requestRef.path, eventRef.path],
     );
@@ -2539,8 +2545,9 @@ export const confirmSetup = onCall<{
       tx,
       command.sessionId,
       setup.activeVesselIds,
-      lifecycleFleetGroupMemberUids(storedGroup, uid),
+      activeFleetGroupMemberUids(playerDocs),
       storedGroup,
+      playerDocs,
     );
     const currentActiveVesselIds = activeVesselIdsForSession(authority.session);
     const nextActiveVesselIds = setup.activeVesselIds;
@@ -3240,6 +3247,7 @@ export const startGame = onCall<{
       lockedSetup.activeVesselIds,
       activeFleetGroupMemberUids(players.docs),
       storedGroup,
+      players.docs,
     );
 
     const committedSetupRevision = start.expectedSetupRevision + 1;
@@ -4748,14 +4756,17 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
 
     const sessionRef = db.doc(`sessions/${sessionId}`);
     const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+    const playersRef = db.collection(`sessions/${sessionId}/players`);
     const membershipRef = db.doc(`activeMemberships/${uid}`);
     const resumedSeatId = await db.runTransaction(async (tx) => {
-      const [sessionDoc, player, membership, storedGroup] = await Promise.all([
+      const [sessionDoc, player, membership, storedGroup, players] = await Promise.all([
         tx.get(sessionRef),
         tx.get(playerRef),
         tx.get(membershipRef),
         tx.get(fleetGroupRef(sessionId)),
+        tx.get(playersRef),
       ]);
+      const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
       if (!sessionDoc.exists) throw new HttpsError('not-found', 'No session with that code.');
       if (sessionDoc.get('phase') === 'closed') {
         throw commandError('failed-precondition', 'That session has closed.', 'terminal-session');
@@ -4784,9 +4795,9 @@ export const joinSession = onCall<{ joinCode?: string; displayName?: string }>(
       }
       if (membership.exists && !membershipActive) tx.delete(membershipRef);
       const setup = await hydrateCanonicalSessionSetup(tx, sessionId, sessionDoc);
-      const memberUids = lifecycleFleetGroupMemberUids(storedGroup, uid);
+      const memberUids = [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])];
       const group = ensureInitialFleetGroup(
-        tx, sessionId, setup.activeVesselIds, memberUids, storedGroup,
+        tx, sessionId, setup.activeVesselIds, memberUids, storedGroup, playerDocs,
       );
       if (player.exists) {
         const storedGroupId = player.get('fleetGroupId');
@@ -4953,6 +4964,7 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
   const { sessionId } = requireSessionRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const playersRef = db.collection(`sessions/${sessionId}/players`);
   let [sessionSnap, playerSnap] = await Promise.all([sessionRef.get(), playerRef.get()]);
 
   if (!sessionSnap.exists) {
@@ -4974,12 +4986,14 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
 
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const resumedSeatId = await db.runTransaction(async (tx) => {
-    const [currentSession, currentPlayer, membership, storedGroup] = await Promise.all([
+    const [currentSession, currentPlayer, membership, storedGroup, players] = await Promise.all([
       tx.get(sessionRef),
       tx.get(playerRef),
       tx.get(membershipRef),
       tx.get(fleetGroupRef(sessionId)),
+      tx.get(playersRef),
     ]);
+    const playerDocs = Array.isArray(players?.docs) ? players.docs : [];
     if (!currentSession.exists || currentSession.get('deletingAt')) {
       throw new HttpsError('not-found', 'That session no longer exists.');
     }
@@ -5014,8 +5028,9 @@ export const resumeSession = onCall<{ sessionId?: string }>(async (request) => {
       tx,
       sessionId,
       setup.activeVesselIds,
-      lifecycleFleetGroupMemberUids(storedGroup, uid),
+      [...new Set([...activeFleetGroupMemberUids(playerDocs), uid])],
       storedGroup,
+      playerDocs,
     );
     const storedGroupId = currentPlayer.get('fleetGroupId');
     if (storedGroupId !== undefined && storedGroupId !== group.id) {
@@ -5409,12 +5424,13 @@ async function removePlayer(
   const callerRef = players.doc(uid);
   const instanceRef = db.doc(`sessions/${action.sessionId}/gmInstances/${action.instanceId}`);
   const targetRef = players.doc(action.targetUid);
+  const groupRef = fleetGroupRef(action.sessionId);
   const membershipRef = db.doc(`activeMemberships/${action.targetUid}`);
   const censusRef = db.doc(`sessions/${action.sessionId}/loyaltyCensus/current`);
   const secretsRef = db.collection(`sessions/${action.sessionId}/secrets`);
 
   await db.runTransaction(async (tx) => {
-    const [session, caller, instance, target, membership, census, playersSnapshot, secrets] = await Promise.all([
+    const [session, caller, instance, target, membership, census, playersSnapshot, secrets, storedGroup] = await Promise.all([
       tx.get(sessionRef),
       tx.get(callerRef),
       tx.get(instanceRef),
@@ -5423,6 +5439,7 @@ async function removePlayer(
       tx.get(censusRef),
       tx.get(players),
       tx.get(secretsRef),
+      tx.get(groupRef),
     ]);
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
     if (!isLiveGmInstance(instance, caller, uid)) {
@@ -5445,9 +5462,19 @@ async function removePlayer(
       : null;
     const seat = seatRef ? await tx.get(seatRef) : null;
 
+    const survivingPlayers = playersSnapshot.docs.filter((player) => player.id !== action.targetUid);
+    ensureInitialFleetGroup(
+      tx,
+      action.sessionId,
+      activeVesselIdsForSession(session),
+      activeFleetGroupMemberUids(survivingPlayers),
+      storedGroup,
+      survivingPlayers,
+    );
     tx.update(targetRef, {
       connected: false,
       ...disconnectedRoleState(),
+      fleetGroupId: null,
       kickedAt: FieldValue.serverTimestamp(),
       lastSeenAt: FieldValue.serverTimestamp(),
     });
