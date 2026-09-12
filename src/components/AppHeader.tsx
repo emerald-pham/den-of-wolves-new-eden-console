@@ -235,6 +235,7 @@ export default function AppHeader() {
   const hasCacheDerivedSnapshot = useSessionStore(
     (state) => state.sessionSnapshotFreshness === 'cache',
   );
+  const connection = useSessionStore((state) => state.connection);
   const sessionId = useSessionStore((state) => state.session?.id);
   const playerUid = useSessionStore((state) => state.me?.uid);
   const reconnectDisplayStatus = useConnectionStatusGrace(
@@ -433,7 +434,10 @@ export default function AppHeader() {
       )}
       <FleetBroadcast />
       {rank !== null && <p className="player-rank">Rank: {rank}</p>}
-      <ConnectionIndicator status={indicatorStatus} />
+      <ConnectionIndicator
+        status={indicatorStatus}
+        sessionRecovery={Boolean(sessionId && !playerUid && connection === 'connecting')}
+      />
       <button
         className="settings-button"
         ref={settingsButton}

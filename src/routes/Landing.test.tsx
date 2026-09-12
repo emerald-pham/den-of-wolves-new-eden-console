@@ -7,6 +7,24 @@ import AppHeader from '@/components/AppHeader';
 import { useSessionStore } from '@/store/useSessionStore';
 import { APP_VERSION } from '@/version';
 
+const session = {
+  id: 's1',
+  name: 'Table one',
+  joinCode: '4821',
+  phase: 'lobby' as const,
+  ownerUid: 'u1',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+};
+const player = {
+  uid: 'u1',
+  sessionId: 's1',
+  displayName: 'GM',
+  role: 'gm' as const,
+  seatId: null,
+  joinedAt: '2026-01-01T00:00:00.000Z',
+};
+
 // Firebase is a genuine boundary, so the service that wraps it is stubbed here.
 // Everything below the mock -- form state, validation, status light, error
 // reporting -- is exercised for real.
@@ -195,6 +213,49 @@ describe('Landing', () => {
 
     expect(createSession).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/roles'));
+  });
+
+  it('shows a truthful return link when a create attempt races with session recovery', async () => {
+    const user = userEvent.setup();
+    let rejectCreate: ((cause: Error) => void) | undefined;
+    vi.mocked(createSession).mockReturnValue(new Promise<void>((_resolve, reject) => {
+      rejectCreate = reject;
+    }));
+    renderLanding();
+
+    await user.click(screen.getByRole('button', { name: /create a session/i }));
+    act(() => {
+      useSessionStore.getState().setIdentity({ ...session, id: 'recovered-session' }, {
+        ...player,
+        sessionId: 'recovered-session',
+      });
+      useSessionStore.getState().setLastRoute('/console');
+    });
+    rejectCreate?.(new Error('A session is already connected.'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('A session is already connected.');
+      expect(screen.getByRole('link', { name: /return to the current session/i }))
+        .toHaveAttribute('href', '/console');
+    });
+    expect(screen.queryByRole('button', { name: /create a session/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /join a session/i })).not.toBeInTheDocument();
+
+    const recoveryLink = screen.getByRole('link', { name: /return to the current session/i });
+    recoveryLink.focus();
+    await user.keyboard('{Enter}');
+    expect(screen.getByLabelText('Current route')).toHaveTextContent('/console');
+  });
+
+  it('holds the launcher on a reconnecting state instead of creating or joining over a cached session', () => {
+    useSessionStore.getState().setSession({ ...session, id: 'cached-session' });
+
+    renderLanding();
+
+    expect(screen.getByRole('status', { name: 'Session recovery' }))
+      .toHaveTextContent(/reconnecting to the current session/i);
+    expect(screen.queryByRole('button', { name: /create a session/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /join a session/i })).not.toBeInTheDocument();
   });
 
   it('reports a failure to join instead of failing silently', async () => {

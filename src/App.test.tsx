@@ -62,7 +62,9 @@ vi.mock('@/lib/versionUpgrade', () => ({
 
 const {
   connect,
+  createSession,
   disconnectFromSession,
+  joinSession,
   logoutGmAccess,
   reconcileGmAuthority,
   refreshPresence,
@@ -388,6 +390,8 @@ describe('App', () => {
       await screen.findByRole('heading', { name: /select a role/i }),
     ).toBeInTheDocument();
     expect(window.location.hash).toBe('#/console');
+    expect(createSession).not.toHaveBeenCalled();
+    expect(vi.mocked(joinSession)).not.toHaveBeenCalled();
   });
 
   it('subscribes to authoritative session state while a player is connected', async () => {

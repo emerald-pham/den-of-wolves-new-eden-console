@@ -935,6 +935,9 @@ export async function dismissPopulationAlert(shipId: string): Promise<void> {
 
 export async function joinSession(joinCode: string): Promise<void> {
   const expectedDisplayedSessionId = useSessionStore.getState().session?.id ?? null;
+  if (expectedDisplayedSessionId !== null) {
+    throw new Error('Disconnect from the current session first.');
+  }
   await ensureSignedIn();
   const call = httpsCallable<{ joinCode: string }, SessionReply>(
     functions(),

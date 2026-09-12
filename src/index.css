@@ -817,6 +817,28 @@ body {
   font-size: 0.8rem;
 }
 
+.landing__recovery {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-color: var(--cic-cyan-dim);
+}
+
+.landing__recovery p { margin: 0; }
+
+.landing__recovery-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  color: var(--cic-cyan);
+  font: 0.72rem/1.2 var(--cic-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-underline-offset: 0.2em;
+}
+
 /* Role selection ----------------------------------------------------- */
 
 .role-select {

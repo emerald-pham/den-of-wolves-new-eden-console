@@ -27,18 +27,22 @@ const TITLES: Record<IndicatorStatus, string> = {
 
 export default function ConnectionIndicator({
   status,
+  sessionRecovery = false,
 }: {
   status: IndicatorStatus;
+  sessionRecovery?: boolean;
 }) {
+  const label = sessionRecovery ? 'RECONNECTING TO SESSION' : LABELS[status];
+  const title = sessionRecovery ? 'Reconnecting to the current session' : TITLES[status];
   return (
     <span
       className="indicator"
       role="status"
       data-status={status}
-      title={TITLES[status]}
+      title={title}
     >
       <span className="indicator__dot" aria-hidden="true" />
-      <span className="indicator__label">{LABELS[status]}</span>
+      <span className="indicator__label">{label}</span>
     </span>
   );
 }

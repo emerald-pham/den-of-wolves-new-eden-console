@@ -1,9 +1,11 @@
 import ArrivalDisplay, { LAUNCHER_HACKING_MESSAGES_ENABLED } from './ArrivalDisplay';
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { createSession, joinSession } from '@/lib/sessionService';
 import { APP_VERSION } from '@/version';
 import { setMotionOverride, useMotionPreference } from '@/lib/motionPreference';
+import { restoreSessionRoute } from '@/lib/sessionRoute';
+import { useSessionStore } from '@/store/useSessionStore';
 
 const LEGACY_CODE_LENGTH = 4;
 const CODE_LENGTH = 6;
@@ -17,7 +19,11 @@ export default function Landing() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const session = useSessionStore((state) => state.session);
+  const me = useSessionStore((state) => state.me);
+  const lastRoute = useSessionStore((state) => state.lastRoute);
   const { reducedMotion } = useMotionPreference();
+  const recoveryRoute = session && me ? restoreSessionRoute(lastRoute) : null;
 
   /**
    * One place for the two things every call has to get right: the buttons go
@@ -55,55 +61,70 @@ export default function Landing() {
         standDown={busy}
       />
 
-      <div className="landing__actions cic-frame">
-        <div className="landing__primary-actions">
-          <button
-            type="button"
-            className="landing__button"
-            disabled={busy}
-            onClick={() => void enterSession(() => createSession())}
-          >
-            Create a session
-          </button>
+      {session ? (
+        <section className="landing__recovery cic-frame" aria-live="polite">
+          {recoveryRoute ? (
+            <>
+              <p role="status" aria-label="Session recovery">This browser is connected to a session.</p>
+              <Link className="landing__recovery-link" to={recoveryRoute}>
+                Return to the current session
+              </Link>
+            </>
+          ) : (
+            <p role="status" aria-label="Session recovery">Reconnecting to the current session. Please wait.</p>
+          )}
+        </section>
+      ) : (
+        <div className="landing__actions cic-frame">
+          <div className="landing__primary-actions">
+            <button
+              type="button"
+              className="landing__button"
+              disabled={busy}
+              onClick={() => void enterSession(() => createSession())}
+            >
+              Create a session
+            </button>
+          </div>
+
+          <p className="landing__or">or</p>
+
+          <form className="landing__join" onSubmit={onJoin}>
+            <label className="landing__label" htmlFor="join-code">
+              Session code
+            </label>
+            <input
+              id="join-code"
+              className="landing__code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={CODE_LENGTH}
+              placeholder="000000"
+              value={code}
+              // Digits only, with no invalid characters or more than six entered.
+              onChange={(event) =>
+                setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
+              }
+            />
+            <button
+              type="submit"
+              className="landing__button"
+              disabled={busy || !isCompleteCode(code)}
+            >
+              Join a session
+            </button>
+            <button
+              type="button"
+              className="landing__button landing__motion-control"
+              onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
+            >
+              {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}
+            </button>
+          </form>
+          {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
         </div>
-
-        <p className="landing__or">or</p>
-
-        <form className="landing__join" onSubmit={onJoin}>
-          <label className="landing__label" htmlFor="join-code">
-            Session code
-          </label>
-          <input
-            id="join-code"
-            className="landing__code"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={CODE_LENGTH}
-            placeholder="000000"
-            value={code}
-            // Digits only, with no invalid characters or more than six entered.
-            onChange={(event) =>
-              setCode(event.target.value.replace(/\D/g, '').slice(0, CODE_LENGTH))
-            }
-          />
-          <button
-            type="submit"
-            className="landing__button"
-            disabled={busy || !isCompleteCode(code)}
-          >
-            Join a session
-          </button>
-          <button
-            type="button"
-            className="landing__button landing__motion-control"
-            onClick={() => setMotionOverride(reducedMotion ? 'full' : 'reduce')}
-          >
-            {reducedMotion ? 'Restore motion 😀' : 'Reduce motion (reduce awesomeness) 😞'}
-          </button>
-        </form>
-        {reducedMotion && <p className="landing__motion-status">Motion is reduced.</p>}
-      </div>
+      )}
 
       {error !== null && (
         <p className="landing__error" role="alert">

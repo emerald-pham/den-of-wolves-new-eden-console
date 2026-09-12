@@ -33,13 +33,11 @@ import { dockingForShuttle } from '@/data/shuttles';
 import PrivateLoyaltyPanel from '@/components/PrivateLoyaltyPanel';
 import RoleBrief from '@/routes/RoleBrief';
 import type { LoyaltyCensus, RoleBrief as RoleBriefProjection } from '@/types/game';
+import { isSessionRoute, restoreSessionRoute } from '@/lib/sessionRoute';
 
 const RECONNECT_INTERVAL_MS = 2_000;
 const GM_RECONCILE_INTERVAL_MS = 5_000;
 const PRESENCE_HEARTBEAT_INTERVAL_MS = 10_000;
-const SESSION_ROUTES = new Set(['/roles', '/gm', '/console', '/press']);
-const isSessionRoute = (path: string): boolean =>
-  SESSION_ROUTES.has(path) || path.startsWith('/ships/') || path.startsWith('/union/') || path.startsWith('/shuttles/');
 const hasConsoleDradis = (path: string): boolean =>
   path === '/press' || path.startsWith('/ships/') || path.startsWith('/union/') || path.startsWith('/shuttles/');
 
@@ -223,8 +221,7 @@ function AppRoutes() {
     return () => window.clearTimeout(timeout);
   }, [gmAccessAuthenticatedAt]);
 
-  const restoreRoute =
-    lastRoute && isSessionRoute(lastRoute) ? lastRoute : '/roles';
+  const restoreRoute = restoreSessionRoute(lastRoute);
   const home =
     session && me ? (
       <Navigate to={restoreRoute} replace />

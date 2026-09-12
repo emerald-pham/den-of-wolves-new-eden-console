@@ -15,6 +15,14 @@ describe('ConnectionIndicator', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Connected, Awaiting Iris Authentication');
   });
 
+  it('labels a connected session that is still waiting for its player projection', () => {
+    render(<ConnectionIndicator status="yellow" sessionRecovery />);
+
+    const indicator = screen.getByRole('status', { name: /reconnecting to the current session/i });
+    expect(indicator).toHaveTextContent('RECONNECTING TO SESSION');
+    expect(indicator).toHaveAttribute('title', 'Reconnecting to the current session');
+  });
+
   it('reports being in a session', () => {
     render(<ConnectionIndicator status="green" />);
     expect(screen.getByRole('status')).toHaveTextContent(/in session/i);

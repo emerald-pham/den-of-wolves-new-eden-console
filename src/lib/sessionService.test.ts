@@ -348,6 +348,13 @@ describe('joinSession', () => {
       .toMatchObject({ hasServerSessionAuthority: true });
   });
 
+  it('does not join another session while a current session snapshot is loaded', async () => {
+    useSessionStore.getState().setIdentity(session, player);
+
+    await expect(joinSession('918204')).rejects.toThrow('Disconnect from the current session first.');
+    expect(httpsCallable).not.toHaveBeenCalled();
+  });
+
   it('does not let a late same-uid join hydrate over the newer displayed session', async () => {
     const sessionA = { ...session, id: 'join-a', joinCode: '111111', updatedAt: '2026-09-11T12:00:00.000Z' };
     const sessionB = { ...session, id: 'join-b', joinCode: '222222', updatedAt: '2026-09-11T12:01:00.000Z' };
