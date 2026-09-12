@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { recommendedRoleIds } from '@/data/rolePresets';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { GameSession } from '@/types/game';
+import type { GameSession, SessionEvent } from '@/types/game';
 import { MAINTENANCE_EVENT_ACTIONS as CLIENT_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as CLIENT_MAINTENANCE_EVENT_RESULT_STEPS } from './maintenanceEvent';
 import { MAINTENANCE_EVENT_ACTIONS as SERVER_MAINTENANCE_EVENT_ACTIONS, MAINTENANCE_EVENT_RESULT_STEPS as SERVER_MAINTENANCE_EVENT_RESULT_STEPS } from '../../functions/src/maintenanceEvent';
 
@@ -719,6 +719,50 @@ it('parses only audience-safe maintenance result fields from member events', () 
   expect(serialized).not.toContain('private fingerprint');
   expect(serialized).not.toContain('deck order');
   expect(serialized).not.toContain('private state');
+});
+
+it('reconstructs the visible event snapshot once from server document IDs after reconnect', () => {
+  const { callbacks } = captureSessionListener();
+  const onEvents = vi.fn((_events: readonly SessionEvent[]) => undefined);
+  subscribeSessionEvents('s1', onEvents, vi.fn());
+
+  const eventDoc = (id: string, message: string, payloadId: string) => ({
+    id,
+    data: () => ({
+      id: payloadId,
+      type: 'fullscreen-alert',
+      sourceRoleName: 'Admiral',
+      message,
+      createdAt: '2026-09-12T00:00:00.000Z',
+    }),
+  });
+  const serverSnapshot = (docs: readonly unknown[]) => ({
+    metadata: { fromCache: false },
+    docs,
+  });
+
+  callbacks[0]?.(serverSnapshot([
+    eventDoc('turn-advanced-1', 'Initial alert', 'payload-event-1'),
+    eventDoc('turn-advanced-2', 'Overlapping alert', 'payload-event-2'),
+  ]));
+  callbacks[0]?.(serverSnapshot([
+    eventDoc('turn-advanced-2', 'Overlapping alert', 'spoofed-payload-id'),
+    eventDoc('turn-advanced-3', 'Reconnected alert', 'payload-event-3'),
+  ]));
+
+  expect(onEvents).toHaveBeenCalledTimes(2);
+  expect(onEvents.mock.calls[0]?.[0].map((event) => event.id)).toEqual([
+    'turn-advanced-1', 'turn-advanced-2',
+  ]);
+  expect(onEvents.mock.calls[1]?.[0].map((event) => event.id)).toEqual([
+    'turn-advanced-2', 'turn-advanced-3',
+  ]);
+  expect(onEvents.mock.calls[1]?.[0]).toHaveLength(2);
+  expect(onEvents.mock.calls[1]?.[0][0]).toMatchObject({
+    id: 'turn-advanced-2',
+    message: 'Overlapping alert',
+  });
+  expect(onEvents.mock.calls[1]?.[0].map((event) => event.id)).not.toContain('payload-event-2');
 });
 
 it('hydrates legacy seat labels and factions from the canonical role catalog', () => {

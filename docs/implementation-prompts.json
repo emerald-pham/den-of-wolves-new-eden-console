@@ -366,6 +366,13 @@
       "type": "evidence"
     },
     {
+      "direction": "089 -> M1-EVENT-REPLAY",
+      "id": "E-089-EVENT-REPLAY",
+      "language": "The member-visible event listener reconstructs each server snapshot as a replacement list, so reconnecting with overlapping documents leaves each server event ID represented once and removes events no longer in the latest snapshot. The projection derives EventId only from the Firestore document ID; payload IDs cannot spoof or duplicate a visible event. The GM console renders the projection by that stable ID without replaying event effects.",
+      "source": "src/lib/firestore.ts; src/lib/firestore.test.ts; src/routes/GmConsole.tsx",
+      "type": "evidence"
+    },
+    {
       "direction": "086 -> M1-FACILITATOR-PRIVATE",
       "id": "E-086-FACILITATOR-PRIVATE",
       "language": "The existing wolf-assignment secret now hydrates a typed GM-only projection. The facilitator loyalty census accepts bounded optional notes, and an authorized revisioned callable persists, audits, replays, and clears those notes without publishing a member event. Census rebuilds preserve notes for the same current UID and removal patches drop them; callable, lifecycle, client, GM-console, and rules tests cover authorization, stale/replay behavior, teardown, and member denial.",
@@ -2515,8 +2522,8 @@
         "acceptance": "reconnect reconstructs the same visible state once using server event IDs.",
         "title": "Replay events without duplicate effects."
       },
-      "description": "General event replay/reconstruction remains open.",
-      "evidenceIds": "none",
+      "description": "Existing event snapshots replace the visible list on reconnect, use Firestore document IDs as stable event identities, and do not replay event effects.",
+      "evidenceIds": "E-089-EVENT-REPLAY",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2527,7 +2534,7 @@
       "releases": [],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
