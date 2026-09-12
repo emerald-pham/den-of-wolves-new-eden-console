@@ -4235,6 +4235,13 @@
       "language": "Existing server resolver and addShipDamage transaction select, apply and log a permitted result without publishing future card order. Tests cover damage effects, recycling, empty decks, invalid decks, authorization and retry-stable randomness/event identity. Verified 34 damage tests and 66 emulator-backed rules tests on 2026-09-12; rules explicitly deny strangers and all client writes to draw results.",
       "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/index.ts addShipDamage; functions/src/shipDamageCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "163",
+      "id": "E-163-VERIFIED",
+      "language": "Existing production composition and counter tests prove expansion inventory creation, removal on return to base mode, and denial of inactive Scrap mutations. Resource allowlists keep Scrap off other vessels, and join/resume inventories use active-vessel filtering. Verified 28 existing resource/composition/projection tests on 2026-09-12; no new runtime release.",
+      "source": "functions/src/resources.ts; functions/src/resources.test.ts; functions/src/sessionComposition.ts; functions/src/sessionComposition.test.ts; functions/src/index.ts; src/data/resources.ts; src/data/resources.test.ts; src/lib/shipStateProjection.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -8406,8 +8413,8 @@
         "acceptance": "Scrap exists only in enabled Capybara-expansion inventories and cannot leak into base sessions.",
         "title": "Register the optional sixth resource."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Existing typed resource inventories restrict Scrap to the enabled expansion Capybara. Production create/setup composition filters inactive vessels, removes expansion inventory when returning to base mode, and denies inactive Capybara counter mutations; server join/resume projections also filter inventory by active vessels. Client and server resource normalizers omit Scrap for other ships. Verified 28 existing resource, production composition and ship-projection tests; this reconciles existing behavior evidence without a runtime change.",
+      "evidenceIds": "E-163-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -8418,7 +8425,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
