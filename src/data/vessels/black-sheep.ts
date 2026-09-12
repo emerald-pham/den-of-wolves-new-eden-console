@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Service shuttle',
   description: 'Recharges consoles and carries full cargo for the Shepherd Engineer.',
   captainRoleId: 'shepherd-engineer',
+  cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
   initialDocking: { shipId: 'shepherd', dockedAt: 'SESSION START' },
   operations: [

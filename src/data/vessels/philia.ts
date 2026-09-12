@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Engineering shuttle',
   description: 'Repairs or scraps ship consoles for the Dione Engineer.',
   captainRoleId: 'dione-engineer',
+  cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
   initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
   operations: [

@@ -807,6 +807,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "164 -> 113;377",
+      "id": "E-164-ALLOWLIST-PARTIAL",
+      "language": "Registered shuttle definitions carry source-aligned cargo allowlists and an exact printed matrix test, while no production cargo-transfer callable or resolver exists yet; authoritative enforcement remains deferred to the later transfer prompts.",
+      "source": "src/data/vessels/templates.ts; src/data/vessels/*.ts; src/data/shuttles.test.ts; functions/src/actionMetadata.ts; functions/src/index.ts",
+      "type": "evidence"
+    },
+    {
       "direction": "165 -> 161;162",
       "id": "E-AUDIT-165",
       "language": "Console metadata is attached to registered vessel and printed-system definitions.",
@@ -8557,8 +8564,8 @@
         "acceptance": "each transfer accepts only the resource and security-team types printed for the acting craft.",
         "title": "Encode cargo permissions."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-164",
+      "description": "Registered shuttle definitions now carry source-aligned cargo type IDs beside their printed cargo strings, and `src/data/shuttles.test.ts` asserts the exact allowlist for every craft with a printed Cargo Transfer rule. The production server still has no cargo-transfer callable or resource-transfer resolver: `functions/src/actionMetadata.ts` only phase-gates a future Coordination action, and `shuttleCargo` is maintenance state. P164 is therefore partial; authoritative transfer enforcement remains deferred to Prompts 113 and 377, which also own dock, manifest, inventory, role, and revision checks. No gameplay release is claimed.",
+      "evidenceIds": "E-AUDIT-164;E-164-ALLOWLIST-PARTIAL",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "161;162",
@@ -8569,7 +8576,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "PRESERVE"
     },
     {

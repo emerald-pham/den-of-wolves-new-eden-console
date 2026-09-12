@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Assault shuttle',
   description: 'Moves security teams and reinforces boarding defence for the Refinery 124 P.D.F. Colonel.',
   captainRoleId: 'refinery-124-pdf-colonel',
+  cargoTransferTypes: ['securityTeams'],
   cargoTransfer: 'Security teams only',
   initialDocking: { shipId: 'refinery-124', dockedAt: 'SESSION START' },
   operations: [

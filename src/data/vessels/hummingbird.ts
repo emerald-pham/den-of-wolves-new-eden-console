@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Exploration shuttle',
   description: 'Scouts nearby systems and harvests supplies for the Quellon Explorer.',
   captainRoleId: 'quellon-explorer',
+  cargoTransferTypes: ['food', 'water'],
   cargoTransfer: 'Food and water only',
   initialDocking: { shipId: 'quellon', dockedAt: 'SESSION START' },
   operations: [

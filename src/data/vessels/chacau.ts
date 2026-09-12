@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Engineering shuttle',
   description: 'Repairs fleet consoles and carries full cargo for the Refinery 124 Engineer.',
   captainRoleId: 'refinery-124-engineer',
+  cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
   initialDocking: { shipId: 'refinery-124', dockedAt: 'SESSION START' },
   operations: [

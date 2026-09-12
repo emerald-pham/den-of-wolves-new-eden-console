@@ -36,6 +36,34 @@ describe('fleet shuttlebays', () => {
     ]));
   });
 
+  it('encodes each printed cargo rule as an exact resource allowlist', () => {
+    const cargoTypesByShuttle = Object.fromEntries(
+      SHUTTLECRAFT
+        .filter((shuttle) => shuttle.cargoTransferTypes)
+        .map((shuttle) => [shuttle.id, shuttle.cargoTransferTypes]),
+    );
+
+    expect(cargoTypesByShuttle).toEqual({
+      pallas: ['securityTeams'],
+      philia: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      highwall: ['ore', 'materials'],
+      blacksmith: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      macaw: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials', 'scrap'],
+      boa: ['scrap'],
+      'black-sheep': ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      hummingbird: ['food', 'water'],
+      condor: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      chacau: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      chepu: ['securityTeams'],
+      wobbly: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      ally: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+    });
+    expect(SHUTTLECRAFT.filter((shuttle) => shuttle.cargoTransfer)
+      .every((shuttle) => shuttle.cargoTransferTypes?.length)).toBe(true);
+    expect(SHUTTLECRAFT.filter((shuttle) => !shuttle.cargoTransfer).map((shuttle) => shuttle.id))
+      .toEqual(['snn-press-shuttle', 'starlight', 'maliades', 'endeavour']);
+  });
+
   it('starts the independently crewed and shipboard shuttlecraft docked with their home ships', () => {
     expect(INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId)).toEqual([
       'snn-press-shuttle',

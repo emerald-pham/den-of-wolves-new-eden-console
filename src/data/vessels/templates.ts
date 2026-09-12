@@ -1,5 +1,5 @@
 import type { ConsoleRole, ConsoleShipId } from '@/data/roles';
-import type { ShipResourceInventory } from '@/data/resources';
+import type { ResourceId, ShipResourceInventory } from '@/data/resources';
 import type { ShipPopulationTrack } from '@/data/shipPopulation';
 import type { ShuttleDocking, ShuttleVisit } from '@/types/game';
 import type { RoleId, ShuttleId, SupplementalVesselId, VesselId } from '@/types/identifiers';
@@ -153,7 +153,9 @@ export interface Shuttlecraft {
   readonly mark?: string;
   readonly capabilities: readonly ShuttleCapability[];
   readonly operations: readonly ShuttleOperation[];
-  /** The actual resource categories this craft may transfer, when its sheet supplies them. */
+  /** The source-aligned resource IDs a future transfer resolver must allow. */
+  readonly cargoTransferTypes?: readonly ResourceId[];
+  /** The printed cargo rule shown in the shared shuttle role workspace. */
   readonly cargoTransfer?: string;
   readonly dockingEntrance?: 'press';
   readonly dockingPort?: string;

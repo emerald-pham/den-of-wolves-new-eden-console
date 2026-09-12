@@ -15,6 +15,7 @@ export default defineShuttle({
   description: 'Repairs fleet consoles and carries full cargo for the Shepherd / Icebreaker Union Engineer.',
   captainRoleId: 'joint-engineering-shepherd-icebreaker',
   availability: 'gm-controlled',
+  cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
   operations: [
     {

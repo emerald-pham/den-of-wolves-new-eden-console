@@ -10,6 +10,7 @@ export default defineShuttle({
   vesselType: 'Engineering shuttle',
   description: 'Repairs fleet consoles and carries the Icebreaker Engineer’s full cargo load.',
   captainRoleId: 'icebreaker-engineer',
+  cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
   cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
   initialDocking: { shipId: 'icebreaker', dockedAt: 'SESSION START' },
   operations: [
