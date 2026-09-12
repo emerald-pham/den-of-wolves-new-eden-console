@@ -32,6 +32,7 @@ interface MovingGroup extends GroupGeometry {
   readonly key: number;
   readonly message: FleetMessage;
   readonly startX: number;
+  readonly animationDelay?: number;
 }
 
 type TickerGroupStyle = CSSProperties & {
@@ -39,6 +40,7 @@ type TickerGroupStyle = CSSProperties & {
   '--fleet-ticker-group-width': string;
   '--fleet-ticker-start-x': string;
   '--fleet-ticker-copy-width': string;
+  '--fleet-ticker-delay': string;
 };
 
 const TICKER_SPEED_PX_PER_SECOND = 48;
@@ -176,6 +178,23 @@ function MovingMessage({ message, fallback, queue = [] }: {
   const [groups, setGroupsState] = useState<readonly MovingGroup[]>([]);
   const [announcedMessage, setAnnouncedMessage] = useState<FleetMessage | undefined>();
   const [expiredId, setExpiredId] = useState<string | undefined>();
+  const [fontReady, setFontReady] = useState(() => (
+    typeof document === 'undefined'
+      || !document.fonts
+      || document.fonts.status === 'loaded'
+  ));
+
+  useEffect(() => {
+    const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+    if (!fonts || fonts.status === 'loaded') return undefined;
+    let mounted = true;
+    fonts.ready.then(() => {
+      if (mounted) setFontReady(true);
+    }).catch(() => {
+      if (mounted) setFontReady(true);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     if (!message?.expiresAt) {
@@ -257,6 +276,33 @@ function MovingMessage({ message, fallback, queue = [] }: {
     return [...base, ...appended];
   }, [relativeRight, windowWidth]);
 
+  const appendTailGroups = useCallback((
+    base: readonly MovingGroup[],
+    nextMessage: FleetMessage,
+    count: number,
+    geometry: GroupGeometry,
+    tailStartX?: number,
+  ): readonly MovingGroup[] => {
+    if (count <= 0) return base;
+    let startX = tailStartX ?? (base.length > 0
+      ? relativeRight(base[base.length - 1]!)
+      : windowWidth());
+    if (!Number.isFinite(startX)) startX = windowWidth();
+    const appended: MovingGroup[] = [];
+    for (let index = 0; index < count; index += 1) {
+      appended.push({
+        key: sequence.current,
+        message: nextMessage,
+        startX,
+        animationDelay: 0,
+        ...geometry,
+      });
+      sequence.current += 1;
+      startX += geometry.width;
+    }
+    return [...base, ...appended];
+  }, [relativeRight, windowWidth]);
+
   const isOnScreen = useCallback((group: MovingGroup): boolean => {
     const element = groupElements.current.get(group.key);
     const frame = windowRef.current?.getBoundingClientRect();
@@ -265,7 +311,77 @@ function MovingMessage({ message, fallback, queue = [] }: {
     return bounds.right > frame.left && bounds.left < frame.right;
   }, []);
 
+  const reconcilePaintedGeometry = useCallback(() => {
+    const frame = windowRef.current?.getBoundingClientRect();
+    if (!frame || frame.width <= 0 || groupsRef.current.length === 0) return;
+
+    let changed = false;
+    let previousEnd: number | undefined;
+    let previousPaintedEnd: number | undefined;
+    const nextGroups = groupsRef.current.map((group, index) => {
+      const element = groupElements.current.get(group.key);
+      const bounds = element?.getBoundingClientRect();
+      const measuredWidth = bounds && bounds.width > 0 ? bounds.width : group.width;
+      const startX = index === 0
+        ? group.startX
+        : Math.max(group.startX, previousEnd ?? group.startX);
+      const measuredCurrentX = bounds && bounds.width > 0
+        ? bounds.left - frame.left
+        : group.startX;
+      // A font or writing-mode change can grow an earlier painted group before
+      // this callback runs. Keep the next group after that new painted bound;
+      // the delay rebases its linear pass at the adjusted position.
+      const currentX = index === 0
+        ? measuredCurrentX
+        : Math.max(measuredCurrentX, previousPaintedEnd ?? measuredCurrentX);
+      const distance = Math.max(1, startX + measuredWidth);
+      const progress = Math.min(1, Math.max(0, (startX - currentX) / distance));
+      const animationDelay = progress > 0.0001
+        ? -(progress * distance) / TICKER_SPEED_PX_PER_SECOND
+        : 0;
+      previousEnd = startX + measuredWidth;
+      previousPaintedEnd = currentX + measuredWidth;
+
+      if (Math.abs(measuredWidth - group.width) > 0.5
+        || Math.abs(startX - group.startX) > 0.5
+        || Math.abs(animationDelay - (group.animationDelay ?? 0)) > 0.01) {
+        changed = true;
+        return {
+          ...group,
+          width: measuredWidth,
+          startX,
+          animationDelay,
+        };
+      }
+      return group;
+    });
+
+    const frameWidth = frame.width;
+    const last = nextGroups[nextGroups.length - 1];
+    if (last && last.message.passes === undefined) {
+      const lastElement = groupElements.current.get(last.key);
+      const lastBounds = lastElement?.getBoundingClientRect();
+      const lastLeft = lastBounds && lastBounds.width > 0
+        ? lastBounds.left - frame.left
+        : last.startX;
+      const lastRight = lastLeft + last.width;
+      if (lastRight < frameWidth - 0.5) {
+        const geometry = geometryFor(last.message, probeFor(last.message));
+        const missingWidth = frameWidth - lastRight;
+        const count = Math.max(1, Math.ceil(missingWidth / geometry.width));
+        const withTail = appendTailGroups(nextGroups, last.message, count, geometry, lastRight);
+        if (withTail.length !== nextGroups.length) {
+          changed = true;
+          return setGroups(withTail);
+        }
+      }
+    }
+
+    if (changed) setGroups(nextGroups);
+  }, [appendTailGroups, geometryFor, probeFor, setGroups]);
+
   useLayoutEffect(() => {
+    if (!fontReady) return;
     const { message: inputMessage, fallback: requestedFallback, queue } = input.current;
     const requestedMessage = inputMessage?.id === expiredId ? undefined : inputMessage;
     // An expired finite notice leaves its visible tail in place, then returns
@@ -320,7 +436,24 @@ function MovingMessage({ message, fallback, queue = [] }: {
 
     setGroups(nextGroups);
     setProcessedKey(inputKey);
-  }, [appendGroups, expiredId, geometryFor, inputKey, isOnScreen, probeFor, setGroups]);
+  }, [appendGroups, expiredId, fontReady, geometryFor, inputKey, isOnScreen, probeFor, setGroups]);
+
+  useEffect(() => {
+    const frame = windowRef.current;
+    if (!frame) return undefined;
+    const observed = [
+      frame,
+      ...Array.from(frame.querySelectorAll<HTMLElement>('.fleet-ticker__probe')),
+    ];
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => reconcilePaintedGeometry());
+      observed.forEach((element) => observer.observe(element));
+      return () => observer.disconnect();
+    }
+
+    window.addEventListener('resize', reconcilePaintedGeometry);
+    return () => window.removeEventListener('resize', reconcilePaintedGeometry);
+  }, [inputKey, reconcilePaintedGeometry]);
 
   const finishGroup = useCallback((key: number) => {
     const ended = groupsRef.current.find((group) => group.key === key);
@@ -366,6 +499,7 @@ function MovingMessage({ message, fallback, queue = [] }: {
   }, [appendGroups, geometryFor, probeFor, setGroups]);
 
   const waitingForLayout = processedKey !== inputKey;
+  if (!fontReady) return null;
   if (!announcedMessage && groups.length === 0 && !waitingForLayout) {
     return null;
   }
@@ -391,6 +525,7 @@ function MovingMessage({ message, fallback, queue = [] }: {
               '--fleet-ticker-group-width': `${group.width}px`,
               '--fleet-ticker-start-x': `${group.startX}px`,
               '--fleet-ticker-copy-width': `${group.width / group.copyCount}px`,
+              '--fleet-ticker-delay': `${group.animationDelay ?? 0}s`,
             };
             return (
               <span className="fleet-ticker__group" data-message-id={group.message.id}

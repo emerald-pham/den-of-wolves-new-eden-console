@@ -10,8 +10,20 @@ const finishMovingPasses = (container: HTMLElement, messageId: string) => {
     `.fleet-ticker__group[data-message-id="${messageId}"]`,
   )].forEach((group) => fireEvent.animationEnd(group));
 };
-beforeEach(() => { sessionStorage.clear(); setMotionOverride('full'); });
-afterEach(() => { vi.useRealTimers(); act(() => setMotionOverride('system')); });
+let notifyResize: (() => void) | undefined;
+class TestResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {
+    notifyResize = () => this.callback([], this as unknown as ResizeObserver);
+  }
+  observe() {}
+  disconnect() {}
+}
+beforeEach(() => { sessionStorage.clear(); notifyResize = undefined; setMotionOverride('full'); });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  act(() => setMotionOverride('system'));
+});
 it('lets the old broadcast leave naturally while its replacement follows on the same lane', () => {
   const view = render(<FleetTicker message={alert} />);
   const track = view.container.querySelector('.fleet-ticker__track');
@@ -84,6 +96,58 @@ it('measures each queued identity against its own copy', () => {
   expect(probes.map((probe) => probe.textContent?.trim())).toEqual([
     `${alert.text} //`, `${queued.text} //`,
   ]);
+});
+it('extends a repeating tail across a widened frame without restarting existing groups', () => {
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const { container } = render(<FleetTicker message={{
+    id: 'resize-repeat', text: 'SNN // OK', tone: 'normal',
+  }} />);
+  const frame = container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  Object.defineProperty(frame, 'clientWidth', { configurable: true, value: 1416 });
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 1416, top: 0, bottom: 28, width: 1416, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')]
+    .forEach((group, index) => {
+      const left = index === 0 ? 320 : 784;
+      group.getBoundingClientRect = () => ({
+        left, right: left + 464, top: 0, bottom: 28, width: 464, height: 28,
+        x: left, y: 0, toJSON: () => undefined,
+      });
+    });
+
+  act(() => notifyResize?.());
+
+  const groups = [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')];
+  expect(groups).toHaveLength(3);
+  expect(groups[0]).toHaveStyle('--fleet-ticker-start-x: 320px');
+  expect(groups[2]).toHaveStyle('--fleet-ticker-start-x: 1248px');
+});
+it('rebases changed painted width with a negative delay that preserves the current tail position', () => {
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const { container } = render(<FleetTicker message={{
+    id: 'font-remeasure', text: 'SNN // FONT READY', tone: 'normal',
+  }} />);
+  const frame = container.querySelector<HTMLElement>('.fleet-ticker__window')!;
+  frame.getBoundingClientRect = () => ({
+    left: 0, right: 1000, top: 0, bottom: 28, width: 1000, height: 28,
+    x: 0, y: 0, toJSON: () => undefined,
+  });
+  [...container.querySelectorAll<HTMLElement>('.fleet-ticker__group')]
+    .forEach((group, index) => {
+      const left = index === 0 ? 100 : 350;
+      group.getBoundingClientRect = () => ({
+        left, right: left + 250, top: 0, bottom: 28, width: 250, height: 28,
+        x: left, y: 0, toJSON: () => undefined,
+      });
+    });
+
+  act(() => notifyResize?.());
+
+  const first = container.querySelector<HTMLElement>('.fleet-ticker__group')!;
+  expect(first).toHaveStyle('--fleet-ticker-group-width: 250px');
+  expect(Number.parseFloat(first.style.getPropertyValue('--fleet-ticker-delay'))).toBeLessThan(0);
 });
 it('plays a finite replacement for exactly its configured passes', () => {
   const view = render(<FleetTicker message={cancelled} />);

@@ -4111,6 +4111,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "652a -> 652",
+      "id": "E-AUDIT-652A",
+      "language": "Prompt 652a closes the painted-tail repair: moving groups wait for document fonts before measuring, observe frame and hidden copy probes through ResizeObserver, rebase changed painted widths with a delay that preserves the current linear position, extend repeating tails across widened frames, and prove the final painted bounds exit before cleanup. Focused tests cover resize tail extension and font-width rebasing; Chrome CDP evidence covers all four required viewports, reduced motion, narrow-to-wide resize, late font-width change without overlap, and the painted exit boundary.",
+      "source": "src/components/FleetTicker.tsx; src/components/FleetTicker.test.tsx; src/components/fleetTicker.css; Chrome CDP matrix /tmp/p652a-geometry/geometry.json",
+      "type": "hard_prompt"
+    },
+    {
       "direction": "656 -> 034;050",
       "id": "E-AUDIT-656",
       "language": "Launcher routing consumes session resume and established return paths.",
@@ -20790,8 +20797,8 @@
         "acceptance": "restore `a91a020`'s continuous visible-tail baseline so a Red Alert group keeps every glyph, including its final painted bounds, fully visible until actually outside the viewport; audit `080457e` and later measured-copy/window geometry before changing code. Replacement, dismissal, stand-down, font load, resize/rotation, and authoritative P106c updates cannot cause nested clipping, fade, truncation, early unmount, remeasurement jump, or overlap. Preserve one constant linear speed, discard only unentered repetitions, announce each identity once, provide a readable reduced-motion equivalent, and prove exact boundary geometry at 320×844, 390×844, 1440×900, and 844×390.",
         "title": "Keep every moving ticker glyph visible through its real exit."
       },
-      "description": "Future ticker regression repair: restore `a91a020`'s continuous-tail baseline so every Red Alert glyph stays fully visible until its painted bounds are outside the viewport. Audit `080457e` and later geometry without reverting unrelated header work; prohibit clipping, fade, truncation, early unmount, remeasurement jump, and overlap across replacement/stand-down/font-load/resize/rotation, with single announcement and reduced-motion proof.",
-      "evidenceIds": "E-TICKER",
+      "description": "FleetTicker now waits for document fonts before measuring moving copy, observes the frame and per-message probes through ResizeObserver, rebases changed painted widths with a delay that preserves each group’s current linear position, and extends repeating tails across widened or rotated frames without overlap. The focused lifecycle tests and Chrome CDP evidence prove replacement/queue continuity, reduced-motion readability, late font-width remeasurement, exact phone/desktop/short-landscape geometry, and the final painted bounds crossing the viewport before cleanup.",
+      "evidenceIds": "E-TICKER;E-AUDIT-652A",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "106c;652",
@@ -20799,10 +20806,12 @@
       "milestoneHints": "none",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.50"
+      ],
       "section": "Accessibility, resilience, security, capacity, and release proof (Prompts 601–651)",
       "sequenceRules": "TICKER-LIFECYCLE",
-      "status": "missing",
+      "status": "done",
       "tag": "REPAIR"
     },
     {

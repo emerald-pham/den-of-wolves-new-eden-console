@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['652a'],
+    implementationProgress: {
+      completed: 130,
+      total: 747,
+      percentage: '17.40%',
+      done: 130,
+      partial: 6,
+      active: 0,
+      missing: 611,
+    },
+    changes: [
+      'Fleet broadcasts now keep every moving glyph visible through its painted exit, including after a resize or font update, while repeating copy extends smoothly across a wider frame without overlap. Reduced-motion screens keep one readable announcement surface. 130 of 747 planned items are complete (17.40%).',
+    ],
+  },
+  {
+    version: '0.3.49',
     implementationPrompts: ['652'],
     implementationProgress: {
       completed: 128,
@@ -29,7 +45,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
       done: 128,
       partial: 6,
       active: 0,
-      missing: 614,
+      missing: 613,
     },
     changes: [
       'Fleet broadcasts now keep each queued message on its own measured lane, so rapid updates do not duplicate or overlap moving copy while urgent notices retain their priority. Reduced-motion screens keep one readable announcement surface. 128 of 747 planned items are complete (17.14%).',

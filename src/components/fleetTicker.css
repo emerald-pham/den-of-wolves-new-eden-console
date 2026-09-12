@@ -3,7 +3,7 @@
 .fleet-ticker__window { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; min-block-size: 1.75rem; overflow: hidden; isolation: isolate; }
 .fleet-ticker__message { margin: 0; overflow: hidden; color: inherit; font: 0.72rem/1.35 var(--cic-mono); letter-spacing: 0.1em; text-overflow: clip; text-transform: uppercase; white-space: nowrap; }
 .fleet-ticker__track { position: absolute; inset: 0; overflow: visible; }
-.fleet-ticker__group { position: absolute; inset-block: 0; inset-inline-start: 0; display: flex; align-items: center; width: max-content; min-block-size: 100%; color: var(--cic-ink); animation: fleet-broadcast-pass var(--fleet-ticker-duration) linear forwards; will-change: transform; }
+.fleet-ticker__group { position: absolute; inset-block: 0; inset-inline-start: 0; display: flex; align-items: center; width: max-content; min-block-size: 100%; color: var(--cic-ink); animation: fleet-broadcast-pass var(--fleet-ticker-duration) linear forwards; animation-delay: var(--fleet-ticker-delay, 0s); will-change: transform; }
 .fleet-ticker__copy { display: block; flex: 0 0 var(--fleet-ticker-copy-width, max-content); min-inline-size: max-content; white-space: nowrap; font: 0.72rem/1.35 var(--cic-mono); letter-spacing: 0.1em; text-transform: uppercase; }
 .fleet-ticker__separator { display: inline-block; padding-inline: 1.4rem; color: var(--cic-amber); }
 .fleet-ticker__group[data-gap='long'] .fleet-ticker__separator,
