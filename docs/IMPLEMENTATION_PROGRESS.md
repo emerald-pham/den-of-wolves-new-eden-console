@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**106 / 746 prompts complete (14.21%)**
+**107 / 746 prompts complete (14.34%)**
 
-Status breakdown: **106 done · 15 partial · 625 missing**.
+Status breakdown: **107 done · 14 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -480,7 +480,7 @@ release classification and evidence.
 | 066 | done | feature | 0.3.5 | Reciprocal Friend secret records and privacy test. |
 | 067 | done | feature | 0.3.5 | Android self-disclosure callable and denial test. |
 | 068 | done | feature | 0.3.39 | Server-owned start composition derives every represented shuttle and fighter wing from the locked printed-role roster, validates the manifest before start, and exposes only each holder's active craft in their private role brief. |
-| 069 | partial | non-feature | — | Population/resource catalogs exist; one start initializer is still open. |
+| 069 | done | non-feature | 0.3.35 | Prompt 058's create/confirm composition initializes exact active-vessel survivor/resource maps, preserves deliberate lobby edits on reconfiguration, seeds newly active vessels, and filters removed vessels; startGame locks the prepared state without resetting stores. |
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |
 | 073 | done | feature | 0.3.5, 0.3.12 | Version 0.3.12 closes the singular/exclusive responsibility model: one active GM represents both printed labels, optional GMs may share or hand off lanes, and legacy singular data normalizes deterministically. Revisioned responsibility mutation and replay/audit evidence are covered; former Prompt 071 readiness evidence remains historical while Prompt 654 is the queued repair for zero/partial-occupancy start. |

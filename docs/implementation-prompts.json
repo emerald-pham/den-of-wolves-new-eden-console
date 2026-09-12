@@ -294,6 +294,13 @@
       "language": "Planning prerequisites for realistic implementation order, not commit, merge, push, or deployment gates. Blind jumps consume a canonical graph and locked chart, authoritative per-ship origin, working independent ship jump execution, retry-safe committed outcomes, and the per-ship knowledge boundary for undiscovered destinations.",
       "source": "Owner clarification - written hard prerequisites without Git or CI enforcement, 2026-09-11",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "058 -> 069",
+      "id": "E-069-START",
+      "language": "Prompt 058's initialSessionComposition feeds atomic createSession initialization and confirmSetup reconciliation: active vessels receive exact server survivor/resource catalogs, newly active vessels are seeded, removed vessels are filtered, and existing active lobby values are preserved. startGame locks the prepared state without resetting stores. Focused resources, population, create-session, and session-composition tests cover the printed base and expansion values plus these transitions.",
+      "source": "functions/src/sessionComposition.ts; functions/src/index.ts; functions/src/resources.test.ts; functions/src/shipPopulation.test.ts; functions/src/createSessionCallable.test.ts; functions/src/sessionComposition.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -1974,8 +1981,8 @@
         "acceptance": "active vessels receive exact printed survivors, ore, fuel, food, water, materials, and expansion Scrap.",
         "title": "Initialize vessel populations and stores."
       },
-      "description": "Population/resource catalogs exist; one start initializer is still open.",
-      "evidenceIds": "none",
+      "description": "Prompt 058's create/confirm composition initializes exact active-vessel survivor/resource maps, preserves deliberate lobby edits on reconfiguration, seeds newly active vessels, and filters removed vessels; startGame locks the prepared state without resetting stores.",
+      "evidenceIds": "E-069-START",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -1983,10 +1990,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.35"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
