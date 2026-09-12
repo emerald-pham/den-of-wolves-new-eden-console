@@ -1189,6 +1189,67 @@ describe('GM instance commands', () => {
     expect(useSessionStore.getState().session?.turnState).toBeUndefined();
   });
 
+  it('clears a prior turn entity when an accepted reply omits or malforms its phase', async () => {
+    const priorTurnState = {
+      currentTurn: 1,
+      maxTurn: 7 as const,
+      phase: 'team' as const,
+      phaseRevision: 1,
+      startedAt: '2026-01-01T00:00:00.000Z',
+      endsAt: '2026-01-01T00:05:00.000Z',
+    };
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    useSessionStore.getState().setSession({
+      ...session,
+      currentTurn: 1,
+      turnLimit: 7,
+      turnState: priorTurnState,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        currentTurn: 2,
+        turnState: {
+          ...priorTurnState,
+          currentTurn: 2,
+          phaseRevision: 2,
+        },
+      },
+    }));
+
+    await advanceTurn();
+
+    expect(useSessionStore.getState().session?.currentTurn).toBe(2);
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+
+    useSessionStore.getState().setSession({
+      ...useSessionStore.getState().session!,
+      turnState: priorTurnState,
+    });
+    vi.mocked(httpsCallable).mockReturnValue(callableReturning({
+      data: {
+        currentTurn: 2,
+        turnPhase: {
+          turn: 2,
+          teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'restricted', tickerActive: true },
+        },
+        turnState: {
+          ...priorTurnState,
+          currentTurn: 2,
+          phaseRevision: 2,
+        },
+      },
+    }));
+
+    await advanceTurn();
+
+    expect(useSessionStore.getState().session?.turnState).toBeUndefined();
+  });
+
   it('skips the Turn 1 fullscreen transmission and clears stale announcement state', async () => {
     useSessionStore.getState().setGmInstance({
       id: 'instance-1', sessionId: 's1', uid: 'u1', name: 'Bridge laptop',

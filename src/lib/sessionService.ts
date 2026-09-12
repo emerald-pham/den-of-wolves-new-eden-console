@@ -1613,6 +1613,10 @@ function applyTurnAdvanceReply(
       : {}),
   };
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
+  // An accepted transition with no valid phase must not carry an entity from
+  // the previous turn forward. A valid phase below replaces this projection
+  // with the context-checked reply entity when one is present.
+  delete nextSession.turnState;
   useSessionStore.getState().setSession(
     phaseClock ? replaceTurnStateOnPhase(nextSession, phaseClock, turnState) : nextSession,
   );
