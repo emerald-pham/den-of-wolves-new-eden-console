@@ -133,6 +133,12 @@ service cloud.firestore {
         }
       }
 
+      // Mission decks contain the authoritative shuffled order. They are
+      // server-only state, including from connected GM devices.
+      match /serverState/{document=**} {
+        allow read, write: if false;
+      }
+
       match /events/{eventId} {
         allow get, list: if isMember(sessionId);
         allow write: if false;

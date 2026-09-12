@@ -149,6 +149,12 @@ import {
   isPresenceStale,
 } from './sessionLifecycle';
 import { SHIP_DAMAGE_DECKS, drawShipDamage, shipDamage } from './shipDamage';
+import {
+  missionDeckStateFromCards,
+  parseMissionDeckState,
+  shuffledMissionDeck,
+  type MissionDeckState,
+} from './missionDeck';
 import { atomicStartState } from './startState';
 import {
   fighterWingCapacity,
@@ -2577,6 +2583,7 @@ export const startGame = onCall<{
   const seatsRef = db.collection(`sessions/${start.sessionId}/seats`);
   const secretsRef = db.collection(`sessions/${start.sessionId}/secrets`);
   const censusRef = db.doc(`sessions/${start.sessionId}/loyaltyCensus/current`);
+  const missionDeckRef = db.doc(`sessions/${start.sessionId}/serverState/missionDeck`);
   const craftOwnershipManifestRef = db.doc(`sessions/${start.sessionId}/craftOwnership/manifest`);
   const markerFingerprint: CommandFingerprint = {
     action: 'start-game',
@@ -2587,9 +2594,12 @@ export const startGame = onCall<{
     expectedRevision: start.expectedSetupRevision,
     payload: {},
   };
+  // Keep one candidate for the whole transaction invocation. Firestore may
+  // retry a transaction callback; retries must not manufacture a new order.
+  let candidateMissionDeck: MissionDeckState | undefined;
 
   return db.runTransaction(async (tx) => {
-    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census] = await Promise.all([
+    const [prior, marker, authority, players, instances, seats, secrets, legacyEvent, craftOwnershipManifest, census, missionDeckSnapshot] = await Promise.all([
       tx.get(startRequestRef),
       tx.get(markerRef),
       requireFacilitatorInstance(tx, start.sessionId, uid, start.instanceId),
@@ -2600,6 +2610,7 @@ export const startGame = onCall<{
       tx.get(eventRef),
       tx.get(craftOwnershipManifestRef),
       tx.get(censusRef),
+      tx.get(missionDeckRef),
     ]);
     await rejectForeignLegacyM1Command(
       tx, start.sessionId, start.requestId, 'start', [startRequestRef.path, eventRef.path],
@@ -2641,6 +2652,12 @@ export const startGame = onCall<{
       });
       tx.set(markerRef, { fingerprint: markerFingerprint, result: reply, createdAt: FieldValue.serverTimestamp() });
       return reply;
+    }
+    const persistedMissionDeck = missionDeckSnapshot.exists
+      ? parseMissionDeckState(missionDeckSnapshot.data())
+      : null;
+    if (missionDeckSnapshot.exists && !persistedMissionDeck) {
+      throw commandError('failed-precondition', 'Start blocked: mission-deck.', 'conflict');
     }
     requireCastingWindow(authority.session);
     const persistedActiveRoleIds = authority.session.get('activeRoleIds');
@@ -2810,6 +2827,12 @@ export const startGame = onCall<{
       loyaltySource = 'explicit-preserved';
     }
 
+    // Do not draw randomness until every start precondition has passed. The
+    // candidate is still shared across callback retries and only the first
+    // successful transaction persists it.
+    const missionDeckState = persistedMissionDeck ?? (candidateMissionDeck ??=
+      missionDeckStateFromCards(shuffledMissionDeck()));
+
     const committedSetupRevision = start.expectedSetupRevision + 1;
     const gmUids = [...new Set(effectiveLiveGmInstances
       .map((instance) => instance.uid))];
@@ -2895,6 +2918,12 @@ export const startGame = onCall<{
         setupRevision: committedSetupRevision,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (!persistedMissionDeck) {
+      tx.set(missionDeckRef, {
+        ...missionDeckState,
+        createdAt: FieldValue.serverTimestamp(),
       });
     }
 

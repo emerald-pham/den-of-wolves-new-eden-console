@@ -757,6 +757,26 @@ it('denies connected member reads and listing of the server-owned craft manifest
   await assertFails(getDocs(collection(db, SESSION + '/craftOwnership')));
 });
 
+it('keeps the authoritative mission deck server-only, including from GMs', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `${SESSION}/serverState/missionDeck`), {
+      schemaVersion: 1,
+      deckId: 'away-mission-v1',
+      order: ['A♥'],
+    });
+  });
+
+  for (const uid of ['alice', 'gm1']) {
+    const db = as(uid);
+    const deck = doc(db, `${SESSION}/serverState/missionDeck`);
+    await assertFails(getDoc(deck));
+    await assertFails(setDoc(deck, { forged: true }));
+    await assertFails(updateDoc(deck, { forged: true }));
+    await assertFails(deleteDoc(deck));
+    await assertFails(getDocs(collection(db, `${SESSION}/serverState`)));
+  }
+});
+
 describe('complete server-owned denial matrix', () => {
   it('denies direct lifecycle and retention changes from both players and GMs', async () => {
     for (const uid of ['alice', 'gm1']) {

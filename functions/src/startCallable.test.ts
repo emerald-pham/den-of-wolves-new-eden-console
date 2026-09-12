@@ -20,9 +20,11 @@ const mock = vi.hoisted(() => ({
   secretPayloads: {} as Record<string, Record<string, unknown>>,
   secretAudiences: {} as Record<string, readonly string[]>,
   craftOwnershipManifest: undefined as Record<string, unknown> | null | undefined,
+  missionDeckState: undefined as Record<string, unknown> | undefined,
   priorReply: undefined as unknown,
   priorFingerprint: undefined as unknown,
   legacyNamespacePaths: new Set<string>(),
+  transactionRetries: 0,
   randomInt: vi.fn(() => 0),
 }));
 
@@ -39,12 +41,15 @@ vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => ({
     doc: (path: string) => ({ path, id: path.split('/').at(-1) }),
     collection: (path: string) => ({ path }),
-    runTransaction: (callback: (tx: unknown) => unknown) => callback({
-      get: mock.get,
-      update: mock.update,
-      set: mock.set,
-      delete: vi.fn(),
-    }),
+    runTransaction: async (callback: (tx: unknown) => unknown) => {
+      const transaction = { get: mock.get, update: mock.update, set: mock.set, delete: vi.fn() };
+      let result = await callback(transaction);
+      while (mock.transactionRetries > 0) {
+        mock.transactionRetries -= 1;
+        result = await callback(transaction);
+      }
+      return result;
+    },
   }),
   FieldValue: { delete: () => 'delete-field', serverTimestamp: () => 'server-time' },
 }));
@@ -55,6 +60,7 @@ vi.mock('node:crypto', () => ({
 
 import { setFacilitatorResponsibility, startGame } from './index';
 import { activeVesselIdsForRoles, stableSeatsForRoles } from './gameSetup';
+import { missionDeck, missionDeckStateFromCards } from './missionDeck';
 import { recommendedRoleIds } from './roleConfiguration';
 
 const PRIVATE_SNAPSHOT_KEYS = new Set([
@@ -178,7 +184,9 @@ beforeEach(() => {
   mock.priorReply = undefined;
   mock.priorFingerprint = undefined;
   mock.craftOwnershipManifest = undefined;
+  mock.missionDeckState = undefined;
   mock.legacyNamespacePaths.clear();
+  mock.transactionRetries = 0;
   mock.randomInt.mockClear();
   mock.secretPayloads = {};
   mock.secretAudiences = {};
@@ -235,6 +243,11 @@ beforeEach(() => {
       return mock.craftOwnershipManifest === undefined
         ? snapshot({}, ref.path, false)
         : snapshot(mock.craftOwnershipManifest ?? {}, ref.path);
+    }
+    if (ref.path === 'sessions/s1/serverState/missionDeck') {
+      return mock.missionDeckState === undefined
+        ? snapshot({}, ref.path, false)
+        : snapshot(mock.missionDeckState, ref.path);
     }
     if (mock.legacyNamespacePaths.has(ref.path)) return snapshot({ legacy: true }, ref.path);
     if (ref.path === 'sessions/s1/players') {
@@ -505,6 +518,7 @@ it('returns the original result as replayed without repeating start writes', asy
   }));
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('replays a stored stale start disposition as stale, never as committed', async () => {
@@ -957,9 +971,10 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
 });
 
 it('writes private automatic loyalties and a safe setup receipt in the same committed start', async () => {
-  await expect(startGame.run(request({
+  const reply = await startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-receipt', expectedSetupRevision: 0,
-  }))).resolves.toMatchObject({
+  }));
+  expect(reply).toMatchObject({
     status: 'committed',
     setupReceipt: expect.objectContaining({
       source: expect.any(String),
@@ -985,6 +1000,60 @@ it('writes private automatic loyalties and a safe setup receipt in the same comm
   expect(censusWrite.entries[0]).not.toHaveProperty('partnerUid');
   expect(censusWrite.entries[0]).not.toHaveProperty('brief');
   expect(censusWrite.entries[0]).not.toHaveProperty('notes');
+
+  const missionDeckWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/serverState/missionDeck',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(missionDeckWrite?.schemaVersion).toBe(1);
+  expect(missionDeckWrite?.deckId).toBe('away-mission-v1');
+  expect(missionDeckWrite?.order).toHaveLength(33);
+  expect(new Set(missionDeckWrite?.order as string[]).size).toBe(33);
+  expect(reply.setupReceipt).not.toHaveProperty('missionDeck');
+  expect(reply.setupReceipt).not.toHaveProperty('deckOrder');
+  const eventWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/events/start-start-receipt',
+  )?.[1] as Record<string, unknown> | undefined;
+  expect(eventWrite).not.toHaveProperty('deckOrder');
+});
+
+it('reuses a valid persisted mission deck without replacing its immutable order', async () => {
+  const existing = missionDeckStateFromCards([...missionDeck()].reverse());
+  mock.missionDeckState = existing;
+
+  const reply = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-existing-deck', expectedSetupRevision: 0,
+  }));
+
+  expect(reply).toMatchObject({ status: 'committed' });
+  expect(mock.set.mock.calls.some(([ref]) => ref.path === 'sessions/s1/serverState/missionDeck')).toBe(false);
+});
+
+it('retains one mission-deck order across a transaction callback retry', async () => {
+  mock.transactionRetries = 1;
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-retry-deck', expectedSetupRevision: 0,
+  }))).resolves.toMatchObject({ status: 'committed' });
+
+  const deckWrites = mock.set.mock.calls
+    .filter(([ref]) => ref.path === 'sessions/s1/serverState/missionDeck')
+    .map(([, value]) => value.order);
+  expect(deckWrites).toHaveLength(2);
+  expect(deckWrites[1]).toEqual(deckWrites[0]);
+});
+
+it('fails closed on malformed server mission-deck state before any start write', async () => {
+  mock.missionDeckState = { schemaVersion: 1, deckId: 'away-mission-v1', order: ['forged-card'] };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-invalid-deck', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/mission-deck/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
 });
 
 it('does not embed a release version in the server setup receipt', async () => {
