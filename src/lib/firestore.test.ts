@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { recommendedRoleIds } from '@/data/rolePresets';
+import { activeFleetShipIds } from '@/data/roles';
 import { useSessionStore } from '@/store/useSessionStore';
 import type { GameSession, SessionEvent } from '@/types/game';
 import { projectShipState } from './shipStateProjection';
@@ -316,7 +317,7 @@ it('does not carry malformed IDs from an untrusted session snapshot', () => {
   });
 
   expect(session.activeRoleIds).toEqual([]);
-  expect(session.activeVesselIds).toBeUndefined();
+  expect(session.activeVesselIds).toEqual([]);
   expect(session.ownerUid).toBeUndefined();
   expect(session.shipNavigationLogs?.aegis).toEqual([
     expect.objectContaining({ id: 'jump-1', shipId: 'aegis' }),
@@ -329,6 +330,32 @@ it('does not carry malformed IDs from an untrusted session snapshot', () => {
   expect(session.shuttleVisitLog).not.toEqual(expect.arrayContaining([
     expect.objectContaining({ id: 'events/visit-1' }),
   ]));
+});
+
+it('fails closed for malformed canonical vessels while preserving absent legacy fallback', () => {
+  const malformedOnly = sessionFrom('malformed-vessels-only', {
+    ...sessionData(20),
+    activeVesselIds: ['vessels/aegis'],
+  });
+  const mixedMalformed = sessionFrom('mixed-malformed-vessels', {
+    ...sessionData(20),
+    activeVesselIds: ['aegis', 'vessels/capybara'],
+  });
+  const nonArray = sessionFrom('non-array-vessels', {
+    ...sessionData(20),
+    activeVesselIds: { capybara: true },
+  });
+  const legacyAbsent = sessionFrom('legacy-absent-vessels', sessionData(20));
+
+  expect(malformedOnly.activeVesselIds).toEqual([]);
+  expect(mixedMalformed.activeVesselIds).toEqual([]);
+  expect(nonArray.activeVesselIds).toEqual([]);
+  expect(legacyAbsent.activeVesselIds).toBeUndefined();
+  expect(activeFleetShipIds(malformedOnly.activeRoleIds, malformedOnly.activeVesselIds)).toEqual([]);
+  expect(activeFleetShipIds(mixedMalformed.activeRoleIds, mixedMalformed.activeVesselIds)).toEqual([]);
+  expect(activeFleetShipIds(nonArray.activeRoleIds, nonArray.activeVesselIds)).toEqual([]);
+  expect(activeFleetShipIds(legacyAbsent.activeRoleIds, legacyAbsent.activeVesselIds))
+    .toContain('capybara');
 });
 
 it('adds missing legacy SNN state without replacing stored docking or visit history', () => {

@@ -714,13 +714,16 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
   const storedRoleIds = parseEntityIdArray('role', data.activeRoleIds);
   const storedVesselIds = parseEntityIdArray('vessel', data.activeVesselIds);
   const hasStoredRoleIds = Array.isArray(data.activeRoleIds);
-  const hasStoredVesselIds = Array.isArray(data.activeVesselIds);
+  // Preserve the distinction between an absent legacy field and a present,
+  // malformed canonical field. A malformed canonical roster must fail closed
+  // instead of widening back to role-derived ship access.
+  const hasStoredVesselIds = Object.hasOwn(data, 'activeVesselIds');
   const hasActiveRoleIds = hasStoredRoleIds || Boolean(setup);
   const activeRoleIds = hasStoredRoleIds
     ? storedRoleIds ?? []
     : setup?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const activeVesselIds = setup?.activeVesselIds ?? (
-    hasStoredVesselIds ? storedVesselIds : undefined
+    hasStoredVesselIds ? storedVesselIds ?? [] : undefined
   );
   const storedDockings = Array.isArray(data.shuttleDockings)
     ? data.shuttleDockings.map(shuttleDocking).filter((docking): docking is ShuttleDocking => docking !== undefined)
@@ -760,7 +763,7 @@ export function sessionFrom(id: string, data: DocumentData): GameSession {
     ...(Number.isSafeInteger(data.setupRevision) && data.setupRevision >= 0
       ? { setupRevision: data.setupRevision as number } : {}),
     ...(setup ? { setup, activeVesselIds: [...setup.activeVesselIds] } :
-      activeVesselIds ? { activeVesselIds: [...activeVesselIds] } : {}),
+      activeVesselIds !== undefined ? { activeVesselIds: [...activeVesselIds] } : {}),
     ...(announcement ? { turnStartAnnouncement: announcement } : {}),
     ...(phaseClock ? { turnPhase: phaseClock } : {}),
     ...(turnState ? { turnState } : {}),
