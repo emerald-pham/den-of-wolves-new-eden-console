@@ -67,7 +67,7 @@ describe('read-only dependency lookup', () => {
     const fixture = fixtureCatalog();
     expect(validatePromptCatalog(fixture)).toEqual([]);
     const dispatch = buildPromptDispatch(fixture);
-    expect(dispatch.readyQueue.map(({ prompt }) => prompt)).toContain('002');
+    expect(dispatch.readyQueue.map(({ prompt }) => prompt)).toEqual(['002']);
     const blocked = dispatch.blocked.find(({ prompt }) => prompt === '003');
     expect((blocked?.reasons as string[] | undefined)?.join(' ')).toMatch(/002=partial/);
     expect(dispatch.needsConfirmation.map(({ prompt }) => prompt)).toContain('004');
@@ -97,6 +97,7 @@ describe('read-only dependency lookup', () => {
     expect(packet.selected.status).toBe('missing');
     const prerequisites = packet.selected.prerequisites as Array<{ id: string; status: string }>;
     expect(prerequisites.some(({ id, status }) => id === '075' && status === 'partial')).toBe(true);
-    expect(packet.next).toBe('064');
+    expect(packet.next).toBe(packet.readyQueue[0]?.prompt ?? null);
+    expect(packet.readyQueue.some(({ prompt }) => prompt === packet.selected.prompt)).toBe(false);
   });
 });
