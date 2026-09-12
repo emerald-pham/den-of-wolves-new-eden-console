@@ -3980,9 +3980,10 @@ export const claimGmInstance = onCall<{
   );
   const playersRef = db.collection(`sessions/${claim.sessionId}/players`);
   const secretsRef = db.collection(`sessions/${claim.sessionId}/secrets`);
+  const wolfSecretRef = db.doc(`sessions/${claim.sessionId}/secrets/wolf-assignment`);
   const censusRef = db.doc(`sessions/${claim.sessionId}/loyaltyCensus/current`);
   await db.runTransaction(async (tx) => {
-    const [access, session, player, existing, activeInstances, players, secrets, census] = await Promise.all([
+    const [access, session, player, existing, activeInstances, players, secrets, wolfSecret, census] = await Promise.all([
       tx.get(accessRef),
       tx.get(sessionRef),
       tx.get(playerRef),
@@ -3990,6 +3991,7 @@ export const claimGmInstance = onCall<{
       tx.get(instancesRef),
       tx.get(playersRef),
       tx.get(secretsRef),
+      tx.get(wolfSecretRef),
       tx.get(censusRef),
     ]);
     if (!access.exists || !isGmAccessActive(access.get('authenticatedAt'))) {
@@ -4008,6 +4010,15 @@ export const claimGmInstance = onCall<{
     }
     if (existing.exists && existing.get('uid') !== uid) {
       throw new HttpsError('already-exists', 'That GM instance identifier is already in use.');
+    }
+    const visibleToUids = wolfSecret.exists ? wolfSecret.get('visibleToUids') : undefined;
+    if (
+      wolfSecret.exists &&
+      Array.isArray(visibleToUids) &&
+      visibleToUids.every((candidate): candidate is string => typeof candidate === 'string') &&
+      !visibleToUids.includes(uid)
+    ) {
+      tx.update(wolfSecretRef, { visibleToUids: [...visibleToUids, uid] });
     }
     const firstActiveGm = activeInstances.docs.length === 0;
     tx.set(instanceRef, {

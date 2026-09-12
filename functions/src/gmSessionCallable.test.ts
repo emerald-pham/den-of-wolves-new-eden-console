@@ -438,6 +438,27 @@ describe('GM instance ownership', () => {
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
   });
 
+  it('adds a post-start GM to the existing Wolf assignment audience without replacing its secret', async () => {
+    session({ phase: 'active', currentTurn: 1 });
+    player('u1');
+    put('sessions/s1/secrets/wolf-assignment', {
+      visibleToUids: ['u2'],
+      payload: { type: 'wolf-assignment', roleIds: ['admiral'] },
+      createdAt: 'start-time',
+    });
+    await login();
+
+    await expect(claimGmInstance.run(request({
+      sessionId: 's1', instanceId: 'bridge', name: 'Bridge laptop', deviceLabel: 'Test browser',
+    }))).resolves.toMatchObject({ instance: { id: 'bridge', uid: 'u1' } });
+
+    expect(read('sessions/s1/secrets/wolf-assignment')).toEqual({
+      visibleToUids: ['u2', 'u1'],
+      payload: { type: 'wolf-assignment', roleIds: ['admiral'] },
+      createdAt: 'start-time',
+    });
+  });
+
   it.each([
     ['a core seat pointer', { seatId: 'admiral' }],
     ['a core assigned role', { assignedRoleId: 'admiral' }],
@@ -482,6 +503,10 @@ describe('GM instance ownership', () => {
   it('rejects a GM claim when this browser has not logged in', async () => {
     session();
     player('u1');
+    put('sessions/s1/secrets/wolf-assignment', {
+      visibleToUids: ['u2'],
+      payload: { type: 'wolf-assignment', roleIds: ['admiral'] },
+    });
 
     await expect(claimGmInstance.run(request({
       sessionId: 's1',
@@ -492,6 +517,7 @@ describe('GM instance ownership', () => {
 
     expect(read('sessions/s1/gmInstances/bridge')).toBeUndefined();
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'player' });
+    expect(read('sessions/s1/secrets/wolf-assignment')).toMatchObject({ visibleToUids: ['u2'] });
   });
 
   it('rejects a GM claim after the remembered access window expires', async () => {
