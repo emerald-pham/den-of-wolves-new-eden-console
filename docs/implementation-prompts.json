@@ -4319,6 +4319,20 @@
       "language": "Both hull cards carry the recycle rule and the common damage callable preserves survivors for either hull. The last-card branch does not recycle; the following empty-deck draw destroys the vessel. 34 damage helper/callable tests passed, including both production hull cases and transaction-retry audit stability. Documentation verification only.",
       "source": "functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/shipDamageCallable.test.ts; functions/src/index.ts (addShipDamage); functions/src/maintenance.ts (riot)",
       "type": "evidence"
+    },
+    {
+      "direction": "595",
+      "id": "E-595-VERIFIED",
+      "language": "Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change. The focused version and AppHeader suite passed 42 tests. This is source and test evidence, not a new rendered-device or deployment claim.",
+      "source": "src/version.ts; src/version.test.ts; src/components/AppHeader.tsx; src/components/AppHeader.test.tsx",
+      "type": "evidence"
+    },
+    {
+      "direction": "596",
+      "id": "E-596-VERIFIED",
+      "language": "Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change. The focused version and AppHeader suite passed 42 tests. This is source and test evidence, not a new rendered-device or deployment claim.",
+      "source": "src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/index.css (settings-changelog__entries); src/changelog.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -19523,8 +19537,8 @@
         "acceptance": "Settings reads runtime package metadata and never carries a handwritten version.",
         "title": "Display the derived application version."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Settings renders APP_VERSION from the shared version module, which imports package metadata. Existing version and Settings tests verify the displayed release reference without handwritten version constants. Documentation verification only; no runtime change.",
+      "evidenceIds": "E-595-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -19535,7 +19549,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -19546,8 +19560,8 @@
         "acceptance": "newest player-facing entry appears first in an independently scrollable accessible region.",
         "title": "Display bounded changelog history."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Settings exposes changelog entries in a named, keyboard-focusable region with bounded viewport-relative height, independent vertical scrolling and contained overscroll. Existing Settings tests verify opening, accessible region and scroll styles. All 148 entries were verified strictly newest-first at version 0.3.57. Documentation verification only; no runtime change.",
+      "evidenceIds": "E-596-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -19558,7 +19572,7 @@
       "releases": [],
       "section": "Onboarding, help, settings, and operational truth (Prompts 586–600)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
