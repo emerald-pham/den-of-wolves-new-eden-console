@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['234'],
+    implementationProgress: {
+      completed: 160,
+      total: 747,
+      percentage: '21.42%',
+      done: 160,
+      partial: 7,
+      active: 0,
+      missing: 580,
+    },
+    changes: [
+      'Facilitators can now dock Gorgoneion, base Capybara, Warrior, and Vulcan with an active fleet host and run their four-step Team maintenance using the host ship’s food and water. The console keeps each small ship’s population and reactor capacity separate, shows when authoritative state is unavailable, and keeps expansion Capybara on its full-ship rules. 160 of 747 planned items are complete (21.42%).',
+    ],
+  },
+  {
+    version: '0.3.57',
     implementationPrompts: ['522'],
     implementationProgress: {
       completed: 159,

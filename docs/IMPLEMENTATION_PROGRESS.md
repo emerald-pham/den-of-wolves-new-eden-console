@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**159 / 747 prompts complete (21.29%)**
+**160 / 747 prompts complete (21.42%)**
 
-Status breakdown: **159 done · 7 partial · 581 missing**.
+Status breakdown: **160 done · 7 partial · 580 missing**.
 
 Active prompt: **none**
 
@@ -667,7 +667,7 @@ release classification and evidence.
 | 233 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 233a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 233b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 234 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 234 | done | feature | 0.3.58 | The authoritative small-ship operations path now admits Gorgoneion, base Capybara, Warrior, and Vulcan to active fleet hosts through a GM-only, revision-safe docking command. Team maintenance runs the four printed steps against only the docked host food and water ledger, keeps server rolls and reactor capacity authoritative, and never draws small-ship damage; malformed, stale, unauthorized, and replayed requests are denied or safely replayed. Join/resume projections expose only the public state, the GM console gives each admitted ship usable docking and maintenance controls with explicit unavailable/reconnect states, expansion Capybara remains a separate full-ship definition, and Team/Wolf-attack boundaries require admitted small ships to remain docked. Focused callable, phase, projection, and browser checks cover the production path. |
 | 234a | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
 | 235 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 236 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

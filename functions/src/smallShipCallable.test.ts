@@ -66,7 +66,9 @@ beforeEach(() => {
     if (path.includes('/players/')) {
       return snapshot({ role: mock.role, connected: mock.connected });
     }
-    if (path.includes('/gmInstances/')) return snapshot({ uid: mock.owner });
+    if (path.includes('/gmInstances/')) {
+      return snapshot({ uid: mock.owner, connected: mock.connected, lastSeenAt: new Date() });
+    }
     return snapshot(mock.session);
   });
 });

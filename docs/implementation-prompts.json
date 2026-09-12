@@ -1341,8 +1341,8 @@
     {
       "direction": "234 -> 161;162;111;141",
       "id": "E-AUDIT-234",
-      "language": "Small-ship rules consume vessel/ledger definitions and normal airspace.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Prompt 234 consumes the registered vessel and resource-ledger contracts and now has server-owned docking, host-store maintenance, public projection, and Team/Wolf-attack boundary evidence.",
+      "source": "functions/src/index.ts; functions/src/smallShip.ts; functions/src/smallShipCallable.test.ts; functions/src/wolfAttackWindowCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/firestore.test.ts; firestore.rules",
       "type": "hard_prompt"
     },
     {
@@ -10336,14 +10336,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "Gorgoneion, base Capybara, Warrior, and Vulcan dock for Team/attack, use host stores, run steps 1–4, and never take ship damage.",
         "title": "Implement shared small-ship rules."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
+      "description": "The authoritative small-ship operations path now admits Gorgoneion, base Capybara, Warrior, and Vulcan to active fleet hosts through a GM-only, revision-safe docking command. Team maintenance runs the four printed steps against only the docked host food and water ledger, keeps server rolls and reactor capacity authoritative, and never draws small-ship damage; malformed, stale, unauthorized, and replayed requests are denied or safely replayed. Join/resume projections expose only the public state, the GM console gives each admitted ship usable docking and maintenance controls with explicit unavailable/reconnect states, expansion Capybara remains a separate full-ship definition, and Team/Wolf-attack boundaries require admitted small ships to remain docked. Focused callable, phase, projection, and browser checks cover the production path.",
       "evidenceIds": "E-AUDIT-234",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -10352,10 +10352,12 @@
       "milestoneHints": "M3;M5;M6",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.58"
+      ],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

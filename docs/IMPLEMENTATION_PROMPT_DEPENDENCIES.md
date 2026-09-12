@@ -352,7 +352,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 233 | NEW | missing | 166 | none | none | none | none | none | none | none | E-AUDIT-233 | M3;M5 | Complete the Refinery 124 Captain workspace. |
 | 233a | NEW | missing | 166;224;361 | none | none | none | none | none | none | none | E-AUDIT-233A | M3;M5 | Complete the Refinery Engineer workspace. |
 | 233b | NEW | missing | 166;224;273 | none | none | none | none | none | none | none | E-AUDIT-233B | M3;M5 | Complete the PDF Colonel workspace. |
-| 234 | EXTEND | missing | 161;162;111;141 | none | none | none | none | none | none | none | E-AUDIT-234 | M3;M5;M6 | Implement shared small-ship rules. |
+| 234 | EXTEND | done | 161;162;111;141 | none | none | none | none | none | none | none | E-AUDIT-234 | M3;M5;M6 | Implement shared small-ship rules. |
 | 234a | DECISION | missing | none | none | none | none | none | none | none | none | none | M3;M5;M6 | Apply the extra-role balance dial. |
 | 235 | EXTEND | missing | 234;161;162 | none | none | none | none | none | none | none | E-AUDIT-235 | M3;M5;M6 | Complete Gorgoneion identity and maintenance. |
 | 236 | NEW | missing | 234;287-304 | none | none | none | none | none | none | none | E-AUDIT-236 | M3;M5;M6 | Resolve the Gorgoneion Jump Drive. |
@@ -1054,7 +1054,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-233 | hard_prompt | 233 -> 166 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Role workspaces consume authoritative role-to-action binding. |
 | E-AUDIT-233A | hard_prompt | 233a -> 166;224;361 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Refinery Engineer actions consume role, vessel, and craft contracts. |
 | E-AUDIT-233B | hard_prompt | 233b -> 166;224;273 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | PDF Colonel workspace consumes role, vessel, and Escort Wing contracts. |
-| E-AUDIT-234 | hard_prompt | 234 -> 161;162;111;141 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship rules consume vessel/ledger definitions and normal airspace. |
+| E-AUDIT-234 | hard_prompt | 234 -> 161;162;111;141 | functions/src/index.ts; functions/src/smallShip.ts; functions/src/smallShipCallable.test.ts; functions/src/wolfAttackWindowCallable.test.ts; functions/src/maintenanceCallable.test.ts; src/components/SmallShipOperations.tsx; src/lib/firestore.test.ts; firestore.rules | Prompt 234 consumes the registered vessel and resource-ledger contracts and now has server-owned docking, host-store maintenance, public projection, and Team/Wolf-attack boundary evidence. |
 | E-AUDIT-235 | hard_prompt | 235 -> 234;161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship identity lanes consume shared small-ship rules and printed vessel data. |
 | E-AUDIT-236 | hard_prompt | 236 -> 234;287-304 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Small-ship jump lanes consume small-ship identity and the common jump contract. |
 | E-AUDIT-237 | hard_prompt | 237 -> 234;402 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Mission support consumes small-ship identity and the mission deck. |
