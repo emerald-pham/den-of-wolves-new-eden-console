@@ -11,8 +11,44 @@ import {
 } from './shuttles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from './roles';
 import { recommendedRoleIds } from './rolePresets';
+import { SHIPS } from './ships';
 
 describe('fleet shuttlebays', () => {
+  it('keeps Maliades launch, durability, repair, and attack registration linked to Dione', () => {
+    const maliades = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'maliades');
+    const dione = SHIPS.find((ship) => ship.id === 'dione');
+
+    expect(maliades).toMatchObject({
+      captainRoleId: 'dione-engineer',
+      launchSystemId: 'fighter-bay',
+      initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
+      operations: [
+        expect.objectContaining({
+          name: 'Damage capacity',
+          phase: 'Team',
+          effect: expect.stringMatching(/up to 3 damage.*3 damage.*destroyed.*fuelled.*1 material per damage/i),
+        }),
+        expect.objectContaining({
+          name: 'Medium range',
+          phase: 'Wolf attack',
+          effect: expect.stringMatching(/\+1 or −1.*1s and 6s wrap.*up to 1 die.*4\+.*1, 2, or 3/i),
+        }),
+        expect.objectContaining({
+          name: 'Short range',
+          phase: 'Wolf attack',
+          effect: expect.stringMatching(/up to 2 dice.*2\+.*different targets.*roll of 1/i),
+        }),
+      ],
+    });
+    expect(dione?.systems).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: maliades?.launchSystemId,
+        timing: 'combat',
+        effect: expect.stringMatching(/while charged.*Maliades.*launched.*damaged.*cannot launch/i),
+      }),
+    ]));
+  });
+
   it('registers every printed shuttlecraft and keeps fighter wings in their ship consoles', () => {
     expect(SHUTTLECRAFT.map((shuttle) => shuttle.id)).toEqual([
       'snn-press-shuttle',

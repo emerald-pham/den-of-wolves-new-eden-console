@@ -286,7 +286,8 @@ it('returns a Press holder to role selection when the GM disables Press', () => 
   expect(screen.queryByRole('heading', { name: /snn.*system news network/i })).not.toBeInTheDocument();
 });
 
-it('opens a printed shipboard shuttle for its owning role without press-only equipment', () => {
+it('opens a printed shipboard shuttle for its owning role and returns by keyboard', async () => {
+  const user = userEvent.setup();
   const state = useSessionStore.getState();
   state.setSession({
     ...state.session!,
@@ -297,7 +298,10 @@ it('opens a printed shipboard shuttle for its owning role without press-only equ
 
   render(
     <MemoryRouter initialEntries={['/shuttles/hummingbird']}>
-      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/quellon/roles/quellon-explorer" element={<p>Quellon Explorer parent</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 
@@ -309,6 +313,53 @@ it('opens a printed shipboard shuttle for its owning role without press-only equ
   expect(screen.getByRole('heading', { name: 'Scout system' })).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Newspaper confetti dispenser' })).not.toBeInTheDocument();
+  const back = screen.getByRole('link', { name: /back to quellon explorer console/i });
+  expect(back).toHaveClass('ship-console__back', 'cic-text-button');
+  expect(back).toHaveAttribute('href', '/ships/quellon/roles/quellon-explorer');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Quellon Explorer parent')).toBeInTheDocument();
+});
+
+it('opens Maliades on its Dione Engineer route and returns by keyboard', async () => {
+  const user = userEvent.setup();
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['dione-engineer'],
+    shuttleDockings: [{ shuttleId: 'maliades', shipId: 'dione', dockedAt: 'SESSION START' }],
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'dione-engineer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/maliades']}>
+      <Routes>
+        <Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} />
+        <Route path="/ships/dione/roles/dione-engineer" element={<p>Dione Engineer parent</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'F.S.F. Maliades' })).toBeInTheDocument();
+  expect(screen.getByText('Engineer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*dione/i,
+  );
+  expect(screen.getByRole('heading', { name: 'Damage capacity' })).toBeInTheDocument();
+  expect(screen.getByText(/up to 3 damage.*destroyed.*fuelled.*1 material per damage/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Medium range' })).toBeInTheDocument();
+  expect(screen.getByText(/1s and 6s wrap.*up to 1 die.*4\+/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Short range' })).toBeInTheDocument();
+  expect(screen.getByText(/up to 2 dice.*2\+.*different targets/i)).toBeInTheDocument();
+  expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
+  const back = screen.getByRole('link', { name: /back to dione engineer console/i });
+  expect(back).toHaveClass('ship-console__back', 'cic-text-button');
+  expect(back).toHaveAttribute('href', '/ships/dione/roles/dione-engineer');
+  back.focus();
+  expect(back).toHaveFocus();
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('Dione Engineer parent')).toBeInTheDocument();
 });
 
 it('opens Starlight on its Wing Commander route with its routed operation envelope', () => {

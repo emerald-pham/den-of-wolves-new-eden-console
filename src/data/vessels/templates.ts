@@ -151,6 +151,8 @@ export interface Shuttlecraft {
   readonly availability: ShuttleAvailability;
   readonly consoleClass?: string;
   readonly mark?: string;
+  /** The ship-system id that controls launch eligibility, when applicable. */
+  readonly launchSystemId?: string;
   readonly capabilities: readonly ShuttleCapability[];
   readonly operations: readonly ShuttleOperation[];
   /** The source-aligned resource IDs a future transfer resolver must allow. */

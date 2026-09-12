@@ -388,7 +388,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 261 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-261 | M3;M5;M6 | Register Pallas completely. |
 | 262 | PRESERVE | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-262 | M3;M5;M6 | Register Fighter Wings Alpha and Bravo. |
 | 263 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-263 | M3;M5;M6 | Register Philia completely. |
-| 264 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-264 | M3;M5;M6 | Register Maliades completely. |
+| 264 | PRESERVE | done | 161;162 | none | none | none | none | none | none | none | E-AUDIT-264 | M3;M5;M6 | Register Maliades completely. |
 | 265 | PRESERVE | missing | 161;162;164 | none | none | none | none | none | none | none | E-AUDIT-265 | M3;M5;M6 | Register Highwall completely. |
 | 266 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-266 | M3;M5;M6 | Register Blacksmith completely. |
 | 267 | PRESERVE | missing | 161;162;165 | none | none | none | none | none | none | none | E-AUDIT-267 | M3;M5;M6 | Register Endeavour completely. |
@@ -1092,7 +1092,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-261 | hard_prompt | 261 -> 161;162 | src/data/vessels/pallas.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; src/data/aegisConsoles.test.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx | Pallas registration preserves its Executive Officer owner, security-team cargo allowlist, AEGIS initial dock, and distinct boarding-support, reroll, and fuelled-relocation procedures; route proof presents the configuration without claiming combat execution. |
 | E-AUDIT-262 | hard_prompt | 262 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Fighter-wing registration consumes vessel, statistics, and console metadata. |
 | E-AUDIT-263 | hard_prompt | 263 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
-| E-AUDIT-264 | hard_prompt | 264 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
+| E-AUDIT-264 | hard_prompt | 264 -> 161;162 | src/data/vessels/maliades.ts; src/data/vessels/templates.ts; src/data/vessels/dione.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; src/routes/ShuttleConsole.test.tsx; authorized routed Maliades derivative | Maliades registration preserves the Dione Engineer owner, Fighter Bay launch linkage, initial dock, durability, repair, target-shift, and attack procedures in the canonical typed vessel catalogs; runtime resolution remains deferred to later prompts. |
 | E-AUDIT-265 | hard_prompt | 265 -> 161;162;164;388 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Highwall registration consumes the canonical vessel/statistics and cargo definitions; its mining action is a later consumer. |
 | E-AUDIT-266 | hard_prompt | 266 -> 161;162 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Craft registration consumes the canonical vessel/statistics definitions. |
 | E-AUDIT-267 | hard_prompt | 267 -> 161;162;165 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Endeavour registration consumes vessel and console metadata. |

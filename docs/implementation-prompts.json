@@ -1607,8 +1607,8 @@
     {
       "direction": "264 -> 161;162",
       "id": "E-AUDIT-264",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Maliades registration preserves the Dione Engineer owner, Fighter Bay launch linkage, initial dock, durability, repair, target-shift, and attack procedures in the canonical typed vessel catalogs; runtime resolution remains deferred to later prompts.",
+      "source": "src/data/vessels/maliades.ts; src/data/vessels/templates.ts; src/data/vessels/dione.ts; src/data/shuttles.ts; src/data/shuttles.test.ts; src/routes/ShuttleConsole.test.tsx; authorized routed Maliades derivative",
       "type": "hard_prompt"
     },
     {
@@ -11270,7 +11270,7 @@
         "acceptance": "its launch, three-damage durability, fuel repair, target shifts, attacks, owner, dock, and route are typed.",
         "title": "Register Maliades completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical shared shuttle catalog now registers Maliades as the Dione Engineer's craft, links launch eligibility to Dione's Fighter Bay system, preserves its initial Dione dock, and records the printed three-damage durability, fuelled material repair, Medium target-shift and self-risk rules, and Short attack. Focused catalog and Dione Engineer route tests prove the owner, dock, launch linkage, operations, and /shuttles/maliades route; an actual local Safari render at 320x844, 844x390, and 1440x900 showed the long procedures contained without horizontal overflow. This is registration metadata and display only: P192/P397/P453 remain responsible for authoritative launch, durability, and combat resolution. The authorized routed Maliades derivative supplies every accepted fact; the private source index does not preserve a base-game primary PDF, so this closure records a derivative-only source basis and makes no primary visual-verification claim.",
       "evidenceIds": "E-AUDIT-264",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11282,7 +11282,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

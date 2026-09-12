@@ -10,22 +10,23 @@ export default defineShuttle({
   vesselType: 'Escort fighter',
   description: 'A three-damage escort fighter launched by the Dione Engineer.',
   captainRoleId: 'dione-engineer',
+  launchSystemId: 'fighter-bay',
   initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
   operations: [
     {
       name: 'Damage capacity',
       phase: 'Team',
-      effect: 'Track up to 3 damage. At 3 damage the Maliades is destroyed; when fuelled, repair damage for 1 material each.',
+      effect: 'Track up to 3 damage. At 3 damage the Maliades is destroyed. When fuelled in a Shuttle Bay during the Team phase, repair damage for 1 material per damage.',
     },
     {
       name: 'Medium range',
       phase: 'Wolf attack',
-      effect: 'Shift one hostile target number by +1 or −1 and/or roll one die for 1 damage on 4+; rolls of 1–3 deal 1 damage to the Maliades.',
+      effect: 'Make 1 Wolf Ship add +1 or −1 to its target number (1s and 6s wrap around); and/or roll up to 1 die, doing 1 damage on a 4+ to different targets, but taking 1 damage for each roll of 1, 2, or 3.',
     },
     {
       name: 'Short range',
       phase: 'Wolf attack',
-      effect: 'Roll up to 2 dice against different targets; each 2+ deals 1 damage and each 1 damages the Maliades.',
+      effect: 'Roll up to 2 dice, 1 damage on a 2+ to different targets, but taking 1 damage for each roll of 1.',
     },
   ],
 });
