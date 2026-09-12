@@ -4249,6 +4249,13 @@
       "language": "The existing shared Reactor implementation consumes per-vessel capacity/penalty rules, known system IDs and server-read upgrades. Registered Reactor damage-card identities agree with the damage resolver; client capacity presentation agrees with server values. Reused the unchanged 2026-09-12 seven-vessel capacity matrix and 40 maintenance callable tests, all passing; this records existing production paths without a new feature release.",
       "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/shipDamage.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/data/vessels/",
       "type": "evidence"
+    },
+    {
+      "direction": "173;195;205;217;225 -> 115",
+      "id": "E-VESSEL-STORAGE-VERIFIED",
+      "language": "Registered vessel Storage identities route to the shared server branch, which rounds losses down and filters docked cargo by the acting ship. The callable transaction commits both stores and cargo. Existing unit evidence verifies rounding and unrelated cargo preservation; the 40-test callable suite verifies committed state, authority and replay/CAS. Rechecked on 2026-09-12; no new runtime behavior.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/shipDamage.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/data/vessels/",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -8650,8 +8657,8 @@
         "acceptance": "damaged 8♥ discards half of ship and docked-craft resources with correct rounding.",
         "title": "Resolve AEGIS Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-173",
+      "description": "The existing AEGIS Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-173;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115",
@@ -8662,7 +8669,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9204,8 +9211,8 @@
         "acceptance": "damaged 8♠ discards half of the in-scope authoritative stores.",
         "title": "Resolve Icebreaker Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-195",
+      "description": "The existing Icebreaker Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-195;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115",
@@ -9216,7 +9223,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9480,8 +9487,8 @@
         "acceptance": "damaged A♠ halves Shepherd and docked-craft stores atomically.",
         "title": "Resolve Shepherd Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-205",
+      "description": "The existing Shepherd Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-205;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115",
@@ -9492,7 +9499,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9802,8 +9809,8 @@
         "acceptance": "damaged A♣ halves Quellon and docked-craft stores atomically.",
         "title": "Resolve Quellon Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-217",
+      "description": "The existing Quellon Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-217;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115",
@@ -9814,7 +9821,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10032,8 +10039,8 @@
         "acceptance": "damaged A♦ halves in-scope ship and docked-craft stores.",
         "title": "Resolve Refinery 124 Storage."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-225",
+      "description": "The existing Refinery 124 Storage system uses the shared authoritative maintenance storage branch: its registered damage identity activates losses only when Storage is damaged, losses round down, and only that vessel and its currently docked craft are affected. The callable persists stores and cargo in one transaction; unrelated cargo is retained. Verified the existing damaged-storage unit check and reused the passing 40-test maintenance callable suite, including atomic store/cargo persistence and command replay/CAS. No runtime change or new release is claimed.",
+      "evidenceIds": "E-AUDIT-225;E-VESSEL-STORAGE-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "115",
@@ -10044,7 +10051,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
