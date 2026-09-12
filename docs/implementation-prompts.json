@@ -343,6 +343,13 @@
       "language": "The create/start callables persist only the explicit member session fields, while join reprojects the persisted root into that same public shape. Role briefs, loyalty secrets/census, setup receipts, and facilitator-only paths remain separate; callable and rules tests cover the public field allowlist and connected-member boundary.",
       "source": "functions/src/createSessionCallable.test.ts; functions/src/startCallable.test.ts; functions/src/joinSessionCallable.test.ts; tests/rules/firestore.rules.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "084 -> M1-CREW-VESSEL-STATE",
+      "id": "E-084-CREW-VESSEL-STATE",
+      "language": "Ship consoles consume an allowlisted projection of the selected vessel's public operational state: stores, damage, population, unrest, navigation, maintenance, upgrades, jump status, coordinate, and console lock. Projection tests prove other-vessel entries and role/loyalty-shaped fields are excluded; protected role briefs and loyalty paths remain separate.",
+      "source": "src/lib/shipStateProjection.ts; src/lib/shipStateProjection.test.ts; src/routes/ShipConsole.tsx; src/components/FleetConsoleWorkspace.tsx; src/components/FleetSystemsWorkspace.tsx; src/components/AegisConsoleWorkspace.tsx; firestore.rules; tests/rules/firestore.rules.test.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -2364,8 +2371,8 @@
         "acceptance": "crew receive their permitted vessel state without another crew's private role or loyalty facts.",
         "title": "Project per-ship shared state."
       },
-      "description": "Crew UI/state exists; centralized per-ship projection remains open.",
-      "evidenceIds": "none",
+      "description": "Ship consoles now consume a typed allowlisted projection of selected public vessel state; private role briefs and loyalty remain on protected paths.",
+      "evidenceIds": "E-084-CREW-VESSEL-STATE",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -2378,7 +2385,7 @@
       ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "EXTEND"
     },
     {

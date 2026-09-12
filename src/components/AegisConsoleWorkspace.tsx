@@ -13,6 +13,7 @@ import {
 } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 
 interface Props {
   readonly roleId: string | undefined;
@@ -22,6 +23,7 @@ interface Props {
   readonly damageDraws?: readonly DamageDraw[] | undefined;
   readonly navigationLogs?: ShipNavigationLogs | undefined;
   readonly consoleLocked?: boolean | undefined;
+  readonly shipState?: ShipConsoleProjection | undefined;
 }
 
 function SystemCard({
@@ -85,9 +87,13 @@ function SystemCard({
   );
 }
 
-function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked }: Omit<Props, 'roleId'>) {
+function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Omit<Props, 'roleId'>) {
   const console = AEGIS_ROLE_CONSOLES.admiral;
   const session = useSessionStore((state) => state.session);
+  const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.aegis;
+  const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.aegis ?? [];
+  const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.aegis;
+  const currentTurn = shipState ? shipState.currentTurn : session?.currentTurn;
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
 
   return (
@@ -112,15 +118,16 @@ function AdmiralConsole({ galacticCoordinate, fuel, damage, damageDraws, navigat
       /> : <>
       <MaintenanceSystems shipId="aegis" name="AEGIS" systems={console.systems}
         damageDraws={damageDraws}
+        shipState={shipState}
         renderSystem={system => <SystemCard key={system.id} system={system}
           damaged={damage?.damagedSystemIds.includes(system.id) ?? false}
           fuel={fuel}
           galacticCoordinate={galacticCoordinate}
-          charged={session?.maintenanceCycles?.aegis?.charges.includes('jump-drive') ?? false}
-          upgraded={session?.shipUpgrades?.aegis?.includes('jump-drive') ?? false}
+          charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
+          upgraded={upgrades.includes('jump-drive')}
           consoleLocked={consoleLocked ?? false}
-          turnZeroLocked={session?.currentTurn === 0}
-          integrityLockedUntil={session?.shipJumpStates?.aegis?.integrityLockedUntil} />}
+          turnZeroLocked={currentTurn === 0}
+          integrityLockedUntil={jumpState?.integrityLockedUntil} />}
         rations={<>
           <div className="aegis-ration-table">
             <table aria-label="AEGIS ration schedule">
@@ -214,9 +221,9 @@ function WingCommanderConsole({ galacticCoordinate, fuel, damage, navigationLogs
   );
 }
 
-export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked }: Props) {
+export default function AegisConsoleWorkspace({ roleId, galacticCoordinate, fuel, damage, damageDraws, navigationLogs, consoleLocked, shipState }: Props) {
   if (!isImplementedAegisRole(roleId)) return null;
   return roleId === 'admiral'
-    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} consoleLocked={consoleLocked} />
+    ? <AdmiralConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} damageDraws={damageDraws} navigationLogs={navigationLogs} consoleLocked={consoleLocked} shipState={shipState} />
     : <WingCommanderConsole galacticCoordinate={galacticCoordinate} fuel={fuel} damage={damage} navigationLogs={navigationLogs} consoleLocked={consoleLocked} />;
 }

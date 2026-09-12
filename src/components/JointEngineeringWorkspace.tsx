@@ -5,6 +5,7 @@ import { SHIPS } from '@/data/ships';
 import { resourcesForShip } from '@/data/resources';
 import { isJointEngineeringRoleAvailable } from '@/data/rolePresets';
 import { useSessionStore } from '@/store/useSessionStore';
+import { projectShipState } from '@/lib/shipStateProjection';
 
 export default function JointEngineeringWorkspace({ roleId }: { readonly roleId: string }) {
   const ids = roleId === 'joint-engineering-quellon-refinery' ? ['quellon', 'refinery-124'] : ['shepherd', 'icebreaker'];
@@ -25,6 +26,7 @@ export default function JointEngineeringWorkspace({ roleId }: { readonly roleId:
       role={role}
       fuel={resourcesForShip(ship.id, session.shipResources)?.fuel ?? 0}
       galacticCoordinate={session.shipGalacticCoordinates?.[ship.id] ?? '0000'}
+      shipState={projectShipState(session, ship.id)}
       includeAssignedShuttlecraft={false}
     />
   </>;

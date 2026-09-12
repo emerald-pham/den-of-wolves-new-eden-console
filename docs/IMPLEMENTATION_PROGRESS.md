@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**112 / 747 prompts complete (14.99%)**
+**113 / 747 prompts complete (15.13%)**
 
-Status breakdown: **112 done · 10 partial · 625 missing**.
+Status breakdown: **113 done · 9 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -494,7 +494,7 @@ release classification and evidence.
 | 081 | done | non-feature | — | Durable Turn 1 announcement/replay tests. |
 | 082 | done | non-feature | — | The server's explicit member session projection and persisted session roots expose turn, phase, active vessels, and permitted fleet status only; role briefs, loyalties, decks, setup receipts, and facilitator notes remain on separate protected paths. Create/start/join callable tests and Firestore member-boundary tests prove the public snapshot shape and audience boundary. |
 | 083 | done | non-feature | — | Member/nonmember snapshot rules tests. |
-| 084 | partial | feature | 0.3.5 | Crew UI/state exists; centralized per-ship projection remains open. |
+| 084 | done | feature | 0.3.5 | Ship consoles now consume a typed allowlisted projection of selected public vessel state; private role briefs and loyalty remain on protected paths. |
 | 085 | missing | non-feature | — | Role-private reconnect projection remains open. |
 | 086 | partial | feature | 0.3.5 | GM reads exist; census/suspicion/note projection remains incomplete. |
 | 087 | done | non-feature | — | Broad direct-write denial matrix in rules tests. |

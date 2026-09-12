@@ -6,10 +6,45 @@ import { describe, expect, it } from 'vitest';
 import FleetSystemsWorkspace from './FleetSystemsWorkspace';
 import FleetConsoleWorkspace from './FleetConsoleWorkspace';
 import { SHIPS } from '@/data/ships';
+import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 
 const renderWorkspace = (children: ReactNode) => render(<MemoryRouter>{children}</MemoryRouter>);
 
 describe('fleet system reference workspaces', () => {
+  it('uses the selected vessel projection instead of legacy cross-session props', () => {
+    const ship = SHIPS.find(candidate => candidate.id === 'dione')!;
+    const role = ship.roles[0]!;
+    const shipState: ShipConsoleProjection = {
+      shipId: ship.id,
+      currentTurn: 4,
+      galacticCoordinate: '5143',
+      resources: { ore: 0, fuel: 11, food: 13, water: 14, materials: 0, securityTeams: 2 },
+      unrest: 0,
+      navigationLogs: { [ship.id]: [] },
+      upgrades: [],
+      consoleLocked: false,
+    };
+
+    renderWorkspace(<FleetConsoleWorkspace
+      ship={ship}
+      role={role}
+      fuel={0}
+      galacticCoordinate="0000"
+      damage={{ damagedSystemIds: ['reactor'], destroyed: true }}
+      navigationLogs={{ aegis: [{
+        id: 'event:foreign', shipId: 'aegis', type: 'self-jump', origin: '0000', destination: '0102',
+        occurredAt: '2026-09-12T00:00:00.000Z', stardate: '001.000000',
+      }] }}
+      shipState={shipState}
+    />);
+
+    const workspace = screen.getByRole('region', { name: 'Dione Captain console' });
+    expect(workspace).toHaveTextContent(/galactic coordinates.*5143/i);
+    expect(workspace).toHaveTextContent(/fuel in stores.*11/i);
+    expect(workspace).toHaveTextContent(/damage state.*0 systems/i);
+    expect(workspace).not.toHaveTextContent('0102');
+  });
+
   it.each(SHIPS.flatMap(ship => ship.roles.map(role => ({ ship, role }))))(
     'gives $role.id complete command references without gameplay mutations', async ({ ship, role }) => {
       renderWorkspace(<FleetConsoleWorkspace ship={ship} role={role} fuel={7} galacticCoordinate="0102" />);

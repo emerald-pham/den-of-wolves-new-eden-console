@@ -10,6 +10,7 @@ import { SHUTTLECRAFT } from '@/data/shuttles';
 import type { DamageDraw } from '@/types/game';
 import { phaseForSession } from '@/lib/turnPhase';
 import { normalizeCommandError } from '@/lib/commandErrors';
+import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 
 export type SystemTiming = 1 | 5 | 6 | 7 | 'ftl' | 'combat' | 'passive';
 
@@ -20,22 +21,23 @@ interface TimedSystem {
 }
 
 /** The printed maintenance path owns system placement for every ship workspace. */
-export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId, systems, renderSystem, rations, damageDraws = [] }: {
+export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId, systems, renderSystem, rations, damageDraws = [], shipState }: {
   readonly name: string;
   readonly shipId: string;
   readonly systems: readonly T[];
   readonly renderSystem: (system: T) => ReactNode;
   readonly rations: ReactNode;
   readonly damageDraws?: readonly DamageDraw[] | undefined;
+  readonly shipState?: ShipConsoleProjection | undefined;
 }) {
   const session = useSessionStore((state) => state.session);
   const me = useSessionStore((state) => state.me);
   const connection = useSessionStore((state) => state.connection);
   const access = useConsoleAccess();
-  const cycle = session?.maintenanceCycles?.[shipId];
+  const cycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[shipId];
   const step = cycle?.step ?? 0;
   const revision = cycle?.revision ?? 0;
-  const currentTurn = session?.currentTurn ?? 1;
+  const currentTurn = shipState ? shipState.currentTurn ?? 1 : session?.currentTurn ?? 1;
   const [confirmBegin, setConfirmBegin] = useState(false);
   useEffect(() => { setConfirmBegin(false); }, [shipId, currentTurn, step, revision, session?.id, connection]);
   const [pending, setPending] = useState(false);
@@ -47,7 +49,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [consoles, setConsoles] = useState<string[]>([]);
   const [refuels, setRefuels] = useState<Record<string, string>>({});
   useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotices([]); }, [shipId, step]);
-  const damage = session?.shipDamage?.[shipId];
+  const damage = shipState ? shipState.damage : session?.shipDamage?.[shipId];
   const maintenanceDamageDraw = cycle?.damageDrawId
     ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
     : undefined;
@@ -71,7 +73,8 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
     !['storage', 'reactor'].includes(system.id) && !system.id.startsWith('shuttle-bay') && !system.id.startsWith('armoured-hull'));
   const bays = systems.filter(system => system.timing === 6 || system.timing === 7);
   const docked = session?.shuttleDockings?.filter(dock => dock.shipId === shipId) ?? [];
-  const capacity = Math.max(0, schedule.reactor + (session?.shipUpgrades?.[shipId]?.includes('reactor') ? 1 : 0) -
+  const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
+  const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
   const labels = ['Storage', 'Rations', 'Unrest check', 'Riot check', 'Reactor', bays.length > 1 ? 'Shuttle Bay Zeta / Omega' : 'Shuttle Bay'];
   return <div className="maintenance-systems">

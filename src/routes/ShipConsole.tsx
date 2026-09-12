@@ -5,12 +5,11 @@ import PopulationTrack from '@/components/PopulationTrack';
 import FleetConsoleWorkspace from '@/components/FleetConsoleWorkspace';
 import FleetAlertControl from '@/components/FleetAlertControl';
 import PursuitTracker from '@/components/PursuitTracker';
-import { populationForShip } from '@/data/shipPopulation';
 import OverflowTicker from '@/components/OverflowTicker';
 import ResourceIcon from '@/components/ResourceIcon';
 import RoleAssignment from '@/components/RoleAssignment';
 import { findShip, SHIP_ORIGIN_LABELS } from '@/data/ships';
-import { RESOURCE_DEFINITIONS, resourcesForShip } from '@/data/resources';
+import { RESOURCE_DEFINITIONS } from '@/data/resources';
 import { findConsoleRole } from '@/data/roles';
 import { DEFAULT_ACTIVE_ROLE_IDS } from '@/data/roles';
 import { shuttlebayForShip } from '@/data/shuttles';
@@ -24,6 +23,7 @@ import { isGameplayLockedAtTurnZero } from '@/lib/gameContext';
 import { selectIsGm, useSessionStore } from '@/store/useSessionStore';
 import { ConsoleAccessContext } from '@/lib/consoleAccess';
 import { JUMP_FLASH_MS } from '@/lib/jumpDrive';
+import { projectShipState } from '@/lib/shipStateProjection';
 import type { Player, DamageDraw } from '@/types/game';
 
 type ConfettiStyle = CSSProperties & Record<`--${string}`, string | number>;
@@ -47,6 +47,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const pendingCommands = useSessionStore((state) => state.pendingCommands);
   const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
   const ship = findShip(shipId);
+  const shipState = ship && session ? projectShipState(session, ship.id) : undefined;
   const [crew, setCrew] = useState<readonly Player[] | null>(null);
   const ownShip = findConsoleRole(me?.activeConsoleRoleId ?? undefined)?.shipId;
   const visiting = Boolean(!isGm && me?.activeConsoleRoleId && me.activeConsoleRoleId !== roleId);
@@ -64,7 +65,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       ['player', 'gm'].includes(player.role) && player.activeConsoleRoleId === role.id)),
   );
   const writable = observer ? observerWrite : roleEnabled && (hasConfirmedRole || canCoverShortStaffedShip);
-  const consoleLocked = session?.shipConsoleLocks?.[ship?.id ?? ''] === true;
+  const consoleLocked = shipState?.consoleLocked ?? false;
   const effectiveWritable = writable && !consoleLocked;
   const validRole = !roleId || consoleRole?.shipId === ship?.id;
   const [coverOpen, setCoverOpen] = useState(false);
@@ -80,7 +81,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   } | null>(null);
   const [awaitingSecondOfficer, setAwaitingSecondOfficer] = useState(false);
   const [damageDraws, setDamageDraws] = useState<readonly DamageDraw[]>([]);
-  const jumpTransition = ship ? session?.shipJumpTransitions?.[ship.id] : undefined;
+  const jumpTransition = shipState?.jumpTransition;
   const [jumpFlashId, setJumpFlashId] = useState<string | null>(null);
   const spent = Boolean(ship && session?.confettiUsedShipIds?.includes(ship.id));
   const queued = Boolean(ship && session && pendingCommands.some(
@@ -88,9 +89,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
       command.payload.sessionId === session.id && command.payload.shipId === ship.id,
   ));
   const shuttlebay = ship && session ? shuttlebayForShip(session, ship.id) : null;
-  const resources = ship ? resourcesForShip(ship.id, session?.shipResources) : undefined;
-  const population = ship ? populationForShip(ship.id, session?.shipSurvivors) : undefined;
-  const unrest = ship ? (session?.shipUnrest?.[ship.id] ?? 0) : 0;
+  const resources = shipState?.resources;
+  const population = shipState?.population;
+  const unrest = shipState?.unrest ?? 0;
   const hasConsoleWorkspace = Boolean(ship && consoleRole && ship.roles.some(role => role.id === consoleRole.id));
   const canClaimConsoleRole = Boolean(
     session && me && mode === 'console' && ship && consoleRole && validRole && roleEnabled &&
@@ -186,7 +187,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
     (ship.id === 'dione' && session.dioneEnabled === false)
   ) return <Navigate to="/console" replace />;
 
-  const shipCoordinate = session.shipGalacticCoordinates?.[ship.id] ?? '0000';
+  const shipCoordinate = shipState?.galacticCoordinate ?? '0000';
 
   async function activate(): Promise<void> {
     if (!ship || !consoleRole || turnZeroLocked || spent || queued || activating) return;
@@ -283,10 +284,11 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
             role={consoleRole}
             galacticCoordinate={shipCoordinate}
             fuel={resources?.fuel ?? 0}
-            damage={session.shipDamage?.[ship.id]}
+            damage={shipState?.damage}
             damageDraws={damageDraws}
-            navigationLogs={session.shipNavigationLogs}
+            navigationLogs={shipState?.navigationLogs}
             consoleLocked={consoleLocked}
+            shipState={shipState}
           />
         )}
         {damageDraws.some((draw) => draw.shipId === ship.id) && (

@@ -11,6 +11,7 @@ import { EXECUTIVE_SYSTEMS, proceduresForRole } from '@/data/roleProcedures';
 import { AEGIS_ROLE_CONSOLES } from '@/data/aegisConsoles';
 import type { DamageDraw, ShipDamageState, ShipNavigationLogs } from '@/types/game';
 import { useSessionStore } from '@/store/useSessionStore';
+import type { ShipConsoleProjection } from '@/lib/shipStateProjection';
 
 // Split only explicit rule headings; phrases such as “damaged jumps” stay intact.
 function systemEffectRows(effect: string) {
@@ -36,6 +37,7 @@ export default function FleetSystemsWorkspace({
   navigationLogs,
   consoleLocked = false,
   includeAssignedShuttlecraft = true,
+  shipState,
 }: {
   readonly ship: Ship;
   readonly role: ConsoleRole;
@@ -46,6 +48,7 @@ export default function FleetSystemsWorkspace({
   readonly navigationLogs?: ShipNavigationLogs | undefined;
   readonly consoleLocked?: boolean | undefined;
   readonly includeAssignedShuttlecraft?: boolean;
+  readonly shipState?: ShipConsoleProjection | undefined;
 }) {
   const session = useSessionStore((state) => state.session);
   const [page, setPage] = useState<'systems' | 'navigation'>('systems');
@@ -59,6 +62,10 @@ export default function FleetSystemsWorkspace({
     ],
   };
   const systems = role.id === 'executive-officer' ? EXECUTIVE_SYSTEMS : ship.systems ?? [];
+  const maintenanceCycle = shipState ? shipState.maintenanceCycle : session?.maintenanceCycles?.[ship.id];
+  const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[ship.id] ?? [];
+  const jumpState = shipState ? shipState.jumpState : session?.shipJumpStates?.[ship.id];
+  const currentTurn = shipState ? shipState.currentTurn : session?.currentTurn;
   const renderSystem = (system: (typeof systems)[number]) => {
     const { baseline, rules } = systemEffectRows(system.effect);
     const damaged = damage?.damagedSystemIds.includes(system.id) ?? false;
@@ -76,12 +83,12 @@ export default function FleetSystemsWorkspace({
         currentCoordinate={galacticCoordinate}
         fuel={fuel}
         jumpCosts={commandMetrics.jump}
-        charged={session?.maintenanceCycles?.[ship.id]?.charges.includes('jump-drive') ?? false}
+        charged={maintenanceCycle?.charges.includes('jump-drive') ?? false}
         damaged={damaged}
-        upgraded={session?.shipUpgrades?.[ship.id]?.includes('jump-drive') ?? false}
+        upgraded={upgrades.includes('jump-drive')}
         consoleLocked={consoleLocked}
-        turnZeroLocked={session?.currentTurn === 0}
-        integrityLockedUntil={session?.shipJumpStates?.[ship.id]?.integrityLockedUntil}
+        turnZeroLocked={currentTurn === 0}
+        integrityLockedUntil={jumpState?.integrityLockedUntil}
       />}
       <dl><div className="aegis-system__condition">
         <dt>Condition</dt><dd>{damaged ? 'Damaged' : 'Operational'}</dd>
@@ -105,7 +112,7 @@ export default function FleetSystemsWorkspace({
       consoleLocked={consoleLocked}
     /> : <>
       {maintenance
-      ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} rations={<>
+      ? <MaintenanceSystems shipId={ship.id} name={ship.name} systems={systems} renderSystem={renderSystem} damageDraws={damageDraws} shipState={shipState} rations={<>
       <div className="aegis-ration-table"><table aria-label={`${ship.name} initial ration schedule`}>
         <thead><tr><th>Ration</th><th>None</th><th>Minimal</th><th>Short</th><th>Normal</th></tr></thead>
         <tbody><tr><th>Food</th>{maintenance.food.map((value, index) => <td key={index}>{value}</td>)}</tr>
