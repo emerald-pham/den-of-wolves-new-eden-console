@@ -80,6 +80,13 @@ it('atomically docks a known small ship with an active core host', async () => {
   }));
 });
 
+it('keeps legacy sessions on the base Capybara mode when expansion is absent', async () => {
+  delete mock.session.expansion;
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, smallShipId: 'capybara-small', requestId: 'dock-legacy-base',
+  }))).resolves.toMatchObject({ status: 'committed', smallShipId: 'capybara-small' });
+});
+
 it('rejects arbitrary hosts, non-GM docking, and malformed present state', async () => {
   await expect(setSmallShipDocking.run(request({ ...dockingBase, hostShipId: 'capybara', requestId: 'dock-bad-host' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
@@ -91,6 +98,33 @@ it('rejects arbitrary hosts, non-GM docking, and malformed present state', async
   await expect(setSmallShipDocking.run(request({ ...dockingBase, requestId: 'dock-malformed' })))
     .rejects.toMatchObject({ code: 'failed-precondition' });
   expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('does not reveal a stale revision to a non-GM member', async () => {
+  mock.role = 'player';
+  await expect(setSmallShipDocking.run(request({
+    ...dockingBase, expectedRevision: 4, requestId: 'dock-stale-player',
+  }))).rejects.toMatchObject({ code: 'permission-denied' });
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('replays an undock with its explicit null host target', async () => {
+  mock.session.smallShipStates = {
+    gorgoneion: { ...emptySmallShipState('gorgoneion', 'aegis'), dockingRevision: 1 },
+  };
+  const undock = {
+    ...dockingBase, docked: false, hostShipId: null, expectedRevision: 1,
+    requestId: 'dock-undock',
+  };
+  await expect(setSmallShipDocking.run(request(undock))).resolves.toMatchObject({
+    status: 'committed', docked: false, hostShipId: null, committedRevision: 2,
+  });
+  const receiptPath = 'sessions/s1/smallShipRequests/dock-undock';
+  const receipt = mock.set.mock.calls.find(([path]) => path === receiptPath)?.[1] as Record<string, unknown>;
+  mock.receipts[receiptPath] = receipt;
+  mock.set.mockReset();
+  await expect(setSmallShipDocking.run(request(undock))).resolves.toMatchObject({ status: 'replayed', docked: false });
+  expect(mock.set).not.toHaveBeenCalled();
 });
 
 it('runs maintenance against only the docked host ledger and persists a replay receipt', async () => {

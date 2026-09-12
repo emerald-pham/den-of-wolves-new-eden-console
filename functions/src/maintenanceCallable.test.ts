@@ -11,6 +11,7 @@ const mock = vi.hoisted(() => ({
   fleetSurvivorPopulationAdjustment: 0,
   turnStartAnnouncement: undefined as unknown,
   turnPhase: undefined as unknown, turnState: undefined as unknown, phase: 'active' as string,
+  smallShipStates: {} as Record<string, unknown>,
   turnLimit: 6 as 6 | 7 | 8, pressDispatch: undefined as unknown,
   fleetTicker: undefined as unknown,
   commandReceipts: {} as Record<string, Record<string, unknown>>,
@@ -174,6 +175,7 @@ vi.mock('firebase-admin/firestore', () => ({
             fleetSurvivorPopulationAdjustment: mock.fleetSurvivorPopulationAdjustment,
             capybaraEnabled: mock.capybaraEnabled,
             dioneEnabled: mock.dioneEnabled,
+            smallShipStates: mock.smallShipStates,
           };
           const updates: Array<readonly [string, Record<string, unknown>]> = [];
           const sets: Array<readonly [string, Record<string, unknown>]> = [];
@@ -267,6 +269,7 @@ import {
   unlockPressAirspace,
 } from './index';
 import { recommendedRoleIds } from './roleConfiguration';
+import { emptySmallShipState } from './smallShip';
 
 let advanceRequestSequence = 0;
 
@@ -293,6 +296,7 @@ beforeEach(() => {
   mock.shipUpgrades = {};
   mock.capybaraEnabled = true;
   mock.dioneEnabled = true;
+  mock.smallShipStates = {};
   mock.fleetSurvivorPopulationAdjustment = 0;
   mock.turnStartAnnouncement = undefined;
   mock.fleetTicker = undefined;
@@ -371,6 +375,7 @@ beforeEach(() => {
           dioneEnabled: mock.dioneEnabled,
           turnPhase: mock.turnPhase,
           turnState: mock.turnState,
+          smallShipStates: mock.smallShipStates,
           pressDispatch: mock.pressDispatch,
           fleetTicker: mock.fleetTicker,
           pressEnabled: mock.pressEnabled,
@@ -937,6 +942,24 @@ it('rejects illegal phase transitions and advances only valid numbered turns wit
   await expect(advanceTurn.run(request({
     sessionId: 's1', instanceId: 'bridge', expectedTurn: 0,
   }))).rejects.toMatchObject({ code: 'failed-precondition' });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('blocks a next-Team transition while an admitted small ship is undocked', async () => {
+  mock.currentTurn = 1;
+  mock.turnPhase = {
+    turn: 1,
+    teamPhaseEndsAt: '2026-09-06T11:55:00.000Z',
+    openAirspaceEndsAt: '2026-09-06T11:59:00.000Z',
+    airspace: { state: 'lifted', tickerActive: true, pressAccess: false },
+  };
+  mock.smallShipStates = { gorgoneion: emptySmallShipState('gorgoneion') };
+  await expect(advanceTurn.run(request({
+    sessionId: 's1', instanceId: 'bridge', expectedTurn: 1, overridePhaseTimer: true,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition', message: expect.stringMatching(/docked.*Team/i),
+  });
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
 });

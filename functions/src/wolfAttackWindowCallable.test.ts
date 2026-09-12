@@ -47,6 +47,7 @@ vi.mock('firebase-functions/v2/scheduler', () => ({
 }));
 
 import { setWolfAttackWindow } from './index';
+import { emptySmallShipState } from './smallShip';
 
 const baseData = {
   sessionId: 's1',
@@ -155,6 +156,13 @@ it('rejects a stale same-status retry without writing a receipt', async () => {
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
   expect(mock.documents.has('sessions/s1/commandReceipts/wolf-stale-same-status')).toBe(false);
+});
+
+it('requires an admitted small ship to stay docked for its Wolf-attack window', async () => {
+  session({ smallShipStates: { gorgoneion: emptySmallShipState('gorgoneion') } });
+  await expect(setWolfAttackWindow.run(request({ ...baseData, requestId: 'wolf-undocked' })))
+    .rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/docked.*Wolf attack/i) });
+  expect(mock.documents.has('sessions/s1/wolfAttackWindow/current')).toBe(false);
 });
 
 it('rejects every legacy M1 request namespace collision before any write', async () => {

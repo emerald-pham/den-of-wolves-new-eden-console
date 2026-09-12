@@ -1170,6 +1170,7 @@ function advanceTurnInTransaction(
   transition?: TurnAdvanceEvent,
 ): TurnAdvanceResult {
   const currentTurn = sessionTurn(session.get('currentTurn'));
+  if (currentTurn >= 1) requireSmallShipsDockedAtBoundary(session, 'Team');
   const nextTurn = currentTurn + 1;
   const maxTurn = sessionTurnLimit(session);
   const currentFleetPopulation = fleetSurvivorPopulation(session);
@@ -5849,6 +5850,8 @@ export const setWolfAttackWindow = onCall<{
       turn = currentTurn;
     }
 
+    if (change.status === 'due') requireSmallShipsDockedAtBoundary(session, 'Wolf attack');
+
     const next: WolfAttackWindow = {
       status: change.status,
       turn,
@@ -7672,13 +7675,40 @@ function hasStoredSmallShipState(session: DocumentSnapshot, id: SmallShipId): bo
 }
 
 function requireSmallShipMode(session: DocumentSnapshot, id: SmallShipId): void {
+  // Older sessions predate the persisted expansion field and use the base
+  // Capybara rules by default. Treat only an explicit expansion/none marker
+  // as a different effective mode.
+  const expansion = session.get('expansion') === undefined ? 'base' : session.get('expansion');
   if (id === 'capybara-small' &&
-      (session.get('expansion') !== 'base' || session.get('capybaraEnabled') === false)) {
+      (expansion !== 'base' || session.get('capybaraEnabled') === false)) {
     throw commandError(
       'failed-precondition',
       'Base Capybara is unavailable when the expansion Capybara is selected or disabled.',
       'conflict',
     );
+  }
+}
+
+/** Optional small ships that have been admitted must remain present for the
+ * Team and Wolf-attack windows that their printed rules require. */
+function requireSmallShipsDockedAtBoundary(
+  session: DocumentSnapshot,
+  boundary: 'Team' | 'Wolf attack',
+): void {
+  const stored = session.get('smallShipStates');
+  if (!isRecord(stored)) return;
+  const activeHosts = new Set(activeVesselIdsForSession(session).filter(isResourceShipId));
+  for (const id of SMALL_SHIP_IDS) {
+    if (!Object.prototype.hasOwnProperty.call(stored, id)) continue;
+    requireSmallShipMode(session, id);
+    const state = storedSmallShipState(session, id);
+    if (!state || !state.hostShipId || !activeHosts.has(state.hostShipId)) {
+      throw commandError(
+        'failed-precondition',
+        `${SMALL_SHIP_RULES[id].name} must remain docked with an active host for the ${boundary} window.`,
+        'conflict',
+      );
+    }
   }
 }
 
@@ -7738,14 +7768,22 @@ type SmallShipCommandFingerprint = Readonly<{
 function sameSmallShipFingerprint(value: unknown, expected: SmallShipCommandFingerprint): boolean {
   if (!isRecord(value)) return false;
   const consoles = value.consoles;
+  const consolesMatch = expected.consoles === undefined
+    ? consoles === undefined
+    : Array.isArray(consoles) && consoles.length === expected.consoles.length &&
+      consoles.every((item, index) => item === expected.consoles?.[index]);
+  const foodLevelMatch = expected.foodLevel === undefined
+    ? value.foodLevel === undefined
+    : value.foodLevel === expected.foodLevel;
+  const waterLevelMatch = expected.waterLevel === undefined
+    ? value.waterLevel === undefined
+    : value.waterLevel === expected.waterLevel;
   return value.kind === expected.kind && value.sessionId === expected.sessionId &&
     value.smallShipId === expected.smallShipId && value.actorUid === expected.actorUid &&
     value.instanceId === expected.instanceId && value.expectedRevision === expected.expectedRevision &&
-    value.action === (expected.action ?? undefined) && value.hostShipId === (expected.hostShipId ?? undefined) &&
-    value.docked === (expected.docked ?? undefined) && value.foodLevel === (expected.foodLevel ?? null) &&
-    value.waterLevel === (expected.waterLevel ?? null) && Array.isArray(consoles) &&
-    consoles.length === (expected.consoles ?? []).length &&
-    consoles.every((item, index) => item === expected.consoles?.[index]);
+    value.action === (expected.action ?? undefined) && value.hostShipId === expected.hostShipId &&
+    value.docked === (expected.docked ?? undefined) && foodLevelMatch &&
+    waterLevelMatch && consolesMatch;
 }
 
 function smallShipReceiptReply(
@@ -7797,6 +7835,15 @@ export const setSmallShipDocking = onCall<{
       throw commandError('failed-precondition', 'The stored small-ship state is malformed. Refresh the session before operating it.', 'conflict');
     }
     const current = parsedCurrent ?? emptySmallShipState(id);
+    const authorityHost = data.docked ? data.hostShipId : current.hostShipId;
+    if (!authorityHost || !isResourceShipId(authorityHost) ||
+        !activeVesselIdsForSession(session).includes(authorityHost)) {
+      throw commandError('failed-precondition', 'Small ships must dock with an active fleet host.', 'conflict');
+    }
+    // Validate phase and GM/host authority before recording a stale receipt;
+    // otherwise an arbitrary member could probe another session's revision.
+    requireSmallShipDockingPhase(session);
+    await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     if (current.dockingRevision !== data.expectedRevision) {
       const stale = {
         status: 'stale' as const, requestId: data.requestId, sessionId: data.sessionId,
@@ -7806,13 +7853,6 @@ export const setSmallShipDocking = onCall<{
       tx.set(requestRef, { ...fingerprint, requestId: data.requestId, actorUid: uid, fingerprint, reply: stale, createdAt: FieldValue.serverTimestamp() });
       return stale;
     }
-    requireSmallShipDockingPhase(session);
-    const authorityHost = data.docked ? data.hostShipId : current.hostShipId;
-    if (!authorityHost || !isResourceShipId(authorityHost) ||
-        !activeVesselIdsForSession(session).includes(authorityHost)) {
-      throw commandError('failed-precondition', 'Small ships must dock with an active fleet host.', 'conflict');
-    }
-    await requireShipCounterAuthority(tx, data.sessionId, uid, authorityHost, data.instanceId, true);
     const next: SmallShipState = {
       ...current,
       hostShipId: data.docked ? data.hostShipId : null,

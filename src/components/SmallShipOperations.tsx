@@ -21,9 +21,10 @@ interface SmallShipCardProps {
   readonly currentTurn: number;
   readonly activeHostShipIds: readonly string[];
   readonly available: boolean;
+  readonly capybaraMode: 'base' | 'expansion' | 'none';
 }
 
-function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available }: SmallShipCardProps) {
+function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available, capybaraMode }: SmallShipCardProps) {
   const vessel = SMALL_SHIPS.find((entry) => entry.id === id);
   const rules = SMALL_SHIP_RULES[id];
   const [hostShipId, setHostShipId] = useState(state?.hostShipId ?? '');
@@ -35,13 +36,16 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available }:
 
   if (!vessel) return null;
   if (!available) {
+    const unavailableCopy = capybaraMode === 'expansion'
+      ? 'Unavailable // the expansion Capybara uses the full-ship rules.'
+      : 'Unavailable // no base Capybara is enabled for this session.';
     return (
       <section className="small-ship-operations__card cic-frame" aria-label={`${vessel.name} small-ship operations`}>
         <header>
           <h3>{vessel.name}</h3>
-          <p>{vessel.vesselType} // expansion Capybara is active</p>
+          <p>{vessel.vesselType} // {capybaraMode === 'none' ? 'Capybara disabled' : 'expansion Capybara is active'}</p>
         </header>
-        <p className="small-ship-operations__status" role="status">Unavailable // the expansion Capybara uses the full-ship rules.</p>
+        <p className="small-ship-operations__status" role="status">{unavailableCopy}</p>
       </section>
     );
   }
@@ -74,6 +78,9 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available }:
   };
   const step = cycle?.step ?? 0;
   const disabled = pending || !state?.hostShipId;
+  const latestResult = Object.entries(cycle?.results ?? {})
+    .sort(([left], [right]) => Number(left) - Number(right))
+    .at(-1)?.[1];
   return (
     <section className="small-ship-operations__card cic-frame" aria-label={`${vessel.name} small-ship operations`}>
       <header>
@@ -110,7 +117,7 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available }:
             <button className="cic-action-button" type="button" onClick={() => void submit('reactor', { consoles })}>Charge selected consoles</button>
           </fieldset>}
           {step === 5 && <button className="cic-action-button" type="button" disabled={pending} onClick={() => void submit('end')}>End small-ship cycle</button>}
-          {cycle?.results[String(Math.min(step, 4))] && <p role="status">{cycle.results[String(Math.min(step, 4))]}</p>}
+          {latestResult && <p role="status">{latestResult}</p>}
           {step === 0 && <button className="cic-text-button" type="button" disabled={pending} onClick={() => void dock(false)}>Undock after cycle</button>}
         </>
       )}
@@ -122,14 +129,20 @@ function SmallShipCard({ id, state, currentTurn, activeHostShipIds, available }:
 
 export default function SmallShipOperations() {
   const session = useSessionStore((store) => store.session);
-  const activeHostShipIds = session?.activeVesselIds ?? [];
+  const activeHostShipIds = (session?.activeVesselIds ?? session?.setup?.activeVesselIds ?? SHIPS.map((ship) => ship.id))
+    .filter((shipId) => shipId !== 'capybara' || session?.capybaraEnabled !== false);
+  const capybaraMode = session?.expansion === 'capybara'
+    ? 'expansion'
+    : session?.expansion === 'none' || session?.capybaraEnabled === false
+      ? 'none'
+      : 'base';
   return (
     <section className="gm-console__module small-ship-operations cic-frame" aria-label="Small-ship operations">
       <h2 className="gm-console__section-title">Optional small ships</h2>
       <p className="gm-console__hint">GM docks each small ship with an active fleet host. Team maintenance borrows only that host’s food and water; a failed population / riot roll never draws ship damage.</p>
       {!session && <p className="small-ship-operations__status" role="status">Small-ship state unavailable // reconnect to the session.</p>}
       <div className="small-ship-operations__grid">
-        {SMALL_SHIP_IDS.map((id) => <SmallShipCard key={id} id={id} state={session?.smallShipStates?.[id]} currentTurn={session?.currentTurn ?? 0} activeHostShipIds={activeHostShipIds} available={id !== 'capybara-small' || session?.expansion === 'base'} />)}
+        {SMALL_SHIP_IDS.map((id) => <SmallShipCard key={id} id={id} state={session?.smallShipStates?.[id]} currentTurn={session?.currentTurn ?? 0} activeHostShipIds={activeHostShipIds} available={id !== 'capybara-small' || capybaraMode === 'base'} capybaraMode={capybaraMode} />)}
       </div>
     </section>
   );
