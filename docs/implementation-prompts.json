@@ -4277,6 +4277,13 @@
       "language": "Existing request shape guard runs before database transaction and transition ID creation. Focused callable assertion rejects malformed input with invalid-argument and no reads, writes, random roll or event ID. All 46 jump callable, request guard and jump resolver tests passed. Test and roadmap reconciliation only; no runtime or release change.",
       "source": "functions/src/requestGuards.ts (requireShipJumpRequest); functions/src/index.ts (jumpShip); functions/src/jumpCallable.test.ts; functions/src/requestGuards.test.ts; functions/src/jumpDrive.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "295",
+      "id": "E-295-VERIFIED",
+      "language": "The published integrity-lock policy is preserved. Resolver validates destination through the canonical chart before fuel/movement. Callable test proves the unprinted four-digit branch updates only lock state and preserves fuel, charge and location; code inspection confirms active lockouts do not write. The existing 46 jump/request tests and 2 console tests passed. Documentation reconciliation only; no runtime change or new printed rule claim.",
+      "source": "functions/src/jumpDrive.ts (resolveJumpAttempt); functions/src/index.ts (jumpShip); functions/src/jumpCallable.test.ts; functions/src/jumpDrive.test.ts; src/components/JumpDriveConsole.test.tsx; src/changelog.ts",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -11904,8 +11911,8 @@
         "acceptance": "the current integrity-lock behavior is verified against the chosen facilitator policy and never pretends an arbitrary coordinate is a legal system.",
         "title": "Resolve unprinted coordinates."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "Verified the retained facilitator integrity-lock policy for well-formed but unprinted jump destinations: the server returns a one-hour lockout, without accepting the coordinate as a system or changing location, fuel, charge, or transition. Existing active lockouts return without writes. The console displays the server lockout and disables departure. This preserves the current product policy; it does not claim the exact lock duration is a printed rule.",
+      "evidenceIds": "E-295-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -11916,7 +11923,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

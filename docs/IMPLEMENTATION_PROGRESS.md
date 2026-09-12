@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**154 / 747 prompts complete (20.62%)**
+**155 / 747 prompts complete (20.75%)**
 
-Status breakdown: **154 done · 7 partial · 586 missing**.
+Status breakdown: **155 done · 7 partial · 585 missing**.
 
 Active prompt: **none**
 
@@ -736,7 +736,7 @@ release classification and evidence.
 | 292 | done | non-feature | — | The existing jump callable validates exactly four ASCII digits before starting a transaction. Malformed values fail without reading or changing fuel, charge, position, pursuit, lockout, or event state. A focused callable regression verifies absent, non-string, short, long, non-digit, embedded-space, and non-ASCII input; valid but unprinted coordinates retain their separate integrity-lockout behavior. |
 | 293 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 294 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 295 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 295 | done | non-feature | — | Verified the retained facilitator integrity-lock policy for well-formed but unprinted jump destinations: the server returns a one-hour lockout, without accepting the coordinate as a system or changing location, fuel, charge, or transition. Existing active lockouts return without writes. The console displays the server lockout and disables departure. This preserves the current product policy; it does not claim the exact lock duration is a printed rule. |
 | 296 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 297 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 298 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
