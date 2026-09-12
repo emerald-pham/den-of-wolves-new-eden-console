@@ -159,7 +159,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 060 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Assign casting authoritatively. |
 | 061 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Enforce role exclusivity. |
 | 062 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Release and reassign before start. |
-| 063 | NEW | missing | none | none | none | none | none | none | none | none | none | M1 | Deliver private role briefs. |
+| 063 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Deliver private role briefs. |
 | 064 | NEW | partial | none | none | none | none | none | none | none | none | none | M1 | Deliver private loyalty cards. |
 | 065 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Initialize loyalty suspicion. |
 | 066 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Pair Friend loyalties. |

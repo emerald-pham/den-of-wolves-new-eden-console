@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['063'],
+    implementationProgress: {
+      completed: 104,
+      total: 746,
+      percentage: '13.94%',
+      done: 104,
+      partial: 17,
+      active: 0,
+      missing: 625,
+    },
+    changes: [
+      'Players can now open a private brief for their assigned role and common table rules; assignment changes remove the old brief before the new one appears. 104 of 746 planned items are complete (13.94%).',
+    ],
+  },
+  {
+    version: '0.3.36',
     implementationPrompts: ['062'],
     implementationProgress: {
       completed: 103,

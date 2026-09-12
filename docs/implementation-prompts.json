@@ -1782,7 +1782,7 @@
         "acceptance": "a player can read only their assigned brief and common rules; another member's brief is denied at the data boundary.",
         "title": "Deliver private role briefs."
       },
-      "description": "Role-private brief reader/projection path remains open.",
+      "description": "Server-owned per-player role briefs include common rules, exact current-assignment reads, lifecycle cleanup, and client authority-order handling.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1791,10 +1791,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.37"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "NEW"
     },
     {

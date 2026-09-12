@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**103 / 746 prompts complete (13.81%)**
+**104 / 746 prompts complete (13.94%)**
 
-Status breakdown: **103 done · 17 partial · 626 missing**.
+Status breakdown: **104 done · 17 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -474,7 +474,7 @@ release classification and evidence.
 | 060 | done | feature | 0.3.5 | `assignRole` facilitator callable and tests. |
 | 061 | done | feature | 0.3.5 | Role exclusivity policy plus callable denial tests. |
 | 062 | done | feature | 0.3.36 | `assignRole` and `releaseRole` reconcile canonical seats, role/console pointers, Press ownership guards, and reciprocal private Friend records before start; normal player seat claims remain authoritative. |
-| 063 | missing | non-feature | — | Role-private brief reader/projection path remains open. |
+| 063 | done | non-feature | 0.3.37 | Server-owned per-player role briefs include common rules, exact current-assignment reads, lifecycle cleanup, and client authority-order handling. |
 | 064 | partial | feature | 0.3.5 | Private loyalty records are written; a complete entitled reader projection remains open. |
 | 065 | done | feature | 0.3.5 | Loyalty suspicion policy and assignment tests cover all listed kinds. |
 | 066 | done | feature | 0.3.5 | Reciprocal Friend secret records and privacy test. |
