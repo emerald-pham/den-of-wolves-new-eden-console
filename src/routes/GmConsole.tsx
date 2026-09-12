@@ -630,6 +630,12 @@ export default function GmConsole() {
   }, [pendingPressEnabled]);
 
   useEffect(() => {
+    if (!endgameEvaluation || pendingPressEnabled === null) return;
+    restorePressTriggerFocus.current = false;
+    setPendingPressEnabled(null);
+  }, [endgameEvaluation, pendingPressEnabled]);
+
+  useEffect(() => {
     if (!confirmGameStart) return;
     const cancelOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -888,6 +894,7 @@ export default function GmConsole() {
   }
 
   async function changePress(enabled: boolean): Promise<void> {
+    if (endgameEvaluation) return;
     setChangingPress(true);
     setPressMutationState('pending');
     setPressMutationMessage(null);
@@ -916,6 +923,7 @@ export default function GmConsole() {
   }
 
   function openPressDialog(): void {
+    if (endgameEvaluation) return;
     setPressMutationState('idle');
     setPressMutationMessage(null);
     setPendingPressEnabled(!pressEnabled);
@@ -927,6 +935,7 @@ export default function GmConsole() {
   }
 
   async function toggleLock(): Promise<void> {
+    if (endgameEvaluation) return;
     setChangingLock(true);
     try {
       await setGmControlsLocked(!controlsLocked);
@@ -1587,7 +1596,7 @@ export default function GmConsole() {
                   aria-label={`Turn Press ${pressEnabled ? 'off' : 'on'}`}
                   aria-pressed={pressEnabled}
                   ref={pressTriggerRef}
-                  disabled={changingPress || pressQueued}
+                  disabled={endgameEvaluation || changingPress || pressQueued}
                   onClick={openPressDialog}
                 >
                   Press // {pressQueued ? 'Change queued' : pressEnabled ? 'Available' : 'Offline'}
@@ -1600,9 +1609,11 @@ export default function GmConsole() {
                   aria-busy={pressMutationState === 'pending' && changingPress}
                   data-state={pressMutationState}
                 >
-                  {pressMutationMessage ?? (pressMutationState === 'pending'
-                    ? 'Press availability pending // awaiting server confirmation.'
-                    : `Press availability // ${pressEnabled ? 'enabled' : 'disabled'} // revision ${session?.pressAvailabilityRevision ?? 0}`)}
+                  {endgameEvaluation
+                    ? 'Endgame evaluation // Press availability controls are frozen.'
+                    : pressMutationMessage ?? (pressMutationState === 'pending'
+                      ? 'Press availability pending // awaiting server confirmation.'
+                      : `Press availability // ${pressEnabled ? 'enabled' : 'disabled'} // revision ${session?.pressAvailabilityRevision ?? 0}`)}
                 </p>
                 <p className="gm-role-setup__note" role="status" aria-label="Press GM projection">
                   {pressProjectionMessage}
@@ -1985,12 +1996,15 @@ export default function GmConsole() {
               type="button"
               aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} GM registration`}
               aria-pressed={controlsLocked}
-              disabled={changingLock || lockQueued}
+              disabled={endgameEvaluation || changingLock || lockQueued}
               onClick={() => void toggleLock()}
             >
               <span aria-hidden="true">{controlsLocked ? '🔒' : '🔓'}</span>
               GM registration // {lockQueued ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
             </button>
+            {endgameEvaluation && <p className="gm-console__status" role="status">
+              Endgame evaluation // GM registration controls are frozen.
+            </p>}
             {loading ? <p className="gm-console__status">Receiving instance manifest…</p> : (
               <ul className="gm-instance-list">
                 {instances.map((instance) => {
@@ -2286,7 +2300,7 @@ export default function GmConsole() {
             <button
               className="settings-dialog__disconnect cic-action-button cic-action-button--confirm"
               type="button"
-              disabled={changingPress}
+              disabled={endgameEvaluation || changingPress}
               onClick={() => void changePress(pendingPressEnabled)}
             >
               ARE YOU SURE? // {pendingPressEnabled ? 'Enable' : 'Disable'} Press

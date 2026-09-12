@@ -31,3 +31,18 @@ it('lets the GM select a ship, click a system, and move that ship there', async 
 
   expect(moveShipToLocation).toHaveBeenCalledWith('aegis', '5143');
 });
+
+it('freezes ship movement during endgame evaluation', async () => {
+  const user = userEvent.setup();
+  vi.mocked(moveShipToLocation).mockClear();
+  render(<GmStarmapModule session={{ ...session, phase: 'debrief' }} />);
+
+  const module = screen.getByRole('region', { name: 'GM starmap' });
+  await user.click(within(module).getByRole('button', { name: /system 5143/i }));
+
+  expect(within(module).getByRole('button', { name: /move ship to location/i })).toBeDisabled();
+  expect(within(module).getByRole('status')).toHaveTextContent(
+    /endgame evaluation.*ship movement is frozen/i,
+  );
+  expect(moveShipToLocation).not.toHaveBeenCalled();
+});

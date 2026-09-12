@@ -145,6 +145,24 @@ it('keeps an engineer at a held station if the GM disables it', () => {
   expect(screen.queryByRole('link', { name: /open wobbly shuttle console/i })).not.toBeInTheDocument();
 });
 
+it('freezes engineering controls during endgame evaluation', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected a session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'debrief' });
+  const me = useSessionStore.getState().me;
+  if (!me) throw new Error('Expected a player.');
+  useSessionStore.getState().setMe({ ...me, activeConsoleRoleId: 'joint-engineering-quellon-refinery' });
+
+  render(
+    <MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
+      <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('status')).toHaveTextContent(/endgame evaluation.*engineering controls are frozen/i);
+  expect(screen.getByRole('button', { name: /begin maintenance cycle/i })).toBeDisabled();
+});
+
 it('switches between the assigned ships’ engineering reference systems', async () => {
   render(<MemoryRouter initialEntries={['/union/roles/joint-engineering-quellon-refinery']}>
     <Routes><Route path="/union/roles/:roleId" element={<JointEngineeringConsole />} /></Routes>

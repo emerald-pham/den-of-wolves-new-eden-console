@@ -73,3 +73,15 @@ it('holds the evidence shredder at Turn 0 for a non-GM player', () => {
   expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
   expect(screen.getByText('TURN 0 // AWAITING IRIS AUTHENTICATION')).toBeVisible();
 });
+
+it('freezes the evidence shredder during endgame evaluation', () => {
+  const session = useSessionStore.getState().session;
+  if (!session) throw new Error('Expected a session.');
+  useSessionStore.getState().setSession({ ...session, phase: 'debrief' });
+
+  render(<PressConfetti shuttle={snnPressShuttle} />);
+
+  expect(screen.getByRole('button', { name: /open newspaper confetti cover/i })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /activate newspaper confetti/i })).toBeDisabled();
+  expect(screen.getByText('ENDGAME EVALUATION // GAMEPLAY CONFETTI FROZEN')).toBeVisible();
+});

@@ -1441,6 +1441,31 @@ it('shows endgame evaluation and removes GM advance controls after the final tur
   expect(within(turnControls).queryByRole('button', { name: /advance to turn/i })).not.toBeInTheDocument();
   expect(within(turnControls).queryByRole('button', { name: /skip to turn/i })).not.toBeInTheDocument();
   expect(advanceTurn).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: /lock gm registration/i })).toBeDisabled();
+  await userEvent.setup().click(screen.getByRole('button', { name: /^setup$/i }));
+  expect(screen.getByRole('button', { name: /turn press off/i })).toBeDisabled();
+  expect(screen.getByRole('status', { name: /press availability status/i })).toHaveTextContent(
+    /endgame evaluation.*press availability controls are frozen/i,
+  );
+});
+
+it('closes the Press availability dialog if endgame evaluation starts', async () => {
+  const user = userEvent.setup();
+  const activeSession = useSessionStore.getState().session;
+  if (!activeSession) throw new Error('Expected the test session.');
+  useSessionStore.getState().setGmInstance(local);
+  streamInstances([local]);
+  renderConsole();
+
+  await user.click(await screen.findByRole('button', { name: /^setup$/i }));
+  await user.click(screen.getByRole('button', { name: /turn press off/i }));
+  expect(screen.getByRole('alertdialog', { name: /change press availability/i })).toBeInTheDocument();
+
+  useSessionStore.getState().setSession({ ...activeSession, phase: 'debrief' });
+
+  await waitFor(() => expect(screen.queryByRole('alertdialog', { name: /change press availability/i })).not.toBeInTheDocument());
+  expect(screen.getByRole('button', { name: /turn press off/i })).toBeDisabled();
+  expect(setPressEnabled).not.toHaveBeenCalled();
 });
 
 it('requires a deliberate second GM advance while either phase timer is active', async () => {

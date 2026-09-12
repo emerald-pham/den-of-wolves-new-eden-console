@@ -1596,6 +1596,27 @@ function applyTurnAdvanceReply(
     activeSession?.id !== sessionId || !Number.isSafeInteger(reply.currentTurn) ||
     reply.currentTurn < 0 || !authorityCheckpointIsCurrent(checkpoint)
   ) return;
+  // A terminal reply is the authoritative lifecycle checkpoint. Do not let
+  // optional phase/entity/announcement fields from the same response reopen
+  // the completed turn projection after the debrief transition.
+  if (reply.phase === 'debrief') {
+    const terminalSession = {
+      ...activeSession,
+      currentTurn: reply.currentTurn,
+      phase: 'debrief' as const,
+      ...(reply.maintenanceCycles
+        ? { maintenanceCycles: reply.maintenanceCycles }
+        : {}),
+      ...(reply.shuttleFuelled
+        ? { shuttleFuelled: reply.shuttleFuelled }
+        : {}),
+    };
+    delete terminalSession.turnPhase;
+    delete terminalSession.turnState;
+    delete terminalSession.turnStartAnnouncement;
+    useSessionStore.getState().setSession(terminalSession);
+    return;
+  }
   const turnState = turnStateForPhaseContext(
     reply.turnState,
     phaseClock,
@@ -1613,12 +1634,6 @@ function applyTurnAdvanceReply(
       ? { shuttleFuelled: reply.shuttleFuelled }
       : {}),
   };
-  if (reply.phase === 'debrief') {
-    nextSession.phase = 'debrief';
-    delete nextSession.turnPhase;
-    delete nextSession.turnState;
-    delete nextSession.turnStartAnnouncement;
-  }
   if (skipTurnStartAnnouncement) delete nextSession.turnStartAnnouncement;
   // An accepted transition with no valid phase must not carry an entity from
   // the previous turn forward. A valid phase below replaces this projection

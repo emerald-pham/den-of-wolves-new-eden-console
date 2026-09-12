@@ -31,6 +31,7 @@ export default function PressConfetti({ shuttle }: {
     command.payload.shipId === shuttle.id));
   const authorized = me?.activeConsoleRoleId === shuttle.captainRoleId;
   const turnZeroLocked = isGameplayLockedAtTurnZero(session, isGm);
+  const gameplayFrozen = session?.phase === 'debrief' || session?.phase === 'closed';
 
   useEffect(() => {
     if (!session?.id) return;
@@ -61,7 +62,7 @@ export default function PressConfetti({ shuttle }: {
   }, [burst]);
 
   async function activate() {
-    if (!authorized || turnZeroLocked || queued || firing) return;
+    if (!authorized || gameplayFrozen || turnZeroLocked || queued || firing) return;
     setFiring(true);
     try {
       await popShipConfetti(shuttle.id, shuttle.captainRoleId);
@@ -84,7 +85,7 @@ export default function PressConfetti({ shuttle }: {
             className="confetti-dispenser__trigger"
             type="button"
             aria-label="Activate newspaper confetti"
-            disabled={!authorized || turnZeroLocked || !coverOpen || queued || firing}
+            disabled={!authorized || gameplayFrozen || turnZeroLocked || !coverOpen || queued || firing}
             onClick={() => void activate()}
           >{queued ? 'QUEUED' : 'EXTRA!'}</button>
           <button
@@ -92,12 +93,14 @@ export default function PressConfetti({ shuttle }: {
             type="button"
             aria-label={`${coverOpen ? 'Close' : 'Open'} newspaper confetti cover`}
             aria-pressed={coverOpen}
-            disabled={!authorized || turnZeroLocked || queued}
+            disabled={!authorized || gameplayFrozen || turnZeroLocked || queued}
             onClick={() => setCoverOpen((open) => !open)}
           >{coverOpen ? 'EDITION READY' : 'HOLD THE PRESSES'}</button>
         </div>
         <p className="confetti-dispenser__notice">
-          {turnZeroLocked
+          {gameplayFrozen
+            ? 'ENDGAME EVALUATION // GAMEPLAY CONFETTI FROZEN'
+            : turnZeroLocked
             ? 'TURN 0 // AWAITING IRIS AUTHENTICATION'
             : 'WARNING // WARNING // THIS WILL CAUSE SHREDDED PAPER TO ENTER THE BRIDGE OF ANY DOCKED SHIP'}
         </p>

@@ -235,6 +235,22 @@ describe('RoleSelect', () => {
     expect(setGmControlsLocked).toHaveBeenCalledWith(true);
   });
 
+  it('freezes GM registration locking during endgame evaluation', () => {
+    useSessionStore.getState().setSession({ ...session, phase: 'debrief' });
+    useSessionStore.getState().setMe(gm);
+    useSessionStore.getState().setGmInstance({
+      id: 'instance-1', sessionId: 's1', uid: 'gm1', name: 'Bridge laptop',
+      deviceLabel: 'Mac / Chrome', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    renderRoute();
+
+    expect(screen.getByRole('button', {
+      name: /lock lock out more gms being added/i,
+    })).toBeDisabled();
+    expect(screen.getByText(/endgame evaluation.*registration controls frozen/i)).toBeVisible();
+    expect(setGmControlsLocked).not.toHaveBeenCalled();
+  });
+
   it('shows accessible stable core stations with claim/release beside each state', async () => {
     const user = userEvent.setup();
     useSessionStore.getState().setSession({

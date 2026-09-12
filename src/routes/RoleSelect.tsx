@@ -53,6 +53,7 @@ export default function RoleSelect() {
   const interventionReasonRef = useRef<HTMLTextAreaElement | null>(null);
   const [activeGmCount, setActiveGmCount] = useState<number | null>(null);
   const controlsLocked = session?.gmControlsLocked === true;
+  const endgameEvaluation = session?.phase === 'debrief' || session?.phase === 'closed';
 
   useEffect(() => {
     if (!session?.id || !controlsLocked || isGm) return;
@@ -183,6 +184,7 @@ export default function RoleSelect() {
   }
 
   async function toggleLock(): Promise<void> {
+    if (endgameEvaluation) return;
     setChangingLock(true);
     try {
       await setGmControlsLocked(session?.gmControlsLocked !== true);
@@ -372,7 +374,7 @@ export default function RoleSelect() {
           type="button"
           aria-label={`${controlsLocked ? 'Unlock' : 'Lock'} lock out more GMs being added`}
           aria-pressed={controlsLocked}
-          disabled={!isGm || changingLock || pendingLock}
+          disabled={!isGm || endgameEvaluation || changingLock || pendingLock}
           onClick={() => void toggleLock()}
         >
           <span className="role-controls-lock__icon" aria-hidden="true">
@@ -380,7 +382,9 @@ export default function RoleSelect() {
           </span>
           <span className="role-card__name">Lock out more GMs being added</span>
           <span className="role-card__description">
-            {pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
+            {endgameEvaluation
+              ? 'Endgame evaluation // registration controls frozen'
+              : pendingLock ? 'Change queued' : controlsLocked ? 'Locked' : 'Unlocked'}
           </span>
         </button>
         {MODES.map(({ mode, label, description }) => (

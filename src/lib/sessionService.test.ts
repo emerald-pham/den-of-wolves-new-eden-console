@@ -1311,7 +1311,25 @@ describe('GM instance commands', () => {
       },
     });
     const callable = callableReturning({
-      data: { currentTurn: 6, phase: 'debrief' },
+      data: {
+        currentTurn: 6,
+        phase: 'debrief',
+        turnStartAnnouncement: { turn: 6, survivorPopulation: 241_000 },
+        turnPhase: {
+          turn: 6,
+          teamPhaseEndsAt: '2026-01-01T00:05:00.000Z',
+          openAirspaceEndsAt: '2026-01-01T00:20:00.000Z',
+          airspace: { state: 'lifted', tickerActive: true, pressAccess: true },
+        },
+        turnState: {
+          currentTurn: 6,
+          maxTurn: 6,
+          phase: 'coordination',
+          phaseRevision: 99,
+          startedAt: '2026-01-01T00:05:00.000Z',
+          endsAt: '2026-01-01T00:20:00.000Z',
+        },
+      },
     });
     vi.mocked(httpsCallable).mockReturnValue(callable);
 

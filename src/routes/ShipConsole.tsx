@@ -190,7 +190,7 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
   const shipCoordinate = shipState?.galacticCoordinate ?? '0000';
 
   async function activate(): Promise<void> {
-    if (!ship || !consoleRole || turnZeroLocked || spent || queued || activating) return;
+    if (!ship || !consoleRole || !effectiveWritable || turnZeroLocked || spent || queued || activating) return;
     setActivating(true);
     try {
       const result = await popShipConfetti(ship.id, consoleRole.id);
@@ -443,7 +443,9 @@ export default function ShipConsole({ observer = false }: { observer?: boolean }
               </button>
             </div>
             <p className="confetti-dispenser__status">
-              ONE USE // {turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
+              ONE USE // {session.phase === 'debrief'
+                ? 'ENDGAME EVALUATION // COMMAND FROZEN'
+                : turnZeroLocked ? 'TURN 0 // AWAITING IRIS AUTHENTICATION' : spent ? 'EMPTY' : queued ? 'QUEUED' : activating ? 'FIRING' : 'ARMED'}
             </p>
             {confettiActor && (
               <p className="confetti-dispenser__notice" role="status">

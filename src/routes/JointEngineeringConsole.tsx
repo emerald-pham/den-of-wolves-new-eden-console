@@ -17,9 +17,10 @@ export default function JointEngineeringConsole() {
   const role = findConsoleRole(roleId);
   const activeRoleIds = session?.activeRoleIds ?? DEFAULT_ACTIVE_ROLE_IDS;
   const roleEnabled = Boolean(role && isJointEngineeringRoleAvailable(activeRoleIds, role.id));
+  const gameplayFrozen = session?.phase === 'debrief' || session?.phase === 'closed';
   const canClaimRole = Boolean(
     session && me && mode === 'console' && role && role.shipId === 'joint-engineering-union' &&
-    roleEnabled && (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === role.id),
+    roleEnabled && !gameplayFrozen && (isGm || !me.activeConsoleRoleId || me.activeConsoleRoleId === role.id),
   );
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export default function JointEngineeringConsole() {
 
   return (
     <ConsoleAccessContext.Provider value={{
-      writable: roleEnabled && me.activeConsoleRoleId === role.id,
+      writable: roleEnabled && me.activeConsoleRoleId === role.id && !gameplayFrozen,
       roleId: role.id,
     }}>
       <main className="session-mode">
@@ -52,6 +53,9 @@ export default function JointEngineeringConsole() {
           <p className="eyebrow">{session.name} // Joint station</p>
           <h1 className="role-select__title">Joint Engineering Union</h1>
           <p className="role-select__lede">{role.name}</p>
+          {gameplayFrozen && <p className="gm-console__status" role="status">
+            Endgame evaluation // engineering controls are frozen.
+          </p>}
           <JointEngineeringWorkspace roleId={role.id} />
         </section>
       </main>
