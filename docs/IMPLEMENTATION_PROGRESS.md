@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**166 / 747 prompts complete (22.22%)**
+**167 / 747 prompts complete (22.36%)**
 
-Status breakdown: **166 done · 7 partial · 574 missing**.
+Status breakdown: **167 done · 7 partial · 573 missing**.
 
 Active prompt: **none**
 
@@ -668,7 +668,7 @@ release classification and evidence.
 | 233a | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 233b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 234 | done | feature | 0.3.58 | The authoritative small-ship operations path now admits Gorgoneion, base Capybara, Warrior, and Vulcan to active fleet hosts through a GM-only, revision-safe docking command. Team maintenance runs the four printed steps against only the docked host food and water ledger, keeps server rolls and reactor capacity authoritative, and never draws small-ship damage; malformed, stale, unauthorized, and replayed requests are denied or safely replayed. Join/resume projections expose only the public state, the GM console gives each admitted ship usable docking and maintenance controls with explicit unavailable/reconnect states, expansion Capybara remains a separate full-ship definition, and Team/Wolf-attack boundaries require admitted small ships to remain docked. Focused callable, phase, projection, and browser checks cover the production path. |
-| 234a | missing | non-feature | — | Planned [DECISION] prompt; no production-path evidence has been recorded yet. |
+| 234a | done | non-feature | — | The GM console displays the facilitator guidance to consider roughly three additional Wolf damage capacity per attack for each extra role. It explicitly leaves the adjustment to the facilitator and does not mutate attacks. The shared GM hint is rendered at 14px with wrapping and the existing Roles return control. |
 | 235 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 236 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 237 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

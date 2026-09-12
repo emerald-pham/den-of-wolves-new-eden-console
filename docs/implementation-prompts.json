@@ -4340,6 +4340,13 @@
       "language": "Verified the existing danger-red two-step ARE YOU SURE? Settings action. Confirmation invokes the shared disconnect service and replaces the route with landing; the service captures session and GM-instance cleanup before clearing local identity, mode and private state, retaining cleanup commands for offline acknowledgement. Existing cancellation, offline queue and delayed acknowledgement tests pass; the Settings test now also proves landing navigation. No runtime change. Focused AppHeader, sessionService and useSessionStore verification passed 161 tests. This is source and test evidence, not a new rendered-device or deployment claim.",
       "source": "src/components/AppHeader.tsx; src/components/AppHeader.test.tsx; src/lib/sessionService.ts (disconnectFromSession); src/lib/sessionService.test.ts; src/store/useSessionStore.ts; src/store/useSessionStore.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "234a",
+      "id": "E-234A-IMPLEMENTED",
+      "language": "The actual GM console guidance was inspected in an offline fixture at 320x844, 1440x900 and 844x390: 14px monospace text, no horizontal overflow, existing 44px controls, reduced motion and keyboard return navigation. The reconciled GM route suite passed 69 tests plus typecheck. This is local implementation, rendered and test evidence; release deployment is reported separately.",
+      "source": "src/routes/GmConsole.tsx; src/index.css (gm-console__balance-guidance); src/routes/GmConsole.test.tsx",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -10407,8 +10414,8 @@
         "acceptance": "facilitators see the printed roughly-three Wolf-capacity-per-extra-role guidance without automatic or player-controlled attack mutation.",
         "title": "Apply the extra-role balance dial."
       },
-      "description": "Planned [DECISION] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "none",
+      "description": "The GM console displays the facilitator guidance to consider roughly three additional Wolf damage capacity per attack for each extra role. It explicitly leaves the adjustment to the facilitator and does not mutate attacks. The shared GM hint is rendered at 14px with wrapping and the existing Roles return control.",
+      "evidenceIds": "E-234A-IMPLEMENTED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "none",
@@ -10419,7 +10426,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "DECISION"
     },
     {
