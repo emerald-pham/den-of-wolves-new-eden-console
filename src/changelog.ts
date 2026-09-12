@@ -21,6 +21,20 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['122a'],
+    implementationProgress: {
+      "completed": 153,
+      "total": 747,
+      "percentage": "20.48%",
+      "done": 153,
+      "partial": 7,
+      "active": 0,
+      "missing": 587
+    },
+    changes: ["Reactor power-up now asks for confirmation and shows which consoles will be charged and which unused charges will be lost. You can cancel without changing anything. 153 of 747 planned items are complete (20.48%)."],
+  },
+  {
+    version: '0.3.54',
     implementationPrompts: ['656'],
     implementationProgress: {
       completed: 135,
