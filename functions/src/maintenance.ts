@@ -15,7 +15,9 @@ export interface MaintenanceInput {
   dockings: readonly { shipId: string; shuttleId: string }[];
   cargo: Record<string, Record<string, number>>; fuelled: Record<string, boolean>;
   rolls: number[]; entropy: number; foodLevel?: number; waterLevel?: number;
-  consoles?: string[]; refuels?: Record<string, string>; upgraded?: readonly string[]; now: string;
+  consoles?: string[]; refuels?: Record<string, string>; productionConsoleId?: string;
+  productionMode?: 'run' | 'skip';
+  upgraded?: readonly string[]; now: string;
   damageDrawId?: string;
 }
 export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water: number[]; reactor: number; damagedPenalty: number }>> = {
@@ -29,6 +31,11 @@ export const MAINTENANCE_RULES: Readonly<Record<string, { food: number[]; water:
 };
 export { MAINTENANCE_ORDERS } from './maintenanceOrder';
 export const emptyMaintenanceCycle = (): MaintenanceCycle => ({ step: 0, revision: 0, results: {}, charges: [], refuelled: [] });
+
+const DIONE_PRODUCTION = {
+  hydroponics: { waterCost: 1, foodYield: 3, upgradedFoodYield: 5 },
+  'water-reclamation': { waterCost: 0, waterYield: 2, upgradedWaterYield: 4 },
+} as const;
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -94,7 +101,13 @@ export function advanceMaintenance(input: MaintenanceInput) {
     : aegisOmegaComplete || (input.damage.destroyed && cycleInput.step === 7)
       ? 'end'
       : order[cycleInput.step - 1] ?? (cycleInput.step === order.length + 1 ? 'end' : undefined);
-  if (expectedAction !== action) throw new Error('This action is not available at the current step.');
+  // Dione's production consoles branch from the powered Reactor before the
+  // step-6 shuttle bay. They consume a charge but do not advance the lane.
+  const isProduction = action === 'production';
+  if ((!isProduction && expectedAction !== action) ||
+      (isProduction && (shipId !== 'dione' || cycleInput.step !== 6))) {
+    throw new Error('This action is not available at the current step.');
+  }
   if (action === 'begin' && cycleInput.turn === input.currentTurn) {
     throw new Error('Maintenance can only be done once per turn.');
   }
@@ -169,6 +182,41 @@ export function advanceMaintenance(input: MaintenanceInput) {
     cycle.charges = [...consoles];
     cycle.results['5'] = `Reactor powered up. Previous unused charge lost. Charged ${consoles.length}/${capacity} consoles.`;
     for (const dock of input.dockings.filter(d => d.shipId === shipId)) fuelled[dock.shuttleId] = false;
+  } else if (action === 'production') {
+    const consoleId = input.productionConsoleId;
+    if (!consoleId || !(consoleId in DIONE_PRODUCTION)) throw new Error('Select a Dione production console.');
+    if (!cycleInput.charges.includes(consoleId)) throw new Error('Production console is not charged.');
+    const productionMode = input.productionMode ?? 'run';
+    if (productionMode !== 'run' && productionMode !== 'skip') throw new Error('Invalid Dione production choice.');
+    const priorProductionResult = cycleInput.results['5'] ?? '';
+    if (productionMode === 'skip') {
+      cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
+      const label = consoleId === 'hydroponics' ? 'Hydroponics' : 'Water Reclamation';
+      cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}${label} skipped.`;
+    } else {
+      if (damage.damagedSystemIds.includes(consoleId)) throw new Error('Damaged production console cannot be used.');
+      if (consoleId === 'hydroponics' && priorProductionResult.includes('Water Reclamation:')) {
+        throw new Error('Hydroponics must be resolved before Water Reclamation.');
+      }
+      if (consoleId === 'water-reclamation' && cycleInput.charges.includes('hydroponics') &&
+          !damage.damagedSystemIds.includes('hydroponics') &&
+          resources.water >= DIONE_PRODUCTION.hydroponics.waterCost) {
+        throw new Error('Resolve Hydroponics before Water Reclamation, or skip it.');
+      }
+      const rule = DIONE_PRODUCTION[consoleId];
+      const upgraded = input.upgraded?.includes(consoleId) ?? false;
+      if (consoleId === 'hydroponics') {
+        if (resources.water < rule.waterCost) throw new Error('Insufficient water for Hydroponics.');
+        const foodYield = upgraded ? rule.upgradedFoodYield : rule.foodYield;
+        resources = { ...resources, water: resources.water - rule.waterCost, food: resources.food + foodYield };
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Hydroponics: spent ${rule.waterCost} water, generated ${foodYield} food.`;
+      } else {
+        const waterYield = upgraded ? rule.upgradedWaterYield : rule.waterYield;
+        resources = { ...resources, water: resources.water + waterYield };
+        cycle.results['5'] = `${priorProductionResult}${priorProductionResult ? ' ' : ''}Water Reclamation: generated ${waterYield} water.`;
+      }
+      cycle.charges = cycleInput.charges.filter(id => id !== consoleId);
+    }
   } else if (action === 'bays') {
     const refuels = input.refuels ?? {};
     const chosen = Object.values(refuels).filter(Boolean);
@@ -195,6 +243,7 @@ export function advanceMaintenance(input: MaintenanceInput) {
       : `${bayName} powered up. No shuttles refuelled.`;
   }
   cycle.step = action === 'end' ? 0
+    : isProduction ? cycleInput.step
     : damage.destroyed ? 7
       : shipId === 'aegis' && cycleInput.step === 7 ? 7
         : cycle.step + 1;

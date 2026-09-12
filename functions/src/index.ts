@@ -8001,6 +8001,8 @@ type MaintenanceRequestFingerprint = Readonly<{
   waterLevel: number | null;
   consoles: readonly string[];
   refuels: readonly (readonly [string, string])[];
+  productionConsoleId: string | null;
+  productionMode: 'run' | 'skip' | null;
   consoleRoleId: string | null;
 }>;
 
@@ -8009,6 +8011,8 @@ type MaintenanceCommand = ReturnType<typeof requireMaintenanceRequest> & {
   waterLevel?: number;
   consoles?: string[];
   refuels?: Record<string, string>;
+  productionConsoleId?: string;
+  productionMode?: 'run' | 'skip';
   consoleRoleId?: string;
 };
 
@@ -8024,6 +8028,8 @@ function maintenanceRequestFingerprint(command: MaintenanceCommand, actorUid: st
     waterLevel: command.waterLevel ?? null,
     consoles: [...(command.consoles ?? [])],
     refuels: Object.entries(command.refuels ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    productionConsoleId: command.productionConsoleId ?? null,
+    productionMode: command.productionMode ?? null,
     consoleRoleId: command.consoleRoleId ?? null,
   };
 }
@@ -8048,6 +8054,8 @@ function sameMaintenanceRequestFingerprint(
     Array.isArray(candidate.consoles) && candidate.consoles.length === expected.consoles.length &&
     candidate.consoles.every((item, index) => item === expected.consoles[index]) &&
     samePairs(candidate.refuels, expected.refuels) &&
+    candidate.productionConsoleId === expected.productionConsoleId &&
+    candidate.productionMode === expected.productionMode &&
     candidate.consoleRoleId === expected.consoleRoleId;
 }
 
@@ -8122,11 +8130,11 @@ function maintenanceReceiptReply(
 export const runMaintenance = onCall<{
   sessionId?: unknown; shipId?: unknown; requestId?: unknown; action?: unknown; expectedRevision?: unknown;
   instanceId?: unknown; foodLevel?: unknown; waterLevel?: unknown;
-  consoles?: unknown; refuels?: unknown; consoleRoleId?: unknown;
+  consoles?: unknown; refuels?: unknown; productionConsoleId?: unknown; productionMode?: unknown; consoleRoleId?: unknown;
 }>(async request => {
   const uid = requireUid(request.auth);
   const raw = request.data;
-  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'consoleRoleId'];
+  const allowed = ['sessionId', 'shipId', 'requestId', 'action', 'expectedRevision', 'instanceId', 'foodLevel', 'waterLevel', 'consoles', 'refuels', 'productionConsoleId', 'productionMode', 'consoleRoleId'];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }
@@ -8137,6 +8145,8 @@ export const runMaintenance = onCall<{
     ...(raw.waterLevel === undefined ? {} : { waterLevel: raw.waterLevel as number }),
     ...(raw.consoles === undefined ? {} : { consoles: raw.consoles as string[] }),
     ...(raw.refuels === undefined ? {} : { refuels: raw.refuels as Record<string, string> }),
+    ...(raw.productionConsoleId === undefined ? {} : { productionConsoleId: raw.productionConsoleId as string }),
+    ...(raw.productionMode === undefined ? {} : { productionMode: raw.productionMode as 'run' | 'skip' }),
     ...(raw.consoleRoleId === undefined ? {} : { consoleRoleId: raw.consoleRoleId as string }),
   };
   if (!MAINTENANCE_RULES[data.shipId] ||
@@ -8149,6 +8159,8 @@ export const runMaintenance = onCall<{
     [data.foodLevel, data.waterLevel].some(level => level !== undefined && (!Number.isInteger(level) || level < 0 || level > 3)) ||
     (data.consoles !== undefined && (!Array.isArray(data.consoles) || data.consoles.length > 20 || data.consoles.some(id => typeof id !== 'string'))) ||
     (data.refuels !== undefined && (typeof data.refuels !== 'object' || data.refuels === null || Array.isArray(data.refuels) || Object.values(data.refuels).some(id => typeof id !== 'string'))) ||
+    (data.productionConsoleId !== undefined && (typeof data.productionConsoleId !== 'string' || !['hydroponics', 'water-reclamation'].includes(data.productionConsoleId))) ||
+    (data.productionMode !== undefined && data.productionMode !== 'run' && data.productionMode !== 'skip') ||
     (data.consoleRoleId !== undefined && !/^[\w-]{1,128}$/.test(data.consoleRoleId))) {
     throw new HttpsError('invalid-argument', 'Invalid maintenance request.');
   }

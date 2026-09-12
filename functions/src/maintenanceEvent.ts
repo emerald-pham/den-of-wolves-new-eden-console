@@ -5,7 +5,7 @@
  */
 
 export const MAINTENANCE_EVENT_ACTIONS = [
-  'begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'bays', 'end',
+  'begin', 'storage', 'rations', 'unrest', 'riot', 'reactor', 'production', 'bays', 'end',
 ] as const;
 export type MaintenanceEventAction = typeof MAINTENANCE_EVENT_ACTIONS[number];
 

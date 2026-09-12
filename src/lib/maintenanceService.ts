@@ -8,6 +8,8 @@ export interface MaintenanceChoices {
   readonly waterLevel?: number;
   readonly consoles?: readonly string[];
   readonly refuels?: Readonly<Record<string, string>>;
+  readonly productionConsoleId?: 'hydroponics' | 'water-reclamation';
+  readonly productionMode?: 'run' | 'skip';
 }
 
 interface PendingMaintenanceRequest {
@@ -42,6 +44,8 @@ function maintenanceChoicesFingerprint(choices: MaintenanceChoices): string {
     waterLevel: choices.waterLevel ?? null,
     consoles: [...(choices.consoles ?? [])],
     refuels: Object.entries(choices.refuels ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    productionConsoleId: choices.productionConsoleId ?? null,
+    productionMode: choices.productionMode ?? null,
   });
 }
 

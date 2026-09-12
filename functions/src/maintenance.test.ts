@@ -206,6 +206,77 @@ it('preserves the printed damaged Jump Drive integrity exception', () => {
   expect(result.cycle.charges).toEqual(['jump-drive']);
 });
 
+it('resolves charged Dione Hydroponics atomically and removes only its charge', () => {
+  const result = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+    cycle: { step: 6, revision: 4, results: { '5': 'Reactor powered up.' }, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    expectedRevision: 4,
+    resources: { ore: 0, fuel: 0, food: 1, water: 2, materials: 0, securityTeams: 0 },
+  }));
+
+  expect(result.resources).toMatchObject({ food: 4, water: 1 });
+  expect(result.cycle).toMatchObject({ step: 6, revision: 5, charges: ['water-reclamation'] });
+  expect(result.cycle.results['5']).toContain('Hydroponics: spent 1 water, generated 3 food.');
+});
+
+it('applies Dione production upgrades and enforces production order without trapping an unavailable Hydroponics console', () => {
+  const upgradedHydroponics = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', upgraded: ['hydroponics'],
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 1, materials: 0, securityTeams: 0 },
+  }));
+  expect(upgradedHydroponics.resources).toMatchObject({ food: 5, water: 0 });
+
+  const waterFirst = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 0, materials: 0, securityTeams: 0 },
+  }));
+  expect(waterFirst.resources.water).toBe(2);
+  expect(waterFirst.cycle.charges).toEqual(['hydroponics']);
+  expect(() => advanceMaintenance({
+    ...input(), shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+    cycle: waterFirst.cycle, expectedRevision: waterFirst.cycle.revision, resources: waterFirst.resources,
+  })).toThrow(/before Water Reclamation/);
+  expect(waterFirst).toMatchObject({ resources: { food: 0, water: 2 }, cycle: { charges: ['hydroponics'] } });
+
+  expect(() => advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 1, materials: 0, securityTeams: 0 },
+  }))).toThrow(/Hydroponics before Water Reclamation/);
+
+  const damagedHydroponics = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'water-reclamation',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    damage: { damagedSystemIds: ['hydroponics'], destroyed: false },
+    resources: { ore: 0, fuel: 0, food: 0, water: 1, materials: 0, securityTeams: 0 },
+  }));
+  expect(damagedHydroponics.resources.water).toBe(3);
+  expect(damagedHydroponics.cycle.charges).toEqual(['hydroponics']);
+});
+
+it('records an explicit production skip so the next console can run without spending resources', () => {
+  const skipped = advanceMaintenance(input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', productionMode: 'skip',
+    cycle: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 0, water: 14, materials: 0, securityTeams: 0 },
+  }));
+  expect(skipped.resources).toMatchObject({ food: 0, water: 14 });
+  expect(skipped.cycle.charges).toEqual(['water-reclamation']);
+  expect(skipped.cycle.results['5']).toContain('Hydroponics skipped.');
+});
+
+it('rejects uncharged or damaged Dione production without changing the resource ledger', () => {
+  const base = input({
+    shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+    cycle: { step: 6, revision: 0, results: {}, charges: [], refuelled: [] },
+    resources: { ore: 0, fuel: 0, food: 2, water: 1, materials: 0, securityTeams: 0 },
+  });
+  expect(() => advanceMaintenance(base)).toThrow(/not charged/i);
+  expect(() => advanceMaintenance({ ...base, cycle: { ...base.cycle, charges: ['hydroponics'] }, damage: { damagedSystemIds: ['hydroponics'], destroyed: false } })).toThrow(/damaged/i);
+});
+
 it.each(REACTOR_CAPACITY_MATRIX)('enforces printed Reactor capacity for $shipId', ({ shipId, nominalCapacity, damagedPenalty, eligibleConsoles }) => {
   const variants = [
     { label: 'nominal', capacity: nominalCapacity, damaged: false, upgraded: false },

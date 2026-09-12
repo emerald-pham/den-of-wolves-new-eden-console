@@ -53,6 +53,7 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const [refuels, setRefuels] = useState<Record<string, string>>({});
   useEffect(() => { setFoodLevel(0); setWaterLevel(0); setConsoles([]); setRefuels({}); setError(''); setDamageNotices([]); }, [shipId, step]);
   const damage = shipState ? shipState.damage : session?.shipDamage?.[shipId];
+  const resources = shipState ? shipState.resources : session?.shipResources?.[shipId];
   const maintenanceDamageDraw = cycle?.damageDrawId
     ? damageDraws.find(draw => draw.id === cycle.damageDrawId)
     : undefined;
@@ -79,6 +80,17 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
   const bays = systems.filter(system => system.timing === 6 || system.timing === 7);
   const docked = session?.shuttleDockings?.filter(dock => dock.shipId === shipId) ?? [];
   const upgrades = shipState ? shipState.upgrades : session?.shipUpgrades?.[shipId] ?? [];
+  const dioneProductionSystems = systems.filter(system => ['hydroponics', 'water-reclamation'].includes(system.id));
+  const productionDisabled = (consoleId: string, mode: 'run' | 'skip' = 'run') => {
+    const baseDisabled = blocked || maintenancePhaseBlocked || shipId !== 'dione' || step !== 6 ||
+      !resources || !cycle?.charges.includes(consoleId) || damage?.destroyed === true;
+    if (mode === 'skip') return baseDisabled;
+    return baseDisabled || damage?.damagedSystemIds.includes(consoleId) ||
+      (consoleId === 'hydroponics' && cycle!.results['5']?.includes('Water Reclamation:')) ||
+      (consoleId === 'hydroponics' && resources!.water < 1) ||
+      (consoleId === 'water-reclamation' && cycle!.charges.includes('hydroponics') &&
+        !damage?.damagedSystemIds.includes('hydroponics') && resources!.water >= 1);
+  };
   const capacity = Math.max(0, schedule.reactor + (upgrades.includes('reactor') ? 1 : 0) -
     (damage?.damagedSystemIds.includes('reactor') ? (['shepherd', 'quellon'].includes(shipId) ? 2 : 3) : 0));
   const reactorDisabled = disabled(5) || maintenancePhaseBlocked || consoles.length > capacity ||
@@ -180,6 +192,24 @@ export default function MaintenanceSystems<T extends TimedSystem>({ name, shipId
                 </div>
               </fieldset>
             </>}
+            {step === 6 && shipId === 'dione' && <fieldset disabled={blocked} className="maintenance-controls">
+              <legend>Dione production consoles</legend>
+              <p>Resolve or explicitly skip charged production consoles in order before shuttle bay refuelling. Live stores: {resources
+                ? `${resources.food} food // ${resources.water} water`
+                : 'awaiting live resource state'}.</p>
+              {dioneProductionSystems.map(system => <div key={system.id}>
+                <button className="cic-action-button" disabled={productionDisabled(system.id)}
+                  onClick={() => void execute('production', { productionConsoleId: system.id as 'hydroponics' | 'water-reclamation' })}>
+                  Run {system.name}
+                </button>{' '}
+                <button className="cic-action-button" disabled={productionDisabled(system.id, 'skip')}
+                  onClick={() => void execute('production', {
+                    productionConsoleId: system.id as 'hydroponics' | 'water-reclamation', productionMode: 'skip',
+                  })}>
+                  Skip {system.name}
+                </button>
+              </div>)}
+            </fieldset>}
             {(step === 6 || (step === 7 && shipId === 'aegis' && cycle?.results['7'] === undefined)) && <fieldset
               disabled={disabled(step) || (shipId === 'aegis' && step === 7 && damage?.destroyed === true)} className="maintenance-controls"><legend>Refuel {baysForStep.map(bay => bay.name).join(' / ') || 'docked shuttles'} // 1 fuel each</legend>
               {baysForStep.map(bay => <label key={bay.id}>{bay.name}

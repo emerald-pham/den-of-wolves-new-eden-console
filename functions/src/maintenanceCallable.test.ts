@@ -404,6 +404,94 @@ it('begins maintenance atomically with a server-owned revision', async () => {
   }));
 });
 
+it('resolves Dione production atomically with authoritative resources, charge consumption, replay, and stale CAS', async () => {
+  const maintenance = {
+    session: {
+      phase: 'active', currentTurn: 1,
+      maintenanceCycles: {
+        dione: { step: 6, revision: 0, results: { '5': 'Reactor powered up.' }, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+      },
+      shipResources: { dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 } },
+      shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+      shipUnrest: { dione: 0 }, shipSurvivors: { dione: 100_000 },
+      shuttleDockings: [], shuttleCargo: {}, shuttleFuelled: {},
+      unrestAlerts: {}, populationAlerts: {}, capybaraEnabled: true, dioneEnabled: true,
+    } as Record<string, unknown>,
+    receipts: {}, undo: {}, events: {}, damageDraws: {},
+  };
+  mock.race = { attempts: 0, ready: Promise.resolve(), release: () => undefined, version: 0, maintenance };
+
+  const production = await runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', expectedRevision: 0,
+    requestId: 'dione-hydroponics', productionConsoleId: 'hydroponics',
+  }));
+  expect(production).toMatchObject({
+    status: 'committed', action: 'production', committedRevision: 1,
+    cycle: { step: 6, charges: ['water-reclamation'], results: { '5': expect.stringContaining('generated 3 food') } },
+    result: { resources: { food: 16, water: 13 } },
+  });
+  expect(maintenance.session.shipResources).toMatchObject({ dione: { food: 16, water: 13 } });
+  expect(maintenance.session.maintenanceCycles).toMatchObject({ dione: { step: 6, revision: 1, charges: ['water-reclamation'] } });
+  expect(maintenance.events['sessions/s1/events/maintenance-dione-hydroponics']).toMatchObject({
+    type: 'maintenance', action: 'production', results: { '5': expect.stringContaining('Hydroponics') },
+  });
+
+  const updateCount = mock.update.mock.calls.length;
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', expectedRevision: 0,
+    requestId: 'dione-hydroponics', productionConsoleId: 'hydroponics',
+  }))).resolves.toMatchObject({ status: 'replayed', requestId: 'dione-hydroponics' });
+  expect(mock.update.mock.calls.length).toBe(updateCount);
+
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', expectedRevision: 0,
+    requestId: 'dione-stale', productionConsoleId: 'water-reclamation',
+  }))).resolves.toMatchObject({ status: 'stale', currentRevision: 1 });
+  expect(maintenance.session.shipResources).toMatchObject({ dione: { food: 16, water: 13 } });
+});
+
+it('uses the server-owned Dione upgrade and rejects damaged production consoles', async () => {
+  mock.maintenanceCycles = {
+    dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
+  };
+  mock.shipUpgrades = { dione: ['hydroponics'] };
+  const upgraded = await runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics',
+  }));
+  expect(upgraded).toMatchObject({ result: { resources: { food: 18, water: 13 } } });
+
+  mock.maintenanceCycles = {
+    dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics'], refuelled: [] },
+  };
+  mock.damage = { dione: { damagedSystemIds: ['hydroponics'], destroyed: false } };
+  mock.update.mockClear();
+  await expect(runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', requestId: 'dione-damaged', productionConsoleId: 'hydroponics',
+  }))).rejects.toMatchObject({ code: 'failed-precondition', message: expect.stringMatching(/damaged/i) });
+  expect(mock.update).not.toHaveBeenCalled();
+});
+
+it('records a Dione skip choice before allowing the next production console', async () => {
+  mock.maintenanceCycles = {
+    dione: { step: 6, revision: 0, results: {}, charges: ['hydroponics', 'water-reclamation'], refuelled: [] },
+  };
+  const skipped = await runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', productionConsoleId: 'hydroponics', productionMode: 'skip',
+  }));
+  expect(skipped).toMatchObject({
+    status: 'committed', cycle: { step: 6, revision: 1, charges: ['water-reclamation'], results: { '5': expect.stringContaining('Hydroponics skipped') } },
+    result: { resources: { food: 13, water: 14 } },
+  });
+  mock.maintenanceCycles = {
+    dione: { step: 6, revision: 1, results: { '5': 'Hydroponics skipped.' }, charges: ['water-reclamation'], refuelled: [] },
+  };
+  const next = await runMaintenance.run(request({
+    ...data, shipId: 'dione', action: 'production', expectedRevision: 1,
+    requestId: 'dione-water-after-skip', productionConsoleId: 'water-reclamation',
+  }));
+  expect(next).toMatchObject({ status: 'committed', result: { resources: { food: 13, water: 16 } } });
+});
+
 it('commits maintenance resources, charges, fuel, and damage once across duplicate and stale CAS requests', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-09-09T16:10:00.000Z'));

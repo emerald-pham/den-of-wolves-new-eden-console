@@ -97,6 +97,39 @@ it('sends separate ration choices and displays server results across remounts', 
   expect(run).toHaveBeenCalledWith('aegis', 'rations', 2, { foodLevel: 1, waterLevel: 2 }, undefined);
 });
 
+it('renders Dione production controls from live charges and resource state', async () => {
+  useSessionStore.setState({ session: {
+    ...session,
+    shipResources: { dione: { ore: 0, fuel: 3, food: 13, water: 14, materials: 0, securityTeams: 2 } },
+    shipDamage: { dione: { damagedSystemIds: [], destroyed: false } },
+    maintenanceCycles: { dione: { step: 6, revision: 3, results: { '5': 'Reactor powered up.' }, charges: ['hydroponics', 'water-reclamation'], refuelled: [] } },
+  } });
+  render(<MaintenanceSystems name="Dione" shipId="dione"
+    systems={[
+      { id: 'hydroponics', name: 'Hydroponics', timing: 5 },
+      { id: 'water-reclamation', name: 'Water Reclamation', timing: 5 },
+      { id: 'shuttle-bay', name: 'Shuttle Bay', timing: 6 },
+    ]}
+    renderSystem={() => null} rations={null} />);
+
+  expect(screen.getByText(/Live stores: 13 food \/\/ 14 water/)).toBeVisible();
+  const hydroponics = screen.getByRole('button', { name: 'Run Hydroponics' });
+  const reclamation = screen.getByRole('button', { name: 'Run Water Reclamation' });
+  expect(hydroponics).toBeEnabled();
+  expect(reclamation).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Skip Hydroponics' })).toBeEnabled();
+  await userEvent.click(hydroponics);
+  expect(run).toHaveBeenCalledWith('dione', 'production', 3, { productionConsoleId: 'hydroponics' }, undefined);
+
+  act(() => useSessionStore.setState({ session: {
+    ...useSessionStore.getState().session!,
+    shipResources: { dione: { ore: 0, fuel: 3, food: 16, water: 13, materials: 0, securityTeams: 2 } },
+    maintenanceCycles: { dione: { step: 6, revision: 4, results: { '5': 'Hydroponics generated 3 food.' }, charges: ['water-reclamation'], refuelled: [] } },
+  } }));
+  expect(screen.getByRole('button', { name: 'Run Water Reclamation' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Run Hydroponics' })).toBeDisabled();
+});
+
 it('disables damaged consoles before reactor charge while preserving the damaged Jump Drive control', () => {
   useSessionStore.setState({ session: {
     ...session,
