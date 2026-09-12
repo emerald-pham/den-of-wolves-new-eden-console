@@ -1600,8 +1600,8 @@
     {
       "direction": "263 -> 161;162",
       "id": "E-AUDIT-263",
-      "language": "Craft registration consumes the canonical vessel/statistics definitions.",
-      "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
+      "language": "Philia registration preserves its Dione Engineer owner, all source-aligned cargo types, Dione initial dock, and distinct repair, dismantle, and boarding procedures; route proof presents the configuration without claiming mechanic execution.",
+      "source": "src/data/vessels/philia.ts; src/data/shuttles.ts; functions/src/shuttlecraft.ts; src/data/shuttles.test.ts; functions/src/shuttlecraft.test.ts; src/routes/ShuttleConsole.tsx; src/routes/ShuttleConsole.test.tsx",
       "type": "hard_prompt"
     },
     {
@@ -11254,7 +11254,7 @@
         "acceptance": "its cargo, repair, dismantle, permission, second-ship fuel rule, owner, dock, and route match the actual craft.",
         "title": "Register Philia completely."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
+      "description": "The canonical typed Philia registration preserves Dione Engineer ownership, SESSION START Dione docking, and the six source-aligned cargo types: security teams, ore, fuel, food, water, and materials. Its distinct procedures record repair of up to 2 consoles on one ship for 4 materials each, permission-gated console damage yielding 3 materials, fuelled repair on a second ship, and docked-ship boarding support. Focused catalog, server manifest, and route tests verify these facts and route presentation. The route presents source-aligned configuration; future cargo transfer, repair, dismantle, and boarding engines remain owned by separate prompts. The routed Philia derivative establishes this contract, and no primary Philia PDF inspection is claimed.",
       "evidenceIds": "E-AUDIT-263",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -11266,7 +11266,7 @@
       "releases": [],
       "section": "Extra vessels, craft registration, and replacement roles (Prompts 234–280)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

@@ -388,6 +388,39 @@ it('opens Starlight on its Wing Commander route with its routed operation envelo
   expect(screen.queryByText(/cargo transfer/i)).not.toBeInTheDocument();
 });
 
+it('opens Philia on its Dione Engineer route with its repair and cargo envelope', () => {
+  const state = useSessionStore.getState();
+  state.setSession({
+    ...state.session!,
+    activeRoleIds: ['dione-engineer'],
+    shuttleDockings: [{ shuttleId: 'philia', shipId: 'dione', dockedAt: 'SESSION START' }],
+    shuttleFuelled: { philia: true },
+  });
+  state.setMe({ ...state.me!, activeConsoleRoleId: 'dione-engineer' });
+
+  render(
+    <MemoryRouter initialEntries={['/shuttles/philia']}>
+      <Routes><Route path="/shuttles/:shuttleId" element={<ShuttleConsole />} /></Routes>
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByRole('heading', { name: 'F.S. Philia' })).toBeInTheDocument();
+  expect(screen.getByText('Engineer // Captain')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Shuttle systems' })).toHaveTextContent(
+    /docked.*dione/i,
+  );
+  expect(screen.getByText('Fuelled this turn')).toBeInTheDocument();
+  expect(screen.getByText('Security teams, strytium ore, fuel, food, water, and materials'))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Repair' })).toBeInTheDocument();
+  expect(screen.getByText(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i))
+    .toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Fuelled repair' })).toBeInTheDocument();
+  expect(screen.getByText(/fuelled.*repair consoles on a second ship/i)).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Boarding defence' })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Press dispatch desk' })).not.toBeInTheDocument();
+});
+
 it('opens Pallas on its Executive Officer route with its security and boarding envelope', () => {
   const state = useSessionStore.getState();
   state.setSession({

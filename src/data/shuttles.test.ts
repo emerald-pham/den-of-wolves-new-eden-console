@@ -100,6 +100,30 @@ describe('fleet shuttlebays', () => {
       .toEqual(['snn-press-shuttle', 'starlight', 'maliades', 'endeavour']);
   });
 
+  it('keeps Philia registration facts distinct across repair, dismantle, docking, and ownership', () => {
+    const philia = SHUTTLECRAFT.find((shuttle) => shuttle.id === 'philia');
+    expect(philia).toMatchObject({
+      captainRoleId: 'dione-engineer',
+      cargoTransferTypes: ['securityTeams', 'ore', 'fuel', 'food', 'water', 'materials'],
+      cargoTransfer: 'Security teams, strytium ore, fuel, food, water, and materials',
+      initialDocking: { shipId: 'dione', dockedAt: 'SESSION START' },
+    });
+    expect(philia?.operations).toEqual([
+      expect.objectContaining({
+        name: 'Repair', phase: 'Coordination',
+        effect: expect.stringMatching(/repair up to 2 consoles.*4 materials each.*damage a console.*permission.*gain 3 materials/i),
+      }),
+      expect.objectContaining({
+        name: 'Fuelled repair', phase: 'Coordination',
+        effect: expect.stringMatching(/fuelled.*repair consoles on a second ship/i),
+      }),
+      expect.objectContaining({
+        name: 'Boarding defence', phase: 'Wolf attack',
+        effect: expect.stringMatching(/docked ship.*security teams.*repel boarders/i),
+      }),
+    ]);
+  });
+
   it('starts the independently crewed and shipboard shuttlecraft docked with their home ships', () => {
     expect(INITIAL_SHUTTLE_DOCKINGS.map((docking) => docking.shuttleId)).toEqual([
       'snn-press-shuttle',
