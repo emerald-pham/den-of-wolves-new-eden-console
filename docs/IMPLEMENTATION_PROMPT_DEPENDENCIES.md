@@ -223,7 +223,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 121 | EXTEND | missing | 114;120 | none | none | none | none | none | none | none | E-AUDIT-121 | M2 | Resolve small-ship maintenance loss. |
 | 122 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M2 | Enforce Reactor capacity. |
 | 122a | REPAIR | missing | 122-125;128;138 | none | none | none | none | REACTOR-REPAIR | none | none | E-122A;E-REACTOR | M2 | Confirm Reactor power-up before authoritative mutation. |
-| 123 | EXTEND | missing | 122;162 | none | none | none | none | none | none | none | E-AUDIT-123 | M2 | Apply vessel-specific damaged-Reactor penalties. |
+| 123 | EXTEND | done | 122;162 | none | none | none | none | none | none | none | E-AUDIT-123;E-123-VERIFIED | M2 | Apply vessel-specific damaged-Reactor penalties. |
 | 124 | EXTEND | done | 122 | none | none | none | none | none | none | none | E-AUDIT-124 | M2 | Apply Reactor upgrades. |
 | 125 | PRESERVE | done | 122;138 | none | none | none | none | none | none | none | E-AUDIT-125 | M2 | Enforce console charge eligibility. |
 | 126 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-126 | M2 | Resolve both AEGIS shuttle bays. |
@@ -1465,6 +1465,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-AUDIT-154 | hard_prompt | 154 -> 142;141;145;149;336;414 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Airspace transition proof also needs Team-start docking and the mission-overrun restriction producer. |
 | E-AUDIT-641 | hard_prompt | 641 -> 159;320;422;524;540 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | The base-game proof requires the foundation, jump/system, away-mission, Wolf, and crisis scenario proofs before it can pass. |
 | E-AUDIT-651 | hard_prompt | 651 -> 641-650 | IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12 | Final release-readiness audit requires every preceding release-proof prompt in the 641-650 closure set. |
+| E-123-VERIFIED | evidence | 123 -> 122;162 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; commit 2dbce28 | The existing production Reactor branch uses per-vessel damagedPenalty values; the client maintenance presentation agrees. Existing seven-vessel capacity tests cover damaged and upgraded boundaries, and the callable suite covers authoritative snapshot inputs, eligibility, replay and persistence. Rechecked on 2026-09-12: 7 focused capacity cases and 40 callable tests pass. No new gameplay implementation or deployment is claimed. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

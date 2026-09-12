@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**135 / 747 prompts complete (18.07%)**
+**136 / 747 prompts complete (18.21%)**
 
-Status breakdown: **135 done · 7 partial · 605 missing**.
+Status breakdown: **136 done · 7 partial · 604 missing**.
 
 Active prompt: **none**
 
@@ -538,7 +538,7 @@ release classification and evidence.
 | 121 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
 | 122 | done | non-feature | — | Existing `functions/src/maintenance.test.ts` and `functions/src/maintenanceCallable.test.ts` evidence preserves authoritative Reactor capacity across all seven enabled vessels. The focused matrix covers exact nominal, upgraded, damaged, and damaged-plus-upgraded capacities with real eligible console IDs plus capacity-plus-one rejection; the callable suite retains authority, transaction/CAS persistence, input eligibility, replay, and no-client-write invariants. |
 | 122a | missing | non-feature | — | Owner-requested Reactor confirmation repair: the current `MaintenanceSystems` control submits `runMaintenance(..., 'reactor', ...)` directly, while the transaction replaces prior charges and appends an event without request-id replay. A dedicated release must reuse the danger-red second-press `ARE YOU SURE?` pattern before mutation, make cancel/blur/Escape/navigation/backdrop paths no-ops with focus restoration, prevent pending/double-submit, add idempotent retry and accepted-only audit/replay, and prove stale/unauthorized/invalid denial plus accessible mobile/reduced-motion containment. |
-| 123 | missing | non-feature | — | Planned [EXTEND] prompt; no production-path evidence has been recorded yet. |
+| 123 | done | non-feature | — | Existing server maintenance rules preserve vessel-specific damaged-Reactor penalties, including Shepherd and Quellon, without replacing them with a generic reduction. The shared Reactor capacity matrix checks nominal, upgraded, damaged, and damaged-plus-upgraded states and rejects over-capacity selections for all seven enabled vessels. The production callable supplies damage and upgrades from the transaction snapshot, and the maintenance UI uses the corresponding vessel-specific capacity. Verified 7 focused capacity cases and all 40 maintenance callable tests on the existing implementation; this is evidence reconciliation only, with no runtime or player-facing release change. |
 | 124 | done | non-feature | — | `functions/src/maintenance.test.ts` covers all seven enabled vessels at nominal, upgraded, damaged, and damaged-plus-upgraded capacities; `functions/src/maintenanceCallable.test.ts` proves the production `runMaintenance` path reads only server-owned `session.shipUpgrades`: six AEGIS consoles reject without the stored Reactor upgrade, reject a pending upgrade-shaped record, commit at `6/6` when that completed upgrade is present, and reject a forged client `upgraded` field with no write. Acquisition and completion of upgrade state remain deferred to the later Endeavour research work in P211/P391. Proof-only; no player release. |
 | 125 | done | non-feature | — | Prompt 125 is preserved by the existing server-owned Reactor validation: unknown or non-chargeable IDs, duplicate selections, and damaged non-Jump consoles are rejected before writes; Team-phase, destroyed or unavailable ship, authority, revision, idempotency, and replay tests cover the remaining denial paths. The printed damaged Jump Drive integrity case remains chargeable and is resolved authoritatively by the jump path. Focused domain and UI tests cover the eligibility matrix and disabled controls. No player release is required. |
 | 126 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |

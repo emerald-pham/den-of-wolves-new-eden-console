@@ -4214,6 +4214,13 @@
       "language": "Final release-readiness audit requires every preceding release-proof prompt in the 641-650 closure set.",
       "source": "IMPLEMENTATION_PLAN.md - dependency audit 2026-09-12",
       "type": "hard_prompt"
+    },
+    {
+      "direction": "123 -> 122;162",
+      "id": "E-123-VERIFIED",
+      "language": "The existing production Reactor branch uses per-vessel damagedPenalty values; the client maintenance presentation agrees. Existing seven-vessel capacity tests cover damaged and upgraded boundaries, and the callable suite covers authoritative snapshot inputs, eligibility, replay and persistence. Rechecked on 2026-09-12: 7 focused capacity cases and 40 callable tests pass. No new gameplay implementation or deployment is claimed.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; commit 2dbce28",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -7273,8 +7280,8 @@
         "acceptance": "Shepherd and Quellon use their own reductions and no generic value overwrites a ship sheet.",
         "title": "Apply vessel-specific damaged-Reactor penalties."
       },
-      "description": "Planned [EXTEND] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-123",
+      "description": "Existing server maintenance rules preserve vessel-specific damaged-Reactor penalties, including Shepherd and Quellon, without replacing them with a generic reduction. The shared Reactor capacity matrix checks nominal, upgraded, damaged, and damaged-plus-upgraded states and rejects over-capacity selections for all seven enabled vessels. The production callable supplies damage and upgrades from the transaction snapshot, and the maintenance UI uses the corresponding vessel-specific capacity. Verified 7 focused capacity cases and all 40 maintenance callable tests on the existing implementation; this is evidence reconciliation only, with no runtime or player-facing release change.",
+      "evidenceIds": "E-AUDIT-123;E-123-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;162",
@@ -7285,7 +7292,7 @@
       "releases": [],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "EXTEND"
     },
     {
