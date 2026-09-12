@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['111'],
+    implementationProgress: {
+      completed: 131,
+      total: 747,
+      percentage: '17.54%',
+      done: 131,
+      partial: 6,
+      active: 0,
+      missing: 610,
+    },
+    changes: [
+      'Fleet resource ledgers now keep ore, fuel, food, water, materials, security teams, and expansion Scrap as whole, nonnegative values, so malformed or boundary updates cannot restore stock or make it disappear unexpectedly. 131 of 747 planned items are complete (17.54%).',
+    ],
+  },
+  {
+    version: '0.3.50',
     implementationPrompts: ['652a'],
     implementationProgress: {
       completed: 130,

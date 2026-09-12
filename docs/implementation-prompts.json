@@ -6935,7 +6935,7 @@
         "acceptance": "ore, fuel, food, water, materials, optional Scrap, security teams, and card inventories remain nonnegative typed server state.",
         "title": "Define authoritative resource ledgers."
       },
-      "description": "Authoritative resource ledgers now parse ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe integers. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; malformed present values become zero while absent legacy fields retain printed starting stock. Jump and maintenance consume the same parsed ledgers, and Firestore denies direct session writes. Damage cards remain a server-owned immutable deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored. Focused tests cover malformed values, client projection, GM authority, ordered batches, retry/re-read behavior, expansion-only Scrap, exact printed stock, and retry-safe card draws. Proof-only; no player release.",
+      "description": "The authoritative resource projections now keep ore, fuel, food, water, materials, security teams, and Capybara-only Scrap as nonnegative safe integers. GM-only resource callables apply ordered +/-1 changes transactionally and re-read the latest count after a retry; absent legacy fields retain printed starting stock while malformed present roots, ship containers, and fields become zero, preventing corrupted data from restoring inventory. Jump and maintenance consume the same parsed ledgers, and Firestore denies direct session writes. Damage cards remain a server-owned immutable deck projection: only known damaged system IDs persist and legacy client-supplied deck order is ignored. Focused tests cover malformed values, projection, GM authority, ordered batches, retry/re-read behavior, safe upper-bound updates, expansion-only Scrap, exact printed stock, and retry-safe card draws.",
       "evidenceIds": "E-AUDIT-111",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -6944,7 +6944,9 @@
       "milestoneHints": "M2",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.51"
+      ],
       "section": "Turn, maintenance, and airspace foundations (Prompts 091–160)",
       "sequenceRules": "none",
       "status": "done",
