@@ -19,6 +19,7 @@ const mock = vi.hoisted(() => ({
   secretDocs: [] as string[],
   secretPayloads: {} as Record<string, Record<string, unknown>>,
   secretAudiences: {} as Record<string, readonly string[]>,
+  craftOwnershipManifest: undefined as Record<string, unknown> | null | undefined,
   priorReply: undefined as unknown,
   priorFingerprint: undefined as unknown,
   legacyNamespacePaths: new Set<string>(),
@@ -61,6 +62,7 @@ function snapshot(fields: Record<string, unknown>, path: string, exists = true) 
     exists,
     id: path.split('/').at(-1),
     ref: { path },
+    data: () => fields,
     get: (field: string) => fields[field],
   };
 }
@@ -152,6 +154,7 @@ beforeEach(() => {
   mock.set.mockReset();
   mock.priorReply = undefined;
   mock.priorFingerprint = undefined;
+  mock.craftOwnershipManifest = undefined;
   mock.legacyNamespacePaths.clear();
   mock.randomInt.mockClear();
   mock.secretPayloads = {};
@@ -204,6 +207,11 @@ beforeEach(() => {
       return mock.priorReply === undefined
         ? snapshot({}, ref.path, false)
         : snapshot({ reply: mock.priorReply, fingerprint: mock.priorFingerprint }, ref.path);
+    }
+    if (ref.path === 'sessions/s1/craftOwnership/manifest') {
+      return mock.craftOwnershipManifest === undefined
+        ? snapshot({}, ref.path, false)
+        : snapshot(mock.craftOwnershipManifest ?? {}, ref.path);
     }
     if (mock.legacyNamespacePaths.has(ref.path)) return snapshot({ legacy: true }, ref.path);
     if (ref.path === 'sessions/s1/players') {
@@ -265,6 +273,57 @@ it('starts a fully staffed roster in one transaction with locked setup, Turn 1, 
     expect.objectContaining({ path: 'sessionStartRequests/s1_start-1' }),
     expect.objectContaining({ requestId: 'start-1' }),
   );
+});
+
+it('rejects a start when the persisted craft manifest changes owner, mode, or list before writes', async () => {
+  mock.craftOwnershipManifest = {
+    type: 'role-owned-craft',
+    activeRoleIds: [...roleIds],
+    vesselMode: 'none',
+    roleOwnedCraft: [{ id: 'starlight', kind: 'shuttle', ownerRoleId: 'admiral' }],
+  };
+
+  await expect(startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-conflicting-craft-manifest', expectedSetupRevision: 0,
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: 'Start blocked: craft-ownership.',
+  });
+  expect(mock.randomInt).not.toHaveBeenCalled();
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.set).not.toHaveBeenCalled();
+});
+
+it('writes the exact server-derived craft manifest when a legacy start has no manifest', async () => {
+  const reply = await startGame.run(request({
+    sessionId: 's1', instanceId: 'bridge', requestId: 'start-legacy-craft-manifest', expectedSetupRevision: 0,
+  }));
+  const manifestWrite = mock.set.mock.calls.find(
+    ([ref]) => ref.path === 'sessions/s1/craftOwnership/manifest',
+  )?.[1];
+
+  expect(reply).toMatchObject({ status: 'committed', setupRevision: 1 });
+  expect(manifestWrite).toEqual({
+    type: 'role-owned-craft',
+    activeRoleIds: [...roleIds],
+    vesselMode: 'base-capybara',
+    roleOwnedCraft: [
+      { id: 'snn-press-shuttle', kind: 'shuttle', ownerRoleId: 'press-officer' },
+      { id: 'starlight', kind: 'shuttle', ownerRoleId: 'wing-commander' },
+      { id: 'fighter-wing-alpha', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
+      { id: 'fighter-wing-bravo', kind: 'fighter-wing', ownerRoleId: 'wing-commander' },
+      { id: 'highwall', kind: 'shuttle', ownerRoleId: 'icebreaker-miner' },
+      { id: 'endeavour', kind: 'shuttle', ownerRoleId: 'shepherd-scientist' },
+      { id: 'hummingbird', kind: 'shuttle', ownerRoleId: 'quellon-explorer' },
+      { id: 'chepu', kind: 'shuttle', ownerRoleId: 'refinery-124-pdf-colonel' },
+      { id: 'pdf-escort-fighter-wing', kind: 'fighter-wing', ownerRoleId: 'refinery-124-pdf-colonel' },
+      { id: 'wobbly', kind: 'shuttle', ownerRoleId: 'joint-engineering-quellon-refinery' },
+      { id: 'ally', kind: 'shuttle', ownerRoleId: 'joint-engineering-shepherd-icebreaker' },
+    ],
+    setupRevision: 1,
+    createdAt: 'server-time',
+    updatedAt: 'server-time',
+  });
 });
 
 it('reports a typed setup error for a malformed persisted high-count mode before writes', async () => {

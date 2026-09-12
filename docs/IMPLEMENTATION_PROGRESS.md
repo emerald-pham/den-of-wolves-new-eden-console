@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**105 / 746 prompts complete (14.08%)**
+**106 / 746 prompts complete (14.21%)**
 
-Status breakdown: **105 done · 16 partial · 625 missing**.
+Status breakdown: **106 done · 15 partial · 625 missing**.
 
 Active prompt: **none**
 
@@ -479,7 +479,7 @@ release classification and evidence.
 | 065 | done | feature | 0.3.5 | Loyalty suspicion policy and assignment tests cover all listed kinds. |
 | 066 | done | feature | 0.3.5 | Reciprocal Friend secret records and privacy test. |
 | 067 | done | feature | 0.3.5 | Android self-disclosure callable and denial test. |
-| 068 | partial | non-feature | — | Printed craft ownership primitives exist; start composition remains open. |
+| 068 | done | feature | 0.3.39 | Server-owned start composition derives every represented shuttle and fighter wing from the locked printed-role roster, validates the manifest before start, and exposes only each holder's active craft in their private role brief. |
 | 069 | partial | non-feature | — | Population/resource catalogs exist; one start initializer is still open. |
 | 070 | partial | non-feature | — | Security/resource primitives exist; roster-wide start initialization is open. |
 | 072 | done | feature | 0.3.5 | Start lock plus casting-window rejection. |

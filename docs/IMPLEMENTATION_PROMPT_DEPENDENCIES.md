@@ -164,7 +164,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 065 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Initialize loyalty suspicion. |
 | 066 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Pair Friend loyalties. |
 | 067 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Reveal Android proof deliberately. |
-| 068 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Assign role-owned craft. |
+| 068 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M1 | Assign role-owned craft. |
 | 069 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Initialize vessel populations and stores. |
 | 070 | PRESERVE | partial | none | none | none | none | none | none | none | none | none | M1 | Initialize security teams. |
 | 072 | NEW | done | none | none | none | none | none | none | none | none | none | M1 | Lock casting at start. |

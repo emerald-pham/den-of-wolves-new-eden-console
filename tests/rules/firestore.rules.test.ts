@@ -681,6 +681,12 @@ it('denies secret collection listing that could reveal another player private re
   await assertFails(getDocs(collection(as('alice'), SESSION + '/secrets')));
 });
 
+it('denies connected member reads and listing of the server-owned craft manifest', async () => {
+  const db = as('alice');
+  await assertFails(getDoc(doc(db, SESSION + '/craftOwnership/manifest')));
+  await assertFails(getDocs(collection(db, SESSION + '/craftOwnership')));
+});
+
 describe('complete server-owned denial matrix', () => {
   it('denies direct lifecycle and retention changes from both players and GMs', async () => {
     for (const uid of ['alice', 'gm1']) {

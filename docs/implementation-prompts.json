@@ -1942,14 +1942,14 @@
       "tag": "NEW"
     },
     {
-      "changeClass": "non-feature",
+      "changeClass": "feature",
       "closureEvidenceGates": "none",
       "decisionOwner": "none",
       "definition": {
         "acceptance": "every shuttle and fighter wing starts under its printed role without client-claimable ownership.",
         "title": "Assign role-owned craft."
       },
-      "description": "Printed craft ownership primitives exist; start composition remains open.",
+      "description": "Server-owned start composition derives every represented shuttle and fighter wing from the locked printed-role roster, validates the manifest before start, and exposes only each holder's active craft in their private role brief.",
       "evidenceIds": "none",
       "hardContract": "none",
       "hardMilestone": "none",
@@ -1958,10 +1958,12 @@
       "milestoneHints": "M1",
       "relatedConsumes": "none",
       "releaseBoundaries": "none",
-      "releases": [],
+      "releases": [
+        "0.3.39"
+      ],
       "section": "Foundation, session, casting, and start (Prompts 001–090)",
       "sequenceRules": "none",
-      "status": "partial",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {

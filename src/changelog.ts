@@ -21,6 +21,22 @@ export interface ChangelogEntry {
 export const CHANGELOG: readonly ChangelogEntry[] = [
   {
     version: APP_VERSION,
+    implementationPrompts: ['068'],
+    implementationProgress: {
+      completed: 106,
+      total: 746,
+      percentage: '14.21%',
+      done: 106,
+      partial: 15,
+      active: 0,
+      missing: 625,
+    },
+    changes: [
+      'Players can now see the shuttles and fighter wings assigned to their printed role in their private brief. Ownership comes from the locked roster and stays server controlled. 106 of 746 planned items are complete (14.21%).',
+    ],
+  },
+  {
+    version: '0.3.38',
     implementationPrompts: ['064'],
     implementationProgress: {
       completed: 105,
