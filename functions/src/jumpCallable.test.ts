@@ -45,7 +45,7 @@ vi.mock('firebase-admin/firestore', () => ({
   Timestamp: { now: () => ({ toMillis: () => Date.now() }) },
 }));
 
-import { jumpShip } from './index';
+import { jumpShip, moveShipToLocation } from './index';
 
 function request(data: Record<string, unknown>, uid = 'u1') {
   return { data: data.requestId === undefined ? { ...data, requestId: 'test-jump' } : data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
@@ -122,6 +122,27 @@ it('rejects malformed coordinates before reading or changing any authoritative s
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.randomInt).not.toHaveBeenCalled();
   expect(mock.randomUUID).not.toHaveBeenCalled();
+});
+
+it('denies destroyed ships before movement or jump can change navigation state', async () => {
+  mock.damage = { aegis: { damagedSystemIds: ['reactor'], destroyed: true } };
+
+  await expect(jumpShip.run(request({
+    ...data, requestId: 'destroyed-jump', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/destroyed ships cannot move or jump/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
+  expect(mock.randomInt).not.toHaveBeenCalled();
+
+  await expect(moveShipToLocation.run(request({
+    ...data, requestId: 'destroyed-move', destination: '5143',
+  }))).rejects.toMatchObject({
+    code: 'failed-precondition',
+    message: expect.stringMatching(/destroyed ships cannot move or jump/i),
+  });
+  expect(mock.update).not.toHaveBeenCalled();
 });
 
 it('rejects an unprinted locked coordinate with a server-owned one-hour integrity lockout', async () => {

@@ -42,6 +42,7 @@ export default function ShipPlot({
   capybaraEnabled = true,
   dioneEnabled = true,
   shipGalacticCoordinates = {},
+  shipDamage,
   shipJumpTransitions = {},
   activeRoleIds,
   activeVesselIds,
@@ -54,6 +55,7 @@ export default function ShipPlot({
   capybaraEnabled?: boolean;
   dioneEnabled?: boolean;
   shipGalacticCoordinates?: Readonly<Record<string, string>> | undefined;
+  shipDamage?: GameSession['shipDamage'] | undefined;
   shipJumpTransitions?: GameSession['shipJumpTransitions'] | undefined;
   activeRoleIds?: readonly string[] | undefined;
   activeVesselIds?: readonly string[] | undefined;
@@ -148,6 +150,7 @@ export default function ShipPlot({
     shipGalacticCoordinates,
     dioneEnabled,
     activeShipIds,
+    shipDamage,
   );
   const contacts = (jumpInProgress ? [] : fleetContacts).map((ship) => ({
     tag: ship.name.toUpperCase(),

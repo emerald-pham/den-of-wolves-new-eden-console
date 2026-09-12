@@ -238,6 +238,7 @@ function AppRoutes() {
         capybaraEnabled={session?.capybaraEnabled !== false}
         dioneEnabled={session?.dioneEnabled !== false}
         shipGalacticCoordinates={session?.shipGalacticCoordinates}
+        shipDamage={session?.shipDamage}
         shipJumpTransitions={session?.shipJumpTransitions}
         activeRoleIds={session?.activeRoleIds}
         activeVesselIds={session?.activeVesselIds}

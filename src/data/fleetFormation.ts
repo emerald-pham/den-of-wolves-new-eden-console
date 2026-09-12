@@ -1,4 +1,5 @@
 import { ORIGIN_GALACTIC_COORDINATE, SHIPS } from './ships';
+import type { ShipDamage } from '@/types/game';
 
 export interface FleetPoint {
   readonly x: number;
@@ -45,6 +46,7 @@ export function fleetViewFrom(
   shipGalacticCoordinates: Readonly<Record<string, string>> = {},
   dioneEnabled = true,
   activeVesselIds?: readonly string[],
+  shipDamage?: ShipDamage,
 ): readonly FleetContact[] {
   const viewer = fleetOriginFor(viewerId);
 
@@ -55,6 +57,7 @@ export function fleetViewFrom(
     (capybaraEnabled || ship.id !== 'capybara') &&
     (dioneEnabled || ship.id !== 'dione') &&
     (activeVessels === undefined || activeVessels.has(ship.id)) &&
+    shipDamage?.[ship.id]?.destroyed !== true &&
     (shipGalacticCoordinates[ship.id] ?? ORIGIN_GALACTIC_COORDINATE) === viewerCoordinate)
     .flatMap((ship) => {
     const point = FLEET_FORMATION[ship.id];

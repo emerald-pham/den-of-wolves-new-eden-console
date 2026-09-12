@@ -4538,6 +4538,13 @@
       "type": "hard_prompt"
     },
     {
+      "direction": "314 -> 285;140d",
+      "id": "E-314-NAVIGATION",
+      "language": "Full-ship destruction state now denies authoritative moveShipToLocation and jumpShip mutations before fuel, charge, coordinate, or navigation-log writes, and fleetViewFrom excludes destroyed full ships while preserving active surviving contacts. Existing P140d catastrophe writes remain authoritative for ship-destroyed pod capacity, survivors, and retained shuttle records, so those paths stay addressable. Base and optional small-vessel destruction producers/capacity remain unresolved and keep P314 partial; no small-vessel behavior is inferred.",
+      "source": "functions/src/index.ts; functions/src/jumpCallable.test.ts; functions/src/shipDestruction.ts; src/data/fleetFormation.ts; src/data/fleetFormation.test.ts; src/components/ShipPlot.tsx; src/components/ShipPlot.test.tsx; src/App.tsx; src/routes/GmConsole.tsx; focused Functions/unit tests; /tmp/p314-render-evidence.txt; docs/implementation-prompts.json (Prompts 285, 314, and 140d)",
+      "type": "evidence / authority / related/consumes"
+    },
+    {
       "direction": "425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645",
       "id": "E-WOLF",
       "language": "Implement this block in dependency order: 425 -> 426 -> 428 -> 427 -> 432/432a -> 433/433a/433b -> 434/434a -> 435-444 -> 445-473 -> 475-482 -> 474/484 -> 621 -> 645.",
@@ -12653,8 +12660,8 @@
         "acceptance": "destroyed vessels leave active movement and DRADIS while escape pods, survivors, and retained shuttles remain addressable.",
         "title": "Remove destroyed ships from navigation."
       },
-      "description": "Planned [NEW] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-314;E-314-POD-PRODUCER",
+      "description": "Partial production-path implementation for existing full-ship destruction state: moveShipToLocation and jumpShip now fail closed for destroyed ships before any coordinate, fuel, charge, jump-state, or navigation-log mutation, while the shared DRADIS projection excludes destroyed full ships and keeps surviving active contacts visible. The existing P140d catastrophe record continues to expose ship-destroyed pod capacity, survivors, resources, and retained shuttle records through their existing paths. Small/base-vessel destruction producers and pod-capacity state are not present in the authoritative source, so this prompt remains partial and does not invent those mechanics.",
+      "evidenceIds": "E-AUDIT-314;E-314-POD-PRODUCER;E-314-NAVIGATION",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "285;140d",
@@ -12665,7 +12672,7 @@
       "releases": [],
       "section": "Navigation, jumps, systems, scouting, and split fleets (Prompts 281–350)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "partial",
       "tag": "NEW"
     },
     {

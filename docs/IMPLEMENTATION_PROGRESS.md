@@ -755,7 +755,7 @@ release classification and evidence.
 | 311 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 312 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 313 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
-| 314 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
+| 314 | partial | non-feature | — | Partial production-path implementation for existing full-ship destruction state: moveShipToLocation and jumpShip now fail closed for destroyed ships before any coordinate, fuel, charge, jump-state, or navigation-log mutation, while the shared DRADIS projection excludes destroyed full ships and keeps surviving active contacts visible. The existing P140d catastrophe record continues to expose ship-destroyed pod capacity, survivors, resources, and retained shuttle records through their existing paths. Small/base-vessel destruction producers and pod-capacity state are not present in the authoritative source, so this prompt remains partial and does not invent those mechanics. |
 | 315 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 316 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 317 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

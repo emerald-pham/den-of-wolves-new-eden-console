@@ -538,6 +538,18 @@ function activeVesselIdsForSession(session: DocumentSnapshot): readonly string[]
   return activeVesselIdsForRoles(configuredRoleIds(session));
 }
 
+/** Destruction removes a full ship from navigation while retaining its
+ * survivors, pods, resources, and shuttle records for their own callables. */
+function requireNavigableShip(session: DocumentSnapshot, shipId: string): void {
+  if (shipDamage(session.get('shipDamage'))[shipId]?.destroyed === true) {
+    throw commandError(
+      'failed-precondition',
+      'Destroyed ships cannot move or jump.',
+      'conflict',
+    );
+  }
+}
+
 /** Wolf preparation must use the persisted setup tuple; role defaults are not authoritative here. */
 function authoritativeActiveVesselIdsForWolfPreparation(session: DocumentSnapshot): readonly string[] {
   const stored = session.get('activeVesselIds');
@@ -5559,6 +5571,7 @@ export const moveShipToLocation = onCall<{
       throw commandError('failed-precondition', 'This session is closed.', 'terminal-session');
     }
     requireActionPhase(session, 'movement', 'facilitator');
+    requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,
@@ -5657,6 +5670,7 @@ export const jumpShip = onCall<{
     }
     requireTurnOneForPlayer(session, player);
     requireActionPhase(session, 'jump', player.get('role') === 'gm' ? 'facilitator' : 'player');
+    requireNavigableShip(session, change.shipId);
     const currentRevision = vesselActionRevision(session, change.shipId);
     if (identity.expectedRevision !== undefined && identity.expectedRevision !== currentRevision) {
       const envelope = vesselActionEnvelope(session, player, uid, change.shipId, currentRevision,

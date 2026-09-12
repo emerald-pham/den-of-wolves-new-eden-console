@@ -68,6 +68,16 @@ describe('the initial fleet formation', () => {
     expect(fleetViewFrom('aegis', true, {}, true, [])).toEqual([]);
   });
 
+  it('removes a destroyed ship from DRADIS while retaining remaining active contacts', () => {
+    const contacts = fleetViewFrom(
+      'aegis', true, {}, true, ['aegis', 'dione', 'shepherd'], {
+        dione: { damagedSystemIds: [], destroyed: true },
+      },
+    );
+
+    expect(contacts.map(({ id }) => id)).toEqual(['shepherd']);
+  });
+
   it('keeps DRADIS geometry fixed while hiding ships in other galactic systems', () => {
     const coordinates = {
       aegis: '0000',

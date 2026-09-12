@@ -475,6 +475,7 @@ export default function GmConsole() {
     session?.shipGalacticCoordinates,
     dioneEnabled,
     activeShipIds,
+    session?.shipDamage,
   ).map((ship) => ({
     tag: ship.name.toUpperCase(),
     x: ship.x,

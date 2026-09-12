@@ -210,6 +210,23 @@ it('plots only canonical active vessels when the Capybara toggle remains enabled
   expect(container.querySelectorAll('.contact-plot__contact')).toHaveLength(0);
 });
 
+it('removes a destroyed DRADIS contact while retaining surviving contacts', () => {
+  render(
+    <ShipPlot
+      hostile={false}
+      aboard
+      viewerId="aegis"
+      activeVesselIds={['aegis', 'dione', 'shepherd']}
+      shipDamage={{
+        dione: { damagedSystemIds: [], destroyed: true },
+      }}
+    />,
+  );
+
+  expect(screen.queryByText('DIONE')).not.toBeInTheDocument();
+  expect(screen.getByText('SHEPHERD')).toBeInTheDocument();
+});
+
 it('keeps rotation locked and presents galactic orientation as a non-interactive 3D instrument', async () => {
   const user = userEvent.setup();
   const { container } = render(
