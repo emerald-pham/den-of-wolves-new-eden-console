@@ -12,7 +12,8 @@ import {
   type Unsubscribe,
   type Firestore,
 } from 'firebase/firestore';
-import { app } from './firebase';
+import { httpsCallable } from 'firebase/functions';
+import { app, functions } from './firebase';
 import { emulatorPorts, useEmulators } from './firebaseConfig';
 import type {
   DamageDraw,
@@ -802,38 +803,6 @@ function seatFrom(sessionId: string, id: string, data: DocumentData): Seat {
   };
 }
 
-function gmInstanceFrom(
-  sessionId: string,
-  id: string,
-  data: DocumentData,
-  promoteSoleLegacyResponsibility = false,
-): GmInstance | undefined {
-  const uid = parseEntityId('player', data.uid);
-  if (!uid) return undefined;
-  const hasCanonicalResponsibilities = Array.isArray(data.responsibilities);
-  const storedResponsibilities = hasCanonicalResponsibilities
-    ? data.responsibilities.filter((responsibility: unknown): responsibility is 'main' | 'assistant' =>
-      responsibility === 'main' || responsibility === 'assistant')
-    : data.responsibility === 'main' || data.responsibility === 'assistant'
-      ? [data.responsibility]
-      : [];
-  const responsibilities = promoteSoleLegacyResponsibility && !hasCanonicalResponsibilities &&
-    storedResponsibilities.length === 1
-    ? ['main', 'assistant'] as const
-    : storedResponsibilities;
-  return {
-    id,
-    sessionId: entityId('session', sessionId),
-    uid,
-    name: data.name as string,
-    deviceLabel: data.deviceLabel as string,
-    ...(data.responsibility === 'main' || data.responsibility === 'assistant'
-      ? { responsibility: data.responsibility } : {}),
-    ...(responsibilities.length > 0 ? { responsibilities } : {}),
-    claimedAt: iso(data.claimedAt),
-  };
-}
-
 export interface SessionStateHandlers {
   readonly onSession: (session: GameSession) => void;
   /** Whether the accepted session snapshot is backed by server authority. */
@@ -1071,6 +1040,29 @@ export function subscribeGmInstances(
 ): Unsubscribe {
   let subscribed = true;
   let hasServerSnapshot = false;
+  let refreshInFlight: Promise<void> | undefined;
+  let refreshQueued = false;
+  const publishServerProjection = async (): Promise<void> => {
+    if (!subscribed) return;
+    if (refreshInFlight) {
+      refreshQueued = true;
+      return refreshInFlight;
+    }
+    refreshInFlight = httpsCallable<{ sessionId: string }, { instances: GmInstance[] }>(
+      functions(), 'listGmInstances',
+    )({ sessionId }).then((response) => {
+      if (subscribed) onInstances(response.data.instances);
+    }).catch(() => {
+      if (subscribed) onError();
+    }).finally(() => {
+      refreshInFlight = undefined;
+      if (refreshQueued) {
+        refreshQueued = false;
+        void publishServerProjection();
+      }
+    });
+    return refreshInFlight;
+  };
   const unsubscribe = onSnapshot(
     query(collection(db(), `sessions/${sessionId}/gmInstances`), orderBy('claimedAt', 'asc')),
     (snapshot) => {
@@ -1081,16 +1073,19 @@ export function subscribeGmInstances(
         projectionSessionAuthority(sessionId, suppliedAuthority)?.hasServerSessionAuthority
       )) return;
       if (!fromCache) hasServerSnapshot = true;
-      onInstances(snapshot.docs.flatMap((instance) => {
-        const gmInstance = gmInstanceFrom(sessionId, instance.id, instance.data(), snapshot.docs.length === 1);
-        return gmInstance ? [gmInstance] : [];
-      }));
+      // Firestore exposes the raw claim collection to members for compatibility,
+      // but it cannot compute player liveness across the sibling collection.
+      // Publish only the callable's server-computed projection so stale claims
+      // cannot disable locked-table recovery or become UI handoff targets.
+      void publishServerProjection();
     },
     () => { if (subscribed) onError(); },
   );
+  const refreshTimer = setInterval(() => void publishServerProjection(), 15_000);
   return () => {
     subscribed = false;
     unsubscribe();
+    clearInterval(refreshTimer);
   };
 }
 

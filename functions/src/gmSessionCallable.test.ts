@@ -85,6 +85,7 @@ const mock = vi.hoisted(() => {
     where: (field: string, operator: string, value: unknown) =>
       query(path).where(field, operator, value),
     orderBy: () => query(path),
+    get: () => query(path).get(),
   });
 
   return {
@@ -137,6 +138,8 @@ import {
   releaseGmInstance,
   setGmControlsLocked,
   setFacilitatorResponsibility,
+  setFleetRedAlert,
+  unlockPressAirspace,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
 
@@ -237,6 +240,7 @@ describe('elevateToGm', () => {
     session({ ownerUid: 'owner' });
     player('u1', { role: 'gm' });
     player('u2');
+    instance('bridge', 'u1');
 
     await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
       .resolves.toMatchObject({ role: 'gm' });
@@ -254,6 +258,16 @@ describe('elevateToGm', () => {
     player('u2', { connected: false });
     await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
       .rejects.toMatchObject({ code: 'failed-precondition' });
+  });
+
+  it('does not let a stale GM role elevate another player without a live instance', async () => {
+    session({ ownerUid: 'owner' });
+    player('u1', { role: 'gm' });
+    player('u2');
+
+    await expect(elevateToGm.run(request({ sessionId: 's1', targetUid: 'u2' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1/players/u2')).toMatchObject({ role: 'player' });
   });
 });
 
@@ -351,6 +365,24 @@ describe('GM instance ownership', () => {
       instances: [expect.objectContaining({
         id: 'bridge', responsibilities: ['main', 'assistant'], responsibility: 'main',
       })],
+    });
+  });
+
+  it('returns only live GM claims and never exposes stale handoff targets', async () => {
+    session();
+    player('u1', { role: 'gm' });
+    player('u2', { role: 'gm', connected: false });
+    instance('bridge', 'u1');
+    put('sessions/s1/gmInstances/bridge', {
+      ...read('sessions/s1/gmInstances/bridge'), responsibility: 'main',
+    });
+    put('sessions/s1/gmInstances/stale', {
+      uid: 'u2', sessionId: 's1', name: 'Old tablet', deviceLabel: 'Test browser',
+      connected: false, responsibilities: ['main', 'assistant'], claimedAt: 'old-server-time',
+    });
+
+    await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+      instances: [expect.objectContaining({ id: 'bridge', responsibilities: ['main', 'assistant'] })],
     });
   });
 
@@ -675,6 +707,18 @@ describe('GM registration lock', () => {
       sessionId: 's1', instanceId: 'bridge', locked: true,
     }))).rejects.toMatchObject({ code: 'permission-denied' });
     expect(read('sessions/s1')).toMatchObject({ gmControlsLocked: false });
+  });
+
+  it('requires a live GM instance for role-only fleet authority fallbacks', async () => {
+    session({ phase: 'active', currentTurn: 1 });
+    player('u1', { role: 'gm' });
+
+    await expect(setFleetRedAlert.run(request({
+      sessionId: 's1', active: true, expectedRevision: 0,
+    }))).rejects.toMatchObject({ code: 'permission-denied' });
+    await expect(unlockPressAirspace.run(request({ sessionId: 's1' })))
+      .rejects.toMatchObject({ code: 'permission-denied' });
+    expect(read('sessions/s1')).toMatchObject({ phase: 'active', currentTurn: 1 });
   });
 
   it('freezes registration mutations during endgame evaluation', async () => {

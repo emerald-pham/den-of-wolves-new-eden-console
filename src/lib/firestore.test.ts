@@ -17,7 +17,8 @@ vi.mock('firebase/firestore', () => ({
   query: vi.fn(),
   where: vi.fn(),
 }));
-vi.mock('./firebase', () => ({ app: vi.fn() }));
+vi.mock('firebase/functions', () => ({ httpsCallable: vi.fn() }));
+vi.mock('./firebase', () => ({ app: vi.fn(), functions: vi.fn() }));
 vi.mock('./firebaseConfig', () => ({
   emulatorPorts: { firestore: 8080 },
   useEmulators: false,
@@ -37,6 +38,11 @@ const {
   subscribeSessionState,
 } = await import('./firestore');
 const { onSnapshot } = await import('firebase/firestore');
+const { httpsCallable } = await import('firebase/functions');
+
+function mockGmInstanceProjection(instances: readonly Record<string, unknown>[]) {
+  vi.mocked(httpsCallable).mockReturnValue((() => Promise.resolve({ data: { instances } })) as never);
+}
 
 function sessionData(playerCount: number) {
   return {
@@ -376,8 +382,13 @@ it('hydrates the canonical setup tuple and derived vessels for reconnect consume
   ]);
 });
 
-it('projects normalized dual-lane GM responsibilities during hydration', () => {
+it('projects normalized dual-lane GM responsibilities from the server projection', async () => {
   const onInstances = vi.fn();
+  mockGmInstanceProjection([{
+    id: 'bridge', sessionId: 's1', uid: 'gm1', name: 'Bridge', deviceLabel: 'Chrome',
+    responsibilities: ['main', 'assistant'], responsibility: 'main',
+    claimedAt: '2026-09-08T19:00:00.000Z',
+  }]);
   vi.mocked(onSnapshot).mockImplementation(((_query: unknown, callback: unknown) => {
     (callback as (snapshot: unknown) => void)({
       docs: [{
@@ -392,7 +403,8 @@ it('projects normalized dual-lane GM responsibilities during hydration', () => {
     return vi.fn();
   }) as never);
 
-  subscribeGmInstances('s1', onInstances, vi.fn());
+  const stop = subscribeGmInstances('s1', onInstances, vi.fn());
+  await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
 
   expect(onInstances).toHaveBeenCalledWith([
     expect.objectContaining({
@@ -401,10 +413,16 @@ it('projects normalized dual-lane GM responsibilities during hydration', () => {
       responsibilities: ['main', 'assistant'],
     }),
   ]);
+  stop();
 });
 
-it('projects a sole legacy GM responsibility into both canonical lanes on each direct listener update', () => {
+it('projects a sole legacy GM responsibility into both canonical lanes from the server projection', async () => {
   const onInstances = vi.fn();
+  mockGmInstanceProjection([{
+    id: 'bridge', sessionId: 's1', uid: 'gm1', name: 'Bridge', deviceLabel: 'Chrome',
+    responsibilities: ['main', 'assistant'], responsibility: 'assistant',
+    claimedAt: '2026-09-08T19:00:00.000Z',
+  }]);
   vi.mocked(onSnapshot).mockImplementation(((_query: unknown, callback: unknown) => {
     (callback as (snapshot: unknown) => void)({
       docs: [{
@@ -418,7 +436,8 @@ it('projects a sole legacy GM responsibility into both canonical lanes on each d
     return vi.fn();
   }) as never);
 
-  subscribeGmInstances('s1', onInstances, vi.fn());
+  const stop = subscribeGmInstances('s1', onInstances, vi.fn());
+  await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
 
   expect(onInstances).toHaveBeenCalledWith([
     expect.objectContaining({
@@ -427,13 +446,18 @@ it('projects a sole legacy GM responsibility into both canonical lanes on each d
       responsibilities: ['main', 'assistant'],
     }),
   ]);
+  stop();
 });
 
-it('drops malformed GM identities without throwing or leaving a stale projection', () => {
+it('drops malformed GM identities without throwing or leaving a stale projection', async () => {
   const { callbacks } = captureSessionListener();
   const onInstances = vi.fn();
   const onError = vi.fn();
-  subscribeGmInstances('s1', onInstances, onError);
+  mockGmInstanceProjection([{
+    id: 'good', sessionId: 's1', uid: 'gm2', name: 'Good', deviceLabel: 'Chrome',
+    claimedAt: '2026-09-08T19:00:00.000Z',
+  }]);
+  const stop = subscribeGmInstances('s1', onInstances, onError);
 
   expect(() => callbacks[0]?.({
     metadata: { fromCache: false },
@@ -447,7 +471,36 @@ it('drops malformed GM identities without throwing or leaving a stale projection
   })).not.toThrow();
 
   expect(onError).not.toHaveBeenCalled();
+  await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
   expect(onInstances).toHaveBeenCalledWith([expect.objectContaining({ id: 'good', uid: 'gm2' })]);
+  stop();
+});
+
+it('never publishes raw stale claims from the realtime collection', async () => {
+  const { callbacks } = captureSessionListener();
+  const onInstances = vi.fn();
+  mockGmInstanceProjection([{
+    id: 'live', sessionId: 's1', uid: 'gm1', name: 'Live', deviceLabel: 'Chrome',
+    claimedAt: '2026-09-08T19:00:00.000Z',
+  }]);
+  const stop = subscribeGmInstances('s1', onInstances, vi.fn());
+
+  callbacks[0]?.({
+    metadata: { fromCache: false },
+    docs: [{
+      id: 'stale',
+      data: () => ({ uid: 'gm2', connected: false, name: 'Stale', deviceLabel: 'Old tablet' }),
+    }],
+  });
+
+  await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
+  expect(onInstances).toHaveBeenLastCalledWith([
+    expect.objectContaining({ id: 'live', uid: 'gm1' }),
+  ]);
+  expect(onInstances).not.toHaveBeenCalledWith([
+    expect.objectContaining({ id: 'stale', uid: 'gm2' }),
+  ]);
+  stop();
 });
 
 it('hydrates stable seat role ids without treating Press as a core seat', () => {
@@ -1265,7 +1318,7 @@ it('does not let cached identity projections overwrite accepted server authority
   expect(onError).not.toHaveBeenCalled();
 });
 
-it('drops delayed cached secondary query snapshots after a server snapshot', () => {
+it('drops delayed cached secondary query snapshots after a server snapshot', async () => {
   const callbacks: Array<(snapshot: unknown) => void> = [];
   vi.mocked(onSnapshot).mockImplementation(((_reference: unknown, callback: unknown) => {
     callbacks.push(callback as (snapshot: unknown) => void);
@@ -1275,7 +1328,8 @@ it('drops delayed cached secondary query snapshots after a server snapshot', () 
   const onPlayers = vi.fn();
   const onEvents = vi.fn();
   const onDraws = vi.fn();
-  subscribeGmInstances('secondary-race', onInstances, vi.fn());
+  mockGmInstanceProjection([]);
+  const stopInstances = subscribeGmInstances('secondary-race', onInstances, vi.fn());
   subscribeConnectedPlayers('secondary-race', onPlayers);
   subscribeSessionEvents('secondary-race', onEvents);
   const stopDraws = subscribeDamageDraws('secondary-race', onDraws);
@@ -1285,11 +1339,14 @@ it('drops delayed cached secondary query snapshots after a server snapshot', () 
     callback({ metadata: { fromCache: true }, docs: [] });
   });
 
+  await vi.waitFor(() => expect(onInstances).toHaveBeenCalled());
+
   expect(onInstances).toHaveBeenCalledTimes(1);
   expect(onPlayers).toHaveBeenCalledTimes(1);
   expect(onEvents).toHaveBeenCalledTimes(1);
   expect(onDraws).toHaveBeenCalledTimes(1);
   stopDraws();
+  stopInstances();
 });
 
 it('shares accepted session authority with secondary queries before their first server callback', () => {

@@ -4591,9 +4591,14 @@ export const listGmInstances = onCall<{ sessionId?: string }>(async (request) =>
   const instances = await db.collection(`sessions/${sessionId}/gmInstances`)
     .orderBy('claimedAt', 'asc')
     .get();
+  const players = await db.collection(`sessions/${sessionId}/players`).get();
+  const liveInstances = liveGmInstanceDocs(instances.docs, players.docs);
   return {
-    instances: instances.docs.map((instance) =>
-      gmInstanceFrom(sessionId, instance.id, instance.data(), instances.docs.length === 1)),
+    // This is the public authority projection. Raw claims may remain briefly
+    // in Firestore while a vanished browser's lease expires, but they must not
+    // count toward locked-table recovery or appear as handoff targets.
+    instances: liveInstances.map((instance) =>
+      gmInstanceFrom(sessionId, instance.id, instance.data(), liveInstances.length === 1)),
   };
 });
 
@@ -6830,19 +6835,26 @@ export const elevateToGm = onCall<{ sessionId: string; targetUid: string }>(
     const sessionRef = db.doc('sessions/' + sessionId);
     const callerRef = db.doc('sessions/' + sessionId + '/players/' + uid);
     const targetRef = db.doc('sessions/' + sessionId + '/players/' + targetUid);
+    const callerInstances = db.collection(`sessions/${sessionId}/gmInstances`)
+      .where('uid', '==', uid);
 
     return db.runTransaction(async (tx) => {
-      const [sessionSnap, caller, target] = await Promise.all([
+      const [sessionSnap, caller, target, instances] = await Promise.all([
         tx.get(sessionRef),
         tx.get(callerRef),
         tx.get(targetRef),
+        tx.get(callerInstances),
       ]);
       if (!sessionSnap.exists) throw new HttpsError('not-found', 'No such session.');
       if (!isActivePlayer(caller)) {
         throw new HttpsError('permission-denied', 'Join the session first.');
       }
-      if (sessionSnap.get('ownerUid') !== uid && caller.get('role') !== 'gm') {
+      const owner = sessionSnap.get('ownerUid') === uid;
+      if (!owner && caller.get('role') !== 'gm') {
         throw new HttpsError('permission-denied', 'GM only.');
+      }
+      if (!owner && !instances.docs.some((instance) => isLiveGmInstance(instance, caller, uid))) {
+        throw new HttpsError('permission-denied', 'Active GM instance required.');
       }
       if (!isActivePlayer(target)) {
         throw commandError('failed-precondition', 'That player is not connected.', 'conflict');
@@ -6939,6 +6951,17 @@ async function requireConsoleAuthority(
   if (!session.exists) throw new HttpsError('not-found', 'No such session.');
   const activeRoleIds = configuredRoleIds(session);
   const ownRole = player.get('activeConsoleRoleId');
+  if (player.get('role') === 'gm') {
+    const instances = await tx.get(
+      db.collection(`sessions/${sessionId}/gmInstances`).where('uid', '==', player.id),
+    );
+    if (!instances.docs.some((instance) => isLiveGmInstance(instance, player, player.id))) {
+      throw new HttpsError('permission-denied', 'Active GM instance required.');
+    }
+    // A GM may operate a ship console without selecting a player station, but
+    // the named browser lease remains the authority boundary for the command.
+    return;
+  }
   if (player.get('role') !== 'gm' &&
       (typeof ownRole !== 'string' || !activeRoleIds.includes(ownRole) ||
        !activeRoleIds.includes(targetRole))) {
