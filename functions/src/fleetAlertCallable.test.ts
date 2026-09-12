@@ -77,7 +77,11 @@ it('holds the player Admiral command at Turn 0 but lets an active GM intervene',
   mock.role = 'gm';
   const previous = mock.get.getMockImplementation()!;
   mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
-    ? { exists: true, get: (key: string) => key === 'uid' ? 'u1' : undefined }
+    ? { exists: true, get: (key: string) => ({
+        uid: 'u1', connected: true,
+        claimedAt: { toMillis: () => Date.now() },
+        lastSeenAt: { toMillis: () => Date.now() },
+      } as Record<string, unknown>)[key] }
     : previous(path));
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>))
     .resolves.toMatchObject({ revision: 1 });
@@ -128,7 +132,13 @@ it('allows AEGIS relief only while the connected complement is incomplete', asyn
 it('lets a verified GM observer command the Admiral console without claiming it', async () => {
   mock.role = 'gm'; mock.post = '';
   const previous = mock.get.getMockImplementation()!;
-  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/') ? { exists: true, get: (key: string) => key === 'uid' ? 'u1' : undefined } : previous(path));
+  mock.get.mockImplementation(async (path: string) => path.includes('/gmInstances/')
+    ? { exists: true, get: (key: string) => ({
+        uid: 'u1', connected: true,
+        claimedAt: { toMillis: () => Date.now() },
+        lastSeenAt: { toMillis: () => Date.now() },
+      } as Record<string, unknown>)[key] }
+    : previous(path));
   await expect(setFleetRedAlert.run({ data: { ...data, instanceId: 'gm1' }, auth: { uid: 'u1' } } as CallableRequest<typeof data & { instanceId: string }>)).resolves.toMatchObject({ revision: 1 });
 });
 

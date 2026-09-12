@@ -85,6 +85,15 @@ function request(data: Record<string, unknown>, uid = 'u1') {
   return { data, auth: { uid } } as CallableRequest<Record<string, unknown>>;
 }
 
+function liveGmInstanceFields(fields: Record<string, unknown> = {}) {
+  return {
+    connected: true,
+    claimedAt: Timestamp.fromMillis(Date.now()),
+    lastSeenAt: Timestamp.fromMillis(Date.now()),
+    ...fields,
+  };
+}
+
 function provisionProductionRoster(
   playerCount: 8 | 19 | 20,
   options: {
@@ -149,9 +158,9 @@ function provisionProductionRoster(
     ...extraGm,
   ];
   mock.instanceDocs = [
-    { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
-    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
-    ...(options.extraGm ? [{ id: 'observer-bridge', fields: { uid: 'gm-observer' } }] : []),
+    { id: 'bridge', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'main' }) },
+    { id: 'desk', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'assistant' }) },
+    ...(options.extraGm ? [{ id: 'observer-bridge', fields: liveGmInstanceFields({ uid: 'gm-observer' }) }] : []),
   ];
   mock.seatDocs = stableSeatsForRoles(activeRoleIds).map((seat, index) => ({
     id: seat.id,
@@ -197,8 +206,8 @@ beforeEach(() => {
     })),
   ];
   mock.instanceDocs = [
-    { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
-    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
+    { id: 'bridge', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'main' }) },
+    { id: 'desk', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'assistant' }) },
   ];
   mock.secretDocs = [];
   mock.seatDocs = stableSeatsForRoles(roleIds).map((seat, index) => ({
@@ -251,7 +260,7 @@ beforeEach(() => {
 });
 
 it('records a distinct facilitator responsibility', async () => {
-  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1' } }];
+  mock.instanceDocs = [{ id: 'bridge', fields: liveGmInstanceFields({ uid: 'u1' }) }];
   await expect(setFacilitatorResponsibility.run(request({
     sessionId: 's1', instanceId: 'bridge', responsibility: 'main',
     requestId: 'responsibility-1', expectedSetupRevision: 0, mode: 'share',
@@ -456,7 +465,7 @@ it('records the same effective none mode used by the lock for a legacy base tupl
 });
 
 it('durably upgrades a sole legacy singular GM lane while committing the start', async () => {
-  mock.instanceDocs = [{ id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } }];
+  mock.instanceDocs = [{ id: 'bridge', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'main' }) }];
 
   await expect(startGame.run(request({
     sessionId: 's1', instanceId: 'bridge', requestId: 'start-legacy-gm', expectedSetupRevision: 0,
@@ -922,9 +931,9 @@ it('keeps a claimed Press outside core readiness but requires its own private lo
     },
   );
   mock.instanceDocs = [
-    { id: 'bridge', fields: { uid: 'u1', responsibility: 'main' } },
-    { id: 'desk', fields: { uid: 'u1', responsibility: 'assistant' } },
-    { id: 'extra-gm', fields: { uid: 'u1' } },
+    { id: 'bridge', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'main' }) },
+    { id: 'desk', fields: liveGmInstanceFields({ uid: 'u1', responsibility: 'assistant' }) },
+    { id: 'extra-gm', fields: liveGmInstanceFields({ uid: 'u1' }) },
   ];
   mock.seatDocs = stableSeatsForRoles(coreRoleIds).map((seat, index) => ({
     id: seat.id,

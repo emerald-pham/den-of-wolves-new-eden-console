@@ -1663,6 +1663,19 @@ describe('command role presence', () => {
     expect(useSessionStore.getState().lastRoute).toBe('/console');
   });
 
+  it('renews the exact GM browser lease with a presence heartbeat', async () => {
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    await refreshPresence();
+
+    expect(httpsCallable).toHaveBeenLastCalledWith(expect.anything(), 'refreshPresence');
+    expect(vi.mocked(httpsCallable).mock.results.at(-1)?.value)
+      .toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'bridge' });
+  });
+
   it('reports when another player already holds the selected role', async () => {
     vi.mocked(httpsCallable).mockReturnValue(callableRejecting({
       code: 'functions/already-exists',
@@ -1688,6 +1701,20 @@ describe('session lifecycle commands', () => {
   });
 
   afterEach(() => vi.restoreAllMocks());
+
+  it('disconnects only this GM browser instance when leaving online', async () => {
+    useSessionStore.getState().setIdentity(session, { ...player, role: 'gm' });
+    useSessionStore.getState().setGmInstance({
+      id: 'bridge', sessionId: 's1', uid: 'u1', name: 'Bridge',
+      deviceLabel: 'Test browser', claimedAt: '2026-01-01T00:00:00.000Z',
+    });
+    const callable = callableReturning({ data: { sessionId: 's1' } });
+    vi.mocked(httpsCallable).mockReturnValue(callable);
+
+    await disconnectFromSession();
+
+    expect(callable).toHaveBeenCalledWith({ sessionId: 's1', instanceId: 'bridge' });
+  });
 
   it('does not create an overlapping session while one is loaded', async () => {
     useSessionStore.getState().setIdentity(session, player);

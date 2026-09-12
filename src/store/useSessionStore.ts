@@ -63,7 +63,7 @@ export type PendingCommand = (
   | {
       readonly id: string;
       readonly kind: 'disconnectFromSession';
-      readonly payload: { readonly sessionId: string };
+      readonly payload: { readonly sessionId: string; readonly instanceId?: string };
       readonly createdAt: string;
     }
   | {

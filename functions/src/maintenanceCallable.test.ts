@@ -94,7 +94,13 @@ vi.mock('firebase-admin/firestore', () => ({
                 } as Record<string, unknown>)[key] };
               }
               if (path.includes('/gmInstances/')) {
-                return { exists: true, get: (key: string) => key === 'uid' ? mock.owner : undefined };
+                const fields = {
+                  uid: mock.owner,
+                  connected: true,
+                  claimedAt: { toMillis: () => Date.now() },
+                  lastSeenAt: { toMillis: () => Date.now() },
+                } as Record<string, unknown>;
+                return { exists: true, get: (key: string) => fields[key] };
               }
               if (path.endsWith('/gmInstances')) return { exists: true, docs: [] };
               return { exists: true, get: (key: string) => readSnapshot(key) };
@@ -194,7 +200,12 @@ vi.mock('firebase-admin/firestore', () => ({
               const fields: Record<string, unknown> = path.includes('/players/')
                 ? { role: mock.role, connected: mock.connected, activeConsoleRoleId: mock.activeConsoleRoleId }
                 : path.includes('/gmInstances/')
-                  ? { uid: mock.gmInstanceOwners[path.split('/').at(-1) ?? ''] ?? mock.owner }
+                  ? {
+                      uid: mock.gmInstanceOwners[path.split('/').at(-1) ?? ''] ?? mock.owner,
+                      connected: true,
+                      claimedAt: { toMillis: () => Date.now() },
+                      lastSeenAt: { toMillis: () => Date.now() },
+                    }
                 : {
                     ...snapshot,
                   };
@@ -339,7 +350,12 @@ beforeEach(() => {
           activeConsoleRoleId: mock.activeConsoleRoleId,
         }
       : path.includes('/gmInstances/')
-        ? { uid: mock.owner }
+        ? {
+            uid: mock.owner,
+            connected: true,
+            claimedAt: { toMillis: () => Date.now() },
+            lastSeenAt: { toMillis: () => Date.now() },
+          }
         : {
           phase: mock.phase,
           shipDamage: mock.damage,
@@ -1919,7 +1935,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   const records: Record<string, Record<string, unknown>> = {
     'sessions/s1': { currentTurn: 1, turnPhase: { turn: 1, teamPhaseEndsAt: '2026-09-09T16:20:00.000Z', openAirspaceEndsAt: '2026-09-09T16:40:00.000Z', airspace: { state: 'restricted', tickerActive: true, pressAccess: false } }, maintenanceCycles: { aegis: { step: 0, revision: 0, results: {}, charges: [], refuelled: [] } }, shipResources: { aegis: { food: 20, water: 20, fuel: 3, materials: 0, ore: 0 } }, shipDamage: { aegis: { damagedSystemIds: ['storage'], destroyed: false } }, shipSurvivors: { aegis: 2000 }, shipUnrest: { aegis: 1 }, shuttleCargo: {}, shuttleFuelled: {}, unrestAlerts: {}, populationAlerts: {} },
     'sessions/s1/players/u1': { connected: true, role: 'gm' },
-    'sessions/s1/gmInstances/bridge': { uid: 'u1' },
+    'sessions/s1/gmInstances/bridge': {
+      uid: 'u1', connected: true,
+      claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+    },
     'sessions/s1/events/pre-existing': { type: 'historical-maintenance', revision: 0 },
   };
   const read = (record: Record<string, unknown> | undefined, key: string): unknown => key.split('.').reduce<unknown>((value, part) => value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined, record);
@@ -2045,7 +2064,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   expect(mock.update).not.toHaveBeenCalled();
   expect(mock.set).not.toHaveBeenCalled();
   records['sessions/s1/players/u2'] = { connected: true, role: 'gm' };
-  records['sessions/s1/gmInstances/bridge'] = { uid: 'u2' };
+  records['sessions/s1/gmInstances/bridge'] = {
+    uid: 'u2', connected: true,
+    claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+  };
   mock.owner = 'u2';
   mock.update.mockClear();
   mock.set.mockClear();
@@ -2056,7 +2078,10 @@ it('records and rolls back successive steps while restoring spent supplies', asy
   expect(mock.set).not.toHaveBeenCalled();
   mock.owner = 'u1';
   delete records['sessions/s1/players/u2'];
-  records['sessions/s1/gmInstances/bridge'] = { uid: 'u1' };
+  records['sessions/s1/gmInstances/bridge'] = {
+    uid: 'u1', connected: true,
+    claimedAt: { toMillis: () => Date.now() }, lastSeenAt: { toMillis: () => Date.now() },
+  };
   mock.update.mockClear();
   mock.set.mockClear();
   const staleRollback = await rollbackMaintenance.run(request({ sessionId: 's1', shipId: 'aegis', instanceId: 'bridge', requestId: 'rollback-stale', expectedRevision: 5 }));

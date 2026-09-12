@@ -454,6 +454,46 @@ describe('presence lease', () => {
 });
 
 describe('disconnect and retention', () => {
+  it('disconnects one GM browser while preserving a live same-UID sibling', async () => {
+    session();
+    player({ role: 'gm' });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+    put('sessions/s1/gmInstances/old-tab', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+
+    await disconnectFromSession.run(request({ sessionId: 's1', instanceId: 'old-tab' }));
+
+    expect(read('sessions/s1/gmInstances/old-tab')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
+    expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, role: 'gm' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
+  it('does not let an ID-less legacy GM disconnect erase live sibling browsers', async () => {
+    session();
+    player({ role: 'gm' });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    for (const id of ['bridge', 'desk']) {
+      put(`sessions/s1/gmInstances/${id}`, {
+        uid: 'u1', sessionId: 's1', connected: true,
+        lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+      });
+    }
+
+    await disconnectFromSession.run(request({ sessionId: 's1' }));
+
+    expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
+    expect(read('sessions/s1/gmInstances/desk')).toBeDefined();
+    expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, role: 'gm' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
   it('clears device authority and starts the exact seven-day window only for the final player', async () => {
     session();
     player({ role: 'gm', activeConsoleRoleId: 'admiral' });
@@ -489,6 +529,28 @@ describe('disconnect and retention', () => {
 });
 
 describe('stale-player cleanup', () => {
+  it('expires a vanished GM browser without deleting a live same-UID sibling', async () => {
+    session();
+    player({ role: 'gm' });
+    put('activeMemberships/u1', { sessionId: 's1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromDate(NOW), claimedAt: mock.Timestamp.fromDate(NOW),
+    });
+    put('sessions/s1/gmInstances/old-tab', {
+      uid: 'u1', sessionId: 's1', connected: true,
+      lastSeenAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS - 1),
+      claimedAt: mock.Timestamp.fromMillis(NOW.getTime() - PRESENCE_LEASE_MS - 1),
+    });
+
+    await expireStalePlayers.run({});
+
+    expect(read('sessions/s1/gmInstances/old-tab')).toBeUndefined();
+    expect(read('sessions/s1/gmInstances/bridge')).toBeDefined();
+    expect(read('sessions/s1/players/u1')).toMatchObject({ connected: true, role: 'gm' });
+    expect(read('activeMemberships/u1')).toMatchObject({ sessionId: 's1' });
+  });
+
   it('frees a stale player seat without deleting their durable session membership', async () => {
     session();
     player({

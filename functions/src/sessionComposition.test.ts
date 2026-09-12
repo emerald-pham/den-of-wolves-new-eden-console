@@ -980,7 +980,10 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
         heartbeatAt < Date.parse(turnOnePhase.teamPhaseEndsAt);
         heartbeatAt += 30_000) {
         vi.setSystemTime(new Date(heartbeatAt));
-        await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.ownerUid));
+        await refreshPresence.run(request({
+          sessionId: composition.sessionId,
+          instanceId: composition.startRequest.instanceId,
+        }, composition.ownerUid));
         await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.coreUids[0]!));
       }
       vi.setSystemTime(new Date(Date.parse(turnOnePhase.teamPhaseEndsAt) + 1));
@@ -995,7 +998,10 @@ describe('Prompt 020 production lobby-to-Team-Phase composition', () => {
         heartbeatAt < Date.parse(turnOnePhase.openAirspaceEndsAt);
         heartbeatAt += 30_000) {
         vi.setSystemTime(new Date(heartbeatAt));
-        await refreshPresence.run(request({ sessionId: composition.sessionId }, composition.ownerUid));
+        await refreshPresence.run(request({
+          sessionId: composition.sessionId,
+          instanceId: composition.startRequest.instanceId,
+        }, composition.ownerUid));
       }
       vi.setSystemTime(new Date(Date.parse(turnOnePhase.openAirspaceEndsAt) + 1));
       const advanceRequests = [

@@ -140,8 +140,10 @@ import {
   setFacilitatorResponsibility,
   setFleetRedAlert,
   unlockPressAirspace,
+  refreshPresence,
 } from './index';
 import { GM_ACCESS_TIMEOUT_MS } from './gmAccess';
+import { PRESENCE_LEASE_MS } from './sessionLifecycle';
 
 function put(path: string, fields: StoredDocument) {
   mock.documents.set(path, { ...fields });
@@ -173,7 +175,9 @@ function instance(id: string, uid: string) {
     sessionId: 's1',
     name: id,
     deviceLabel: 'Test browser',
-    claimedAt: 'server-time',
+    connected: true,
+    claimedAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
   });
 }
 
@@ -459,7 +463,10 @@ describe('GM instance ownership', () => {
       requestId: 'responsibility-stale-target', expectedSetupRevision: 0, mode: 'share',
     }))).rejects.toMatchObject({ code: 'failed-precondition' });
 
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u1' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      uid: 'u1', connected: true,
+      lastSeenAt: expect.anything(),
+    });
     expect(read('sessions/s1/gmInstances/tablet')).toMatchObject({
       connected: false, responsibilities: [],
     });
@@ -511,7 +518,10 @@ describe('GM instance ownership', () => {
       instance: { id: 'bridge', uid: 'u1' },
     });
 
-    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({ uid: 'u1' });
+    expect(read('sessions/s1/gmInstances/bridge')).toMatchObject({
+      uid: 'u1', connected: true,
+      lastSeenAt: expect.anything(),
+    });
     expect(read('sessions/s1/players/u1')).toMatchObject({ role: 'gm' });
   });
 
@@ -773,6 +783,54 @@ describe('GM registration lock', () => {
       .resolves.toMatchObject({ turnPhase: expect.objectContaining({
         airspace: expect.objectContaining({ pressAccess: true }),
       }) });
+  });
+
+  it('renews and projects only the browser heartbeat that is still present', async () => {
+    vi.useFakeTimers();
+    const startedAt = new Date('2026-09-12T14:00:00.000Z');
+    vi.setSystemTime(startedAt);
+    try {
+      session({ phase: 'active', currentTurn: 1 });
+      player('u1', { role: 'gm' });
+      instance('bridge', 'u1');
+      instance('old-tab', 'u1');
+      put('sessions/s1/gmInstances/bridge', {
+        ...read('sessions/s1/gmInstances/bridge'),
+        lastSeenAt: { toMillis: () => startedAt.getTime() + PRESENCE_LEASE_MS - 1 },
+      });
+      put('sessions/s1/gmInstances/old-tab', {
+        ...read('sessions/s1/gmInstances/old-tab'),
+        lastSeenAt: { toMillis: () => startedAt.getTime() },
+      });
+
+      vi.setSystemTime(startedAt.getTime() + PRESENCE_LEASE_MS + 1);
+      await expect(refreshPresence.run(request({ sessionId: 's1', instanceId: 'bridge' })))
+        .resolves.toEqual({ sessionId: 's1' });
+      expect(read('sessions/s1/gmInstances/bridge')?.lastSeenAt).toEqual(
+        expect.objectContaining({ toMillis: expect.any(Function) }),
+      );
+      // The lightweight callable mock represents server timestamps as a
+      // Timestamp-like object; clear the shared player marker so its
+      // production instanceof check remains faithful to a resolved Firestore
+      // Timestamp while the instance lease stays independently refreshed.
+      put('sessions/s1/players/u1', { ...read('sessions/s1/players/u1'), lastSeenAt: undefined });
+
+      await expect(setFleetRedAlert.run(request({
+        sessionId: 's1', active: true, expectedRevision: 0,
+      }))).rejects.toMatchObject({ code: 'permission-denied' });
+      await expect(setFleetRedAlert.run(request({
+        sessionId: 's1', active: true, expectedRevision: 0, instanceId: 'old-tab',
+      }))).rejects.toMatchObject({ code: 'permission-denied' });
+      await expect(setFleetRedAlert.run(request({
+        sessionId: 's1', active: true, expectedRevision: 0, instanceId: 'bridge',
+      }))).resolves.toMatchObject({ active: true, revision: 1 });
+
+      await expect(listGmInstances.run(request({ sessionId: 's1' }))).resolves.toMatchObject({
+        instances: [expect.objectContaining({ id: 'bridge' })],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('freezes registration mutations during endgame evaluation', async () => {

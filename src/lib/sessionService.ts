@@ -1188,6 +1188,9 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   const store = useSessionStore.getState();
   const session = store.session;
   if (!session) return;
+  const instanceId = store.gmInstance?.sessionId === session.id
+    ? store.gmInstance.id
+    : undefined;
   // A periodic heartbeat may safely stop while authority is stale. Explicit
   // console-role claims/releases must fail so callers cannot update local role
   // state as though the server accepted a cache-authorized mutation.
@@ -1198,14 +1201,16 @@ export async function refreshPresence(activeConsoleRoleId?: string | null): Prom
   }
   await ensureSignedIn();
   const call = httpsCallable<{
-    sessionId: string; activeConsoleRoleId?: string | null;
+    sessionId: string; activeConsoleRoleId?: string | null; instanceId?: string;
   }, { sessionId: string }>(
     functions(),
     'refreshPresence',
   );
-  await call(activeConsoleRoleId === undefined
-    ? { sessionId: session.id }
-    : { sessionId: session.id, activeConsoleRoleId });
+  await call({
+    sessionId: session.id,
+    ...(instanceId ? { instanceId } : {}),
+    ...(activeConsoleRoleId === undefined ? {} : { activeConsoleRoleId }),
+  });
 }
 
 export async function selectConsoleRole(roleId: string): Promise<void> {
@@ -2109,7 +2114,12 @@ export async function disconnectFromSession(): Promise<CommandDisposition> {
   const command: PendingCommand = {
     id: commandId(),
     kind: 'disconnectFromSession',
-    payload: { sessionId: store.session.id },
+    payload: {
+      sessionId: store.session.id,
+      ...(store.gmInstance?.sessionId === store.session.id
+        ? { instanceId: store.gmInstance.id }
+        : {}),
+    },
     createdAt: new Date().toISOString(),
   };
 

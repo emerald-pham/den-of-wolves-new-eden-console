@@ -117,7 +117,12 @@ function gm(uid = 'u1', instanceId = 'gm-1', fields: Fields = {}): void {
     connected: true,
     ...fields,
   });
-  put(`sessions/s1/gmInstances/${instanceId}`, { uid });
+  put(`sessions/s1/gmInstances/${instanceId}`, {
+    uid,
+    connected: true,
+    claimedAt: { toMillis: () => Date.now() },
+    lastSeenAt: { toMillis: () => Date.now() },
+  });
 }
 
 beforeEach(() => {

@@ -347,7 +347,10 @@ describe('claimSeat', () => {
     player('u1', { role: 'gm' });
     player('u2', { seatId: 'seat-1' });
     seat('seat-1', { status: 'claimed', holderUid: 'u2' });
-    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', connected: true,
+      claimedAt: Timestamp.fromMillis(Date.now()), lastSeenAt: Timestamp.fromMillis(Date.now()),
+    });
     const command = {
       sessionId: 's1', seatId: 'seat-1', requestId: 'release-gm-replay-authority',
       expectedSetupRevision: 0, instanceId: 'bridge', reason: 'Clear stale browser',
@@ -579,7 +582,10 @@ describe('releaseSeat', () => {
     player('u1', { role: 'gm' });
     player('u2', { seatId: 'seat-1' });
     seat('seat-1', { status: 'claimed', holderUid: 'u2' });
-    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', connected: true,
+      claimedAt: Timestamp.fromMillis(Date.now()), lastSeenAt: Timestamp.fromMillis(Date.now()),
+    });
 
     await releaseSeat.run(request({
       sessionId: 's1', seatId: 'seat-1', requestId: 'release-by-gm', expectedSetupRevision: 0,
@@ -610,7 +616,10 @@ describe('releaseSeat', () => {
     expect(read('sessions/s1/seats/seat-1')).toMatchObject({ status: 'claimed', holderUid: 'u1' });
 
     put('sessions/s1/players/u1', { uid: 'u1', role: 'gm', connected: true, seatId: null });
-    put('sessions/s1/gmInstances/bridge', { uid: 'u1' });
+    put('sessions/s1/gmInstances/bridge', {
+      uid: 'u1', connected: true,
+      claimedAt: Timestamp.fromMillis(Date.now()), lastSeenAt: Timestamp.fromMillis(Date.now()),
+    });
     await expect(releaseSeat.run(request({
       sessionId: 's1', seatId: 'seat-1', requestId: 'release-missing-holder', expectedSetupRevision: 0,
       instanceId: 'bridge', reason: 'Remove stale holder',

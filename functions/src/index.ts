@@ -724,6 +724,15 @@ function isActivePlayer(player: DocumentSnapshot): boolean {
     !isPresenceStale(lastSeenAt.toDate(), new Date());
 }
 
+/** A GM browser owns its own lease; legacy records use their immutable claim time. */
+function gmInstanceLeaseTimestamp(instance: Pick<DocumentSnapshot, 'get'>): string | number | Date | null | undefined {
+  // An absent timestamp is an old, unverifiable claim. The empty sentinel is
+  // intentional: isLiveSetupGm treats undefined as a legacy-live value, so a
+  // malformed/missing lease must reach its invalid-timestamp path instead.
+  const value = instance.get('lastSeenAt') ?? instance.get('claimedAt');
+  return (value === undefined ? '' : value) as string | number | Date | null | undefined;
+}
+
 /** Return only GM browser claims that can currently carry facilitator authority. */
 function liveGmInstanceDocs(
   instances: readonly DocumentSnapshot[],
@@ -742,7 +751,7 @@ function liveGmInstanceDocs(
       id: instance.id,
       uid,
       connected: instance.get('connected') !== false,
-      lastSeenAt: instance.get('lastSeenAt') ?? owner.get('lastSeenAt'),
+      lastSeenAt: gmInstanceLeaseTimestamp(instance),
     });
   });
 }
@@ -758,7 +767,7 @@ function isLiveGmInstance(
     id: typeof instance.id === 'string' ? instance.id : '',
     uid,
     connected: instance.get('connected') !== false,
-    lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+    lastSeenAt: gmInstanceLeaseTimestamp(instance),
   });
 }
 
@@ -2246,7 +2255,7 @@ async function requireFacilitatorInstance(
       id: instance.id,
       uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
       connected: instance.get('connected') !== false,
-      lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+      lastSeenAt: gmInstanceLeaseTimestamp(instance),
     }
     : null;
   if (
@@ -2669,7 +2678,7 @@ export const startGame = onCall<{
       .map((player) => ({ uid: player.id, seatId: typeof player.get('seatId') === 'string' ? player.get('seatId') : null }));
     const liveGmInstances = instances.docs.map((instance) => {
       const owner = connectedPlayerDocs.find((player) => player.id === instance.get('uid'));
-      const storedLastSeen = instance.get('lastSeenAt') ?? owner?.get('lastSeenAt');
+      const storedLastSeen = gmInstanceLeaseTimestamp(instance);
       return {
         id: instance.id,
         uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
@@ -4550,6 +4559,8 @@ export const claimGmInstance = onCall<{
       sessionId: claim.sessionId,
       name: claim.name,
       deviceLabel: claim.deviceLabel,
+      connected: true,
+      lastSeenAt: FieldValue.serverTimestamp(),
       ...(firstActiveGm
         ? { responsibilities: ['main', 'assistant'], responsibility: 'main' }
         : {}),
@@ -4832,7 +4843,7 @@ export const setPressEnabled = onCall<{
         id: instance.id,
         uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
         connected: instance.get('connected') !== false,
-        lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+        lastSeenAt: gmInstanceLeaseTimestamp(instance),
       }
       : null;
     if (
@@ -5724,7 +5735,7 @@ export const setWolfAttackWindow = onCall<{
         id: instance.id,
         uid: typeof instance.get('uid') === 'string' ? instance.get('uid') as string : '',
         connected: instance.get('connected') !== false,
-        lastSeenAt: instance.get('lastSeenAt') ?? player.get('lastSeenAt'),
+        lastSeenAt: gmInstanceLeaseTimestamp(instance),
       }
       : null;
     if (
@@ -6117,12 +6128,15 @@ export const getSessionPresence = onCall<{ sessionId?: string }>(async (request)
 
 /** Renew the short server-side lease that distinguishes live devices from ghosts. */
 export const refreshPresence = onCall<{
-  sessionId?: string; activeConsoleRoleId?: string | null;
+  sessionId?: string; activeConsoleRoleId?: string | null; instanceId?: string;
 }>(async (request) => {
   const uid = requireUid(request.auth);
-  const { sessionId } = requireSessionRequest(request.data ?? {});
+  const { sessionId, instanceId } = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+  const instanceRef = instanceId
+    ? db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`)
+    : undefined;
   const membershipRef = db.doc(`activeMemberships/${uid}`);
   const pressHoldersRef = db.collection(`sessions/${sessionId}/players`)
     .where('activeConsoleRoleId', '==', 'press-officer');
@@ -6138,9 +6152,10 @@ export const refreshPresence = onCall<{
       ? db.collection(`sessions/${sessionId}/players`)
         .where('activeConsoleRoleId', '==', requestedRoleId)
       : null;
-    const [player, session, holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
+    const [player, session, instance, holders, pressHolders, wolfSecret, players, secrets, census] = await Promise.all([
       tx.get(playerRef),
       tx.get(sessionRef),
+      instanceRef ? tx.get(instanceRef) : null,
       roleHolders ? tx.get(roleHolders) : null,
       tx.get(pressHoldersRef),
       tx.get(wolfSecretRef),
@@ -6152,6 +6167,9 @@ export const refreshPresence = onCall<{
       throw new HttpsError('permission-denied', 'Reconnect to the session first.');
     }
     if (!session.exists) throw new HttpsError('not-found', 'No such session.');
+    if (instanceId && (!instance || !isLiveGmInstance(instance, player, uid))) {
+      throw new HttpsError('permission-denied', 'This GM instance is no longer active.');
+    }
     const presenceUpdate: Record<string, unknown> = {
       lastSeenAt: FieldValue.serverTimestamp(),
     };
@@ -6272,6 +6290,12 @@ export const refreshPresence = onCall<{
       );
     }
     tx.update(playerRef, presenceUpdate);
+    if (instanceId && instanceRef) {
+      tx.update(instanceRef, {
+        connected: true,
+        lastSeenAt: FieldValue.serverTimestamp(),
+      });
+    }
     if (pressHolderUidUpdate !== undefined) {
       tx.update(sessionRef, {
         pressHolderUid: pressHolderUidUpdate,
@@ -6284,9 +6308,9 @@ export const refreshPresence = onCall<{
 });
 
 /** Mark this identity disconnected and start retention on a transition to empty. */
-export const disconnectFromSession = onCall<{ sessionId?: string }>(async (request) => {
+export const disconnectFromSession = onCall<{ sessionId?: string; instanceId?: string }>(async (request) => {
   const uid = requireUid(request.auth);
-  const { sessionId } = requireSessionRequest(request.data ?? {});
+  const { sessionId, instanceId } = requireAirspaceRequest(request.data ?? {});
   const sessionRef = db.doc(`sessions/${sessionId}`);
   const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
   const membershipRef = db.doc(`activeMemberships/${uid}`);
@@ -6311,6 +6335,25 @@ export const disconnectFromSession = onCall<{ sessionId?: string }>(async (reque
     ]);
     if (!sessionDoc.exists || !player.exists) {
       throw new HttpsError('permission-denied', 'You are no longer in that session.');
+    }
+    const ownsRequestedInstance = instanceId !== undefined && ownedInstances.docs.some((instance) =>
+      instance.id === instanceId && instance.get('uid') === uid);
+    const liveSibling = instanceId !== undefined && ownedInstances.docs.some((instance) =>
+      instance.id !== instanceId && isLiveGmInstance(instance, player, uid));
+    if (instanceId !== undefined && liveSibling) {
+      if (ownsRequestedInstance) {
+        tx.delete(db.doc(`sessions/${sessionId}/gmInstances/${instanceId}`));
+      }
+      return;
+    }
+    // A legacy GM client may still omit its browser ID. If more than one live
+    // browser exists, that ambiguous request cannot safely disconnect the
+    // player or delete the sibling claims; the exact-ID client path above will
+    // retire only the requesting browser.
+    const liveInstances = ownedInstances.docs.filter((instance) =>
+      isLiveGmInstance(instance, player, uid));
+    if (instanceId === undefined && player.get('role') === 'gm' && liveInstances.length > 1) {
+      return;
     }
     const wasConnected = player.get('connected') === true;
     tx.update(playerRef, {
@@ -6388,6 +6431,39 @@ export const deleteInactiveSessions = onSchedule('0 * * * *', async () => {
 /** Expire devices that vanished without getting a chance to disconnect cleanly. */
 export const expireStalePlayers = onSchedule('* * * * *', async () => {
   const cutoff = Timestamp.fromMillis(Date.now() - PRESENCE_LEASE_MS);
+
+  // GM leases are browser-scoped. A shared player heartbeat must never keep a
+  // vanished sibling instance alive, so expire those records independently
+  // before applying the player-level cleanup below.
+  const staleGmCandidates = await db.collectionGroup('gmInstances')
+    .where('connected', '==', true)
+    .get();
+  for (const candidate of staleGmCandidates.docs) {
+    const sessionId = candidate.get('sessionId');
+    const uid = candidate.get('uid');
+    if (typeof sessionId !== 'string' || typeof uid !== 'string') continue;
+    const instanceRef = db.doc(`sessions/${sessionId}/gmInstances/${candidate.id}`);
+    const playerRef = db.doc(`sessions/${sessionId}/players/${uid}`);
+    const instances = db.collection(`sessions/${sessionId}/gmInstances`);
+    await db.runTransaction(async (tx) => {
+      const [instance, player, ownedInstances] = await Promise.all([
+        tx.get(instanceRef),
+        tx.get(playerRef),
+        tx.get(instances.where('uid', '==', uid)),
+      ]);
+      if (
+        !instance.exists || instance.get('uid') !== uid || instance.get('connected') !== true ||
+        isLiveGmInstance(instance, player, uid)
+      ) return;
+      tx.delete(instanceRef);
+      const liveSibling = ownedInstances.docs.some((sibling) =>
+        sibling.id !== instance.id && isLiveGmInstance(sibling, player, uid));
+      if (!liveSibling && isActivePlayer(player) && player.get('role') === 'gm') {
+        tx.update(playerRef, { role: 'player' });
+      }
+    });
+  }
+
   const stale = await db.collectionGroup('players')
     .where('connected', '==', true)
     .where('lastSeenAt', '<=', cutoff)
