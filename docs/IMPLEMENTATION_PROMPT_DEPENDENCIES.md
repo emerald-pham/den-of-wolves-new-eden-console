@@ -282,7 +282,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 171 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-171 | M3;M5 | Complete AEGIS identity and maintenance lane. |
 | 172 | PRESERVE | missing | 130;161;162 | none | none | none | none | none | none | none | E-AUDIT-172 | M3;M5 | Resolve AEGIS Armoured Hull I and II. |
 | 173 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-173 | M3;M5 | Resolve AEGIS Storage. |
-| 174 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-174 | M3;M5 | Resolve the AEGIS Reactor. |
+| 174 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-174;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the AEGIS Reactor. |
 | 175 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-175 | M3;M5 | Resolve Shuttle Bay Zeta. |
 | 176 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-176 | M3;M5 | Resolve Shuttle Bay Omega. |
 | 177 | PRESERVE | done | none | none | none | none | none | none | none | none | none | M3;M5 | Audit the AEGIS Jump Drive. |
@@ -294,7 +294,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 183 | PRESERVE | missing | 161;162 | none | none | none | none | none | none | none | E-AUDIT-183 | M3;M5 | Gate Dione by roster. |
 | 184 | PRESERVE | missing | 116;118 | none | none | none | none | none | none | none | E-AUDIT-184 | M3;M5 | Resolve Dione rations and thresholds. |
 | 185 | PRESERVE | missing | 115;183 | none | none | none | none | none | none | none | E-AUDIT-185 | M3;M5 | Resolve Dione Storage. |
-| 186 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-186 | M3;M5 | Resolve the Dione Reactor. |
+| 186 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-186;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Dione Reactor. |
 | 187 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-187 | M3;M5 | Resolve the Dione Shuttle Bay. |
 | 188 | NEW | missing | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-188 | M3;M5 | Resolve Dione Hydroponics. |
 | 189 | NEW | missing | 122;125;183 | none | none | none | none | none | none | none | E-AUDIT-189 | M3;M5 | Resolve Dione Water Reclamation. |
@@ -306,7 +306,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 193b | NEW | missing | 166;183 | none | none | none | none | none | none | none | E-AUDIT-193B | M3;M5 | Complete the President workspace. |
 | 194 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-194 | M3;M5 | Complete Icebreaker identity and maintenance lane. |
 | 195 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-195 | M3;M5 | Resolve Icebreaker Storage. |
-| 196 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-196 | M3;M5 | Resolve the Icebreaker Reactor. |
+| 196 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-196;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Icebreaker Reactor. |
 | 197 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-197 | M3;M5 | Resolve the Icebreaker Shuttle Bay. |
 | 198 | NEW | missing | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-198 | M3;M5 | Resolve Icebreaker Hydroponics. |
 | 199 | NEW | missing | 114;122;125;194 | none | none | none | none | none | none | none | E-AUDIT-199 | M3;M5 | Resolve Icebreaker Water Reclamation. |
@@ -318,7 +318,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 203b | NEW | missing | 166;194;265;388 | none | none | none | none | none | none | none | E-AUDIT-203B | M3;M5 | Complete the Miner workspace. |
 | 204 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-204 | M3;M5 | Complete Shepherd identity and maintenance lane. |
 | 205 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-205 | M3;M5 | Resolve Shepherd Storage. |
-| 206 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-206 | M3;M5 | Resolve the Shepherd Reactor. |
+| 206 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-206;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Shepherd Reactor. |
 | 207 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-207 | M3;M5 | Resolve the Shepherd Shuttle Bay. |
 | 208 | NEW | missing | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-208 | M3;M5 | Resolve Shepherd Water Reclamation. |
 | 209 | NEW | missing | 122;125;204 | none | none | none | none | none | none | none | E-AUDIT-209 | M3;M5 | Resolve both Shepherd Advanced Hydroponics consoles. |
@@ -332,7 +332,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 215b | NEW | missing | 166;204;211;321 | none | none | none | none | none | none | none | E-AUDIT-215B | M3;M5 | Complete the Scientist workspace. |
 | 216 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-216 | M3;M5 | Complete Quellon identity and maintenance lane. |
 | 217 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-217 | M3;M5 | Resolve Quellon Storage. |
-| 218 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218 | M3;M5 | Resolve the Quellon Reactor. |
+| 218 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-218;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Quellon Reactor. |
 | 219 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-219 | M3;M5 | Resolve the Quellon Shuttle Bay. |
 | 220 | NEW | missing | 122;125;216 | none | none | none | none | none | none | none | E-AUDIT-220 | M3;M5 | Resolve Quellon Hydroponics. |
 | 221 | NEW | missing | 122;125;216 | none | none | none | none | none | none | none | E-AUDIT-221 | M3;M5 | Resolve both Water Production consoles. |
@@ -342,7 +342,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | 223b | NEW | missing | 166;216;269;321 | none | none | none | none | none | none | none | E-AUDIT-223B | M3;M5 | Complete the Explorer workspace. |
 | 224 | PRESERVE | missing | 114;161;162 | none | none | none | none | none | none | none | E-AUDIT-224 | M3;M5 | Complete Refinery 124 identity and maintenance lane. |
 | 225 | PRESERVE | missing | 115 | none | none | none | none | none | none | none | E-AUDIT-225 | M3;M5 | Resolve Refinery 124 Storage. |
-| 226 | PRESERVE | missing | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226 | M3;M5 | Resolve the Refinery 124 Reactor. |
+| 226 | PRESERVE | done | 122;125 | none | none | none | none | none | none | none | E-AUDIT-226;E-VESSEL-REACTORS-VERIFIED | M3;M5 | Resolve the Refinery 124 Reactor. |
 | 227 | PRESERVE | missing | 127;361 | none | none | none | none | none | none | none | E-AUDIT-227 | M3;M5 | Resolve the Refinery 124 Shuttle Bay. |
 | 228 | NEW | missing | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-228 | M3;M5 | Resolve Refinery 124 Hydroponics. |
 | 229 | NEW | missing | 122;125;224 | none | none | none | none | none | none | none | E-AUDIT-229 | M3;M5 | Resolve Refinery 124 Water Reclamation. |
@@ -1469,6 +1469,7 @@ Numeric ranges are inclusive and fail closed: every expanded member must be cano
 | E-128-VERIFIED | evidence | 128 -> 103 | functions/src/turnTransition.ts; functions/src/index.ts advanceTurnInTransaction; functions/src/maintenanceCallable.test.ts | Server turn transitions expire the complete stored maintenance/fuel maps independently of resource-owner connection state. Existing callable tests verify charge/fuel expiry, preserve unrelated state, reject stale advancement, replay terminal receipts without writes, and serialize phase observers. The 40-test maintenance callable suite passed on 2026-09-12; this closes existing behavior evidence only. |
 | E-130-VERIFIED | evidence | 130 | functions/src/shipDamage.ts; functions/src/shipDamage.test.ts; functions/src/index.ts addShipDamage; functions/src/shipDamageCallable.test.ts; firestore.rules; tests/rules/firestore.rules.test.ts | Existing server resolver and addShipDamage transaction select, apply and log a permitted result without publishing future card order. Tests cover damage effects, recycling, empty decks, invalid decks, authorization and retry-stable randomness/event identity. Verified 34 damage tests and 66 emulator-backed rules tests on 2026-09-12; rules explicitly deny strangers and all client writes to draw results. |
 | E-163-VERIFIED | evidence | 163 | functions/src/resources.ts; functions/src/resources.test.ts; functions/src/sessionComposition.ts; functions/src/sessionComposition.test.ts; functions/src/index.ts; src/data/resources.ts; src/data/resources.test.ts; src/lib/shipStateProjection.test.ts | Existing production composition and counter tests prove expansion inventory creation, removal on return to base mode, and denial of inactive Scrap mutations. Resource allowlists keep Scrap off other vessels, and join/resume inventories use active-vessel filtering. Verified 28 existing resource/composition/projection tests on 2026-09-12; no new runtime release. |
+| E-VESSEL-REACTORS-VERIFIED | evidence | 174;186;196;206;218;226 -> 122;123;125 | functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/shipDamage.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/data/vessels/ | The existing shared Reactor implementation consumes per-vessel capacity/penalty rules, known system IDs and server-read upgrades. Registered Reactor damage-card identities agree with the damage resolver; client capacity presentation agrees with server values. Reused the unchanged 2026-09-12 seven-vessel capacity matrix and 40 maintenance callable tests, all passing; this records existing production paths without a new feature release. |
 <!-- END GENERATED PROMPT CATALOG: dependency -->
 
 ## Shared integrity gate

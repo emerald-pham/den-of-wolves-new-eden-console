@@ -17,9 +17,9 @@ session can resume at the first unresolved acceptance.
 <!-- Generated from docs/implementation-prompts.json; edit the catalog and run the view generator. -->
 ## Progress
 
-**139 / 747 prompts complete (18.61%)**
+**145 / 747 prompts complete (19.41%)**
 
-Status breakdown: **139 done · 7 partial · 601 missing**.
+Status breakdown: **145 done · 7 partial · 595 missing**.
 
 Active prompt: **none**
 
@@ -597,7 +597,7 @@ release classification and evidence.
 | 171 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 172 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 173 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 174 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 174 | done | non-feature | — | The existing shared maintenance resolver implements the AEGIS Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 175 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 176 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 177 | done | feature | 0.3.17 | Focused domain/callable evidence preserves AEGIS's printed 2/3/6 costs, upgrade discount, damaged-drive roll thresholds, charge/fuel bounds, route lockout, once-per-turn denial, retry-stable server roll, atomic transition, and navigation audit; emergency jumps and broader concurrency remain out of scope. |
@@ -609,7 +609,7 @@ release classification and evidence.
 | 183 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 184 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 185 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 186 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 186 | done | non-feature | — | The existing shared maintenance resolver implements the Dione Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 187 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 188 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 189 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -621,7 +621,7 @@ release classification and evidence.
 | 193b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 194 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 195 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 196 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 196 | done | non-feature | — | The existing shared maintenance resolver implements the Icebreaker Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 197 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 198 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 199 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -633,7 +633,7 @@ release classification and evidence.
 | 203b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 204 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 205 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 206 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 206 | done | non-feature | — | The existing shared maintenance resolver implements the Shepherd Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 207 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 208 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 209 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -647,7 +647,7 @@ release classification and evidence.
 | 215b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 216 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 217 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 218 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 218 | done | non-feature | — | The existing shared maintenance resolver implements the Quellon Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 219 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 220 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 221 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
@@ -657,7 +657,7 @@ release classification and evidence.
 | 223b | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 224 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 225 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
-| 226 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
+| 226 | done | non-feature | — | The existing shared maintenance resolver implements the Refinery 124 Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change. |
 | 227 | missing | non-feature | — | Planned [PRESERVE] prompt; no production-path evidence has been recorded yet. |
 | 228 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |
 | 229 | missing | non-feature | — | Planned [NEW] prompt; no production-path evidence has been recorded yet. |

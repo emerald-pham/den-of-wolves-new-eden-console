@@ -4242,6 +4242,13 @@
       "language": "Existing production composition and counter tests prove expansion inventory creation, removal on return to base mode, and denial of inactive Scrap mutations. Resource allowlists keep Scrap off other vessels, and join/resume inventories use active-vessel filtering. Verified 28 existing resource/composition/projection tests on 2026-09-12; no new runtime release.",
       "source": "functions/src/resources.ts; functions/src/resources.test.ts; functions/src/sessionComposition.ts; functions/src/sessionComposition.test.ts; functions/src/index.ts; src/data/resources.ts; src/data/resources.test.ts; src/lib/shipStateProjection.test.ts",
       "type": "evidence"
+    },
+    {
+      "direction": "174;186;196;206;218;226 -> 122;123;125",
+      "id": "E-VESSEL-REACTORS-VERIFIED",
+      "language": "The existing shared Reactor implementation consumes per-vessel capacity/penalty rules, known system IDs and server-read upgrades. Registered Reactor damage-card identities agree with the damage resolver; client capacity presentation agrees with server values. Reused the unchanged 2026-09-12 seven-vessel capacity matrix and 40 maintenance callable tests, all passing; this records existing production paths without a new feature release.",
+      "source": "functions/src/maintenance.ts; functions/src/maintenance.test.ts; functions/src/shipDamage.ts; functions/src/index.ts runMaintenance; functions/src/maintenanceCallable.test.ts; src/components/MaintenanceSystems.tsx; src/data/vessels/",
+      "type": "evidence"
     }
   ],
   "plan": {
@@ -8666,8 +8673,8 @@
         "acceptance": "10♥ charges five eligible consoles with exact upgrade and damage modifiers.",
         "title": "Resolve the AEGIS Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-174",
+      "description": "The existing shared maintenance resolver implements the AEGIS Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-174;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -8678,7 +8685,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -8944,8 +8951,8 @@
         "acceptance": "9♣ charges four eligible consoles with its printed modifiers.",
         "title": "Resolve the Dione Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-186",
+      "description": "The existing shared maintenance resolver implements the Dione Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-186;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -8956,7 +8963,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9220,8 +9227,8 @@
         "acceptance": "9♠ charges four eligible consoles with exact modifiers.",
         "title": "Resolve the Icebreaker Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-196",
+      "description": "The existing shared maintenance resolver implements the Icebreaker Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-196;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -9232,7 +9239,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9496,8 +9503,8 @@
         "acceptance": "2♠ charges three, four upgraded, and loses two when damaged.",
         "title": "Resolve the Shepherd Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-206",
+      "description": "The existing shared maintenance resolver implements the Shepherd Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-206;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -9508,7 +9515,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -9818,8 +9825,8 @@
         "acceptance": "2♣ charges three, four upgraded, and loses two when damaged.",
         "title": "Resolve the Quellon Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-218",
+      "description": "The existing shared maintenance resolver implements the Quellon Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-218;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -9830,7 +9837,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
@@ -10048,8 +10055,8 @@
         "acceptance": "2♦ charges four eligible consoles with its printed modifiers.",
         "title": "Resolve the Refinery 124 Reactor."
       },
-      "description": "Planned [PRESERVE] prompt; no production-path evidence has been recorded yet.",
-      "evidenceIds": "E-AUDIT-226",
+      "description": "The existing shared maintenance resolver implements the Refinery 124 Reactor through its vessel-specific capacity and damage modifiers, authoritative completed upgrades, and eligible-console checks. Its Reactor damage-card identity matches the registered vessel system. The seven-vessel capacity matrix covers exact nominal/upgraded/damaged/combined boundaries and rejects excess selections; the 40-test production maintenance callable suite covers authoritative inputs and transaction persistence. These existing checks passed on 2026-09-12; this is evidence reconciliation with no runtime change.",
+      "evidenceIds": "E-AUDIT-226;E-VESSEL-REACTORS-VERIFIED",
       "hardContract": "none",
       "hardMilestone": "none",
       "hardPromptPrerequisites": "122;125",
@@ -10060,7 +10067,7 @@
       "releases": [],
       "section": "Core ships, economies, and role workspaces (Prompts 161–233)",
       "sequenceRules": "none",
-      "status": "missing",
+      "status": "done",
       "tag": "PRESERVE"
     },
     {
